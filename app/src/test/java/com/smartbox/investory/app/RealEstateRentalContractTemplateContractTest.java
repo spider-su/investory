@@ -28,6 +28,7 @@ class RealEstateRentalContractTemplateContractTest {
             "Monthly net income",
             "Income yield",
             "summary.annualEconomics.grossYield",
+            "summary.annualEconomics.netYieldAfterTax",
             "id=\"rental-contracts\"",
             "data-show-add-contract",
             "<details class=\"iv-rental-contract\"",
@@ -44,7 +45,6 @@ class RealEstateRentalContractTemplateContractTest {
             "Delete this contract permanently? Its terms will be removed and historical calculations may change.",
             "Copy latest contract",
             "End the current contract the day before this contract starts",
-            "Use property default",
             "Paid by landlord",
             "Paid by tenant",
             "tenantName",
@@ -53,11 +53,17 @@ class RealEstateRentalContractTemplateContractTest {
         .doesNotContain("iv-contract__end-form", ">End<", "Monthly income</div>");
 
     assertThat(occurrences(html, "<details class=\"card mb-4 iv-property-settings\"")).isOne();
-    assertThat(occurrences(html, "<details class=\"card mb-4 iv-property-advanced\"")).isOne();
     assertThat(html.indexOf("<h2 class=\"card-title mb-1\">Rental contracts</h2>"))
         .isLessThan(html.indexOf("<span class=\"card-title mb-0\">Property settings</span>"));
-    assertThat(html.indexOf("<span class=\"card-title mb-0\">Property settings</span>"))
-        .isLessThan(html.indexOf("<span class=\"card-title mb-0\">Advanced planning</span>"));
+    assertThat(html)
+        .contains(
+            "name=\"acquisitionDate\"",
+            "th:value=\"${asset.acquisitionDate}\"",
+            "name=\"landRegisterNumber\"",
+            "th:value=\"${asset.landRegisterNumber}\"",
+            "name=\"notes\"",
+            "th:text=\"${asset.notes}\"",
+            "moneyInput(asset.value)");
   }
 
   @DisplayName("page Local Script And Responsive Css Keep Accordion Accessible And Scoped")
@@ -95,14 +101,13 @@ class RealEstateRentalContractTemplateContractTest {
             "th:value=\"${form?.tenantName}\"",
             "th:value=\"${form?.tenantEmail}\"",
             "th:value=\"${form?.tenantPhone}\"",
-            "form?.rentFrequency?.name()",
-            "form?.rentalTaxOwnership == null")
+            "form?.rentFrequency?.name()")
         .doesNotContain(
             "${form.tenantName}",
             "${form.tenantEmail}",
             "${form.tenantPhone}",
             "${form.rentFrequency.name()}",
-            "${form.rentalTaxOwnership");
+            "rentalTaxOwnership");
   }
 
   private static int occurrences(String value, String token) {

@@ -1,137 +1,76 @@
 package com.smartbox.investory.longterm.application.service;
 
-import com.smartbox.investory.longterm.api.model.*;
-import com.smartbox.investory.longterm.infrastructure.asset.*;
-import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
-import java.time.Clock;
+import com.smartbox.investory.longterm.api.model.AssetNotFoundException;
+import com.smartbox.investory.longterm.infrastructure.bond.BondRepository;
+import com.smartbox.investory.longterm.infrastructure.cash.CashReserveRepository;
+import com.smartbox.investory.longterm.infrastructure.personal.PersonalAssetRepository;
+import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateRepository;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-/** Owns active/inactive lifecycle history for long-term assets. */
+/** Applies unambiguous subtype changes and persists real-estate archive intervals atomically. */
 @Service
-@RequiredArgsConstructor
-@Transactional
-public class LongTermAssetLifecycleService {
-  private final LongTermAssetRepository assets;
-  private final LongTermAssetLifecyclePeriodRepository periods;
-  private final Clock clock;
+@org.springframework.transaction.annotation.Transactional
+class LongTermAssetLifecycleService {
+  private final BondRepository bonds;
+  private final RealEstateRepository realEstates;
+  private final CashReserveRepository cashReserves;
+  private final PersonalAssetRepository personalAssets;
+  private final com.smartbox.investory.longterm.infrastructure.lifecycle
+          .LongTermAssetHistoryRepository
+      history;
+  private final java.time.Clock clock;
 
-  public void archive(Long portfolioId, Long assetId) {
-    LongTermAssetEntity asset = owned(portfolioId, assetId);
-    if (!asset.isActive()) return;
-    LocalDate date = LocalDate.now(clock);
-    closeOpenPeriod(asset, date.minusDays(1));
-    asset.setActive(false);
-    asset.setArchivedAt(date);
-    assets.save(asset);
+  LongTermAssetLifecycleService(
+      BondRepository bonds,
+      RealEstateRepository realEstates,
+      CashReserveRepository cashReserves,
+      PersonalAssetRepository personalAssets,
+      com.smartbox.investory.longterm.infrastructure.lifecycle.LongTermAssetHistoryRepository
+          history,
+      java.time.Clock clock) {
+    this.bonds = bonds;
+    this.realEstates = realEstates;
+    this.cashReserves = cashReserves;
+    this.personalAssets = personalAssets;
+    this.history = history;
+    this.clock = clock;
   }
 
-  public void reactivate(Long portfolioId, Long assetId) {
-    LongTermAssetEntity asset = owned(portfolioId, assetId);
-    if (asset.isActive()) return;
-    LocalDate date = LocalDate.now(clock);
-    LongTermAssetLifecyclePeriodEntity sameDay =
-        periods.findAllByAssetIdOrderByActiveFrom(assetId).stream()
-            .filter(period -> date.equals(period.getActiveFrom()))
-            .reduce((first, second) -> second)
-            .orElse(null);
-    if (sameDay != null) {
-      sameDay.setActiveTo(null);
-      periods.save(sameDay);
+  void changeArchive(Long portfolioId, Long assetId, LocalDate archivedAt) {
+    var bond = bonds.findByIdAndPortfolioId(assetId, portfolioId);
+    var estate = realEstates.findByIdAndPortfolioId(assetId, portfolioId);
+    var cash = cashReserves.findByIdAndPortfolioId(assetId, portfolioId);
+    var personal = personalAssets.findByIdAndPortfolioId(assetId, portfolioId);
+    long matches =
+        java.util.stream.Stream.of(bond, estate, cash, personal)
+            .filter(java.util.Optional::isPresent)
+            .count();
+    if (matches == 0) throw new AssetNotFoundException(portfolioId, assetId);
+    if (matches != 1) throw new IllegalStateException("Ambiguous Long-Term asset ID " + assetId);
+    if (bond.isPresent()) {
+      bond.get().setArchivedAt(archivedAt);
+      bonds.save(bond.get());
+    } else if (estate.isPresent()) {
+      var row = estate.get();
+      LocalDate previous = row.getArchivedAt();
+      if ((previous == null) == (archivedAt == null)) return;
+      LocalDate today = LocalDate.now(clock);
+      if (archivedAt != null
+          && row.getAcquisitionDate() != null
+          && archivedAt.isBefore(row.getAcquisitionDate()))
+        throw new IllegalArgumentException("Archive cannot precede acquisition");
+      if (previous != null && today.isBefore(previous))
+        throw new IllegalArgumentException("Reactivation cannot precede archive");
+      history.transition(assetId, "REAL_ESTATE", previous, archivedAt, today);
+      row.setArchivedAt(archivedAt);
+      realEstates.save(row);
+    } else if (cash.isPresent()) {
+      cash.get().setArchivedAt(archivedAt);
+      cashReserves.save(cash.get());
     } else {
-      LongTermAssetLifecyclePeriodEntity period = new LongTermAssetLifecyclePeriodEntity();
-      period.setAssetId(assetId);
-      period.setActiveFrom(date);
-      periods.save(period);
+      personal.get().setArchivedAt(archivedAt);
+      personalAssets.save(personal.get());
     }
-    asset.setActive(true);
-    asset.setArchivedAt(null);
-    assets.save(asset);
-  }
-
-  public void ensureInitialPeriod(LongTermAssetEntity asset) {
-    if (asset.getId() == null
-        || !periods.findAllByAssetIdOrderByActiveFrom(asset.getId()).isEmpty()) return;
-    LongTermAssetLifecyclePeriodEntity period = new LongTermAssetLifecyclePeriodEntity();
-    period.setAssetId(asset.getId());
-    period.setActiveFrom(
-        asset.getAcquisitionDate() == null ? LocalDate.now(clock) : asset.getAcquisitionDate());
-    period.setActiveTo(
-        asset.isActive()
-            ? null
-            : asset.getArchivedAt() == null
-                ? period.getActiveFrom()
-                : asset.getArchivedAt().minusDays(1));
-    periods.save(period);
-  }
-
-  public boolean activeOn(LongTermAssetEntity asset, LocalDate date) {
-    var history = periods.findAllByAssetIdOrderByActiveFrom(asset.getId());
-    return activeOn(asset, date, history);
-  }
-
-  /** Evaluates a portfolio population after one lifecycle-history query. */
-  public List<LongTermAssetEntity> activeAt(List<LongTermAssetEntity> assets, LocalDate date) {
-    if (assets.isEmpty()) return List.of();
-    Map<Long, List<LongTermAssetLifecyclePeriodEntity>> historyByAssetId =
-        periods
-            .findAllByAssetIdInOrderByAssetIdAscActiveFromAsc(
-                assets.stream().map(LongTermAssetEntity::getId).toList())
-            .stream()
-            .collect(Collectors.groupingBy(LongTermAssetLifecyclePeriodEntity::getAssetId));
-    return assets.stream()
-        .filter(
-            asset -> activeOn(asset, date, historyByAssetId.getOrDefault(asset.getId(), List.of())))
-        .toList();
-  }
-
-  private boolean activeOn(
-      LongTermAssetEntity asset, LocalDate date, List<LongTermAssetLifecyclePeriodEntity> history) {
-    if (!history.isEmpty()) {
-      // A date-only period cannot distinguish archive and reactivation on the same day.
-      // The persisted current flag is therefore authoritative for today's boundary.
-      if (date.equals(LocalDate.now(clock))) return asset.isActive();
-      return history.stream()
-          .anyMatch(
-              p -> LongTermAssetPeriodRules.activeOn(p.getActiveFrom(), p.getActiveTo(), date));
-    }
-    return asset.isActive()
-        && (asset.getAcquisitionDate() == null || !asset.getAcquisitionDate().isAfter(date))
-        && (asset.getArchivedAt() == null || asset.getArchivedAt().isAfter(date));
-  }
-
-  private void closeOpenPeriod(LongTermAssetEntity asset, LocalDate end) {
-    var open =
-        periods.findAllByAssetIdOrderByActiveFrom(asset.getId()).stream()
-            .filter(p -> p.getActiveTo() == null)
-            .reduce((first, second) -> second)
-            .orElse(null);
-    if (open == null) {
-      LongTermAssetLifecyclePeriodEntity initial = new LongTermAssetLifecyclePeriodEntity();
-      initial.setAssetId(asset.getId());
-      initial.setActiveFrom(
-          asset.getAcquisitionDate() == null || asset.getAcquisitionDate().isAfter(end)
-              ? end
-              : asset.getAcquisitionDate());
-      initial.setActiveTo(end);
-      periods.save(initial);
-    } else {
-      // Date-only lifecycle data cannot represent two distinct transitions inside one day.
-      // Collapse same-day transitions into one valid one-day period instead of producing
-      // active_to < active_from. The current active flag remains authoritative for current views.
-      open.setActiveTo(end.isBefore(open.getActiveFrom()) ? open.getActiveFrom() : end);
-      periods.save(open);
-    }
-  }
-
-  private LongTermAssetEntity owned(Long portfolioId, Long assetId) {
-    return assets
-        .findByIdAndPortfolioId(assetId, portfolioId)
-        .orElseThrow(() -> new AssetNotFoundException(portfolioId, assetId));
   }
 }

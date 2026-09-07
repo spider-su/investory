@@ -29,6 +29,21 @@ import org.mockito.Mockito;
 
 @DisplayName("Planning Currency Presentation Service")
 class PlanningCurrencyPresentationServiceTest {
+  @DisplayName("normalizes Explicit Source Currency Into Canonical Planning Currency")
+  @Test
+  void normalizesExplicitSourceCurrencyIntoCanonicalPlanningCurrency() {
+    CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
+    LocalDate date = LocalDate.of(2026, 8, 14);
+    when(rates.convertToBaseCurrency(
+            new BigDecimal("100"), CurrencyType.USD, CurrencyType.PLN, date))
+        .thenReturn(new BigDecimal("25"));
+    PlanningMoneyConversionService money =
+        new PlanningMoneyConversionService(
+            rates, Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC));
+
+    assertEquals(new BigDecimal("25"), money.toCanonical(new BigDecimal("100"), CurrencyType.PLN));
+  }
+
   @DisplayName("presents Spending Difference As Extra Capacity Or Over Limit")
   @Test
   void presentsSpendingDifferenceAsExtraCapacityOrOverLimit() {

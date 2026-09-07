@@ -56,7 +56,7 @@ contains `shortTerm`, `longTerm`, and `balanced`; each source total contains `cl
 `authoritativeValue`, `delta`, and `balanced`.
 
 Allocation and reconciliation enum values are serialized by their enum names. There are no partial
-profile endpoints; summary and planning data are separate application contracts.
+profile endpoints; the profile endpoint returns the canonical complete application read model.
 
 ### Reconciliation report
 

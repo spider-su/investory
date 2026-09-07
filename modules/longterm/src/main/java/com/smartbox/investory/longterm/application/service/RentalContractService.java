@@ -2,15 +2,13 @@ package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.model.*;
 import com.smartbox.investory.longterm.api.model.CashFlowType;
-import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.api.model.RentalContractStatusModel;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
+import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateEntity;
+import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractTermEntity;
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -34,7 +32,7 @@ public class RentalContractService {
   private static final Pattern EMAIL =
       Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", Pattern.CASE_INSENSITIVE);
 
-  private final LongTermAssetRepository assets;
+  private final RealEstateRepository realEstate;
   private final LongTermAssetRentalContractRepository contracts;
   private final Clock clock;
 
@@ -62,18 +60,7 @@ public class RentalContractService {
       LocalDate start,
       LocalDate end,
       List<RentalContractModel.Term> terms) {
-    return create(portfolioId, assetId, null, null, null, start, end, null, terms, false);
-  }
-
-  public LongTermAssetRentalContractEntity create(
-      Long portfolioId,
-      Long assetId,
-      LocalDate start,
-      LocalDate end,
-      Boolean taxPaidByTenant,
-      List<RentalContractModel.Term> terms) {
-    return create(
-        portfolioId, assetId, null, null, null, start, end, taxPaidByTenant, terms, false);
+    return create(portfolioId, assetId, null, null, null, start, end, terms, false);
   }
 
   public LongTermAssetRentalContractEntity create(
@@ -84,38 +71,10 @@ public class RentalContractService {
       String tenantPhone,
       LocalDate start,
       LocalDate end,
-      Boolean taxPaidByTenant,
       List<RentalContractModel.Term> terms,
       boolean endCurrentContractBeforeStart) {
-    return create(
-        portfolioId,
-        assetId,
-        tenantName,
-        tenantEmail,
-        tenantPhone,
-        start,
-        end,
-        null,
-        taxPaidByTenant,
-        terms,
-        endCurrentContractBeforeStart);
-  }
-
-  public LongTermAssetRentalContractEntity create(
-      Long portfolioId,
-      Long assetId,
-      String tenantName,
-      String tenantEmail,
-      String tenantPhone,
-      LocalDate start,
-      LocalDate end,
-      BigDecimal monthlyTaxBase,
-      Boolean taxPaidByTenant,
-      List<RentalContractModel.Term> terms,
-      boolean endCurrentContractBeforeStart) {
-    LongTermAssetEntity asset = requireRealEstate(portfolioId, assetId);
+    lockRealEstate(portfolioId, assetId);
     validatePeriod(start, end, null);
-    validateMonthlyTaxBase(monthlyTaxBase);
     Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
     List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
     List<LongTermAssetRentalContractEntity> all =
@@ -126,15 +85,7 @@ public class RentalContractService {
 
     var contract = new LongTermAssetRentalContractEntity();
     contract.setAssetId(assetId);
-    contract.setMonthlyTaxBase(monthlyTaxBase == null ? asset.getTaxBase() : monthlyTaxBase);
-    replaceContractState(
-        contract,
-        tenant,
-        start,
-        end,
-        taxPaidByTenant == null ? asset.isRentalTaxPaidByTenant() : taxPaidByTenant,
-        supplied,
-        null);
+    replaceContractState(contract, tenant, start, end, supplied, null);
     return contracts.save(contract);
   }
 
@@ -147,62 +98,17 @@ public class RentalContractService {
       String tenantPhone,
       LocalDate start,
       LocalDate end,
-      Boolean taxPaidByTenant,
-      List<RentalContractModel.Term> terms) {
-    return update(
-        portfolioId,
-        assetId,
-        contractId,
-        tenantName,
-        tenantEmail,
-        tenantPhone,
-        start,
-        end,
-        null,
-        taxPaidByTenant,
-        false,
-        terms);
-  }
-
-  public LongTermAssetRentalContractEntity update(
-      Long portfolioId,
-      Long assetId,
-      Long contractId,
-      String tenantName,
-      String tenantEmail,
-      String tenantPhone,
-      LocalDate start,
-      LocalDate end,
-      BigDecimal monthlyTaxBase,
-      Boolean taxPaidByTenant,
-      boolean usePropertyTaxPayerDefault,
       List<RentalContractModel.Term> terms) {
     var contract = ownedContract(portfolioId, assetId, contractId);
     validatePeriod(start, end, contract.getTerminatedDate());
-    validateMonthlyTaxBase(monthlyTaxBase);
     Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
     List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
-    if (monthlyTaxBase != null) contract.setMonthlyTaxBase(monthlyTaxBase);
-    else if (contract.getMonthlyTaxBase() == null)
-      contract.setMonthlyTaxBase(owned(portfolioId, assetId).getTaxBase());
     rejectOverlap(
         contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),
         contractId,
         start,
         effectiveEnd(end, contract.getTerminatedDate()));
-    replaceContractState(
-        contract,
-        tenant,
-        start,
-        end,
-        usePropertyTaxPayerDefault
-            ? owned(portfolioId, assetId).isRentalTaxPaidByTenant()
-            : taxPaidByTenant == null
-                ? Optional.ofNullable(contract.getRentalTaxPaidByTenant())
-                    .orElse(owned(portfolioId, assetId).isRentalTaxPaidByTenant())
-                : taxPaidByTenant,
-        supplied,
-        contract.getTerminatedDate());
+    replaceContractState(contract, tenant, start, end, supplied, contract.getTerminatedDate());
     return contracts.save(contract);
   }
 
@@ -224,10 +130,11 @@ public class RentalContractService {
   }
 
   public void terminate(Long portfolioId, Long assetId, Long contractId, LocalDate date) {
+    if (date == null) throw new IllegalArgumentException("Actual termination date is required");
     var contract = ownedContract(portfolioId, assetId, contractId);
     if (contract.getTerminatedDate() != null)
       throw new IllegalArgumentException("Rental contract is already terminated");
-    if (date != null && date.isAfter(LocalDate.now(clock)))
+    if (date.isAfter(LocalDate.now(clock)))
       throw new IllegalArgumentException("Actual termination date cannot be later than today");
     validatePeriod(contract.getStartDate(), contract.getEndDate(), date);
     rejectOverlap(
@@ -257,8 +164,7 @@ public class RentalContractService {
       throw new IllegalArgumentException("Invalid rollover period");
     previous.setEndDate(expectedEnd);
     contracts.save(previous);
-    // PostgreSQL checks the non-overlap exclusion constraint immediately. Ensure the shortened
-    // predecessor is visible before Hibernate inserts its successor.
+    // Persist the shortened predecessor before inserting its successor.
     contracts.flush();
   }
 
@@ -282,7 +188,6 @@ public class RentalContractService {
       Tenant tenant,
       LocalDate start,
       LocalDate end,
-      Boolean taxPaidByTenant,
       List<LongTermAssetRentalContractTermEntity> supplied,
       LocalDate terminatedDate) {
     contract.setTenantName(tenant.name());
@@ -291,7 +196,6 @@ public class RentalContractService {
     contract.setStartDate(start);
     contract.setEndDate(end);
     contract.setTerminatedDate(terminatedDate);
-    contract.setRentalTaxPaidByTenant(taxPaidByTenant);
     replaceTerms(contract, supplied);
   }
 
@@ -328,11 +232,6 @@ public class RentalContractService {
     if (normalizedPhone != null && normalizedPhone.length() > 50)
       throw new IllegalArgumentException("Tenant phone is too long");
     return new Tenant(normalizedName, normalizedEmail, normalizedPhone);
-  }
-
-  private static void validateMonthlyTaxBase(BigDecimal monthlyTaxBase) {
-    if (monthlyTaxBase != null && monthlyTaxBase.signum() < 0)
-      throw new IllegalArgumentException("Monthly tax base cannot be negative");
   }
 
   private static String normalize(String value) {
@@ -411,25 +310,27 @@ public class RentalContractService {
     return expectedEnd.isBefore(termination) ? expectedEnd : termination;
   }
 
-  private LongTermAssetEntity requireRealEstate(Long portfolioId, Long assetId) {
-    LongTermAssetEntity asset = owned(portfolioId, assetId);
-    if (asset.getType() != LongTermAssetType.REAL_ESTATE)
-      throw new IllegalArgumentException("Rental contracts apply only to real-estate assets");
-    return asset;
-  }
-
-  private LongTermAssetEntity owned(Long portfolioId, Long assetId) {
-    return assets
+  private RealEstateEntity requireRealEstate(Long portfolioId, Long assetId) {
+    return realEstate
         .findByIdAndPortfolioId(assetId, portfolioId)
         .orElseThrow(() -> new AssetNotFoundException(portfolioId, assetId));
   }
 
   private LongTermAssetRentalContractEntity ownedContract(Long portfolioId, Long assetId, Long id) {
-    requireRealEstate(portfolioId, assetId);
+    lockRealEstate(portfolioId, assetId);
+    if (id == null) throw new IllegalArgumentException("Rental contract ID is required");
     return contracts
         .findById(id)
         .filter(c -> Objects.equals(c.getAssetId(), assetId))
         .orElseThrow(() -> new RentalContractNotFoundException(assetId, id));
+  }
+
+  private RealEstateEntity lockRealEstate(Long portfolioId, Long assetId) {
+    if (portfolioId == null || assetId == null)
+      throw new IllegalArgumentException("Portfolio and real-estate IDs are required");
+    return realEstate
+        .lockByIdAndPortfolioId(assetId, portfolioId)
+        .orElseThrow(() -> new AssetNotFoundException(portfolioId, assetId));
   }
 
   private static boolean overlaps(LocalDate a, LocalDate b, LocalDate c, LocalDate d) {

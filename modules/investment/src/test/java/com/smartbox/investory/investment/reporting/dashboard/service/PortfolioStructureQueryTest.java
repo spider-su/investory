@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.reporting.model.AssetAllocationView;
+import com.smartbox.investory.investment.api.reporting.model.OpenPositionValue;
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,7 +31,21 @@ class PortfolioStructureQueryTest {
     // deliberately different so this test catches denominator drift.
     portfolio.setBalance(999);
     portfolio.setCash(0);
-    portfolio.setOpenPositionValues(List.of());
+    portfolio.setOpenPositionValues(
+        List.of(
+            new OpenPositionValue(
+                "LEGACY",
+                BigDecimal.ONE,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                com.smartbox.investory.shared.currency.CurrencyType.USD,
+                BigDecimal.valueOf(9999),
+                BigDecimal.valueOf(9999),
+                null,
+                com.smartbox.investory.shared.currency.CurrencyType.USD,
+                BigDecimal.ZERO,
+                null)));
 
     var view = new PortfolioStructureQuery(allocation).load(7L, portfolio);
 

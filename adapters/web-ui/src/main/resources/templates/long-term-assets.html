@@ -12,98 +12,155 @@
 <main class="iv-app iv-planning-page">
   <div th:replace="~{fragments/app-header :: planningHeader('assets', ${portfolioId}, 'Long-term asset summary', 'Value', ${longTermHeaderTotal}, 'all assets', 'Net income / year', ${longTermHeaderIncome}, 'net', 'Annual yield', ${longTermHeaderYield}, 'net', ${currency}, 'assets', null, null)}"></div>
   <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}">Validation error.</div>
+
   <div class="iv-long-term-assets-sections">
-  <div th:each="group : ${groups}" th:if="${!#lists.isEmpty(group.assets)}" class="iv-planning-section iv-card card" th:id="${group.key == 'REAL_ESTATE' ? 'real-estate' : group.key == 'BOND' ? 'bonds' : group.key == 'CASH_RESERVE' ? 'cash-reserves' : 'other-assets'}">
-    <div class="iv-planning-section__details-row">
-    <details class="iv-planning-section__details">
-      <summary class="iv-planning-section__header" th:classappend="| iv-planning-section__header--${group.key.toLowerCase()}|">
-        <h2 th:text="${group.title}">Real estate</h2>
-        <span class="iv-planning-section__count" th:text="${#lists.size(group.assets) + (#lists.size(group.assets) == 1 ? ' holding' : ' holdings')}">0 holdings</span>
-      </summary>
-      <div class="iv-planning-section__empty" th:if="${#lists.isEmpty(group.assets)}">
-        <div class="text-secondary" th:text="${'No ' + group.title.toLowerCase() + '.'}">No assets.</div>
+    <div th:each="group : ${groups}" th:if="${!#lists.isEmpty(group.assets)}"
+         class="iv-planning-section iv-card card"
+         th:id="${group.key == 'REAL_ESTATE' ? 'real-estate' : group.key == 'BOND' ? 'bonds' : group.key == 'CASH_RESERVE' ? 'cash-reserves' : 'personal-assets'}">
+      <div class="iv-planning-section__details-row">
+        <details class="iv-planning-section__details">
+          <summary class="iv-planning-section__header"
+                    th:classappend="| iv-planning-section__header--${group.key.toLowerCase()}|">
+            <h2 th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).assetGroupType(T(com.smartbox.investory.longterm.api.model.LongTermAssetType).valueOf(group.key))}">Asset group</h2>
+            <span class="iv-planning-section__count"
+                  th:text="${#lists.size(group.assets) + (#lists.size(group.assets) == 1 ? ' holding' : ' holdings')}">0 holdings</span>
+          </summary>
+
+          <div class="table-responsive">
+            <table class="table card-table table-vcenter long-term-assets-table"
+                   th:classappend="| long-term-assets-table--${group.key.toLowerCase().replace('_', '-')}|">
+              <thead>
+              <tr th:if="${group.key == 'REAL_ESTATE'}">
+                <th>Name</th><th>Total payment / month</th><th>Net yield (gross)</th><th>Net income / month</th><th>End date</th><th>Rent tax / month</th><th>Actions</th>
+              </tr>
+              <tr th:if="${group.key == 'BOND'}">
+                <th>Name</th><th>Value</th><th>Net yield (gross)</th><th>Net income / year</th><th>End date</th><th>Tax / year</th><th>Actions</th>
+              </tr>
+              <tr th:if="${group.key == 'CASH_RESERVE'}">
+                <th>Name</th><th>Value</th><th>Net yield (gross)</th><th>Net income / year</th><th>End date</th><th>Tax / year</th><th>Actions</th>
+              </tr>
+              <tr th:if="${group.key == 'PERSONAL_ASSET'}">
+                <th>Name</th><th>Value</th><th>Actions</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr th:each="asset : ${group.assets}" th:if="${group.key == 'REAL_ESTATE'}">
+                <td><a th:href="${'/portfolios/' + portfolioId + '/long-term-assets/' + asset.id + '/real-estate'}"
+                       th:text="${asset.name}">Asset</a>
+                </td>
+                <td class="text-end" th:text="${format.compactMoney(asset.totalPaymentMonthly) + ' / month'}">0 / month</td>
+                <td class="text-end" th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(asset.annualEconomics.grossYield) + ')'}">0.0%</td>
+                <td class="text-end" th:text="${format.compactMoney(asset.annualEconomics.monthlyNetIncomeAfterTax) + ' / month'}">0 / month</td>
+                <td class="text-end" th:text="${format.date(asset.rentEnd)}">—</td>
+                <td class="text-end" th:text="${format.compactMoney(asset.annualEconomics.monthlyTaxBase) + ' / month'}">0 / month</td>
+                <td><form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/archive(portfolioId=${portfolioId},id=${asset.id})}"><button class="btn btn-sm btn-outline-danger">Archive</button></form></td>
+              </tr>
+              <tr th:each="asset : ${group.assets}" th:if="${group.key == 'BOND'}">
+                <td><a th:href="${'/portfolios/' + portfolioId + '/long-term-assets/' + asset.id + '/bond'}"
+                       th:text="${asset.name}">Asset</a>
+                </td>
+                <td class="text-end" th:text="${format.compactMoney(asset.currentValue) + (asset.currency == total.currency ? '' : ' ' + asset.currency)}">0</td>
+                <td class="text-end" th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(asset.annualEconomics.grossYield) + ')'}">0.0%</td>
+                <td class="text-end" th:text="${format.compactMoney(asset.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</td>
+                <td class="text-end" th:text="${format.date(asset.maturityDate)}">—</td>
+                <td class="text-end" th:text="${format.compactMoney(asset.annualEconomics.annualTax) + ' / year'}">0 / year</td>
+                <td><form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/archive(portfolioId=${portfolioId},id=${asset.id})}"><button class="btn btn-sm btn-outline-danger">Archive</button></form></td>
+              </tr>
+              <tr th:each="asset : ${group.assets}" th:if="${group.key == 'CASH_RESERVE'}">
+                <td><a th:href="${'/portfolios/' + portfolioId + '/long-term-assets/' + asset.id + '/cash-reserve'}" th:text="${asset.name}">Asset</a></td>
+                <td class="text-end" th:text="${format.compactMoney(asset.currentValue) + (asset.currency == total.currency ? '' : ' ' + asset.currency)}">0</td>
+                <td class="text-end" th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(asset.annualEconomics.grossYield) + ')'}">0.0%</td>
+                <td class="text-end" th:text="${format.compactMoney(asset.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</td>
+                <td class="text-end" th:text="${format.date(asset.maturityDate)}">—</td>
+                <td class="text-end" th:text="${format.compactMoney(asset.annualEconomics.annualTax) + ' / year'}">0 / year</td>
+                <td><form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/archive(portfolioId=${portfolioId},id=${asset.id})}"><button class="btn btn-sm btn-outline-danger">Archive</button></form></td>
+              </tr>
+              <tr th:each="asset : ${group.assets}" th:if="${group.key == 'PERSONAL_ASSET'}">
+                <td><a th:href="${'/portfolios/' + portfolioId + '/long-term-assets/' + asset.id + '/personal-asset'}"
+                       th:text="${asset.name}">Asset</a>
+                </td>
+                <td class="text-end" th:text="${format.compactMoney(asset.currentValue) + (asset.currency == total.currency ? '' : ' ' + asset.currency)}">0</td>
+                <td><form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/archive(portfolioId=${portfolioId},id=${asset.id})}"><button class="btn btn-sm btn-outline-danger">Archive</button></form></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
       </div>
-      <div class="table-responsive" th:if="${!#lists.isEmpty(group.assets)}">
-        <table class="table card-table table-vcenter long-term-assets-table" th:classappend="| long-term-assets-table--${group.key.toLowerCase().replace('_', '-')}|">
-          <thead><tr><th>Name</th><th th:text="${group.key == 'REAL_ESTATE' ? 'Total payment / month' : 'Value'}">Value</th><th>Net yield (gross)</th><th th:text="${group.key == 'REAL_ESTATE' ? 'Net income / month' : 'Net income / year'}">Income</th><th>End date</th><th th:text="${group.key == 'REAL_ESTATE' ? 'Tax base / month' : 'Tax / year'}">Tax</th></tr></thead>
+
+      <div class="table-responsive iv-planning-section__total">
+        <table class="table card-table table-vcenter long-term-assets-table long-term-assets-table__total">
           <tbody>
-          <tr th:each="asset : ${group.assets}">
-            <td><a th:href="@{/portfolios/{portfolioId}/long-term-assets/{id}(id=${asset.id},portfolioId=${portfolioId})}" th:text="${asset.name}">Asset</a></td>
-            <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(asset.realEstatePlanning.totalPaymentMonthly)}">0</td>
-            <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(asset.currentValue) + (asset.currency == total.currency ? '' : ' ' + asset.currency)}">0</td>
-            <td class="text-end" th:text="${format.percentage(group.key == 'REAL_ESTATE' ? asset.realEstatePlanning.incomeYield : asset.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(asset.annualEconomics.grossYield) + ')'}">0.0% (0.0%)</td>
-            <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}"><strong th:text="${format.compactMoney(asset.realEstatePlanning.netMonthlyIncome)}">0</strong><small class="iv-report-table__sub" th:text="${'Reduce ' + format.compactMoney(asset.realEstatePlanning.monthlyReduce)}">Reduce 0</small></td>
-            <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(asset.annualEconomics.netAnnualIncomeAfterTax) + (asset.currency == total.currency ? '' : ' ' + asset.currency)}">0</td>
-            <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).date(asset.rentEnd)}">—</td>
-            <td class="text-end" th:if="${group.key == 'BOND'}" th:text="${asset.bondPlanning.maturityDate == null ? '—' : asset.bondPlanning.maturityDate}">—</td>
-            <td class="text-end" th:if="${group.key != 'REAL_ESTATE' and group.key != 'BOND'}">—</td>
-            <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(asset.realEstatePlanning.taxBase)}">0</td>
-            <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(asset.annualEconomics.annualTax) + (asset.currency == total.currency ? '' : ' ' + asset.currency)}">0</td>
+          <tr th:if="${group.key == 'REAL_ESTATE'}">
+            <td>TOTAL</td><td class="text-end" th:text="${format.compactMoney(group.totalValue)}">0</td>
+            <td class="text-end" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0%</td>
+            <td class="text-end" th:text="${format.compactMoney(group.annualEconomics.monthlyNetIncomeAfterTax) + ' / month'}">0 / month</td>
+            <td class="text-end">—</td>
+            <td class="text-end" th:text="${format.compactMoney(group.annualEconomics.monthlyTaxBase) + ' / month'}">0 / month</td><td></td>
+          </tr>
+          <tr th:if="${group.key == 'BOND'}">
+            <td>TOTAL</td><td class="text-end" th:text="${format.compactMoney(group.totalValue)}">0</td>
+            <td class="text-end" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0%</td>
+            <td class="text-end" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</td><td class="text-end">—</td>
+            <td class="text-end" th:text="${format.compactMoney(group.annualEconomics.annualTax) + ' / year'}">0 / year</td><td></td>
+          </tr>
+          <tr th:if="${group.key == 'CASH_RESERVE'}">
+            <td>TOTAL</td><td class="text-end" th:text="${format.compactMoney(group.totalValue)}">0</td>
+            <td class="text-end" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0%</td>
+            <td class="text-end" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</td><td class="text-end">—</td>
+            <td class="text-end" th:text="${format.compactMoney(group.annualEconomics.annualTax) + ' / year'}">0 / year</td><td></td>
+          </tr>
+          <tr th:if="${group.key == 'PERSONAL_ASSET'}">
+            <td>TOTAL</td><td class="text-end" colspan="2" th:text="${format.compactMoney(group.totalValue)}">0</td><td></td>
           </tr>
           </tbody>
         </table>
       </div>
-    </details>
-    </div>
-    <div class="table-responsive iv-planning-section__total" th:if="${!#lists.isEmpty(group.assets)}">
-      <table class="table card-table table-vcenter long-term-assets-table long-term-assets-table__total" th:classappend="| long-term-assets-table--${group.key.toLowerCase().replace('_', '-')}|">
-        <tbody>
-        <tr>
-          <td>TOTAL</td>
-          <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(group.realEstatePlanning.totalPaymentMonthly)}">0</td>
-          <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.totalValue) + (group.currency == total.currency ? '' : ' ' + group.currency)}">0</td>
-          <td class="text-end" th:text="${format.percentage(group.key == 'REAL_ESTATE' ? group.realEstatePlanning.netYield : group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0% (0.0%)</td>
-          <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}"><strong th:text="${format.compactMoney(group.realEstatePlanning.netMonthlyIncome)}">0</strong><small class="iv-report-table__sub" th:text="${'Reduce ' + format.compactMoney(group.realEstatePlanning.monthlyReduce)}">Reduce 0</small></td>
-          <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + (group.currency == total.currency ? '' : ' ' + group.currency)}">0</td>
-          <td class="text-end">—</td>
-          <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(group.realEstatePlanning.taxBase)}">0</td>
-          <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.annualEconomics.annualTax) + (group.currency == total.currency ? '' : ' ' + group.currency)}">0</td>
-        </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="iv-collapsed-summary" th:if="${!#lists.isEmpty(group.assets)}" aria-label="Collapsed category summary">
-      <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label">Value</span>
-        <strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.totalValue) + (group.currency == total.currency ? '' : ' ' + group.currency)}">0</strong>
-      </div>
-      <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Net income / month' : 'Net income / year'}">Net income / year</span>
-        <strong class="iv-collapsed-summary__value" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(group.realEstatePlanning.netMonthlyIncome) + ' / month'}">0 / month</strong>
-        <strong class="iv-collapsed-summary__value" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</strong>
-      </div>
-      <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label">Net yield (gross)</span>
-        <strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0% (0.0%)</strong>
-      </div>
-      <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Rent tax / month' : 'Tax / year'}">Tax / year</span>
-        <strong class="iv-collapsed-summary__value" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(group.realEstatePlanning.monthlyTax) + ' / month'}">0 / month</strong>
-        <strong class="iv-collapsed-summary__value" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.annualEconomics.annualTax) + ' / year'}">0 / year</strong>
+
+      <div class="iv-collapsed-summary" aria-label="Collapsed category summary">
+        <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Value</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.totalValue)}">0</strong></div>
+        <th:block th:if="${group.key == 'REAL_ESTATE'}">
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Net income / month</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.monthlyNetIncomeAfterTax) + ' / month'}">0 / month</strong></div>
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Net yield (gross)</span><strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0%</strong></div>
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Rent tax / month</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.monthlyTaxBase) + ' / month'}">0 / month</strong></div>
+        </th:block>
+        <th:block th:if="${group.key == 'BOND'}">
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Net income / year</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</strong></div>
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Net yield (gross)</span><strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0%</strong></div>
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Tax / year</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.annualTax) + ' / year'}">0 / year</strong></div>
+        </th:block>
+        <th:block th:if="${group.key == 'CASH_RESERVE'}">
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Net income / year</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</strong></div>
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Net yield (gross)</span><strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0%</strong></div>
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Tax / year</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.annualTax) + ' / year'}">0 / year</strong></div>
+        </th:block>
       </div>
     </div>
   </div>
-  </div>
+
   <section class="iv-risk-summary iv-portfolio-structure iv-portfolio-structure--long-term" aria-labelledby="long-term-structure-title">
     <div class="iv-card-section-header"><span id="long-term-structure-title" class="iv-card-section-header__title">Long-term allocation</span></div>
     <div class="iv-portfolio-structure__grid iv-portfolio-structure__grid--long-term">
       <details class="iv-structure-card iv-structure-card--allocation">
-        <summary>
-          <span class="visually-hidden">Long-term asset allocation details</span>
+        <summary><span class="visually-hidden">Long-term asset allocation details</span>
           <div class="iv-structure-bar" aria-label="Long-term asset allocation">
-            <span th:each="group : ${groups}" th:if="${group.totalValue != null and group.totalValue > 0}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'other')}" th:style="|width:${#strings.replace(groupShares[group.key], '%', '')}%|" th:title="${group.title + ' · ' + groupShares[group.key]}"></span>
+            <span th:each="group : ${groups}" th:if="${group.totalValue > 0}" class="iv-structure-bar__segment"
+                  th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'personal-asset')}"
+                  th:style="|width:${overview.groupShares[group.key]}%|"
+                  th:title="${T(com.smartbox.investory.ui.presentation.UiPresentation).assetGroupType(T(com.smartbox.investory.longterm.api.model.LongTermAssetType).valueOf(group.key)) + ' · ' + format.percentage(overview.groupShares[group.key].divide(100))}"></span>
           </div>
           <div class="iv-long-term-allocation__legend" aria-label="Asset class percentages">
-            <div th:each="group : ${groups}" th:if="${group.totalValue != null and group.totalValue > 0}" class="iv-long-term-allocation__item">
-              <span class="iv-long-term-allocation__label"><i class="iv-long-term-allocation__swatch" th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'other')}"></i><span th:text="${group.title}">Asset class</span></span>
-              <strong th:text="${groupShares[group.key]}">0.0%</strong>
+            <div th:each="group : ${groups}" th:if="${group.totalValue > 0}" class="iv-long-term-allocation__item">
+              <span class="iv-long-term-allocation__label"><i class="iv-long-term-allocation__swatch"></i><span th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).assetGroupType(T(com.smartbox.investory.longterm.api.model.LongTermAssetType).valueOf(group.key))}">Asset class</span></span>
+              <strong th:text="${format.percentage(overview.groupShares[group.key].divide(100))}">0.0%</strong>
             </div>
           </div>
         </summary>
-        <div class="iv-structure-popover"><strong>Asset allocation</strong><div th:each="group : ${groups}"><span th:text="${group.title}">Category</span><span th:text="${groupShares[group.key] + ' · ' + format.compactMoney(group.totalValue)}">0.0% · 0</span></div></div>
+        <div class="iv-structure-popover"><strong>Asset allocation</strong><div th:each="group : ${groups}"><span th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).assetGroupType(T(com.smartbox.investory.longterm.api.model.LongTermAssetType).valueOf(group.key))}">Category</span><span th:text="${format.percentage(overview.groupShares[group.key].divide(100)) + ' · ' + format.compactMoney(group.totalValue)}">0.0% · 0</span></div></div>
       </details>
     </div>
   </section>
+  <section class="iv-card card p-4" th:if="${!#lists.isEmpty(archivedAssets)}"><h2>Archived assets</h2><table class="table"><tbody><tr th:each="asset : ${archivedAssets}"><td th:text="${asset.name}">Asset</td><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).assetType(asset.type)}">Type</td><td th:text="${format.compactMoney(asset.currentValue) + (asset.currency == currency ? '' : ' ' + asset.currency)}">0</td><td><form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/reactivate(portfolioId=${portfolioId},id=${asset.id})}"><button class="btn btn-sm btn-outline-success">Reactivate</button></form></td></tr></tbody></table></section>
 </main>
 <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
 </body>

@@ -763,7 +763,11 @@ SELECT
     SUM(COALESCE(rpd.reconstructed_unrealized_profit_base, 0))
         AS reconstructed_unrealized_profit,
     MAX(CASE WHEN rpd.reconstruction_status = 'FAIL' THEN 1 ELSE 0 END) AS has_market_fail,
-    MAX(CASE WHEN rpd.reconstruction_status = 'WARN' THEN 1 ELSE 0 END) AS has_market_warn
+    MAX(CASE WHEN rpd.reconstruction_status = 'WARN'
+                  AND (rpd.price_quality IS NULL
+                       OR (rpd.price_quality <> 'STALE_CARRY_FORWARD'
+                           AND rpd.price_quality NOT LIKE '%TRADE%OBSERVATION%'))
+             THEN 1 ELSE 0 END) AS has_market_warn
 FROM investory.recon_v_reconstructed_position_daily_mv rpd
 GROUP BY rpd.account_id, rpd.valuation_date
 WITH DATA;
@@ -809,6 +813,7 @@ SELECT
     CASE
         WHEN n.reconstruction_status = 'FAIL' THEN 'ERROR'
         WHEN n.selection_priority = 6 THEN 'INFO'
+        WHEN n.selection_priority = 5 THEN 'INFO'
         WHEN n.reconstruction_status = 'WARN' THEN 'WARN'
         WHEN n.open_quantity = 0 AND COALESCE(n.reconstructed_market_value_base, 0) <> 0 THEN 'ERROR'
         WHEN n.open_quantity <> 0 AND COALESCE(n.selected_price, 0) = 0 THEN 'ERROR'
@@ -1042,7 +1047,10 @@ WITH parameters AS (
     SELECT
         investory.reconciliation_parameter('reconciliation_reporting_scale')::integer AS reporting_scale,
         investory.reconciliation_parameter('reconciliation_absolute_tolerance') AS absolute_tolerance,
-        investory.reconciliation_parameter('reconciliation_relative_tolerance') AS relative_tolerance
+        investory.reconciliation_parameter('reconciliation_relative_tolerance') AS relative_tolerance,
+        investory.reconciliation_parameter('reconciliation_cash_absolute_tolerance') AS cash_absolute_tolerance,
+        investory.reconciliation_parameter('reconciliation_market_value_absolute_tolerance') AS market_value_absolute_tolerance,
+        investory.reconciliation_parameter('reconciliation_market_value_relative_tolerance') AS market_value_relative_tolerance
 ),
 cash_side AS (
     SELECT
@@ -1107,15 +1115,15 @@ checks AS (
         p.*,
         v.reported_market_value IS NOT NULL
             AND ABS(v.reconstructed_market_value - v.reported_market_value)
-                <= GREATEST(p.absolute_tolerance, p.relative_tolerance * GREATEST(
+                <= GREATEST(p.market_value_absolute_tolerance, p.market_value_relative_tolerance * GREATEST(
                     ABS(v.reported_market_value), ABS(v.reconstructed_market_value))) AS market_matches,
         v.reported_cash_balance IS NOT NULL
             AND ABS(v.reconstructed_cash_balance - v.reported_cash_balance)
-                <= GREATEST(p.absolute_tolerance, p.relative_tolerance * GREATEST(
+                <= GREATEST(p.cash_absolute_tolerance, p.relative_tolerance * GREATEST(
                     ABS(v.reported_cash_balance), ABS(v.reconstructed_cash_balance))) AS cash_matches,
         v.reported_equity IS NOT NULL
             AND ABS(v.reconstructed_equity - v.reported_equity)
-                <= GREATEST(p.absolute_tolerance, p.relative_tolerance * GREATEST(
+                <= GREATEST(p.market_value_absolute_tolerance, p.market_value_relative_tolerance * GREATEST(
                     ABS(v.reported_equity), ABS(v.reconstructed_equity))) AS equity_matches,
         v.reported_cost_base IS NOT NULL
             AND ABS(v.reconstructed_cost_base - v.reported_cost_base)
@@ -1123,8 +1131,8 @@ checks AS (
                     ABS(v.reported_cost_base), ABS(v.reconstructed_cost_base))) AS cost_base_matches,
         v.reported_unrealized_profit IS NOT NULL
             AND ABS(v.reconstructed_unrealized_profit - v.reported_unrealized_profit)
-                <= GREATEST(p.absolute_tolerance, p.relative_tolerance * GREATEST(
-                    ABS(v.reported_unrealized_profit), ABS(v.reconstructed_unrealized_profit))) AS unrealized_matches,
+            <= GREATEST(p.market_value_absolute_tolerance, p.market_value_relative_tolerance * GREATEST(
+                    ABS(v.reported_market_value), ABS(v.reconstructed_market_value))) AS unrealized_matches,
         v.reported_realized_profit IS NOT NULL
             AND ABS(COALESCE(v.reconstructed_total_realized_result, 0) - v.reported_realized_profit)
                 <= GREATEST(p.absolute_tolerance, p.relative_tolerance * GREATEST(
@@ -1162,15 +1170,15 @@ SELECT
         ELSE ROUND(reported_realized_profit - COALESCE(reconstructed_total_realized_result, 0), reporting_scale)
     END AS realized_difference,
     CASE WHEN reported_market_value IS NULL OR reconstructed_market_value IS NULL THEN NULL::numeric
-         ELSE ROUND(GREATEST(absolute_tolerance, relative_tolerance * GREATEST(
+         ELSE ROUND(GREATEST(market_value_absolute_tolerance, market_value_relative_tolerance * GREATEST(
              ABS(reported_market_value), ABS(reconstructed_market_value))), reporting_scale)
     END AS market_value_effective_tolerance,
     CASE WHEN reported_cash_balance IS NULL OR reconstructed_cash_balance IS NULL THEN NULL::numeric
-         ELSE ROUND(GREATEST(absolute_tolerance, relative_tolerance * GREATEST(
+         ELSE ROUND(GREATEST(cash_absolute_tolerance, relative_tolerance * GREATEST(
              ABS(reported_cash_balance), ABS(reconstructed_cash_balance))), reporting_scale)
     END AS cash_effective_tolerance,
     CASE WHEN reported_equity IS NULL OR reconstructed_equity IS NULL THEN NULL::numeric
-         ELSE ROUND(GREATEST(absolute_tolerance, relative_tolerance * GREATEST(
+         ELSE ROUND(GREATEST(market_value_absolute_tolerance, market_value_relative_tolerance * GREATEST(
              ABS(reported_equity), ABS(reconstructed_equity))), reporting_scale)
     END AS equity_effective_tolerance,
     CASE WHEN reported_cost_base IS NULL OR reconstructed_cost_base IS NULL THEN NULL::numeric
@@ -1178,8 +1186,8 @@ SELECT
              ABS(reported_cost_base), ABS(reconstructed_cost_base))), reporting_scale)
     END AS cost_base_effective_tolerance,
     CASE WHEN reported_unrealized_profit IS NULL OR reconstructed_unrealized_profit IS NULL THEN NULL::numeric
-         ELSE ROUND(GREATEST(absolute_tolerance, relative_tolerance * GREATEST(
-             ABS(reported_unrealized_profit), ABS(reconstructed_unrealized_profit))), reporting_scale)
+         ELSE ROUND(GREATEST(market_value_absolute_tolerance, market_value_relative_tolerance * GREATEST(
+             ABS(reported_market_value), ABS(reconstructed_market_value))), reporting_scale)
     END AS unrealized_effective_tolerance,
     CASE WHEN reported_realized_profit IS NULL THEN NULL::numeric
          ELSE ROUND(GREATEST(absolute_tolerance, relative_tolerance * GREATEST(
@@ -2174,6 +2182,29 @@ GROUP BY
 
 COMMENT ON VIEW investory.recon_v_trade_settlement_by_account IS
     'Account grouping over trade settlement reconciliation. Authoritative sums become NULL when any required converted value is unavailable; converted subtotals remain diagnostic only.';
+
+-- The reporting summary is defined before the full diagnostic projection below.
+-- Declare its stable shape first so PostgreSQL can resolve the dependency while
+-- applying this migration in one transaction; the real projection replaces it later.
+CREATE VIEW investory.recon_v_account_daily_diagnostic (
+    account_id, valuation_date, reported_cash_balance, reconstructed_cash_balance,
+    cash_difference, reported_market_value, reconstructed_market_value, market_value_difference,
+    reported_cost_base, reconstructed_cost_base, cost_base_difference,
+    reported_unrealized_profit, reconstructed_unrealized_profit, unrealized_difference,
+    reported_equity, reconstructed_equity, equity_difference, reported_realized_profit,
+    reconstructed_total_realized_result, realized_difference, market_value_effective_tolerance,
+    cash_effective_tolerance, equity_effective_tolerance, cost_base_effective_tolerance,
+    unrealized_effective_tolerance, realized_effective_tolerance, status, severity,
+    validation_message, diagnostic_code
+) AS
+SELECT NULL::bigint, NULL::date, NULL::numeric, NULL::numeric, NULL::numeric,
+       NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
+       NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
+       NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
+       NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
+       NULL::numeric, NULL::varchar(16), NULL::varchar(16), NULL::text, NULL::varchar(96)
+WHERE false;
+
 CREATE OR REPLACE VIEW investory.recon_v_reporting_validation_summary AS
 WITH price_summary AS (
     SELECT
@@ -2208,7 +2239,7 @@ recon AS (
         MAX(ABS(adr.market_value_difference)) AS maximum_market_value_difference,
         MAX(ABS(adr.equity_difference)) AS maximum_equity_difference,
         MAX(adr.status) AS status_hint
-    FROM investory.recon_v_account_daily adr
+    FROM investory.recon_v_account_daily_diagnostic adr
     GROUP BY adr.valuation_date, adr.account_id
 )
 SELECT
@@ -2235,8 +2266,6 @@ SELECT
           OR ps.residual_positions > 0
           OR COALESCE(r.reconciliation_failures, 0) > 0 THEN 'FAIL'
         WHEN ps.interpolated_prices > 0
-          OR ps.trade_observation_prices > 0
-          OR ps.alternate_listing_prices > 0
           OR COALESCE(vc.price_anomalies, 0) > 0 THEN 'WARN'
         ELSE 'PASS'
     END::varchar(16) AS status
@@ -2254,29 +2283,49 @@ CREATE OR REPLACE VIEW investory.recon_v_portfolio_service_fallback AS
 WITH position_components AS (
     SELECT
         pf.id AS portfolio_id,
-        CASE WHEN pos.close_time IS NULL THEN 'UNREALIZED' ELSE 'REALIZED' END::varchar(16) AS metric_type,
-        COALESCE(pos.close_time::date, CURRENT_DATE) AS valuation_date,
+        'REALIZED'::varchar(16) AS metric_type,
+        pos.close_time::date AS valuation_date,
         pos.profit_currency::varchar(3) AS source_currency,
         pf.base_currency::varchar(3) AS base_currency,
-        COALESCE(pos.profit, 0) + COALESCE(pos.swap, 0) AS amount_native
+        CASE
+            WHEN pos.settlement_model = 'RESULT_ONLY' THEN COALESCE(pos.profit, 0)
+            ELSE COALESCE(pos.profit, 0) + COALESCE(pos.swap, 0)
+        END AS amount_native
     FROM investory.positions pos
     JOIN investory.accounts acc ON acc.id = pos.account_id
     JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
     JOIN investory.assets asset ON asset.id = pos.asset_id
-                               AND asset.exclude_from_import = false
+    WHERE pos.close_time IS NOT NULL
     UNION ALL
     SELECT
         pf.id AS portfolio_id,
-        CASE WHEN pos.close_time IS NULL THEN 'UNREALIZED' ELSE 'REALIZED' END::varchar(16) AS metric_type,
-        COALESCE(pos.close_time::date, CURRENT_DATE) AS valuation_date,
+        'REALIZED'::varchar(16) AS metric_type,
+        pos.close_time::date AS valuation_date,
         pos.commission_currency::varchar(3) AS source_currency,
         pf.base_currency::varchar(3) AS base_currency,
-        COALESCE(pos.commission, 0) AS amount_native
+        CASE
+            WHEN pos.settlement_model = 'RESULT_ONLY' THEN 0
+            ELSE COALESCE(pos.commission, 0)
+        END AS amount_native
     FROM investory.positions pos
     JOIN investory.accounts acc ON acc.id = pos.account_id
     JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
     JOIN investory.assets asset ON asset.id = pos.asset_id
-                               AND asset.exclude_from_import = false
+    WHERE pos.close_time IS NOT NULL
+    UNION ALL
+    SELECT
+        pf.id AS portfolio_id,
+        'UNREALIZED'::varchar(16) AS metric_type,
+        r.valuation_date,
+        pf.base_currency::varchar(3) AS source_currency,
+        pf.base_currency::varchar(3) AS base_currency,
+        r.reconstructed_unrealized_profit_base AS amount_native
+    FROM investory.app_v_reconstructed_position_daily r
+    JOIN investory.accounts acc ON acc.id = r.account_id
+    JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
+    WHERE r.valuation_date = (SELECT MAX(valuation_date) FROM investory.app_v_reconstructed_position_daily)
+      AND r.open_quantity <> 0
+      AND r.reconstructed_unrealized_profit_base IS NOT NULL
 ), converted_position_components AS (
     SELECT pc.*, fx.fx_rate_to_target, fx.conversion_status
     FROM position_components pc
@@ -2343,9 +2392,18 @@ SELECT
                pk.total_realized_profit,
                CASE WHEN rp.portfolio_id IS NULL THEN 0 ELSE rp.fallback_realized_profit END
            )
-           AND investory.reconciliation_values_match(
-               pk.total_unrealized_profit,
-               CASE WHEN rp.portfolio_id IS NULL THEN 0 ELSE rp.fallback_unrealized_profit END
+           AND pk.total_unrealized_profit IS NOT NULL
+           AND (CASE WHEN rp.portfolio_id IS NULL THEN 0 ELSE rp.fallback_unrealized_profit END) IS NOT NULL
+           AND ABS(
+               (CASE WHEN rp.portfolio_id IS NULL THEN 0 ELSE rp.fallback_unrealized_profit END)
+                   - pk.total_unrealized_profit
+           ) <= GREATEST(
+               investory.reconciliation_parameter('reconciliation_fallback_unrealized_absolute_tolerance'),
+               investory.reconciliation_parameter('reconciliation_relative_tolerance')
+                   * GREATEST(
+                       ABS(pk.total_unrealized_profit),
+                       ABS(CASE WHEN rp.portfolio_id IS NULL THEN 0 ELSE rp.fallback_unrealized_profit END)
+                   )
            )
            AND investory.reconciliation_values_match(
                pk.total_dividends,
@@ -3306,6 +3364,35 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_mv_recon_account_monthly_profit_key
 
 -- Stable diagnostic codes for the application reconciliation report.
 CREATE OR REPLACE VIEW investory.recon_v_account_daily_diagnostic AS
+WITH raw_cash AS (
+    SELECT ad.account_id, ad.snapshot_date AS valuation_date,
+           ad.cash_balance AS reported_cash_balance_raw,
+           SUM(rc.reconstructed_cash_component_base) AS reconstructed_cash_balance_raw
+    FROM investory.account_daily ad
+    LEFT JOIN investory.recon_v_reconstructed_cash_daily_mv rc
+      ON rc.account_id = ad.account_id AND rc.valuation_date = ad.snapshot_date
+    GROUP BY ad.account_id, ad.snapshot_date, ad.cash_balance
+), classified AS (
+SELECT
+    r.*,
+    c.reported_cash_balance_raw,
+    c.reconstructed_cash_balance_raw,
+    ABS(r.market_value_difference) <= GREATEST(
+        investory.reconciliation_parameter('reconciliation_market_value_absolute_tolerance'),
+        investory.reconciliation_parameter('reconciliation_market_value_relative_tolerance')
+            * GREATEST(ABS(r.reported_market_value), ABS(r.reconstructed_market_value))) AS market_value_within_tolerance,
+    c.reported_cash_balance_raw IS NOT NULL AND c.reconstructed_cash_balance_raw IS NOT NULL
+      AND ABS(c.reported_cash_balance_raw - c.reconstructed_cash_balance_raw) <= GREATEST(
+        investory.reconciliation_parameter('reconciliation_cash_absolute_tolerance'),
+        investory.reconciliation_parameter('reconciliation_relative_tolerance')
+            * GREATEST(ABS(c.reported_cash_balance_raw), ABS(c.reconstructed_cash_balance_raw))) AS cash_within_tolerance,
+    EXISTS (
+        SELECT 1 FROM investory.app_v_reconstructed_position_daily p
+        WHERE p.account_id = r.account_id AND p.valuation_date = r.valuation_date
+          AND p.reconstruction_status = 'WARN') AS has_lower_quality_valuation
+FROM investory.recon_v_account_daily r
+LEFT JOIN raw_cash c ON c.account_id = r.account_id AND c.valuation_date = r.valuation_date
+)
 SELECT
     r.account_id,
     r.valuation_date,
@@ -3333,9 +3420,35 @@ SELECT
     r.cost_base_effective_tolerance,
     r.unrealized_effective_tolerance,
     r.realized_effective_tolerance,
-    r.status,
-    r.severity,
-    r.validation_message,
+    CASE
+        WHEN r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance
+             AND r.has_lower_quality_valuation THEN 'WARN'
+        WHEN r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance THEN 'PASS'
+        WHEN r.validation_message = 'cash mismatch' AND r.cash_within_tolerance
+             AND r.has_lower_quality_valuation THEN 'WARN'
+        WHEN r.validation_message = 'cash mismatch' AND r.cash_within_tolerance THEN 'PASS'
+        ELSE r.status
+    END::varchar(16) AS status,
+    CASE
+        WHEN r.validation_message IN ('market value mismatch', 'cash mismatch')
+             AND ((r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance)
+               OR (r.validation_message = 'cash mismatch' AND r.cash_within_tolerance))
+             AND r.has_lower_quality_valuation THEN 'WARN'
+        WHEN r.validation_message IN ('market value mismatch', 'cash mismatch')
+             AND ((r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance)
+               OR (r.validation_message = 'cash mismatch' AND r.cash_within_tolerance)) THEN 'INFO'
+        ELSE r.severity
+    END::varchar(16) AS severity,
+    CASE
+        WHEN r.validation_message IN ('market value mismatch', 'cash mismatch')
+             AND ((r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance)
+               OR (r.validation_message = 'cash mismatch' AND r.cash_within_tolerance))
+             AND r.has_lower_quality_valuation THEN 'valuation used lower-quality price source'
+        WHEN r.validation_message IN ('market value mismatch', 'cash mismatch')
+             AND ((r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance)
+               OR (r.validation_message = 'cash mismatch' AND r.cash_within_tolerance)) THEN 'reconciliation passed'
+        ELSE r.validation_message
+    END::text AS validation_message,
     CASE r.validation_message
         WHEN 'cash mismatch' THEN 'ACCOUNT_DAILY_CASH_RECONCILIATION'
         WHEN 'cash reconstruction failed' THEN 'ACCOUNT_DAILY_CASH_RECONCILIATION'
@@ -3349,7 +3462,7 @@ SELECT
         WHEN 'equity mismatch' THEN 'ACCOUNT_DAILY_EQUITY_RECONCILIATION'
         ELSE 'UNKNOWN'
     END::varchar(96) AS diagnostic_code
-FROM investory.recon_v_account_daily r;
+FROM classified r;
 
 COMMENT ON VIEW investory.recon_v_account_daily_diagnostic IS
     'Stable diagnostic-code projection for reconciliation consumers; unknown source conditions remain UNKNOWN.';

@@ -5,8 +5,8 @@ import java.math.BigDecimal;
 /**
  * Canonical annual long-term-asset facts shared by overview and historical planning.
  *
- * <p>Every monetary amount in this API contract is canonical USD. Native asset currency is an
- * internal persistence/domain concern and is normalized before this record is returned.
+ * <p>The historical-reader contract returns canonical USD. When nested in a current profile
+ * snapshot, amounts use that snapshot's explicitly declared portfolio currency.
  */
 public record LongTermAssetAnnualSnapshotModel(
     BigDecimal realEstateValue,
@@ -14,7 +14,30 @@ public record LongTermAssetAnnualSnapshotModel(
     BigDecimal bondValue,
     BigDecimal bondIncome,
     BigDecimal cashReserveValue,
-    BigDecimal otherAssetValue) {
+    BigDecimal otherAssetValue,
+    com.smartbox.investory.shared.currency.CurrencyType currency) {
+  public LongTermAssetAnnualSnapshotModel {
+    java.util.Objects.requireNonNull(currency, "currency");
+  }
+
+  /** Historical callers use canonical USD; current snapshots pass their currency explicitly. */
+  public LongTermAssetAnnualSnapshotModel(
+      BigDecimal realEstateValue,
+      BigDecimal rentalIncome,
+      BigDecimal bondValue,
+      BigDecimal bondIncome,
+      BigDecimal cashReserveValue,
+      BigDecimal otherAssetValue) {
+    this(
+        realEstateValue,
+        rentalIncome,
+        bondValue,
+        bondIncome,
+        cashReserveValue,
+        otherAssetValue,
+        com.smartbox.investory.shared.currency.CurrencyType.USD);
+  }
+
   public boolean rentalIncomeAvailable() {
     return rentalIncome != null;
   }

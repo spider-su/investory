@@ -2,7 +2,6 @@ package com.smartbox.investory.retirement.api.model;
 
 import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
-import com.smartbox.investory.longterm.api.model.InterestTreatment;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
@@ -21,7 +20,7 @@ public class FrozenBondCashFlowProjection {
     return frozenAssets(profile).stream()
         .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
         .filter(asset -> asset.maturityDate() == null || year <= asset.maturityDate().getYear())
-        .filter(asset -> asset.interestTreatment() != InterestTreatment.CAPITALIZE)
+        .filter(asset -> hasCashIncome(asset, year))
         .map(asset -> periodCashIncome(asset, year))
         .reduce(ZERO, BigDecimal::add);
   }
@@ -37,7 +36,7 @@ public class FrozenBondCashFlowProjection {
     BigDecimal capitalizedReturn =
         frozenAssets(profile).stream()
             .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
-            .filter(asset -> asset.interestTreatment() == InterestTreatment.CAPITALIZE)
+            .filter(asset -> hasCapitalizedReturn(asset, baselineYear))
             .map(asset -> activePeriodCapitalizedReturn(asset, baselineYear))
             .reduce(ZERO, BigDecimal::add);
     if (bondCapital.signum() == 0) return zeroIfNull(fallbackBondYield);
@@ -50,7 +49,7 @@ public class FrozenBondCashFlowProjection {
   public boolean hasCapitalizedBondYield(InvestmentProfile profile, int baselineYear) {
     return frozenAssets(profile).stream()
         .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
-        .filter(asset -> asset.interestTreatment() == InterestTreatment.CAPITALIZE)
+        .filter(asset -> hasCapitalizedReturn(asset, baselineYear))
         .map(asset -> activePeriodCapitalizedReturn(asset, baselineYear))
         .anyMatch(value -> value.signum() != 0);
   }
@@ -58,11 +57,10 @@ public class FrozenBondCashFlowProjection {
   public boolean hasCapitalizedBondYield(InvestmentProfile profile, int firstYear, int lastYear) {
     return frozenAssets(profile).stream()
         .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
-        .filter(asset -> asset.interestTreatment() == InterestTreatment.CAPITALIZE)
         .anyMatch(
             asset -> {
               for (int year = firstYear; year <= lastYear; year++) {
-                if (activePeriodCapitalizedReturn(asset, year).signum() != 0) return true;
+                if (hasCapitalizedReturn(asset, year)) return true;
               }
               return false;
             });
@@ -70,8 +68,7 @@ public class FrozenBondCashFlowProjection {
 
   /**
    * True when the plan Bond return assumption changes capital during at least one forward year.
-   * Reviewed source Bonds are applicable only for active CAPITALIZE periods; PAY_OUT source Bonds
-   * contribute cash income and are never made applicable by their balance alone.
+   * Reviewed fixed-income assets are applicable only when their active period carries a return.
    */
   public boolean hasPlanBondReturnExposure(InvestmentProfile profile, int firstYear, int lastYear) {
     if (firstYear > lastYear) return false;
@@ -93,6 +90,18 @@ public class FrozenBondCashFlowProjection {
     if (period == null) return ZERO;
     if (period.annualIncome() != null) return period.annualIncome();
     return zeroIfNull(asset.currentValue()).multiply(zeroIfNull(period.annualReturnRate()));
+  }
+
+  private static boolean hasCashIncome(ProjectedLongTermAsset asset, int year) {
+    var period = activePeriod(asset, year);
+    return period != null && period.annualIncome() != null;
+  }
+
+  private static boolean hasCapitalizedReturn(ProjectedLongTermAsset asset, int year) {
+    var period = activePeriod(asset, year);
+    return period != null
+        && period.annualIncome() == null
+        && zeroIfNull(period.annualReturnRate()).signum() != 0;
   }
 
   private static ProjectedLongTermAsset.Period activePeriod(

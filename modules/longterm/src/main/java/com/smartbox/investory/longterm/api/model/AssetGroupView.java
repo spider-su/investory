@@ -11,5 +11,4 @@ public record AssetGroupView(
     CurrencyType currency,
     List<AssetSummaryView> assets,
     BigDecimal totalValue,
-    AnnualEconomicsView annualEconomics,
-    RealEstateGroupPlanningView realEstatePlanning) {}
+    AnnualEconomicsView annualEconomics) {}

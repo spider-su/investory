@@ -9,7 +9,6 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Po
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
-import com.smartbox.investory.investment.performance.PortfolioMetricsService;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -25,7 +24,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BrokeragePortfolioReadServiceTest {
-  @Mock PortfolioMetricsService portfolioMetricsService;
   @Mock PortfolioPerformanceQuery performanceQuery;
   @Mock PortfolioKpiSummaryRepository portfolioKpis;
   @Mock PortfolioAssetAllocationRepository portfolioAllocations;

@@ -4,7 +4,7 @@
     <div class="card-header iv-rental-management__header">
       <div>
         <h2 class="card-title mb-1">Rental contracts</h2>
-        <p class="text-secondary mb-0">Tenant, period, income, expenses, and tax ownership.</p>
+        <p class="text-secondary mb-0">Tenant, period, income, expenses, and property tax economics.</p>
       </div>
       <button class="btn btn-primary" type="button" data-show-add-contract>+ Add contract</button>
     </div>
@@ -72,8 +72,12 @@
               </section>
               <section class="iv-contract-group">
                 <h3>Tax</h3>
-                <p class="mb-0" th:text="${contract.rentalTaxPaidByTenant == null ? 'Legacy property default' : (contract.rentalTaxPaidByTenant ? 'Paid by tenant' : 'Paid by landlord')}">Paid by landlord</p>
-                <p class="mb-0 text-secondary" th:text="${'Monthly tax base: ' + T(com.smartbox.investory.ui.presentation.UiPresentation).money(contract.monthlyTaxBase, asset.currency)}">Monthly tax base: 0 PLN</p>
+                <dl class="iv-contract-values">
+                  <div><dt>Annual tax base</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(asset.taxBase, asset.currency)}">3,200 PLN</dd></div>
+                  <div><dt>Tax rate</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(rentalTaxRate)}">8.5%</dd></div>
+                  <div><dt>Tax / year</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.annualEconomics.annualTax, asset.currency)}">272 PLN</dd></div>
+                  <div><dt>Tax / month</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.annualEconomics.monthlyTax, asset.currency)}">22.67 PLN</dd></div>
+                </dl>
               </section>
             </div>
 

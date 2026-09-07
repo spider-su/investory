@@ -12,7 +12,6 @@ public record BondCommand(
     CurrencyType currency,
     BigDecimal value,
     LocalDate acquisitionDate,
+    BigDecimal interestRate,
     LocalDate maturityDate,
-    InterestTreatment interestTreatment,
-    BigDecimal annualRate,
     String notes) {}

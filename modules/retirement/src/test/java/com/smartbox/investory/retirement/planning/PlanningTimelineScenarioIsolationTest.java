@@ -55,7 +55,8 @@ class PlanningTimelineScenarioIsolationTest {
             contexts,
             null,
             new PlanningProgressService(),
-            new PlanningYearReviewService(new PlanningProgressService()));
+            new PlanningYearReviewService(new PlanningProgressService()),
+            mock(PlanningMoneyConversionService.class));
 
     InvestmentProfile profile = profile();
     SimulationAssumptions assumptions =

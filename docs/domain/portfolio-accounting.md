@@ -66,6 +66,10 @@ return and KPI observation dates as the Investment dashboard. Projected annual i
 separate income-planning metric and includes net dividends and interest; it is not used as the
 market-return KPI.
 
+The Profile market value is current brokerage equity, including signed cash. The Profile page's
+investment-result YTD value is current-calendar-year investment profit from the canonical monthly
+performance rows. It is neither income received nor a substitute for current or year-start value.
+
 ## Headline ROI
 
 Headline ROI is:

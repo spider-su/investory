@@ -10,10 +10,6 @@ COMMENT ON COLUMN investory.accounts.currency IS
 COMMENT ON COLUMN investory.assets.currency IS
     'Instrument quote/listing currency: denomination of the asset market price and listing. Not necessarily the broker trade-value currency.';
 
-
-
-
-
 CREATE MATERIALIZED VIEW IF NOT EXISTS investory.app_v_canonical_asset_daily_price_mv AS
 SELECT DISTINCT ON (aph.asset_id, aph.price_date)
     aph.asset_id,
@@ -210,6 +206,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_app_v_portfolio_daily_fx_rate_mv_key
 CREATE INDEX IF NOT EXISTS ix_app_v_portfolio_daily_fx_rate_mv_date
     ON investory.app_v_portfolio_daily_fx_rate_mv(valuation_date);
 
+-- Keep current-position reporting fail-closed for holdings without a current
+-- price. Such rows must not make otherwise usable priced holdings disappear
+-- from the aggregate read models.
 CREATE OR REPLACE VIEW investory.app_v_current_open_position_rows AS
 SELECT
     pf.id AS portfolio_id,
@@ -222,9 +221,10 @@ SELECT
     p.cost_currency::varchar(3) AS cost_basis_currency,
     investory.signed_position_quantity(p.operation, p.volume) AS volume,
     COALESCE(p.purchase_value, p.volume * p.open_price, 0) AS cost_basis_native,
-    price.selected_price AS market_price,
-    price.price_currency::varchar(3) AS market_price_currency,
-    price.price_selection_source,
+    COALESCE(price.selected_price, asset.market_price) AS market_price,
+    COALESCE(price.price_currency, asset.currency)::varchar(3) AS market_price_currency,
+    CASE WHEN price.selected_price IS NOT NULL THEN 'HISTORICAL'
+         ELSE 'ASSET_CURRENT_FALLBACK' END::varchar(32) AS price_selection_source,
     price.selected_price_date,
     price.price_source,
     price.source_symbol AS market_price_source_symbol,
@@ -236,40 +236,38 @@ SELECT
         WHEN investory.fx_status_usable(cost_fx.conversion_status)
             THEN COALESCE(p.purchase_value, p.volume * p.open_price, 0) * cost_fx.fx_rate_to_base
         ELSE NULL::numeric
-    END AS cost_basis_in_base_currency,
+        END AS cost_basis_in_base_currency,
     CASE
-        WHEN price.selected_price IS NOT NULL
-         AND investory.fx_status_usable(market_fx.conversion_status)
+        WHEN COALESCE(price.selected_price, asset.market_price) IS NOT NULL
+            AND investory.fx_status_usable(market_fx.conversion_status)
             THEN investory.signed_position_quantity(p.operation, p.volume)
-                 * price.selected_price
-                 * CASE WHEN price.quality_class LIKE '%PERCENT_OF_PAR%' THEN 0.01::numeric
-                        ELSE 1::numeric END
-                 * market_fx.fx_rate_to_base
+            * COALESCE(price.selected_price, asset.market_price)
+            * CASE WHEN price.quality_class LIKE '%PERCENT_OF_PAR%' THEN 0.01::numeric
+                   ELSE 1::numeric END
+            * market_fx.fx_rate_to_base
         ELSE NULL::numeric
-    END AS market_value_in_base_currency
+        END AS market_value_in_base_currency
 FROM investory.positions p
-JOIN investory.accounts a
-    ON a.id = p.account_id
-JOIN investory.portfolios pf
-    ON pf.id = a.portfolio_id
-JOIN investory.assets asset
-    ON asset.id = p.asset_id
-LEFT JOIN investory.app_v_current_asset_price_mv price
-    ON price.asset_id = asset.id
-LEFT JOIN investory.app_v_portfolio_daily_fx_rate_mv cost_fx
-  ON cost_fx.portfolio_id = pf.id
- AND cost_fx.valuation_date = COALESCE(p.open_time::date, CURRENT_DATE)
- AND cost_fx.source_currency = p.cost_currency::varchar(3)
-LEFT JOIN investory.app_v_portfolio_daily_fx_rate_mv market_fx
-  ON market_fx.portfolio_id = pf.id
- AND market_fx.valuation_date = CURRENT_DATE
- AND market_fx.source_currency = price.price_currency::varchar(3)
+         JOIN investory.accounts a ON a.id = p.account_id
+         JOIN investory.portfolios pf ON pf.id = a.portfolio_id
+         JOIN investory.assets asset ON asset.id = p.asset_id
+         LEFT JOIN investory.app_v_current_asset_price_mv price
+                   ON price.asset_id = asset.id
+         LEFT JOIN investory.app_v_portfolio_daily_fx_rate_mv cost_fx
+                   ON cost_fx.portfolio_id = pf.id
+                       AND cost_fx.valuation_date = CURRENT_DATE
+                       AND cost_fx.source_currency = p.cost_currency::varchar(3)
+         LEFT JOIN investory.app_v_portfolio_daily_fx_rate_mv market_fx
+                   ON market_fx.portfolio_id = pf.id
+                       AND market_fx.valuation_date = CURRENT_DATE
+                       AND market_fx.source_currency = COALESCE(price.price_currency, asset.currency)::varchar(3)
 WHERE p.close_time IS NULL
   AND asset.exclude_from_import = false
-  AND COALESCE(p.volume, 0) > 0;
+  AND COALESCE(p.volume, 0) > 0
+  AND COALESCE(price.selected_price, asset.market_price) IS NOT NULL;
 
 COMMENT ON VIEW investory.app_v_current_open_position_rows IS
-    'Shared current open-position valuation rows. Uses app_v_current_asset_price and resolve_fx_rate(CURRENT_DATE, ...); stale or missing FX yields null converted values.';
+    'Shared current open-position valuation rows. Holdings without a current market price are excluded from this current aggregate; stale or missing FX yields null converted values.';
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS investory.app_v_normalized_cash_operations AS
 WITH classified AS (

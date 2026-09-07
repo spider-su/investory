@@ -10,7 +10,7 @@ projected years.
 ### What do I own today?
 
 - Broker accounts, market positions, and cash.
-- Manual long-term assets: real estate, bonds, deposits, cash reserves, and other assets.
+- Manual long-term assets: real estate, bonds, cash reserves, and personal assets.
 - A read-only unified `InvestmentProfile` for planning and simulation.
 
 ### How much did I contribute and earn?
@@ -43,16 +43,15 @@ projected years.
 - IBKR and XTB statement imports with checksum-based duplicate detection and idempotent exact-file reprocessing.
 - Scheduled market-price and FX refresh, historical price storage, and manual price overrides.
 - Yahoo Finance export and developer reconciliation and pipeline-validation tooling.
-- Manual long-term assets: real estate, bonds, contractual deposits, planning-only cash reserves, and
-  generic other assets.
+- Manual long-term assets: real estate, bonds, cash reserves, and personal assets.
 - `InvestmentProfile` aggregation of brokerage and manual assets without writing either source.
 - Deterministic retirement simulation with independent inflation, rental-income-growth, spending-growth,
   and asset-return assumptions.
 - Configurable Simple Waterfall and Reserve + equity harvest funding strategies. New plans default to a
   five-year safe-reserve target, 7% harvest gate, 75% eligible-gain fraction, and enabled emergency
   equity withdrawal.
-- Contractual maturity redemption, PAY_OUT versus CAPITALIZE interest treatment, and planning-only
-  manual cash reserve funding before market cash and fixed income.
+- Long-Term factual inventory and calculated financial facts are shared through explicit asset
+  contracts; retirement consumes those facts without asset-specific UI policy.
 - Planning display/input currency selection: PLN (default), USD, or EUR; planning storage remains
   canonical USD/base amounts.
 - Natural money and percentage presentation; percentage inputs use percentage points.
@@ -81,11 +80,10 @@ implemented tooling, and known gaps.
 
 | Type | Current behavior |
 |------|------------------|
-| `REAL_ESTATE` | Current value, effective-dated income/expense periods, rental income, explicit tax base, and value growth. |
-| `BOND` | Contractual fixed income with maturity/redemption and `PAY_OUT` or `CAPITALIZE` interest treatment. |
-| `DEPOSIT` | Contractual deposit; locked until its configured maturity. |
-| `CASH_RESERVE` | Planning-only manual liquid reserve; immediately spendable and used before market cash/fixed income under Reserve + Harvest. |
-| `OTHER` | Notes-only generic asset; excluded from financial calculations and retirement simulation. |
+| `REAL_ESTATE` | Current value and explicit rental contracts. |
+| `BOND` | Explicit bond value, income, return, and maturity facts. |
+| `CASH_RESERVE` | Manual liquid reserve; optional interest rate and maturity support interest-bearing or term cash. |
+| `PERSONAL_ASSET` | Personal asset with explicit value facts; excluded from investment economics. |
 
 ## How calculations work
 

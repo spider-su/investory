@@ -6,6 +6,7 @@ import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.RetirementFinancialCalculations;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.CurrentYearBridgeResult;
 import com.smartbox.investory.retirement.api.model.ForwardSimulationInput;
@@ -14,6 +15,7 @@ import com.smartbox.investory.retirement.api.model.PlanEditorPreview.PreviewYear
 import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
 import com.smartbox.investory.retirement.planning.PlanningCurrencyPresentationService;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -63,7 +65,7 @@ public class PlanEditorPreviewService {
                 forward.context().asOfYear())
             : new SimulationResult(
                 SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
-    LongTermAssetAnnualSnapshotModel facts = facts(currentFacts(profile));
+    LongTermAssetAnnualSnapshotModel facts = canonicalFacts(facts(currentFacts(profile)));
     int currentYear = Year.now(clock).getValue();
     int retirementYear = ForwardSimulationContextFactory.retirementYear(assumptions);
     SimulationYear first = result.years().isEmpty() ? null : result.years().get(0);
@@ -183,7 +185,9 @@ public class PlanEditorPreviewService {
         displayCanonical(row.totalIncome(), displayCurrency),
         displayCanonical(funding.fundingGap(), displayCurrency),
         displayCanonical(
-            row.totalIncome().subtract(row.totalExpenses()).max(BigDecimal.ZERO), displayCurrency),
+            RetirementFinancialCalculations.positiveDifference(
+                row.totalIncome(), row.totalExpenses()),
+            displayCurrency),
         displayCanonical(funding.reserveStart(), displayCurrency),
         displayCanonical(funding.maturityToReserveOrOtherTransfer(), displayCurrency),
         displayCanonical(funding.reserveWithdrawal(), displayCurrency),
@@ -292,6 +296,25 @@ public class PlanEditorPreviewService {
 
   private static LongTermAssetAnnualSnapshotModel facts(LongTermAssetAnnualSnapshotModel facts) {
     return facts == null ? NO_LONG_TERM_FACTS : facts;
+  }
+
+  private LongTermAssetAnnualSnapshotModel canonicalFacts(LongTermAssetAnnualSnapshotModel facts) {
+    CurrencyType canonical = FinancialPolicyDefaults.CANONICAL_CURRENCY;
+    if (facts.currency() == canonical) return facts;
+    return new LongTermAssetAnnualSnapshotModel(
+        toCanonical(facts.realEstateValue(), facts.currency()),
+        toCanonical(facts.rentalIncome(), facts.currency()),
+        toCanonical(facts.bondValue(), facts.currency()),
+        toCanonical(facts.bondIncome(), facts.currency()),
+        toCanonical(facts.cashReserveValue(), facts.currency()),
+        toCanonical(facts.otherAssetValue(), facts.currency()),
+        canonical);
+  }
+
+  private BigDecimal toCanonical(BigDecimal value, CurrencyType source) {
+    return value == null
+        ? null
+        : presentation.toDisplay(value, source, FinancialPolicyDefaults.CANONICAL_CURRENCY);
   }
 
   /** Sum known cash-income facts while preserving unknown when no component is available. */

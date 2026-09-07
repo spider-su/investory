@@ -1,6 +1,5 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.api.model.ProfileAllocation;
@@ -146,15 +145,12 @@ public class CurrentYearProjectionBridge {
     if (state.assets().isEmpty()) return state;
     BigDecimal bondTotal =
         state.assets().stream()
-            .filter(
-                asset ->
-                    asset.type() == LongTermAssetType.BOND
-                        || asset.type() == LongTermAssetType.DEPOSIT)
+            .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
             .map(asset -> zero(asset.currentValue()))
             .reduce(ZERO, BigDecimal::add);
     BigDecimal realEstateTotal =
         state.assets().stream()
-            .filter(asset -> asset.type() == LongTermAssetType.REAL_ESTATE)
+            .filter(asset -> asset.bucket() == EconomicBucket.REAL_ESTATE)
             .map(asset -> zero(asset.currentValue()))
             .reduce(ZERO, BigDecimal::add);
     return new ProfileAssetProjection(
@@ -162,18 +158,14 @@ public class CurrentYearProjectionBridge {
             .map(
                 asset -> {
                   BigDecimal total =
-                      asset.type() == LongTermAssetType.REAL_ESTATE
+                      asset.bucket() == EconomicBucket.REAL_ESTATE
                           ? realEstateTotal
-                          : asset.type() == LongTermAssetType.BOND
-                                  || asset.type() == LongTermAssetType.DEPOSIT
-                              ? bondTotal
-                              : ZERO;
+                          : asset.bucket() == EconomicBucket.FIXED_INCOME ? bondTotal : ZERO;
                   if (total.signum() == 0) return asset;
                   EconomicBucket bucket =
-                      asset.type() == LongTermAssetType.REAL_ESTATE
+                      asset.bucket() == EconomicBucket.REAL_ESTATE
                           ? EconomicBucket.REAL_ESTATE
-                          : asset.type() == LongTermAssetType.BOND
-                                  || asset.type() == LongTermAssetType.DEPOSIT
+                          : asset.bucket() == EconomicBucket.FIXED_INCOME
                               ? EconomicBucket.FIXED_INCOME
                               : null;
                   if (bucket == null) return asset;

@@ -25,7 +25,8 @@ import org.springframework.jdbc.core.RowMapper;
 class ApplicationReconciliationCoverageTest {
 
   private static final ReconciliationContext CONTEXT =
-      new ReconciliationContext(Instant.parse("2026-08-25T10:00:00Z"), LocalDate.of(2026, 8, 25));
+      new ReconciliationContext(
+          Instant.parse("2026-08-25T10:00:00Z"), LocalDate.of(2026, 8, 25), 42L);
 
   @DisplayName("c6Passes Only When Dashboard Fallback Evidence Matches Canonical Reporting")
   @Test
@@ -81,7 +82,7 @@ class ApplicationReconciliationCoverageTest {
   @Test
   void c7PassesForCurrentYahooSnapshot() {
     SecondaryAdapterStatusReader yahoo = mock(SecondaryAdapterStatusReader.class);
-    when(yahoo.status())
+    when(yahoo.status(42L))
         .thenReturn(
             new ExportStatus(
                 ZonedDateTime.of(2026, 8, 25, 12, 0, 0, 0, ZoneId.of("Europe/Warsaw")), true));
@@ -97,7 +98,7 @@ class ApplicationReconciliationCoverageTest {
   @Test
   void c7FailsClosedForStaleYahooSnapshot() {
     SecondaryAdapterStatusReader yahoo = mock(SecondaryAdapterStatusReader.class);
-    when(yahoo.status())
+    when(yahoo.status(42L))
         .thenReturn(
             new ExportStatus(
                 ZonedDateTime.of(2026, 8, 24, 12, 0, 0, 0, ZoneId.of("Europe/Warsaw")), false));
@@ -113,7 +114,7 @@ class ApplicationReconciliationCoverageTest {
   @Test
   void c7ReviewsMissingSnapshotInsteadOfReportingUnchecked() {
     SecondaryAdapterStatusReader yahoo = mock(SecondaryAdapterStatusReader.class);
-    when(yahoo.status()).thenReturn(new ExportStatus(null, false));
+    when(yahoo.status(42L)).thenReturn(new ExportStatus(null, false));
 
     ReconciliationCheckResult result =
         new SecondaryAdapterReconciliationCheck(yahoo).execute(CONTEXT);

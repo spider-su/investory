@@ -1,30 +1,18 @@
 package com.smartbox.investory.ui.longterm;
 
 import com.smartbox.investory.longterm.api.model.*;
-import com.smartbox.investory.shared.presentation.FinancialPresentation;
-import java.math.BigDecimal;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 final class LongTermAssetPageSupport {
   private LongTermAssetPageSupport() {}
 
-  static String share(BigDecimal value, BigDecimal total) {
-    return total == null || total.signum() == 0
-        ? "0.0%"
-        : FinancialPresentation.percentage(value.divide(total, 8, java.math.RoundingMode.HALF_UP));
-  }
-
-  static String assetRedirect(Long id, Long portfolioId) {
-    return "redirect:/portfolios/" + portfolioId + "/long-term-assets/" + id;
-  }
-
   static String rentalRedirect(Long id, Long portfolioId) {
-    return assetRedirect(id, portfolioId) + "#rental-contracts";
-  }
-
-  static String taxPolicyRedirect(Long portfolioId) {
-    return "redirect:/portfolios/" + portfolioId + "/long-term-assets#rental-tax-policies";
+    return "redirect:/portfolios/"
+        + portfolioId
+        + "/long-term-assets/"
+        + id
+        + "/real-estate#rental-contracts";
   }
 
   static void applyAssetMutation(Runnable action, RedirectAttributes feedback) {

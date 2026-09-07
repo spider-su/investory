@@ -35,8 +35,8 @@ export function initSimulationCharts() {
     if (value == null || Number.isNaN(Number(value))) return '—';
     const amount = Number(value);
     const absolute = Math.abs(amount);
-    if (absolute >= 1000000) return `${(amount / 1000000).toLocaleString('en-US', {maximumFractionDigits: 2})}M`;
-    if (absolute >= 1000) return `${(amount / 1000).toLocaleString('en-US', {minimumFractionDigits: 1, maximumFractionDigits: 1})}K`;
+    if (absolute >= 1000000) return `${(amount / 1000000).toFixed(absolute < 10000000 ? 2 : 1)}M`;
+    if (absolute >= 1000) return `${(amount / 1000).toFixed(absolute < 10000 ? 2 : 1)}K`;
     return amount.toLocaleString('en-US', {maximumFractionDigits: 0});
   };
   const tooltipMoney = (value) => `${compactMoney(value)} ${currency}`;

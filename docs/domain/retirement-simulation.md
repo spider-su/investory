@@ -63,7 +63,7 @@ and any explicit bond cash payout are spendable flows. Bond bucket return and Eq
 change capital value and do not reduce the funding gap directly.
 
 The public contracts form an anti-corruption boundary. Retirement must not inspect whether capital
-came from an ETF, brokerage cash position, individual bond, deposit, property, rental contract, or
+came from an ETF, brokerage cash position, individual bond, cash reserve, property, rental contract, or
 another implementation-specific source. The owning module converts those details to economic meaning
 before the Retirement boundary.
 
@@ -106,7 +106,7 @@ Scenario selection is a runtime overlay on the frozen plan revision. Historical 
 remain factual; only projected rows use the overlay. Active projected modifiers are inflation,
 rental growth, spending growth, Bond return, and Equity return. The BASE Bond yield is derived
 from the frozen Bond capital and the source Bond period active at the explicit planning baseline
-year when a `CAPITALIZE` period is available. Period list order is irrelevant. The selected
+year when a return period is available. Period list order is irrelevant. The selected
 scenario's fixed-income delta is then added. If no source capitalized period is active, source
 Bond mechanics do not receive an arbitrary first-period return; allocation-only/synthetic Bond
 state uses the selected scenario fixed-income rate as its fallback.
@@ -206,8 +206,8 @@ Bond cash payout and Bond capital return are separate normalized facts. The froz
 snapshot may contain source-derived bond periods, maturity dates, tax rates, and interest treatment.
 `FrozenBondCashFlowProjection` evaluates those immutable details using Dec 31 of the explicit
 planning baseline year for the source-derived capitalized yield; no system clock is used. A
-`PAY_OUT` period contributes spendable cash and does not add that payout to Bond principal. A
-`CAPITALIZE` period contributes no cash income and its applicable net return is represented by
+An income period contributes spendable cash and does not add that income to Bond principal. A
+return period contributes no cash income and its applicable net return is represented by
 Bond capital return. Mutable Long-Term services are never consulted during forward simulation.
 
 ```text
@@ -275,13 +275,13 @@ available for withdrawal. `plan` is the single committed transition: it applies 
 reinvests unused maturity capital, and returns the only valid `endState` for the next year.
 Retirement may quote once and execute once; it never uses quote state as a future state. It returns
 ordinary annual income flows, explicit reserve transfers, actual capital provided, end capital,
-and its next state. Retirement does not construct bond/deposit inputs or inspect maturity rules.
+and its next state. Retirement does not construct source-asset inputs or inspect maturity rules.
 
 Investment is a black box. Simulation sees no equity, fixed-income, market-cash, allocation, or
 portfolio internals.
 
 The same rule applies to Long-Term. Simulation sees no rental-contract implementation, bond terms,
-deposit implementation, property subtype, or persistence model. Those details remain inside
+cash-reserve implementation, property subtype, or persistence model. Those details remain inside
 Long-Term.
 
 ## Plan input snapshot

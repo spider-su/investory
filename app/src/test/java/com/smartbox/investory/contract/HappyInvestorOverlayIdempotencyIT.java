@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorLongTermFacts;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -29,11 +30,9 @@ class HappyInvestorOverlayIdempotencyIT {
   void reapplicationRestoresEveryMutableCanonicalColumnAndRemainsStable() throws Exception {
     try (Connection connection = DATABASE.openConnection()) {
       connection.setAutoCommit(false);
-      execute(connection, "UPDATE investory.long_term_assets SET tax_base = 1 WHERE id = 9402");
+      execute(connection, "UPDATE investory.real_estate SET value = 1 WHERE id = 9402");
       execute(
-          connection,
-          "UPDATE investory.long_term_asset_rental_contracts "
-              + "SET monthly_tax_base = 1 WHERE id = 9501");
+          connection, "UPDATE investory.rental_contract_term " + "SET amount = 1 WHERE id = 9501");
       execute(
           connection,
           "UPDATE investory.simulation_plan_revisions "
@@ -55,15 +54,15 @@ class HappyInvestorOverlayIdempotencyIT {
   private static void assertCanonicalValues(Connection connection) throws Exception {
     assertEquals(
         0,
-        decimal(connection, "SELECT tax_base FROM investory.long_term_assets WHERE id = 9402")
-            .compareTo(HappyInvestorLongTermFacts.APARTMENT_A_MONTHLY_TAX_BASE));
+        decimal(connection, "SELECT value FROM investory.real_estate WHERE id = 9402")
+            .compareTo(HappyInvestorTestData.APARTMENT_A_VALUE));
     assertEquals(
         0,
         decimal(
                 connection,
-                "SELECT monthly_tax_base FROM investory.long_term_asset_rental_contracts "
-                    + "WHERE id = 9501")
-            .compareTo(HappyInvestorLongTermFacts.APARTMENT_A_MONTHLY_TAX_BASE));
+                "SELECT amount FROM investory.rental_contract_term "
+                    + "WHERE rental_contract_id = 9501 AND cash_flow_type = 'RENT'")
+            .compareTo(HappyInvestorLongTermFacts.APARTMENT_A_ANNUAL_TAX_BASE));
     assertNull(
         object(
             connection,

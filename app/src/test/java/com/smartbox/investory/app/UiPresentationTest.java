@@ -3,7 +3,6 @@ package com.smartbox.investory.app;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.smartbox.investory.longterm.api.model.CashFlowType;
-import com.smartbox.investory.longterm.api.model.InterestTreatment;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.retirement.api.model.PlanningMetric;
 import com.smartbox.investory.ui.presentation.UiPresentation;
@@ -46,14 +45,18 @@ class UiPresentationTest {
   @Test
   void formatsCompactSummaryMoney() {
     assertEquals("999", UiPresentation.compactMoney(new BigDecimal("999")));
-    assertEquals("1.0K", UiPresentation.compactMoney(new BigDecimal("1000")));
-    assertEquals("1.3K", UiPresentation.compactMoney(new BigDecimal("1250")));
+    assertEquals("1.00K", UiPresentation.compactMoney(new BigDecimal("1000")));
+    assertEquals("1.12K", UiPresentation.compactMoney(new BigDecimal("1123")));
+    assertEquals("1.25K", UiPresentation.compactMoney(new BigDecimal("1250")));
+    assertEquals("11.2K", UiPresentation.compactMoney(new BigDecimal("11230")));
     assertEquals("174.8K", UiPresentation.compactMoney(new BigDecimal("174803.62")));
     assertEquals("900.0K", UiPresentation.compactMoney(new BigDecimal("900000")));
-    assertEquals("1M", UiPresentation.compactMoney(new BigDecimal("1000000")));
+    assertEquals("1.00M", UiPresentation.compactMoney(new BigDecimal("1000000")));
+    assertEquals("1.12M", UiPresentation.compactMoney(new BigDecimal("1123000")));
     assertEquals("4.55M", UiPresentation.compactMoney(new BigDecimal("4550000")));
+    assertEquals("11.2M", UiPresentation.compactMoney(new BigDecimal("11230000")));
     assertEquals("-174.8K", UiPresentation.compactMoney(new BigDecimal("-174803.62")));
-    assertEquals("1M", UiPresentation.compactMoney(new BigDecimal("999950")));
+    assertEquals("1.00M", UiPresentation.compactMoney(new BigDecimal("999950")));
     assertEquals("+36.6K", UiPresentation.signedCompactMoney(new BigDecimal("36600")));
     assertEquals("−36.6K", UiPresentation.signedCompactMoney(new BigDecimal("-36600")));
   }
@@ -64,8 +67,6 @@ class UiPresentationTest {
     assertEquals("Fixed income", UiPresentation.bucket(EconomicBucket.FIXED_INCOME));
     assertEquals("Parking rent", UiPresentation.cashFlowType(CashFlowType.PARKING_RENT));
     assertEquals("Parking rent", UiPresentation.cashFlowType(CashFlowType.PARKING_RENT));
-    assertEquals("Accumulative", UiPresentation.interestTreatment(InterestTreatment.CAPITALIZE));
-    assertEquals("Distributed", UiPresentation.interestTreatment(InterestTreatment.PAY_OUT));
   }
 
   @DisplayName("formats Historical Metrics By Declared Unit")

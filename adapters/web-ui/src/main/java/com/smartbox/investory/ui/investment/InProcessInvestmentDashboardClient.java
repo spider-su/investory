@@ -25,7 +25,7 @@ public class InProcessInvestmentDashboardClient implements InvestmentDashboardCl
   }
 
   @Override
-  public InvestmentResultView investmentResult(Long portfolioId) {
-    return investmentDashboardApi.investmentResult(portfolioId);
+  public InvestmentResultView investmentResultYtd(Long portfolioId) {
+    return investmentDashboardApi.investmentResultYtd(portfolioId);
   }
 }

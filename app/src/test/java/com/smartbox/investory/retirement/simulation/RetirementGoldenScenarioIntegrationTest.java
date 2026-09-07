@@ -1,0 +1,160 @@
+package com.smartbox.investory.retirement.simulation;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
+import com.smartbox.investory.investment.projection.PortfolioProjectionService;
+import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
+import com.smartbox.investory.profile.api.ProfileSnapshotReader;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.retirement.api.model.AnalysisAvailability;
+import com.smartbox.investory.retirement.api.model.PlanDetails;
+import com.smartbox.investory.retirement.api.model.PlanningTimeline;
+import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
+import com.smartbox.investory.retirement.api.model.RetirementProjectionContext;
+import com.smartbox.investory.retirement.api.model.SimulationScenario;
+import com.smartbox.investory.retirement.planning.PlanningTimelineFacade;
+import com.smartbox.investory.retirement.planning.RetirementAnalysisService;
+import com.smartbox.investory.retirement.planning.RetirementProjectionFacade;
+import com.smartbox.investory.testsupport.FastDatabase;
+import com.smartbox.investory.testsupport.WorkerDatabase;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorLongTermFacts;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorPlanFacts;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorProfileFacts;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorRetirementFacts;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
+import java.sql.Connection;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+
+/** End-to-end retirement contract over the canonical HappyInvestor database fixture. */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+@ActiveProfiles("test-fast")
+@EnableCaching
+@Import(RetirementGoldenScenarioIntegrationTest.FixedClockConfig.class)
+class RetirementGoldenScenarioIntegrationTest {
+  private static final WorkerDatabase DATABASE =
+      FastDatabase.scopedDatabase("retirement_golden_scenario");
+
+  @Autowired private DataSource dataSource;
+  @Autowired private PortfolioProjectionService projections;
+  @Autowired private PortfolioProjectionRefreshService projectionRefresh;
+  @Autowired private ProfileSnapshotReader profiles;
+  @Autowired private LongTermAssetProfileReader longTermAssets;
+  @Autowired private RetirementPlanApi plans;
+  @Autowired private RetirementProjectionFacade projectionFacade;
+  @Autowired private PlanningTimelineFacade timelines;
+  @Autowired private RetirementAnalysisService analyses;
+
+  @BeforeEach
+  void loadCanonicalHappyInvestorFixture() throws Exception {
+    try (Connection connection = dataSource.getConnection()) {
+      ScriptUtils.executeSqlScript(
+          connection, new ClassPathResource("db/snapshot/happyinvestor-common.sql"));
+      ScriptUtils.executeSqlScript(
+          connection, new ClassPathResource("db/snapshot/happyinvestor-broker.sql"));
+    }
+    projections.recalculateAccounts(
+        java.util.Set.of(
+            HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
+            HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
+            HappyInvestorTestData.XTB_PLN_ACCOUNT_ID,
+            HappyInvestorTestData.XTB_EUR_ACCOUNT_ID));
+    projectionRefresh.refreshApplicationViews(
+        PortfolioProjectionRefreshService.ApplicationRefreshScope.DASHBOARD);
+  }
+
+  @DynamicPropertySource
+  static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", DATABASE::jdbcUrl);
+    registry.add("spring.datasource.username", DATABASE::username);
+    registry.add("spring.datasource.password", DATABASE::password);
+  }
+
+  @AfterAll
+  static void closeDatabase() {
+    DATABASE.close();
+  }
+
+  @Test
+  void canonicalHappyInvestorFlowsThroughProfilePlanBridgeSimulationTimelineAndAnalysis() {
+    InvestmentProfile profile = profiles.loadProfile(HappyInvestorTestData.PORTFOLIO_ID);
+    assertThat(profile.totalNetWorth())
+        .isEqualByComparingTo(HappyInvestorProfileFacts.TOTAL_NET_WORTH);
+    assertThat(profile.currentRentalIncome())
+        .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_NET_ANNUAL);
+    assertThat(profile.currentBondIncome())
+        .isEqualByComparingTo(
+            HappyInvestorLongTermFacts.TREASURY_PRINCIPAL
+                .multiply(HappyInvestorLongTermFacts.TREASURY_ANNUAL_RATE)
+                .multiply(new java.math.BigDecimal("0.81")));
+
+    PlanDetails plan =
+        plans.details(HappyInvestorTestData.PORTFOLIO_ID, HappyInvestorPlanFacts.SEED_PLAN_ID);
+    assertThat(plan.name()).isEqualTo(HappyInvestorPlanFacts.NAME);
+    assertThat(plan.currentRevisionId()).isEqualTo(HappyInvestorPlanFacts.SEED_REVISION_ID);
+    assertThat(plan.assumptions().retirementAge()).isEqualTo(HappyInvestorPlanFacts.RETIREMENT_AGE);
+
+    var longTerm =
+        longTermAssets.snapshot(
+            HappyInvestorTestData.PORTFOLIO_ID, HappyInvestorTestData.REFERENCE_DATE);
+    assertThat(longTerm.summary().totalCurrentValue())
+        .isEqualByComparingTo(HappyInvestorLongTermFacts.LONG_TERM_TOTAL);
+    assertThat(longTerm.annualSnapshot().rentalIncome())
+        .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_NET_ANNUAL);
+
+    RetirementProjectionContext projection =
+        projectionFacade.load(
+            HappyInvestorTestData.PORTFOLIO_ID, HappyInvestorPlanFacts.SEED_PLAN_ID);
+    assertThat(projection.forward().currentYearBridge()).isNotNull();
+    assertThat(projection.scenarioResults()).containsKey(SimulationScenario.BASE);
+    assertThat(projection.scenarioResults().get(SimulationScenario.BASE).years()).isNotEmpty();
+    assertThat(projection.scenarioResults().get(SimulationScenario.BASE).simulationFailed())
+        .isFalse();
+
+    PlanningTimeline timeline =
+        timelines.loadForwardTimeline(
+            HappyInvestorTestData.PORTFOLIO_ID,
+            projection.projectedProfile(),
+            projection.forward());
+    assertThat(timeline.years()).isNotEmpty();
+    assertThat(timeline.years().getLast().year())
+        .isEqualTo(HappyInvestorRetirementFacts.LAST_PROJECTED_YEAR);
+    assertThat(timeline.years().getLast().age())
+        .isEqualTo(HappyInvestorRetirementFacts.LAST_PROJECTED_AGE);
+    assertThat(timeline.years()).anyMatch(year -> year.state() == PlanningTimelineState.LIVE);
+    assertThat(timeline.years()).anyMatch(year -> year.state() == PlanningTimelineState.PROJECTED);
+
+    var analysis = analyses.analyze(projection);
+    assertThat(analysis.state()).isNotNull();
+    assertThat(analysis.sustainableSpending()).isInstanceOf(AnalysisAvailability.Available.class);
+    assertThat(analysis.retirementAge()).isInstanceOf(AnalysisAvailability.Available.class);
+  }
+
+  @TestConfiguration
+  static class FixedClockConfig {
+    @Bean
+    @Primary
+    Clock retirementIntegrationClock() {
+      return Clock.fixed(Instant.parse("2025-12-31T12:00:00Z"), ZoneId.of("Europe/Warsaw"));
+    }
+  }
+}

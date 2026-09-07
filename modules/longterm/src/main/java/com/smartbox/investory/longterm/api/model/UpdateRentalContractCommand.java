@@ -1,6 +1,5 @@
 package com.smartbox.investory.longterm.api.model;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -14,7 +13,4 @@ public record UpdateRentalContractCommand(
     String tenantPhone,
     LocalDate startDate,
     LocalDate endDate,
-    BigDecimal monthlyTaxBase,
-    Boolean rentalTaxPaidByTenant,
-    boolean usePropertyTaxPayerDefault,
     List<RentalTermCommand> terms) {}

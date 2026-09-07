@@ -166,16 +166,9 @@ public record PlanningBuckets(
     return profile.longTermPlanningState().assets().stream()
         .filter(
             a ->
-                (bucket == EconomicBucket.FIXED_INCOME
-                        && (a.type()
-                                == com.smartbox.investory.longterm.api.model.LongTermAssetType.BOND
-                            || a.type()
-                                == com.smartbox.investory.longterm.api.model.LongTermAssetType
-                                    .DEPOSIT))
+                (bucket == EconomicBucket.FIXED_INCOME && a.bucket() == EconomicBucket.FIXED_INCOME)
                     || (bucket == EconomicBucket.REAL_ESTATE
-                        && a.type()
-                            == com.smartbox.investory.longterm.api.model.LongTermAssetType
-                                .REAL_ESTATE))
+                        && a.bucket() == EconomicBucket.REAL_ESTATE))
         .map(a -> zeroIfNull(a.currentValue()))
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }

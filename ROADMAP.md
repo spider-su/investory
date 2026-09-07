@@ -40,12 +40,11 @@ The verification gate is intentionally first: accounting/import changes should n
 
 The implemented long-term assets, deterministic retirement simulation, Reserve + Harvest policy, manual
 cash reserve, planning display currency, and Actual/Live/Projected timeline are no longer roadmap work.
-Reviewed Long-Term baselines are immutable snapshots; deposits, rental-contract rollover, archived
+Reviewed Long-Term baselines are immutable snapshots; term cash reserves, rental-contract rollover, archived
 asset reactivation, and subtype-specific creation are supported.
 
 | Item | Effort | Why |
 |---|---|---|
-| Complete Long-Term database integrity constraints | S | The current Flyway chain ends at `V01.008` and enforces rental-contract subtype consistency. Add any remaining cross-table subtype and lifecycle constraints through a new append-only migration, with matching snapshot and migration-contract coverage. |
 | Portfolio-scoped market aggregation for planning | M | `InvestmentProfile` currently combines portfolio-scoped manual assets with shared market aggregation; make multi-portfolio planning semantics explicit and safe. |
 | Richer Live-year tracking and longer actual-versus-plan history | M | The current annual baseline/timeline is intentionally compact. Add reliable flow and strategy tracking without turning planning into transaction budgeting. |
 | Assumption calibration from closed years | M | Use approved historical planning data as an optional review input; do not silently alter assumptions. |
@@ -109,7 +108,7 @@ asset reactivation, and subtype-specific creation are supported.
 | Optimize remaining large MV refreshes | M | TODO. Current complete baseline is ~194 s for all MVs. Profile and optimize reconstructed cash, normalized cash, reconstructed position daily, and account daily reconciliation in that order; compare exact rows/columns before each migration. |
 | Review and refactor the golden dashboard UI test | M | TODO. The test currently spends its remaining time in FX preload/account rebuild before browser assertions; profile the range resolver, cache fill, and account rebuild separately, then reduce preparation cost without weakening dashboard-value coverage. |
 | Finish the typed retirement plan-editor boundary | S | HTML form parsing now lives in the Web UI `SimulationRequestMapper`, and `PlanEditorInput` is typed. Remove its remaining string-key compatibility view (`value(String)`) after the last MVC caller is migrated, preserving percentage-point, currency, null/fallback, and expense-stage tests. |
-| Consolidate long-term application orchestration after the POC freeze | L | Post-POC code-structure TODO: (1) consolidate the duplicated `LongTermAssetsApplicationService` / `LongTermAssetsFacade` layers into one composition-based public API with explicit model mappers; (2) relocate `SimulationPlanService` to an application/persistence orchestration package; (3) standardize API model package conventions; (4) break oversized calculation/orchestration classes along existing responsibilities, including `PortfolioProjectionService`, `PortfolioMetricsService`, and `PlanningTimelineFacade`; and (5) remove compatibility constructors and presentation bridges, including the deprecated `SimulationPlanService` constructor and `PlanningPresentation` forwarding bridge. This is planned technical debt and is not a POC blocker; schedule only when there is sufficient regression time. |
+| Finish oversized application-service decomposition | L | Long-Term read aggregation, calculations, commands, lifecycle, and payment audit are separated. Continue the same responsibility split for `PortfolioProjectionService`, `PortfolioMetricsService`, and `PlanningTimelineFacade`; then remove remaining deprecated Retirement constructors/presentation bridges. |
 | Bind Spotless to `verify` and add a pre-commit hook | S | Formatting is configured but remains optional and can drift between contributors. |
 | Bump `telegrambots` 6.9 → 7.x / 10.x (Boot starter, split artifacts) | M | 6.x is no longer maintained; the 7.x+ line ships a Spring Boot starter (`telegrambots-springboot-longpolling-starter`) and splits client/meta into separate jars. This requires reworking `PortfolioBot` to the newer consumer API. |
 

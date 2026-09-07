@@ -74,10 +74,7 @@ public record SimulationChartData(
 
   public record FailureMarker(int year, int age) {}
 
-  /**
-   * Simplified allocation view. Bonds include market fixed income and locked contractual
-   * bonds/deposits.
-   */
+  /** Simplified allocation view. Bonds include market fixed income and locked contractual bonds. */
   public record CompositionPoint(
       int year, BigDecimal cash, BigDecimal apartments, BigDecimal bonds, BigDecimal equities) {}
 

@@ -6,6 +6,7 @@ import com.smartbox.investory.investment.api.reporting.model.PortfolioStructureV
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -25,26 +26,13 @@ public class PortfolioStructureQuery {
         assetAllocationQuery == null
             ? new AssetAllocationView(0.0, List.of())
             : assetAllocationQuery.load(portfolioId, portfolio);
-    return load(portfolioId, portfolio, allocation);
-  }
-
-  public PortfolioStructureView load(Portfolio portfolio, AssetAllocationView allocation) {
-    return load(null, portfolio, allocation);
-  }
-
-  private PortfolioStructureView load(
-      Long portfolioId, Portfolio portfolio, AssetAllocationView allocation) {
     double total =
-        portfolioId == null || assetAllocationQuery == null
+        assetAllocationQuery == null
             ? portfolio.getBalance()
             : allocation.totalValue().doubleValue();
-    double cash = portfolio.getCash();
-
-    // Symbols are Investory's portfolio-level instrument identifiers. Aggregate across accounts
-    // before calculating concentration so duplicate account rows do not understate a holding.
     List<PortfolioStructureView.Holding> holdings =
-        portfolioId == null || assetAllocationQuery == null
-            ? legacyHoldings(portfolio, total)
+        assetAllocationQuery == null
+            ? List.of()
             : assetAllocationQuery.canonicalHoldings(portfolioId).stream()
                 .map(
                     row ->
@@ -56,6 +44,63 @@ public class PortfolioStructureQuery {
                 .sorted(
                     Comparator.comparingDouble(PortfolioStructureView.Holding::value).reversed())
                 .toList();
+    return build(portfolio, allocation, total, holdings);
+  }
+
+  /** Compatibility path for callers that already have an allocation and valued positions. */
+  public PortfolioStructureView fromAllocation(
+      Portfolio portfolio, AssetAllocationView allocation) {
+    double total =
+        allocation == null ? portfolio.getBalance() : allocation.totalValue().doubleValue();
+    List<PortfolioStructureView.Holding> holdings =
+        (portfolio.getOpenPositionValues() == null
+                ? List.<com.smartbox.investory.investment.api.reporting.model.OpenPositionValue>of()
+                : portfolio.getOpenPositionValues())
+            .stream()
+                .filter(position -> position.getSymbol() != null)
+                .collect(
+                    Collectors.groupingBy(
+                        position -> position.getSymbol(), LinkedHashMap::new, Collectors.toList()))
+                .entrySet()
+                .stream()
+                .map(
+                    entry ->
+                        new PortfolioStructureView.Holding(
+                            entry.getKey(),
+                            entry.getValue().stream()
+                                .map(position -> position.getValue())
+                                .filter(java.util.Objects::nonNull)
+                                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+                                .doubleValue(),
+                            0.0,
+                            entry.getValue().stream()
+                                .map(position -> position.getUnrealized())
+                                .filter(java.util.Objects::nonNull)
+                                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+                                .doubleValue()))
+                .map(
+                    holding ->
+                        new PortfolioStructureView.Holding(
+                            holding.symbol(),
+                            holding.value(),
+                            weight(holding.value(), total),
+                            holding.unrealized()))
+                .sorted(
+                    Comparator.comparingDouble(PortfolioStructureView.Holding::value).reversed())
+                .toList();
+    return build(
+        portfolio,
+        allocation == null ? new AssetAllocationView(total, List.of()) : allocation,
+        total,
+        holdings);
+  }
+
+  private PortfolioStructureView build(
+      Portfolio portfolio,
+      AssetAllocationView allocation,
+      double total,
+      List<PortfolioStructureView.Holding> holdings) {
+    double cash = portfolio.getCash();
 
     // Account-balance exposure; distinct from SQL portfolio_currency_breakdown P/L-by-currency.
     List<PortfolioStructureView.CurrencyBucket> currencies =
@@ -85,41 +130,6 @@ public class PortfolioStructureQuery {
         holdings.stream().limit(10).toList(),
         currencies,
         allocation);
-  }
-
-  private static List<PortfolioStructureView.Holding> legacyHoldings(
-      Portfolio portfolio, double total) {
-    if (portfolio.getOpenPositionValues() == null) return List.of();
-    return portfolio.getOpenPositionValues().stream()
-        .filter(position -> position.getSymbol() != null && !position.getSymbol().isBlank())
-        .collect(
-            Collectors.groupingBy(
-                position -> position.getSymbol(),
-                java.util.LinkedHashMap::new,
-                Collectors.toList()))
-        .entrySet()
-        .stream()
-        .map(
-            entry -> {
-              double value =
-                  entry.getValue().stream()
-                      .mapToDouble(
-                          position ->
-                              position.getValue() == null ? 0.0 : position.getValue().doubleValue())
-                      .sum();
-              double unrealized =
-                  entry.getValue().stream()
-                      .mapToDouble(
-                          position ->
-                              position.getUnrealized() == null
-                                  ? 0.0
-                                  : position.getUnrealized().doubleValue())
-                      .sum();
-              return new PortfolioStructureView.Holding(
-                  entry.getKey(), value, weight(value, total), unrealized);
-            })
-        .sorted(Comparator.comparingDouble(PortfolioStructureView.Holding::value).reversed())
-        .toList();
   }
 
   private static PortfolioStructureView.CurrencyBucket currencyBucket(

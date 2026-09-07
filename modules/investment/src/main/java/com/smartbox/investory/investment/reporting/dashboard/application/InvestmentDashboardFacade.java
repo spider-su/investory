@@ -365,6 +365,11 @@ public class InvestmentDashboardFacade {
         : twr ? result.timeWeightedReturn() : result.moneyWeightedReturn();
   }
 
+  private PortfolioStructureView portfolioStructure(
+      Portfolio portfolio, AssetAllocationView allocation) {
+    return portfolioStructureQuery.fromAllocation(portfolio, allocation);
+  }
+
   private OverviewView overview(
       Portfolio portfolio,
       Benchmark benchmark,
@@ -400,11 +405,6 @@ public class InvestmentDashboardFacade {
             : operationalContextService.load(portfolioId, portfolio),
         allocation,
         structure);
-  }
-
-  private PortfolioStructureView portfolioStructure(
-      Portfolio portfolio, AssetAllocationView assetAllocation) {
-    return portfolioStructureQuery.load(portfolio, assetAllocation);
   }
 
   private Double incomeYield(PeriodPerformance periodPerformance, Portfolio portfolio) {

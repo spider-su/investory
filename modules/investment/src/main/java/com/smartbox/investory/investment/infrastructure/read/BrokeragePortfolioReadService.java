@@ -7,7 +7,6 @@ import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioS
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
-import com.smartbox.investory.investment.performance.PortfolioMetricsService;
 import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
 import java.math.BigDecimal;
@@ -21,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class BrokeragePortfolioReadService implements BrokeragePortfolioReader {
-  private final PortfolioMetricsService portfolioMetricsService;
   private final PortfolioPerformanceQuery performanceQuery;
   private final PortfolioKpiSummaryRepository portfolioKpis;
   private final PortfolioAssetAllocationRepository portfolioAllocations;
@@ -43,10 +41,16 @@ public class BrokeragePortfolioReadService implements BrokeragePortfolioReader {
                         allocation.getAssetSymbol(),
                         money(allocation.getTotalValueInBaseCurrency())))
             .toList();
+    BigDecimal positionValue =
+        positions.stream()
+            .map(BrokeragePositionSnapshot::value)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal cash = money(kpi.getTotalCash());
+
     return new SharedBrokeragePortfolioSnapshot(
         kpi.getBaseCurrency(),
-        money(kpi.getTotalEquity()),
-        money(kpi.getTotalCash()),
+        positionValue.add(cash),
+        cash,
         money(kpi.getTotalDividends()),
         money(kpi.getTotalInterest()),
         positions);

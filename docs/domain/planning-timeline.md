@@ -66,8 +66,10 @@ reliable historical source exists. `PASSIVE_INCOME` remains readable
 only for legacy snapshots; new derivation uses explicit `RENTAL_INCOME`, `BOND_INCOME`, and other
 supported categories instead.
 
-Long-term Asset historical income uses the normalized annual economics exposed by
-`LongTermAssetService`, the same calculation used by the Long-term Assets overview. Current asset
+Long-Term historical income uses calendar-accrued rental-contract economics exposed by
+`LongTermAssetAnnualSnapshotReader`. It applies the same income, landlord-expense, and property-level
+rental-tax rules as the Long-Term overview, while the overview annualizes the contract effective on its current
+boundary date. Current asset
 balances are not claimed as historical Dec-31 values without a dated valuation source, so real
 estate, bond, and cash-reserve balances may remain unavailable. Refresh derived values updates only
 open-year actual candidates and never changes the baseline or a user override.
@@ -95,9 +97,9 @@ the next calendar year starts from that bridged state, not from a mid-year portf
 The bridge uses the remaining calendar-day fraction for recurring spending, funding, contributions,
 passive income, pension, and continuously modelled returns. Working-year contributions go to liquid cash
 and use that same fraction; employment income remains informational. Retired years apply spending and
-the configured funding strategy. Contractual PAY_OUT interest is netted for tax and becomes bridge cash;
-CAPITALIZE interest increases the contractual asset and is not passive income. A remaining maturity uses
-the canonical redemption value, or post-interest value when unset, moves cash to `LIQUID_CASH`, and leaves
+the configured funding strategy. Contractual income facts are netted for tax and become bridge cash;
+contractual return facts affect the asset balance and are not passive income. A remaining maturity
+moves the contractual balance to `LIQUID_CASH`, and leaves
 a zero-valued asset identity. Current-year events and redemptions are applied once in the bridge; future
 events and unmatured assets remain in the next full-year assumptions. Contractual effects use the remaining
 calendar fraction; exact in-year maturity uses the bridge clock date. This is deterministic annual

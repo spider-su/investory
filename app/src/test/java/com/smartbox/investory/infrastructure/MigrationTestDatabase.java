@@ -26,20 +26,31 @@ final class MigrationTestDatabase {
     flyway(database).migrate();
   }
 
+  static void migrateTo(WorkerDatabase database, String target) {
+    assertDisposable(database);
+    flyway(database, target).migrate();
+  }
+
   static Connection connection(WorkerDatabase database) throws SQLException {
     return DriverManager.getConnection(
         database.jdbcUrl(), database.username(), database.password());
   }
 
   static Flyway flyway(WorkerDatabase database) {
-    return Flyway.configure()
-        .cleanDisabled(false)
-        .dataSource(database.jdbcUrl(), database.username(), database.password())
-        .schemas("investory")
-        .defaultSchema("investory")
-        .createSchemas(true)
-        .locations("classpath:sql/migration")
-        .load();
+    return flyway(database, null);
+  }
+
+  private static Flyway flyway(WorkerDatabase database, String target) {
+    var configuration =
+        Flyway.configure()
+            .cleanDisabled(false)
+            .dataSource(database.jdbcUrl(), database.username(), database.password())
+            .schemas("investory")
+            .defaultSchema("investory")
+            .createSchemas(true)
+            .locations("classpath:sql/migration");
+    if (target != null) configuration.target(target);
+    return configuration.load();
   }
 
   static void assertDisposable(WorkerDatabase database) {

@@ -51,6 +51,13 @@ Also check:
 - missing/stale FX follows `docs/domain/fx-normalization.md`;
 - dashboard and adapter totals trace back to the same reporting lineage.
 
+Known non-accounting price-source conditions are evidence-quality classifications, not valuation
+failures: trade observations, interpolated prices, alternate listings, and stale carry-forward
+prices remain visible for traceability. Trade-observation and stale-carry-forward selections are
+informational when the position is otherwise valuatable; missing price, missing FX, zero-price,
+and impossible quantity/value combinations remain errors. Manual weekly prices and corporate-action
+resets remain reviewable continuity signals.
+
 ## Numeric comparison contract
 
 Reconciliation parameters are stored in `investory.reconciliation_parameters` and read by the
@@ -66,6 +73,20 @@ PASS when abs(difference) <= effective_tolerance
 `reconciliation_reporting_scale` controls display rounding only; rounded values must never decide
 PASS/FAIL. Generic numeric tolerances are separate from named domain anomaly thresholds such as
 carrying-value, market-bridge, reorganization, and price-jump rules.
+
+The current default monetary policy is:
+
+- C4 market-value/equity comparison: absolute tolerance `400` or relative tolerance `0.02`.
+- C4 unrealized-profit comparison: uses the same market-value tolerance scale.
+- C4 cash comparison: absolute tolerance `5` with the shared relative tolerance.
+- C6 dashboard-fallback unrealized comparison: absolute tolerance `100` with the shared relative
+  tolerance.
+- C1 account-flow comparison includes internal-transfer legs; portfolio-flow reporting remains
+  external-flow scoped.
+
+These values are configuration data, not display rounding. A deployment that changes them must
+update `investory.reconciliation_parameters` through the approved migration/configuration path
+and refresh dependent reconciliation materialized views.
 
 Classify reconciliation constants before changing them:
 
@@ -123,11 +144,13 @@ and the private archive tooling, not application REST modes.
 
 The read-only application report connects C0, C1, C2, C5, and C6 to persisted import, ledger,
 position, reporting, and dashboard-fallback evidence. C7 compares the persisted Yahoo export
-snapshot with the current adapter payload: a missing snapshot is `REVIEW`, a stale snapshot is
-`FAIL`, and a matching snapshot is `PASS`. The current-state report still cannot prove external archive
-completeness without an archive manifest. An empty result in an unexecuted checkpoint is not a
-pass. A report is `RECONCILED` only after every required checkpoint has executed and passed. An
-executed failure produces `UNRECONCILED`.
+snapshot with the current payload for the requested portfolio. The adapter rebuilds the payload,
+then compares its row count and fingerprint with `yahoo_export_state`: a missing snapshot is
+`REVIEW`, a stale snapshot is `FAIL`, and a matching snapshot is `PASS`. Without a valid portfolio
+context the adapter cannot prove freshness and fails closed. The current-state report still cannot
+prove external archive completeness without an archive manifest. An empty result in an unexecuted
+checkpoint is not a pass. A report is `RECONCILED` only after every required checkpoint has
+executed and passed. An executed failure produces `UNRECONCILED`.
 
 C0 evaluates incomplete imports only on the latest `(provider, file_sha256)` attempt; superseded
 failed attempts remain immutable audit evidence but do not permanently fail a successful reprocess.

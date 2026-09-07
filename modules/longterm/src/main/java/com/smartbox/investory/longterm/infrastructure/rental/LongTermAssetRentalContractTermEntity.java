@@ -8,7 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "long_term_asset_rental_contract_terms")
+@Table(name = "rental_contract_term")
 @Getter
 @Setter
 public class LongTermAssetRentalContractTermEntity {
@@ -17,7 +17,7 @@ public class LongTermAssetRentalContractTermEntity {
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "contract_id", nullable = false)
+  @JoinColumn(name = "rental_contract_id", nullable = false)
   private LongTermAssetRentalContractEntity contract;
 
   @Enumerated(EnumType.STRING)

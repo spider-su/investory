@@ -4,7 +4,6 @@ import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
 import com.smartbox.investory.longterm.api.model.CashFlowType;
 import com.smartbox.investory.longterm.api.model.Frequency;
-import com.smartbox.investory.longterm.api.model.InterestTreatment;
 import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.Liquidity;
@@ -72,6 +71,11 @@ public final class UiPresentation {
   /** Compact summary money, with a locale-stable K/M suffix and no scientific notation. */
   public static String compactMoney(BigDecimal value) {
     return FinancialPresentation.compactMoney(value);
+  }
+
+  /** Converts an annual amount to the legacy monthly display unit. */
+  public static BigDecimal monthly(BigDecimal annualAmount) {
+    return zeroIfNull(annualAmount).divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
   }
 
   public static String compactMoneyTrimmed(BigDecimal value) {
@@ -242,14 +246,18 @@ public final class UiPresentation {
     return switch (value) {
       case REAL_ESTATE -> "Real estate";
       case BOND -> "Bond";
-      case DEPOSIT -> "Deposit";
       case CASH_RESERVE -> "Cash reserve";
-      case OTHER -> "Other";
+      case PERSONAL_ASSET -> "Personal asset";
     };
   }
 
-  public static String interestTreatment(InterestTreatment value) {
-    return value == InterestTreatment.PAY_OUT ? "Distributed" : "Accumulative";
+  public static String assetGroupType(LongTermAssetType value) {
+    return switch (value) {
+      case REAL_ESTATE -> "Real estate";
+      case BOND -> "Bonds";
+      case CASH_RESERVE -> "Cash reserve";
+      case PERSONAL_ASSET -> "Personal assets";
+    };
   }
 
   public static String cashFlowType(CashFlowType value) {

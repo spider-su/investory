@@ -4,20 +4,15 @@ import com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassificat
 import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
 import com.smartbox.investory.investment.api.portfolio.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioSnapshot;
-import com.smartbox.investory.longterm.api.LongTermAssetProfileSummaryReader;
-import com.smartbox.investory.longterm.api.LongTermAssetProjectionReader;
+import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummarySnapshotModel;
-import com.smartbox.investory.profile.api.ProfileComposition;
-import com.smartbox.investory.profile.api.ProfilePlanningReader;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
-import com.smartbox.investory.profile.api.ProfileSummaryReader;
 import com.smartbox.investory.profile.api.model.AssetHorizon;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation;
 import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
-import com.smartbox.investory.profile.api.model.ProfilePlanning;
-import com.smartbox.investory.profile.api.model.ProfileSummary;
+import com.smartbox.investory.shared.assets.AssetEconomicCategory;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -28,14 +23,13 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class ProfileQueryService
-    implements ProfileSummaryReader, ProfilePlanningReader, ProfileSnapshotReader {
+public class ProfileQueryService implements ProfileSnapshotReader {
   private final BrokeragePortfolioReader brokeragePortfolioReadService;
-  private final LongTermAssetProfileSummaryReader longTermSummary;
-  private final LongTermAssetProjectionReader longTermProjections;
+  private final LongTermAssetProfileReader longTermAssets;
   private final CurrencyConversion currencyRates;
   private final Clock clock;
   private final ProfileAllocationCalculator allocationCalculator;
@@ -46,49 +40,39 @@ public class ProfileQueryService
   @Autowired
   public ProfileQueryService(
       BrokeragePortfolioReader brokeragePortfolioReadService,
-      LongTermAssetProfileSummaryReader longTermSummary,
-      LongTermAssetProjectionReader longTermProjections,
+      LongTermAssetProfileReader longTermAssets,
       BrokerageAssetClassificationReader brokerageAssetClassificationReader,
       CurrencyConversion currencyRates,
       Clock clock) {
     this.brokeragePortfolioReadService = brokeragePortfolioReadService;
-    this.longTermSummary = longTermSummary;
-    this.longTermProjections = longTermProjections;
+    this.longTermAssets = longTermAssets;
     this.currencyRates = currencyRates;
     this.clock = clock;
     this.allocationCalculator = new ProfileAllocationCalculator(brokerageAssetClassificationReader);
     this.incomeCalculator = new ProfileIncomeCalculator(currencyRates);
-    this.liquidityCalculator = new ProfileLiquidityCalculator(allocationCalculator, currencyRates);
+    this.liquidityCalculator = new ProfileLiquidityCalculator(currencyRates);
     this.planningCalculator = new ProfilePlanningCalculator(allocationCalculator);
   }
 
   @Override
-  @Transactional(readOnly = true)
-  public ProfileSummary loadSummary(Long portfolioId) {
-    return buildSummary(portfolioId);
-  }
-
-  @Override
-  @Transactional(readOnly = true)
-  public ProfilePlanning loadPlanning(Long portfolioId) {
-    LocalDate date = LocalDate.now(clock);
-    return new ProfilePlanning(
-        planningCalculator.state(longTermProjections.projectionInputs(portfolioId, date), date));
-  }
-
-  @Override
-  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  @Transactional(
+      readOnly = true,
+      isolation = Isolation.REPEATABLE_READ,
+      propagation = Propagation.REQUIRES_NEW)
   public InvestmentProfile loadProfile(Long portfolioId) {
-    return ProfileComposition.load(this, this, portfolioId);
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
+    LocalDate date = LocalDate.now(clock);
+    var longTermSnapshot = longTermAssets.snapshot(portfolioId, date);
+    return buildProfile(portfolioId, longTermSnapshot, date);
   }
 
-  private ProfileSummary buildSummary(Long portfolioId) {
-    LocalDate date = LocalDate.now(clock);
+  private InvestmentProfile buildProfile(
+      Long portfolioId, LongTermAssetProfileSnapshotModel longTermSnapshot, LocalDate date) {
     SharedBrokeragePortfolioSnapshot market =
         brokeragePortfolioReadService.currentSnapshot(portfolioId);
     CurrencyType base = market.baseCurrency();
-    LongTermAssetProfileSummarySnapshotModel longTermSnapshot =
-        longTermSummary.summary(portfolioId, date);
     LongTermAssetProfileSummaryModel longTerm = longTermSnapshot.summary();
     var longTermAssetRows = longTermSnapshot.assets();
     BigDecimal marketCash = toBase(market.cash(), market.baseCurrency(), base, date);
@@ -101,11 +85,17 @@ public class ProfileQueryService
     BigDecimal marketValue = toBase(market.balance(), market.baseCurrency(), base, date);
     BigDecimal longTermValue =
         toBase(longTerm.totalCurrentValue(), longTerm.currency(), base, date);
+    BigDecimal longTermInvestmentValue =
+        longTermAssetRows.stream()
+            .filter(asset -> asset.category() != AssetEconomicCategory.PERSONAL_ASSET)
+            .map(asset -> toBase(asset.currentValue(), asset.currency(), base, date))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     ProfileAllocationReconciliation reconciliation =
         new ProfileAllocationReconciliation(
             allocationCalculator.reconciliation(values, AssetHorizon.SHORT_TERM, marketValue),
             allocationCalculator.reconciliation(values, AssetHorizon.LONG_TERM, longTermValue));
     BigDecimal total = marketValue.add(longTermValue);
+    BigDecimal totalInvestmentValue = marketValue.add(longTermInvestmentValue);
     BrokerageIncomeSnapshot incomeSnapshot =
         brokeragePortfolioReadService.incomeForMonths(
             portfolioId, YearMonth.of(date.getYear(), 1), YearMonth.from(date));
@@ -127,14 +117,14 @@ public class ProfileQueryService
             incomeCurrency,
             marketValue,
             longTermIncome,
-            longTermValue,
-            total,
+            longTermInvestmentValue,
+            totalInvestmentValue,
             base,
             date);
     var liquidity =
         liquidityCalculator.calculate(
             values, longTermAssetRows, marketCash, marketValue, base, date);
-    return new ProfileSummary(
+    return new InvestmentProfile(
         portfolioId,
         base,
         marketValue,
@@ -143,8 +133,17 @@ public class ProfileQueryService
         liquidity.liquid(),
         liquidity.illiquid(),
         allocationCalculator.allocations(values),
-        toBase(longTermSnapshot.annualSnapshot().rentalIncome(), longTerm.currency(), base, date),
-        toBase(longTermSnapshot.annualSnapshot().bondIncome(), longTerm.currency(), base, date),
+        toBase(
+            longTermSnapshot.annualSnapshot().rentalIncome(),
+            longTermSnapshot.annualSnapshot().currency(),
+            base,
+            date),
+        toBase(
+            longTermSnapshot.annualSnapshot().bondIncome(),
+            longTermSnapshot.annualSnapshot().currency(),
+            base,
+            date),
+        planningCalculator.state(longTermSnapshot.projectionInputs(), date),
         liquidity.reserve(),
         liquidity.investmentCapital(),
         income,
@@ -154,7 +153,7 @@ public class ProfileQueryService
   private BigDecimal toBase(
       BigDecimal value, CurrencyType source, CurrencyType target, java.time.LocalDate date) {
     return value == null || source == target
-        ? value
+        ? value == null ? BigDecimal.ZERO : value
         : currencyRates.convertToBaseCurrency(value, target, source, date);
   }
 }

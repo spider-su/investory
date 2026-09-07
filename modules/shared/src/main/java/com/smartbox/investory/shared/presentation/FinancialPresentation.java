@@ -31,15 +31,16 @@ public final class FinancialPresentation {
     BigDecimal amount = zeroIfNull(value);
     BigDecimal absolute = amount.abs();
     if (absolute.compareTo(BigDecimal.valueOf(1_000_000)) >= 0) {
-      return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+      return compact(amount, BigDecimal.valueOf(1_000_000), "M", false);
     }
     if (absolute.compareTo(BigDecimal.valueOf(1_000)) >= 0) {
-      BigDecimal thousands =
-          amount.divide(BigDecimal.valueOf(1_000)).setScale(1, RoundingMode.HALF_UP);
+      BigDecimal thousands = amount.divide(BigDecimal.valueOf(1_000));
+      int fractionDigits = compactFractionDigits(thousands);
+      thousands = thousands.setScale(fractionDigits, RoundingMode.HALF_UP);
       if (thousands.abs().compareTo(BigDecimal.valueOf(1_000)) >= 0) {
-        return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+        return compact(amount, BigDecimal.valueOf(1_000_000), "M", false);
       }
-      return number(thousands, 1, 1) + "K";
+      return number(thousands, fractionDigits, fractionDigits) + "K";
     }
     return number(amount, 0, 0);
   }
@@ -49,17 +50,29 @@ public final class FinancialPresentation {
     BigDecimal amount = zeroIfNull(value);
     BigDecimal absolute = amount.abs();
     if (absolute.compareTo(BigDecimal.valueOf(1_000_000)) >= 0) {
-      return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+      return compact(amount, BigDecimal.valueOf(1_000_000), "M", true);
     }
     if (absolute.compareTo(BigDecimal.valueOf(1_000)) >= 0) {
-      BigDecimal thousands =
-          amount.divide(BigDecimal.valueOf(1_000)).setScale(1, RoundingMode.HALF_UP);
+      BigDecimal thousands = amount.divide(BigDecimal.valueOf(1_000));
+      int fractionDigits = compactFractionDigits(thousands);
+      thousands = thousands.setScale(fractionDigits, RoundingMode.HALF_UP);
       if (thousands.abs().compareTo(BigDecimal.valueOf(1_000)) >= 0) {
-        return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+        return compact(amount, BigDecimal.valueOf(1_000_000), "M", true);
       }
-      return number(thousands, 0, 1) + "K";
+      return number(thousands, 0, fractionDigits) + "K";
     }
     return number(amount, 0, 0);
+  }
+
+  private static String compact(
+      BigDecimal amount, BigDecimal divisor, String suffix, boolean trimTrailingZeros) {
+    BigDecimal scaled = amount.divide(divisor);
+    int fractionDigits = compactFractionDigits(scaled);
+    return number(scaled, trimTrailingZeros ? 0 : fractionDigits, fractionDigits) + suffix;
+  }
+
+  private static int compactFractionDigits(BigDecimal scaled) {
+    return scaled.abs().compareTo(BigDecimal.TEN) < 0 ? 2 : 1;
   }
 
   public static String decimal(BigDecimal value) {

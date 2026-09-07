@@ -8,6 +8,8 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.Tracing;
+import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
+import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorDashboardFacts;
@@ -15,18 +17,21 @@ import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorLongTermFac
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorMarketDataFacts;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorPlanFacts;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorProfileFacts;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -46,8 +51,20 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
   private Playwright playwright;
   private Browser browser;
 
+  @Autowired private PortfolioProjectionService projections;
+
+  @Autowired private PortfolioProjectionRefreshService projectionRefresh;
+
   @BeforeAll
-  void launchBrowser() {
+  void prepareProjectionAndLaunchBrowser() {
+    projections.recalculateAccounts(
+        Set.of(
+            HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
+            HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
+            HappyInvestorTestData.XTB_PLN_ACCOUNT_ID,
+            HappyInvestorTestData.XTB_EUR_ACCOUNT_ID));
+    projectionRefresh.refreshApplicationViews(
+        PortfolioProjectionRefreshService.ApplicationRefreshScope.DASHBOARD);
     playwright = Playwright.create();
     browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
   }
@@ -111,7 +128,8 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   "Net income / year",
                   compact(HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL));
           assertThat(page.locator(".iv-profile-source-card").nth(0).textContent())
-              .contains("Market investments", "Value", "0", "Annual income (net)", "Received YTD");
+              .contains(
+                  "Market investments", "Value", "Annual income (net)", "Investment result YTD");
           assertThat(page.locator(".iv-profile-source-card").nth(1).textContent())
               .contains(
                   "Long-term assets",
@@ -119,7 +137,8 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   compact(HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL),
                   FinancialPresentation.percentage(
                       HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL.divide(
-                          HappyInvestorLongTermFacts.LONG_TERM_TOTAL,
+                          HappyInvestorLongTermFacts.LONG_TERM_TOTAL.subtract(
+                              HappyInvestorProfileFacts.OTHER_ALLOCATION),
                           8,
                           java.math.RoundingMode.HALF_UP)));
           assertThat(page.locator(".iv-profile-allocation").textContent())
@@ -128,7 +147,7 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   "Long-term assets",
                   compact(HappyInvestorProfileFacts.EQUITY_ALLOCATION),
                   compact(HappyInvestorProfileFacts.REAL_ESTATE_ALLOCATION),
-                  compact(HappyInvestorProfileFacts.CASH_ALLOCATION),
+                  "25.0K",
                   compact(HappyInvestorProfileFacts.OTHER_ALLOCATION),
                   compact(HappyInvestorProfileFacts.FIXED_INCOME_ALLOCATION));
         });
@@ -147,29 +166,50 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   FinancialPresentation.wholeNumber(
                       HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL));
           assertThat(page.locator("#real-estate").textContent())
-              .contains("Apartment A", "Apartment B", "3.2K", "3.0K", "8.8%", "6.6%");
+              .contains(
+                  "Apartment A",
+                  "Apartment B",
+                  "Rent tax / month",
+                  "267",
+                  "250",
+                  "Rent tax / month",
+                  "517",
+                  "9.5%",
+                  "7.1%");
           assertThat(page.locator("#bonds").textContent())
               .contains("Treasury 2026", "10.0K", "375", "88");
           assertThat(page.locator("#cash-reserves").textContent())
-              .contains("Cash reserve", "50.0K");
-          assertThat(page.locator("#other-assets").textContent())
-              .contains("Family Car", "Reserve deposit", "50.0K", "1.6K", "380");
+              .contains("Cash reserve", "Term cash reserve", "25.0K", "810", "190");
+          assertThat(page.locator("#personal-assets").textContent()).contains("Family Car");
         });
 
     assertPage(
         "long-term-detail",
-        "/portfolios/1/long-term-assets/" + HappyInvestorLongTermFacts.APARTMENT_A_ID,
+        "/portfolios/1/long-term-assets/"
+            + HappyInvestorLongTermFacts.APARTMENT_A_ID
+            + "/real-estate",
         page -> {
           assertThat(page.locator(".iv-property-hero").textContent())
               .contains("Apartment A", "400,000 PLN");
           assertThat(page.locator("body").textContent())
               .contains(
-                  FinancialPresentation.money(
-                          HappyInvestorLongTermFacts.APARTMENT_A_MONTHLY_TAX_BASE)
-                      + " PLN",
-                  "8.8% (9.6%)",
-                  "Monthly",
-                  "3,200");
+                  "Rental contracts",
+                  "Property settings",
+                  "Annual tax base",
+                  "Tax rate",
+                  "Tax / year",
+                  "Tax / month",
+                  "3,200 PLN",
+                  "8.5%",
+                  "272 PLN",
+                  "22.67 PLN",
+                  FinancialPresentation.money(HappyInvestorTestData.APARTMENT_A_MONTHLY_RENT),
+                  "Monthly");
+          assertThat(page.locator("label[for='tax-base']").textContent())
+              .isEqualTo("Annual rental tax base");
+          assertThat(page.locator("#tax-base").inputValue()).isEqualTo("3200");
+          assertThat(page.locator("#land-register-number").inputValue())
+              .isEqualTo("KR1P/4322432/0");
         });
   }
 

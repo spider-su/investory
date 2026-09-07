@@ -23,12 +23,12 @@ public record ScenarioEffectiveAssumptions(
     BigDecimal capitalBondReturnRate;
     if (bondProjection.hasFrozenBondAssets(profile)
         && !bondProjection.hasCapitalizedBondYield(profile, baselineYear)) {
-      // PAY_OUT-only source Bonds generate spendable cash; their principal must not also receive
-      // a scenario capital return. This prevents double-counting the same interest.
+      // A source bond with income facts already supplies spendable cash; its principal must not
+      // also receive a scenario capital return. This prevents double-counting the same return.
       capitalBondReturnRate = BigDecimal.ZERO;
     } else {
-      // CAPITALIZE and allocation-only planning use the explicit plan assumption plus scenario
-      // delta. Source yields remain observed/current data and never replace the plan value.
+      // Allocation-only planning uses the explicit plan assumption plus scenario delta. Source
+      // yields remain observed/current data and never replace the plan value.
       capitalBondReturnRate = selected.fixedIncomeReturnRate();
     }
     return new ScenarioEffectiveAssumptions(

@@ -9,8 +9,6 @@ public record RentalContractModel(
     LocalDate startDate,
     LocalDate endDate,
     LocalDate terminatedDate,
-    Boolean rentalTaxPaidByTenant,
-    BigDecimal monthlyTaxBase,
     String tenantName,
     String tenantEmail,
     String tenantPhone,

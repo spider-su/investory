@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Read model for operational checks of currently payable rental amounts. */
+/** Operational read model for currently payable rental amounts. */
 public interface LongTermAssetPaymentAuditReader {
   List<PaymentAuditRow> paymentAudit(Long portfolioId, LocalDate date);
 

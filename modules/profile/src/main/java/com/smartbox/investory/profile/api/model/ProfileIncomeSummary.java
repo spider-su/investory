@@ -35,7 +35,7 @@ public record ProfileIncomeSummary(
   }
 
   /** Planned long-term income accrued through the supplied calendar month. */
-  public BigDecimal longTermIncomeToDate(int month) {
+  public BigDecimal plannedLongTermIncomeToDate(int month) {
     if (month < 1 || month > 12) return null;
     return longTermAnnualIncome
         .multiply(BigDecimal.valueOf(month))

@@ -26,100 +26,66 @@ SET owner = 'Happy Investor',
 WHERE portfolio_id = 1
   AND id IN ('17959259', '51499241', '51551301', '51548444');
 
-INSERT INTO rental_tax_policies (portfolio_id, valid_from, valid_to, rate)
-VALUES (1, DATE '2024-08-01', NULL, 0.085)
-ON CONFLICT (portfolio_id, valid_from) DO UPDATE
-SET valid_to = EXCLUDED.valid_to,
-    rate = EXCLUDED.rate;
+INSERT INTO bond (id, portfolio_id, name, currency, value, acquisition_date, interest_rate,
+                  maturity_date, archived_at, notes)
+VALUES (9405, 1, 'Treasury 2026', 'PLN', 10000, DATE '2024-07-31', 0.04625,
+        DATE '2026-02-28', NULL, 'Happy Investor canonical fixed income')
+ON CONFLICT (id) DO UPDATE SET portfolio_id = EXCLUDED.portfolio_id, name = EXCLUDED.name,
+    currency = EXCLUDED.currency, value = EXCLUDED.value, acquisition_date = EXCLUDED.acquisition_date,
+    interest_rate = EXCLUDED.interest_rate, maturity_date = EXCLUDED.maturity_date,
+    archived_at = EXCLUDED.archived_at, notes = EXCLUDED.notes;
 
-INSERT INTO long_term_assets (
-    id, portfolio_id, name, asset_type, currency, acquisition_date, tax_base,
-    acquisition_value, current_value, rental_tax_paid_by_tenant, active, notes
-)
+INSERT INTO cash_reserve (id, portfolio_id, name, currency, value, acquisition_date, interest_rate,
+                          maturity_date, archived_at, notes)
+VALUES (9406, 1, 'Term cash reserve', 'PLN', 25000, DATE '2024-08-01', 0.04,
+        DATE '2027-08-01', NULL, 'Happy Investor interest-bearing cash reserve')
+ON CONFLICT (id) DO UPDATE SET portfolio_id = EXCLUDED.portfolio_id, name = EXCLUDED.name,
+    currency = EXCLUDED.currency, value = EXCLUDED.value, acquisition_date = EXCLUDED.acquisition_date,
+    interest_rate = EXCLUDED.interest_rate, maturity_date = EXCLUDED.maturity_date,
+    archived_at = EXCLUDED.archived_at, notes = EXCLUDED.notes;
+
+INSERT INTO real_estate (id, portfolio_id, name, currency, value, tax_base, acquisition_date,
+                         land_register_number, archived_at, notes)
 VALUES
-    (9401, 1, 'Cash reserve', 'CASH_RESERVE', 'PLN', DATE '2024-08-01', NULL, 50000, 50000, false, true, 'Happy Investor canonical profile'),
-    (9402, 1, 'Apartment A', 'REAL_ESTATE', 'PLN', DATE '2024-08-01', 3200, 400000, 400000, false, true, 'Happy Investor canonical profile'),
-    (9403, 1, 'Apartment B', 'REAL_ESTATE', 'PLN', DATE '2024-08-01', 3000, 500000, 500000, false, true, 'Happy Investor canonical profile'),
-    (9404, 1, 'Family Car', 'OTHER', 'PLN', DATE '2024-08-01', NULL, 10000, 10000, false, true, 'Happy Investor canonical profile'),
-    (9405, 1, 'Treasury 2026', 'BOND', 'PLN', DATE '2024-07-31', NULL, 10000, 10000, false, true, 'Happy Investor canonical fixed income'),
-    (9406, 1, 'Reserve deposit', 'DEPOSIT', 'PLN', DATE '2024-08-01', NULL, 50000, 50000, false, true, 'Happy Investor canonical fixed income')
-ON CONFLICT (id) DO UPDATE
-SET portfolio_id = EXCLUDED.portfolio_id,
-    name = EXCLUDED.name,
-    asset_type = EXCLUDED.asset_type,
-    currency = EXCLUDED.currency,
-    acquisition_date = EXCLUDED.acquisition_date,
-    tax_base = EXCLUDED.tax_base,
-    acquisition_value = EXCLUDED.acquisition_value,
-    current_value = EXCLUDED.current_value,
-    rental_tax_paid_by_tenant = EXCLUDED.rental_tax_paid_by_tenant,
-    active = EXCLUDED.active,
+    (9402, 1, 'Apartment A', 'PLN', 400000, 3200, DATE '2024-08-01', 'KR1P/4322432/0', NULL, 'Happy Investor canonical profile'),
+    (9403, 1, 'Apartment B', 'PLN', 500000, 3000, DATE '2024-08-01', NULL, NULL, 'Happy Investor canonical profile')
+ON CONFLICT (id) DO UPDATE SET portfolio_id = EXCLUDED.portfolio_id, name = EXCLUDED.name,
+    currency = EXCLUDED.currency, value = EXCLUDED.value, tax_base = EXCLUDED.tax_base, acquisition_date = EXCLUDED.acquisition_date,
+    land_register_number = EXCLUDED.land_register_number, archived_at = EXCLUDED.archived_at,
     notes = EXCLUDED.notes;
 
-INSERT INTO long_term_asset_lifecycle_periods (asset_id, active_from, active_to)
+INSERT INTO long_term_asset_history (asset_id, asset_type, complete)
+VALUES (9402, 'REAL_ESTATE', true), (9403, 'REAL_ESTATE', true)
+ON CONFLICT (asset_id) DO UPDATE SET asset_type = EXCLUDED.asset_type, complete = EXCLUDED.complete;
+
+INSERT INTO cash_reserve (id, portfolio_id, name, currency, value, acquisition_date, archived_at, notes)
+VALUES (9401, 1, 'Cash reserve', 'PLN', 25000, DATE '2024-08-01', NULL, 'Happy Investor canonical profile')
+ON CONFLICT (id) DO UPDATE SET portfolio_id = EXCLUDED.portfolio_id, name = EXCLUDED.name,
+    currency = EXCLUDED.currency, value = EXCLUDED.value, acquisition_date = EXCLUDED.acquisition_date,
+    archived_at = EXCLUDED.archived_at, notes = EXCLUDED.notes;
+
+INSERT INTO personal_asset (id, portfolio_id, name, category, currency, value, acquisition_date, archived_at, notes)
+VALUES (9404, 1, 'Family Car', 'VEHICLE', 'PLN', 10000, DATE '2024-08-01', NULL, 'Happy Investor canonical profile')
+ON CONFLICT (id) DO UPDATE SET portfolio_id = EXCLUDED.portfolio_id, name = EXCLUDED.name,
+    category = EXCLUDED.category, currency = EXCLUDED.currency, value = EXCLUDED.value,
+    acquisition_date = EXCLUDED.acquisition_date, archived_at = EXCLUDED.archived_at, notes = EXCLUDED.notes;
+
+INSERT INTO rental_contract (id, real_estate_id, start_date, end_date, terminated_date, bootstrap_managed, notes)
 VALUES
-    (9401, DATE '2024-08-01', NULL),
-    (9402, DATE '2024-08-01', NULL),
-    (9403, DATE '2024-08-01', NULL),
-    (9404, DATE '2024-08-01', NULL),
-    (9405, DATE '2024-07-31', NULL),
-    (9406, DATE '2024-08-01', NULL)
-ON CONFLICT DO NOTHING;
+    (9501, 9402, DATE '2024-08-01', NULL, NULL, false, 'Happy Investor canonical profile'),
+    (9502, 9403, DATE '2024-08-01', DATE '2025-06-30', NULL, false, 'Happy Investor canonical profile B1'),
+    (9503, 9403, DATE '2025-07-01', NULL, NULL, false, 'Happy Investor canonical profile B2')
+ON CONFLICT (id) DO UPDATE SET real_estate_id = EXCLUDED.real_estate_id, start_date = EXCLUDED.start_date,
+    end_date = EXCLUDED.end_date, terminated_date = EXCLUDED.terminated_date,
+    bootstrap_managed = EXCLUDED.bootstrap_managed, notes = EXCLUDED.notes;
 
-INSERT INTO long_term_asset_real_estate_details (asset_id)
-VALUES (9402), (9403)
-ON CONFLICT (asset_id) DO NOTHING;
-
-INSERT INTO long_term_asset_valuation_periods
-    (asset_id, valid_from, valid_to, expected_annual_growth_rate)
-VALUES
-    (9401, DATE '2024-08-01', NULL, 0.025),
-    (9402, DATE '2024-08-01', NULL, 0.025),
-    (9403, DATE '2024-08-01', NULL, 0.025),
-    (9404, DATE '2024-08-01', NULL, 0.025),
-    (9405, DATE '2024-07-31', DATE '2026-02-28', 0),
-    (9406, DATE '2024-08-01', DATE '2027-08-01', 0)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO long_term_asset_bond_details
-    (asset_id, maturity_date, interest_treatment, tax_rate, redemption_value)
-VALUES (9405, DATE '2026-02-28', 'PAY_OUT', 0.19, 10000)
-ON CONFLICT (asset_id) DO NOTHING;
-
-INSERT INTO long_term_asset_bond_rate_periods
-    (id, asset_id, valid_from, valid_to, annual_interest_rate)
-VALUES (9601, 9405, DATE '2024-07-31', DATE '2026-02-28', 0.04625)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO long_term_asset_deposit_details
-    (asset_id, maturity_date, interest_treatment, annual_interest_rate, tax_rate)
-VALUES (9406, DATE '2027-08-01', 'CAPITALIZE', 0.04, 0.19)
-ON CONFLICT (asset_id) DO NOTHING;
-
-INSERT INTO long_term_asset_rental_contracts
-    (id, asset_id, start_date, end_date, rental_tax_paid_by_tenant, monthly_tax_base, notes)
-VALUES
-    (9501, 9402, DATE '2024-08-01', NULL, false, 3200, 'Happy Investor canonical profile'),
-    (9502, 9403, DATE '2024-08-01', DATE '2025-06-30', false, 2800, 'Happy Investor canonical profile B1'),
-    (9503, 9403, DATE '2025-07-01', NULL, false, 3000, 'Happy Investor canonical profile B2')
-ON CONFLICT (id) DO UPDATE
-SET asset_id = EXCLUDED.asset_id,
-    start_date = EXCLUDED.start_date,
-    end_date = EXCLUDED.end_date,
-    rental_tax_paid_by_tenant = EXCLUDED.rental_tax_paid_by_tenant,
-    monthly_tax_base = EXCLUDED.monthly_tax_base,
-    notes = EXCLUDED.notes;
-
-INSERT INTO long_term_asset_rental_contract_terms
-    (contract_id, cash_flow_type, amount, frequency, paid_by_tenant)
+INSERT INTO rental_contract_term (rental_contract_id, cash_flow_type, amount, frequency, paid_by_tenant)
 VALUES
     (9501, 'RENT', 3200, 'MONTHLY', false),
     (9502, 'RENT', 2800, 'MONTHLY', false),
     (9503, 'RENT', 3000, 'MONTHLY', false)
-ON CONFLICT (contract_id, cash_flow_type) DO UPDATE
-SET amount = EXCLUDED.amount,
-    frequency = EXCLUDED.frequency,
-    paid_by_tenant = EXCLUDED.paid_by_tenant;
+ON CONFLICT (rental_contract_id, cash_flow_type) DO UPDATE SET amount = EXCLUDED.amount,
+    frequency = EXCLUDED.frequency, paid_by_tenant = EXCLUDED.paid_by_tenant;
 
 WITH plan AS (
     INSERT INTO simulation_plans (id, portfolio_id, name, current_revision_id, archived)
@@ -221,4 +187,3 @@ SET market_price = CASE id WHEN 1 THEN 249.059 WHEN 1001 THEN 403.840 END,
     price_source = 'STOOQ',
     price_updated_at = TIMESTAMPTZ '2025-01-01 12:00:00 Europe/Warsaw'
 WHERE id IN (1, 1001);
-

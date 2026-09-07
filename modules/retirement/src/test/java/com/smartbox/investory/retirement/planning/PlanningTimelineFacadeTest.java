@@ -41,6 +41,7 @@ class PlanningTimelineFacadeTest {
   @Mock CurrentYearProjectionBridge projectionBridge;
   @Mock HistoricalLongTermAssetYearSource longTermAssets;
   @Mock LongTermAssetProfileReader currentLongTermAssets;
+  @Mock PlanningMoneyConversionService money;
   PlanningTimelineFacade facade;
   PlanningYearEntity planningYear;
 
@@ -59,7 +60,8 @@ class PlanningTimelineFacadeTest {
                 Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)),
             currentLongTermAssets,
             new PlanningProgressService(),
-            new PlanningYearReviewService(new PlanningProgressService()));
+            new PlanningYearReviewService(new PlanningProgressService()),
+            money);
     planningYear = new PlanningYearEntity();
     planningYear.setId(7L);
     planningYear.setPortfolioId(1L);
@@ -471,7 +473,8 @@ class PlanningTimelineFacadeTest {
                 Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)),
             currentLongTermAssets,
             new PlanningProgressService(),
-            new PlanningYearReviewService(new PlanningProgressService()));
+            new PlanningYearReviewService(new PlanningProgressService()),
+            money);
 
     withLongTermSource.createHistoricalDraft(1L, 2025);
 

@@ -132,15 +132,28 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
   @Override
   public ExportStatus status() {
     if (exportStateRepository == null) return new ExportStatus(null, false);
-    // Export status is checked by the portfolio-scoped reconciliation boundary. Without a
-    // portfolio context there is no safe payload to compare.
-    CsvExportPayload current = null;
+    return exportStateRepository
+        .findById(1)
+        .map(state -> new ExportStatus(state.getExportedAt(), false))
+        .orElseGet(() -> new ExportStatus(null, false));
+  }
+
+  @Override
+  public ExportStatus status(Long portfolioId) {
     if (exportStateRepository == null) return new ExportStatus(null, false);
     return exportStateRepository
         .findById(1)
         .map(
             state -> {
-              boolean currentState = false;
+              if (portfolioId == null || portfolioId <= 0) {
+                return new ExportStatus(state.getExportedAt(), false);
+              }
+              CsvExportPayload current = buildPayloadFromSummary(portfolioId);
+              boolean currentState =
+                  state.getPositionCount() != null
+                      && state.getPositionCount() == current.rows().size()
+                      && state.getPortfolioFingerprint() != null
+                      && state.getPortfolioFingerprint().equals(fingerprint(current.rows()));
               return new ExportStatus(state.getExportedAt(), currentState);
             })
         .orElseGet(() -> new ExportStatus(null, false));

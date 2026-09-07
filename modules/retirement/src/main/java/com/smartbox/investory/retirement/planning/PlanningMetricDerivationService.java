@@ -2,7 +2,6 @@ package com.smartbox.investory.retirement.planning;
 
 import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioActualsReader;
 import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioYear;
-import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.profile.api.model.*;
 import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
@@ -88,14 +87,12 @@ public class PlanningMetricDerivationService {
     profile
         .allocations()
         .forEach(value -> allocation.merge(value.bucket(), value.value(), BigDecimal::add));
-    BigDecimal manualReserve = longTermAssetsTotal(profile, LongTermAssetType.CASH_RESERVE);
-    BigDecimal locked =
-        longTermAssetsTotal(profile, LongTermAssetType.BOND)
-            .add(longTermAssetsTotal(profile, LongTermAssetType.DEPOSIT));
+    BigDecimal manualReserve = longTermAssetsTotal(profile, EconomicBucket.LIQUID_CASH);
+    BigDecimal locked = longTermAssetsTotal(profile, EconomicBucket.FIXED_INCOME);
     BigDecimal fixed =
         allocation
             .getOrDefault(EconomicBucket.FIXED_INCOME, ZERO)
-            .subtract(longTermAssetsTotal(profile, LongTermAssetType.BOND))
+            .subtract(longTermAssetsTotal(profile, EconomicBucket.FIXED_INCOME))
             .max(ZERO);
     BigDecimal safeReserve =
         allocation
@@ -148,9 +145,9 @@ public class PlanningMetricDerivationService {
   }
 
   /** Long-Term assets already normalized by Profile; used only for Retirement classifications. */
-  private static BigDecimal longTermAssetsTotal(InvestmentProfile profile, LongTermAssetType type) {
+  private static BigDecimal longTermAssetsTotal(InvestmentProfile profile, EconomicBucket bucket) {
     return profile.longTermPlanningState().assets().stream()
-        .filter(asset -> asset.type() == type)
+        .filter(asset -> asset.bucket() == bucket)
         .map(ProjectedLongTermAsset::currentValue)
         .reduce(ZERO, BigDecimal::add);
   }

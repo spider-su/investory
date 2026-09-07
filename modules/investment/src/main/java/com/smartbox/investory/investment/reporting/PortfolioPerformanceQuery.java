@@ -195,16 +195,6 @@ public class PortfolioPerformanceQuery implements TrailingPortfolioReturnReader 
         PerformanceAttributionCalculator.from(result));
   }
 
-  /** Returns the cumulative portfolio result without loading the dashboard projection rows. */
-  public PortfolioResult portfolioResult(Long portfolioId) {
-    var currencies = repository.findCurrenciesByPortfolioId(portfolioId);
-    if (currencies.isEmpty()) {
-      return new PortfolioResult(null, null);
-    }
-    return new PortfolioResult(
-        repository.sumProfitByPortfolioId(portfolioId), currencies.getFirst());
-  }
-
   private List<PortfolioMonthlyPerformanceEntity> monthlyRows(
       Long portfolioId, YearMonth from, YearMonth to) {
     if (portfolioId == null) {
@@ -302,6 +292,4 @@ public class PortfolioPerformanceQuery implements TrailingPortfolioReturnReader 
         result.moneyWeightedReturn(),
         PerformanceAttributionCalculator.from(result));
   }
-
-  public record PortfolioResult(BigDecimal investmentResult, CurrencyType baseCurrency) {}
 }

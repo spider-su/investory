@@ -9,4 +9,8 @@ public final class LongTermAssetRateConversion {
   public static BigDecimal percentToRate(BigDecimal percent) {
     return percent == null ? null : percent.movePointLeft(2);
   }
+
+  public static BigDecimal rateToPercent(BigDecimal rate) {
+    return rate == null ? null : rate.movePointRight(2);
+  }
 }

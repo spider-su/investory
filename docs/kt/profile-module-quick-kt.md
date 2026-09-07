@@ -10,24 +10,22 @@ source persistence.
 
 ``` text
 Investment public reads ----\
-                             +--> ProfileComposition.load(...)
+                             +--> ProfileSnapshotReader
 Long-Term public reads ----/             |
                                          v
                               InvestmentProfile
                               (planning read model)
 ```
 
-The current public split is intentional:
+The canonical public read is intentionally one boundary:
 
-- `ProfileSummaryReader` provides whole-wealth summary facts.
-- `ProfilePlanningReader` provides planning inputs.
-- `ProfileComposition` combines them when a consumer needs an `InvestmentProfile`; inject the two
-  narrow readers rather than a single aggregate port.
+- `ProfileSnapshotReader` provides a complete `InvestmentProfile` from one repeatable-read snapshot.
+- `ProfileQueryService` constructs the canonical model directly from one valuation date.
 
 ## Where to start
 
-- API: `profile.api.ProfileSummaryReader`, `ProfilePlanningReader`, and `ProfileComposition`.
-- Models: `profile.api.model.ProfileSummary`, `ProfilePlanning`, and `InvestmentProfile`.
+- API: `profile.api.ProfileSnapshotReader`.
+- Model: `profile.api.model.InvestmentProfile` and its nested economic component records.
 - Implementation: `ProfileQueryService`.
 - REST adapter: `profile.web.ProfileRestController`.
 

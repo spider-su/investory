@@ -62,15 +62,15 @@ class InvestmentProfilePageViewTest {
     InvestmentProfilePageView page = InvestmentProfilePageView.from(profile);
 
     assertThat(page.marketPortfolioValueCompactDisplay()).isEqualTo("10.4K");
-    assertThat(page.longTermAssetValueCompactDisplay()).isEqualTo("1.2M");
+    assertThat(page.longTermAssetValueCompactDisplay()).isEqualTo("1.20M");
     assertThat(page.totalNetWorthCompactDisplay()).isEqualTo("1.21M");
-    assertThat(page.allocations().getFirst().compactValueDisplay()).isEqualTo("1.2M");
-    assertThat(page.allocations().getFirst().horizonLabel()).isEqualTo("Long-term asset");
+    assertThat(page.allocations().getFirst().compactValueDisplay()).isEqualTo("1.20M");
+    assertThat(page.allocations().getFirst().horizonLabel()).isEqualTo("Long-term asset · locked");
   }
 
-  @DisplayName("shows Market Value At Start Of Year After Ytd Investment Profit")
+  @DisplayName("shows Current Market Value Without Deriving It From Profit")
   @Test
-  void showsMarketValueAtStartOfYearAfterYtdInvestmentProfit() {
+  void showsCurrentMarketValueAlongsideYtdInvestmentProfit() {
     InvestmentProfilePageView page =
         InvestmentProfilePageView.from(
             emptyProfile(),
@@ -81,7 +81,7 @@ class InvestmentProfilePageViewTest {
                 CurrencyType.USD, 2026),
             8);
 
-    assertThat(page.marketPortfolioValueCompactDisplay()).isEqualTo("79.5K");
+    assertThat(page.marketPortfolioValueCompactDisplay()).isEqualTo("100.0K");
   }
 
   @DisplayName("formats Profile Return Without Sign Or Annual Suffix")
@@ -108,15 +108,15 @@ class InvestmentProfilePageViewTest {
                 CurrencyType.USD, 2026),
             8);
 
-    assertThat(page.marketReceivedYtdDisplay()).isEqualTo("—");
-    assertThat(page.longTermReceivedYtdDisplay()).isEqualTo("0");
+    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("—");
+    assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("0");
     assertThat(page.annualCostDisplay()).isEqualTo("—");
     assertThat(page.annualCostMeta()).isEqualTo("No retirement plan");
   }
 
   @DisplayName("uses Investment Result As Market Received Ytd")
   @Test
-  void usesInvestmentResultAsMarketReceivedYtd() {
+  void usesCurrentYearInvestmentResultWithAnAccurateLabel() {
     InvestmentProfilePageView page =
         InvestmentProfilePageView.from(
             emptyProfile(),
@@ -127,7 +127,7 @@ class InvestmentProfilePageViewTest {
                 CurrencyType.USD, 2026),
             8);
 
-    assertThat(page.marketReceivedYtdDisplay()).isEqualTo("20.5K");
+    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("20.5K");
   }
 
   @DisplayName("source Cards And Allocation Use The Same Horizon Percentages")

@@ -21,20 +21,18 @@ class BondTemplateContractTest {
         () -> assertFalse(html.contains("Current value")));
   }
 
-  @DisplayName("bond Edit Form Has One Value Field And Hides Legacy Metrics")
+  @DisplayName("bond Form Has One Value Field And Hides Legacy Metrics")
   @Test
-  void bondEditFormHasOneValueFieldAndHidesLegacyMetrics() throws Exception {
+  void bondFormHasOneValueFieldAndHidesLegacyMetrics() throws Exception {
     String html =
-        Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/templates/bond-detail.html"));
+        Files.readString(Path.of("../adapters/web-ui/src/main/resources/templates/bond-form.html"));
     assertAll(
-        () -> assertTrue(html.contains(">Current value</label>")),
+        () -> assertTrue(html.contains(">Value</label>")),
         () -> assertTrue(html.contains("name=\"value\"")),
         () -> assertFalse(html.contains(">Invested value</label>")),
         () -> assertFalse(html.contains(">P/L<")),
         () -> assertFalse(html.contains(">P/L %<")),
-        () -> assertTrue(html.contains("summary.bondPlanning.value")),
-        () -> assertTrue(html.contains("summary.bondPlanning.annualRate")),
-        () -> assertTrue(html.contains("summary.bondPlanning.maturityDate")));
+        () -> assertTrue(html.contains("name=\"annualRatePercent\"")),
+        () -> assertTrue(html.contains("name=\"maturityDate\"")));
   }
 }

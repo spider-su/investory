@@ -18,22 +18,21 @@ final class ProfilePlanningCalculator {
 
   ProfileAssetProjection state(List<LongTermAssetProjectionModel> inputs, LocalDate date) {
     return new ProfileAssetProjection(
-        inputs.stream().map(this::asset).toList(),
+        inputs.stream().map(input -> asset(input, date)).toList(),
         BigDecimal.ZERO,
         date.getYear(),
         ProjectionSource.PROJECTED);
   }
 
-  private ProjectedLongTermAsset asset(LongTermAssetProjectionModel input) {
-    var bucket = allocations.classify(input.type());
+  private ProjectedLongTermAsset asset(LongTermAssetProjectionModel input, LocalDate date) {
+    var bucket = allocations.classify(input.category());
     return new ProjectedLongTermAsset(
         input.id(),
         input.name(),
-        input.type(),
         bucket,
         input.currency(),
         input.currentValue(),
-        allocations.liquidity(bucket),
+        allocations.liquidity(input.category(), input.fundingAvailable()),
         input.periods().stream()
             .map(
                 period ->
@@ -47,11 +46,6 @@ final class ProfilePlanningCalculator {
                         period.paidByTenant()))
             .toList(),
         input.rentalContracts(),
-        input.maturityDate(),
-        input.redemptionValue(),
-        input.interestTreatment(),
-        input.taxRate(),
-        input.taxBase(),
-        input.rentalTaxPaidByTenant());
+        input.maturityDate());
   }
 }
