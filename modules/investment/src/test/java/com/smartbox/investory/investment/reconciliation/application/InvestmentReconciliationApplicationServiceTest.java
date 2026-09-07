@@ -1,7 +1,9 @@
-package com.smartbox.investory.investment.reconciliation;
+package com.smartbox.investory.investment.reconciliation.application;
 
 import static org.mockito.Mockito.verify;
 
+import com.smartbox.investory.investment.reconciliation.ReconciliationContext;
+import com.smartbox.investory.investment.reconciliation.ReconciliationReportService;
 import com.smartbox.investory.shared.time.ClockApplicationTime;
 import java.time.Clock;
 import java.time.Instant;

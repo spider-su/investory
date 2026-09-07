@@ -1,9 +1,14 @@
-package com.smartbox.investory.investment.imports;
+package com.smartbox.investory.investment.imports.application;
 
 import com.smartbox.investory.investment.api.importing.ImportBroker;
 import com.smartbox.investory.investment.api.importing.ImportSource;
 import com.smartbox.investory.investment.api.importing.ImportStatus;
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
+import com.smartbox.investory.investment.imports.BrokerType;
+import com.smartbox.investory.investment.imports.ImportBatchResponse;
+import com.smartbox.investory.investment.imports.ImportFailedException;
+import com.smartbox.investory.investment.imports.ImportOrchestratorService;
+import com.smartbox.investory.investment.imports.ImportSourceType;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +43,7 @@ public class InvestmentImportApplicationService implements InvestmentImportApi {
       else throw new IllegalArgumentException("Unsupported import file extension: " + fileName);
       return importForBroker(
           portfolioId,
-          ImportBroker.valueOf(broker.name()),
+          broker == BrokerType.IBKR ? ImportBroker.IBKR : ImportBroker.XTB,
           fileName,
           content,
           source,
@@ -74,10 +79,10 @@ public class InvestmentImportApplicationService implements InvestmentImportApi {
       ImportBatchResponse result =
           importOrchestrator.importFile(
               portfolioId,
-              BrokerType.valueOf(broker.name()),
+              BrokerType.fromApi(broker),
               content,
               fileName,
-              ImportSourceType.valueOf(source.name()),
+              ImportSourceType.fromApi(source),
               sourceRef,
               !deferRefresh);
       ImportResult importResult =

@@ -64,7 +64,7 @@ Performance metric ownership is split by boundary. Normalized accounting owns fl
 and investment-result semantics. `account_daily` owns persisted daily equity, flows, income, fees,
 taxes, and realized-result facts. SQL reporting owns period aggregation, FX normalization, and
 monthly return fields. Java application composition exposes those facts through
-`services/portfolio/read/PerformanceResult`; it does not recompute historical accounting formulas.
+`investment.reporting.PerformanceResult`; it does not recompute historical accounting formulas.
 Unrealized performance is not populated in `PerformanceResult` until a canonical period-level source
 is available. Existing `Performance` and dashboard view models remain compatibility/presentation
 models and may retain `double` fields at their legacy chart/UI boundary. The public

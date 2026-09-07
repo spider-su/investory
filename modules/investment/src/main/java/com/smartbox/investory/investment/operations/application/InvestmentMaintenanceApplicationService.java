@@ -1,4 +1,4 @@
-package com.smartbox.investory.investment.operations;
+package com.smartbox.investory.investment.operations.application;
 
 import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
 import com.smartbox.investory.investment.api.operations.ManualAssetPriceView;

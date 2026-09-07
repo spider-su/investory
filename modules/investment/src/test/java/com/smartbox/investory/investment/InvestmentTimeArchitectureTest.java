@@ -44,4 +44,48 @@ class InvestmentTimeArchitectureTest {
         .callMethod(Year.class, "now")
         .check(MAIN);
   }
+
+  @DisplayName("ledger stays below reporting, reconciliation, and web adapters")
+  @Test
+  void ledgerDoesNotDependOnUpperLayers() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("com.smartbox.investory.investment.ledger..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "com.smartbox.investory.investment.reporting..",
+            "com.smartbox.investory.investment.reconciliation..",
+            "com.smartbox.investory.investment.web..")
+        .check(MAIN);
+  }
+
+  @DisplayName("valuation stays independent from dashboard, reconciliation, and web adapters")
+  @Test
+  void valuationDoesNotDependOnApplicationAdapters() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("com.smartbox.investory.investment.valuation..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "com.smartbox.investory.investment.reporting.dashboard..",
+            "com.smartbox.investory.investment.reconciliation..",
+            "com.smartbox.investory.investment.web..")
+        .check(MAIN);
+  }
+
+  @DisplayName("public API does not expose infrastructure or web implementation")
+  @Test
+  void apiDoesNotDependOnImplementationPackages() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("com.smartbox.investory.investment.api..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "com.smartbox.investory.investment.infrastructure..",
+            "com.smartbox.investory.investment.web..")
+        .check(MAIN);
+  }
 }
