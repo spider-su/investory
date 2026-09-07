@@ -61,6 +61,8 @@ snapshots accrue each contract only across its calendar-year overlap, prorating 
 annual terms, subtract landlord-paid expenses and rental tax, then normalize the result to canonical
 USD. These two values are intentionally different when rent changes during a year. Current balances
 and current bond rates remain unavailable in a historical snapshot until backed by dated facts.
+`LongTermAssetHistoricalSnapshotService` owns this historical reconstruction; the current overview
+and Profile snapshot path remains in `LongTermAssetReadService`.
 
 `paidByTenant` applies to expense terms. Payment Audit includes all rental-income terms plus
 tenant-paid expenses in the tenant's monthly payment; landlord-paid expenses are excluded from that

@@ -1,4 +1,4 @@
-package com.smartbox.investory.config;
+package com.smartbox.investory.ui.config;
 
 import java.nio.charset.StandardCharsets;
 import org.springframework.context.ApplicationContext;

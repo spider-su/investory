@@ -4,18 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.ui.investment.InProcessInvestmentAssetClient;
-import com.smartbox.investory.ui.investment.InProcessInvestmentDashboardClient;
-import com.smartbox.investory.ui.investment.InProcessInvestmentReconciliationClient;
-import com.smartbox.investory.ui.profile.InProcessProfileClient;
-import com.smartbox.investory.ui.profile.InProcessRetirementProfileClient;
-import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementAnalysisClient;
-import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPlanClient;
-import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPlanInputClient;
-import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPresentationClient;
-import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPreviewClient;
-import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementProjectionClient;
-import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementTimelineClient;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.core.importer.ImportOption;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,20 +15,32 @@ import org.springframework.stereotype.Component;
 
 @DisplayName("In-process UI client conventions")
 class InProcessClientConventionTest {
-  private static final List<Class<?>> CLIENTS =
-      List.of(
-          InProcessInvestmentAssetClient.class,
-          InProcessInvestmentDashboardClient.class,
-          InProcessInvestmentReconciliationClient.class,
-          InProcessProfileClient.class,
-          InProcessRetirementAnalysisClient.class,
-          InProcessRetirementPlanInputClient.class,
-          InProcessRetirementPlanClient.class,
-          InProcessRetirementPresentationClient.class,
-          InProcessRetirementPreviewClient.class,
-          InProcessRetirementProfileClient.class,
-          InProcessRetirementProjectionClient.class,
-          InProcessRetirementTimelineClient.class);
+  private static final List<Class<?>> CLIENTS = discoverClients();
+
+  private static List<Class<?>> discoverClients() {
+    var imported =
+        new ClassFileImporter()
+                .withImportOption(new ImportOption.DoNotIncludeTests())
+                .importPackages("com.smartbox.investory.ui")
+                .stream()
+                .toList();
+    var clients = new ArrayList<Class<?>>();
+    for (var javaClass : imported) {
+      if (javaClass.getSimpleName().startsWith("InProcess")
+          && javaClass.getSimpleName().endsWith("Client")) {
+        clients.add(load(javaClass.getFullName()));
+      }
+    }
+    return clients;
+  }
+
+  private static Class<?> load(String name) {
+    try {
+      return InProcessClientConventionTest.class.getClassLoader().loadClass(name);
+    } catch (ClassNotFoundException exception) {
+      throw new ExceptionInInitializerError(exception);
+    }
+  }
 
   @Test
   @DisplayName("clients are components backed by explicitly qualified public APIs")

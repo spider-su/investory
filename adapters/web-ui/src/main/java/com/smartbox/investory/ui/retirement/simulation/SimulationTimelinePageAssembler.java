@@ -15,17 +15,20 @@ import org.springframework.web.server.ResponseStatusException;
 final class SimulationTimelinePageAssembler {
   private final ProfileClient profiles;
   private final RetirementPlanClient plans;
-  private final RetirementPlanningClient planning;
+  private final RetirementTimelineClient timeline;
+  private final RetirementPresentationClient presentation;
   private final RetirementProjectionClient projections;
 
   SimulationTimelinePageAssembler(
       ProfileClient profiles,
       RetirementPlanClient plans,
-      RetirementPlanningClient planning,
+      RetirementTimelineClient timeline,
+      RetirementPresentationClient presentation,
       RetirementProjectionClient projections) {
     this.profiles = profiles;
     this.plans = plans;
-    this.planning = planning;
+    this.timeline = timeline;
+    this.presentation = presentation;
     this.projections = projections;
   }
 
@@ -39,21 +42,21 @@ final class SimulationTimelinePageAssembler {
     var profile = profiles.loadProfile(portfolioId);
     model.addAttribute("profile", profile);
     model.addAttribute("planningDisplayCurrency", currency);
-    model.addAttribute("planningPresentation", planning);
+    model.addAttribute("planningPresentation", presentation);
     model.addAttribute("selectedPlanId", planId);
     model.addAttribute("selectedScenario", scenario);
-    YearReviewMode mode = planning.reviewMode(portfolioId, year);
+    YearReviewMode mode = timeline.reviewMode(portfolioId, year);
     if (mode == YearReviewMode.LIVE) {
       var projection = projections.load(portfolioId, planId);
-      var timeline = planning.loadForwardTimeline(portfolioId, projection, scenario);
+      var forwardTimeline = timeline.loadForwardTimeline(portfolioId, projection, scenario);
       var row =
-          timeline.years().stream()
+          forwardTimeline.years().stream()
               .filter(r -> r.state() == PlanningTimelineState.LIVE && r.year() == year)
               .findFirst()
               .orElseThrow(() -> new IllegalArgumentException("Live planning year is unavailable"));
       var money =
-          planning
-              .displayTimelineMoney(timeline, currency, projection.projectedAssumptions())
+          presentation
+              .displayTimelineMoney(forwardTimeline, currency, projection.projectedAssumptions())
               .get(year);
       model.addAttribute(
           "liveReview",
@@ -63,23 +66,23 @@ final class SimulationTimelinePageAssembler {
     }
     if (mode == YearReviewMode.NONE)
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Projected year has no review");
-    var stored = planning.pastYear(portfolioId, year);
-    model.addAttribute("planningYear", planning.display(stored, currency));
-    var reconciliation = planning.reconcile(portfolioId, stored);
+    var stored = timeline.pastYear(portfolioId, year);
+    model.addAttribute("planningYear", presentation.display(stored, currency));
+    var reconciliation = timeline.reconcile(portfolioId, stored);
     model.addAttribute(
-        "planningReconciliation", planning.displayReconciliation(reconciliation, currency));
-    model.addAttribute("yearReview", planning.yearReview(stored));
+        "planningReconciliation", presentation.displayReconciliation(reconciliation, currency));
+    model.addAttribute("yearReview", timeline.yearReview(stored));
     Set<PlanningMetric> editable = EnumSet.noneOf(PlanningMetric.class);
     stored
         .values()
         .keySet()
         .forEach(
             metric -> {
-              if (planning.isHistoricalMetricEditable(portfolioId, year, metric))
+              if (timeline.isHistoricalMetricEditable(portfolioId, year, metric))
                 editable.add(metric);
             });
     model.addAttribute("editableMetrics", editable);
-    model.addAttribute("planningCloseStatus", planning.historicalCloseStatus(portfolioId, year));
+    model.addAttribute("planningCloseStatus", timeline.historicalCloseStatus(portfolioId, year));
     model.addAttribute(
         "reviewMetrics",
         java.util.List.of(

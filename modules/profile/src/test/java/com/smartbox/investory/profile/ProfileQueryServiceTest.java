@@ -232,36 +232,6 @@ class ProfileQueryServiceTest {
     assertEquals(0, new BigDecimal("200000").compareTo(profile.illiquidAssets()));
   }
 
-  @DisplayName("split profile composition preserves contractual bond liquidity")
-  @Test
-  void profileReadPreservesContractualBondLiquidity() {
-    SharedBrokeragePortfolioSnapshot market = snapshot(CurrencyType.USD, 0, 0, 0, 0, List.of());
-    when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO)).thenReturn(market);
-    when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
-    longTermSummary =
-        new LongTermAssetProfileSummaryModel(
-            CurrencyType.USD, new BigDecimal("200000"), BigDecimal.ZERO);
-    longTermAssetRows = List.of(summary(LongTermAssetType.BOND, "200000", "0"));
-    longTermAnnualSnapshot =
-        new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null);
-    longTermProjectionInputs =
-        List.of(
-            new LongTermAssetProjectionModel(
-                1L,
-                "Bond",
-                AssetEconomicCategory.FIXED_INCOME,
-                CurrencyType.USD,
-                new BigDecimal("200000"),
-                List.of(),
-                List.of(),
-                LocalDate.of(2028, 2, 28),
-                false));
-    InvestmentProfile composed = facade.loadProfile(PORTFOLIO);
-
-    assertEquals(0, BigDecimal.ZERO.compareTo(composed.liquidAssets()));
-    assertEquals(0, new BigDecimal("200000").compareTo(composed.illiquidAssets()));
-  }
-
   @DisplayName("preserves Rental Contracts For Retirement Projection")
   @Test
   void preservesRentalContractsForRetirementProjection() {

@@ -20,7 +20,7 @@ class SimulationSensitivityAnalysisServiceTest {
   @Test
   void contextKeepsProjectionBaseAsSensitivityBaseline() {
     InvestmentProfile profile = profileWithMarketBuckets();
-    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 80, 2027);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 80, 2027);
     SimulationResult baseResult =
         new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
     SimulationDecisionSummary baseSummary = SimulationDecisionSummary.from(baseResult, assumptions);
@@ -51,7 +51,7 @@ class SimulationSensitivityAnalysisServiceTest {
   void invalidPerturbationIsUnavailableWithoutCrashingAnalysis() {
     InvestmentProfile profile = profileWithMarketBuckets();
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(profile, 40, 80, 2027).toBuilder()
+        SimulationAssumptions.defaults(40, 80, 2027).toBuilder()
             .inflationRate(new BigDecimal("-0.995"))
             .build();
 
@@ -73,7 +73,7 @@ class SimulationSensitivityAnalysisServiceTest {
   @Test
   void simulatorIllegalArgumentExceptionIsNotHiddenAsUnavailable() {
     InvestmentProfile profile = profileWithMarketBuckets();
-    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 80, 2027);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 80, 2027);
     SimulationResult baseResult =
         new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
     SimulationDecisionSummary baseSummary = SimulationDecisionSummary.from(baseResult, assumptions);
@@ -99,8 +99,7 @@ class SimulationSensitivityAnalysisServiceTest {
   @DisplayName("failure Risk Ranks Ahead Of Wealth Only Impact")
   @Test
   void failureRiskRanksAheadOfWealthOnlyImpact() {
-    SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 80, 2026);
     InvestmentProfile profile = profileWithMarketBuckets();
     SimulationEvaluationService evaluations = mockEvaluations(assumptions);
 
@@ -127,8 +126,7 @@ class SimulationSensitivityAnalysisServiceTest {
   @DisplayName("inactive Drivers Are Not Presented")
   @Test
   void inactiveDriversAreNotPresented() {
-    SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 80, 2026);
     InvestmentProfile profile =
         new InvestmentProfile(
             1L,
@@ -176,8 +174,7 @@ class SimulationSensitivityAnalysisServiceTest {
   @DisplayName("growth Cells Expose Effective Rate Not Stored Spread")
   @Test
   void growthCellsExposeEffectiveRateNotStoredSpread() {
-    SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2027);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 80, 2027);
     SimulationEvaluationService evaluations = mockEvaluations(assumptions);
     SimulationSensitivityAnalysis result =
         new SimulationSensitivityAnalysisService(evaluations)
@@ -259,8 +256,7 @@ class SimulationSensitivityAnalysisServiceTest {
   @DisplayName("introducing ARecurring Funding Gap Is AReserve Deterioration")
   @Test
   void introducingARecurringFundingGapIsAReserveDeterioration() {
-    SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 80, 2026);
     InvestmentProfile profile =
         new InvestmentProfile(
             1L,

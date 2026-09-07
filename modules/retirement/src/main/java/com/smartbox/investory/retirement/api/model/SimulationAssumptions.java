@@ -1,6 +1,5 @@
 package com.smartbox.investory.retirement.api.model;
 
-import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
@@ -137,11 +136,6 @@ public record SimulationAssumptions(
   /** Combined annual spending used by planning and simulation consumers. */
   public BigDecimal annualSpending() {
     return annualLivingExpenses.add(annualDiscretionaryExpenses);
-  }
-
-  public static SimulationAssumptions defaults(
-      InvestmentProfile profile, int currentAge, int endAge, int startYear) {
-    return defaults(currentAge, endAge, startYear);
   }
 
   public static SimulationAssumptions defaults(int currentAge, int endAge, int startYear) {

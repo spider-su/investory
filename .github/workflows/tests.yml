@@ -124,7 +124,7 @@ jobs:
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,IntegrationJobExecutionIT
           - name: reconciliation-notifications-longterm
             project: app
-            tests: DatabaseEvidenceReconciliationCheckIT,NotificationEventContractIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT
+            tests: DatabaseEvidenceReconciliationCheckIT,NotificationEventContractIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT,LongTermAssetLifecyclePostgresIT
           - name: exports-and-market-data
             project: app
             tests: ExportHappyInvestorIT,MarketDataRefreshPostgresIT

@@ -210,6 +210,19 @@ class LayerDependencyTest {
         .check(MAIN);
   }
 
+  @DisplayName("long Term Ui Uses Only Its Public Boundary")
+  @Test
+  void longTermUiUsesOnlyItsPublicBoundary() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..ui.longterm..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..longterm.application..", "..longterm.infrastructure..", "..longterm.web..")
+        .check(MAIN);
+  }
+
   @DisplayName("long Term Application Does Not Depend On Web")
   @Test
   void longTermApplicationDoesNotDependOnWeb() {
@@ -369,6 +382,25 @@ class LayerDependencyTest {
             "..investment.infrastructure..",
             "..longterm.infrastructure..",
             "..retirement.infrastructure..")
+        .check(MAIN);
+  }
+
+  @DisplayName("web Ui Does Not Reach Into Business Persistence Or Rest")
+  @Test
+  void webUiDoesNotReachIntoBusinessPersistenceOrRest() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("com.smartbox.investory.ui..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..persistence..",
+            "..entity..",
+            "..entities..",
+            "..investment.web..",
+            "..longterm.web..",
+            "..profile.web..",
+            "..retirement.web..")
         .check(MAIN);
   }
 

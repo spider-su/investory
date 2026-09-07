@@ -87,7 +87,7 @@ class SimulationGrowthSpreadTest {
   }
 
   private static SimulationAssumptions assumptions() {
-    return SimulationAssumptions.defaults(null, 65, 70, 2026)
+    return SimulationAssumptions.defaults(65, 70, 2026)
         .withInflationRate(new BigDecimal("0.025"))
         .withRentalIncomeGrowthSpread(new BigDecimal("0.005"))
         .withSpendingGrowthSpread(new BigDecimal("0.015"));

@@ -4,7 +4,6 @@ import static com.smartbox.investory.retirement.planning.PlanEditorInputTestFact
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -26,39 +25,7 @@ class PlanEditorInputNormalizerTest {
           new PlanningCurrencyPresentationService(
               org.mockito.Mockito.mock(CurrencyConversion.class), clock),
           clock);
-  private final SimulationAssumptions base =
-      SimulationAssumptions.defaults(
-          new InvestmentProfile(
-              1L,
-              CurrencyType.USD,
-              BigDecimal.ZERO,
-              BigDecimal.ZERO,
-              BigDecimal.ZERO,
-              BigDecimal.ZERO,
-              BigDecimal.ZERO,
-              List.of(),
-              null,
-              null,
-              new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
-                  List.of(),
-                  java.math.BigDecimal.ZERO,
-                  0,
-                  com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
-              (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
-              BigDecimal.ZERO
-                  .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
-                  .max(java.math.BigDecimal.ZERO),
-              com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
-                  BigDecimal.ZERO,
-                  BigDecimal.ZERO,
-                  BigDecimal.ZERO,
-                  BigDecimal.ZERO,
-                  BigDecimal.ZERO,
-                  BigDecimal.ZERO),
-              com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY),
-          40,
-          95,
-          2026);
+  private final SimulationAssumptions base = SimulationAssumptions.defaults(40, 95, 2026);
 
   @DisplayName("converts Semantic Percentage Points And Expense Levels On The Backend")
   @Test

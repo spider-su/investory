@@ -20,7 +20,7 @@ class RetirementLifecycleCashFlowIntegrationTest {
     var service = new RetirementSimulationService();
     var profile = profile();
     var base =
-        SimulationAssumptions.defaults(profile, 60, 67, 2026)
+        SimulationAssumptions.defaults(60, 67, 2026)
             .withRecurringSpending(bd("500"))
             .withInflationRate(BigDecimal.ZERO)
             .withSpendingGrowthSpread(BigDecimal.ZERO)

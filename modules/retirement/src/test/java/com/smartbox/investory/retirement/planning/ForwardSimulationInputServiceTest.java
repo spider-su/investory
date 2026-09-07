@@ -24,7 +24,7 @@ class ForwardSimulationInputServiceTest {
     CurrentYearProjectionBridge bridge = mock(CurrentYearProjectionBridge.class);
     InvestmentProfile profile = profile();
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(profile, 40, 80, 2026)
+        SimulationAssumptions.defaults(40, 80, 2026)
             .withRetirementAge(60)
             .withAnnualEmploymentIncome(new BigDecimal("240000"))
             .withAnnualPreRetirementContribution(new BigDecimal("50000"));

@@ -34,3 +34,8 @@ LongTerm API ─────┘
 - The Long-Term adapter itself returns one coherent source snapshot containing totals, allocation,
   annual-income facts, and projection inputs. Profile owns a new `REPEATABLE_READ` transaction for
   every complete read so an outer consumer transaction cannot weaken snapshot isolation.
+- `ProfileAssetProjection.rentalIncomeGrowthRate` is a compatibility baseline value. Profile emits
+  zero because rental growth is a Retirement scenario assumption; Retirement applies its selected
+  scenario rate when creating effective simulation assumptions.
+- The persisted contract test covers empty, brokerage-only, Long-Term-only, and mixed portfolios,
+  and verifies repeated reads do not change source tables.

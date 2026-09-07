@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -37,33 +36,12 @@ class RentalContractService {
   private final Clock clock;
 
   @Transactional(readOnly = true)
-  public List<LongTermAssetRentalContractEntity> list(Long portfolioId, Long assetId) {
+  public List<RentalContractModel> list(Long portfolioId, Long assetId) {
     requireRealEstate(portfolioId, assetId);
-    return contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId);
+    return listEntities(assetId).stream().map(RentalContractService::model).toList();
   }
 
-  @Transactional(readOnly = true)
-  public Optional<LongTermAssetRentalContractEntity> effective(
-      Long portfolioId, Long assetId, LocalDate date) {
-    return list(portfolioId, assetId).stream().filter(c -> applies(c, date)).findFirst();
-  }
-
-  /** Latest known contract is the projection baseline, including a known future contract. */
-  @Transactional(readOnly = true)
-  public Optional<LongTermAssetRentalContractEntity> latestKnown(Long portfolioId, Long assetId) {
-    return list(portfolioId, assetId).stream().findFirst();
-  }
-
-  public LongTermAssetRentalContractEntity create(
-      Long portfolioId,
-      Long assetId,
-      LocalDate start,
-      LocalDate end,
-      List<RentalContractModel.Term> terms) {
-    return create(portfolioId, assetId, null, null, null, start, end, terms, false);
-  }
-
-  public LongTermAssetRentalContractEntity create(
+  public RentalContractModel create(
       Long portfolioId,
       Long assetId,
       String tenantName,
@@ -77,8 +55,7 @@ class RentalContractService {
     validatePeriod(start, end, null);
     Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
     List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
-    List<LongTermAssetRentalContractEntity> all =
-        contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId);
+    List<LongTermAssetRentalContractEntity> all = listEntities(assetId);
 
     if (endCurrentContractBeforeStart) closePreviousExpectedPeriod(all, start);
     rejectOverlap(all, null, start, end);
@@ -86,10 +63,10 @@ class RentalContractService {
     var contract = new LongTermAssetRentalContractEntity();
     contract.setAssetId(assetId);
     replaceContractState(contract, tenant, start, end, supplied, null);
-    return contracts.save(contract);
+    return model(contracts.save(contract));
   }
 
-  public LongTermAssetRentalContractEntity update(
+  public RentalContractModel update(
       Long portfolioId,
       Long assetId,
       Long contractId,
@@ -104,29 +81,25 @@ class RentalContractService {
     Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
     List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
     rejectOverlap(
-        contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),
-        contractId,
-        start,
-        effectiveEnd(end, contract.getTerminatedDate()));
+        listEntities(assetId), contractId, start, effectiveEnd(end, contract.getTerminatedDate()));
     replaceContractState(contract, tenant, start, end, supplied, contract.getTerminatedDate());
-    return contracts.save(contract);
+    return model(contracts.save(contract));
   }
 
   public void delete(Long portfolioId, Long assetId, Long contractId) {
     contracts.delete(ownedContract(portfolioId, assetId, contractId));
   }
 
-  public LongTermAssetRentalContractEntity end(
-      Long portfolioId, Long assetId, Long contractId, LocalDate end) {
+  public RentalContractModel end(Long portfolioId, Long assetId, Long contractId, LocalDate end) {
     var contract = ownedContract(portfolioId, assetId, contractId);
     validatePeriod(contract.getStartDate(), end, contract.getTerminatedDate());
     rejectOverlap(
-        contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),
+        listEntities(assetId),
         contractId,
         contract.getStartDate(),
         effectiveEnd(end, contract.getTerminatedDate()));
     contract.setEndDate(end);
-    return contracts.save(contract);
+    return model(contracts.save(contract));
   }
 
   public void terminate(Long portfolioId, Long assetId, Long contractId, LocalDate date) {
@@ -138,7 +111,7 @@ class RentalContractService {
       throw new IllegalArgumentException("Actual termination date cannot be later than today");
     validatePeriod(contract.getStartDate(), contract.getEndDate(), date);
     rejectOverlap(
-        contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),
+        listEntities(assetId),
         contractId,
         contract.getStartDate(),
         effectiveEnd(contract.getEndDate(), date));
@@ -294,12 +267,25 @@ class RentalContractService {
     return effectiveEnd(contract.getEndDate(), contract.getTerminatedDate());
   }
 
+  public static LocalDate effectiveEnd(RentalContractModel contract) {
+    return effectiveEnd(contract.endDate(), contract.terminatedDate());
+  }
+
   public static RentalContractStatusModel status(
       LongTermAssetRentalContractEntity contract, LocalDate date) {
     if (date.isBefore(contract.getStartDate())) return RentalContractStatusModel.UPCOMING;
     LocalDate end = effectiveEnd(contract);
     if (end == null || !date.isAfter(end)) return RentalContractStatusModel.CURRENT;
     return contract.getTerminatedDate() == null
+        ? RentalContractStatusModel.ENDED
+        : RentalContractStatusModel.TERMINATED;
+  }
+
+  public static RentalContractStatusModel status(RentalContractModel contract, LocalDate date) {
+    if (date.isBefore(contract.startDate())) return RentalContractStatusModel.UPCOMING;
+    LocalDate end = effectiveEnd(contract);
+    if (end == null || !date.isAfter(end)) return RentalContractStatusModel.CURRENT;
+    return contract.terminatedDate() == null
         ? RentalContractStatusModel.ENDED
         : RentalContractStatusModel.TERMINATED;
   }
@@ -314,6 +300,30 @@ class RentalContractService {
     return realEstate
         .findByIdAndPortfolioId(assetId, portfolioId)
         .orElseThrow(() -> new AssetNotFoundException(portfolioId, assetId));
+  }
+
+  private List<LongTermAssetRentalContractEntity> listEntities(Long assetId) {
+    return contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId);
+  }
+
+  private static RentalContractModel model(LongTermAssetRentalContractEntity contract) {
+    return new RentalContractModel(
+        contract.getId(),
+        contract.getStartDate(),
+        contract.getEndDate(),
+        contract.getTerminatedDate(),
+        contract.getTenantName(),
+        contract.getTenantEmail(),
+        contract.getTenantPhone(),
+        contract.getTerms().stream()
+            .map(
+                term ->
+                    new RentalContractModel.Term(
+                        term.getType(),
+                        term.getAmount(),
+                        term.getFrequency(),
+                        term.isPaidByTenant()))
+            .toList());
   }
 
   private LongTermAssetRentalContractEntity ownedContract(Long portfolioId, Long assetId, Long id) {

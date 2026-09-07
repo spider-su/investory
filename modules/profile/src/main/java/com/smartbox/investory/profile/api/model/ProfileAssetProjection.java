@@ -5,7 +5,12 @@ import com.smartbox.investory.shared.util.CollectionUtils;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Immutable asset facts captured for deterministic future planning. */
+/**
+ * Immutable asset facts captured for deterministic future planning.
+ *
+ * <p>Profile does not own rental-growth assumptions, so its baseline value is zero. Retirement
+ * overlays the scenario-owned rental growth when it builds effective simulation assumptions.
+ */
 public record ProfileAssetProjection(
     List<ProjectedLongTermAsset> assets,
     BigDecimal rentalIncomeGrowthRate,

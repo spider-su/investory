@@ -110,7 +110,7 @@ class RetirementAnalysisRealSimulatorReconciliationTest {
   }
 
   private static SimulationAssumptions assumptions(InvestmentProfile profile) {
-    return SimulationAssumptions.defaults(profile, 40, 55, 2026).toBuilder()
+    return SimulationAssumptions.defaults(40, 55, 2026).toBuilder()
         .recurringSpending(new BigDecimal("60000"))
         .retirementAge(45)
         .annualEmploymentIncome(new BigDecimal("120000"))

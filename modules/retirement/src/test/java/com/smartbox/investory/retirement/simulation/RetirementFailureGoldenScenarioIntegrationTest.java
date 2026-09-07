@@ -25,7 +25,7 @@ class RetirementFailureGoldenScenarioIntegrationTest {
     var service = new RetirementSimulationService();
     var profile = profile();
     var assumptions =
-        SimulationAssumptions.defaults(profile, 65, 66, 2026)
+        SimulationAssumptions.defaults(65, 66, 2026)
             .withRecurringSpending(bd("500"))
             .withInflationRate(BigDecimal.ZERO)
             .withSpendingGrowthSpread(BigDecimal.ZERO)

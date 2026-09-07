@@ -16,6 +16,7 @@ final class ProfilePlanningCalculator {
   private final ProfileAllocationCalculator allocations;
 
   ProfileAssetProjection state(List<LongTermAssetProjectionModel> inputs, LocalDate date) {
+    // Rental growth belongs to the Retirement scenario, not to persisted Long-Term facts.
     return new ProfileAssetProjection(
         inputs.stream().map(input -> asset(input, date)).toList(),
         BigDecimal.ZERO,

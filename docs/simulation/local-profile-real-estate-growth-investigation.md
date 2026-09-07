@@ -1,5 +1,11 @@
 # Local profile real-estate growth investigation
 
+> **Historical investigation — superseded.** This document records the August 2026 diagnosis of a
+> pre-simplification per-asset projection path. The named valuation-period classes/tables and
+> per-property simulation mechanics are not part of the current four-bucket Retirement model.
+> Current contracts are defined by `docs/domain/long-term-assets.md` and
+> `docs/domain/retirement-simulation.md`; retain this file only as incident evidence.
+
 Date: 2026-08-13. Scope: local profile `1`, saved simulation plan `1`.
 
 ## Symptom

@@ -9,7 +9,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -122,6 +124,7 @@ public class ExchangeRateClient {
   public static class ExchangeRateResponse {
     private Map<String, Double> quotes;
     private LocalDate date;
+    private Long timestamp;
 
     public Map<String, Double> getQuotes() {
       return quotes;
@@ -137,6 +140,23 @@ public class ExchangeRateClient {
 
     public void setDate(LocalDate date) {
       this.date = date;
+    }
+
+    public Long getTimestamp() {
+      return timestamp;
+    }
+
+    public void setTimestamp(Long timestamp) {
+      this.timestamp = timestamp;
+    }
+
+    public LocalDate providerDate(ZoneId zoneId) {
+      if (date != null) {
+        return date;
+      }
+      return timestamp == null
+          ? null
+          : Instant.ofEpochSecond(timestamp).atZone(zoneId).toLocalDate();
     }
   }
 }

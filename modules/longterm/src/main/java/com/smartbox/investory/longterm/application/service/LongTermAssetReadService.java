@@ -17,7 +17,6 @@ import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRental
 import com.smartbox.investory.shared.assets.AssetEconomicCategory;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import com.smartbox.investory.shared.portfolio.PortfolioContext;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
@@ -42,9 +41,6 @@ public class LongTermAssetReadService {
   private final LongTermAssetRentalContractRepository contractRepository;
   private final CurrencyConversion conversion;
   private final PortfolioContextReader portfolios;
-  private final com.smartbox.investory.longterm.infrastructure.lifecycle
-          .LongTermAssetHistoryRepository
-      lifecycle;
 
   public LongTermAssetReadService(
       BondRepository bondRepository,
@@ -53,9 +49,7 @@ public class LongTermAssetReadService {
       PersonalAssetRepository personalAssetRepository,
       LongTermAssetRentalContractRepository contractRepository,
       CurrencyConversion conversion,
-      PortfolioContextReader portfolios,
-      com.smartbox.investory.longterm.infrastructure.lifecycle.LongTermAssetHistoryRepository
-          lifecycle) {
+      PortfolioContextReader portfolios) {
     this.bondRepository = bondRepository;
     this.realEstateRepository = realEstateRepository;
     this.cashReserveRepository = cashReserveRepository;
@@ -63,7 +57,6 @@ public class LongTermAssetReadService {
     this.contractRepository = contractRepository;
     this.conversion = conversion;
     this.portfolios = portfolios;
-    this.lifecycle = lifecycle;
   }
 
   public LongTermOverviewView overview(Long portfolioId, LocalDate date) {
@@ -145,93 +138,6 @@ public class LongTermAssetReadService {
         projections,
         annual(rows, currency));
   }
-
-  public LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(Long portfolioId, int year) {
-    CurrencyType currency = localCurrency(portfolioId);
-    LocalDate yearStart = LocalDate.of(year, 1, 1);
-    LocalDate yearEnd = LocalDate.of(year, 12, 31);
-    var estates = realEstateRepository.findAllByPortfolioIdOrderByName(portfolioId);
-    var history = contracts(estates);
-    var ids = estates.stream().map(RealEstateEntity::getId).toList();
-    var complete = lifecycle.completeRealEstateIds(ids);
-    var intervals = lifecycle.intervals(ids);
-    BigDecimal rentalIncome = BigDecimal.ZERO;
-    for (var estate : estates) {
-      if (estate.getAcquisitionDate() != null && estate.getAcquisitionDate().isAfter(yearEnd))
-        continue;
-      if (!complete.contains(estate.getId()) || estate.getAcquisitionDate() == null)
-        return new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null);
-      var assetIntervals =
-          intervals.stream().filter(interval -> interval.assetId().equals(estate.getId())).toList();
-      // The live archive flag and recorded open interval must agree.
-      var open = assetIntervals.stream().filter(interval -> interval.to() == null).toList();
-      if (open.size() > 1
-          || (estate.getArchivedAt() == null) != open.isEmpty()
-          || (!open.isEmpty() && !open.getFirst().from().equals(estate.getArchivedAt())))
-        return new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null);
-      LocalDate ownedFrom =
-          estate.getAcquisitionDate().isAfter(yearStart) ? estate.getAcquisitionDate() : yearStart;
-      var assetContracts =
-          history.getOrDefault(estate.getId(), List.of()).stream()
-              .sorted(
-                  java.util.Comparator.comparing(LongTermAssetRentalContractEntity::getStartDate))
-              .toList();
-      LocalDate previousEnd = null;
-      boolean previous = false;
-      for (var contract : assetContracts) {
-        LocalDate end = RentalContractService.effectiveEnd(contract);
-        if (previous && (previousEnd == null || !contract.getStartDate().isAfter(previousEnd)))
-          throw new IllegalStateException(
-              "Overlapping rental contracts for asset " + estate.getId());
-        previous = true;
-        previousEnd = end;
-        LocalDate from =
-            contract.getStartDate().isAfter(ownedFrom) ? contract.getStartDate() : ownedFrom;
-        LocalDate to = end == null || end.isAfter(yearEnd) ? yearEnd : end;
-        if (from.isAfter(to)) continue;
-        var periods = new ArrayList<DatePeriod>();
-        periods.add(new DatePeriod(from, to));
-        for (var interval : assetIntervals) {
-          var remaining = new ArrayList<DatePeriod>();
-          for (var period : periods) {
-            if (interval.from().isAfter(period.to())
-                || (interval.to() != null && !interval.to().isAfter(period.from()))) {
-              remaining.add(period);
-            } else {
-              if (period.from().isBefore(interval.from()))
-                remaining.add(new DatePeriod(period.from(), interval.from().minusDays(1)));
-              if (interval.to() != null && !interval.to().isAfter(period.to()))
-                remaining.add(new DatePeriod(interval.to(), period.to()));
-            }
-          }
-          periods = remaining;
-        }
-        for (var period : periods) {
-          BigDecimal net = BigDecimal.ZERO;
-          for (var term : contract.getTerms()) {
-            BigDecimal accrued =
-                accruedAmount(term.getAmount(), term.getFrequency(), period.from(), period.to());
-            if (isRentalIncome(term.getType())) net = net.add(accrued);
-            if (isRentalExpense(term.getType()) && !term.isPaidByTenant())
-              net = net.subtract(accrued);
-          }
-          BigDecimal tax =
-              accruedAmount(
-                      estate.getTaxBase() == null ? BigDecimal.ZERO : estate.getTaxBase(),
-                      Frequency.ANNUAL,
-                      period.from(),
-                      period.to())
-                  .multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE);
-          rentalIncome =
-              rentalIncome.add(toBase(net.subtract(tax), estate.getCurrency(), currency, yearEnd));
-        }
-      }
-    }
-    // Current balances and rates are not historical facts without dated observations.
-    return new LongTermAssetAnnualSnapshotModel(null, rentalIncome, null, null, null, null);
-  }
-
-  private record DatePeriod(LocalDate from, LocalDate to) {}
 
   private record ReadSet(
       List<BondEntity> bonds,

@@ -61,7 +61,7 @@ class RetirementProjectionServiceTest {
                 BigDecimal.ZERO,
                 new BigDecimal("975000")),
             com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
-    SimulationAssumptions assumptions = SimulationAssumptions.defaults(live, 40, 45, 2025);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 45, 2025);
     ForwardSimulationContext context =
         new ForwardSimulationContextFactory(
                 Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC))
@@ -174,7 +174,7 @@ class RetirementProjectionServiceTest {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO),
             com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
-    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 95, 2026);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 95, 2026);
     ForwardSimulationContext context =
         new ForwardSimulationContextFactory(
                 Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC))
@@ -205,7 +205,7 @@ class RetirementProjectionServiceTest {
   void savedPlanKeepsFutureFrozenWhileCurrentProfileFollowsLiveReader() {
     var liveA = profile(new BigDecimal("700000"), new BigDecimal("575000"));
     var liveB = profile(new BigDecimal("900000"), new BigDecimal("900000"));
-    var assumptions = SimulationAssumptions.defaults(liveA, 40, 45, 2025);
+    var assumptions = SimulationAssumptions.defaults(40, 45, 2025);
     var baseline = PlanningBaseline.fromProfile(liveA, 2026);
     var facts = mock(RetirementFactsProvider.class);
     var plans = mock(RetirementPlanApi.class);

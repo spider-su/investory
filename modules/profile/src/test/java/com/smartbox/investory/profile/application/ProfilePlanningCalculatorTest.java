@@ -43,6 +43,8 @@ class ProfilePlanningCalculatorTest {
                 new ProfileAllocationCalculator(mock(BrokerageAssetClassificationReader.class)))
             .state(List.of(input), date);
 
+    assertThat(state.rentalIncomeGrowthRate()).isZero();
+    assertThat(state.rentalIncomeBaseYear()).isEqualTo(2026);
     assertThat(state.assets())
         .singleElement()
         .satisfies(

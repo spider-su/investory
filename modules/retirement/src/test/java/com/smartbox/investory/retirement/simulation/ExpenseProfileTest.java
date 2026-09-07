@@ -3,9 +3,7 @@ package com.smartbox.investory.retirement.simulation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -57,40 +55,7 @@ class ExpenseProfileTest {
   @Test
   void resolvesStagesFromPlanStartAnchor() {
     var assumptions =
-        SimulationAssumptions.defaults(
-                new InvestmentProfile(
-                    1L,
-                    CurrencyType.PLN,
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    List.of(),
-                    null,
-                    null,
-                    new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
-                        List.of(),
-                        java.math.BigDecimal.ZERO,
-                        0,
-                        com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
-                    (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
-                    BigDecimal.ZERO
-                        .subtract(
-                            (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
-                        .max(java.math.BigDecimal.ZERO),
-                    com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures
-                        .annualIncome(
-                            BigDecimal.ZERO,
-                            BigDecimal.ZERO,
-                            BigDecimal.ZERO,
-                            BigDecimal.ZERO,
-                            BigDecimal.ZERO,
-                            BigDecimal.ZERO),
-                    com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY),
-                40,
-                80,
-                2025)
+        SimulationAssumptions.defaults(40, 80, 2025)
             .withExpenseProfile(
                 new ExpenseProfile(
                     List.of(

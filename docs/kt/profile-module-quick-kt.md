@@ -35,5 +35,10 @@ The canonical public read is intentionally one boundary:
 - Do not make Retirement reach through Profile into Investment or Long-Term infrastructure; adjust a public read contract instead.
 - Distinguish summary facts from planning facts. A presentation field is not automatically a simulation input.
 - Preserve portfolio scoping and each aggregate value's source lineage.
+- Profile emits zero rental-income growth in its planning baseline; Retirement owns and overlays the
+  scenario rental-growth assumption.
+
+The persisted contract test covers empty, brokerage-only, Long-Term-only, and mixed portfolios and
+checks that repeated reads do not mutate source persistence.
 
 Retirement turns this model into a frozen baseline; see `docs/domain/planning-timeline.md` and `docs/domain/retirement-simulation.md`.
