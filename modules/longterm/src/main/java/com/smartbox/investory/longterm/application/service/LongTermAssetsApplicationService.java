@@ -11,9 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Explicit Long-Term application boundary and sole source of calculated asset economics. */
 @Service
-@Transactional(
-    readOnly = true,
-    isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+@Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
 public class LongTermAssetsApplicationService
     implements LongTermAssetsApi, LongTermAssetProfileReader, LongTermAssetAnnualSnapshotReader {
   private final BondCommandService bonds;
@@ -45,28 +43,35 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public LongTermOverviewView overview(Long portfolioId, LocalDate date) {
     return reads.overview(portfolioId, date);
   }
 
   @Override
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public List<AssetSummaryView> archived(Long portfolioId, LocalDate date) {
     return reads.archived(portfolioId, date);
   }
 
   @Override
-  @Transactional
   public BondView createBond(BondCommand command) {
     return bonds.create(command);
   }
 
   @Override
-  @Transactional
   public BondView updateBond(BondCommand command) {
     return bonds.update(command);
   }
 
   @Override
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public BondView bond(Long portfolioId, Long id) {
     return bonds
         .find(portfolioId, id)
@@ -74,19 +79,19 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
-  @Transactional
-  public RealEstateView createRealEstate(RealEstateEntryModel command) {
+  public RealEstateView createRealEstate(RealEstateCommand command) {
     return realEstates.create(command);
   }
 
   @Override
-  @Transactional
-  public RealEstateView updateRealEstate(RealEstateEntryModel command) {
+  public RealEstateView updateRealEstate(RealEstateCommand command) {
     return realEstates.update(command);
   }
 
   @Override
-  @Transactional(readOnly = true)
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public RealEstateView realEstate(Long portfolioId, Long id) {
     return realEstates
         .find(portfolioId, id)
@@ -94,23 +99,27 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public AssetSummaryView realEstateSummary(Long portfolioId, Long id, LocalDate date) {
     return reads.realEstateSummary(portfolioId, id, date);
   }
 
   @Override
-  @Transactional
   public CashReserveView createCashReserve(CashReserveCommand command) {
     return cashReserves.create(command);
   }
 
   @Override
-  @Transactional
   public CashReserveView updateCashReserve(CashReserveCommand command) {
     return cashReserves.update(command);
   }
 
   @Override
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public CashReserveView cashReserve(Long portfolioId, Long id) {
     return cashReserves
         .find(portfolioId, id)
@@ -118,19 +127,16 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
-  @Transactional
   public PersonalAssetView createPersonalAsset(PersonalAssetCommand command) {
     return personalAssets.create(command);
   }
 
   @Override
-  @Transactional
   public PersonalAssetView updatePersonalAsset(PersonalAssetCommand command) {
     return personalAssets.update(command);
   }
 
   @Override
-  @Transactional
   public RentalContractView createRentalContract(RentalContractCommand command) {
     if (command == null) throw new IllegalArgumentException("Rental contract is required");
     return rental(
@@ -148,6 +154,9 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public List<RentalContractView> rentalContracts(Long portfolioId, Long assetId, LocalDate date) {
     return rentalContracts.list(portfolioId, assetId).stream()
         .map(contract -> rental(contract, date))
@@ -155,7 +164,6 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
-  @Transactional
   public RentalContractView updateRentalContract(UpdateRentalContractCommand command) {
     if (command == null) throw new IllegalArgumentException("Rental contract is required");
     return rental(
@@ -173,13 +181,11 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
-  @Transactional
   public void deleteRentalContract(Long portfolioId, Long assetId, Long contractId) {
     rentalContracts.delete(portfolioId, assetId, contractId);
   }
 
   @Override
-  @Transactional
   public RentalContractView endRentalContract(
       Long portfolioId, Long assetId, Long contractId, LocalDate endDate) {
     return rental(
@@ -187,25 +193,25 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
-  @Transactional
   public void terminateRentalContract(
       Long portfolioId, Long assetId, Long contractId, LocalDate terminationDate) {
     rentalContracts.terminate(portfolioId, assetId, contractId, terminationDate);
   }
 
   @Override
-  @Transactional
   public void archive(Long portfolioId, Long assetId) {
     lifecycle.changeArchive(portfolioId, assetId, LocalDate.now(clock));
   }
 
   @Override
-  @Transactional
   public void reactivate(Long portfolioId, Long assetId) {
     lifecycle.changeArchive(portfolioId, assetId, null);
   }
 
   @Override
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public PersonalAssetView personalAsset(Long portfolioId, Long id) {
     return personalAssets
         .find(portfolioId, id)
@@ -213,11 +219,15 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
   public LongTermAssetProfileSnapshotModel snapshot(Long portfolioId, LocalDate date) {
     return reads.snapshot(portfolioId, date);
   }
 
   @Override
+  @Transactional(readOnly = true)
   public LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(Long portfolioId, int year) {
     return reads.historicalAnnualSnapshot(portfolioId, year);
   }

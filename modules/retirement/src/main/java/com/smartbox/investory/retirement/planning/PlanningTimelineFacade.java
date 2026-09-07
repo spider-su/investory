@@ -7,7 +7,6 @@ import com.smartbox.investory.profile.api.model.*;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.planning.*;
-import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
@@ -25,15 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PlanningTimelineFacade {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
-  private final PlanningYearRepository years;
-  private final PlanningYearValueRepository values;
+  private final RetirementPlanningYearRepository years;
+  private final RetirementPlanningYearStateCodec stateCodec;
   private final PlanningMetricDerivationService metrics;
 
   private final RetirementSimulation simulations;
-  private final CurrentYearProjectionBridge projectionBridge;
   private final Clock clock;
-  private final ForwardSimulationContextFactory forwardContexts;
-  private final ForwardTimelineProjectionService futureProjections;
   private final LongTermAssetProfileReader currentLongTermAssets;
   private final PlanningProgressService planningProgress;
   private final PlanningYearReviewService planningYearReviews;
@@ -41,26 +37,20 @@ public class PlanningTimelineFacade {
 
   @Autowired
   public PlanningTimelineFacade(
-      PlanningYearRepository years,
-      PlanningYearValueRepository values,
+      RetirementPlanningYearRepository years,
+      RetirementPlanningYearStateCodec stateCodec,
       PlanningMetricDerivationService metrics,
       RetirementSimulation simulations,
-      CurrentYearProjectionBridge projectionBridge,
       Clock clock,
-      ForwardSimulationContextFactory forwardContexts,
       LongTermAssetProfileReader currentLongTermAssets,
       PlanningProgressService planningProgress,
       PlanningYearReviewService planningYearReviews,
       PlanningMoneyConversionService money) {
     this.years = years;
-    this.values = values;
+    this.stateCodec = stateCodec;
     this.metrics = metrics;
     this.simulations = simulations;
-    this.projectionBridge = projectionBridge;
     this.clock = clock;
-    this.forwardContexts = forwardContexts;
-    this.futureProjections =
-        new ForwardTimelineProjectionService(simulations, projectionBridge, forwardContexts);
     this.currentLongTermAssets = currentLongTermAssets;
     this.planningProgress = planningProgress;
     this.planningYearReviews = planningYearReviews;
@@ -91,11 +81,10 @@ public class PlanningTimelineFacade {
     if (year >= activeCurrentYear(portfolioId))
       throw new IllegalArgumentException(
           "Historical planning year must be before the current year");
-    PlanningYearEntity planningYear = year(portfolioId, year);
+    RetirementPlanningYearEntity planningYear = year(portfolioId, year);
+    hydrate(planningYear);
     if (planningYear.getStatus() == PlanningYearStatus.CLOSED) return past(planningYear);
-    if (values
-        .findAllByPlanningYearIdAndValueKind(planningYear.getId(), PlanningValueKind.ACTUAL)
-        .isEmpty()) {
+    if (records(planningYear, PlanningValueKind.ACTUAL).isEmpty()) {
       Map<PlanningMetric, PlanningMetricValue> derived = new EnumMap<>(PlanningMetric.class);
       derived.putAll(metrics.historicalMarket(portfolioId, year));
       derived.putAll(metrics.historicalLongTermAssets(portfolioId, year));
@@ -125,7 +114,6 @@ public class PlanningTimelineFacade {
       Long portfolioId,
       int year,
       Long planId,
-      Long revisionId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions) {
     if (year >= activeCurrentYear(portfolioId))
@@ -133,13 +121,12 @@ public class PlanningTimelineFacade {
           "Historical planning year must be before the current year");
     if (year < assumptions.planStartYear()) return createHistoricalDraft(portfolioId, year);
 
-    PlanningYearEntity planningYear = year(portfolioId, year);
+    RetirementPlanningYearEntity planningYear = year(portfolioId, year);
+    hydrate(planningYear);
     if (planningYear.getStatus() == PlanningYearStatus.CLOSED) return past(planningYear);
     createHistoricalDraft(portfolioId, year);
 
-    if (!values
-        .findAllByPlanningYearIdAndValueKind(planningYear.getId(), PlanningValueKind.BASELINE)
-        .isEmpty()) return past(planningYear);
+    if (!records(planningYear, PlanningValueKind.BASELINE).isEmpty()) return past(planningYear);
 
     SimulationYear expected =
         simulations
@@ -171,16 +158,16 @@ public class PlanningTimelineFacade {
                     "Retrospective reference from selected plan")));
 
     planningYear.setBaselinePlanId(planId);
-    planningYear.setBaselineRevisionId(revisionId);
     planningYear.setBaselineCreatedAt(Instant.now(clock));
-    years.save(planningYear);
+    saveState(planningYear);
     return past(planningYear);
   }
 
   /** Refreshes accounting- and supported Long-term AssetEntity-derived metrics on an open year. */
   @Transactional
   public PastPlanningYear refreshHistoricalDerivedValues(Long portfolioId, int year) {
-    PlanningYearEntity planningYear = year(portfolioId, year);
+    RetirementPlanningYearEntity planningYear = year(portfolioId, year);
+    hydrate(planningYear);
     if (planningYear.getStatus() == PlanningYearStatus.CLOSED)
       throw new IllegalStateException("Closed planning year cannot refresh accounting values");
     HistoricalPortfolioYear source = metrics.historicalPortfolio(portfolioId, year);
@@ -203,14 +190,11 @@ public class PlanningTimelineFacade {
     refreshed.putAll(metrics.historicalLongTermAssets(portfolioId, year));
     refreshed.forEach(
         (metric, derived) -> {
-          PlanningYearValueEntity existing =
-              values
-                  .findByPlanningYearIdAndValueKindAndMetric(
-                      planningYear.getId(), PlanningValueKind.ACTUAL, metric)
-                  .orElse(null);
+          PlanningMetricValue existing =
+              records(planningYear, PlanningValueKind.ACTUAL).get(metric);
           if (existing != null
-              && (existing.getSourceType() == PlanningValueSource.USER_OVERRIDE
-                  || existing.getSourceType() == PlanningValueSource.USER_ENTERED)) return;
+              && (existing.source() == PlanningValueSource.USER_OVERRIDE
+                  || existing.source() == PlanningValueSource.USER_ENTERED)) return;
           upsert(planningYear, PlanningValueKind.ACTUAL, derived);
         });
     return past(planningYear);
@@ -230,7 +214,7 @@ public class PlanningTimelineFacade {
   public List<Integer> historicalYears(Long portfolioId) {
     int current = activeCurrentYear(portfolioId);
     return years.findAllByPortfolioIdAndYearLessThanOrderByYearAsc(portfolioId, current).stream()
-        .map(PlanningYearEntity::getYear)
+        .map(RetirementPlanningYearEntity::getYear)
         .toList();
   }
 
@@ -241,19 +225,9 @@ public class PlanningTimelineFacade {
       Long planId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions) {
-    setCurrentBaseline(portfolioId, year, planId, null, profile, assumptions);
-  }
-
-  @Transactional
-  public void setCurrentBaseline(
-      Long portfolioId,
-      int year,
-      Long planId,
-      Long revisionId,
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions) {
     requireCurrent(portfolioId, year);
-    PlanningYearEntity planningYear = year(portfolioId, year);
+    RetirementPlanningYearEntity planningYear = year(portfolioId, year);
+    hydrate(planningYear);
     if (planningYear.getStatus() == PlanningYearStatus.CLOSED)
       throw new IllegalStateException("Closed planning year cannot refresh baseline");
     SimulationYear expected =
@@ -270,9 +244,8 @@ public class PlanningTimelineFacade {
                 new PlanningMetricValue(
                     metric, amount, null, PlanningValueSource.SIMULATION_BASELINE, null)));
     planningYear.setBaselinePlanId(planId);
-    planningYear.setBaselineRevisionId(revisionId);
     planningYear.setBaselineCreatedAt(Instant.now(clock));
-    years.save(planningYear);
+    saveState(planningYear);
   }
 
   @Transactional
@@ -289,23 +262,21 @@ public class PlanningTimelineFacade {
   @Transactional
   public void saveDraftManualValue(
       Long portfolioId, int year, PlanningMetric metric, BigDecimal approvedValue, String note) {
-    PlanningYearEntity planningYear = year(portfolioId, year);
+    RetirementPlanningYearEntity planningYear = year(portfolioId, year);
+    hydrate(planningYear);
     if (planningYear.getStatus() == PlanningYearStatus.CLOSED)
       throw new IllegalStateException("Closed planning year cannot be edited");
-    PlanningYearValueEntity current =
-        values
-            .findByPlanningYearIdAndValueKindAndMetric(
-                planningYear.getId(), PlanningValueKind.ACTUAL, metric)
-            .orElseGet(PlanningYearValueEntity::new);
+    PlanningMetricValue current = records(planningYear, PlanningValueKind.ACTUAL).get(metric);
     validateManualEdit(metric, current);
-    current.setPlanningYearId(planningYear.getId());
-    current.setValueKind(PlanningValueKind.ACTUAL);
-    current.setMetric(metric);
-    current.setDerivedValue(current.getDerivedValue());
-    current.setApprovedValue(approvedValue);
-    current.setSourceType(PlanningValueSource.USER_OVERRIDE);
-    current.setNote(note);
-    values.save(current);
+    upsert(
+        planningYear,
+        PlanningValueKind.ACTUAL,
+        new PlanningMetricValue(
+            metric,
+            current == null ? null : current.derivedValue(),
+            approvedValue,
+            PlanningValueSource.USER_OVERRIDE,
+            note));
   }
 
   @Transactional
@@ -313,7 +284,8 @@ public class PlanningTimelineFacade {
     if (year >= calendarCurrentYear())
       throw new IllegalArgumentException(
           "A planning year can be closed only after its calendar year ends");
-    PlanningYearEntity planningYear = year(portfolioId, year);
+    RetirementPlanningYearEntity planningYear = year(portfolioId, year);
+    hydrate(planningYear);
     if (planningYear.getStatus() == PlanningYearStatus.CLOSED) {
       ensureClosedTimestamp(planningYear);
       return past(planningYear);
@@ -321,17 +293,13 @@ public class PlanningTimelineFacade {
     Map<PlanningMetric, PlanningMetricValue> live = metrics.currentActual(profile);
     live.forEach(
         (metric, value) -> {
-          PlanningYearValueEntity stored =
-              values
-                  .findByPlanningYearIdAndValueKindAndMetric(
-                      planningYear.getId(), PlanningValueKind.ACTUAL, metric)
-                  .orElse(null);
+          PlanningMetricValue stored = records(planningYear, PlanningValueKind.ACTUAL).get(metric);
           if (stored == null) upsert(planningYear, PlanningValueKind.ACTUAL, value);
         });
     ensureComplete(planningYear);
     planningYear.setStatus(PlanningYearStatus.CLOSED);
     planningYear.setClosedAt(Instant.now(clock));
-    years.save(planningYear);
+    saveState(planningYear);
     return past(planningYear);
   }
 
@@ -339,23 +307,25 @@ public class PlanningTimelineFacade {
   public void reopenHistoricalYear(Long portfolioId, int year) {
     if (year >= activeCurrentYear(portfolioId))
       throw new IllegalArgumentException("Only a historical planning year can be reopened");
-    PlanningYearEntity planningYear = get(portfolioId, year);
+    RetirementPlanningYearEntity planningYear = get(portfolioId, year);
+    hydrate(planningYear);
     if (planningYear.getStatus() != PlanningYearStatus.CLOSED) return;
     planningYear.setStatus(PlanningYearStatus.DRAFT);
     planningYear.setReopenedAt(Instant.now(clock));
-    years.save(planningYear);
+    saveState(planningYear);
   }
 
   @Transactional
   public PastPlanningYear closeHistoricalDraft(Long portfolioId, int year) {
     if (year >= activeCurrentYear(portfolioId))
       throw new IllegalArgumentException("Only a past draft can be closed here");
-    PlanningYearEntity planningYear = get(portfolioId, year);
+    RetirementPlanningYearEntity planningYear = get(portfolioId, year);
+    hydrate(planningYear);
     if (planningYear.getStatus() == PlanningYearStatus.DRAFT) {
       ensureComplete(planningYear);
       planningYear.setStatus(PlanningYearStatus.CLOSED);
       planningYear.setClosedAt(Instant.now(clock));
-      years.save(planningYear);
+      saveState(planningYear);
     } else {
       ensureClosedTimestamp(planningYear);
     }
@@ -365,21 +335,16 @@ public class PlanningTimelineFacade {
   /** Uses the request's already-prepared forward boundary and does not bridge it again. */
   @Transactional(readOnly = true)
   public PlanningTimeline loadForwardTimeline(
-      Long portfolioId, InvestmentProfile profile, ForwardSimulationInput forward) {
-    return loadForwardTimeline(portfolioId, profile, forward, SimulationScenario.BASE);
-  }
-
-  @Transactional(readOnly = true)
-  public PlanningTimeline loadForwardTimeline(
-      Long portfolioId,
-      InvestmentProfile profile,
-      ForwardSimulationInput forward,
-      SimulationScenario scenario) {
+      Long portfolioId, RetirementProjection projection, SimulationScenario scenario) {
+    InvestmentProfile profile = projection.profile();
+    ForwardSimulationInput forward = projection.forward();
     int current = activeCurrentYear(portfolioId);
     List<PlanningTimelineYear> result = new ArrayList<>();
     int planStartYear = forward.context().originalStartYear();
     for (int year = planStartYear; year < current; year++) {
-      PlanningYearEntity stored = years.findByPortfolioIdAndYear(portfolioId, year).orElse(null);
+      RetirementPlanningYearEntity stored =
+          years.findByPortfolioIdAndYear(portfolioId, year).orElse(null);
+      if (stored != null) hydrate(stored);
       result.add(
           new PlanningTimelineYear(
               year,
@@ -402,16 +367,17 @@ public class PlanningTimelineFacade {
                 forward.context().originalAssumptions(),
                 forward.currentYearBridge()),
             null));
-    if (forward.forwardAssumptions().isPresent())
-      for (SimulationYear projection : future(forward, current, scenario))
+    SimulationResult projectedScenario = projection.scenarioResults().get(scenario);
+    if (projectedScenario != null)
+      for (SimulationYear projectedYear : projectedScenario.years())
         result.add(
             new PlanningTimelineYear(
-                projection.year(),
-                projection.age(),
+                projectedYear.year(),
+                projectedYear.age(),
                 PlanningTimelineState.PROJECTED,
                 null,
                 null,
-                projection));
+                projectedYear));
     return new PlanningTimeline(result);
   }
 
@@ -433,8 +399,9 @@ public class PlanningTimelineFacade {
 
   @Transactional(readOnly = true)
   public CurrentPlanningYear current(Long portfolioId, int year, InvestmentProfile profile) {
-    PlanningYearEntity planningYear =
+    RetirementPlanningYearEntity planningYear =
         years.findByPortfolioIdAndYear(portfolioId, year).orElse(null);
+    if (planningYear != null) hydrate(planningYear);
     Map<PlanningMetric, PlanningMetricValue> live = metrics.currentActual(profile);
     if (planningYear == null) return new CurrentPlanningYear(year, null, null, live, Map.of());
     Map<PlanningMetric, PlanningMetricValue> manual = actualValues(planningYear);
@@ -445,12 +412,9 @@ public class PlanningTimelineFacade {
     return new CurrentPlanningYear(
         year,
         planningYear.getBaselinePlanId(),
-        planningYear.getBaselineRevisionId(),
         planningYear.getBaselineCreatedAt(),
         live,
-        planningYear.getBaselinePlanId() == null || planningYear.getBaselineRevisionId() == null
-            ? Map.of()
-            : baselineValues(planningYear));
+        planningYear.getBaselinePlanId() == null ? Map.of() : baselineValues(planningYear));
   }
 
   @Transactional(readOnly = true)
@@ -461,29 +425,16 @@ public class PlanningTimelineFacade {
   /** UI hint only; saveDraftManualValue remains the authoritative enforcement point. */
   @Transactional(readOnly = true)
   public boolean isHistoricalMetricEditable(Long portfolioId, int year, PlanningMetric metric) {
-    PlanningYearEntity planningYear = get(portfolioId, year);
+    RetirementPlanningYearEntity planningYear = get(portfolioId, year);
+    hydrate(planningYear);
     if (planningYear.getStatus() == PlanningYearStatus.CLOSED) return false;
-    PlanningYearValueEntity current =
-        values
-            .findByPlanningYearIdAndValueKindAndMetric(
-                planningYear.getId(), PlanningValueKind.ACTUAL, metric)
-            .orElse(null);
+    PlanningMetricValue current = records(planningYear, PlanningValueKind.ACTUAL).get(metric);
     return isManualEditAllowed(metric, current);
   }
 
   @Transactional(readOnly = true)
   public PlanningYearCloseStatus historicalCloseStatus(Long portfolioId, int year) {
     return closeStatus(get(portfolioId, year));
-  }
-
-  private List<SimulationYear> future(
-      InvestmentProfile profile, SimulationAssumptions assumptions, int current) {
-    return futureProjections.future(profile, assumptions, current);
-  }
-
-  private List<SimulationYear> future(
-      ForwardSimulationInput forward, int current, SimulationScenario scenario) {
-    return futureProjections.future(forward, current, scenario);
   }
 
   private SimulationAssumptions assumptionsForYear(SimulationAssumptions assumptions, int year) {
@@ -526,79 +477,68 @@ public class PlanningTimelineFacade {
     return values;
   }
 
-  private PastPlanningYear past(PlanningYearEntity year) {
+  private PastPlanningYear past(RetirementPlanningYearEntity year) {
     return new PastPlanningYear(
         year.getYear(),
         year.getStatus(),
         year.getClosedAt(),
         year.getBaselinePlanId(),
-        year.getBaselineRevisionId(),
         actualValues(year),
         baselineValues(year));
   }
 
-  private Map<PlanningMetric, PlanningMetricValue> actualValues(PlanningYearEntity year) {
+  private Map<PlanningMetric, PlanningMetricValue> actualValues(RetirementPlanningYearEntity year) {
     return records(year, PlanningValueKind.ACTUAL);
   }
 
-  private Map<PlanningMetric, PlanningMetricValue> baselineValues(PlanningYearEntity year) {
+  private Map<PlanningMetric, PlanningMetricValue> baselineValues(
+      RetirementPlanningYearEntity year) {
     return records(year, PlanningValueKind.BASELINE);
   }
 
   private Map<PlanningMetric, PlanningMetricValue> records(
-      PlanningYearEntity year, PlanningValueKind kind) {
-    Map<PlanningMetric, PlanningMetricValue> result = new EnumMap<>(PlanningMetric.class);
-    values
-        .findAllByPlanningYearIdAndValueKind(year.getId(), kind)
-        .forEach(
-            value ->
-                result.put(
-                    value.getMetric(),
-                    new PlanningMetricValue(
-                        value.getMetric(),
-                        value.getDerivedValue(),
-                        value.getApprovedValue(),
-                        value.getSourceType(),
-                        value.getNote())));
+      RetirementPlanningYearEntity year, PlanningValueKind kind) {
+    return year.getValues().get(kind);
+  }
+
+  private RetirementPlanningYearEntity year(Long portfolioId, int calendarYear) {
+    RetirementPlanningYearEntity result =
+        years
+            .findByPortfolioIdAndYear(portfolioId, calendarYear)
+            .orElseGet(
+                () -> {
+                  RetirementPlanningYearEntity created = new RetirementPlanningYearEntity();
+                  created.setPortfolioId(portfolioId);
+                  created.setYear(calendarYear);
+                  created.setStatus(PlanningYearStatus.DRAFT);
+                  return years.save(created);
+                });
+    hydrate(result);
     return result;
   }
 
-  private PlanningYearEntity year(Long portfolioId, int calendarYear) {
-    return years
-        .findByPortfolioIdAndYear(portfolioId, calendarYear)
-        .orElseGet(
-            () -> {
-              PlanningYearEntity created = new PlanningYearEntity();
-              created.setPortfolioId(portfolioId);
-              created.setYear(calendarYear);
-              created.setStatus(PlanningYearStatus.DRAFT);
-              return years.save(created);
-            });
+  private RetirementPlanningYearEntity get(Long portfolioId, int calendarYear) {
+    RetirementPlanningYearEntity result =
+        years
+            .findByPortfolioIdAndYear(portfolioId, calendarYear)
+            .orElseThrow(() -> new NoSuchElementException("Planning year not found"));
+    hydrate(result);
+    return result;
   }
 
-  private PlanningYearEntity get(Long portfolioId, int calendarYear) {
-    return years
-        .findByPortfolioIdAndYear(portfolioId, calendarYear)
-        .orElseThrow(() -> new NoSuchElementException("Planning year not found"));
+  private void upsert(
+      RetirementPlanningYearEntity year, PlanningValueKind kind, PlanningMetricValue value) {
+    year.getValues().get(kind).put(value.metric(), value);
+    saveState(year);
   }
 
-  private void upsert(PlanningYearEntity year, PlanningValueKind kind, PlanningMetricValue value) {
-    PlanningYearValueEntity stored =
-        values
-            .findByPlanningYearIdAndValueKindAndMetric(year.getId(), kind, value.metric())
-            .orElseGet(PlanningYearValueEntity::new);
-    stored.setPlanningYearId(year.getId());
-    stored.setValueKind(kind);
-    stored.setMetric(value.metric());
-    stored.setDerivedValue(value.derivedValue());
-    stored.setApprovedValue(value.approvedValue());
-    stored.setSourceType(value.source());
-    stored.setNote(value.note());
-    values.save(stored);
+  private void hydrate(RetirementPlanningYearEntity year) {
+    stateCodec.readInto(year);
   }
 
-  private void save(PlanningYearEntity year, PlanningValueKind kind, PlanningMetricValue value) {
-    upsert(year, kind, value);
+  private RetirementPlanningYearEntity saveState(RetirementPlanningYearEntity year) {
+    stateCodec.writeFrom(year);
+    return years.save(year);
   }
 
   private static PlanningMetricValue derived(
@@ -615,7 +555,7 @@ public class PlanningTimelineFacade {
       int year,
       InvestmentProfile profile,
       SimulationAssumptions assumptions,
-      CurrentYearBridgeResult bridge) {
+      CurrentYearProjection bridge) {
     CurrentPlanningYear current = current(portfolioId, year, profile);
     Map<PlanningMetric, PlanningMetricValue> live = new EnumMap<>(current.actualValues());
     live.put(
@@ -646,42 +586,13 @@ public class PlanningTimelineFacade {
       putCurrentFact(
           live, PlanningMetric.BOND_INCOME, canonical(facts.bondIncome(), facts.currency()));
     }
-    BigDecimal costs = assumptions.annualSpending();
-    BigDecimal rental = planningAmount(live, PlanningMetric.RENTAL_INCOME);
-    BigDecimal bond = planningAmount(live, PlanningMetric.BOND_INCOME);
-    int currentAge = ForwardSimulationContextFactory.currentPlanningAge(assumptions, year);
-    BigDecimal employment =
-        currentAge < assumptions.retirementAge() ? assumptions.annualEmploymentIncome() : ZERO;
-    BigDecimal pension =
-        assumptions.pensionStartsAtOrBefore(currentAge) ? assumptions.annualPension() : ZERO;
-    if (rental != null || bond != null) {
-      BigDecimal eventIncome =
-          assumptions.futureEvents().stream()
-              .filter(
-                  event ->
-                      event.year() == year && event.type() == SimulationEventType.ONE_OFF_INCOME)
-              .map(SimulationEvent::amount)
-              .reduce(ZERO, BigDecimal::add);
-      BigDecimal eventExpenses =
-          assumptions.futureEvents().stream()
-              .filter(
-                  event ->
-                      event.year() == year && event.type() == SimulationEventType.ONE_OFF_EXPENSE)
-              .map(SimulationEvent::amount)
-              .reduce(ZERO, BigDecimal::add);
-      BigDecimal funding =
-          costs
-              .add(eventExpenses)
-              .subtract(zero(rental))
-              .subtract(zero(bond))
-              .subtract(employment)
-              .subtract(pension)
-              .subtract(eventIncome)
-              .max(ZERO);
+    if (bridge != null) {
       live.put(
           PlanningMetric.PORTFOLIO_FUNDING,
           derived(
-              PlanningMetric.PORTFOLIO_FUNDING, funding, PlanningValueSource.SIMULATION_BASELINE));
+              PlanningMetric.PORTFOLIO_FUNDING,
+              bridge.requiredPortfolioFunding(),
+              PlanningValueSource.SIMULATION_BASELINE));
     }
     Map<PlanningMetric, PlanningMetricValue> expected = new EnumMap<>(PlanningMetric.class);
     expected.putAll(current.expectedValues());
@@ -703,12 +614,7 @@ public class PlanningTimelineFacade {
           expected, PlanningMetric.NET_WORTH, bridge.bridgedProfile().totalNetWorth());
     }
     return new CurrentPlanningYear(
-        current.year(),
-        current.baselinePlanId(),
-        current.baselineRevisionId(),
-        current.baselineCreatedAt(),
-        live,
-        expected);
+        current.year(), current.baselinePlanId(), current.baselineCreatedAt(), live, expected);
   }
 
   private static void putExpectedBucket(
@@ -721,16 +627,6 @@ public class PlanningTimelineFacade {
       Map<PlanningMetric, PlanningMetricValue> values, PlanningMetric metric, BigDecimal amount) {
     if (amount != null)
       values.put(metric, derived(metric, amount, PlanningValueSource.LONG_TERM_DERIVED));
-  }
-
-  private static BigDecimal planningAmount(
-      Map<PlanningMetric, PlanningMetricValue> values, PlanningMetric metric) {
-    PlanningMetricValue value = values.get(metric);
-    return value == null ? null : value.value();
-  }
-
-  private static BigDecimal zero(BigDecimal value) {
-    return value == null ? ZERO : value;
   }
 
   private BigDecimal canonical(BigDecimal amount, CurrencyType source) {
@@ -752,12 +648,12 @@ public class PlanningTimelineFacade {
       throw new IllegalArgumentException("Only the current planning year is live");
   }
 
-  private void validateManualEdit(PlanningMetric metric, PlanningYearValueEntity current) {
+  private void validateManualEdit(PlanningMetric metric, PlanningMetricValue current) {
     if (!isManualEditAllowed(metric, current)) {
       if (metric == PlanningMetric.REAL_ESTATE
           && current != null
-          && current.getDerivedValue() != null
-          && current.getSourceType() != PlanningValueSource.UNAVAILABLE) {
+          && current.derivedValue() != null
+          && current.source() != PlanningValueSource.UNAVAILABLE) {
         throw new IllegalArgumentException("Derived real-estate value cannot be overridden");
       }
       throw new IllegalArgumentException(
@@ -765,16 +661,15 @@ public class PlanningTimelineFacade {
     }
   }
 
-  private static boolean isManualEditAllowed(
-      PlanningMetric metric, PlanningYearValueEntity current) {
+  private static boolean isManualEditAllowed(PlanningMetric metric, PlanningMetricValue current) {
     if (!metric.isManualEditable()) return false;
     return metric != PlanningMetric.REAL_ESTATE
         || current == null
-        || current.getDerivedValue() == null
-        || current.getSourceType() == PlanningValueSource.UNAVAILABLE;
+        || current.derivedValue() == null
+        || current.source() == PlanningValueSource.UNAVAILABLE;
   }
 
-  private void ensureComplete(PlanningYearEntity planningYear) {
+  private void ensureComplete(RetirementPlanningYearEntity planningYear) {
     PlanningYearCloseStatus status = closeStatus(planningYear);
     if (!status.canClose())
       throw new IllegalStateException(
@@ -784,20 +679,20 @@ public class PlanningTimelineFacade {
               + String.join(", ", status.missingMetrics()));
   }
 
-  private static PlanningTimelineState state(PlanningYearEntity year) {
+  private static PlanningTimelineState state(RetirementPlanningYearEntity year) {
     return year.getStatus() == PlanningYearStatus.CLOSED
         ? PlanningTimelineState.ACTUAL
         : PlanningTimelineState.NEEDS_REVIEW;
   }
 
-  private void ensureClosedTimestamp(PlanningYearEntity planningYear) {
+  private void ensureClosedTimestamp(RetirementPlanningYearEntity planningYear) {
     if (planningYear.getClosedAt() == null) {
       planningYear.setClosedAt(Instant.now(clock));
-      years.save(planningYear);
+      saveState(planningYear);
     }
   }
 
-  private PlanningYearCloseStatus closeStatus(PlanningYearEntity planningYear) {
+  private PlanningYearCloseStatus closeStatus(RetirementPlanningYearEntity planningYear) {
     Map<PlanningMetric, PlanningMetricValue> actual = actualValues(planningYear);
     List<String> missing = new ArrayList<>();
     if (value(actual, PlanningMetric.NET_WORTH) == null

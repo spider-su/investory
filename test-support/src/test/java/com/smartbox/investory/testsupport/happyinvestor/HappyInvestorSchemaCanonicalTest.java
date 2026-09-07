@@ -37,9 +37,8 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(snapshot.contains("9405\t1\tTreasury 2026\tPLN\t10000.000000000000"));
     assertTrue(snapshot.contains("9406\t1\tTerm cash reserve\tPLN\t25000.000000000000"));
     assertTrue(snapshot.contains("\t159307.015664000000\t970000.000000000000\t74400.000000000000"));
-    assertTrue(snapshot.contains("9201\t1\tHappy Investor Plan\t9202"));
-    assertTrue(
-        snapshot.contains(HappyInvestorPlanFacts.BASELINE_AS_OF_YEAR + "\tDRAFT\t9201\t9202"));
+    assertTrue(snapshot.contains("9201\t1\tHappy Investor Plan\t1984-01-01\t2024\t85\t60"));
+    assertTrue(snapshot.contains("9301\t1\t2025\tDRAFT\t"));
 
     assertTrue(common.contains("(9401, 1, 'Cash reserve'"));
     assertTrue(common.contains("(9406, 1, 'Term cash reserve'"));

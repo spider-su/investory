@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.valuation.price;
 
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
@@ -149,7 +150,7 @@ public class PriceHistoryCoverageService {
             ? openedPositionRepository.findOpen()
             : openedPositionRepository.findOpenByAccountIn(
                 accountRepository.findAllByPortfolioId(portfolioId).stream()
-                    .map(account -> account.getId())
+                    .map(AccountEntity::getId)
                     .toList());
     for (PositionEntity position : positions) {
       if (position.getAssetId() == null || position.getOpenTime() == null) continue;

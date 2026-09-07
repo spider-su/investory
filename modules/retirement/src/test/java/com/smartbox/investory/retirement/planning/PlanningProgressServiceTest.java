@@ -90,7 +90,7 @@ class PlanningProgressServiceTest {
     assertEquals(new BigDecimal("100000"), afterLiveProfileChange.difference());
   }
 
-  @DisplayName("later Baseline Revision Does Not Change Old Closed Comparison")
+  @DisplayName("later Baseline Does Not Change Old Closed Comparison")
   @Test
   void laterBaselineRevisionDoesNotChangeOldClosedComparison() {
     PastPlanningYear closed = year(2025, PlanningYearStatus.CLOSED, "600000", "500000", 7L, 3L);
@@ -102,17 +102,15 @@ class PlanningProgressServiceTest {
 
     assertEquals(new BigDecimal("500000"), point.plannedNetWorth());
     assertEquals(new BigDecimal("100000"), point.difference());
-    assertEquals(3L, point.baselineRevisionId());
   }
 
-  @DisplayName("exposes The Exact Frozen Baseline Provenance")
+  @DisplayName("exposes The Exact Frozen Plan Provenance")
   @Test
   void exposesTheExactFrozenBaselineProvenance() {
     PlanProgressPoint point =
         service.compare(year(2025, PlanningYearStatus.CLOSED, "600000", "500000", 71L, 33L));
 
     assertEquals(71L, point.baselinePlanId());
-    assertEquals(33L, point.baselineRevisionId());
   }
 
   @DisplayName(
@@ -132,10 +130,9 @@ class PlanningProgressServiceTest {
     assertEquals(new BigDecimal("300000"), progress.headline().difference());
     assertEquals(2027, progress.headline().year());
     assertEquals(PlanProgressState.AHEAD, progress.headline().status());
-    assertEquals(4L, progress.headline().baselineRevisionId());
   }
 
-  @DisplayName("global Progress Preserves Each Years Frozen Revision When Later Revision Exists")
+  @DisplayName("global Progress Preserves Closed Years When Later Draft Exists")
   @Test
   void globalProgressPreservesEachYearsFrozenRevisionWhenLaterRevisionExists() {
     List<PastPlanningYear> historical =
@@ -154,9 +151,6 @@ class PlanningProgressServiceTest {
                 year(2028, PlanningYearStatus.DRAFT, "600000", "900000", 7L, 5L)));
 
     assertEquals(beforeRevisionFive, afterRevisionFive);
-    assertEquals(
-        List.of(1L, 2L, 4L),
-        afterRevisionFive.points().stream().map(PlanProgressPoint::baselineRevisionId).toList());
   }
 
   @DisplayName("global Progress Excludes Unavailable Closed And Draft Years")
@@ -177,7 +171,7 @@ class PlanningProgressServiceTest {
   @Test
   void timelineProgressExcludesLiveAndProjectedRows() {
     PastPlanningYear closed = year(2025, PlanningYearStatus.CLOSED, "180000", "100000", 7L, 1L);
-    CurrentPlanningYear live = new CurrentPlanningYear(2026, 7L, 5L, null, Map.of(), Map.of());
+    CurrentPlanningYear live = new CurrentPlanningYear(2026, 7L, null, Map.of(), Map.of());
     PlanningTimeline timeline =
         new PlanningTimeline(
             List.of(
@@ -240,9 +234,8 @@ class PlanningProgressServiceTest {
       String actual,
       String planned,
       Long planId,
-      Long revisionId) {
-    return new PastPlanningYear(
-        year, status, null, planId, revisionId, values(actual), values(planned));
+      Long ignoredRevisionId) {
+    return new PastPlanningYear(year, status, null, planId, values(actual), values(planned));
   }
 
   private static Map<PlanningMetric, PlanningMetricValue> values(String netWorth) {

@@ -467,8 +467,12 @@ class PortfolioMetricsServiceTest {
     assertEquals(17959259L, result.getAccountBalances().getFirst().getAccountId());
     assertEquals("IBKR", result.getAccountBalances().getFirst().getAccountName());
     assertEquals(800.0, result.getAccountBalances().getFirst().getNetDeposit(), 0.01);
+    assertEquals(800.0, result.getAccountBalances().getFirst().getNetDepositLocal(), 0.01);
+    assertEquals(800.0, result.getAccountBalances().getFirst().getNetDepositBase(), 0.01);
     assertEquals(37.5, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.01);
     assertEquals(1100.0, result.getAccountBalances().getFirst().getBalance(), 0.01);
+    assertEquals(4400.0, result.getAccountBalances().getFirst().getBalanceLocal(), 0.01);
+    assertEquals(1100.0, result.getAccountBalances().getFirst().getBalanceBase(), 0.01);
     assertEquals(125.0, result.getAccountBalances().getFirst().getCash(), 0.01);
     assertEquals(CurrencyType.PLN, result.getAccountBalances().getFirst().getLocalCurrency());
     assertEquals(4400.0, result.getAccountBalances().getFirst().getLocalBalance(), 0.01);
@@ -536,8 +540,8 @@ class PortfolioMetricsServiceTest {
     Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
 
     assertEquals(1, result.getAccountBalances().size());
-    assertEquals(11.68, result.getAccountBalances().getFirst().getNetDeposit(), 0.01);
-    assertEquals(11.68, result.getAccountBalances().getFirst().getBaseNetDeposit(), 0.01);
+    assertEquals(11.68, result.getAccountBalances().getFirst().getNetDepositLocal(), 0.01);
+    assertEquals(11.68, result.getAccountBalances().getFirst().getNetDepositBase(), 0.01);
   }
 
   @DisplayName(
@@ -618,8 +622,14 @@ class PortfolioMetricsServiceTest {
 
     Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
 
-    assertEquals(22472.37, result.getAccountBalances().getFirst().getNetDeposit(), 0.01);
-    assertEquals(7527.63, result.getAccountBalances().getFirst().getProfit(), 0.01);
+    AccountBalance accountBalance = result.getAccountBalances().getFirst();
+    assertEquals(22472.37, accountBalance.getNetDepositLocal(), 0.01);
+    assertEquals(21670.90, accountBalance.getNetDepositBase(), 0.01);
+    assertEquals(30000.0, accountBalance.getBalanceLocal(), 0.01);
+    assertEquals(30000.0, accountBalance.getBalanceBase(), 0.01);
+    assertEquals(7527.63, accountBalance.getProfitLocal(), 0.01);
+    assertEquals(8329.10, accountBalance.getProfitBase(), 0.01);
+    assertEquals(801.47, accountBalance.getFxEffect(), 0.01);
     assertEquals(21670.90, result.getNetDeposits(), 0.01);
     assertEquals(21670.90, result.getAccountBalancesTotal().getNetDeposit(), 0.01);
     assertEquals(8329.10, result.getAccountBalancesTotal().getProfit(), 0.01);

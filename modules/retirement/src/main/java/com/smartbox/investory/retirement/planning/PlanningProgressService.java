@@ -21,8 +21,7 @@ public class PlanningProgressService {
           planned,
           null,
           PlanProgressState.UNAVAILABLE,
-          year.baselinePlanId(),
-          year.baselineRevisionId());
+          year.baselinePlanId());
     BigDecimal difference = actual.subtract(planned);
     if (difference.compareTo(BigDecimal.ZERO) == 0) difference = BigDecimal.ZERO;
     PlanProgressState state =
@@ -36,8 +35,7 @@ public class PlanningProgressService {
         planned,
         difference,
         state,
-        year.baselinePlanId(),
-        year.baselineRevisionId());
+        year.baselinePlanId());
   }
 
   /**

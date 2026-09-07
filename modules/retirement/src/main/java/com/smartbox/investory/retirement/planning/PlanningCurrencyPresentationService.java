@@ -61,7 +61,6 @@ public class PlanningCurrencyPresentationService {
         past.status(),
         past.closedAt(),
         past.baselinePlanId(),
-        past.baselineRevisionId(),
         displayValues(past.values(), display),
         displayValues(past.expectedValues(), display));
   }

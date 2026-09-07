@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.reporting.dashboard.service;
 
 import com.smartbox.investory.investment.api.reporting.model.AccountBalance;
 import com.smartbox.investory.investment.api.reporting.model.AssetAllocationView;
+import com.smartbox.investory.investment.api.reporting.model.OpenPositionValue;
 import com.smartbox.investory.investment.api.reporting.model.PortfolioStructureView;
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -60,7 +61,7 @@ public class PortfolioStructureQuery {
                 .filter(position -> position.getSymbol() != null)
                 .collect(
                     Collectors.groupingBy(
-                        position -> position.getSymbol(), LinkedHashMap::new, Collectors.toList()))
+                        OpenPositionValue::getSymbol, LinkedHashMap::new, Collectors.toList()))
                 .entrySet()
                 .stream()
                 .map(
@@ -68,13 +69,13 @@ public class PortfolioStructureQuery {
                         new PortfolioStructureView.Holding(
                             entry.getKey(),
                             entry.getValue().stream()
-                                .map(position -> position.getValue())
+                                .map(OpenPositionValue::getValue)
                                 .filter(java.util.Objects::nonNull)
                                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
                                 .doubleValue(),
                             0.0,
                             entry.getValue().stream()
-                                .map(position -> position.getUnrealized())
+                                .map(OpenPositionValue::getUnrealized)
                                 .filter(java.util.Objects::nonNull)
                                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
                                 .doubleValue()))

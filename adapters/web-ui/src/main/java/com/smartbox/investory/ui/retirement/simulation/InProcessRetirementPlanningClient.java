@@ -53,11 +53,10 @@ public class InProcessRetirementPlanningClient implements RetirementPlanningClie
       Long portfolioId,
       int year,
       Long planId,
-      Long revisionId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions) {
     return retirementTimelineApi.seedHistoricalBaselineFromPlan(
-        portfolioId, year, planId, revisionId, profile, assumptions);
+        portfolioId, year, planId, profile, assumptions);
   }
 
   @Override
@@ -77,11 +76,8 @@ public class InProcessRetirementPlanningClient implements RetirementPlanningClie
 
   @Override
   public PlanningTimeline loadForwardTimeline(
-      Long portfolioId,
-      InvestmentProfile profile,
-      ForwardSimulationInput forward,
-      SimulationScenario scenario) {
-    return retirementTimelineApi.loadForwardTimeline(portfolioId, profile, forward, scenario);
+      Long portfolioId, RetirementProjection projection, SimulationScenario scenario) {
+    return retirementTimelineApi.loadForwardTimeline(portfolioId, projection, scenario);
   }
 
   @Override
@@ -109,11 +105,9 @@ public class InProcessRetirementPlanningClient implements RetirementPlanningClie
       Long portfolioId,
       int year,
       Long planId,
-      Long revisionId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions) {
-    retirementTimelineApi.setCurrentBaseline(
-        portfolioId, year, planId, revisionId, profile, assumptions);
+    retirementTimelineApi.setCurrentBaseline(portfolioId, year, planId, profile, assumptions);
   }
 
   @Override
@@ -149,9 +143,8 @@ public class InProcessRetirementPlanningClient implements RetirementPlanningClie
   }
 
   @Override
-  public com.smartbox.investory.retirement.api.model.RevisionSummary rebaseline(
-      Long portfolioId, Long planId, PlanningBaseline baseline) {
-    return retirementTimelineApi.rebaseline(portfolioId, planId, baseline);
+  public void rebaseline(Long portfolioId, Long planId, PlanningBaseline baseline) {
+    retirementTimelineApi.rebaseline(portfolioId, planId, baseline);
   }
 
   @Override

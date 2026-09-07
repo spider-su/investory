@@ -1,6 +1,8 @@
 package com.smartbox.investory.longterm.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -67,7 +69,8 @@ class LongTermAssetsApplicationServiceTest {
   @BeforeEach
   void setUp() {
     when(portfolios.findById(PORTFOLIO_ID))
-        .thenReturn(Optional.of(new PortfolioContext(PORTFOLIO_ID, CurrencyType.PLN)));
+        .thenReturn(
+            Optional.of(new PortfolioContext(PORTFOLIO_ID, CurrencyType.USD, CurrencyType.PLN)));
     when(bonds.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID))
         .thenReturn(List.of());
     when(realEstates.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID))
@@ -89,6 +92,7 @@ class LongTermAssetsApplicationServiceTest {
 
     var overview = service.overview(PORTFOLIO_ID, DATE);
 
+    assertThat(overview.currency()).isEqualTo(CurrencyType.PLN);
     assertThat(overview.totalValue()).isEqualByComparingTo("10000");
     assertThat(overview.investmentValue()).isEqualByComparingTo("1000");
     assertThat(overview.personalAssetValue()).isEqualByComparingTo("9000");
@@ -405,6 +409,12 @@ class LongTermAssetsApplicationServiceTest {
     when(realEstates.findAllByPortfolioIdOrderByName(PORTFOLIO_ID)).thenReturn(List.of(estate));
     when(contracts.findAllWithTermsByAssetIdIn(List.of(20L))).thenReturn(List.of(contract));
     when(lifecycle.completeRealEstateIds(List.of(20L))).thenReturn(java.util.Set.of(20L));
+    when(conversion.convertToBaseCurrency(
+            any(BigDecimal.class),
+            eq(CurrencyType.PLN),
+            eq(CurrencyType.USD),
+            eq(LocalDate.of(2025, 12, 31))))
+        .thenAnswer(invocation -> invocation.getArgument(0));
 
     var historical = service.historicalAnnualSnapshot(PORTFOLIO_ID, 2025);
 

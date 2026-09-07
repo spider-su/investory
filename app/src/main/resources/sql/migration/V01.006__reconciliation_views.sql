@@ -3476,17 +3476,17 @@ WITH ledger_daily AS (
            nco.base_currency::varchar(3) AS base_currency,
            SUM(nco.amount_in_portfolio_base_currency) FILTER (
                WHERE investory.fx_status_usable(nco.portfolio_conversion_status)) AS ledger_cash_base,
-           SUM(nco.account_flow_amount_in_portfolio_base_currency) FILTER (
+           SUM(nco.account_flow_amount) FILTER (
                WHERE nco.account_flow_amount_in_portfolio_base_currency > 0) AS ledger_deposits,
-           SUM(-nco.account_flow_amount_in_portfolio_base_currency) FILTER (
+           SUM(-nco.account_flow_amount) FILTER (
                WHERE nco.account_flow_amount_in_portfolio_base_currency < 0) AS ledger_withdrawals,
-           SUM(nco.amount_in_portfolio_base_currency) FILTER (
+           SUM(nco.amount) FILTER (
                WHERE nco.normalized_category IN ('DIVIDEND', 'DIVIDEND_REVERSAL')) AS ledger_dividends,
-           SUM(nco.amount_in_portfolio_base_currency) FILTER (
+           SUM(nco.amount) FILTER (
                WHERE nco.normalized_category IN ('INTEREST', 'INTEREST_REVERSAL')) AS ledger_interest,
-           SUM(-nco.amount_in_portfolio_base_currency) FILTER (
+           SUM(-nco.amount) FILTER (
                WHERE nco.normalized_category = 'FEE') AS ledger_fees,
-           SUM(-nco.amount_in_portfolio_base_currency) FILTER (
+           SUM(-nco.amount) FILTER (
                WHERE nco.normalized_category IN ('WITHHOLDING_TAX', 'WITHHOLDING_TAX_REVERSAL', 'OTHER_TAX')) AS ledger_taxes,
            COUNT(*) FILTER (WHERE nco.normalized_category IN
                ('INTERNAL_TRANSFER_IN', 'INTERNAL_TRANSFER_OUT', 'INTERNAL_BOOKKEEPING')) AS internal_operation_count,
@@ -4117,6 +4117,7 @@ SET search_path TO investory, public;
 
 -- Rebuild dependents around account statistics because PostgreSQL cannot replace a
 -- materialized view while another view depends on it.
+-- Known valued rows remain additive; missing valuation is reported by missing_fx_count.
 CREATE TEMP TABLE _account_stats_dependent_defs AS
 SELECT c.relname AS view_name, pg_get_viewdef(c.oid, true) AS view_definition,
        obj_description(c.oid, 'pg_class') AS view_comment, c.relkind
@@ -4172,9 +4173,10 @@ WITH latest_daily AS (
      AND fx.base_currency = pf.base_currency::varchar(3)
 ), open_position_totals AS (
     SELECT value.account_id,
-        CASE WHEN COUNT(*) FILTER (WHERE value.cost_basis_in_base_currency IS NULL) > 0 THEN NULL::numeric ELSE SUM(value.cost_basis_in_base_currency) END AS cost_base,
-        CASE WHEN COUNT(*) FILTER (WHERE value.market_value_in_base_currency IS NULL) > 0 THEN NULL::numeric ELSE SUM(value.market_value_in_base_currency) END AS market_value,
-        CASE WHEN COUNT(*) FILTER (WHERE value.cost_basis_in_base_currency IS NULL OR value.market_value_in_base_currency IS NULL) > 0 THEN NULL::numeric ELSE SUM(value.market_value_in_base_currency - value.cost_basis_in_base_currency) END AS unrealized_profit,
+        COUNT(*)::bigint AS position_count,
+        CASE WHEN COUNT(*) FILTER (WHERE value.cost_basis_in_base_currency IS NOT NULL) = 0 THEN NULL::numeric ELSE SUM(value.cost_basis_in_base_currency) FILTER (WHERE value.cost_basis_in_base_currency IS NOT NULL) END AS cost_base,
+        CASE WHEN COUNT(*) FILTER (WHERE value.market_value_in_base_currency IS NOT NULL) = 0 THEN NULL::numeric ELSE SUM(value.market_value_in_base_currency) FILTER (WHERE value.market_value_in_base_currency IS NOT NULL) END AS market_value,
+        CASE WHEN COUNT(*) FILTER (WHERE value.cost_basis_in_base_currency IS NOT NULL AND value.market_value_in_base_currency IS NOT NULL) = 0 THEN NULL::numeric ELSE SUM(value.market_value_in_base_currency - value.cost_basis_in_base_currency) FILTER (WHERE value.cost_basis_in_base_currency IS NOT NULL AND value.market_value_in_base_currency IS NOT NULL) END AS unrealized_profit,
         COUNT(*) FILTER (WHERE value.cost_basis_in_base_currency IS NULL OR value.market_value_in_base_currency IS NULL)::bigint AS missing_fx_count
     FROM investory.app_v_current_open_position_rows value
     GROUP BY value.account_id
@@ -4242,11 +4244,13 @@ SELECT a.id AS account_id, p.base_currency::varchar(3) AS valuation_currency,
     CASE WHEN COALESCE(ft.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ft.total_deposit, 0) - COALESCE(ft.total_withdrawal, 0) END AS net_deposit,
     CASE WHEN COALESCE(ft.account_missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ft.total_deposit_account_currency, 0) - COALESCE(ft.total_withdrawal_account_currency, 0) END AS account_net_deposit,
     COALESCE(ld.cash_balance, 0) AS cash_balance,
-    CASE WHEN COALESCE(opt.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(opt.market_value, COALESCE(ld.market_value, 0)) END AS market_value,
-    CASE WHEN COALESCE(opt.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ld.cash_balance, 0) + COALESCE(opt.market_value, COALESCE(ld.market_value, 0)) END AS equity,
-    CASE WHEN COALESCE(opt.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(opt.cost_base, COALESCE(ld.cost_base, 0)) END AS cost_base,
+    CASE WHEN COALESCE(opt.position_count, 0) > 0 THEN opt.market_value ELSE COALESCE(ld.market_value, 0) END AS market_value,
+    CASE WHEN COALESCE(opt.position_count, 0) > 0 THEN
+             CASE WHEN opt.market_value IS NULL THEN NULL ELSE COALESCE(ld.cash_balance, 0) + opt.market_value END
+         ELSE COALESCE(ld.equity, COALESCE(ld.cash_balance, 0)) END AS equity,
+    CASE WHEN COALESCE(opt.position_count, 0) > 0 THEN opt.cost_base ELSE COALESCE(ld.cost_base, 0) END AS cost_base,
     CASE WHEN COALESCE(cpt.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(cpt.realized_profit, 0) END AS realized_profit,
-    CASE WHEN COALESCE(opt.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(opt.unrealized_profit, COALESCE(ld.unrealized_profit, 0)) END AS unrealized_profit,
+    CASE WHEN COALESCE(opt.position_count, 0) > 0 THEN opt.unrealized_profit ELSE COALESCE(ld.unrealized_profit, 0) END AS unrealized_profit,
     CASE WHEN COALESCE(ft.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ft.dividends, 0) END AS dividends,
     CASE WHEN COALESCE(ft.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ft.interest, 0) END AS interest,
     CASE WHEN COALESCE(ft.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ft.fees, 0) END AS fees,
@@ -4300,15 +4304,15 @@ SELECT p.id AS portfolio_id, p.name AS portfolio_name, p.base_currency::varchar(
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_deposits, 0) END AS total_deposits,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_withdrawals, 0) END AS total_withdrawals,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.net_deposits, 0) END AS net_deposits,
-    CASE WHEN COALESCE(las.missing_fx_count, 0) = 0 THEN COALESCE(las.total_cash, 0) END AS total_cash,
-    CASE WHEN COALESCE(las.missing_fx_count, 0) = 0 THEN COALESCE(las.total_market_value, 0) END AS total_market_value,
-    CASE WHEN COALESCE(las.missing_fx_count, 0) = 0 THEN COALESCE(las.total_equity, 0) END AS total_equity,
-    CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_realized_profit, 0) END AS total_realized_profit,
-    CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_unrealized_profit, 0) END AS total_unrealized_profit,
-    CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_dividends, 0) END AS total_dividends,
-    CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_interest, 0) END AS total_interest,
-    CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_fees, 0) END AS total_fees,
-    CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_taxes, 0) END AS total_taxes,
+    las.total_cash AS total_cash,
+    las.total_market_value AS total_market_value,
+    las.total_equity AS total_equity,
+    las.total_realized_profit AS total_realized_profit,
+    las.total_unrealized_profit AS total_unrealized_profit,
+    las.total_dividends AS total_dividends,
+    las.total_interest AS total_interest,
+    las.total_fees AS total_fees,
+    las.total_taxes AS total_taxes,
     COALESCE(las.converted_cash_subtotal, 0) AS converted_cash_subtotal, COALESCE(lpd.converted_equity_subtotal, 0) AS converted_equity_subtotal,
     COALESCE(las.missing_fx_count, 0) AS missing_fx_count, COALESCE(las.missing_fx_count, 0) = 0 AS is_complete,
     COALESCE(las.activity_count, 0) AS activity_count, las.first_activity_at, las.last_activity_at,

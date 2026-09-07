@@ -49,8 +49,10 @@ class LongTermAssetLifecycleService {
     if (matches == 0) throw new AssetNotFoundException(portfolioId, assetId);
     if (matches != 1) throw new IllegalStateException("Ambiguous Long-Term asset ID " + assetId);
     if (bond.isPresent()) {
-      bond.get().setArchivedAt(archivedAt);
-      bonds.save(bond.get());
+      var row = bond.get();
+      validateArchiveDate(row.getAcquisitionDate(), archivedAt);
+      row.setArchivedAt(archivedAt);
+      bonds.save(row);
     } else if (estate.isPresent()) {
       var row = estate.get();
       LocalDate previous = row.getArchivedAt();
@@ -66,11 +68,20 @@ class LongTermAssetLifecycleService {
       row.setArchivedAt(archivedAt);
       realEstates.save(row);
     } else if (cash.isPresent()) {
-      cash.get().setArchivedAt(archivedAt);
-      cashReserves.save(cash.get());
+      var row = cash.get();
+      validateArchiveDate(row.getAcquisitionDate(), archivedAt);
+      row.setArchivedAt(archivedAt);
+      cashReserves.save(row);
     } else {
-      personal.get().setArchivedAt(archivedAt);
-      personalAssets.save(personal.get());
+      var row = personal.get();
+      validateArchiveDate(row.getAcquisitionDate(), archivedAt);
+      row.setArchivedAt(archivedAt);
+      personalAssets.save(row);
     }
+  }
+
+  private static void validateArchiveDate(LocalDate acquisitionDate, LocalDate archivedAt) {
+    if (archivedAt != null && acquisitionDate != null && archivedAt.isBefore(acquisitionDate))
+      throw new IllegalArgumentException("Archive cannot precede acquisition");
   }
 }

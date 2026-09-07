@@ -7,8 +7,8 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-/** Immutable year-end handoff from the live profile to the next full simulation year. */
-public record CurrentYearBridgeResult(
+/** Immutable live-year state plus the projected remainder handed to future simulation. */
+public record CurrentYearProjection(
     InvestmentProfile bridgedProfile,
     int asOfYear,
     int nextProjectedYear,
@@ -33,7 +33,7 @@ public record CurrentYearBridgeResult(
     }
   }
 
-  public CurrentYearBridgeResult {
+  public CurrentYearProjection {
     if (bridgedProfile == null
         || lifecyclePhase == null
         || fractionApplied == null
@@ -46,7 +46,7 @@ public record CurrentYearBridgeResult(
         || redemptionCashApplied == null
         || currentYearEventsApplied == null
         || bucketBoundaries == null) {
-      throw new IllegalArgumentException("Bridge result requires complete values");
+      throw new IllegalArgumentException("Current-year projection requires complete values");
     }
     currentYearEventsApplied = List.copyOf(currentYearEventsApplied);
     EnumMap<EconomicBucket, BucketBoundary> copy = new EnumMap<>(EconomicBucket.class);

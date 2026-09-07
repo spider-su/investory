@@ -26,8 +26,8 @@ public class RetirementProjectionRestController {
 
   @Autowired
   public RetirementProjectionRestController(
-      @Qualifier("retirementProjectionFacade") RetirementProjectionApi projections,
-      @Qualifier("simulationPlanService") RetirementPlanApi plans) {
+      @Qualifier("retirementProjectionService") RetirementProjectionApi projections,
+      @Qualifier("canonicalRetirementPlanService") RetirementPlanApi plans) {
     this.projections = projections;
     this.plans = plans;
   }

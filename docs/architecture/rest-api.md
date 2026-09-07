@@ -22,10 +22,12 @@ handlers should not introduce new status codes or error shapes.
 
 ### Long-Term Assets freeze contract
 
-Long-Term Assets uses portfolio-scoped resources below
-`/api/v1/portfolios/{portfolioId}/long-term-assets`. Portfolio, asset, contract, period, and policy
-identifiers come only from URL paths. Request bodies contain mutable values and are validated before
-commands cross the application boundary.
+Long-Term Assets currently exposes only fixed-income read/update resources below
+`/api/v1/portfolios/{portfolioId}/long-term-assets`: `GET`/`PUT /bond/{id}` and
+`GET`/`PUT /cash-reserve/{id}`. The server-rendered UI uses the in-process `LongTermAssetsApi` for
+real-estate, personal-asset, and rental CRUD; those operations are not REST endpoints.
+Portfolio and asset identifiers come from URL paths for the REST resources. Request bodies contain
+mutable values and are validated before commands cross the application boundary.
 
 HTTP and HTML form fields that represent rates use percentage-point names such as
 `annualInterestRatePercent` and accept values from `0` to `100`. Public application commands retain
@@ -44,12 +46,13 @@ module APIs such as `LongTermAssetsApi`. MVC controllers must not depend on REST
 
 `GET /api/v1/portfolios/{portfolioId}/profile` returns `200 OK` with a summary-only response. The
 `portfolioId` path value must be a positive integer; invalid values return `400` using the common
-`{status, message, path, timestamp}` error shape. The response never includes retirement planning
-inputs, `longTermPlanningState`, `longTermAssets`, rental contracts, or tenant contact fields.
+`{status, message, path, timestamp}` error shape. The response includes the projected
+`longTermPlanningState`, but never exposes retirement planning inputs, raw `longTermAssets`, rental
+contracts, or tenant contact fields.
 
 The response contains `portfolioId`, `currency`, `marketPortfolioValue`, `longTermAssetValue`,
 `totalNetWorth`, `liquidAssets`, `illiquidAssets`, `allocations`, `currentRentalIncome`,
-`currentBondIncome`, `retirementReserve`, `investmentCapital`, `income`, and
+`currentBondIncome`, `longTermPlanningState`, `retirementReserve`, `investmentCapital`, `incomeSummary`, and
 `allocationReconciliation`. Allocation rows contain `bucket`, `value`, `percentage`, `liquidity`,
 and `assetHorizon`. Income contains the seven fields from `ProfileIncomeSummary`. Reconciliation
 contains `shortTerm`, `longTerm`, and `balanced`; each source total contains `classifiedValue`,
@@ -71,11 +74,11 @@ Retirement plans and projections use portfolio-scoped resources below
 `/api/v1/retirement/portfolios/{portfolioId}`. Plan creation and update have separate request
 contracts: only creation accepts an optional baseline; updates preserve the reviewed baseline.
 Plan events are created with `POST .../plans/{planId}/events` and updated or deleted with the event
-identifier in the URL. Revision snapshots carry that logical event identifier across revisions.
+identifier in the URL. Events belong directly to the saved plan.
 
 Projection and analysis requests contain typed assumptions/deltas. Analysis never accepts an
-already-calculated `RetirementProjectionContext`; the server loads the projection from the
-portfolio and plan identity. Editor preview keeps its legacy form encoding only inside the
+already-calculated projection; the server loads the canonical projection from the portfolio and plan
+identity. Editor preview keeps its legacy form encoding only inside the
 application adapter; its HTTP fields use numeric JSON values and validation rejects incomplete
 requests.
 

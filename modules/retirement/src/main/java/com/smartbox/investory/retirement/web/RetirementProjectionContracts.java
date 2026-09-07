@@ -1,7 +1,7 @@
 package com.smartbox.investory.retirement.web;
 
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.RetirementProjectionContext;
+import com.smartbox.investory.retirement.api.model.RetirementProjection;
 import com.smartbox.investory.retirement.api.model.SimulationDecisionSummary;
 import com.smartbox.investory.retirement.api.model.SimulationResult;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
@@ -31,7 +31,7 @@ public final class RetirementProjectionContracts {
       int endAge,
       Map<SimulationScenario, ScenarioProjectionDto> scenarios) {
     static ProjectionResponse from(
-        Long portfolioId, Long effectivePlanId, RetirementProjectionContext projection) {
+        Long portfolioId, Long effectivePlanId, RetirementProjection projection) {
       return new ProjectionResponse(
           portfolioId,
           effectivePlanId,

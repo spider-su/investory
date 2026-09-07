@@ -35,14 +35,15 @@ final class LongTermAssetEconomics {
               monthlyTenantPayment(
                   term.type(), term.amount(), term.frequency(), term.paidByTenant()));
     }
-    BigDecimal tax = annualTaxBase.multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE);
+    BigDecimal normalizedTaxBase = annualTaxBase == null ? BigDecimal.ZERO : annualTaxBase;
+    BigDecimal tax = normalizedTaxBase.multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE);
     return new RentalEconomics(
         economics(
             income,
             expenses,
             value,
             tax,
-            annualTaxBase.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP)),
+            normalizedTaxBase.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP)),
         monthlyPayment);
   }
 
@@ -117,10 +118,12 @@ final class LongTermAssetEconomics {
         calculateYield(afterTax, value));
   }
 
-  private static BigDecimal annualize(BigDecimal amount, Frequency frequency) {
-    return amount == null
-        ? BigDecimal.ZERO
-        : frequency == Frequency.MONTHLY ? amount.multiply(MONTHS_PER_YEAR) : amount;
+  static BigDecimal annualize(BigDecimal amount, Frequency frequency) {
+    if (amount == null) return BigDecimal.ZERO;
+    return switch (frequency) {
+      case MONTHLY -> amount.multiply(MONTHS_PER_YEAR);
+      case ANNUAL -> amount;
+    };
   }
 
   static BigDecimal monthlyTenantPayment(
@@ -128,9 +131,10 @@ final class LongTermAssetEconomics {
     if (amount == null || (!isRentalIncome(type) && !paidByTenant)) {
       return BigDecimal.ZERO;
     }
-    return frequency == Frequency.ANNUAL
-        ? amount.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP)
-        : amount;
+    return switch (frequency) {
+      case MONTHLY -> amount;
+      case ANNUAL -> amount.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP);
+    };
   }
 
   private static BigDecimal calculateYield(BigDecimal amount, BigDecimal value) {
@@ -138,17 +142,17 @@ final class LongTermAssetEconomics {
   }
 
   static boolean isRentalExpense(CashFlowType type) {
-    return type == CashFlowType.ADMIN_FEE
-        || type == CashFlowType.UTILITIES
-        || type == CashFlowType.PROPERTY_TAX
-        || type == CashFlowType.INSURANCE
-        || type == CashFlowType.OTHER_EXPENSE;
+    return switch (type) {
+      case ADMIN_FEE, UTILITIES, PROPERTY_TAX, INSURANCE, OTHER_EXPENSE -> true;
+      case RENT, PARKING_RENT, OTHER_INCOME -> false;
+    };
   }
 
   static boolean isRentalIncome(CashFlowType type) {
-    return type == CashFlowType.RENT
-        || type == CashFlowType.PARKING_RENT
-        || type == CashFlowType.OTHER_INCOME;
+    return switch (type) {
+      case RENT, PARKING_RENT, OTHER_INCOME -> true;
+      case ADMIN_FEE, UTILITIES, PROPERTY_TAX, INSURANCE, OTHER_EXPENSE -> false;
+    };
   }
 
   record RentalEconomics(AnnualEconomicsView economics, BigDecimal monthlyPayment) {}

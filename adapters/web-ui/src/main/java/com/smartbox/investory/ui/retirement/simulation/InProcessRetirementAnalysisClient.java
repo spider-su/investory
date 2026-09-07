@@ -3,7 +3,7 @@ package com.smartbox.investory.ui.retirement.simulation;
 import com.smartbox.investory.retirement.api.RetirementAnalysisApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.RetirementAnalysisResult;
-import com.smartbox.investory.retirement.api.model.RetirementProjectionContext;
+import com.smartbox.investory.retirement.api.model.RetirementProjection;
 import com.smartbox.investory.ui.retirement.analysis.RetirementAnalysisClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -17,7 +17,7 @@ public class InProcessRetirementAnalysisClient implements RetirementAnalysisClie
     this.retirementAnalysisApi = retirementAnalysisApi;
   }
 
-  public RetirementAnalysisResult analyze(RetirementProjectionContext projection) {
+  public RetirementAnalysisResult analyze(RetirementProjection projection) {
     return retirementAnalysisApi.analyze(projection);
   }
 }

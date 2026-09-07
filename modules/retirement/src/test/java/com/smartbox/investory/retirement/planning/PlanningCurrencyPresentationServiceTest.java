@@ -327,7 +327,6 @@ class PlanningCurrencyPresentationServiceTest {
         new CurrentPlanningYear(
             2026,
             4L,
-            55L,
             Instant.now(),
             live,
             Map.of(PlanningMetric.CORE_SPENDING, value(PlanningMetric.CORE_SPENDING, "999999")));
@@ -516,8 +515,7 @@ class PlanningCurrencyPresentationServiceTest {
                     new BigDecimal("500"),
                     new BigDecimal("100"),
                     PlanProgressState.AHEAD,
-                    7L,
-                    2L)));
+                    7L)));
 
     PlanProgressView displayed = service.displayPlanProgress(progress, CurrencyType.PLN);
 

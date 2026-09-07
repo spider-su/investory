@@ -14,11 +14,11 @@ import com.smartbox.investory.retirement.api.model.AnalysisAvailability;
 import com.smartbox.investory.retirement.api.model.PlanDetails;
 import com.smartbox.investory.retirement.api.model.PlanningTimeline;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
-import com.smartbox.investory.retirement.api.model.RetirementProjectionContext;
+import com.smartbox.investory.retirement.api.model.RetirementProjection;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.retirement.planning.PlanningTimelineFacade;
 import com.smartbox.investory.retirement.planning.RetirementAnalysisService;
-import com.smartbox.investory.retirement.planning.RetirementProjectionFacade;
+import com.smartbox.investory.retirement.planning.RetirementProjectionService;
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorLongTermFacts;
@@ -62,7 +62,7 @@ class RetirementGoldenScenarioIntegrationTest {
   @Autowired private ProfileSnapshotReader profiles;
   @Autowired private LongTermAssetProfileReader longTermAssets;
   @Autowired private RetirementPlanApi plans;
-  @Autowired private RetirementProjectionFacade projectionFacade;
+  @Autowired private RetirementProjectionService projectionService;
   @Autowired private PlanningTimelineFacade timelines;
   @Autowired private RetirementAnalysisService analyses;
 
@@ -112,7 +112,7 @@ class RetirementGoldenScenarioIntegrationTest {
     PlanDetails plan =
         plans.details(HappyInvestorTestData.PORTFOLIO_ID, HappyInvestorPlanFacts.SEED_PLAN_ID);
     assertThat(plan.name()).isEqualTo(HappyInvestorPlanFacts.NAME);
-    assertThat(plan.currentRevisionId()).isEqualTo(HappyInvestorPlanFacts.SEED_REVISION_ID);
+    assertThat(plan.id()).isEqualTo(HappyInvestorPlanFacts.SEED_PLAN_ID);
     assertThat(plan.assumptions().retirementAge()).isEqualTo(HappyInvestorPlanFacts.RETIREMENT_AGE);
 
     var longTerm =
@@ -123,8 +123,8 @@ class RetirementGoldenScenarioIntegrationTest {
     assertThat(longTerm.annualSnapshot().rentalIncome())
         .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_NET_ANNUAL);
 
-    RetirementProjectionContext projection =
-        projectionFacade.load(
+    RetirementProjection projection =
+        projectionService.load(
             HappyInvestorTestData.PORTFOLIO_ID, HappyInvestorPlanFacts.SEED_PLAN_ID);
     assertThat(projection.forward().currentYearBridge()).isNotNull();
     assertThat(projection.scenarioResults()).containsKey(SimulationScenario.BASE);
@@ -183,9 +183,7 @@ class RetirementGoldenScenarioIntegrationTest {
 
     PlanningTimeline timeline =
         timelines.loadForwardTimeline(
-            HappyInvestorTestData.PORTFOLIO_ID,
-            projection.projectedProfile(),
-            projection.forward());
+            HappyInvestorTestData.PORTFOLIO_ID, projection, SimulationScenario.BASE);
     assertThat(timeline.years()).isNotEmpty();
     assertThat(timeline.years().getLast().year())
         .isEqualTo(HappyInvestorRetirementFacts.LAST_PROJECTED_YEAR);

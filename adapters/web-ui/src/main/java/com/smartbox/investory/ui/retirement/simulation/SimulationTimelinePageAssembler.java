@@ -45,8 +45,7 @@ final class SimulationTimelinePageAssembler {
     YearReviewMode mode = planning.reviewMode(portfolioId, year);
     if (mode == YearReviewMode.LIVE) {
       var projection = projections.load(portfolioId, planId);
-      var timeline =
-          planning.loadForwardTimeline(portfolioId, profile, projection.forward(), scenario);
+      var timeline = planning.loadForwardTimeline(portfolioId, projection, scenario);
       var row =
           timeline.years().stream()
               .filter(r -> r.state() == PlanningTimelineState.LIVE && r.year() == year)
@@ -66,11 +65,6 @@ final class SimulationTimelinePageAssembler {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Projected year has no review");
     var stored = planning.pastYear(portfolioId, year);
     model.addAttribute("planningYear", planning.display(stored, currency));
-    model.addAttribute(
-        "baselineRevision",
-        stored.baselineRevisionId() == null || stored.baselinePlanId() == null
-            ? null
-            : plans.details(portfolioId, stored.baselinePlanId()).currentRevision());
     var reconciliation = planning.reconcile(portfolioId, stored);
     model.addAttribute(
         "planningReconciliation", planning.displayReconciliation(reconciliation, currency));

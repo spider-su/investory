@@ -1,7 +1,7 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.model.PortfolioNotFoundException;
-import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.api.model.RealEstateCommand;
 import com.smartbox.investory.longterm.api.model.RealEstateView;
 import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateEntity;
 import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateRepository;
@@ -29,19 +29,19 @@ public class RealEstateCommandService {
     this.history = history;
   }
 
-  public RealEstateView create(RealEstateEntryModel command) {
+  public RealEstateView create(RealEstateCommand command) {
     if (command == null || command.id() != null)
       throw new IllegalArgumentException("Create requires an absent asset ID");
     return save(command);
   }
 
-  public RealEstateView update(RealEstateEntryModel command) {
+  public RealEstateView update(RealEstateCommand command) {
     if (command == null || command.id() == null)
       throw new IllegalArgumentException("Update requires an asset ID");
     return save(command);
   }
 
-  private RealEstateView save(RealEstateEntryModel command) {
+  private RealEstateView save(RealEstateCommand command) {
     if (command == null
         || command.portfolioId() == null
         || command.portfolioId() <= 0

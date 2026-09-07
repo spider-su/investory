@@ -29,7 +29,7 @@ class ProfileIncomeCalculatorTest {
             new BigDecimal("10"));
 
     ProfileIncomeSummary result =
-        new ProfileIncomeCalculator(mock())
+        new ProfileIncomeCalculator(new ProfileCurrencyNormalizer(mock()))
             .calculate(
                 new BigDecimal("110"),
                 snapshot,
@@ -61,7 +61,7 @@ class ProfileIncomeCalculatorTest {
             BigDecimal.ZERO);
 
     var result =
-        new ProfileIncomeCalculator(mock())
+        new ProfileIncomeCalculator(new ProfileCurrencyNormalizer(mock()))
             .calculate(
                 new BigDecimal("100"),
                 snapshot,
@@ -90,7 +90,7 @@ class ProfileIncomeCalculatorTest {
             BigDecimal.ZERO);
 
     var result =
-        new ProfileIncomeCalculator(mock())
+        new ProfileIncomeCalculator(new ProfileCurrencyNormalizer(mock()))
             .calculate(
                 new BigDecimal("100"),
                 snapshot,
@@ -126,7 +126,7 @@ class ProfileIncomeCalculatorTest {
             BigDecimal.ZERO);
 
     var result =
-        new ProfileIncomeCalculator(rates)
+        new ProfileIncomeCalculator(new ProfileCurrencyNormalizer(rates))
             .calculate(
                 new BigDecimal("110"),
                 snapshot,

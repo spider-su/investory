@@ -49,11 +49,9 @@ public class RetirementPlanningApplicationService
       Long portfolioId,
       int year,
       Long planId,
-      Long revisionId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions) {
-    return timeline.seedHistoricalBaselineFromPlan(
-        portfolioId, year, planId, revisionId, profile, assumptions);
+    return timeline.seedHistoricalBaselineFromPlan(portfolioId, year, planId, profile, assumptions);
   }
 
   @Override
@@ -73,11 +71,8 @@ public class RetirementPlanningApplicationService
 
   @Override
   public PlanningTimeline loadForwardTimeline(
-      Long portfolioId,
-      InvestmentProfile profile,
-      ForwardSimulationInput forward,
-      SimulationScenario scenario) {
-    return timeline.loadForwardTimeline(portfolioId, profile, forward, scenario);
+      Long portfolioId, RetirementProjection projection, SimulationScenario scenario) {
+    return timeline.loadForwardTimeline(portfolioId, projection, scenario);
   }
 
   @Override
@@ -105,10 +100,9 @@ public class RetirementPlanningApplicationService
       Long portfolioId,
       int year,
       Long planId,
-      Long revisionId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions) {
-    timeline.setCurrentBaseline(portfolioId, year, planId, revisionId, profile, assumptions);
+    timeline.setCurrentBaseline(portfolioId, year, planId, profile, assumptions);
   }
 
   @Override
@@ -144,9 +138,8 @@ public class RetirementPlanningApplicationService
   }
 
   @Override
-  public com.smartbox.investory.retirement.api.model.RevisionSummary rebaseline(
-      Long portfolioId, Long planId, PlanningBaseline baseline) {
-    return planReviews.rebaseline(portfolioId, planId, baseline);
+  public void rebaseline(Long portfolioId, Long planId, PlanningBaseline baseline) {
+    planReviews.rebaseline(portfolioId, planId, baseline);
   }
 
   @Override

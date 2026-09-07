@@ -579,19 +579,11 @@ public class InvestmentDashboardFacade {
                           : null;
               BigDecimal periodReturn = decimal(returnPercent(series));
               BigDecimal localProfit = account.getLocalProfit();
-              return new AccountBalance(
-                  account.getAccountId(),
-                  account.getAccountName(),
-                  account.getNetDeposit(),
-                  account.getBaseNetDeposit(),
-                  periodProfit,
-                  localProfit,
-                  periodReturn,
-                  account.getBalance(),
-                  account.getCash(),
-                  account.getLocalCurrency(),
-                  account.getLocalBalance(),
-                  account.getLocalCash());
+              return account.toBuilder()
+                  .profitBase(periodProfit)
+                  .profitLocal(localProfit)
+                  .profitLossPercent(periodReturn)
+                  .build();
             })
         .toList();
   }
@@ -612,19 +604,11 @@ public class InvestmentDashboardFacade {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal periodReturn = decimal(returnPercent(benchmark));
     BigDecimal localProfit = null;
-    return new AccountBalance(
-        total.getAccountId(),
-        total.getAccountName(),
-        total.getNetDeposit(),
-        total.getBaseNetDeposit(),
-        periodProfit,
-        localProfit,
-        periodReturn,
-        total.getBalance(),
-        total.getCash(),
-        total.getLocalCurrency(),
-        total.getLocalBalance(),
-        total.getLocalCash());
+    return total.toBuilder()
+        .profitBase(periodProfit)
+        .profitLocal(localProfit)
+        .profitLossPercent(periodReturn)
+        .build();
   }
 
   private Double returnPercent(Benchmark.AccountSeries series) {

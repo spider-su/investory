@@ -179,7 +179,7 @@ class LongTermCommandValidationTest {
                         null)),
             () ->
                 estates.create(
-                    new RealEstateEntryModel(
+                    new RealEstateCommand(
                         1L,
                         null,
                         "X".repeat(256),
@@ -224,8 +224,8 @@ class LongTermCommandValidationTest {
         null);
   }
 
-  private static RealEstateEntryModel estate(Long portfolio, Long id, BigDecimal taxBase) {
-    return new RealEstateEntryModel(
+  private static RealEstateCommand estate(Long portfolio, Long id, BigDecimal taxBase) {
+    return new RealEstateCommand(
         portfolio, id, "Home", CurrencyType.PLN, BigDecimal.TEN, taxBase, null, null, null);
   }
 }

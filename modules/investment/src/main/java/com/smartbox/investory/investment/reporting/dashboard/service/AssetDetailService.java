@@ -9,6 +9,7 @@ import com.smartbox.investory.investment.api.asset.model.AssetSettlementModel;
 import com.smartbox.investory.investment.api.asset.model.AssetTransactionType;
 import com.smartbox.investory.investment.api.asset.model.AssetTransactionView;
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
@@ -58,7 +59,7 @@ public class AssetDetailService {
     }
     Set<Long> accountIds =
         accountRepository.findAllByPortfolioId(portfolioId).stream()
-            .map(a -> a.getId())
+            .map(AccountEntity::getId)
             .collect(Collectors.toSet());
     String symbol = normalize(rawSymbol);
     AssetEntity asset =

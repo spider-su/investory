@@ -52,12 +52,15 @@ class InvestmentProfileControllerTest {
     String template = controller.profile(7L, model);
 
     assertThat(template).isEqualTo("investment-profile");
-    assertThat(model.getAttribute("portfolioId")).isEqualTo(7L);
-    assertThat(model.getAttribute("profileMarketResultYtd")).isEqualTo("20.5K");
-    assertThat(model.getAttribute("profileLongTermPlannedYtd")).isEqualTo("8.00K");
-    assertThat(model.getAttribute("profileAnnualCost")).isEqualTo("42.0K");
-    assertThat(model.getAttribute("profileAnnualCostMeta")).isEqualTo("planned · 2026");
-    assertThat(model.getAttribute("profileMarketAnnualizedReturn")).isEqualTo("28.1%");
+    var page = (InvestmentProfilePageView) model.getAttribute("profile");
+    assertThat(page).isNotNull();
+    assertThat(page.portfolioId()).isEqualTo(7L);
+    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("20.5K");
+    assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("8.00K");
+    assertThat(page.annualCostDisplay()).isEqualTo("42.0K");
+    assertThat(page.annualCostMeta()).isEqualTo("planned · 2026");
+    assertThat(page.marketAnnualizedReturnDisplay()).isEqualTo("28.1%");
+    assertThat(page.allocationApproximate()).isFalse();
     verify(investment).investmentResultYtd(7L);
     verify(retirement).currentYearAnnualCost(7L, CurrencyType.PLN);
   }

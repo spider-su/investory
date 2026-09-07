@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 /** Independent persisted-plan facts for F12-F14. */
 public final class HappyInvestorPlanFacts {
   public static final long SEED_PLAN_ID = 9201L;
-  public static final long SEED_REVISION_ID = 9202L;
   public static final String NAME = "Happy Investor Plan";
   public static final int START_YEAR = 2024;
   public static final int BASELINE_AS_OF_YEAR = 2025;

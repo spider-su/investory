@@ -9,7 +9,6 @@ public record PastPlanningYear(
     PlanningYearStatus status,
     Instant closedAt,
     Long baselinePlanId,
-    Long baselineRevisionId,
     Map<PlanningMetric, PlanningMetricValue> values,
     Map<PlanningMetric, PlanningMetricValue> expectedValues) {
 
@@ -27,6 +26,6 @@ public record PastPlanningYear(
       Instant closedAt,
       Map<PlanningMetric, PlanningMetricValue> values,
       Map<PlanningMetric, PlanningMetricValue> expectedValues) {
-    this(year, status, closedAt, null, null, values, expectedValues);
+    this(year, status, closedAt, null, values, expectedValues);
   }
 }

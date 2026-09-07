@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /** Explicit real-estate asset command. Rental contracts are separate commands. */
-public record RealEstateEntryModel(
+public record RealEstateCommand(
     Long portfolioId,
     Long id,
     String name,

@@ -39,7 +39,7 @@ public class LongTermBondController {
             ? CurrencyType.PLN
             : portfolios
                 .findById(portfolioId)
-                .map(c -> c.localCurrency())
+                .map(context -> context.localCurrency())
                 .orElse(CurrencyType.PLN));
     model.addAttribute("asset", asset);
     model.addAttribute("portfolioId", portfolioId);

@@ -3,16 +3,17 @@ package com.smartbox.investory.retirement.infrastructure.simulation;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
-/** Shared persistence shape for a mutable plan row and an immutable revision row. */
+/** Persistence shape for the canonical mutable retirement plan row. */
 public interface PersistedSimulationAssumptions {
-  int getCurrentAge();
+  LocalDate getBirthDate();
 
-  void setCurrentAge(int value);
+  void setBirthDate(LocalDate value);
 
-  int getStartYear();
+  int getEffectiveYear();
 
-  void setStartYear(int value);
+  void setEffectiveYear(int value);
 
   int getEndAge();
 

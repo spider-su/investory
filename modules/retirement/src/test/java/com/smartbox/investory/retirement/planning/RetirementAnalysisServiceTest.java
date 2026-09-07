@@ -43,7 +43,7 @@ class RetirementAnalysisServiceTest {
     SimulationResult base =
         new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
     SimulationDecisionSummary summary = SimulationDecisionSummary.from(base, assumptions);
-    RetirementProjectionContext projection =
+    RetirementProjection projection =
         projection(profile, assumptions, Optional.of(assumptions), base, summary);
     SustainableSpendingAnalysisService spending = mock(SustainableSpendingAnalysisService.class);
     RetirementAgeAnalysisService retirementAge = mock(RetirementAgeAnalysisService.class);
@@ -78,7 +78,7 @@ class RetirementAnalysisServiceTest {
   void noForwardHorizonReturnsExplicitUnavailableStateWithoutRunningAnalysis() {
     InvestmentProfile profile = profile();
     SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 95, 95, 2026);
-    RetirementProjectionContext projection =
+    RetirementProjection projection =
         projection(profile, assumptions, Optional.empty(), null, null);
     SustainableSpendingAnalysisService spending = mock(SustainableSpendingAnalysisService.class);
     RetirementAgeAnalysisService retirementAge = mock(RetirementAgeAnalysisService.class);
@@ -94,7 +94,7 @@ class RetirementAnalysisServiceTest {
     verifyNoInteractions(spending, retirementAge, sensitivity);
   }
 
-  private static RetirementProjectionContext projection(
+  private static RetirementProjection projection(
       InvestmentProfile profile,
       SimulationAssumptions assumptions,
       Optional<SimulationAssumptions> forwardAssumptions,
@@ -121,7 +121,7 @@ class RetirementAnalysisServiceTest {
         base == null ? Map.of() : Map.of(SimulationScenario.BASE, base);
     Map<SimulationScenario, SimulationDecisionSummary> summaries =
         summary == null ? Map.of() : Map.of(SimulationScenario.BASE, summary);
-    return new RetirementProjectionContext(
+    return new RetirementProjection(
         profile, assumptions, forward, profile, assumptions, results, summaries);
   }
 

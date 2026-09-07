@@ -87,41 +87,32 @@ VALUES
 ON CONFLICT (rental_contract_id, cash_flow_type) DO UPDATE SET amount = EXCLUDED.amount,
     frequency = EXCLUDED.frequency, paid_by_tenant = EXCLUDED.paid_by_tenant;
 
-WITH plan AS (
-    INSERT INTO simulation_plans (id, portfolio_id, name, current_revision_id, archived)
-    VALUES (9201, 1, 'Happy Investor Plan', 9202, false)
-    ON CONFLICT (id) DO UPDATE
-    SET portfolio_id = EXCLUDED.portfolio_id,
-        name = EXCLUDED.name,
-        current_revision_id = EXCLUDED.current_revision_id,
-        archived = EXCLUDED.archived
-    RETURNING id
-)
-INSERT INTO simulation_plan_revisions (
-    id, simulation_plan_id, revision_number, current_age, start_year, end_age,
+INSERT INTO retirement_plans (
+    id, portfolio_id, name, birth_date, effective_year, end_age,
     retirement_age, annual_employment_income, annual_pre_retirement_contribution,
     annual_living_expenses, annual_discretionary_expenses, inflation_rate,
     rental_income_growth_rate, spending_growth_rate, funding_strategy,
     funding_order, safe_reserve_years, equity_harvest_minimum_return_rate,
     equity_gain_harvest_rate, allow_emergency_equity_withdrawal,
     fixed_income_return_rate, equity_return_rate, pension_start_age, annual_pension,
-    capital_gain_tax_rate,
+    capital_gain_tax_rate, archived, created_at, updated_at,
     baseline_as_of_year, baseline_reserve, baseline_investment_capital,
     baseline_long_term_capital, baseline_rental_income, baseline_long_term_income,
     baseline_long_term_state_version
 )
-SELECT
-    9202, id, 1, 40, 2024, 85, 60, 90000, 12000,
+VALUES
+    (9201, 1, 'Happy Investor Plan', DATE '1984-01-01', 2024, 85, 60, 90000, 12000,
     36000, 6000, 0.025, 0.025, 0.035, 'SIMPLE_WATERFALL',
     'CASH,BONDS,STOCKS', 2, 0.05, 0.25, true,
     0.035, 0.07, 67, 24000, 0.19,
+    false, TIMESTAMPTZ '2025-01-01 00:00:00+00', TIMESTAMPTZ '2025-01-01 00:00:00+00',
     2025, 50000, 159307.015664, 970000, 74400, 74400, 1
-FROM plan
+    )
 ON CONFLICT (id) DO UPDATE
-SET simulation_plan_id = EXCLUDED.simulation_plan_id,
-    revision_number = EXCLUDED.revision_number,
-    current_age = EXCLUDED.current_age,
-    start_year = EXCLUDED.start_year,
+SET portfolio_id = EXCLUDED.portfolio_id,
+    name = EXCLUDED.name,
+    birth_date = EXCLUDED.birth_date,
+    effective_year = EXCLUDED.effective_year,
     end_age = EXCLUDED.end_age,
     retirement_age = EXCLUDED.retirement_age,
     annual_employment_income = EXCLUDED.annual_employment_income,
@@ -149,36 +140,23 @@ SET simulation_plan_id = EXCLUDED.simulation_plan_id,
     baseline_rental_income = EXCLUDED.baseline_rental_income,
     baseline_long_term_income = EXCLUDED.baseline_long_term_income,
     baseline_long_term_state = EXCLUDED.baseline_long_term_state,
-    baseline_long_term_state_version = EXCLUDED.baseline_long_term_state_version;
+    baseline_long_term_state_version = EXCLUDED.baseline_long_term_state_version,
+    archived = EXCLUDED.archived,
+    updated_at = EXCLUDED.updated_at;
 
-UPDATE simulation_plans
-SET current_revision_id = 9202
-WHERE id = 9201;
-
-INSERT INTO planning_years
-    (id, portfolio_id, planning_year, status, baseline_plan_id, baseline_revision_id)
-VALUES (9301, 1, 2025, 'DRAFT', 9201, 9202)
+INSERT INTO retirement_planning_years
+    (id, portfolio_id, planning_year, status, state)
+VALUES (
+    9301,
+    1,
+    2025,
+    'DRAFT',
+    '{"values":{"ACTUAL":{"NET_WORTH":{"metric":"NET_WORTH","derivedValue":1179307.015664,"source":"PORTFOLIO_DERIVED","note":"Happy Investor canonical profile: investment baseline plus whole-wealth assets"},"CORE_SPENDING":{"metric":"CORE_SPENDING","approvedValue":36000,"source":"USER_ENTERED","note":"Happy Investor canonical profile"},"DISCRETIONARY_SPENDING":{"metric":"DISCRETIONARY_SPENDING","approvedValue":6000,"source":"USER_ENTERED","note":"Happy Investor canonical profile"}},"BASELINE":{}}}'::jsonb)
 ON CONFLICT (id) DO UPDATE
 SET portfolio_id = EXCLUDED.portfolio_id,
     planning_year = EXCLUDED.planning_year,
     status = EXCLUDED.status,
-    baseline_plan_id = EXCLUDED.baseline_plan_id,
-    baseline_revision_id = EXCLUDED.baseline_revision_id;
-
-INSERT INTO planning_year_values
-    (id, planning_year_id, value_kind, metric, derived_value, approved_value, source_type, note)
-VALUES
-    (9311, 9301, 'ACTUAL', 'NET_WORTH', 1179307.015664, NULL, 'PORTFOLIO_DERIVED', 'Happy Investor canonical profile: investment baseline plus whole-wealth assets'),
-    (9312, 9301, 'ACTUAL', 'CORE_SPENDING', NULL, 36000, 'USER_ENTERED', 'Happy Investor canonical profile'),
-    (9313, 9301, 'ACTUAL', 'DISCRETIONARY_SPENDING', NULL, 6000, 'USER_ENTERED', 'Happy Investor canonical profile')
-ON CONFLICT (id) DO UPDATE
-SET planning_year_id = EXCLUDED.planning_year_id,
-    value_kind = EXCLUDED.value_kind,
-    metric = EXCLUDED.metric,
-    derived_value = EXCLUDED.derived_value,
-    approved_value = EXCLUDED.approved_value,
-    source_type = EXCLUDED.source_type,
-    note = EXCLUDED.note;
+    state = EXCLUDED.state;
 
 -- Current read-model cache is pinned to the canonical 2025-01-01 historical close.
 UPDATE assets

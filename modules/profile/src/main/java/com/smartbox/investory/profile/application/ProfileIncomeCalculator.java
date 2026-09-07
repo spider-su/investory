@@ -2,20 +2,18 @@ package com.smartbox.investory.profile.application;
 
 import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
 import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
-import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /** Pure income annualization and yield rules for the profile summary. */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class ProfileIncomeCalculator {
-  private final CurrencyConversion currencyRates;
-
-  ProfileIncomeCalculator(CurrencyConversion currencyRates) {
-    this.currencyRates = currencyRates;
-  }
+  private final ProfileCurrencyNormalizer currencyNormalizer;
 
   ProfileIncomeSummary calculate(
       BigDecimal marketIncome,
@@ -65,20 +63,13 @@ final class ProfileIncomeCalculator {
       CurrencyType base,
       LocalDate date) {
     if (snapshot == null) return fallback;
-    BigDecimal start = toBase(snapshot.startValue(), sourceCurrency, base, date);
-    BigDecimal end = toBase(snapshot.endValue(), sourceCurrency, base, date);
+    BigDecimal start = currencyNormalizer.toBase(snapshot.startValue(), sourceCurrency, base, date);
+    BigDecimal end = currencyNormalizer.toBase(snapshot.endValue(), sourceCurrency, base, date);
     if (start.signum() > 0 && end.signum() > 0) {
       return start.add(end).divide(BigDecimal.valueOf(2), 8, RoundingMode.HALF_UP);
     }
     if (end.signum() > 0) return end;
     if (start.signum() > 0) return start;
     return fallback;
-  }
-
-  private BigDecimal toBase(
-      BigDecimal value, CurrencyType source, CurrencyType target, LocalDate date) {
-    return value == null || source == target
-        ? value == null ? BigDecimal.ZERO : value
-        : currencyRates.convertToBaseCurrency(value, target, source, date);
   }
 }

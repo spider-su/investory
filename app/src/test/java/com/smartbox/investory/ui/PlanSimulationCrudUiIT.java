@@ -19,6 +19,7 @@ import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.Map;
@@ -160,9 +161,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
           assertEditorAndDatabase(page, secondId, second, 3, true);
           assertThat(
                   jdbc.queryForObject(
-                      "SELECT count(*) FROM investory.simulation_plan_revision_events e "
-                          + "JOIN investory.simulation_plans p ON p.current_revision_id = e.revision_id "
-                          + "WHERE p.id = ?",
+                      "SELECT count(*) FROM investory.retirement_plan_events WHERE plan_id = ?",
                       Integer.class,
                       secondId))
               .isZero();
@@ -221,9 +220,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     form.getByRole(AriaRole.BUTTON).click();
     assertThat(page.url()).contains("/simulation/plan/edit").contains("planId=" + planId);
     return jdbc.queryForObject(
-        "SELECT e.id FROM investory.simulation_plan_revision_events e "
-            + "JOIN investory.simulation_plans p ON p.current_revision_id = e.revision_id "
-            + "WHERE p.id = ? AND e.name = ?",
+        "SELECT id FROM investory.retirement_plan_events WHERE plan_id = ? AND name = ?",
         Long.class,
         planId,
         event.name());
@@ -236,19 +233,18 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     assertThat(eventRow(page, event.name()).count()).isZero();
     assertThat(
             jdbc.queryForObject(
-                "SELECT count(*) FROM investory.simulation_plan_revision_events e "
-                    + "JOIN investory.simulation_plans p ON p.current_revision_id = e.revision_id "
-                    + "WHERE p.id = ? AND e.name = ?",
+                "SELECT count(*) FROM investory.retirement_plan_events "
+                    + "WHERE plan_id = ? AND name = ?",
                 Integer.class,
                 planId,
                 event.name()))
         .isZero();
     assertThat(
             jdbc.queryForObject(
-                "SELECT count(*) FROM investory.simulation_plan_revision_events WHERE id = ?",
+                "SELECT count(*) FROM investory.retirement_plan_events WHERE id = ?",
                 Integer.class,
                 eventId))
-        .isOne();
+        .isZero();
   }
 
   private void deletePlan(Page page, long planId, String name) {
@@ -264,7 +260,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
   }
 
   private void assertEditorAndDatabase(
-      Page page, long planId, PlanData plan, int revisionNumber, boolean archived) {
+      Page page, long planId, PlanData plan, int ignoredSaveCount, boolean archived) {
     if (!archived) {
       openEditor(page, planId);
       page.locator(".iv-simulation-editor__plan-management > summary").click();
@@ -295,32 +291,25 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     }
 
     Map<String, Object> row =
-        jdbc.queryForMap("SELECT * FROM investory.simulation_plans WHERE id = ?", planId);
+        jdbc.queryForMap("SELECT * FROM investory.retirement_plans WHERE id = ?", planId);
     assertThat(row.get("name")).isEqualTo(plan.name());
     assertThat(row.get("portfolio_id")).isEqualTo(PORTFOLIO_ID);
     assertThat(row.get("archived")).isEqualTo(archived);
     assertThat(row.get("created_at")).isNotNull();
     assertThat(row.get("updated_at")).isNotNull();
-    long revisionId = ((Number) row.get("current_revision_id")).longValue();
-    Map<String, Object> revision =
-        jdbc.queryForMap(
-            "SELECT * FROM investory.simulation_plan_revisions WHERE id = ?", revisionId);
-    assertPlanRow(revision, plan);
-    assertThat(revision.get("simulation_plan_id")).isEqualTo(planId);
-    assertThat(revision.get("revision_number")).isEqualTo(revisionNumber);
-    assertThat(revision.get("baseline_as_of_year")).isNotNull();
-    assertThat(
-            jdbc.queryForObject(
-                "SELECT count(*) FROM investory.simulation_plan_revisions WHERE simulation_plan_id = ?",
-                Integer.class,
-                planId))
-        .isEqualTo(revisionNumber);
+    assertPlanRow(row, plan);
+    assertThat(row.get("baseline_as_of_year")).isNotNull();
   }
 
   private void assertPlanRow(Map<String, Object> row, PlanData plan) {
     if (row.containsKey("name")) assertThat(row.get("name")).isEqualTo(plan.name());
-    assertThat(row.get("current_age")).isEqualTo(Integer.valueOf(plan.ageAtPlanStart()));
-    assertThat(row.get("start_year")).isEqualTo(Integer.valueOf(plan.startYear()));
+    assertThat(((java.sql.Date) row.get("birth_date")).toLocalDate())
+        .isEqualTo(
+            LocalDate.of(
+                Integer.parseInt(plan.startYear()) - Integer.parseInt(plan.ageAtPlanStart()),
+                1,
+                1));
+    assertThat(row.get("effective_year")).isEqualTo(Integer.valueOf(plan.startYear()));
     assertThat(row.get("end_age")).isEqualTo(Integer.valueOf(plan.endAge()));
     assertThat(row.get("retirement_age")).isEqualTo(Integer.valueOf(plan.retirementAge()));
     assertCanonical(row.get("annual_employment_income"), plan.employmentIncome());
@@ -352,9 +341,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     assertThat(row.textContent()).contains(event.year(), event.name());
     Map<String, Object> db =
         jdbc.queryForMap(
-            "SELECT e.* FROM investory.simulation_plan_revision_events e "
-                + "JOIN investory.simulation_plans p ON p.current_revision_id = e.revision_id "
-                + "WHERE p.id = ? AND e.name = ?",
+            "SELECT * FROM investory.retirement_plan_events WHERE plan_id = ? AND name = ?",
             planId,
             event.name());
     assertThat(db.get("event_year")).isEqualTo(Integer.valueOf(event.year()));
@@ -368,9 +355,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
   private void assertCurrentRevisionEvent(long planId, EventData event) {
     Map<String, Object> row =
         jdbc.queryForMap(
-            "SELECT e.* FROM investory.simulation_plan_revision_events e "
-                + "JOIN investory.simulation_plans p ON p.current_revision_id = e.revision_id "
-                + "WHERE p.id = ? AND e.name = ?",
+            "SELECT * FROM investory.retirement_plan_events WHERE plan_id = ? AND name = ?",
             planId,
             event.name());
     assertThat(row.get("event_year")).isEqualTo(Integer.valueOf(event.year()));
@@ -422,7 +407,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
   private long idByName(String name) {
     return jdbc.queryForObject(
-        "SELECT id FROM investory.simulation_plans WHERE portfolio_id = ? AND name = ?",
+        "SELECT id FROM investory.retirement_plans WHERE portfolio_id = ? AND name = ?",
         Long.class,
         PORTFOLIO_ID,
         name);

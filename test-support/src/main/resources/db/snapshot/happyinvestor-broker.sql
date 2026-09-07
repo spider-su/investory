@@ -34,6 +34,20 @@ VALUES
     (7021, 17959259, 'FREE_FUNDS_INTEREST_TAX', -43.9375, 'USD', 'Canonical Treasury interest tax 19%', '2025-02-28 12:00:00+01', NULL, NULL, NULL)
 ON CONFLICT (id) DO NOTHING;
 
+-- The canonical snapshot represents the invested portfolio at the boundary, with no residual
+-- IBKR brokerage cash. The initial funding is retained for the ledger story, then explicitly
+-- withdrawn at the boundary instead of being silently omitted from equity reconstruction.
+INSERT INTO cash_operations
+    (id, account_id, operation, amount, currency, comment, date)
+VALUES
+    (7024, 17959259, 'WITHDRAWAL', -100000, 'USD',
+     'Happy Investor boundary withdrawal of uninvested IBKR cash',
+     '2025-12-31 12:00:00+01'),
+    (7025, 17959259, 'WITHDRAWAL', -7934.73331300, 'USD',
+     'Happy Investor boundary withdrawal of residual brokerage cash',
+     '2025-12-31 12:00:00+01')
+ON CONFLICT (id) DO NOTHING;
+
 -- NATGAS RESULT_ONLY CFD settlement cash. The realized trade result folds the gross close (105.90)
 -- and the rollover financing (-86.10) into a single CLOSE_TRADE of 19.80 (= net result 19.12 minus
 -- the -0.68 swap fee); SWAP (-0.68) stays a separate financing fee. Net cash impact is 19.12, which

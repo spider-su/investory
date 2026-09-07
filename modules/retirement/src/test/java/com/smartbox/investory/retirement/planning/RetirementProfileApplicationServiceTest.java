@@ -22,12 +22,14 @@ class RetirementProfileApplicationServiceTest {
   @Test
   void reportsUnavailableWhenPortfolioHasNoSavedPlan() {
     RetirementPlanApi plans = mock(RetirementPlanApi.class);
+    RetirementProjectionService projections = mock(RetirementProjectionService.class);
     PlanningCurrencyPresentationService presentation =
         mock(PlanningCurrencyPresentationService.class);
     when(plans.resolvePlanId(3L, null)).thenReturn(Optional.empty());
     var service =
         new RetirementProfileApplicationService(
             plans,
+            projections,
             presentation,
             Clock.fixed(Instant.parse("2026-08-26T00:00:00Z"), ZoneOffset.UTC));
 

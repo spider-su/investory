@@ -100,7 +100,7 @@ class SimulationSensitivityAnalysisServiceTest {
   @Test
   void failureRiskRanksAheadOfWealthOnlyImpact() {
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
+        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026);
     InvestmentProfile profile = profileWithMarketBuckets();
     SimulationEvaluationService evaluations = mockEvaluations(assumptions);
 
@@ -128,7 +128,7 @@ class SimulationSensitivityAnalysisServiceTest {
   @Test
   void inactiveDriversAreNotPresented() {
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
+        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026);
     InvestmentProfile profile =
         new InvestmentProfile(
             1L,
@@ -260,7 +260,7 @@ class SimulationSensitivityAnalysisServiceTest {
   @Test
   void introducingARecurringFundingGapIsAReserveDeterioration() {
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
+        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026);
     InvestmentProfile profile =
         new InvestmentProfile(
             1L,

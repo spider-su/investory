@@ -100,7 +100,7 @@ class PlanningYearReviewServiceTest {
   private static PastPlanningYear closed(
       Map<PlanningMetric, PlanningMetricValue> actual,
       Map<PlanningMetric, PlanningMetricValue> planned) {
-    return new PastPlanningYear(2025, PlanningYearStatus.CLOSED, null, 1L, 2L, actual, planned);
+    return new PastPlanningYear(2025, PlanningYearStatus.CLOSED, null, 1L, actual, planned);
   }
 
   private static EnumMap<PlanningMetric, PlanningMetricValue> values(

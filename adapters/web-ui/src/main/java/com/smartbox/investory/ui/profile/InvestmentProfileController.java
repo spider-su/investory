@@ -35,23 +35,6 @@ public class InvestmentProfileController {
             annualCost,
             YearMonth.now(clock).getMonthValue());
     model.addAttribute("profile", page);
-    model.addAttribute("portfolioId", portfolioId);
-    model.addAttribute("profileHeaderNetWorth", page.totalNetWorthCompactDisplay());
-    model.addAttribute(
-        "profileHeaderIncome", page.incomeSummary().combinedAnnualIncomeCompactDisplay());
-    model.addAttribute("profileMarketAnnualizedReturn", page.marketAnnualizedReturnDisplay());
-    model.addAttribute("profileMarketKpiMeta", page.marketKpiMeta());
-    model.addAttribute(
-        "profileMarketProjectedIncome", page.incomeSummary().marketAnnualIncomeCompactDisplay());
-    model.addAttribute(
-        "profileLongTermExpectedIncome", page.incomeSummary().longTermAnnualIncomeCompactDisplay());
-    model.addAttribute(
-        "profileMarketIncomeYtd", page.incomeSummary().marketIncomeYtdCompactDisplay());
-    model.addAttribute("profileMarketResultYtd", page.marketInvestmentResultYtdDisplay());
-    model.addAttribute("profileLongTermPlannedYtd", page.longTermPlannedIncomeYtdDisplay());
-    model.addAttribute("profileAnnualCost", page.annualCostDisplay());
-    model.addAttribute("profileAnnualCostMeta", page.annualCostMeta());
-    model.addAttribute("profileHeaderCurrency", page.currency());
     return "investment-profile";
   }
 }

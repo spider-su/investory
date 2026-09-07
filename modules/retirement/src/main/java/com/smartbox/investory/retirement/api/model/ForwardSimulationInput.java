@@ -9,7 +9,7 @@ public record ForwardSimulationInput(
     ForwardSimulationContext context,
     InvestmentProfile bridgedProfile,
     Optional<SimulationAssumptions> forwardAssumptions,
-    CurrentYearBridgeResult currentYearBridge) {
+    CurrentYearProjection currentYearBridge) {
   public ForwardSimulationInput(
       ForwardSimulationContext context,
       InvestmentProfile bridgedProfile,

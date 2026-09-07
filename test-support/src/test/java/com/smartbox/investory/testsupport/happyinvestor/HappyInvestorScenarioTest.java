@@ -102,7 +102,7 @@ class HappyInvestorScenarioTest {
                 ref ->
                     investor.ledger().stream().filter(op -> ref.equals(op.getComment())).count()
                         == 2));
-    assertEquals(23, investor.ledger().size());
+    assertEquals(HappyInvestorExpected.LEDGER_OPERATION_COUNT, investor.ledger().size());
     assertEquals(
         HappyInvestorTestData.EUR_PLN_TRANSFER_AMOUNT.doubleValue(),
         amount(investor, "EUR-PLN-2024-07-31", HappyInvestorTestData.XTB_PLN_ACCOUNT_ID),

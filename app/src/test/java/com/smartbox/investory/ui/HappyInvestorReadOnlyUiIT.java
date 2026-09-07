@@ -72,7 +72,6 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
   }
 
   @Test
-  @Disabled
   @DisplayName("dashboard MAX and YTD show the canonical investment snapshot")
   void dashboardMaxAndYtd() throws IOException {
     for (String period : new String[] {"MAX", "YTD"}) {
@@ -123,7 +122,7 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   "Net worth",
                   compact(HappyInvestorProfileFacts.TOTAL_NET_WORTH),
                   "Net income / year",
-                  compact(HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL));
+                  compact(HappyInvestorProfileFacts.COMBINED_ANNUAL_INCOME));
           assertThat(page.locator(".iv-profile-source-card").nth(0).textContent())
               .contains(
                   "Market investments", "Value", "Annual income (net)", "Investment result YTD");

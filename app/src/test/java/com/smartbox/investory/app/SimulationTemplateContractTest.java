@@ -146,7 +146,7 @@ class SimulationTemplateContractTest {
         () -> assertTrue(javascript.contains("sandboxChart?.destroy()")),
         () -> assertTrue(javascript.contains("label: 'Unfunded'")),
         () -> assertTrue(html.contains("name=\"portfolioId\"")),
-        () -> assertTrue(html.contains("name=\"planId\"")));
+        () -> assertFalse(html.contains("name=\"planId\"")));
   }
 
   @DisplayName("simulation Keeps Scenario And Plan Navigation")

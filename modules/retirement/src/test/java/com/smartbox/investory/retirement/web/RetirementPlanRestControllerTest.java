@@ -27,7 +27,7 @@ class RetirementPlanRestControllerTest {
     when(plans.details(1L, 7L))
         .thenReturn(
             new com.smartbox.investory.retirement.api.model.PlanDetails(
-                7L, "Plan", assumptions, 8L, null, null));
+                7L, "Plan", assumptions, null));
     new RetirementPlanRestController(plans).details(1L, 7L);
     verify(plans).details(1L, 7L);
   }

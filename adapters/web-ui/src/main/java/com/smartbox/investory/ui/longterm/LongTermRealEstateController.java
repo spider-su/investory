@@ -2,7 +2,7 @@ package com.smartbox.investory.ui.longterm;
 
 import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.longterm.api.model.AssetSummaryView;
-import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.api.model.RealEstateCommand;
 import com.smartbox.investory.longterm.api.model.RealEstateView;
 import com.smartbox.investory.longterm.api.model.ResourceNotFoundException;
 import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
@@ -46,7 +46,7 @@ public class LongTermRealEstateController {
       RedirectAttributes feedback) {
     try {
       var command =
-          new RealEstateEntryModel(
+          new RealEstateCommand(
               portfolioId,
               form.id(),
               form.name(),

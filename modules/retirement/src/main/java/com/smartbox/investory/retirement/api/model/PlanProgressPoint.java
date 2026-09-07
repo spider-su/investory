@@ -10,8 +10,7 @@ public record PlanProgressPoint(
     BigDecimal plannedNetWorth,
     BigDecimal difference,
     PlanProgressState state,
-    Long baselinePlanId,
-    Long baselineRevisionId) {
+    Long baselinePlanId) {
   public boolean available() {
     return state != PlanProgressState.UNAVAILABLE;
   }

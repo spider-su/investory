@@ -9,7 +9,7 @@
                 <summary><span>Cash</span><strong th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</strong><small th:text="${stats.formatPercent(stats.portfolioStructure.cashWeightPct) + ' portfolio share'}">0,0% portfolio share</small></summary>
                 <div class="iv-structure-popover iv-compact-popover__panel">
                     <strong class="iv-compact-popover__header">Cash</strong>
-                    <div class="iv-compact-popover__body"><div th:each="account : ${stats.accountBalances}"><span th:text="${account.accountName}">Account</span><span th:text="${stats.formatBase(account.cash)}">0</span></div></div>
+                    <div class="iv-compact-popover__body"><div th:each="account : ${stats.accountBalances}"><span th:text="${account.accountName}">Account</span><span th:text="${stats.formatBase(account.cashBase)}">0</span></div></div>
                     <div class="iv-structure-popover__total iv-compact-popover__footer"><span>Total</span><span th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</span></div>
                 </div>
             </details>

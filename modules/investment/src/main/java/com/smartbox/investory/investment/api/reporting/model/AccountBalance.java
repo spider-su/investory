@@ -3,26 +3,29 @@ package com.smartbox.investory.investment.api.reporting.model;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder(toBuilder = true)
 public class AccountBalance {
 
   private Long accountId;
   private String accountName;
-  private BigDecimal netDeposit;
-  private BigDecimal baseNetDeposit;
-  private BigDecimal profit;
-  private BigDecimal localProfit;
+  private BigDecimal netDepositLocal;
+  private BigDecimal netDepositBase;
+  private BigDecimal profitBase;
+  private BigDecimal profitLocal;
   private BigDecimal profitLossPercent;
-  private BigDecimal balance;
-  private BigDecimal cash;
+  private BigDecimal balanceBase;
+  private BigDecimal cashBase;
   private CurrencyType localCurrency;
-  private BigDecimal localBalance;
-  private BigDecimal localCash;
+  private BigDecimal balanceLocal;
+  private BigDecimal cashLocal;
+  private BigDecimal fxEffect;
 
   public AccountBalance(
       Long accountId,
@@ -49,7 +52,52 @@ public class AccountBalance {
         BigDecimal.valueOf(cash),
         localCurrency,
         decimal(localBalance),
-        decimal(localCash));
+        decimal(localCash),
+        null);
+  }
+
+  /** Compatibility alias: this value is account-native, not portfolio-base. */
+  @Deprecated(forRemoval = false)
+  public BigDecimal getNetDeposit() {
+    return netDepositLocal;
+  }
+
+  /** Compatibility alias for the portfolio-base deposit. */
+  public BigDecimal getBaseNetDeposit() {
+    return netDepositBase;
+  }
+
+  /** Compatibility alias: this value is the portfolio-base economic result. */
+  @Deprecated(forRemoval = false)
+  public BigDecimal getProfit() {
+    return profitBase;
+  }
+
+  /** Compatibility alias for the account-native result. */
+  public BigDecimal getLocalProfit() {
+    return profitLocal;
+  }
+
+  /** Compatibility alias for the portfolio-base balance. */
+  @Deprecated(forRemoval = false)
+  public BigDecimal getBalance() {
+    return balanceBase;
+  }
+
+  /** Compatibility alias for the portfolio-base cash balance. */
+  @Deprecated(forRemoval = false)
+  public BigDecimal getCash() {
+    return cashBase;
+  }
+
+  /** Compatibility alias for the account-native balance. */
+  public BigDecimal getLocalBalance() {
+    return balanceLocal;
+  }
+
+  /** Compatibility alias for the account-native cash balance. */
+  public BigDecimal getLocalCash() {
+    return cashLocal;
   }
 
   private static BigDecimal decimal(Double value) {

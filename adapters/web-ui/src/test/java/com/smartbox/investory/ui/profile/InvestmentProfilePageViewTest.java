@@ -59,7 +59,7 @@ class InvestmentProfilePageViewTest {
                 new BigDecimal("1210400")),
             com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
 
-    InvestmentProfilePageView page = InvestmentProfilePageView.from(profile);
+    InvestmentProfilePageView page = pageWithDefaults(profile);
 
     assertThat(page.marketPortfolioValueCompactDisplay()).isEqualTo("10.4K");
     assertThat(page.longTermAssetValueCompactDisplay()).isEqualTo("1.20M");
@@ -130,6 +130,53 @@ class InvestmentProfilePageViewTest {
     assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("20.5K");
   }
 
+  @DisplayName("shows canonical market YTD return and separate planned-income progress")
+  @Test
+  void showsYtdProgressAgainstAnnualReference() {
+    InvestmentProfile profile =
+        new InvestmentProfile(
+            1L,
+            CurrencyType.USD,
+            new BigDecimal("100000"),
+            BigDecimal.ZERO,
+            new BigDecimal("100000"),
+            new BigDecimal("100000"),
+            BigDecimal.ZERO,
+            List.of(),
+            null,
+            null,
+            new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+                List.of(),
+                java.math.BigDecimal.ZERO,
+                0,
+                com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+                new BigDecimal("24000"),
+                new BigDecimal("24000"),
+                new BigDecimal("12000"),
+                new BigDecimal("12000"),
+                new BigDecimal("36000"),
+                new BigDecimal("36000")),
+            com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
+    InvestmentProfilePageView page =
+        InvestmentProfilePageView.from(
+            profile,
+            new InvestmentDashboardApi.PerformanceKpiView(
+                true, new BigDecimal("0.281"), "28.1%", "2026-01-01", new BigDecimal("0.083")),
+            new InvestmentDashboardApi.InvestmentResultView(
+                true, new BigDecimal("12000"), CurrencyType.USD),
+            com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
+                CurrencyType.USD, 2026),
+            6);
+
+    assertThat(page.marketYtdReturnDisplay()).isEqualTo("8.3%");
+    assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("6.00K");
+    assertThat(page.longTermYtdProgressDisplay()).isEqualTo("50.0%");
+    assertThat(page.longTermYtdProgressClass()).isEqualTo("iv-ytd-progress--positive");
+  }
+
   @DisplayName("source Cards And Allocation Use The Same Horizon Percentages")
   @Test
   void sourceCardsAndAllocationUseTheSameHorizonPercentages() {
@@ -178,14 +225,21 @@ class InvestmentProfilePageViewTest {
                 new BigDecimal("1260000"),
                 BigDecimal.ZERO,
                 new BigDecimal("1428000")),
-            com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
+            new com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation(
+                new com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation
+                    .SourceTotal(new BigDecimal("168000"), new BigDecimal("170000")),
+                com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.SourceTotal
+                    .EMPTY));
 
-    InvestmentProfilePageView page = InvestmentProfilePageView.from(profile);
+    InvestmentProfilePageView page = pageWithDefaults(profile);
 
     assertThat(page.marketPortfolioMeta()).isEqualTo("11.8% of net worth");
     assertThat(page.shortTermAssetsPercentageDisplay()).isEqualTo("11.8%");
     assertThat(page.longTermAssetMeta()).isEqualTo("88.2% of net worth");
     assertThat(page.longTermAssetsPercentageDisplay()).isEqualTo("88.2%");
+    assertThat(page.allocationApproximate()).isTrue();
+    assertThat(page.allocationReconciliationMessage())
+        .isEqualTo("Source totals differ; shares use classified values.");
     assertThat(
             page.allocations().stream()
                 .map(InvestmentProfilePageView.AllocationView::percentage)
@@ -202,6 +256,16 @@ class InvestmentProfilePageViewTest {
         com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
             CurrencyType.USD, 2026),
         8);
+  }
+
+  private static InvestmentProfilePageView pageWithDefaults(InvestmentProfile profile) {
+    return InvestmentProfilePageView.from(
+        profile,
+        new InvestmentDashboardApi.PerformanceKpiView(false, null, "Unavailable", null),
+        InvestmentDashboardApi.InvestmentResultView.unavailable(profile.currency()),
+        com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
+            profile.currency(), 0),
+        12);
   }
 
   private static InvestmentProfile emptyProfile() {

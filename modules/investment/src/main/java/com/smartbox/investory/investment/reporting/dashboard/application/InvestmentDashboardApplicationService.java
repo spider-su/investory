@@ -38,8 +38,13 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
         available
             ? DashboardPercentageFormatter.signedPercent(annualized.value().doubleValue() * 100)
             : "Unavailable";
+    ReturnMetric ytdReturn = performanceKpi.totalReturn();
     return new InvestmentDashboardApi.PerformanceKpiView(
-        available, available ? annualized.value() : null, display, performanceKpi.startDate());
+        available,
+        available ? annualized.value() : null,
+        display,
+        performanceKpi.startDate(),
+        ytdReturn.status() == ReturnMetric.Status.AVAILABLE ? ytdReturn.value() : null);
   }
 
   @Override

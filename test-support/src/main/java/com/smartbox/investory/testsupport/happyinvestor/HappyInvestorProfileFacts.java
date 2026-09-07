@@ -24,7 +24,7 @@ public final class HappyInvestorProfileFacts {
   public static final BigDecimal INVESTMENT_CAPITAL = MARKET_PORTFOLIO_VALUE;
   public static final BigDecimal MARKET_INCOME_YTD = new BigDecimal("1106.35481670");
   public static final BigDecimal MARKET_ANNUAL_INCOME = new BigDecimal("1106.35481670");
-  public static final BigDecimal MARKET_NET_YIELD = new BigDecimal("0.00214253");
+  public static final BigDecimal MARKET_NET_YIELD = new BigDecimal("0.00343325");
   public static final BigDecimal LONG_TERM_ANNUAL_INCOME =
       HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL;
   public static final BigDecimal LONG_TERM_NET_YIELD = new BigDecimal("0.07818503");

@@ -4,10 +4,12 @@ import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotRe
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.ExportCashBalance;
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.ExportPosition;
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.PortfolioExportSnapshot;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -34,7 +36,7 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
     }
     var accountIds =
         accounts.findAllByPortfolioId(portfolioId).stream()
-            .map(account -> account.getId())
+            .map(AccountEntity::getId)
             .filter(java.util.Objects::nonNull)
             .collect(java.util.stream.Collectors.toSet());
     var openPositions = positions.findOpenByAccountIn(accountIds);
@@ -42,7 +44,7 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
         assets
             .findAllById(
                 openPositions.stream()
-                    .map(position -> position.getAssetId())
+                    .map(PositionEntity::getAssetId)
                     .filter(java.util.Objects::nonNull)
                     .toList())
             .stream()
