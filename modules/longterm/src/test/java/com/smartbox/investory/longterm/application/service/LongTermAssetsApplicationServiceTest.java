@@ -54,17 +54,13 @@ class LongTermAssetsApplicationServiceTest {
                   .LongTermAssetHistoryRepository.class);
   private final LongTermAssetReadService reads =
       new LongTermAssetReadService(
-          bonds,
-          realEstates,
-          cashReserves,
-          personalAssets,
-          contracts,
-          conversion,
-          portfolios,
-          lifecycle);
+          bonds, realEstates, cashReserves, personalAssets, contracts, conversion, portfolios);
+  private final LongTermAssetHistoricalSnapshotService historical =
+      new LongTermAssetHistoricalSnapshotService(
+          realEstates, contracts, lifecycle, conversion, portfolios);
   private final LongTermAssetsApplicationService service =
       new LongTermAssetsApplicationService(
-          null, null, null, null, null, reads, null, Clock.systemUTC());
+          null, null, null, null, null, reads, historical, null, Clock.systemUTC());
 
   @BeforeEach
   void setUp() {

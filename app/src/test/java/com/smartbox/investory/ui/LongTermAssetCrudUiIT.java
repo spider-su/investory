@@ -200,6 +200,59 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         assertThat(page.locator("body").textContent())
             .contains(HappyInvestorTestData.APARTMENT_A_NAME + " copy", "Rental contracts");
 
+        String cashName = "UI cash reserve";
+        open(page, "/portfolios/" + PORTFOLIO_ID + "/long-term-assets/new/cash-reserve");
+        page.locator("#cash-name").fill(cashName);
+        page.locator("#cash-currency").selectOption("PLN");
+        page.locator("#cash-value").fill("12500");
+        page.locator("#cash-date").fill("2025-01-01");
+        page.locator("#cash-interest-rate").fill("3.5");
+        submit(
+            page,
+            page.getByRole(
+                AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Save cash reserve")));
+        assertThat(page.url()).endsWith("/portfolios/1/long-term-assets");
+        page.locator("#cash-reserves .iv-planning-section__header").click();
+        long cashId =
+            jdbc.queryForObject(
+                "SELECT id FROM investory.cash_reserve WHERE name = ?", Long.class, cashName);
+        var cashRow =
+            page.locator("#cash-reserves tbody tr")
+                .filter(new Locator.FilterOptions().setHasText(cashName));
+        assertThat(cashRow).hasCount(1);
+        cashRow.getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName(cashName)).click();
+        assertThat(page.locator("#cash-name").inputValue()).isEqualTo(cashName);
+        page.locator("#cash-value").fill("13000");
+        submit(
+            page,
+            page.getByRole(
+                AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Save cash reserve")));
+        assertThat(
+                jdbc.queryForObject(
+                    "SELECT value FROM investory.cash_reserve WHERE id = ?",
+                    BigDecimal.class,
+                    cashId))
+            .isEqualByComparingTo("13000");
+
+        open(page, "/portfolios/" + PORTFOLIO_ID + "/long-term-assets");
+        page.locator("#cash-reserves .iv-planning-section__header").click();
+        cashRow =
+            page.locator("#cash-reserves tbody tr")
+                .filter(new Locator.FilterOptions().setHasText(cashName));
+        submit(
+            page,
+            cashRow.getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Archive")));
+        assertThat(page.locator("#cash-reserves")).not().containsText(cashName);
+        open(page, "/portfolios/" + PORTFOLIO_ID + "/long-term-assets?showArchived=true");
+        var archived =
+            page.locator("section").filter(new Locator.FilterOptions().setHasText(cashName));
+        assertThat(archived).hasCount(1);
+        submit(
+            page,
+            archived.getByRole(
+                AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Reactivate")));
+        assertThat(page.locator("#cash-reserves")).containsText(cashName);
+
         context.tracing().stop();
       } catch (AssertionError | RuntimeException failure) {
         saveFailureArtifacts(page, context);

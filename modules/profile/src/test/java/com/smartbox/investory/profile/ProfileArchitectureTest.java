@@ -1,5 +1,6 @@
 package com.smartbox.investory.profile;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -80,6 +81,28 @@ class ProfileArchitectureTest {
             "..investment.infrastructure..",
             "..longterm.infrastructure..",
             "..repository..")
+        .check(MAIN);
+  }
+
+  @DisplayName("profile application uses only approved upstream boundaries")
+  @Test
+  void profileApplicationUsesOnlyApprovedUpstreamBoundaries() {
+    classes()
+        .that()
+        .resideInAnyPackage("..profile.application..")
+        .should()
+        .onlyDependOnClassesThat()
+        .resideInAnyPackage(
+            "..profile.application..",
+            "..profile.api..",
+            "..investment.api..",
+            "..longterm.api..",
+            "..shared..",
+            "java..",
+            "javax..",
+            "jakarta..",
+            "org.springframework..",
+            "lombok..")
         .check(MAIN);
   }
 

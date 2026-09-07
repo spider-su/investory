@@ -79,14 +79,26 @@ class RentalContractCommandValidationTest {
     var previous = owned();
     previous.setEndDate(LocalDate.of(2026, 2, 1));
     when(contracts.findAllByAssetIdOrderByStartDateDescIdDesc(2L)).thenReturn(List.of(previous));
-    assertThatThrownBy(() -> service.create(1L, 2L, previous.getEndDate(), null, List.of()))
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    1L, 2L, null, null, null, previous.getEndDate(), null, List.of(), false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Overlapping");
     when(contracts.save(any())).thenAnswer(call -> call.getArgument(0));
     assertThat(
             service
-                .create(1L, 2L, previous.getEndDate().plusDays(1), null, List.of())
-                .getStartDate())
+                .create(
+                    1L,
+                    2L,
+                    null,
+                    null,
+                    null,
+                    previous.getEndDate().plusDays(1),
+                    null,
+                    List.of(),
+                    false)
+                .startDate())
         .isEqualTo(LocalDate.of(2026, 2, 2));
     verify(estates, times(2)).lockByIdAndPortfolioId(2L, 1L);
   }
@@ -114,16 +126,18 @@ class RentalContractCommandValidationTest {
                 new RentalContractModel.Term(
                     CashFlowType.RENT, new BigDecimal("1000"), Frequency.MONTHLY, false)));
 
-    assertThat(updated.getId()).isEqualTo(3L);
-    assertThat(updated.getTenantName()).isEqualTo("New tenant");
-    assertThat(updated.getTerms())
+    assertThat(updated.id()).isEqualTo(3L);
+    assertThat(updated.tenantName()).isEqualTo("New tenant");
+    assertThat(updated.terms())
         .singleElement()
         .satisfies(
             term -> {
-              assertThat(term.getType()).isEqualTo(CashFlowType.RENT);
-              assertThat(term.getAmount()).isEqualByComparingTo("1000");
-              assertThat(term.getContract()).isSameAs(contract);
+              assertThat(term.type()).isEqualTo(CashFlowType.RENT);
+              assertThat(term.amount()).isEqualByComparingTo("1000");
             });
+    assertThat(contract.getTerms())
+        .singleElement()
+        .satisfies(term -> assertThat(term.getContract()).isSameAs(contract));
   }
 
   @Test
@@ -137,7 +151,7 @@ class RentalContractCommandValidationTest {
     service.terminate(1L, 2L, 3L, LocalDate.of(2026, 6, 15));
     service.delete(1L, 2L, 3L);
 
-    assertThat(ended).isSameAs(contract);
+    assertThat(ended.id()).isEqualTo(contract.getId());
     assertThat(contract.getEndDate()).isEqualTo(LocalDate.of(2026, 11, 30));
     assertThat(contract.getTerminatedDate()).isEqualTo(LocalDate.of(2026, 6, 15));
     verify(contracts).delete(contract);
@@ -155,7 +169,7 @@ class RentalContractCommandValidationTest {
             1L, 2L, "Tenant", null, null, LocalDate.of(2026, 2, 1), null, List.of(), true);
 
     assertThat(previous.getEndDate()).isEqualTo(LocalDate.of(2026, 1, 31));
-    assertThat(successor.getStartDate()).isEqualTo(LocalDate.of(2026, 2, 1));
+    assertThat(successor.startDate()).isEqualTo(LocalDate.of(2026, 2, 1));
     verify(contracts).flush();
   }
 

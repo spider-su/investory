@@ -73,6 +73,28 @@ class ExchangeRateClientTest {
     assertTrue(query.contains("access_key=test-key"), query);
   }
 
+  @Test
+  void getLatestRatesParsesCurrencyLayerTimestamp() throws Exception {
+    when(response.statusCode()).thenReturn(200);
+    when(response.body())
+        .thenReturn(
+            "{\"success\":true,\"timestamp\":1788810245,\"source\":\"USD\","
+                + "\"quotes\":{\"USDEUR\":0.860498,\"USDPLN\":3.709095}}");
+    when(httpClient.send(
+            any(HttpRequest.class),
+            org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+        .thenReturn(response);
+
+    ExchangeRateClient.ExchangeRateResponse parsed =
+        new ExchangeRateClient(httpClient, objectMapper)
+            .getLatestRates("USD", "EUR,PLN", "test-key");
+
+    assertEquals(1788810245L, parsed.getTimestamp());
+    assertEquals(
+        java.time.LocalDate.of(2026, 9, 7),
+        parsed.providerDate(java.time.ZoneId.of("Europe/Warsaw")));
+  }
+
   @DisplayName("get Latest Rates throws Exchange Rate Exception On Non2xx")
   @Test
   void getLatestRates_throwsExchangeRateExceptionOnNon2xx() throws Exception {

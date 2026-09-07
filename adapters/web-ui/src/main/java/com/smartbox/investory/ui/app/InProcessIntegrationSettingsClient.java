@@ -10,14 +10,20 @@ import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
-@RequiredArgsConstructor
 public class InProcessIntegrationSettingsClient implements IntegrationSettingsClient {
   private final IntegrationSettingsApi integrationSettingsApi;
   private final IntegrationJobExecutionApi integrationJobExecutionApi;
+
+  public InProcessIntegrationSettingsClient(
+      @Qualifier("integrationSettingsFacade") IntegrationSettingsApi integrationSettingsApi,
+      @Qualifier("integrationJobScheduler") IntegrationJobExecutionApi integrationJobExecutionApi) {
+    this.integrationSettingsApi = integrationSettingsApi;
+    this.integrationJobExecutionApi = integrationJobExecutionApi;
+  }
 
   @Override
   public List<IntegrationSettingsView> list() {

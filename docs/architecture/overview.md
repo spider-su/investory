@@ -124,14 +124,18 @@ Dashboard page data follows this application flow:
 
 ```text
 HomeController
-  -> DashboardQuery
+  -> InvestmentDashboardClient
+  -> InProcessInvestmentDashboardClient
+  -> InvestmentDashboardApi
   -> InvestmentDashboardFacade
   -> existing portfolio/benchmark services and period filtering
   -> DashboardPageView section models
   -> Thymeleaf dashboard and Chart.js presentation code
 ```
 
-This is an application boundary for the internal UI, not a new dashboard JSON API. See
+The first three types are the web-UI inbound-adapter seam and the next type is Investment's
+published application contract; the MVC controller does not call the facade directly. This is an
+application boundary for the internal UI, not a new dashboard JSON API. See
 `docs/architecture/dashboard-application.md` for the dashboard-specific details.
 
 ## Domain boundary direction

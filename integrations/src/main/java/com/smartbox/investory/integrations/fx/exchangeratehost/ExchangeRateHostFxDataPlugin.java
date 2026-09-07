@@ -98,7 +98,7 @@ public class ExchangeRateHostFxDataPlugin
                 target,
                 BigDecimal.ONE,
                 request.effectiveDate(),
-                response.getDate()));
+                response.providerDate(applicationTime.businessZone())));
         continue;
       }
       String key = request.base().name() + target.name();
@@ -112,7 +112,7 @@ public class ExchangeRateHostFxDataPlugin
               target,
               BigDecimal.valueOf(rate),
               request.effectiveDate(),
-              response.getDate()));
+              response.providerDate(applicationTime.businessZone())));
     }
     return quotes;
   }
@@ -129,7 +129,10 @@ public class ExchangeRateHostFxDataPlugin
   public ConnectionTestResult testConnection(PluginConfig config) {
     try {
       fetchRates(
-          new FxRequest(CurrencyType.USD, List.of(CurrencyType.EUR), applicationTime.today()),
+          new FxRequest(
+              CurrencyType.USD,
+              List.of(CurrencyType.EUR, CurrencyType.PLN),
+              applicationTime.today()),
           config);
       return new ConnectionTestResult(true, true, "Connection succeeded");
     } catch (RuntimeException exception) {

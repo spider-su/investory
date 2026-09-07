@@ -2,7 +2,6 @@ package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.api.model.*;
-import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,6 +19,7 @@ public class LongTermAssetsApplicationService
   private final PersonalAssetCommandService personalAssets;
   private final RentalContractService rentalContracts;
   private final LongTermAssetReadService reads;
+  private final LongTermAssetHistoricalSnapshotService historicalSnapshots;
   private final LongTermAssetLifecycleService lifecycle;
   private final Clock clock;
 
@@ -30,6 +30,7 @@ public class LongTermAssetsApplicationService
       PersonalAssetCommandService personalAssets,
       RentalContractService rentalContracts,
       LongTermAssetReadService reads,
+      LongTermAssetHistoricalSnapshotService historicalSnapshots,
       LongTermAssetLifecycleService lifecycle,
       Clock clock) {
     this.bonds = bonds;
@@ -38,6 +39,7 @@ public class LongTermAssetsApplicationService
     this.personalAssets = personalAssets;
     this.rentalContracts = rentalContracts;
     this.reads = reads;
+    this.historicalSnapshots = historicalSnapshots;
     this.lifecycle = lifecycle;
     this.clock = clock;
   }
@@ -229,28 +231,25 @@ public class LongTermAssetsApplicationService
   @Override
   @Transactional(readOnly = true)
   public LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(Long portfolioId, int year) {
-    return reads.historicalAnnualSnapshot(portfolioId, year);
+    return historicalSnapshots.snapshot(portfolioId, year);
   }
 
-  private RentalContractView rental(LongTermAssetRentalContractEntity contract, LocalDate date) {
+  private RentalContractView rental(RentalContractModel contract, LocalDate date) {
     return new RentalContractView(
-        contract.getId(),
-        contract.getTenantName(),
-        contract.getTenantEmail(),
-        contract.getTenantPhone(),
-        contract.getStartDate(),
-        contract.getEndDate(),
-        contract.getTerminatedDate(),
+        contract.id(),
+        contract.tenantName(),
+        contract.tenantEmail(),
+        contract.tenantPhone(),
+        contract.startDate(),
+        contract.endDate(),
+        contract.terminatedDate(),
         RentalContractService.effectiveEnd(contract),
         RentalContractService.status(contract, date),
-        contract.getTerms().stream()
+        contract.terms().stream()
             .map(
                 term ->
                     new RentalTermView(
-                        term.getType(),
-                        term.getAmount(),
-                        term.getFrequency(),
-                        term.isPaidByTenant()))
+                        term.type(), term.amount(), term.frequency(), term.paidByTenant()))
             .toList());
   }
 

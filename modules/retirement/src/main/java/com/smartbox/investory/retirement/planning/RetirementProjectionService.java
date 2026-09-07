@@ -51,7 +51,6 @@ public class RetirementProjectionService implements RetirementProjectionApi {
     SimulationAssumptions assumptions =
         planDetails == null
             ? SimulationAssumptions.defaults(
-                profile,
                 defaultCurrentAge == null ? 40 : defaultCurrentAge,
                 defaultEndAge == null ? 95 : defaultEndAge,
                 facts.asOfYear())

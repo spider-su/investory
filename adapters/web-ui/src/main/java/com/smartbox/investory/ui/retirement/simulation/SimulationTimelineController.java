@@ -18,7 +18,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class SimulationTimelineController {
   private final ProfileClient profiles;
   private final RetirementPlanClient plans;
-  private final RetirementPlanningClient planning;
+  private final RetirementTimelineClient timeline;
+  private final RetirementPresentationClient presentation;
   private final RetirementProjectionClient projections;
   private final Clock clock;
   private final SimulationTimelinePageAssembler pageAssembler;
@@ -28,16 +29,18 @@ public class SimulationTimelineController {
   public SimulationTimelineController(
       ProfileClient profiles,
       RetirementPlanClient plans,
-      RetirementPlanningClient planning,
+      RetirementTimelineClient timeline,
+      RetirementPresentationClient presentation,
       RetirementProjectionClient projections,
       Clock clock) {
     this.profiles = profiles;
     this.plans = plans;
-    this.planning = planning;
+    this.timeline = timeline;
+    this.presentation = presentation;
     this.projections = projections;
     this.clock = clock;
     this.pageAssembler =
-        new SimulationTimelinePageAssembler(profiles, plans, planning, projections);
+        new SimulationTimelinePageAssembler(profiles, plans, timeline, presentation, projections);
   }
 
   @PostMapping("/portfolios/{portfolioId}/simulation/rollover")
@@ -47,7 +50,7 @@ public class SimulationTimelineController {
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
-    planning.rollover(portfolioId);
+    timeline.rollover(portfolioId);
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
@@ -61,10 +64,10 @@ public class SimulationTimelineController {
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     if (planId == null) {
-      planning.createHistoricalDraft(portfolioId, year);
+      timeline.createHistoricalDraft(portfolioId, year);
     } else {
       var plan = plans.details(portfolioId, planId);
-      planning.seedHistoricalBaselineFromPlan(
+      timeline.seedHistoricalBaselineFromPlan(
           portfolioId, year, planId, profiles.loadProfile(portfolioId), plan.assumptions());
     }
     return SimulationRedirects.planningYear(
@@ -82,7 +85,7 @@ public class SimulationTimelineController {
         planId == null
             ? Year.now(clock).getValue()
             : plans.details(portfolioId, planId).assumptions().planStartYear();
-    planning.prefillHistoricalYears(portfolioId, startYear);
+    timeline.prefillHistoricalYears(portfolioId, startYear);
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
@@ -98,7 +101,7 @@ public class SimulationTimelineController {
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
-    planning.refreshHistoricalDerivedValues(portfolioId, year);
+    timeline.refreshHistoricalDerivedValues(portfolioId, year);
     return SimulationRedirects.planningYear(
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
   }
@@ -126,7 +129,7 @@ public class SimulationTimelineController {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     var profile = profiles.loadProfile(portfolioId);
     var plan = plans.details(portfolioId, planId);
-    planning.setCurrentBaseline(portfolioId, year, planId, profile, plan.assumptions());
+    timeline.setCurrentBaseline(portfolioId, year, planId, profile, plan.assumptions());
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
@@ -140,7 +143,7 @@ public class SimulationTimelineController {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     PlanningBaseline baseline =
         PlanningBaseline.fromProfile(profiles.loadProfile(portfolioId), Year.now(clock).getValue());
-    planning.rebaseline(portfolioId, planId, baseline);
+    timeline.rebaseline(portfolioId, planId, baseline);
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
@@ -156,11 +159,11 @@ public class SimulationTimelineController {
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
-    planning.saveCurrentManualValue(
+    timeline.saveCurrentManualValue(
         portfolioId,
         year,
         metric,
-        planning.fromDisplay(amount, planningDisplayCurrency, BigDecimal.ZERO),
+        presentation.fromDisplay(amount, planningDisplayCurrency, BigDecimal.ZERO),
         note);
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
@@ -179,11 +182,11 @@ public class SimulationTimelineController {
       RedirectAttributes redirectAttributes) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     try {
-      planning.saveDraftManualValue(
+      timeline.saveDraftManualValue(
           portfolioId,
           year,
           metric,
-          planning.fromDisplay(amount, planningDisplayCurrency, BigDecimal.ZERO),
+          presentation.fromDisplay(amount, planningDisplayCurrency, BigDecimal.ZERO),
           note);
     } catch (IllegalArgumentException | IllegalStateException error) {
       redirectAttributes.addFlashAttribute("planningError", error.getMessage());
@@ -200,7 +203,7 @@ public class SimulationTimelineController {
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
-    planning.closeCurrentYear(portfolioId, year, profiles.loadProfile(portfolioId));
+    timeline.closeCurrentYear(portfolioId, year, profiles.loadProfile(portfolioId));
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
@@ -215,7 +218,7 @@ public class SimulationTimelineController {
       RedirectAttributes redirectAttributes) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     try {
-      planning.closeHistoricalDraft(portfolioId, year);
+      timeline.closeHistoricalDraft(portfolioId, year);
     } catch (IllegalArgumentException | IllegalStateException error) {
       redirectAttributes.addFlashAttribute("planningError", error.getMessage());
     }
@@ -233,7 +236,7 @@ public class SimulationTimelineController {
       RedirectAttributes redirectAttributes) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     try {
-      planning.reopenHistoricalYear(portfolioId, year);
+      timeline.reopenHistoricalYear(portfolioId, year);
     } catch (IllegalArgumentException | IllegalStateException error) {
       redirectAttributes.addFlashAttribute("planningError", error.getMessage());
     }

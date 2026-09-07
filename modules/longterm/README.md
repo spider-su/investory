@@ -20,8 +20,13 @@ policy, and asset semantics, but not on Investment, Profile, or Retirement imple
 - Rental lifecycle: `RentalContractService` and its focused service/validation tests.
 - Current totals, tax, yield, Profile and projection facts: `LongTermAssetReadService`,
   `LongTermAssetEconomicsTest`, and `LongTermAssetsApplicationServiceTest`.
+- Historical calendar reconstruction: `LongTermAssetHistoricalSnapshotService`; it returns
+  unavailable values when complete acquisition/archive provenance is absent.
+- PostgreSQL real-estate/rental lifecycle: app-owned `LongTermAssetLifecyclePostgresIT`.
 - Database conversion/constraints: app-owned `LongTermHardeningMigrationIT`.
 - Rendered CRUD and canonical values: app-owned `LongTermAssetCrudUiIT` and
   `HappyInvestorReadOnlyUiIT`.
 
 Use reactor-aware verification from the repository root: `./mvnw -pl modules/longterm -am verify`.
+CI also combines the app-owned lifecycle execution data with module tests and enforces the critical
+`longterm.application.service` coverage baseline.

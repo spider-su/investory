@@ -249,6 +249,6 @@ class ForwardSimulationContextFactoryTest {
   }
 
   private static SimulationAssumptions assumptions(int startYear, int currentAge, int endAge) {
-    return SimulationAssumptions.defaults(PROFILE, currentAge, endAge, startYear);
+    return SimulationAssumptions.defaults(currentAge, endAge, startYear);
   }
 }

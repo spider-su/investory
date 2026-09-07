@@ -242,10 +242,6 @@ public class RetirementSimulationService implements RetirementSimulation {
     return results;
   }
 
-  private static BigDecimal nz(BigDecimal value) {
-    return value == null ? ZERO : value;
-  }
-
   private static Map<Integer, BigDecimal> eventTotals(
       SimulationAssumptions assumptions, SimulationEventType type) {
     return assumptions.futureEvents().stream()

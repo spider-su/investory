@@ -170,7 +170,7 @@ class RetirementAgeAnalysisServiceTest {
   }
 
   private static SimulationAssumptions assumptions(int currentAge, int endAge, int retirementAge) {
-    return SimulationAssumptions.defaults(mock(InvestmentProfile.class), currentAge, endAge, 2026)
+    return SimulationAssumptions.defaults(currentAge, endAge, 2026)
         .withRetirementAge(retirementAge);
   }
 

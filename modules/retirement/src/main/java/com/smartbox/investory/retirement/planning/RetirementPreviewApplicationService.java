@@ -59,7 +59,7 @@ public class RetirementPreviewApplicationService implements RetirementPreviewApi
           Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
           SimulationAssumptions base =
               selectedPlanId == null
-                  ? SimulationAssumptions.defaults(profile, 40, 95, Year.now(clock).getValue())
+                  ? SimulationAssumptions.defaults(40, 95, Year.now(clock).getValue())
                   : plans.details(portfolioId, selectedPlanId).assumptions();
           var normalized = normalizer.normalize(input, base, planningDisplayCurrency);
           return new EditorPreviewResponse(

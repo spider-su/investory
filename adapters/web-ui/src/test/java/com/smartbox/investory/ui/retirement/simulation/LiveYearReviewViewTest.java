@@ -16,34 +16,7 @@ class LiveYearReviewViewTest {
   @DisplayName("keeps Approved Plan As Benchmark And Calculates Only Forecast Variance")
   @Test
   void keepsApprovedPlanAsBenchmarkAndCalculatesOnlyForecastVariance() {
-    var assumptions =
-        SimulationAssumptions.defaults(
-            new com.smartbox.investory.profile.api.model.InvestmentProfile(
-                1L,
-                CurrencyType.PLN,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                java.util.List.of(),
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                com.smartbox.investory.profile.api.model.ProfileAssetProjection.EMPTY,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures
-                    .annualIncome(
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO),
-                com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY),
-            41,
-            95,
-            2026);
+    var assumptions = SimulationAssumptions.defaults(41, 95, 2026);
     var money =
         new PlanningTimelineMoney(
             new BigDecimal("120"),

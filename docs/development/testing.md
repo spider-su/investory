@@ -77,6 +77,8 @@ Do not use this base class for tests whose purpose is migration validation.
 The fast read-only layer starts the real Spring application against the committed database
 snapshot. It uses one canonical persisted HappyInvestor story and independent expected facts from
 `test-support`; tests must not derive expected values from a REST response or rendered page.
+`ProfilePersistedFactsIT` also covers empty, brokerage-only, Long-Term-only, and mixed portfolio
+shapes, plus repeated-read source immutability.
 
 - Feature-owned REST controller tests verify stable API fields without recreating a generic
   cross-module response contract. `ProfilePersistedFactsIT` verifies the complete Profile
@@ -104,8 +106,10 @@ Failed page cases write a screenshot, rendered HTML, and Playwright trace under
 list/detail/create/edit pages, with PostgreSQL assertions for persisted property facts and rental
 term editing. It also checks long-term list rendering for cash reserves. It does not currently
 provide complete browser CRUD coverage for bonds, cash reserves, personal assets, or archive/
-reactivate behavior; those paths are covered by application, REST, and focused unit tests where
-available. Do not treat this test as a complete browser lifecycle test for every Long-Term type.
+reactivate behavior. `LongTermAssetLifecyclePostgresIT` covers the real-estate/rental command, JPA,
+PostgreSQL, economics, historical snapshot, archive, and reactivate lifecycle without duplicating
+browser assertions. Do not treat either test as a complete browser lifecycle test for every
+Long-Term type.
 
 `InvestmentDashboardGoldenUiIT` rebuilds the investment portfolio from the committed IBKR, XTB,
 and FX golden-path fixtures in an isolated PostgreSQL database. It checks every rendered dashboard
@@ -167,11 +171,11 @@ The migration layer stays deliberately small:
 
 Financially critical calculation packages have additional JaCoCo thresholds in
 `docs/quality/coverage-baseline.json`. The existing aggregate 70% line / 50% branch gate remains;
-the extra gate covers investment performance, projection, valuation, and retirement planning
-packages, plus changed executable lines in those packages. Long-Term's main command, rental,
-calendar-accrual, and aggregation flows remain module-owned tests and are reviewed in the generated
-module report. It is a targeted protection layer, not
-a reason to add broad end-to-end tests.
+the extra gate covers investment performance, projection, valuation, Long-Term application
+services, and retirement planning packages, plus changed executable lines in those packages.
+Long-Term's critical application package requires 80% line and 65% branch coverage from the
+combined module and app-owned integration execution data. It is a targeted protection layer, not a
+reason to add broad end-to-end tests.
 
 ## Generate the schema snapshot
 

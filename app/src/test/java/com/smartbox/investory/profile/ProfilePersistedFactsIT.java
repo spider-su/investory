@@ -18,12 +18,16 @@ import java.sql.Connection;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -164,6 +168,133 @@ class ProfilePersistedFactsIT {
     assertThat(profile.longTermPlanningState()).isNotNull();
     org.assertj.core.api.Assertions.assertThatThrownBy(() -> profiles.loadProfile(999999L))
         .isInstanceOf(RuntimeException.class);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("portfolioShapes")
+  void readsEmptyAndPartialPortfoliosWithoutCrossPortfolioLeakage(String shape) {
+    Long portfolioId =
+        switch (shape) {
+          case "empty" -> 98001L;
+          case "long-term-only" -> {
+            prepareLongTermOnlyPortfolio(98002L);
+            yield 98002L;
+          }
+          case "brokerage-only" -> {
+            archiveCanonicalLongTermAssets();
+            yield HappyInvestorTestData.PORTFOLIO_ID;
+          }
+          case "mixed" -> HappyInvestorTestData.PORTFOLIO_ID;
+          default -> throw new IllegalArgumentException("Unknown profile shape: " + shape);
+        };
+    if (shape.equals("empty")) insertPortfolio(portfolioId, "Empty Profile Portfolio");
+    if (!shape.equals("mixed") && !shape.equals("brokerage-only")) {
+      projectionRefresh.refreshApplicationViews(
+          PortfolioProjectionRefreshService.ApplicationRefreshScope.FULL);
+    }
+
+    InvestmentProfile profile = profiles.loadProfile(portfolioId);
+
+    assertThat(profile.portfolioId()).isEqualTo(portfolioId);
+    assertThat(profile.totalNetWorth())
+        .isEqualByComparingTo(profile.marketPortfolioValue().add(profile.longTermAssetValue()));
+    assertThat(profile.liquidAssets().add(profile.illiquidAssets()))
+        .isEqualByComparingTo(profile.totalNetWorth());
+    assertThat(profile.allocationReconciliation().balanced()).isTrue();
+    assertThat(
+            profile.allocations().stream()
+                .map(a -> a.value())
+                .reduce(BigDecimal.ZERO, BigDecimal::add))
+        .isEqualByComparingTo(
+            profile
+                .allocationReconciliation()
+                .shortTerm()
+                .classifiedValue()
+                .add(profile.allocationReconciliation().longTerm().classifiedValue()));
+    assertThat(profile.retirementReserve()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+    assertThat(profile.investmentCapital()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+    if (shape.equals("empty")) {
+      assertThat(profile.totalNetWorth()).isZero();
+      assertThat(profile.retirementReserve()).isZero();
+      assertThat(profile.investmentCapital()).isZero();
+    } else if (shape.equals("long-term-only")) {
+      assertThat(profile.marketPortfolioValue()).isZero();
+      assertThat(profile.longTermAssetValue()).isEqualByComparingTo("1500");
+      assertThat(profile.retirementReserve()).isEqualByComparingTo("500");
+      assertThat(profile.investmentCapital()).isZero();
+    } else if (shape.equals("brokerage-only")) {
+      assertThat(profile.longTermAssetValue()).isZero();
+      assertThat(profile.totalNetWorth()).isEqualByComparingTo(profile.marketPortfolioValue());
+    } else {
+      assertThat(profile.longTermAssetValue())
+          .isEqualByComparingTo(HappyInvestorProfileFacts.LONG_TERM_ASSET_VALUE);
+    }
+  }
+
+  @Test
+  void repeatedProfileReadsDoNotMutateSourcePersistence() {
+    Map<String, String> before = sourceState();
+
+    profiles.loadProfile(HappyInvestorTestData.PORTFOLIO_ID);
+    profiles.loadProfile(HappyInvestorTestData.PORTFOLIO_ID);
+
+    assertThat(sourceState()).isEqualTo(before);
+  }
+
+  private static java.util.stream.Stream<String> portfolioShapes() {
+    return java.util.stream.Stream.of("empty", "brokerage-only", "long-term-only", "mixed");
+  }
+
+  private void insertPortfolio(Long id, String name) {
+    jdbc.update(
+        "insert into portfolios(id, name, base_currency, local_currency, user_id) values (?, ?, 'USD', 'USD', 1)",
+        id,
+        name);
+  }
+
+  private void prepareLongTermOnlyPortfolio(Long id) {
+    insertPortfolio(id, "Long-Term Only Profile Portfolio");
+    jdbc.update(
+        "insert into real_estate(id, portfolio_id, name, currency, value, tax_base, acquisition_date, notes) values (98021, ?, 'Profile property', 'USD', 1000, 0, DATE '2024-01-01', 'Profile shape')",
+        id);
+    jdbc.update(
+        "insert into cash_reserve(id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, notes) values (98022, ?, 'Profile reserve', 'USD', 500, DATE '2024-01-01', 0, NULL, 'Profile shape')",
+        id);
+  }
+
+  private void archiveCanonicalLongTermAssets() {
+    jdbc.update("update real_estate set archived_at = DATE '2025-12-31' where portfolio_id = 1");
+    jdbc.update("update bond set archived_at = DATE '2025-12-31' where portfolio_id = 1");
+    jdbc.update("update cash_reserve set archived_at = DATE '2025-12-31' where portfolio_id = 1");
+    jdbc.update("update personal_asset set archived_at = DATE '2025-12-31' where portfolio_id = 1");
+  }
+
+  private Map<String, String> sourceState() {
+    Map<String, String> state = new HashMap<>();
+    for (String table :
+        List.of(
+            "portfolios",
+            "accounts",
+            "assets",
+            "cash_operations",
+            "positions",
+            "real_estate",
+            "bond",
+            "cash_reserve",
+            "personal_asset",
+            "rental_contract",
+            "rental_contract_term",
+            "long_term_asset_history",
+            "long_term_asset_archive_interval")) {
+      state.put(
+          table,
+          jdbc.queryForObject(
+              "select md5(coalesce(string_agg(to_jsonb(row_data)::text, '|' order by to_jsonb(row_data)::text), '')) from (select * from investory."
+                  + table
+                  + ") row_data",
+              String.class));
+    }
+    return state;
   }
 
   @TestConfiguration

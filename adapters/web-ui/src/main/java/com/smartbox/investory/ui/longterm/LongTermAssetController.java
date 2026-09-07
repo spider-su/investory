@@ -107,9 +107,7 @@ public class LongTermAssetController {
       return "redirect:/portfolios/" + portfolioId + "/long-term-assets";
     } catch (IllegalArgumentException | ResourceNotFoundException exception) {
       feedback.addFlashAttribute("error", LongTermAssetPageSupport.assetError(exception));
-      return form.getId() == null
-          ? "redirect:/portfolios/" + portfolioId + "/long-term-assets"
-          : "redirect:/portfolios/" + portfolioId + "/long-term-assets";
+      return "redirect:/portfolios/" + portfolioId + "/long-term-assets";
     }
   }
 

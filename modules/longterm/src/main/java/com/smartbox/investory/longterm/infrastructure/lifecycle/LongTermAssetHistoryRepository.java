@@ -17,7 +17,7 @@ public class LongTermAssetHistoryRepository {
   public void recordCreation(Long assetId, String type) {
     entityManager
         .createNativeQuery(
-            "insert into long_term_asset_history(asset_id, asset_type, complete) values (:id, :type, true)")
+            "insert into investory.long_term_asset_history(asset_id, asset_type, complete) values (:id, :type, true)")
         .setParameter("id", assetId)
         .setParameter("type", type)
         .executeUpdate();
@@ -28,7 +28,7 @@ public class LongTermAssetHistoryRepository {
     List<?> ids =
         entityManager
             .createNativeQuery(
-                "select asset_id from long_term_asset_history where complete = true and asset_type = 'REAL_ESTATE' and asset_id in (:ids)")
+                "select asset_id from investory.long_term_asset_history where complete = true and asset_type = 'REAL_ESTATE' and asset_id in (:ids)")
             .setParameter("ids", assetIds)
             .getResultList();
     return ids.stream().map(id -> ((Number) id).longValue()).collect(Collectors.toSet());
@@ -39,7 +39,7 @@ public class LongTermAssetHistoryRepository {
     List<?> rows =
         entityManager
             .createNativeQuery(
-                "select asset_id, archived_from, archived_to from long_term_asset_archive_interval where asset_id in (:ids) order by asset_id, archived_from")
+                "select asset_id, archived_from, archived_to from investory.long_term_asset_archive_interval where asset_id in (:ids) order by asset_id, archived_from")
             .setParameter("ids", assetIds)
             .getResultList();
     return rows.stream()
@@ -59,20 +59,20 @@ public class LongTermAssetHistoryRepository {
       LocalDate today) {
     entityManager
         .createNativeQuery(
-            "insert into long_term_asset_history(asset_id, asset_type, complete) values (:id, :type, false) on conflict (asset_id) do nothing")
+            "insert into investory.long_term_asset_history(asset_id, asset_type, complete) values (:id, :type, false) on conflict (asset_id) do nothing")
         .setParameter("id", assetId)
         .setParameter("type", type)
         .executeUpdate();
     // Serialize interval changes for this identity within the caller's transaction.
     entityManager
         .createNativeQuery(
-            "select asset_id from long_term_asset_history where asset_id = :id for update")
+            "select asset_id from investory.long_term_asset_history where asset_id = :id for update")
         .setParameter("id", assetId)
         .getSingleResult();
     if (nextArchive != null) {
       entityManager
           .createNativeQuery(
-              "insert into long_term_asset_archive_interval(asset_id, archived_from) values (:id, :date)")
+              "insert into investory.long_term_asset_archive_interval(asset_id, archived_from) values (:id, :date)")
           .setParameter("id", assetId)
           .setParameter("date", nextArchive)
           .executeUpdate();
@@ -80,14 +80,14 @@ public class LongTermAssetHistoryRepository {
       int closed =
           entityManager
               .createNativeQuery(
-                  "update long_term_asset_archive_interval set archived_to = :date where asset_id = :id and archived_to is null")
+                  "update investory.long_term_asset_archive_interval set archived_to = :date where asset_id = :id and archived_to is null")
               .setParameter("id", assetId)
               .setParameter("date", today)
               .executeUpdate();
       if (closed == 0) {
         entityManager
             .createNativeQuery(
-                "insert into long_term_asset_archive_interval(asset_id, archived_from, archived_to) values (:id, :start, :end)")
+                "insert into investory.long_term_asset_archive_interval(asset_id, archived_from, archived_to) values (:id, :start, :end)")
             .setParameter("id", assetId)
             .setParameter("start", previousArchive)
             .setParameter("end", today)

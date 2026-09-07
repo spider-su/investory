@@ -167,7 +167,7 @@ class PlanEditorPreviewServiceTest {
             inputs, simulations, longTermAssets, currentLongTermAssets, presentation, clock);
     InvestmentProfile profile = mock(InvestmentProfile.class);
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(profile, 41, 42, 2026)
+        SimulationAssumptions.defaults(41, 42, 2026)
             .withRetirementAge(42)
             .withAnnualEmploymentIncome(new BigDecimal("120000"))
             .withAnnualPreRetirementContribution(new BigDecimal("12000"));
@@ -214,7 +214,7 @@ class PlanEditorPreviewServiceTest {
             inputs, simulations, longTermAssets, currentLongTermAssets, presentation, clock);
     InvestmentProfile profile = mock(InvestmentProfile.class);
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(profile, 40, 50, 2025).withRetirementAge(45);
+        SimulationAssumptions.defaults(40, 50, 2025).withRetirementAge(45);
     SimulationYear projected = zeroYear(42, 2027, false);
     LongTermAssetAnnualSnapshotModel historical =
         new LongTermAssetAnnualSnapshotModel(
@@ -268,7 +268,7 @@ class PlanEditorPreviewServiceTest {
         new PlanEditorPreviewService(
             inputs, simulations, longTermAssets, currentLongTermAssets, presentation, clock);
     InvestmentProfile profile = mock(InvestmentProfile.class);
-    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 41, 2026);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 41, 2026);
     var context = mock(ForwardSimulationContext.class);
     var projected = assumptions;
     var row =

@@ -58,7 +58,7 @@ class RetirementProjectionViewReconciliationTest {
             BigDecimal.ZERO);
     var moneyByYear = Map.of(2026, money);
     var assumptions =
-        SimulationAssumptions.defaults(profile(), 41, 80, 2026)
+        SimulationAssumptions.defaults(41, 80, 2026)
             .withRetirementAge(41)
             .withAnnualEmploymentIncome(BigDecimal.ZERO);
 

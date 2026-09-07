@@ -61,4 +61,38 @@ class ExchangeRateHostFxDataPluginTest {
     assertEquals(BigDecimal.ONE, quotes.getFirst().rate());
     assertEquals(LocalDate.of(2026, 8, 11), quotes.getFirst().providerDate());
   }
+
+  @Test
+  void translatesProviderTimestampToQuoteDate() {
+    ExchangeRateClient.ExchangeRateResponse response =
+        new ExchangeRateClient.ExchangeRateResponse();
+    response.setTimestamp(1788810245L);
+    response.setQuotes(Map.of("USDEUR", 0.860498, "USDPLN", 3.709095));
+    when(client.getLatestRates("USD", "EUR,PLN", "secret")).thenReturn(response);
+    ExchangeRateHostFxDataPlugin plugin = new ExchangeRateHostFxDataPlugin(client, TIME);
+
+    List<FxQuote> quotes =
+        plugin.fetchRates(
+            new FxRequest(
+                CurrencyType.USD,
+                List.of(CurrencyType.EUR, CurrencyType.PLN),
+                LocalDate.of(2026, 9, 7)),
+            PluginConfig.of("apiKey", "secret"));
+
+    assertEquals(LocalDate.of(2026, 9, 7), quotes.getFirst().providerDate());
+    assertEquals(LocalDate.of(2026, 9, 7), quotes.get(1).providerDate());
+  }
+
+  @DisplayName("connection Test Requires Every Production FX Quote")
+  @Test
+  void connectionTestRequiresEveryProductionFxQuote() {
+    ExchangeRateClient.ExchangeRateResponse response =
+        new ExchangeRateClient.ExchangeRateResponse();
+    response.setDate(TIME.today());
+    response.setQuotes(Map.of("USDEUR", 0.9));
+    when(client.getLatestRates("USD", "EUR,PLN", "secret")).thenReturn(response);
+    ExchangeRateHostFxDataPlugin plugin = new ExchangeRateHostFxDataPlugin(client, TIME);
+
+    assertFalse(plugin.testConnection(PluginConfig.of("apiKey", "secret")).success());
+  }
 }

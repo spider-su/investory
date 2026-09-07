@@ -39,7 +39,7 @@ class RetirementAnalysisServiceTest {
   @Test
   void reusesProjectionBaseAsCanonicalEvaluationForEveryAnalysis() {
     InvestmentProfile profile = profile();
-    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 95, 2027);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 95, 2027);
     SimulationResult base =
         new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
     SimulationDecisionSummary summary = SimulationDecisionSummary.from(base, assumptions);
@@ -77,7 +77,7 @@ class RetirementAnalysisServiceTest {
   @Test
   void noForwardHorizonReturnsExplicitUnavailableStateWithoutRunningAnalysis() {
     InvestmentProfile profile = profile();
-    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 95, 95, 2026);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(95, 95, 2026);
     RetirementProjection projection =
         projection(profile, assumptions, Optional.empty(), null, null);
     SustainableSpendingAnalysisService spending = mock(SustainableSpendingAnalysisService.class);

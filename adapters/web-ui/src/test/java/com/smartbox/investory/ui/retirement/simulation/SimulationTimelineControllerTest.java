@@ -22,14 +22,16 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 class SimulationTimelineControllerTest {
   @Mock ProfileClient profiles;
   @Mock RetirementPlanClient plans;
-  @Mock RetirementPlanningClient planning;
+  @Mock RetirementTimelineClient timeline;
+  @Mock RetirementPresentationClient presentation;
   @Mock RetirementProjectionClient projections;
 
   private SimulationTimelineController controller() {
     return new SimulationTimelineController(
         profiles,
         plans,
-        planning,
+        timeline,
+        presentation,
         projections,
         Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
   }
@@ -39,7 +41,7 @@ class SimulationTimelineControllerTest {
     String redirect =
         controller().rollover(1L, CurrencyType.EUR, 7L, SimulationScenario.CONSERVATIVE);
 
-    verify(planning).rollover(1L);
+    verify(timeline).rollover(1L);
     assertEquals(
         "redirect:/portfolios/1/simulation?planId=7&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
         redirect);
@@ -47,7 +49,7 @@ class SimulationTimelineControllerTest {
 
   @Test
   void pastManualValueConvertsAndPreservesDetailContext() {
-    when(planning.fromDisplay(new BigDecimal("45000"), CurrencyType.PLN, BigDecimal.ZERO))
+    when(presentation.fromDisplay(new BigDecimal("45000"), CurrencyType.PLN, BigDecimal.ZERO))
         .thenReturn(new BigDecimal("11250"));
     RedirectAttributesModelMap flash = new RedirectAttributesModelMap();
 
@@ -64,7 +66,7 @@ class SimulationTimelineControllerTest {
                 SimulationScenario.CONSERVATIVE,
                 flash);
 
-    verify(planning)
+    verify(timeline)
         .saveDraftManualValue(
             1L,
             2025,
@@ -79,7 +81,7 @@ class SimulationTimelineControllerTest {
   @Test
   void failedPastCloseReturnsFlashError() {
     doThrow(new IllegalStateException("Missing CORE_SPENDING"))
-        .when(planning)
+        .when(timeline)
         .closeHistoricalDraft(1L, 2025);
     RedirectAttributesModelMap flash = new RedirectAttributesModelMap();
 
@@ -98,7 +100,7 @@ class SimulationTimelineControllerTest {
     String redirect =
         controller().createPastYear(1L, 2024, CurrencyType.PLN, null, SimulationScenario.BASE);
 
-    verify(planning).createHistoricalDraft(1L, 2024);
+    verify(timeline).createHistoricalDraft(1L, 2024);
     assertEquals(
         "redirect:/portfolios/1/simulation/timeline/2024?planningDisplayCurrency=PLN", redirect);
   }
@@ -109,7 +111,7 @@ class SimulationTimelineControllerTest {
         controller()
             .prefillHistoricalYears(1L, null, CurrencyType.EUR, SimulationScenario.OPTIMISTIC);
 
-    verify(planning).prefillHistoricalYears(1L, 2026);
+    verify(timeline).prefillHistoricalYears(1L, 2026);
     assertEquals(
         "redirect:/portfolios/1/simulation?planningDisplayCurrency=EUR&selectedScenario=OPTIMISTIC",
         redirect);
@@ -118,7 +120,7 @@ class SimulationTimelineControllerTest {
   @Test
   void failedReopenPreservesErrorAndYearContext() {
     doThrow(new IllegalArgumentException("Year is not closed"))
-        .when(planning)
+        .when(timeline)
         .reopenHistoricalYear(1L, 2025);
     RedirectAttributesModelMap flash = new RedirectAttributesModelMap();
 

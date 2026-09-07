@@ -63,9 +63,7 @@ class RetirementSimulationChartViewTest {
   @Test
   void exposesAuthoritativeLifecycleMarkerYears() {
     var assumptions =
-        SimulationAssumptions.defaults(null, 41, 95, 2026)
-            .withRetirementAge(60)
-            .withPensionStartAge(67);
+        SimulationAssumptions.defaults(41, 95, 2026).withRetirementAge(60).withPensionStartAge(67);
 
     var chart =
         RetirementSimulationChartView.from(new PlanningTimeline(List.of()), Map.of(), assumptions);

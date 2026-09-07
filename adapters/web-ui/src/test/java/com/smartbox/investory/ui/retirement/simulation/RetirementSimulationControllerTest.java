@@ -110,7 +110,7 @@ class RetirementSimulationControllerTest {
               var details = plans.details(portfolioId, planId);
               SimulationAssumptions assumptions = details == null ? null : details.assumptions();
               if (assumptions == null) {
-                assumptions = SimulationAssumptions.defaults(profile, currentAge, endAge, 2026);
+                assumptions = SimulationAssumptions.defaults(currentAge, endAge, 2026);
               }
               var projection = mock(RetirementProjection.class);
               when(projection.profile()).thenReturn(profile);
@@ -364,7 +364,7 @@ class RetirementSimulationControllerTest {
                 new BigDecimal("1000")),
             com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
     var saved =
-        SimulationAssumptions.defaults(p, 45, 90, 2026)
+        SimulationAssumptions.defaults(45, 90, 2026)
             .withRetirementAge(60)
             .withAnnualEmploymentIncome(new BigDecimal("240000"))
             .withAnnualPreRetirementContribution(new BigDecimal("50000"));
@@ -389,7 +389,7 @@ class RetirementSimulationControllerTest {
   void simulationRoundsPlanInputMoneyForDisplay() throws Exception {
     InvestmentProfile p = profile();
     var saved =
-        SimulationAssumptions.defaults(p, 45, 90, 2026)
+        SimulationAssumptions.defaults(45, 90, 2026)
             .withRecurringSpending(new BigDecimal("180000.00071684"))
             .withAnnualPension(new BigDecimal("7000.00002787"));
     when(profiles.loadProfile(1L)).thenReturn(p);
@@ -412,7 +412,7 @@ class RetirementSimulationControllerTest {
   @Test
   void simulationWithoutPlanIdUsesTheLatestSavedPlan() throws Exception {
     InvestmentProfile profile = profile();
-    SimulationAssumptions latest = SimulationAssumptions.defaults(profile, 45, 90, 2026);
+    SimulationAssumptions latest = SimulationAssumptions.defaults(45, 90, 2026);
     when(profiles.loadProfile(1L)).thenReturn(profile);
     when(plans.resolvePlanId(1L, null)).thenReturn(Optional.of(8L));
     when(plans.details(1L, 8L)).thenReturn(planDetails(8L, "Plan B", latest));
@@ -432,7 +432,7 @@ class RetirementSimulationControllerTest {
   @Test
   void simulationKeepsAnExplicitPlanIdWhenANewerPlanExists() throws Exception {
     InvestmentProfile profile = profile();
-    SimulationAssumptions explicit = SimulationAssumptions.defaults(profile, 45, 90, 2026);
+    SimulationAssumptions explicit = SimulationAssumptions.defaults(45, 90, 2026);
     when(profiles.loadProfile(1L)).thenReturn(profile);
     when(plans.resolvePlanId(1L, 7L)).thenReturn(Optional.of(7L));
     when(plans.details(1L, 7L)).thenReturn(planDetails(7L, "Plan A", explicit));
@@ -454,7 +454,7 @@ class RetirementSimulationControllerTest {
   @Test
   void editPageUsesTheSameLatestPlanResolutionAndFallsBackToDefaults() {
     InvestmentProfile profile = profile();
-    SimulationAssumptions latest = SimulationAssumptions.defaults(profile, 45, 90, 2026);
+    SimulationAssumptions latest = SimulationAssumptions.defaults(45, 90, 2026);
     when(profiles.loadProfile(1L)).thenReturn(profile);
     when(plans.resolvePlanId(1L, null)).thenReturn(Optional.of(8L));
     when(plans.details(1L, 8L)).thenReturn(planDetails(8L, "Plan B", latest));
@@ -508,8 +508,7 @@ class RetirementSimulationControllerTest {
   @Test
   void editingExistingPlanPreservesItsTemporalAnchorAcrossCalendarYears() throws Exception {
     SimulationAssumptions stored =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2025)
-            .withRetirementAge(45);
+        SimulationAssumptions.defaults(40, 80, 2025).withRetirementAge(45);
     when(plans.details(1L, 9L)).thenReturn(planDetails(9L, "Plan", stored));
     when(plans.updatePlan(any(com.smartbox.investory.retirement.api.model.UpdatePlanCommand.class)))
         .thenReturn(9L);

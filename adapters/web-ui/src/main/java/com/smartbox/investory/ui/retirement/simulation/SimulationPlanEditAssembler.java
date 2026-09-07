@@ -47,9 +47,7 @@ final class SimulationPlanEditAssembler {
     Long selectedId = plans.resolvePlanId(portfolioId, planId).orElse(null);
     var details = selectedId == null ? null : plans.details(portfolioId, selectedId);
     SimulationAssumptions assumptions =
-        details == null
-            ? SimulationAssumptions.defaults(profile, 40, 95, year)
-            : details.assumptions();
+        details == null ? SimulationAssumptions.defaults(40, 95, year) : details.assumptions();
     model.addAttribute("profile", profile);
     model.addAttribute("displayProfile", presentation.displayProfile(profile, currency));
     model.addAttribute("assumptions", assumptions);
