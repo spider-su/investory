@@ -39,9 +39,9 @@ class LongTermHardeningMigrationIT {
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.real_estate WHERE id = 9491 AND tax_base = 3200"));
-      assertTrue(columnComment(statement).startsWith("Annual rental-tax base."));
+      assertTrue(columnComment(statement).startsWith("Annual rental-tax base in asset currency."));
     }
-    MigrationTestDatabase.migrateTo(DATABASE, "01.012");
+    MigrationTestDatabase.migrateTo(DATABASE, "01.008");
   }
 
   @AfterAll
@@ -81,7 +81,7 @@ class LongTermHardeningMigrationIT {
 
   @Test
   void rerunningFlywayDoesNotRewriteAnnualBases() throws Exception {
-    MigrationTestDatabase.migrateTo(DATABASE, "01.012");
+    MigrationTestDatabase.migrateTo(DATABASE, "01.008");
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement();
         var result =
