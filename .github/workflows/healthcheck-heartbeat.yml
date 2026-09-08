@@ -2,7 +2,12 @@ name: Healthcheck heartbeat
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '45-59/5 7 * * *'
+      timezone: 'Europe/Warsaw'
+    - cron: '*/5 8-21 * * *'
+      timezone: 'Europe/Warsaw'
+    - cron: '0-15/5 22 * * *'
+      timezone: 'Europe/Warsaw'
   workflow_dispatch:
 
 permissions: {}
@@ -16,22 +21,13 @@ jobs:
       - name: Call health endpoint
         env:
           HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
-          TZ: Europe/Warsaw
         run: |
-          current_time="$(date +%H%M)"
-
-          # Keep one five-minute schedule; the shell check handles CET/CEST and avoids multiple cron expressions.
-          if (( 10#$current_time < 745 || 10#$current_time > 2215 )); then
-            echo "Outside the 07:45-22:15 Europe/Warsaw window; skipping healthcheck."
-            exit 0
-          fi
-
           curl \
             --fail \
             --silent \
             --show-error \
-            --connect-timeout 10 \
-            --max-time 20 \
             --retry 2 \
-            --retry-all-errors \
+            --retry-delay 2 \
+            --max-time 20 \
             "$HEALTHCHECK_URL"
+          echo "Healthcheck succeeded."

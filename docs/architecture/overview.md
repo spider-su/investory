@@ -200,6 +200,11 @@ repeatable-read transaction. The former split summary/planning ports and `Profil
 removed, so downstream consumers cannot accidentally combine independent reads. Profile may reuse
 small, stable Long-Term public value types in `profile.api`; it still never exposes Long-Term
 entities, repositories, or infrastructure types.
+
+Investment income-source calculations are owned by Investment. `InvestmentIncomeSummaryReader`
+publishes the month-weighted capital base, projected income, authoritative annualized yield,
+YTD investment result, expected YTD income, and finite expectation progress. Profile consumes
+these final values and does not read accounting tables or recalculate market-income formulas.
 `LongTermAssetProfileReader` returns one coherent source snapshot containing the summary rows used
 for totals, allocation, annual-income facts, and detailed projection inputs. Profile's REST adapter
 maps the public `InvestmentProfile` read model to a dedicated transport response, preserving the

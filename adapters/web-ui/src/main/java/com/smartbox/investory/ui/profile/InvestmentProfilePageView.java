@@ -45,6 +45,8 @@ record InvestmentProfilePageView(
       com.smartbox.investory.retirement.api.model.AnnualCostView annualCost,
       int currentMonth) {
     BigDecimal marketAnnualIncome = profile.incomeSummary().marketAnnualIncome();
+    var income = profile.incomeSummary();
+    boolean hasInvestmentIncome = income.investmentIncomeAvailable();
     return new InvestmentProfilePageView(
         profile.portfolioId(),
         profile.currency(),
@@ -56,12 +58,25 @@ record InvestmentProfilePageView(
         UiPresentation.compactMoney(marketAnnualIncome),
         UiPresentation.percentage(profile.marketPortfolioPercentage()),
         UiPresentation.percentage(profile.longTermAssetPercentage()),
-        performance.available() && performance.annualizedReturn() != null
-            ? UiPresentation.percentage(performance.annualizedReturn())
-            : "Unavailable",
-        performance.kpiStartDate() == null ? "Total return" : "Since " + performance.kpiStartDate(),
-        money(investmentResult.available() ? investmentResult.amount() : null),
-        performance.ytdReturn() == null ? "" : UiPresentation.percentage(performance.ytdReturn()),
+        hasInvestmentIncome
+            ? UiPresentation.percentage(income.investmentAnnualizedYield())
+            : performance.available() && performance.annualizedReturn() != null
+                ? UiPresentation.percentage(performance.annualizedReturn())
+                : "Unavailable",
+        hasInvestmentIncome
+            ? "Investment performance"
+            : performance.kpiStartDate() == null
+                ? "Total return"
+                : "Since " + performance.kpiStartDate(),
+        money(
+            hasInvestmentIncome
+                ? income.investmentResultYtd()
+                : investmentResult.available() ? investmentResult.amount() : null),
+        hasInvestmentIncome
+            ? UiPresentation.percentage(income.investmentExpectationProgress()) + " of expected"
+            : performance.ytdReturn() == null
+                ? ""
+                : UiPresentation.percentage(performance.ytdReturn()),
         money(profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth)),
         ytdProgress(
             profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth),
@@ -112,6 +127,7 @@ record InvestmentProfilePageView(
   }
 
   record IncomeView(
+      String incomeBaseCompactDisplay,
       String marketIncomeYtdCompactDisplay,
       String marketAnnualIncomeCompactDisplay,
       String marketNetYieldDisplay,
@@ -123,6 +139,9 @@ record InvestmentProfilePageView(
     static IncomeView from(ProfileIncomeSummary income, BigDecimal marketAnnualIncome) {
       BigDecimal combinedAnnualIncome = marketAnnualIncome.add(income.longTermAnnualIncome());
       return new IncomeView(
+          income.investmentIncomeBase() == null
+              ? "—"
+              : UiPresentation.compactMoney(income.investmentIncomeBase()),
           UiPresentation.compactMoney(income.marketIncomeYtd()),
           UiPresentation.compactMoney(marketAnnualIncome),
           UiPresentation.percentage(income.marketNetYield()),
