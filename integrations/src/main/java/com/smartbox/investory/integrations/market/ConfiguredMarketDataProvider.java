@@ -1,10 +1,5 @@
 package com.smartbox.investory.integrations.market;
 
-import com.smartbox.investory.integrations.management.api.model.IntegrationType;
-import com.smartbox.investory.integrations.management.application.IntegrationConfigurationService;
-import com.smartbox.investory.integrations.management.model.PluginConfig;
-import com.smartbox.investory.integrations.market.twelvedata.TwelveDataMarketDataPlugin;
-import com.smartbox.investory.integrations.market.twelvedata.TwelveDataService;
 import com.smartbox.investory.integrations.market.yahoo.YahooFinanceService;
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
 import com.smartbox.investory.investment.port.market.MarketQuote;
@@ -21,16 +16,12 @@ import org.springframework.stereotype.Component;
 /**
  * Adapts the configured market providers to Investment's port.
  *
- * <p>Routing is intentional: Yahoo supplies current quotes; TwelveData supplies historical
- * daily/monthly closes. Their configuration is resolved independently by the owning adapter.
+ * <p>Yahoo Finance supplies current quotes and historical daily/monthly closes.
  */
 @Component
 @RequiredArgsConstructor
 public class ConfiguredMarketDataProvider implements MarketDataProvider {
-  private final TwelveDataMarketDataPlugin twelveData;
-  private final TwelveDataService twelveDataClient;
   private final YahooFinanceService yahooFinance;
-  private final IntegrationConfigurationService configuration;
 
   @Override
   public Map<String, MarketQuote> fetchQuotes(List<String> symbols) {
@@ -47,16 +38,12 @@ public class ConfiguredMarketDataProvider implements MarketDataProvider {
   @Override
   public NavigableMap<LocalDate, Double> fetchDailyCloses(
       String symbol, LocalDate from, LocalDate to) {
-    PluginConfig config = config();
-    return twelveDataClient.fetchDailyCloses(
-        symbol, from, to, config.value("apiKey").orElse(""), config.value("baseUrl").orElse(null));
+    return yahooFinance.fetchDailyCloses(symbol, from, to);
   }
 
   @Override
   public NavigableMap<String, Double> fetchMonthlyCloses(String symbol, int months) {
-    PluginConfig config = config();
-    return twelveDataClient.fetchMonthlyCloses(
-        symbol, months, config.value("baseUrl").orElse(null));
+    return yahooFinance.fetchMonthlyCloses(symbol, months);
   }
 
   @Override
@@ -82,8 +69,4 @@ public class ConfiguredMarketDataProvider implements MarketDataProvider {
     return marketQuote;
   }
 
-  private PluginConfig config() {
-    return configuration.resolveForRuntime(
-        IntegrationType.MARKET_DATA, TwelveDataMarketDataPlugin.ID, PluginConfig.empty());
-  }
 }

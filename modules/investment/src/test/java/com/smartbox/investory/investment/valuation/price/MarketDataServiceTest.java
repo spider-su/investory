@@ -278,7 +278,7 @@ class MarketDataServiceTest {
   @Test
   void updateStocks_skipsQuotesUpdatedWithinFourHours() {
     AssetEntity recent = newAsset("AAPL.US", "AAPL", true);
-    recent.setPriceSource("TwelveData");
+    recent.setPriceSource("YahooFinance");
     recent.setPriceUpdatedAt(java.time.ZonedDateTime.now().minusHours(3));
     when(assetRepository.findAll()).thenReturn(List.of(recent));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
@@ -291,9 +291,9 @@ class MarketDataServiceTest {
     verify(marketDataProvider, never()).fetchLatestQuote(anyString());
   }
 
-  @DisplayName("update Stocks Uses Yahoo Fallback When Twelve Data Has No Quote")
+  @DisplayName("update Stocks Uses Yahoo When No Primary Quote Exists")
   @Test
-  void updateStocksUsesYahooFallbackWhenTwelveDataHasNoQuote() {
+  void updateStocksUsesYahooWhenNoPrimaryQuoteExists() {
     AssetEntity vwra = newAsset("VWRA.UK", "VWRA", true);
     when(assetRepository.findAll()).thenReturn(List.of(vwra));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("VWRA.UK")));

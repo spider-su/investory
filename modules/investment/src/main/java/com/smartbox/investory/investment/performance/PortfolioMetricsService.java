@@ -326,9 +326,14 @@ public class PortfolioMetricsService {
             stats.stream()
                 .map(stat -> bd(stat.getInterest()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)));
+    Set<Long> cashOnlyAccountIds =
+        dataReader().accounts(activePortfolioId()).stream()
+            .filter(AccountEntity::isCashOnly)
+            .map(AccountEntity::getId)
+            .collect(Collectors.toSet());
     List<CashOperationEntity> cashOperations =
         cashOperations().stream()
-            .filter(operation -> !isCashOnlyAccount(operation.getAccount()))
+            .filter(operation -> !cashOnlyAccountIds.contains(operation.getAccount()))
             .toList();
     if (!CollectionUtils.isEmpty(cashOperations)) {
       CashFlowAggregator.CashFlowSummary cashFlow =
@@ -942,12 +947,6 @@ public class PortfolioMetricsService {
         baseCurrency,
         BigDecimal.valueOf(100),
         null);
-  }
-
-  private boolean isCashOnlyAccount(Long accountId) {
-    return dataReader().accounts(activePortfolioId()).stream()
-        .filter(account -> Objects.equals(account.getId(), accountId))
-        .anyMatch(AccountEntity::isCashOnly);
   }
 
   private boolean isDashboardVisible(AccountStatisticsEntity stat) {

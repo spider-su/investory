@@ -56,7 +56,7 @@ public class MarketDataService {
    */
   static final int CHUNK_SIZE = 8;
 
-  /** Yahoo requests do not use the old TwelveData free-tier pause by default. */
+  /** Yahoo requests use the configured market request pause. */
   static final long DEFAULT_CHUNK_PAUSE_MS = 0L;
 
   static final Duration QUOTE_FRESHNESS = Duration.ofHours(4);
@@ -144,7 +144,7 @@ public class MarketDataService {
             .filter(this::isSupportedForPriceUpdate)
             .collect(
                 Collectors.groupingBy(
-                    this::twelveDataSymbol, LinkedHashMap::new, Collectors.toList()));
+                    this::yahooSymbol, LinkedHashMap::new, Collectors.toList()));
     ZonedDateTime quoteFreshnessCutoff =
         applicationTime.now(applicationTime.businessZone()).minus(QUOTE_FRESHNESS);
     assetsByTicker
@@ -341,7 +341,7 @@ public class MarketDataService {
                 asset.getId(),
                 quoteDate(quote),
                 "YAHOO_FINANCE",
-                twelveDataSymbol(asset),
+                yahooSymbol(asset),
                 asset.getSymbol(),
                 "YAHOO_FINANCE_MARKET_CLOSE",
                 quoteCurrency(asset, quote),
@@ -404,8 +404,7 @@ public class MarketDataService {
 
   private boolean isQuoteFresh(AssetEntity asset, ZonedDateTime cutoff) {
     ZonedDateTime updatedAt = asset.getPriceUpdatedAt();
-    return ("YahooFinance".equalsIgnoreCase(asset.getPriceSource())
-            || "TwelveData".equalsIgnoreCase(asset.getPriceSource()))
+    return "YahooFinance".equalsIgnoreCase(asset.getPriceSource())
         && updatedAt != null
         && !updatedAt.isBefore(cutoff);
   }
@@ -474,7 +473,7 @@ public class MarketDataService {
     }
   }
 
-  private String twelveDataSymbol(AssetEntity asset) {
+  private String yahooSymbol(AssetEntity asset) {
     return marketDataProvider.externalSymbol(asset.getSymbol(), asset.getTicker());
   }
 

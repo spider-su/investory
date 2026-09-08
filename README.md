@@ -72,9 +72,9 @@ implemented tooling, and known gaps.
 | XTB | `.xlsx` statements and `.zip` statement packages. |
 | Automatic detection | `.csv` is treated as IBKR; `.xlsx` and `.zip` are treated as XTB. The broker can also be selected explicitly through the import endpoint. |
 | Currencies | `USD`, `EUR`, and `PLN`. |
-| Market data | TwelveData supplies automatic quotes, historical prices, and SPY monthly closes. The scheduled market refresh runs on weekdays at 22:01 Europe/Warsaw. |
-| FX data | NBP supplies PLN-relative daily rates; the adapter derives USD-based EUR and PLN rates locally. Each observation keeps its requested effective date and NBP publication date. ExchangeRate.host remains an optional fallback integration. |
-| Asset coverage | Imported asset symbols must resolve to exactly one existing canonical asset; unknown or ambiguous mappings fail instead of creating guessed assets. Automatic quote coverage depends on TwelveData mappings and plan limits. Non-US listings are skipped by default and may require manual prices. Real-time websocket pricing is not implemented. |
+| Market data | Yahoo Finance supplies automatic quotes, historical prices, and SPY monthly closes. The scheduled market refresh runs on weekdays at 22:01 Europe/Warsaw. |
+| FX data | NBP supplies PLN-relative daily rates; the adapter derives USD-based EUR and PLN rates locally. Each observation keeps its requested effective date and NBP publication date. |
+| Asset coverage | Imported asset symbols must resolve to exactly one existing canonical asset; unknown or ambiguous mappings fail instead of creating guessed assets. Non-US listings are skipped by default and may require manual prices. Real-time websocket pricing is not implemented. |
 
 ### Manual long-term assets
 
@@ -314,7 +314,6 @@ mapping before retrying an import that reports an unknown or ambiguous source sy
 Set provider keys before application startup when automatic quote and FX refresh is required:
 
 ```bash
-export TWELVEDATA_API_KEY=your-key
 ```
 
 Refresh current prices and portfolio projections:

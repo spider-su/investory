@@ -20,7 +20,6 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.regex.Pattern;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,7 +57,6 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
   }
 
   @Test
-  @Disabled("fixme")
   @DisplayName("canonical property flow preserves facts and rental contract editing")
   void canonicalPropertyFlowPreservesFactsAndRentalContracts() throws IOException {
     try (BrowserContext context = authenticatedContext()) {
@@ -192,7 +190,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
             page.getByRole(
                 AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("Save property").setExact(true)));
-        page.waitForURL(Pattern.compile(".*/portfolios/1/long-term-assets/[0-9]+/real-estate$"));
+        assertThat(page.url())
+            .matches(".*/portfolios/1/long-term-assets/[0-9]+/real-estate(?:\\?[^#]*)?$");
         assertThat(page.locator(".iv-property-hero h1"))
             .hasText(HappyInvestorTestData.APARTMENT_A_NAME + " copy");
         assertThat(page.locator("body").textContent())
@@ -209,7 +208,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
             page,
             page.getByRole(
                 AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Save cash reserve")));
-        assertThat(page.url()).endsWith("/portfolios/1/long-term-assets");
+        assertThat(page.url().split("\\?", 2)[0]).endsWith("/portfolios/1/long-term-assets");
         page.locator("#cash-reserves .iv-planning-section__header").click();
         long cashId =
             jdbc.queryForObject(
@@ -299,19 +298,20 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
                         .equals(java.net.URI.create(page.url()).resolve(action).toString()),
             button::click);
     assertThat(response.status()).isBetween(300, 399);
-    // Turbo/native form handling can deliver the POST response before the redirected document
-    // has finished loading. Let the subsequent URL assertion observe the settled page.
-    page.waitForLoadState(LoadState.NETWORKIDLE);
+    // The POST response is the synchronization point. A global idle wait is not deterministic
+    // because
+    // the page may keep analytics or other long-lived requests open.
+    page.waitForLoadState(LoadState.DOMCONTENTLOADED);
   }
 
   private void assertCanonicalPropertyUrl(Page page, long assetId) {
-    page.waitForURL(
-        Pattern.compile(
+    assertThat(page.url())
+        .matches(
             ".*/portfolios/"
                 + PORTFOLIO_ID
                 + "/long-term-assets/"
                 + assetId
-                + "/real-estate(?:#rental-contracts)?$"));
+                + "/real-estate(?:\\?[^#]*)?(?:#rental-contracts)?$");
     assertThat(page.locator(".iv-property-hero")).isVisible();
   }
 

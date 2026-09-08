@@ -4,11 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.integrations.management.api.model.IntegrationType;
-import com.smartbox.investory.integrations.management.application.IntegrationConfigurationService;
-import com.smartbox.investory.integrations.management.model.PluginConfig;
-import com.smartbox.investory.integrations.market.twelvedata.TwelveDataMarketDataPlugin;
-import com.smartbox.investory.integrations.market.twelvedata.TwelveDataService;
 import com.smartbox.investory.integrations.market.yahoo.YahooFinanceService;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,24 +15,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class ConfiguredMarketDataProviderTest {
-  private TwelveDataMarketDataPlugin plugin;
-  private TwelveDataService twelveData;
   private YahooFinanceService yahoo;
-  private IntegrationConfigurationService configuration;
   private ConfiguredMarketDataProvider provider;
-  private PluginConfig config;
 
   @BeforeEach
   void setUp() {
-    plugin = mock(TwelveDataMarketDataPlugin.class);
-    twelveData = mock(TwelveDataService.class);
     yahoo = mock(YahooFinanceService.class);
-    configuration = mock(IntegrationConfigurationService.class);
-    provider = new ConfiguredMarketDataProvider(plugin, twelveData, yahoo, configuration);
-    config = new PluginConfig(Map.of("apiKey", "secret", "baseUrl", "https://market.test"));
-    when(configuration.resolveForRuntime(
-            IntegrationType.MARKET_DATA, TwelveDataMarketDataPlugin.ID, PluginConfig.empty()))
-        .thenReturn(config);
+    provider = new ConfiguredMarketDataProvider(yahoo);
   }
 
   @Test
@@ -46,12 +30,7 @@ class ConfiguredMarketDataProviderTest {
         new YahooFinanceService.YahooQuote("AAPL", "USD", LocalDate.of(2026, 1, 2), 200.0);
     when(yahoo.fetchLatestQuote("AAPL")).thenReturn(Optional.of(yahooQuote));
     NavigableMap<LocalDate, Double> daily = new TreeMap<>();
-    when(twelveData.fetchDailyCloses(
-            "AAPL",
-            LocalDate.of(2026, 1, 1),
-            LocalDate.of(2026, 1, 2),
-            "secret",
-            "https://market.test"))
+    when(yahoo.fetchDailyCloses("AAPL", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 2)))
         .thenReturn(daily);
 
     assertThat(provider.fetchQuotes(List.of("AAPL")).get("AAPL"))

@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -75,5 +76,23 @@ class YahooFinanceServiceTest {
         .thenThrow(new IOException("network unavailable"));
 
     assertThrows(IllegalStateException.class, () -> service.fetchLatestQuote("VWRA.L"));
+  }
+
+  @Test
+  void fetchDailyClosesParsesYahooChartHistory() throws Exception {
+    when(response.statusCode()).thenReturn(200);
+    when(response.body())
+        .thenReturn(
+            """
+            {"chart":{"result":[{"timestamp":[1788307200,1788393600],"indicators":{"quote":[{"close":[101.25,null]}]}}]}}
+            """);
+    when(httpClient.send(any(HttpRequest.class),
+            org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+        .thenReturn(response);
+
+    var closes = service.fetchDailyCloses("AAPL", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 3));
+
+    assertEquals(1, closes.size());
+    assertEquals(101.25, closes.get(LocalDate.of(2026, 9, 2)), 0.000001);
   }
 }

@@ -12,6 +12,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.time.YearMonth;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,7 +22,7 @@ import org.springframework.util.StringUtils;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Public Yahoo Finance chart endpoint fallback for a single current listing price. */
+/** Public Yahoo Finance chart endpoint adapter for quotes and price history. */
 @Slf4j
 @Service
 public class YahooFinanceService {
@@ -110,6 +113,61 @@ public class YahooFinanceService {
       throw new IllegalStateException("Yahoo Finance response failed for " + symbol, e);
     } finally {
       baseUrl = previousBaseUrl;
+    }
+  }
+
+  public NavigableMap<LocalDate, Double> fetchDailyCloses(
+      String symbol, LocalDate from, LocalDate to) {
+    NavigableMap<LocalDate, Double> closes = new TreeMap<>();
+    if (!StringUtils.hasText(symbol) || from == null || to == null || from.isAfter(to)) {
+      return closes;
+    }
+    JsonNode result = fetchChart(symbol, from, to);
+    JsonNode timestamps = result.path("timestamp");
+    JsonNode closeValues = result.path("indicators").path("quote").path(0).path("close");
+    if (!timestamps.isArray() || !closeValues.isArray()) return closes;
+    for (int i = 0; i < Math.min(timestamps.size(), closeValues.size()); i++) {
+      JsonNode close = closeValues.get(i);
+      if (close == null || close.isNull()) continue;
+      LocalDate date = Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(ZoneOffset.UTC).toLocalDate();
+      double value = close.asDouble(0.0);
+      if (!date.isBefore(from) && !date.isAfter(to) && Double.isFinite(value) && value > 0.0) {
+        closes.put(date, value);
+      }
+    }
+    return closes;
+  }
+
+  public NavigableMap<String, Double> fetchMonthlyCloses(String symbol, int months) {
+    NavigableMap<String, Double> closes = new TreeMap<>();
+    if (months <= 0) return closes;
+    LocalDate to = LocalDate.now(ZoneOffset.UTC);
+    LocalDate from = to.minusMonths(months).withDayOfMonth(1);
+    for (var entry : fetchDailyCloses(symbol, from, to).entrySet()) {
+      closes.put(YearMonth.from(entry.getKey()).toString(), entry.getValue());
+    }
+    return closes;
+  }
+
+  private JsonNode fetchChart(String symbol, LocalDate from, LocalDate to) {
+    try {
+      long period1 = from.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+      long period2 = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+      URI uri = URI.create(baseUrl + URLEncoder.encode(symbol, StandardCharsets.UTF_8)
+          + "?period1=" + period1 + "&period2=" + period2 + "&interval=1d&events=history");
+      HttpResponse<String> response = httpClient.send(
+          HttpRequest.newBuilder().uri(uri).timeout(TIMEOUT).header("User-Agent", "Investory/1.0").GET().build(),
+          HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() / 100 != 2) return objectMapper.createObjectNode();
+      JsonNode result = objectMapper.readTree(response.body()).path("chart").path("result");
+      return result.isArray() && !result.isEmpty() ? result.get(0) : objectMapper.createObjectNode();
+    } catch (IOException e) {
+      throw new IllegalStateException("Yahoo Finance history request failed for " + symbol, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Yahoo Finance history request interrupted for " + symbol, e);
+    } catch (RuntimeException e) {
+      throw new IllegalStateException("Yahoo Finance history response failed for " + symbol, e);
     }
   }
 

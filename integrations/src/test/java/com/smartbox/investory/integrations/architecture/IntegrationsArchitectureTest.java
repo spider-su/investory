@@ -79,28 +79,14 @@ class IntegrationsArchitectureTest {
   void providerImplementationsDoNotDependOnManagementApplicationOrOtherProviders() {
     noClasses()
         .that()
-        .resideInAnyPackage("..market.twelvedata..")
+        .resideInAnyPackage("..market.yahoo..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
             "..management.application..",
             "..management.persistence..",
             "..management.scheduling..",
-            "..fx.exchangeratehost..",
-            "..export.yahoo..")
-        .check(MAIN);
-
-    noClasses()
-        .that()
-        .resideInAnyPackage("..fx.exchangeratehost..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..management.application..",
-            "..management.persistence..",
-            "..management.scheduling..",
-            "..market.twelvedata..",
-            "..market.yahoo..",
+            "..fx..",
             "..export.yahoo..")
         .check(MAIN);
   }

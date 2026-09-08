@@ -9,7 +9,6 @@ spring:
       max-file-size: 50MB
       max-request-size: 60MB
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate.ddl-auto: validate
     generate-ddl: false
     show-sql: false
@@ -110,8 +109,6 @@ app:
   import:
     # Reconciliation materialized views are diagnostic and expensive; refresh them manually or opt in.
     reconciliation-refresh-enabled: ${IMPORT_RECONCILIATION_REFRESH_ENABLED:false}
-  api:
-    twelve-data-key: ${TWELVEDATA_API_KEY:}
   security:
     # Read routes require HTTP Basic by default. Set false only for a trusted local network.
     read-authentication-required: ${APP_SECURITY_READ_AUTHENTICATION_REQUIRED:true}
@@ -160,7 +157,7 @@ app:
     stale-import-days: ${ALERT_STALE_IMPORT_DAYS:7}
   market:
     chunk-pause-ms: ${MARKET_CHUNK_PAUSE_MS:120000}
-    # Current TwelveData plan does not allow non-US exchange quotes; manual prices cover these.
+    # Unsupported listings may require manual prices.
     skip-non-us-listings: ${MARKET_SKIP_NON_US_LISTINGS:true}
     # Comma-separated stored asset symbols to skip even when they look US-listed.
     excluded-symbols: ${MARKET_EXCLUDED_SYMBOLS:}

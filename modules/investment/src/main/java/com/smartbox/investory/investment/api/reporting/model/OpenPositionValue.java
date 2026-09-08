@@ -24,10 +24,6 @@ public class OpenPositionValue {
   private BigDecimal sharePercent;
   private String priceSource;
 
-  public boolean isTwelveDataPrice() {
-    return "TwelveData".equalsIgnoreCase(priceSource);
-  }
-
   public boolean isYahooFinancePrice() {
     return "YahooFinance".equalsIgnoreCase(priceSource);
   }

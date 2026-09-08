@@ -6,6 +6,12 @@ spring:
   thymeleaf:
     cache: true
 
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 app:
   integrations:
     # Production must provide a stable key; never use the development fallback.

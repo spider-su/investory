@@ -5,7 +5,7 @@ The repository includes a reproducible development environment under `.devcontai
 It provides:
 
 - Java 25 and Maven
-- PostgreSQL 17
+- PostgreSQL 18.6
 - PostgreSQL command-line tools
 - persistent Maven dependency cache
 - persistent development database
@@ -210,7 +210,6 @@ The container sets only local database variables. Optional integrations remain d
 
 Provide secrets through the host environment, a local uncommitted environment file, or the remote environment's secret manager. Do not commit values for:
 
-- `TWELVEDATA_API_KEY`
 - `TELEGRAM_BOT_TOKEN`
 - `OPENAI_API_KEY`
 - production database credentials

@@ -106,10 +106,10 @@ class PriceHistoryCoverageServiceTest {
         .upsertObservedPrice(
             5L,
             LocalDate.of(2026, 1, 3),
-            "TWELVE_DATA",
+            "YAHOO_FINANCE",
             "AAPL.US",
             "AAPL",
-            "TWELVE_DATA_MARKET_CLOSE",
+            "YAHOO_FINANCE_MARKET_CLOSE",
             "USD",
             new BigDecimal("101.25"),
             100,

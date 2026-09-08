@@ -65,7 +65,7 @@ class IntegrationJobExecutionIT extends FastDatabaseTest {
 
     var instance =
         new com.smartbox.investory.integrations.management.persistence.IntegrationInstanceEntity();
-    instance.setPluginId("exchangerate-host");
+    instance.setPluginId("missing-fx");
     instance.setPluginType(IntegrationType.FX_DATA);
     instance.setEnabled(true);
     instance.setConfigJson("{\"apiKey\":\"test-secret-reference\"}");

@@ -30,7 +30,7 @@ Before a schema-changing release, take a database backup appropriate to the Post
 
 Scheduled work is globally controlled by `SCHEDULING_ENABLED`. Market prices, FX, notifications, Telegram, and OpenAI analysis additionally depend on their own configuration and provider availability. Provider failures must not be treated as permission to invent or silently substitute financial facts.
 
-TwelveData is the primary configured market quote integration; unsupported/non-US listings may require manual prices. FX uses the configured exchange-rate provider and the canonical rules in `../domain/fx-normalization.md`. Yahoo export is an adapter surface and participates in C7 reconciliation; it is not an accounting source of truth.
+Yahoo Finance is the primary configured market quote integration; unsupported/non-US listings may require manual prices. FX uses NBP and the canonical rules in `../domain/fx-normalization.md`. Yahoo export is an adapter surface and participates in C7 reconciliation; it is not an accounting source of truth.
 
 ## Release verification
 

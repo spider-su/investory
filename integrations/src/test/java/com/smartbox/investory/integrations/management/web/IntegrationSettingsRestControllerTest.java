@@ -89,13 +89,13 @@ class IntegrationSettingsRestControllerTest {
   @Test
   void listGetAndJobEndpointsAreMapped() throws Exception {
     when(facade.listIntegrations()).thenReturn(java.util.List.of());
-    when(facade.getIntegration(IntegrationType.MARKET_DATA, "twelvedata")).thenReturn(null);
+    when(facade.getIntegration(IntegrationType.MARKET_DATA, "missing-market")).thenReturn(null);
     when(facade.saveJob(any())).thenReturn(null);
     mvc.perform(get("/api/v1/admin/integrations")).andExpect(status().isOk());
-    mvc.perform(get("/api/v1/admin/integrations/MARKET_DATA/twelvedata"))
+    mvc.perform(get("/api/v1/admin/integrations/MARKET_DATA/missing-market"))
         .andExpect(status().isOk());
     mvc.perform(
-            put("/api/v1/admin/integrations/MARKET_DATA/twelvedata/jobs/refresh-prices")
+            put("/api/v1/admin/integrations/MARKET_DATA/missing-market/jobs/refresh-prices")
                 .contentType("application/json")
                 .content(
                     "{\"enabled\":true,\"cron\":\"0 0 * * * *\",\"timezone\":\"Europe/Warsaw\"}"))

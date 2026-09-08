@@ -37,7 +37,6 @@ import java.util.regex.Pattern;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -136,7 +135,6 @@ class GoldenRebuildIT {
 
   @DisplayName("manifest Matches Every Golden Fixture")
   @Test
-  @Disabled
   void manifestMatchesEveryGoldenFixture() throws Exception {
     String manifest = new String(resource("manifest.json").readAllBytes(), StandardCharsets.UTF_8);
     Matcher matcher =
