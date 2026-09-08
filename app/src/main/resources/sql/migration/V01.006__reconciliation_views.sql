@@ -2681,7 +2681,7 @@ COMMENT ON VIEW investory.recon_v_reconciliation_position_issues IS
 
 
 COMMENT ON VIEW investory.app_v_normalized_cash_operation_flows IS
-    'Flow contract with separate account funding, performance-neutralizing, and portfolio-scoped values. INTERNAL_BOOKKEEPING remains cash/account-funding diagnostic data but is not performance flow; external and genuine tracked-account transfers are performance flow at account level and cancel when aggregated within a portfolio.';
+    'Canonical cash-flow currency contract: amount is in the operation currency; account_flow_amount_in_account_currency is the local account-funding amount; account_flow_amount_in_portfolio_base_currency is the same funding flow converted once to portfolio base on the operation date; portfolio_flow_amount_in_portfolio_base_currency contains external contributions only.';
 CREATE OR REPLACE VIEW investory.recon_v_account_daily_performance_flow AS
 WITH account_days AS (
     SELECT
@@ -4259,7 +4259,13 @@ SELECT a.id AS account_id, p.base_currency::varchar(3) AS valuation_currency,
     COALESCE(ft.missing_fx_count, 0) + COALESCE(cpt.missing_fx_count, 0) + COALESCE(opt.missing_fx_count, 0) AS missing_fx_count,
     COALESCE(ft.missing_fx_count, 0) = 0 AND COALESCE(cpt.missing_fx_count, 0) = 0 AND COALESCE(opt.missing_fx_count, 0) = 0 AS is_complete,
     COALESCE(am.activity_count, 0) AS activity_count, am.first_activity_at, am.last_activity_at,
-    ld.snapshot_date AS latest_snapshot_date, ld.daily_return_pct AS latest_return_pct, NOW() AS updated_at
+    ld.snapshot_date AS latest_snapshot_date, ld.daily_return_pct AS latest_return_pct, NOW() AS updated_at,
+    a.cash_only,
+    (abs(COALESCE(ld.cash_balance, 0) + COALESCE(
+        CASE WHEN COALESCE(opt.position_count, 0) > 0 THEN opt.market_value ELSE COALESCE(ld.market_value, 0) END,
+        0)) >= 50
+     OR abs(COALESCE(CASE WHEN COALESCE(ft.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ft.total_deposit, 0) - COALESCE(ft.total_withdrawal, 0) END, 0)) >= 50
+     OR abs(COALESCE(CASE WHEN COALESCE(ft.account_missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ft.total_deposit_account_currency, 0) - COALESCE(ft.total_withdrawal_account_currency, 0) END, 0)) >= 50) AS is_visible
 FROM investory.accounts a JOIN investory.portfolios p ON p.id = a.portfolio_id
 LEFT JOIN latest_daily_in_base ld ON ld.account_id = a.id
 LEFT JOIN open_position_totals opt ON opt.account_id = a.id
@@ -4271,15 +4277,10 @@ WITH DATA;
 CREATE UNIQUE INDEX ux_mv_account_statistics_account ON investory.app_v_account_statistics(account_id);
 
 CREATE OR REPLACE VIEW investory.app_v_account_statistics_reporting AS
-SELECT s.*, a.cash_only,
-       (abs(COALESCE(s.cash_balance, 0) + COALESCE(s.market_value, 0)) >= 50
-        OR abs(COALESCE(s.account_net_deposit, 0)) >= 50
-        OR abs(COALESCE(s.net_deposit, 0)) >= 50) AS is_visible
-FROM investory.app_v_account_statistics s
-JOIN investory.accounts a ON a.id = s.account_id;
+SELECT * FROM investory.app_v_account_statistics;
 
 COMMENT ON VIEW investory.app_v_account_statistics_reporting IS
-  'Authoritative account reporting boundary. cash_only comes from accounts and visibility uses one 50-unit threshold rule.';
+  'Compatibility view over canonical portfolio-base account statistics. It is not a selected reporting-currency view.';
 
 CREATE MATERIALIZED VIEW investory.app_v_portfolio_kpi_summary_mv AS
 WITH latest_portfolio_daily AS (

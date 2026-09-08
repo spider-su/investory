@@ -29,8 +29,12 @@ spring:
     hikari:
       # Keep timestamptz -> date reporting semantics deterministic across local and CI databases.
       connection-init-sql: SET TIME ZONE 'Europe/Warsaw'
-      keepalive-time: 20000
-      max-lifetime: 1800000
+      maximum-pool-size: 4
+      minimum-idle: 1
+      connection-timeout: 30000
+      validation-timeout: 5000
+      keepalive-time: 30000
+      max-lifetime: 1500000
       idle-timeout: 600000
       connection-test-query: SELECT 1
   flyway:
@@ -55,6 +59,11 @@ springdoc:
   paths-to-match: /api/v1/**
   swagger-ui:
     path: /swagger-ui.html
+
+server:
+  port: ${PORT:8080}
+  tomcat:
+    connection-timeout: 600s
 
 # FX matrix resolution is already batched and cached by CurrencyRateService. Keep the generated
 # native SQL out of normal application logs; enable DEBUG locally when diagnosing SQL itself.

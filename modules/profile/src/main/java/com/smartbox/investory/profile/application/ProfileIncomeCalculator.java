@@ -1,6 +1,7 @@
 package com.smartbox.investory.profile.application;
 
 import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
+import com.smartbox.investory.investment.api.reporting.InvestmentIncomeSummaryReader.InvestmentIncomeSummary;
 import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -36,6 +37,29 @@ final class ProfileIncomeCalculator {
         ProfileIncomeSummary.ratio(longTermIncome, longTermInvestmentValue),
         combined,
         ProfileIncomeSummary.ratio(combined, totalInvestmentValue));
+  }
+
+  ProfileIncomeSummary calculate(
+      InvestmentIncomeSummary market,
+      BigDecimal longTermIncome,
+      BigDecimal longTermInvestmentValue,
+      BigDecimal totalInvestmentValue) {
+    BigDecimal combined = market.projectedAnnualIncome().add(longTermIncome);
+    return new ProfileIncomeSummary(
+        market.investmentResultYtd(),
+        market.projectedAnnualIncome(),
+        market.annualizedYield(),
+        longTermIncome,
+        ProfileIncomeSummary.ratio(longTermIncome, longTermInvestmentValue),
+        combined,
+        ProfileIncomeSummary.ratio(combined, totalInvestmentValue),
+        market.incomeBase(),
+        market.projectedAnnualIncome(),
+        market.annualizedYield(),
+        market.investmentResultYtd(),
+        market.expectedIncomeYtd(),
+        market.expectationProgress(),
+        market.available());
   }
 
   private BigDecimal annualize(

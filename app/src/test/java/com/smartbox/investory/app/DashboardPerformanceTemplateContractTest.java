@@ -242,24 +242,28 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("new Intl.NumberFormat('de-DE'"));
     assertTrue(html.contains("Market data"));
     assertTrue(html.contains("id=\"refresh-prices-btn\""));
-    assertTrue(html.contains("Reporting currency: USD"));
+    assertTrue(html.contains("Base currency: USD"));
+    assertFalse(html.contains("reportingCurrency"));
+    assertTrue(headerControls.contains("iv-balance-popover__local"));
+    assertTrue(
+        headerControls.contains(
+            "stats.formatMoney(account.netDepositLocal, account.localCurrency)"));
+    assertFalse(headerControls.contains("account-native"));
+    assertFalse(headerControls.contains("fxEffect"));
     assertFalse(html.contains("Portfolio values are converted to"));
     assertFalse(html.contains("iv-topbar-fx-popover__total"));
     assertTrue(
         html.contains(
-            "th:text=\"${'Reporting currency: ' + stats.baseCurrency}\">Reporting currency: USD</span>"));
+            "th:text=\"${'Base currency: ' + stats.baseCurrency}\">Base currency: USD</span>"));
     assertTrue(headerControls.contains("stats.formatBase(account.netDepositBase)"));
-    assertTrue(
-        headerControls.contains(
-            "stats.formatMoney(account.netDepositLocal, account.localCurrency)"));
     assertTrue(headerControls.contains("class=\"iv-account-name\""));
     assertTrue(headerControls.contains("class=\"iv-account-id\""));
     assertTrue(headerControls.contains("class=\"iv-account-metric\""));
     assertTrue(headerControls.contains("iv-account-metric iv-account-pl"));
     assertTrue(headerControls.contains("data-sort-key=\"pl\""));
-    assertTrue(headerControls.contains("Net deposit (base)</button>"));
-    assertTrue(headerControls.contains("Balance (base)</button>"));
-    assertTrue(headerControls.contains("Result (base)</button>"));
+    assertTrue(headerControls.contains("Net deposit</button>"));
+    assertTrue(headerControls.contains("Balance</button>"));
+    assertTrue(headerControls.contains("Result</button>"));
     assertTrue(headerControls.contains("Return</button>"));
     assertTrue(headerControls.contains("Cash</button>"));
     assertTrue(html.contains("Rates updated:"));

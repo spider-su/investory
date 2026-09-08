@@ -21,7 +21,12 @@ public class InvestmentDashboardRestController {
 
   @PostMapping("/query")
   public InvestmentDashboardApi.DashboardPageView dashboard(
+      @RequestParam @Positive Long portfolioId,
       @RequestBody InvestmentDashboardApi.DashboardQuery query) {
+    if (!portfolioId.equals(query.portfolioId())) {
+      throw new InvestmentDashboardApi.InvalidPortfolioRequest(
+          "portfolioId parameter must match request body");
+    }
     return dashboard.loadDashboard(query);
   }
 

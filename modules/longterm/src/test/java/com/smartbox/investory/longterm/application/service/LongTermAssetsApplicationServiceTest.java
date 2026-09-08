@@ -172,6 +172,34 @@ class LongTermAssetsApplicationServiceTest {
   }
 
   @Test
+  void maturedBondAndCashKeepValueButStopIncomeInOverviewAndProfileProjection() {
+    BondEntity activeBond = bond(12L, new BigDecimal("1000"), new BigDecimal("0.10"));
+    BondEntity maturedBond = bond(13L, new BigDecimal("2000"), new BigDecimal("0.10"));
+    maturedBond.setMaturityDate(DATE.minusDays(1));
+    CashReserveEntity activeCash = cash(14L, new BigDecimal("500"), new BigDecimal("0.20"));
+    CashReserveEntity maturedCash = cash(15L, new BigDecimal("700"), new BigDecimal("0.20"));
+    maturedCash.setMaturityDate(DATE);
+    when(bonds.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID))
+        .thenReturn(List.of(activeBond, maturedBond));
+    when(cashReserves.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID))
+        .thenReturn(List.of(activeCash, maturedCash));
+
+    var overview = service.overview(PORTFOLIO_ID, DATE);
+    var snapshot = service.snapshot(PORTFOLIO_ID, DATE);
+
+    assertThat(overview.investmentValue()).isEqualByComparingTo("4200");
+    assertThat(overview.economics().grossAnnualIncome()).isEqualByComparingTo("200");
+    assertThat(overview.economics().netAnnualIncomeAfterTax()).isEqualByComparingTo("162");
+    assertThat(snapshot.summary().netAnnualIncomeAfterTax()).isEqualByComparingTo("162");
+    assertThat(snapshot.projectionInputs())
+        .filteredOn(input -> input.maturityDate() != null && !input.periods().isEmpty())
+        .allSatisfy(input -> assertThat(input.periods().getFirst().annualIncome()).isPositive());
+    assertThat(snapshot.projectionInputs())
+        .filteredOn(input -> input.maturityDate() != null && input.periods().isEmpty())
+        .hasSize(2);
+  }
+
+  @Test
   void realEstateUsesAnnualTaxBaseAndExposesDerivedMonthlyValues() {
     RealEstateEntity realEstate = new RealEstateEntity();
     realEstate.setId(3L);
@@ -235,6 +263,37 @@ class LongTermAssetsApplicationServiceTest {
                 .getFirst()
                 .rentEnd())
         .isEqualTo(LocalDate.of(2026, 6, 15));
+  }
+
+  @Test
+  void overlappingRentalContractsDegradeOnlyTheAffectedAsset() {
+    RealEstateEntity invalid = estate(16L, "Invalid rental", "10000");
+    RealEstateEntity healthy = estate(17L, "Healthy rental", "20000");
+    var first = new LongTermAssetRentalContractEntity();
+    first.setAssetId(16L);
+    first.setStartDate(DATE.minusDays(2));
+    first.setEndDate(DATE.plusDays(2));
+    var second = new LongTermAssetRentalContractEntity();
+    second.setAssetId(16L);
+    second.setStartDate(DATE.minusDays(1));
+    second.setEndDate(DATE.plusDays(3));
+    when(realEstates.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID))
+        .thenReturn(List.of(invalid, healthy));
+    when(contracts.findAllWithTermsByAssetIdIn(List.of(16L, 17L)))
+        .thenReturn(List.of(first, second));
+
+    var realEstate = group(service.overview(PORTFOLIO_ID, DATE), LongTermAssetType.REAL_ESTATE);
+
+    assertThat(realEstate.assets()).hasSize(2);
+    assertThat(realEstate.assets()).filteredOn(AssetSummaryView::integrityWarning).singleElement();
+    assertThat(realEstate.assets())
+        .filteredOn(asset -> !asset.integrityWarning())
+        .singleElement()
+        .satisfies(asset -> assertThat(asset.currentValue()).isEqualByComparingTo("100000"));
+    assertThat(realEstate.assets())
+        .filteredOn(AssetSummaryView::integrityWarning)
+        .singleElement()
+        .satisfies(asset -> assertThat(asset.annualEconomics()).isNull());
   }
 
   @Test
@@ -489,6 +548,17 @@ class LongTermAssetsApplicationServiceTest {
     bond.setInterestRate(rate);
     bond.setMaturityDate(DATE.plusYears(1));
     return bond;
+  }
+
+  private static CashReserveEntity cash(Long id, BigDecimal value, BigDecimal rate) {
+    CashReserveEntity cash = new CashReserveEntity();
+    cash.setId(id);
+    cash.setPortfolioId(PORTFOLIO_ID);
+    cash.setName("Cash " + id);
+    cash.setCurrency(CurrencyType.PLN);
+    cash.setValue(value);
+    cash.setInterestRate(rate);
+    return cash;
   }
 
   private static PersonalAssetEntity personal(Long id, BigDecimal value) {

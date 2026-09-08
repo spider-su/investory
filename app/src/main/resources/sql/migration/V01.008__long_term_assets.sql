@@ -753,7 +753,13 @@ SELECT a.id AS account_id, p.base_currency::varchar(3) AS valuation_currency,
         AND COALESCE(opt.missing_fx_count, 0) = 0 AND NOT COALESCE(ld.cash_fx_missing, false)
         AND NOT COALESCE(ld.market_fx_missing, false) AS is_complete,
     COALESCE(am.activity_count, 0) AS activity_count, am.first_activity_at, am.last_activity_at,
-    ld.snapshot_date AS latest_snapshot_date, ld.daily_return_pct AS latest_return_pct, NOW() AS updated_at
+    ld.snapshot_date AS latest_snapshot_date, ld.daily_return_pct AS latest_return_pct, NOW() AS updated_at,
+    a.cash_only,
+    (abs(COALESCE(ld.cash_balance, 0) + COALESCE(
+        CASE WHEN COALESCE(opt.position_count, 0) > 0 THEN opt.market_value ELSE COALESCE(ld.market_value, 0) END,
+        0)) >= 50
+     OR abs(COALESCE(CASE WHEN COALESCE(ft.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ft.total_deposit, 0) - COALESCE(ft.total_withdrawal, 0) END, 0)) >= 50
+     OR abs(COALESCE(CASE WHEN COALESCE(ft.account_missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(ft.total_deposit_account_currency, 0) - COALESCE(ft.total_withdrawal_account_currency, 0) END, 0)) >= 50) AS is_visible
 FROM investory.accounts a JOIN investory.portfolios p ON p.id = a.portfolio_id
 LEFT JOIN latest_daily_in_base ld ON ld.account_id = a.id
 LEFT JOIN open_position_totals opt ON opt.account_id = a.id
@@ -765,15 +771,10 @@ WITH DATA;
 CREATE UNIQUE INDEX ux_mv_account_statistics_account ON investory.app_v_account_statistics(account_id);
 
 CREATE OR REPLACE VIEW investory.app_v_account_statistics_reporting AS
-SELECT s.*, a.cash_only,
-       (abs(COALESCE(s.cash_balance, 0) + COALESCE(s.market_value, 0)) >= 50
-        OR abs(COALESCE(s.account_net_deposit, 0)) >= 50
-        OR abs(COALESCE(s.net_deposit, 0)) >= 50) AS is_visible
-FROM investory.app_v_account_statistics s
-JOIN investory.accounts a ON a.id = s.account_id;
+SELECT * FROM investory.app_v_account_statistics;
 
 COMMENT ON VIEW investory.app_v_account_statistics_reporting IS
-  'Authoritative account reporting boundary. cash_only comes from accounts and visibility uses one 50-unit threshold rule.';
+  'Compatibility view over canonical portfolio-base account statistics. It is not a selected reporting-currency view.';
 
 CREATE MATERIALIZED VIEW investory.app_v_portfolio_kpi_summary_mv AS
 WITH latest_portfolio_daily AS (

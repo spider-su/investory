@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class LongTermAssetReadService {
+  private static final Logger log = LoggerFactory.getLogger(LongTermAssetReadService.class);
   private final BondRepository bondRepository;
   private final RealEstateRepository realEstateRepository;
   private final CashReserveRepository cashReserveRepository;
@@ -195,7 +198,7 @@ public class LongTermAssetReadService {
 
   private AssetSummaryView bond(BondEntity row, CurrencyType currency, LocalDate date) {
     BigDecimal value = toBase(row.getValue(), row.getCurrency(), currency, date);
-    BigDecimal gross = value.multiply(row.getInterestRate());
+    BigDecimal gross = interestIncome(value, row.getInterestRate(), row.getMaturityDate(), date);
     return new AssetSummaryView(
         row.getId(),
         row.getName(),
@@ -219,8 +222,24 @@ public class LongTermAssetReadService {
         contracts.getOrDefault(row.getId(), List.of()).stream()
             .filter(contract -> RentalContractService.applies(contract, date))
             .toList();
-    if (active.size() > 1)
-      throw new IllegalStateException("Overlapping rental contracts for asset " + row.getId());
+    if (active.size() > 1) {
+      log.error(
+          "LONG_TERM_RENTAL_INTEGRITY_VIOLATION overlapping contracts for asset {} on {}",
+          row.getId(),
+          date);
+      return new AssetSummaryView(
+          row.getId(),
+          row.getName(),
+          LongTermAssetType.REAL_ESTATE,
+          currency,
+          value,
+          null,
+          null,
+          null,
+          BigDecimal.ZERO,
+          null,
+          true);
+    }
     var contract = active.isEmpty() ? null : active.getFirst();
     var terms =
         contract == null
@@ -243,14 +262,15 @@ public class LongTermAssetReadService {
         null,
         rental.economics(),
         rental.monthlyPayment(),
-        contract == null ? null : RentalContractService.effectiveEnd(contract));
+        contract == null ? null : RentalContractService.effectiveEnd(contract),
+        false);
   }
 
   private AssetSummaryView cash(CashReserveEntity row, CurrencyType currency, LocalDate date) {
     BigDecimal value = toBase(row.getValue(), row.getCurrency(), currency, date);
     BigDecimal interestRate =
         row.getInterestRate() == null ? BigDecimal.ZERO : row.getInterestRate();
-    BigDecimal gross = value.multiply(interestRate);
+    BigDecimal gross = interestIncome(value, interestRate, row.getMaturityDate(), date);
     return new AssetSummaryView(
         row.getId(),
         row.getName(),
@@ -298,18 +318,22 @@ public class LongTermAssetReadService {
       List<AssetSummaryView> rows, CurrencyType currency) {
     BigDecimal gross =
         rows.stream()
+            .filter(row -> !row.integrityWarning())
             .map(row -> row.annualEconomics().grossAnnualIncome())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal expenses =
         rows.stream()
+            .filter(row -> !row.integrityWarning())
             .map(row -> row.annualEconomics().annualExpenses())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal tax =
         rows.stream()
+            .filter(row -> !row.integrityWarning())
             .map(row -> row.annualEconomics().annualTax())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal monthlyTaxBase =
         rows.stream()
+            .filter(row -> !row.integrityWarning())
             .map(row -> row.annualEconomics().monthlyTaxBase())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     return LongTermAssetEconomics.economics(gross, expenses, valueOf(rows), tax, monthlyTaxBase);
@@ -318,11 +342,12 @@ public class LongTermAssetReadService {
   private LongTermAssetProjectionModel projection(
       AssetSummaryView row, LocalDate date, CurrencyType currency, ReadSet data) {
     List<LongTermAssetProjectionModel.Period> periods = new ArrayList<>();
-    if (row.type() == LongTermAssetType.BOND || row.type() == LongTermAssetType.CASH_RESERVE)
+    if ((row.type() == LongTermAssetType.BOND || row.type() == LongTermAssetType.CASH_RESERVE)
+        && (row.maturityDate() == null || row.maturityDate().isAfter(date)))
       periods.add(
           new LongTermAssetProjectionModel.Period(
               date,
-              row.maturityDate(),
+              row.maturityDate() == null ? null : row.maturityDate().minusDays(1),
               row.annualEconomics().grossAnnualIncome(),
               BigDecimal.ZERO,
               null,
@@ -435,7 +460,7 @@ public class LongTermAssetReadService {
 
   private static BigDecimal incomeType(List<AssetSummaryView> rows, LongTermAssetType type) {
     return rows.stream()
-        .filter(row -> row.type() == type)
+        .filter(row -> row.type() == type && !row.integrityWarning())
         .map(row -> row.annualEconomics().netAnnualIncomeAfterTax())
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }

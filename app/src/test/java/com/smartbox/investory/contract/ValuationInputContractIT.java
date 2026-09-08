@@ -51,7 +51,7 @@ class ValuationInputContractIT {
         assertEquals(
             0, result.getBigDecimal("fx_rate_to_target").compareTo(new BigDecimal("1.10000000")));
         assertEquals("2098-01-01", result.getDate("source_rate_date").toString());
-        assertEquals("STALE", result.getString("conversion_status"));
+        assertEquals("CARRY_FORWARD", result.getString("conversion_status"));
       }
     }
   }
@@ -136,13 +136,13 @@ class ValuationInputContractIT {
               "SELECT rate_method, conversion_status FROM investory.resolve_fx_rate(DATE '2099-01-14', 'EUR', 'USD')")) {
         assertTrue(result.next());
         assertEquals("CARRY_FORWARD", result.getString("rate_method"));
-        assertEquals("OK", result.getString("conversion_status"));
+        assertEquals("CARRY_FORWARD", result.getString("conversion_status"));
       }
       try (ResultSet result =
           statement.executeQuery(
               "SELECT conversion_status FROM investory.resolve_fx_rate(DATE '2099-01-10', 'EUR', 'PLN')")) {
         assertTrue(result.next());
-        assertEquals("ESTIMATED", result.getString("conversion_status"));
+        assertEquals("CARRY_FORWARD", result.getString("conversion_status"));
       }
       try (ResultSet result =
           statement.executeQuery(
@@ -153,7 +153,7 @@ class ValuationInputContractIT {
     }
   }
 
-  @DisplayName("historical cross currency FX remains estimated when legs use different sources")
+  @DisplayName("historical cross currency FX carries forward the latest daily value")
   @Test
   void historicalCrossCurrencyFxRemainsEstimatedWhenLegsUseDifferentSources() throws SQLException {
     try (Connection connection = connection();
@@ -169,8 +169,8 @@ class ValuationInputContractIT {
                   + "FROM investory.resolve_fx_rate(DATE '2199-01-02', 'PLN', 'EUR')")) {
         assertTrue(result.next());
         assertEquals("0.20833333", result.getBigDecimal(1).toPlainString());
-        assertEquals("HISTORICAL_MONTHLY", result.getString("rate_method"));
-        assertEquals("ESTIMATED", result.getString("conversion_status"));
+        assertEquals("CARRY_FORWARD", result.getString("rate_method"));
+        assertEquals("CARRY_FORWARD", result.getString("conversion_status"));
       } finally {
         statement.execute(
             "DELETE FROM investory.exchange_rates WHERE rate_date = DATE '2199-01-01'");
@@ -188,8 +188,8 @@ class ValuationInputContractIT {
               "SELECT rate_method, conversion_status "
                   + "FROM investory.resolve_fx_rate(DATE '2026-09-05', 'PLN', 'EUR')")) {
         assertTrue(result.next());
-        assertEquals("HISTORICAL_MONTHLY", result.getString("rate_method"));
-        assertEquals("ESTIMATED", result.getString("conversion_status"));
+        assertEquals("CARRY_FORWARD", result.getString("rate_method"));
+        assertEquals("CARRY_FORWARD", result.getString("conversion_status"));
       }
     }
   }

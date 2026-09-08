@@ -536,9 +536,6 @@ public class PortfolioMetricsService {
                 BigDecimal baseNetDeposit = netDeposit.baseAmount();
                 BigDecimal profit = balance.subtract(baseNetDeposit);
                 BigDecimal localProfit = localBalance.subtract(localNetDeposit);
-                BigDecimal localProfitAtCurrentFx =
-                    currencyRateService.convertToBaseCurrency(
-                        localProfit, baseCurrency, localCurrency, applicationTime.today());
                 return AccountBalance.builder()
                     .accountId(stat.getAccountId())
                     .accountName(account.getName())
@@ -551,7 +548,6 @@ public class PortfolioMetricsService {
                     .cashLocal(decimal(display(localCash)))
                     .cashBase(decimal(nz(stat.getCashBalance())))
                     .localCurrency(localCurrency)
-                    .fxEffect(decimal(display(profit.subtract(localProfitAtCurrentFx))))
                     .profitLossPercent(decimal(profitLossPercent(balance, baseNetDeposit)))
                     .build();
               })
@@ -585,7 +581,6 @@ public class PortfolioMetricsService {
         .cashLocal(decimal(display(cash)))
         .cashBase(decimal(display(cash)))
         .localCurrency(baseCurrency)
-        .fxEffect(BigDecimal.ZERO)
         .profitLossPercent(decimal(roi))
         .build();
   }
@@ -611,7 +606,7 @@ public class PortfolioMetricsService {
                         rows ->
                             new AccountNetDeposit(
                                 rows.stream()
-                                    .map(row -> bd(row.getAmount()))
+                                    .map(PortfolioMetricsService::accountFlowLocalAmount)
                                     .reduce(BigDecimal.ZERO, BigDecimal::add),
                                 rows.stream()
                                     .map(
@@ -643,6 +638,26 @@ public class PortfolioMetricsService {
           });
     }
     return deposits;
+  }
+
+  /**
+   * Returns the account-funding amount in the account's native currency.
+   *
+   * <p>{@code amount} is the operation's declared currency and is therefore not necessarily the
+   * account currency. The normalized SQL view converts the same operation amount to the account
+   * currency on its operation date; that is the dashboard's local funding amount. The older
+   * amount-in-account-currency fallback is retained for rows produced before the explicit account
+   * flow column existed.
+   */
+  private static BigDecimal accountFlowLocalAmount(
+      NormalizedCashOperationRepository.NormalizedCashOperationRow row) {
+    if (row.getAccountFlowAmountInAccountCurrency() != null) {
+      return bd(row.getAccountFlowAmountInAccountCurrency());
+    }
+    if (row.getAmountInAccountCurrency() != null) {
+      return bd(row.getAmountInAccountCurrency());
+    }
+    return bd(row.getAmount());
   }
 
   private Double profitLossPercent(BigDecimal balance, BigDecimal netDeposit) {

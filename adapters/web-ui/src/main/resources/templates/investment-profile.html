@@ -18,11 +18,11 @@
       <a class="iv-profile-source-card" th:href="@{/portfolios/{portfolioId}/dashboard(portfolioId=${profile.portfolioId})}" href="/portfolios/1/dashboard">
         <div class="iv-profile-source-card__heading"><span>Market investments</span><small th:text="${profile.marketPortfolioMeta}">0.0% of net worth</small></div>
         <div class="iv-profile-source-card__metrics">
-          <div><span>Value</span><strong th:text="${profile.marketPortfolioValueCompactDisplay}">0</strong></div>
+          <div><span>Income base</span><strong th:text="${profile.incomeSummary.incomeBaseCompactDisplay}">0</strong></div>
           <div><span>Annual income (net)</span><strong th:text="${profile.marketAnnualIncomeDisplay}">0</strong><small>projected</small></div>
-          <div><span>Annualized return <span class="visually-hidden">Annualized performance</span></span><strong th:text="${profile.marketAnnualizedReturnDisplay}">Unavailable</strong><small th:text="${profile.marketKpiMeta}">Total return</small></div>
+          <div><span>Annualized return <span class="visually-hidden">Annualized performance</span></span><strong th:text="${profile.marketAnnualizedReturnDisplay}">Unavailable</strong><small>Investment performance</small></div>
         </div>
-        <div class="iv-profile-source-card__footer"><span>Investment result YTD</span><strong><span th:text="${profile.marketInvestmentResultYtdDisplay}">—</span> <small class="iv-ytd-return" th:if="${profile.marketYtdReturnDisplay != null and !profile.marketYtdReturnDisplay.isEmpty()}" th:text="${'(' + profile.marketYtdReturnDisplay + ')'}">(0.0%)</small></strong></div>
+        <div class="iv-profile-source-card__footer"><span>Investment result YTD</span><strong><span th:text="${profile.marketInvestmentResultYtdDisplay}">—</span> <small class="iv-ytd-return" th:if="${profile.marketYtdReturnDisplay != null and !profile.marketYtdReturnDisplay.isEmpty()}" th:text="${'· ' + profile.marketYtdReturnDisplay}">· 0.0%</small></strong></div>
       </a>
       <a class="iv-profile-source-card" th:href="@{/portfolios/{portfolioId}/long-term-assets(portfolioId=${profile.portfolioId})}">
         <div class="iv-profile-source-card__heading"><span>Long-term assets</span><small th:text="${profile.longTermAssetMeta}">0.0% of net worth</small></div>

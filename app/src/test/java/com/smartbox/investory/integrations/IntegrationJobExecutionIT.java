@@ -9,6 +9,7 @@ import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.persistence.IntegrationInstanceRepository;
 import com.smartbox.investory.integrations.management.persistence.IntegrationJobRepository;
 import com.smartbox.investory.integrations.management.scheduling.IntegrationJobScheduler;
+import com.smartbox.investory.investment.port.fx.FxRateHistoryProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProvider;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
@@ -33,6 +34,7 @@ class IntegrationJobExecutionIT extends FastDatabaseTest {
   @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
   @Autowired private ApplicationTime time;
   @MockitoBean private FxRateProvider fxProvider;
+  @MockitoBean private FxRateHistoryProvider fxHistoryProvider;
 
   @Test
   void schedulerPollIsSafeWhenNoPersistedJobsAreDue() {

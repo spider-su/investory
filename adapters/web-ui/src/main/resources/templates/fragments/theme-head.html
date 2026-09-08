@@ -30,6 +30,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" data-turbo-track="reload"></script>
     <script src="/js/tabler.min.js" data-turbo-track="reload"></script>
     <script type="module" src="/js/investory-navigation.js" data-turbo-track="reload"></script>
+    <script th:inline="javascript">window.investoryCapabilities = {canEdit: /*[[${canEdit != null ? canEdit : true}]]*/ true, canImport: /*[[${canImport != null ? canImport : true}]]*/ true, canManageProfile: /*[[${canManageProfile != null ? canManageProfile : true}]]*/ true, canManageIntegrations: /*[[${canManageIntegrations != null ? canManageIntegrations : false}]]*/ false};</script>
+    <script src="/js/investory-authorization.js" data-turbo-track="reload"></script>
     <script th:src="@{/js/theme.js}" data-turbo-track="reload"></script>
 </th:block>
 </body>

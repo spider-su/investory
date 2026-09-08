@@ -4,6 +4,7 @@ import com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassificat
 import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
 import com.smartbox.investory.investment.api.portfolio.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioSnapshot;
+import com.smartbox.investory.investment.api.reporting.InvestmentIncomeSummaryReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
@@ -36,6 +37,7 @@ public class ProfileQueryService implements ProfileSnapshotReader {
   private final ProfileIncomeCalculator incomeCalculator;
   private final ProfileLiquidityCalculator liquidityCalculator;
   private final ProfilePlanningCalculator planningCalculator;
+  private final InvestmentIncomeSummaryReader investmentIncome;
 
   @Autowired
   public ProfileQueryService(
@@ -43,7 +45,8 @@ public class ProfileQueryService implements ProfileSnapshotReader {
       LongTermAssetProfileReader longTermAssets,
       BrokerageAssetClassificationReader brokerageAssetClassificationReader,
       CurrencyConversion currencyRates,
-      Clock clock) {
+      Clock clock,
+      InvestmentIncomeSummaryReader investmentIncome) {
     this.brokeragePortfolioReadService = brokeragePortfolioReadService;
     this.longTermAssets = longTermAssets;
     this.clock = clock;
@@ -52,6 +55,22 @@ public class ProfileQueryService implements ProfileSnapshotReader {
     this.incomeCalculator = new ProfileIncomeCalculator(currencyNormalizer);
     this.liquidityCalculator = new ProfileLiquidityCalculator(currencyNormalizer);
     this.planningCalculator = new ProfilePlanningCalculator(allocationCalculator);
+    this.investmentIncome = investmentIncome;
+  }
+
+  public ProfileQueryService(
+      BrokeragePortfolioReader brokeragePortfolioReadService,
+      LongTermAssetProfileReader longTermAssets,
+      BrokerageAssetClassificationReader brokerageAssetClassificationReader,
+      CurrencyConversion currencyRates,
+      Clock clock) {
+    this(
+        brokeragePortfolioReadService,
+        longTermAssets,
+        brokerageAssetClassificationReader,
+        currencyRates,
+        clock,
+        null);
   }
 
   @Override
@@ -123,6 +142,14 @@ public class ProfileQueryService implements ProfileSnapshotReader {
             totalInvestmentValue,
             base,
             date);
+    if (investmentIncome != null) {
+      var summary = investmentIncome.load(portfolioId);
+      if (summary.available()) {
+        income =
+            incomeCalculator.calculate(
+                summary, longTermIncome, longTermInvestmentValue, totalInvestmentValue);
+      }
+    }
     var liquidity =
         liquidityCalculator.calculate(
             values, longTermAssetRows, marketCash, marketValue, base, date);

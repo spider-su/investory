@@ -15,7 +15,33 @@ public record AssetSummaryView(
     BigDecimal currentAnnualRate,
     AnnualEconomicsView annualEconomics,
     BigDecimal totalPaymentMonthly,
-    LocalDate rentEnd) {
+    LocalDate rentEnd,
+    boolean integrityWarning) {
+  public AssetSummaryView(
+      Long id,
+      String name,
+      LongTermAssetType type,
+      CurrencyType currency,
+      BigDecimal currentValue,
+      LocalDate maturityDate,
+      BigDecimal currentAnnualRate,
+      AnnualEconomicsView annualEconomics,
+      BigDecimal totalPaymentMonthly,
+      LocalDate rentEnd) {
+    this(
+        id,
+        name,
+        type,
+        currency,
+        currentValue,
+        maturityDate,
+        currentAnnualRate,
+        annualEconomics,
+        totalPaymentMonthly,
+        rentEnd,
+        false);
+  }
+
   public AssetSummaryView(
       Long id,
       String name,
@@ -36,6 +62,7 @@ public record AssetSummaryView(
         currentAnnualRate,
         annualEconomics,
         BigDecimal.ZERO,
-        rentEnd);
+        rentEnd,
+        false);
   }
 }

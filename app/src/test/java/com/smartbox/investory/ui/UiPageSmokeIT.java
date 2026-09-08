@@ -242,7 +242,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
       String marketCard = sourceCards.nth(0).textContent();
       String longTermCard = sourceCards.nth(1).textContent();
       assertThat(marketCard)
-          .contains("Investment result YTD", "Annualized performance", "Total return")
+          .contains("Investment result YTD", "Annualized performance", "Investment performance")
           .doesNotContain("p.a.");
       assertThat(
               sourceCards

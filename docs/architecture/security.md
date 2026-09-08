@@ -4,12 +4,19 @@ This document describes the current application security boundary and the constr
 
 ## Authentication and roles
 
-Investory currently uses stateless HTTP Basic authentication with an in-memory user store and BCrypt password encoding. There are two configured principals:
+Investory uses stateless HTTP Basic authentication and BCrypt password encoding. Runtime users are loaded from `investory.app_users`; configured fallback principals remain available for local development.
 
-- `ADMIN` has roles `ADMIN` and `USER`;
-- `USER` has role `USER`.
+- `ADMIN` is global and can access every profile and administrative operation.
+- `PROFILE_OWNER` is scoped to a profile and can read and change that profile.
+- `PROFILE_USER` is scoped to a profile and is read-only.
 
-`POST`, `PUT`, and `DELETE` requests require `ADMIN`. `GET` requests require authentication by default and may be made public only when `app.security.read-authentication-required=false` is explicitly configured for a trusted environment.
+The capability matrix is: `ADMIN` = read/write/manage integrations/administer; `PROFILE_OWNER` = profile read/write; `PROFILE_USER` = profile read only.
+
+The scope is stored in `investory.profile_memberships` (`user_id`, `profile_id`, `role`). Existing `portfolios.user_id` owners are migrated to `OWNER`, preserving their previous write access. A role without a profile membership grants no profile access.
+
+Backend authorization is authoritative: profile reads require membership or `ADMIN`; profile writes, imports, refresh/rebuild operations, and other state-changing requests require `OWNER` or `ADMIN`. Integration configuration and `/api/v1/admin/**` operations require `ADMIN`. Authenticated denials return `403`; missing authentication returns `401`.
+
+The global investment maintenance endpoints (`/api/v1/investment/maintenance/**`) are `ADMIN`-only because they do not carry a profile ID and can rebuild shared reporting state. Profile-scoped operations carry the profile ID in the path or `portfolioId` parameter. The dashboard query requires `portfolioId` both as a parameter and in its JSON body, and rejects mismatches.
 
 The landing/error/static assets and `/actuator/health` are public. Exact matcher behavior should be read from `SecurityConfig` when changing routes.
 
@@ -27,9 +34,9 @@ Production must supply explicit admin/user credentials through configuration and
 
 ## Data isolation
 
-Authentication is not equivalent to tenant isolation. The current application is a personal/single-owner deployment: portfolio data is not scoped by an authenticated owner identity across all financial tables.
+Profile isolation is enforced at the MVC boundary before profile handlers run. Controllers identify the profile from `/portfolios/{portfolioId}/...` or the `portfolioId` request parameter; the membership query is against that exact ID. The frontend receives capability flags (`canEdit`, `canImport`, `canManageProfile`, `canManageIntegrations`) for UX only and cannot replace backend checks.
 
-Do not expose one instance to mutually untrusted users until per-user data scoping is implemented and verified. The corresponding work remains in `../../ROADMAP.md`.
+Internal service calls must still pass the intended profile ID; HTTP callers cannot bypass the boundary by changing only a URL ID.
 
 ## Exposure rules
 

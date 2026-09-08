@@ -91,6 +91,43 @@ public class CurrencyRateService implements CurrencyConversion {
         .setScale(FX_SCALE, RoundingMode.HALF_UP);
   }
 
+  /**
+   * Converts a value for a current dashboard display, allowing a dated stale carry-forward rate.
+   * Authoritative conversions must continue to use {@link #convertToBaseCurrency(BigDecimal,
+   * CurrencyType, CurrencyType, LocalDate)} and fail closed for stale rates.
+   */
+  public BigDecimal convertToBaseCurrencyForDisplay(
+      BigDecimal amount,
+      CurrencyType baseCurrency,
+      CurrencyType positionCurrency,
+      LocalDate rateDate) {
+    FxRateResolution resolution = resolveRate(positionCurrency, baseCurrency, rateDate);
+    if (!resolution.isUsable()
+        && (resolution.fxRateToTarget() == null
+            || resolution.sourceRateDate() == null
+            || resolution.ageDays() == null
+            || resolution.ageDays() < 0
+            || resolution.fxRateToTarget().signum() <= 0)) {
+      throw new FxRateUnavailableException(
+          positionCurrency, baseCurrency, rateDate, resolution.conversionStatus());
+    }
+    if (!resolution.isUsable()) {
+      log.warn(
+          "Dashboard display uses stale FX rate: source={}, target={}, valuationDate={}, sourceRateDate={}, ageDays={}",
+          positionCurrency,
+          baseCurrency,
+          rateDate,
+          resolution.sourceRateDate(),
+          resolution.ageDays());
+    }
+    if (amount == null) {
+      return BigDecimal.ZERO.setScale(FX_SCALE, RoundingMode.HALF_UP);
+    }
+    return amount
+        .multiply(resolution.fxRateToTarget(), FX_MATH_CONTEXT)
+        .setScale(FX_SCALE, RoundingMode.HALF_UP);
+  }
+
   public void updateRates(CurrencyType base, Map<CurrencyType, Double> rates, LocalDate date) {
     rates.forEach(
         (toCurrency, rate) -> {
@@ -413,7 +450,10 @@ public class CurrencyRateService implements CurrencyConversion {
   private record FxPair(CurrencyType sourceCurrency, CurrencyType targetCurrency) {}
 
   public static boolean isUsableStatus(String status) {
-    return "OK".equals(status) || "ESTIMATED".equals(status) || "SAME_CURRENCY".equals(status);
+    return "OK".equals(status)
+        || "ESTIMATED".equals(status)
+        || "SAME_CURRENCY".equals(status)
+        || "CARRY_FORWARD".equals(status);
   }
 
   public record FxRateResolution(

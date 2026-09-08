@@ -3,7 +3,7 @@
   <details class="card mb-4 iv-property-settings" id="property-settings">
     <summary class="card-header iv-property-disclosure"><span class="card-title mb-0">Property settings</span></summary>
     <div class="card-body">
-      <form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/real-estate(portfolioId=${portfolioId})}">
+      <form method="post" data-turbo="false" th:action="@{/portfolios/{portfolioId}/long-term-assets/real-estate(portfolioId=${portfolioId})}">
         <input type="hidden" name="portfolioId" th:value="${portfolioId}">
         <input type="hidden" name="id" th:value="${asset.id}">
         <div class="row g-3">

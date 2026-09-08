@@ -53,6 +53,28 @@ class LongTermAssetEconomicsTest {
     assertThat(zeroValue.netYieldAfterTax()).isZero();
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.MethodSource("interestCases")
+  void interestStopsAtMaturityButValueRemainsAvailable(
+      String maturity, String date, String expected) {
+    assertThat(
+            LongTermAssetEconomics.interestIncome(
+                new BigDecimal("1000"),
+                new BigDecimal("0.04"),
+                maturity == null ? null : LocalDate.parse(maturity),
+                LocalDate.parse(date)))
+        .isEqualByComparingTo(expected);
+  }
+
+  private static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments>
+      interestCases() {
+    return java.util.stream.Stream.of(
+        org.junit.jupiter.params.provider.Arguments.of("2026-09-07", "2026-09-06", "40"),
+        org.junit.jupiter.params.provider.Arguments.of("2026-09-07", "2026-09-07", "0"),
+        org.junit.jupiter.params.provider.Arguments.of("2026-09-07", "2026-09-08", "0"),
+        org.junit.jupiter.params.provider.Arguments.of(null, "2026-09-08", "40"));
+  }
+
   @Test
   void calendarAccrualUsesFullMonthsAndProratesPartialPeriods() {
     assertThat(

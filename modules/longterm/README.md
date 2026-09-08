@@ -20,6 +20,9 @@ policy, and asset semantics, but not on Investment, Profile, or Retirement imple
 - Rental lifecycle: `RentalContractService` and its focused service/validation tests.
 - Current totals, tax, yield, Profile and projection facts: `LongTermAssetReadService`,
   `LongTermAssetEconomicsTest`, and `LongTermAssetsApplicationServiceTest`.
+- If inconsistent persisted rental history contains overlapping effective contracts, the read path
+  flags that asset and leaves its economics unavailable while preserving unaffected overview rows.
+  Writes are rejected by application validation and the PostgreSQL exclusion constraint.
 - Historical calendar reconstruction: `LongTermAssetHistoricalSnapshotService`; it returns
   unavailable values when complete acquisition/archive provenance is absent.
 - PostgreSQL real-estate/rental lifecycle: app-owned `LongTermAssetLifecyclePostgresIT`.

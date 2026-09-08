@@ -30,7 +30,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               nco.normalized_category as normalizedCategory,
               null::bigint as assetId,
               null::text as symbol,
-              sum(nco.account_flow_amount) as amount,
+              sum(nco.account_flow_amount_in_account_currency) as accountFlowAmountInAccountCurrency,
               sum(nco.account_flow_amount_in_portfolio_base_currency) as amountInPortfolioBaseCurrency,
               sum(nco.account_flow_amount_in_portfolio_base_currency) as accountFlowAmountInPortfolioBaseCurrency,
               sum(nco.performance_flow_amount_in_portfolio_base_currency) as performanceFlowAmountInPortfolioBaseCurrency,
@@ -70,6 +70,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               nco.asset_id as assetId,
               asset.symbol as symbol,
               nco.amount as amount,
+              nco.account_flow_amount_in_account_currency as accountFlowAmountInAccountCurrency,
               nco.amount_in_portfolio_base_currency as amountInPortfolioBaseCurrency,
               nco.account_flow_amount_in_portfolio_base_currency as accountFlowAmountInPortfolioBaseCurrency,
               nco.performance_flow_amount_in_portfolio_base_currency as performanceFlowAmountInPortfolioBaseCurrency,
@@ -111,6 +112,11 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
     String getSymbol();
 
     Double getAmount();
+
+    /** Account funding flow in the account's currency, converted on the operation date. */
+    default Double getAccountFlowAmountInAccountCurrency() {
+      return getAmountInAccountCurrency();
+    }
 
     Double getAmountInPortfolioBaseCurrency();
 

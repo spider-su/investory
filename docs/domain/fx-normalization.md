@@ -64,9 +64,11 @@ Ownership and execution:
 
 Statuses:
 
-- `OK`, `ESTIMATED`, and `SAME_CURRENCY` are usable, with estimated provenance visible,
-- `CARRY_FORWARD` is exposed as a method and remains `OK` within the safety window,
-- `STALE` and `MISSING_RATE` are not silently accepted.
+- `OK`, `ESTIMATED`, `SAME_CURRENCY`, and `CARRY_FORWARD` are usable, with estimated or
+  carried-forward provenance visible,
+- when the requested date has no neutral FX observation, the latest observation on or before
+  that date is used as `CARRY_FORWARD`,
+- `MISSING_RATE` is not silently accepted.
 
 Daily history begins at `investory.fx_configuration.daily_history_start`, which is advanced only after a
 successful full neutral daily/reference refresh establishes coverage for every configured currency. Until then
@@ -90,4 +92,3 @@ Fail-closed policy:
 - authoritative reporting totals become `NULL` when any required FX row is not usable,
 - diagnostic subtotals may still be exposed,
 - aggregates expose `missing_fx_count` and `is_complete` where applicable.
-

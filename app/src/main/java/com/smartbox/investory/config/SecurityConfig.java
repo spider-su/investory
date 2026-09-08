@@ -47,11 +47,11 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/settings/**", "/api/v1/admin/**")
                         .hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/**")
+                        .requestMatchers("/api/v1/investment/maintenance/**")
                         .hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/**")
-                        .hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/**")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/investment/imports/**")
+                        .hasAnyRole("ADMIN", "PROFILE_OWNER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/admin/**")
                         .hasRole("ADMIN"));
 
     if (readAuthenticationRequired) {

@@ -22,4 +22,11 @@ public interface FxRateProvider {
       BigDecimal rate,
       LocalDate effectiveDate,
       LocalDate providerDate) {}
+
+  record FxHistoryQuote(
+      CurrencyType base,
+      CurrencyType target,
+      BigDecimal rate,
+      LocalDate valuationDate,
+      LocalDate providerDate) {}
 }

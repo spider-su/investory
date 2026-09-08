@@ -102,6 +102,13 @@ public class ImportOrchestratorService {
     long totalStarted = System.nanoTime();
     try {
       try (ImportPortfolioContext.Scope ignored = ImportPortfolioContext.open(portfolioId)) {
+        log.info(
+            "IMPORT STAGE upload-received broker={} portfolioId={} file={} bytes={} refreshAfterImport={}",
+            broker,
+            portfolioId,
+            fileName,
+            fileBytes == null ? 0 : fileBytes.length,
+            refreshAfterImport);
         return importFileMeasured(
             portfolioId, broker, fileBytes, fileName, sourceType, sourceRef, refreshAfterImport);
       }
@@ -124,9 +131,21 @@ public class ImportOrchestratorService {
     }
 
     String checksum = sha256(fileBytes);
+    log.info(
+        "IMPORT STAGE checksum-computed broker={} portfolioId={} file={} sha256={}",
+        broker,
+        portfolioId,
+        fileName,
+        checksum);
     Optional<ImportHistoryEntity> existing =
         auditWriter.findExistingAppliedBatch(portfolioId, broker, checksum);
     if (existing.isPresent()) {
+      log.info(
+          "IMPORT STAGE duplicate-detected broker={} portfolioId={} existingBatchId={} reprocess={}",
+          broker,
+          portfolioId,
+          existing.get().getId(),
+          shouldReprocessDuplicate(broker));
       if (shouldReprocessDuplicate(broker)) {
         ImportHistoryEntity original = existing.get();
         ImportHistoryEntity batch = auditWriter.startReprocessBatch(original);
@@ -177,7 +196,18 @@ public class ImportOrchestratorService {
 
     ImportHistoryEntity batch =
         auditWriter.startBatch(portfolioId, broker, sourceType, sourceRef, fileName, checksum);
+    log.info(
+        "IMPORT STAGE batch-started broker={} portfolioId={} batchId={} attemptNo={}",
+        broker,
+        portfolioId,
+        batch.getId(),
+        batch.getAttemptNo());
     var sourceFile = sourceEvidenceService.storeArtifact(batch, fileBytes, contentType(fileName));
+    log.info(
+        "IMPORT STAGE source-artifact-stored broker={} batchId={} sourceFileId={}",
+        broker,
+        batch.getId(),
+        sourceFile.getId());
 
     ImportExecutionResult result;
     try {
@@ -199,6 +229,13 @@ public class ImportOrchestratorService {
     }
 
     ImportHistoryEntity finalized = finalizeAppliedTimed(batch.getId(), result);
+    log.info(
+        "IMPORT STAGE ledger-upsert-committed broker={} batchId={} rowsTotal={} rowsApplied={} rowsFailed={}",
+        broker,
+        finalized.getId(),
+        result.rowsTotal(),
+        result.rowsApplied(),
+        result.rowsFailed());
     throwIfFailed(finalized);
 
     String refreshFailure = refreshAfterImport ? refreshDerivedData(finalized) : null;
@@ -246,14 +283,32 @@ public class ImportOrchestratorService {
       throws Exception {
     long parserStarted = System.nanoTime();
     try {
+      log.info(
+          "IMPORT STAGE parser-start broker={} batchId={} sourceFileId={} file={}",
+          batch.getBroker(),
+          batch.getId(),
+          sourceFile.getId(),
+          fileName);
       try (ImportSourceEvidenceService.Scope ignored =
           sourceEvidenceService.open(batch, sourceFile, null)) {
         var result = parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
+        log.info(
+            "IMPORT STAGE parser-result broker={} batchId={} rowsTotal={} rowsApplied={} rowsFailed={}",
+            batch.getBroker(),
+            batch.getId(),
+            result.rowsTotal(),
+            result.rowsApplied(),
+            result.rowsFailed());
         return new ImportExecutionResult(
             result.rowsTotal(), result.rowsApplied(), result.rowsFailed(), result.details());
       }
     } finally {
       // Includes the proxied transaction completion when the parser is a Spring bean.
+      log.info(
+          "IMPORT STAGE parser-transaction-completed broker={} batchId={} durationMs={}",
+          batch.getBroker(),
+          batch.getId(),
+          elapsedMillis(parserStarted));
       log.info("IMPORT PERF parser-transaction={}ms", elapsedMillis(parserStarted));
     }
   }
