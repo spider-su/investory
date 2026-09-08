@@ -41,6 +41,10 @@ Scenario ----------------------------------->|
 freezes those facts for the plan. Simulation then works
 deterministically from that baseline.
 
+The core engine lives in `retirement.simulation`. Result interpretation lives in
+`retirement.analysis`; sandbox/editor execution lives in `retirement.preview`.
+Neither core simulation nor analysis depends on REST or persistence packages.
+
 Persisted compatibility fields such as `cashReturnRate`, `otherReturnRate`, and
 Real Estate appreciation are retained at the plan boundary but are not active
 aggregate-bucket mechanics: Cash has a canonical 0% yield, and Real Estate

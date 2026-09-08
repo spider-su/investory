@@ -17,10 +17,12 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotMode
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.analysis.*;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.PlanEditorPreview;
-import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
-import com.smartbox.investory.retirement.planning.PlanningCurrencyPresentationService;
+import com.smartbox.investory.retirement.planning.presentation.PlanningCurrencyPresentationService;
+import com.smartbox.investory.retirement.planning.projection.ForwardSimulationInputService;
+import com.smartbox.investory.retirement.preview.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;

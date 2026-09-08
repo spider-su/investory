@@ -313,6 +313,9 @@
 .iv-collapsed-summary__metric + .iv-collapsed-summary__metric { border-left: 1px solid var(--iv-metric-divider); }
 .iv-collapsed-summary__label { display: block; color: var(--iv-text-muted); font-size: .66rem; font-weight: 750; letter-spacing: .06em; line-height: 1.2; text-transform: uppercase; }
 .iv-collapsed-summary__value { display: block; margin-top: 4px; color: var(--iv-text); font-size: .95rem; font-variant-numeric: tabular-nums; line-height: 1.15; white-space: nowrap; }
+.iv-collapsed-summary__meta,
+.iv-yield-cell small { display: block; margin-top: 2px; color: var(--iv-text-muted); font-size: .7rem; font-weight: 500; white-space: nowrap; }
+.iv-yield-cell strong { display: block; }
 .iv-planning-section .table { width: 100%; margin: 0; table-layout: fixed; font-variant-numeric: tabular-nums; }
 .iv-planning-section .table th { color: var(--iv-text-muted); font-size: .68rem; letter-spacing: .05em; text-transform: uppercase; }
 .iv-planning-section .table > :not(caption) > * > * { padding: 7px 10px; }

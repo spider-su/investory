@@ -97,20 +97,20 @@ public class CurrencyRateService implements CurrencyConversion {
           CurrencyRateEntity currencyRate =
               currencyRateRepository
                   .findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
-                      date, base, toCurrency, "EXCHANGERATE_HOST", "MARKET_DAILY")
+                      date, base, toCurrency, "NBP", "MARKET_DAILY")
                   .orElseGet(
                       () -> {
                         CurrencyRateEntity newRate = new CurrencyRateEntity();
                         newRate.setRateDate(date);
                         newRate.setBase(base);
                         newRate.setToCurrency(toCurrency);
-                        newRate.setSource("EXCHANGERATE_HOST");
+                        newRate.setSource("NBP");
                         newRate.setMethod("MARKET_DAILY");
                         return newRate;
                       });
 
           currencyRate.setRateDate(date);
-          currencyRate.setSource("EXCHANGERATE_HOST");
+          currencyRate.setSource("NBP");
           currencyRate.setMethod("MARKET_DAILY");
           currencyRate.setRate(rate == null ? null : BigDecimal.valueOf(rate));
           currencyRateRepository.save(currencyRate);

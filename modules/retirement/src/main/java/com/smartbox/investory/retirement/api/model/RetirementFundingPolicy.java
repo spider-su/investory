@@ -8,6 +8,7 @@ import java.util.List;
 
 /** Explicit withdrawal and reserve-replenishment policy for retirement projections. */
 public record RetirementFundingPolicy(
+    SimulationFundingStrategy fundingStrategy,
     BigDecimal reserveTargetYears,
     BigDecimal equityHarvestThresholdRate,
     BigDecimal equityHarvestShare,
@@ -23,6 +24,8 @@ public record RetirementFundingPolicy(
           RetirementFundingSource.INVESTMENT);
 
   public RetirementFundingPolicy {
+    fundingStrategy =
+        fundingStrategy == null ? SimulationFundingStrategy.RESERVE_AND_HARVEST : fundingStrategy;
     reserveTargetYears = zeroIfNull(reserveTargetYears);
     equityHarvestThresholdRate = zeroIfNull(equityHarvestThresholdRate);
     equityHarvestShare = zeroIfNull(equityHarvestShare);
@@ -39,6 +42,7 @@ public record RetirementFundingPolicy(
 
   public static RetirementFundingPolicy defaults() {
     return new RetirementFundingPolicy(
+        SimulationFundingStrategy.RESERVE_AND_HARVEST,
         DEFAULT_RESERVE_TARGET_YEARS,
         DEFAULT_HARVEST_THRESHOLD,
         DEFAULT_HARVEST_SHARE,
@@ -46,13 +50,20 @@ public record RetirementFundingPolicy(
         DEFAULT_ORDER);
   }
 
-  public static RetirementFundingPolicy fromLegacy(SimulationAssumptions assumptions) {
-    return new RetirementFundingPolicy(
-        assumptions.safeReserveYears(),
-        assumptions.equityHarvestMinimumReturnRate(),
-        assumptions.equityGainHarvestRate(),
-        assumptions.allowEmergencyEquityWithdrawal(),
-        assumptions.fundingOrder());
+  /** Compatibility constructor for persisted/API callers using the pre-policy shape. */
+  public RetirementFundingPolicy(
+      BigDecimal reserveTargetYears,
+      BigDecimal equityHarvestThresholdRate,
+      BigDecimal equityHarvestShare,
+      boolean allowEmergencyEquityWithdrawal,
+      List<RetirementFundingSource> fundingOrder) {
+    this(
+        SimulationFundingStrategy.RESERVE_AND_HARVEST,
+        reserveTargetYears,
+        equityHarvestThresholdRate,
+        equityHarvestShare,
+        allowEmergencyEquityWithdrawal,
+        fundingOrder);
   }
 
   /** Domain-neutral names used by the active policy. */

@@ -19,8 +19,9 @@ LongTerm API ─────┘
 - Brokerage portfolio accounting remains in Investment.
 - Page formatting remains in `adapters/web-ui`.
 - `profile.web` owns the canonical `GET /api/v1/portfolios/{portfolioId}/profile` REST facade. The
-  controller currently returns the public `InvestmentProfile` read model directly; it never exposes
-  tenant contact data or Retirement implementation inputs. The UI reaches the application API
+  controller maps the public `InvestmentProfile` read model to a dedicated `ProfileResponse`; the
+  backward-compatible JSON contract never exposes tenant contact data or Retirement implementation
+  inputs. The UI reaches the application API
   through a replaceable client interface whose current implementation performs a direct in-process
   call.
 - Brokerage and Long-Term source totals are both portfolio-scoped. Allocation reconciliation keeps

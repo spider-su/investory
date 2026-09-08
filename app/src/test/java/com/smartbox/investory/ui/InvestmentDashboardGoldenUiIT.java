@@ -295,7 +295,7 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
     assertThat(page.locator("#balance-cash .iv-topbar-metric__value").textContent())
         .isEqualTo(whole(overview.balance()));
     Locator fx = page.locator(".iv-topbar-fx-popover");
-    assertThat(fx.textContent()).contains("Base currency: " + overview.baseCurrency());
+    assertThat(fx.textContent()).contains("Reporting currency: " + overview.baseCurrency());
     overview
         .exchangeRates()
         .forEach(

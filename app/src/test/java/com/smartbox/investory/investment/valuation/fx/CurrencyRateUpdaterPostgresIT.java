@@ -2,18 +2,20 @@ package com.smartbox.investory.investment.valuation.fx;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.integrations.fx.exchangeratehost.ExchangeRateClient;
+import com.smartbox.investory.investment.port.fx.FxRateProvider;
+import com.smartbox.investory.investment.port.fx.FxRateProvider.FxQuote;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import com.smartbox.investory.testsupport.WorkerDatabase;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
@@ -49,16 +51,13 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
   @Autowired private CurrencyRateUpdaterService updater;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private CurrencyRateService currencyRateService;
-  @MockitoBean private ExchangeRateClient client;
+  @MockitoBean private FxRateProvider fxRateProvider;
 
   @Test
   void canonicalHappyInvestorRefreshPersistsOrientedPlnEurUsdRates() {
     LocalDate date = LocalDate.of(2025, 12, 31);
-    ExchangeRateClient.ExchangeRateResponse response =
-        new ExchangeRateClient.ExchangeRateResponse();
-    response.setDate(date);
-    response.setQuotes(Map.of("USDEUR", 1.173562, "USDPLN", 3.601600));
-    when(client.getLatestRates(eq("USD"), eq("EUR,PLN"), anyString())).thenReturn(response);
+    when(fxRateProvider.fetchRates(any()))
+        .thenReturn(quotes(date, date, new BigDecimal("1.173562"), new BigDecimal("3.601600")));
 
     CurrencyRateUpdaterService.CurrencyRateRefreshResult result =
         updater.updateCurrencyRatesForDate(date);
@@ -69,13 +68,13 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
     assertEquals(
         new java.math.BigDecimal("3.60160000"),
         jdbc.queryForObject(
-            "select rate from investory.exchange_rates where base = 'USD' and to_currency = 'PLN' and rate_date = ? and source = 'EXCHANGERATE_HOST'",
+            "select rate from investory.exchange_rates where base = 'USD' and to_currency = 'PLN' and rate_date = ? and source = 'NBP' and method = 'MARKET_DAILY'",
             java.math.BigDecimal.class,
             date));
     assertEquals(
         0,
         jdbc.queryForObject(
-                "select rate from investory.exchange_rates where base = 'EUR' and to_currency = 'PLN' and rate_date = ? and source = 'EXCHANGERATE_HOST'",
+                "select rate from investory.exchange_rates where base = 'EUR' and to_currency = 'PLN' and rate_date = ? and source = 'NBP' and method = 'MARKET_DAILY'",
                 java.math.BigDecimal.class,
                 date)
             .compareTo(new java.math.BigDecimal("3.06894736")));
@@ -89,21 +88,23 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
   @DisplayName("persists Provider Date Without Identity Rows And Is Idempotent")
   @Test
   void persistsProviderDateWithoutIdentityRowsAndIsIdempotent() {
-    ExchangeRateClient.ExchangeRateResponse response =
-        new ExchangeRateClient.ExchangeRateResponse();
-    response.setDate(LocalDate.of(2026, 8, 20));
-    response.setQuotes(Map.of("USDEUR", 0.9, "USDPLN", 4.0));
-    when(client.getLatestRates(eq("USD"), eq("EUR,PLN"), anyString())).thenReturn(response);
+    when(fxRateProvider.fetchRates(any()))
+        .thenReturn(
+            quotes(
+                LocalDate.of(2026, 8, 21),
+                LocalDate.of(2026, 8, 20),
+                new BigDecimal("0.9"),
+                new BigDecimal("4.0")));
 
     updater.updateCurrencyRatesForDate(LocalDate.of(2026, 8, 21));
     int firstCount =
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'EXCHANGERATE_HOST' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
+            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
             Integer.class);
     updater.updateCurrencyRatesForDate(LocalDate.of(2026, 8, 21));
     int secondCount =
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'EXCHANGERATE_HOST' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
+            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
             Integer.class);
 
     assertEquals(6, firstCount);
@@ -210,15 +211,17 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
 
   @Test
   void invalidProviderDataLeavesNoPartialRefreshAndDoesNotAdvanceStart() {
-    ExchangeRateClient.ExchangeRateResponse response =
-        new ExchangeRateClient.ExchangeRateResponse();
-    response.setDate(LocalDate.of(2026, 8, 20));
-    response.setQuotes(new java.util.LinkedHashMap<>(Map.of("USDEUR", 0.9, "USDPLN", -4.0)));
-    when(client.getLatestRates(eq("USD"), eq("EUR,PLN"), anyString())).thenReturn(response);
+    when(fxRateProvider.fetchRates(any()))
+        .thenReturn(
+            quotes(
+                LocalDate.of(2026, 8, 20),
+                LocalDate.of(2026, 8, 20),
+                new BigDecimal("0.9"),
+                new BigDecimal("-4.0")));
 
     int before =
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'EXCHANGERATE_HOST' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
+            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
             Integer.class);
     String startBefore =
         jdbc.queryForObject(
@@ -243,33 +246,41 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
 
   @Test
   void missingProviderQuoteLeavesNoPartialRefreshAndDoesNotAdvanceStart() {
-    ExchangeRateClient.ExchangeRateResponse response =
-        new ExchangeRateClient.ExchangeRateResponse();
-    response.setDate(LocalDate.of(2026, 8, 22));
-    response.setQuotes(Map.of("USDEUR", 0.9));
-    when(client.getLatestRates(eq("USD"), eq("EUR,PLN"), anyString())).thenReturn(response);
+    when(fxRateProvider.fetchRates(any()))
+        .thenReturn(
+            List.of(
+                new FxQuote(
+                    CurrencyType.USD,
+                    CurrencyType.EUR,
+                    new BigDecimal("0.9"),
+                    LocalDate.of(2026, 8, 22),
+                    LocalDate.of(2026, 8, 22))));
 
     assertInvalidRefreshLeavesDatabaseUnchanged(LocalDate.of(2026, 8, 22));
   }
 
   @Test
   void nonFiniteProviderQuoteLeavesNoPartialRefreshAndDoesNotAdvanceStart() {
-    ExchangeRateClient.ExchangeRateResponse response =
-        new ExchangeRateClient.ExchangeRateResponse();
-    response.setDate(LocalDate.of(2026, 8, 23));
-    response.setQuotes(Map.of("USDEUR", Double.NaN, "USDPLN", 4.0));
-    when(client.getLatestRates(eq("USD"), eq("EUR,PLN"), anyString())).thenReturn(response);
+    when(fxRateProvider.fetchRates(any()))
+        .thenReturn(
+            quotes(
+                LocalDate.of(2026, 8, 23),
+                LocalDate.of(2026, 8, 23),
+                new BigDecimal("1e400"),
+                new BigDecimal("4.0")));
 
     assertInvalidRefreshLeavesDatabaseUnchanged(LocalDate.of(2026, 8, 23));
   }
 
   @Test
   void futureProviderDateLeavesNoPartialRefreshAndDoesNotAdvanceStart() {
-    ExchangeRateClient.ExchangeRateResponse response =
-        new ExchangeRateClient.ExchangeRateResponse();
-    response.setDate(LocalDate.of(2026, 8, 25));
-    response.setQuotes(Map.of("USDEUR", 0.9, "USDPLN", 4.0));
-    when(client.getLatestRates(eq("USD"), eq("EUR,PLN"), anyString())).thenReturn(response);
+    when(fxRateProvider.fetchRates(any()))
+        .thenReturn(
+            quotes(
+                LocalDate.of(2026, 8, 24),
+                LocalDate.of(2026, 8, 25),
+                new BigDecimal("0.9"),
+                new BigDecimal("4.0")));
 
     assertInvalidRefreshLeavesDatabaseUnchanged(LocalDate.of(2026, 8, 24));
   }
@@ -277,7 +288,7 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
   private void assertInvalidRefreshLeavesDatabaseUnchanged(LocalDate effectiveDate) {
     int before =
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'EXCHANGERATE_HOST' and method = 'MARKET_DAILY' and rate_date = ?",
+            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = ?",
             Integer.class,
             effectiveDate);
     String startBefore =
@@ -292,7 +303,7 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
     assertEquals(
         before,
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'EXCHANGERATE_HOST' and method = 'MARKET_DAILY' and rate_date = ?",
+            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = ?",
             Integer.class,
             effectiveDate));
     assertEquals(
@@ -300,5 +311,12 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
         jdbc.queryForObject(
             "select config_value from investory.fx_configuration where config_key = 'daily_history_start'",
             String.class));
+  }
+
+  private static List<FxQuote> quotes(
+      LocalDate effectiveDate, LocalDate providerDate, BigDecimal eur, BigDecimal pln) {
+    return List.of(
+        new FxQuote(CurrencyType.USD, CurrencyType.EUR, eur, effectiveDate, providerDate),
+        new FxQuote(CurrencyType.USD, CurrencyType.PLN, pln, effectiveDate, providerDate));
   }
 }

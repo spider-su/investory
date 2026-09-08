@@ -1,8 +1,8 @@
 package com.smartbox.investory.retirement.api.model;
 
 import java.math.BigDecimal;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Retirement-owned lifecycle and cash-flow assumptions.
@@ -25,15 +25,10 @@ public record SimulationAssumptions(
     List<SimulationEvent> futureEvents,
     BigDecimal rentalIncomeGrowthSpread,
     BigDecimal spendingGrowthSpread,
-    SimulationFundingStrategy fundingStrategy,
-    BigDecimal safeReserveYears,
-    BigDecimal equityHarvestMinimumReturnRate,
-    BigDecimal equityGainHarvestRate,
-    boolean allowEmergencyEquityWithdrawal,
+    RetirementFundingPolicy fundingPolicy,
     int retirementAge,
     BigDecimal annualEmploymentIncome,
     BigDecimal annualPreRetirementContribution,
-    List<RetirementFundingSource> fundingOrder,
     ExpenseProfile expenseProfile) {
 
   public int retirementYear() {
@@ -59,9 +54,7 @@ public record SimulationAssumptions(
     if (retirementAge < 0 || retirementAge > endAge)
       throw new IllegalArgumentException("Invalid retirement age");
     for (BigDecimal rate :
-        new BigDecimal[] {
-          inflationRate, fixedIncomeReturnRate, equityReturnRate, equityHarvestMinimumReturnRate
-        })
+        new BigDecimal[] {inflationRate, fixedIncomeReturnRate, equityReturnRate})
       if (rate == null || rate.compareTo(BigDecimal.ONE.negate()) < 0)
         throw new IllegalArgumentException("Invalid simulation rate");
     if (capitalGainTaxRate == null
@@ -76,18 +69,8 @@ public record SimulationAssumptions(
         || SimulationScenarioSettings.effectiveGrowthRate(inflationRate, spendingGrowthSpread)
                 .compareTo(BigDecimal.ONE.negate())
             < 0) throw new IllegalArgumentException("Invalid effective growth rate");
-    if (fundingStrategy == null
-        || safeReserveYears == null
-        || safeReserveYears.signum() < 0
-        || equityGainHarvestRate == null
-        || equityGainHarvestRate.signum() < 0
-        || equityGainHarvestRate.compareTo(BigDecimal.ONE) > 0
-        || fundingOrder == null
-        || fundingOrder.isEmpty()
-        || fundingOrder.stream().anyMatch(source -> source == null)
-        || new HashSet<>(fundingOrder).size() != fundingOrder.size()
-        || expenseProfile == null)
-      throw new IllegalArgumentException("Invalid simulation funding strategy");
+    Objects.requireNonNull(fundingPolicy, "fundingPolicy");
+    if (expenseProfile == null) throw new IllegalArgumentException("Invalid expense profile");
     if (annualLivingExpenses == null
         || annualLivingExpenses.signum() < 0
         || annualDiscretionaryExpenses == null
@@ -100,7 +83,60 @@ public record SimulationAssumptions(
         || annualPreRetirementContribution.signum() < 0
         || futureEvents == null) throw new IllegalArgumentException("Invalid simulation cash flow");
     futureEvents = List.copyOf(futureEvents);
-    fundingOrder = List.copyOf(fundingOrder);
+  }
+
+  /** Compatibility constructor for the persisted/API funding-policy shape. */
+  public SimulationAssumptions(
+      int currentAge,
+      int endAge,
+      BigDecimal annualLivingExpenses,
+      BigDecimal inflationRate,
+      BigDecimal fixedIncomeReturnRate,
+      BigDecimal equityReturnRate,
+      Integer pensionStartAge,
+      BigDecimal annualPension,
+      BigDecimal capitalGainTaxRate,
+      int startYear,
+      BigDecimal annualDiscretionaryExpenses,
+      List<SimulationEvent> futureEvents,
+      BigDecimal rentalIncomeGrowthSpread,
+      BigDecimal spendingGrowthSpread,
+      SimulationFundingStrategy fundingStrategy,
+      BigDecimal safeReserveYears,
+      BigDecimal equityHarvestMinimumReturnRate,
+      BigDecimal equityGainHarvestRate,
+      boolean allowEmergencyEquityWithdrawal,
+      int retirementAge,
+      BigDecimal annualEmploymentIncome,
+      BigDecimal annualPreRetirementContribution,
+      List<RetirementFundingSource> fundingOrder,
+      ExpenseProfile expenseProfile) {
+    this(
+        currentAge,
+        endAge,
+        annualLivingExpenses,
+        inflationRate,
+        fixedIncomeReturnRate,
+        equityReturnRate,
+        pensionStartAge,
+        annualPension,
+        capitalGainTaxRate,
+        startYear,
+        annualDiscretionaryExpenses,
+        futureEvents,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
+        new RetirementFundingPolicy(
+            fundingStrategy,
+            safeReserveYears,
+            equityHarvestMinimumReturnRate,
+            equityGainHarvestRate,
+            allowEmergencyEquityWithdrawal,
+            fundingOrder),
+        retirementAge,
+        annualEmploymentIncome,
+        annualPreRetirementContribution,
+        expenseProfile);
   }
 
   /** The persisted age is the age at the plan start year, not an independently changing age. */
@@ -113,9 +149,29 @@ public record SimulationAssumptions(
     return startYear;
   }
 
-  /** Active withdrawal and reserve-replenishment policy. */
-  public RetirementFundingPolicy fundingPolicy() {
-    return RetirementFundingPolicy.fromLegacy(this);
+  /** Compatibility projection for REST/editor consumers. */
+  public SimulationFundingStrategy fundingStrategy() {
+    return fundingPolicy.fundingStrategy();
+  }
+
+  public BigDecimal safeReserveYears() {
+    return fundingPolicy.reserveTargetYears();
+  }
+
+  public BigDecimal equityHarvestMinimumReturnRate() {
+    return fundingPolicy.equityHarvestThresholdRate();
+  }
+
+  public BigDecimal equityGainHarvestRate() {
+    return fundingPolicy.equityHarvestShare();
+  }
+
+  public boolean allowEmergencyEquityWithdrawal() {
+    return fundingPolicy.allowEmergencyEquityWithdrawal();
+  }
+
+  public List<RetirementFundingSource> fundingOrder() {
+    return fundingPolicy.fundingOrder();
   }
 
   /** Named copy boundary. Use this instead of reconstructing this record positionally. */
@@ -154,15 +210,10 @@ public record SimulationAssumptions(
         List.of(),
         DEFAULT_RENTAL_INCOME_GROWTH_SPREAD,
         DEFAULT_SPENDING_GROWTH_SPREAD,
-        SimulationFundingStrategy.RESERVE_AND_HARVEST,
-        DEFAULT_SAFE_RESERVE_YEARS,
-        DEFAULT_EQUITY_HARVEST_MINIMUM_RETURN_RATE,
-        DEFAULT_EQUITY_GAIN_HARVEST_RATE,
-        true,
+        RetirementFundingPolicy.defaults(),
         currentAge,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
-        DEFAULT_FUNDING_ORDER,
         ExpenseProfile.EMPTY);
   }
 
@@ -264,15 +315,10 @@ public record SimulationAssumptions(
     private List<SimulationEvent> futureEvents;
     private BigDecimal rentalIncomeGrowthSpread;
     private BigDecimal spendingGrowthSpread;
-    private SimulationFundingStrategy fundingStrategy;
-    private BigDecimal safeReserveYears;
-    private BigDecimal equityHarvestMinimumReturnRate;
-    private BigDecimal equityGainHarvestRate;
-    private boolean allowEmergencyEquityWithdrawal;
+    private RetirementFundingPolicy fundingPolicy;
     private int retirementAge;
     private BigDecimal annualEmploymentIncome;
     private BigDecimal annualPreRetirementContribution;
-    private List<RetirementFundingSource> fundingOrder;
     private ExpenseProfile expenseProfile;
 
     private Builder(SimulationAssumptions source) {
@@ -290,15 +336,10 @@ public record SimulationAssumptions(
       futureEvents = source.futureEvents;
       rentalIncomeGrowthSpread = source.rentalIncomeGrowthSpread;
       spendingGrowthSpread = source.spendingGrowthSpread;
-      fundingStrategy = source.fundingStrategy;
-      safeReserveYears = source.safeReserveYears;
-      equityHarvestMinimumReturnRate = source.equityHarvestMinimumReturnRate;
-      equityGainHarvestRate = source.equityGainHarvestRate;
-      allowEmergencyEquityWithdrawal = source.allowEmergencyEquityWithdrawal;
+      fundingPolicy = source.fundingPolicy;
       retirementAge = source.retirementAge;
       annualEmploymentIncome = source.annualEmploymentIncome;
       annualPreRetirementContribution = source.annualPreRetirementContribution;
-      fundingOrder = source.fundingOrder;
       expenseProfile = source.expenseProfile;
     }
 
@@ -389,27 +430,62 @@ public record SimulationAssumptions(
     }
 
     public Builder fundingStrategy(SimulationFundingStrategy value) {
-      fundingStrategy = value;
+      fundingPolicy =
+          new RetirementFundingPolicy(
+              value,
+              fundingPolicy.reserveTargetYears(),
+              fundingPolicy.equityHarvestThresholdRate(),
+              fundingPolicy.equityHarvestShare(),
+              fundingPolicy.allowEmergencyEquityWithdrawal(),
+              fundingPolicy.fundingOrder());
       return this;
     }
 
     public Builder safeReserveYears(BigDecimal value) {
-      safeReserveYears = value;
+      fundingPolicy =
+          new RetirementFundingPolicy(
+              fundingPolicy.fundingStrategy(),
+              value,
+              fundingPolicy.equityHarvestThresholdRate(),
+              fundingPolicy.equityHarvestShare(),
+              fundingPolicy.allowEmergencyEquityWithdrawal(),
+              fundingPolicy.fundingOrder());
       return this;
     }
 
     public Builder equityHarvestMinimumReturnRate(BigDecimal value) {
-      equityHarvestMinimumReturnRate = value;
+      fundingPolicy =
+          new RetirementFundingPolicy(
+              fundingPolicy.fundingStrategy(),
+              fundingPolicy.reserveTargetYears(),
+              value,
+              fundingPolicy.equityHarvestShare(),
+              fundingPolicy.allowEmergencyEquityWithdrawal(),
+              fundingPolicy.fundingOrder());
       return this;
     }
 
     public Builder equityGainHarvestRate(BigDecimal value) {
-      equityGainHarvestRate = value;
+      fundingPolicy =
+          new RetirementFundingPolicy(
+              fundingPolicy.fundingStrategy(),
+              fundingPolicy.reserveTargetYears(),
+              fundingPolicy.equityHarvestThresholdRate(),
+              value,
+              fundingPolicy.allowEmergencyEquityWithdrawal(),
+              fundingPolicy.fundingOrder());
       return this;
     }
 
     public Builder allowEmergencyEquityWithdrawal(boolean value) {
-      allowEmergencyEquityWithdrawal = value;
+      fundingPolicy =
+          new RetirementFundingPolicy(
+              fundingPolicy.fundingStrategy(),
+              fundingPolicy.reserveTargetYears(),
+              fundingPolicy.equityHarvestThresholdRate(),
+              fundingPolicy.equityHarvestShare(),
+              value,
+              fundingPolicy.fundingOrder());
       return this;
     }
 
@@ -429,7 +505,19 @@ public record SimulationAssumptions(
     }
 
     public Builder fundingOrder(List<RetirementFundingSource> value) {
-      fundingOrder = value;
+      fundingPolicy =
+          new RetirementFundingPolicy(
+              fundingPolicy.fundingStrategy(),
+              fundingPolicy.reserveTargetYears(),
+              fundingPolicy.equityHarvestThresholdRate(),
+              fundingPolicy.equityHarvestShare(),
+              fundingPolicy.allowEmergencyEquityWithdrawal(),
+              value);
+      return this;
+    }
+
+    public Builder fundingPolicy(RetirementFundingPolicy value) {
+      fundingPolicy = Objects.requireNonNull(value, "fundingPolicy");
       return this;
     }
 
@@ -454,15 +542,10 @@ public record SimulationAssumptions(
           futureEvents,
           rentalIncomeGrowthSpread,
           spendingGrowthSpread,
-          fundingStrategy,
-          safeReserveYears,
-          equityHarvestMinimumReturnRate,
-          equityGainHarvestRate,
-          allowEmergencyEquityWithdrawal,
+          fundingPolicy,
           retirementAge,
           annualEmploymentIncome,
           annualPreRetirementContribution,
-          fundingOrder,
           expenseProfile);
     }
   }

@@ -34,6 +34,7 @@ public class ImportOriginLookupService {
             .formatted(table, table);
     return jdbcTemplate.query(
         sql,
+        ps -> ps.setLong(1, id),
         rs -> {
           if (!rs.next()) return Optional.empty();
           return Optional.of(

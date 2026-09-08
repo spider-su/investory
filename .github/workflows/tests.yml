@@ -121,7 +121,7 @@ jobs:
             tests: ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT
           - name: imports
             project: app
-            tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,IntegrationJobExecutionIT
+            tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT
           - name: reconciliation-notifications-longterm
             project: app
             tests: DatabaseEvidenceReconciliationCheckIT,NotificationEventContractIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT,LongTermAssetLifecyclePostgresIT

@@ -10,17 +10,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.analysis.RetirementAgeAnalysisService;
+import com.smartbox.investory.retirement.analysis.SimulationSensitivityAnalysisService;
+import com.smartbox.investory.retirement.analysis.SustainableSpendingAnalysisService;
 import com.smartbox.investory.retirement.api.RetirementSandboxApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.ForwardSimulationContext;
 import com.smartbox.investory.retirement.api.model.NormalizedPlanInput;
 import com.smartbox.investory.retirement.api.model.PlanEditorPreview;
-import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
+import com.smartbox.investory.retirement.planning.projection.ForwardSimulationInputService;
 import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
-import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysisService;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
-import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysisService;
-import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysisService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.ui.common.BuildMetadata;
 import com.smartbox.investory.ui.presentation.UiPresentation;

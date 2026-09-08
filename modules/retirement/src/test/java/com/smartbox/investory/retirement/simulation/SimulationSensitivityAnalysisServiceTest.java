@@ -1,4 +1,4 @@
-package com.smartbox.investory.retirement.simulation;
+package com.smartbox.investory.retirement.analysis;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import com.smartbox.investory.profile.api.model.*;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.FrozenBondCashFlowProjection;
+import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;

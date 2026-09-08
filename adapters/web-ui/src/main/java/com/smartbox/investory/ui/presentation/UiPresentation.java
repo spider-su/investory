@@ -2,6 +2,7 @@ package com.smartbox.investory.ui.presentation;
 
 import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationCheckpoint;
 import com.smartbox.investory.longterm.api.model.CashFlowType;
 import com.smartbox.investory.longterm.api.model.Frequency;
 import com.smartbox.investory.longterm.api.model.LongTermAssetType;
@@ -258,6 +259,44 @@ public final class UiPresentation {
       case CASH_RESERVE -> "Cash reserve";
       case PERSONAL_ASSET -> "Personal assets";
     };
+  }
+
+  public static String reconciliationCheckpoint(ReconciliationCheckpoint checkpoint) {
+    return checkpoint == null
+        ? "Unknown checkpoint"
+        : switch (checkpoint) {
+          case C0 -> "Import consistency";
+          case C1 -> "Cash ledger consistency";
+          case C2 -> "Position consistency";
+          case C3 -> "Prices and exchange rates";
+          case C4 -> "Account daily reconciliation";
+          case C5 -> "Reporting layers";
+          case C6 -> "Dashboard consistency";
+          case C7 -> "Export consistency";
+        };
+  }
+
+  public static String reconciliationCheckCode(String code) {
+    if (code == null || code.isBlank()) return "Unknown check";
+    return switch (code) {
+      case "IMPORT_NOT_COMPLETED" -> "Import not completed";
+      default -> humanizeCode(code);
+    };
+  }
+
+  public static String reconciliationCode(String code) {
+    return code == null || code.isBlank() ? "" : "Code: " + code;
+  }
+
+  private static String humanizeCode(String code) {
+    String[] words = code.toLowerCase(Locale.ROOT).split("_");
+    StringBuilder result = new StringBuilder();
+    for (String word : words) {
+      if (word.isBlank()) continue;
+      if (result.length() > 0) result.append(' ');
+      result.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+    }
+    return result.toString();
   }
 
   public static String cashFlowType(CashFlowType value) {

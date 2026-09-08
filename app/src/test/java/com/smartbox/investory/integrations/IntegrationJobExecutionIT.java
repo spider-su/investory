@@ -88,7 +88,7 @@ class IntegrationJobExecutionIT extends FastDatabaseTest {
     assertThat(completed.getLastCompletedAt()).isNotNull();
     assertThat(
             jdbc.queryForObject(
-                "select rate from investory.exchange_rates where rate_date = ? and base = 'USD' and to_currency = 'PLN' and source = 'EXCHANGERATE_HOST'",
+                "select rate from investory.exchange_rates where rate_date = ? and base = 'USD' and to_currency = 'PLN' and source = 'NBP'",
                 BigDecimal.class,
                 today))
         .isEqualByComparingTo("3.601600");

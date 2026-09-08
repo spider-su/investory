@@ -182,7 +182,7 @@ supplies portfolio-scoped calendar-year planning facts. Their Investment impleme
 persistence access behind the boundary.
 
 Market and FX provider configuration is adapter-owned. Investment defines `MarketDataProvider` and
-`FxRateProvider`; TwelveData, Yahoo Finance, and ExchangeRateHost implementations live in
+`FxRateProvider`; TwelveData, Yahoo Finance, NBP, and ExchangeRateHost implementations live in
 `integrations`. Secondary exporters read a typed `PortfolioExportSnapshotReader`, and their own
 delivery/export state remains in `integrations`. Telegram, notifications, health checks, and AI use
 typed Investment query/command APIs; they do not read Investment repositories or scrape rendered UI.
@@ -202,8 +202,8 @@ small, stable Long-Term public value types in `profile.api`; it still never expo
 entities, repositories, or infrastructure types.
 `LongTermAssetProfileReader` returns one coherent source snapshot containing the summary rows used
 for totals, allocation, annual-income facts, and detailed projection inputs. Profile's REST adapter
-currently returns the public `InvestmentProfile` read model directly; it excludes tenant contact
-data and Retirement implementation types.
+maps the public `InvestmentProfile` read model to a dedicated transport response, preserving the
+existing JSON contract while excluding tenant contact data and Retirement implementation types.
 Small stable provenance types are shared when their meaning crosses domain boundaries; projection
 records use `shared.projection.ProjectionSource` for `ACTUAL` and `PROJECTED` rather than defining
 module-specific copies.

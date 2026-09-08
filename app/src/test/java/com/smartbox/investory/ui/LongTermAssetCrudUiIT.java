@@ -90,7 +90,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
             .contains(
                 HappyInvestorTestData.APARTMENT_A_NAME,
                 "Monthly net income",
-                "Income yield",
+                "Net income yield",
                 "Rental contracts",
                 "Property settings",
                 "Annual tax base",
@@ -242,6 +242,12 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         submit(
             page,
             cashRow.getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Archive")));
+        assertThat(
+                jdbc.queryForObject(
+                    "SELECT archived_at FROM investory.cash_reserve WHERE id = ?",
+                    java.sql.Date.class,
+                    cashId))
+            .isEqualTo(java.sql.Date.valueOf("2025-12-31"));
         assertThat(page.locator("#cash-reserves")).not().containsText(cashName);
         open(page, "/portfolios/" + PORTFOLIO_ID + "/long-term-assets?showArchived=true");
         var archived =
@@ -251,6 +257,12 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
             page,
             archived.getByRole(
                 AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Reactivate")));
+        assertThat(
+                jdbc.queryForObject(
+                    "SELECT archived_at FROM investory.cash_reserve WHERE id = ?",
+                    java.sql.Date.class,
+                    cashId))
+            .isNull();
         assertThat(page.locator("#cash-reserves")).containsText(cashName);
 
         context.tracing().stop();

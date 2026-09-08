@@ -21,6 +21,8 @@ The canonical public read is intentionally one boundary:
 
 - `ProfileSnapshotReader` provides a complete `InvestmentProfile` from one repeatable-read snapshot.
 - `ProfileQueryService` constructs the canonical model directly from one valuation date.
+- `InvestmentProfile` is the internal/public application read model; REST maps it to its own
+  `ProfileResponse` while preserving the existing JSON field names and structure.
 
 ## Where to start
 
@@ -28,6 +30,7 @@ The canonical public read is intentionally one boundary:
 - Model: `profile.api.model.InvestmentProfile` and its nested economic component records.
 - Implementation: `ProfileQueryService`.
 - REST adapter: `profile.web.ProfileRestController`.
+- REST transport: `profile.web.ProfileResponse` and its explicit mapper.
 
 ## Safe-change rules
 

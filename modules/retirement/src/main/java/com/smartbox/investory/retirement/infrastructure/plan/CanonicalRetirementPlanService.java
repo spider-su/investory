@@ -4,7 +4,7 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
 
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.infrastructure.simulation.SimulationAssumptionsPersistenceMapper;
+import com.smartbox.investory.retirement.infrastructure.assumptions.SimulationAssumptionsPersistenceMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;

@@ -30,10 +30,9 @@ final class LongTermAssetEconomics {
           expenses = expenses.add(annual);
         }
       }
-      monthlyPayment =
-          monthlyPayment.add(
-              monthlyTenantPayment(
-                  term.type(), term.amount(), term.frequency(), term.paidByTenant()));
+      if (isRentalIncome(term.type())) {
+        monthlyPayment = monthlyPayment.add(monthlyAmount(term.amount(), term.frequency()));
+      }
     }
     BigDecimal normalizedTaxBase = annualTaxBase == null ? BigDecimal.ZERO : annualTaxBase;
     BigDecimal tax = normalizedTaxBase.multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE);
@@ -131,6 +130,10 @@ final class LongTermAssetEconomics {
     if (amount == null || (!isRentalIncome(type) && !paidByTenant)) {
       return BigDecimal.ZERO;
     }
+    return monthlyAmount(amount, frequency);
+  }
+
+  private static BigDecimal monthlyAmount(BigDecimal amount, Frequency frequency) {
     return switch (frequency) {
       case MONTHLY -> amount;
       case ANNUAL -> amount.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP);

@@ -373,7 +373,7 @@ class LongTermAssetsApplicationServiceTest {
   }
 
   @Test
-  void totalPaymentMonthlyUsesTenantPaidIncomeAndExpenses() {
+  void totalPaymentMonthlyExcludesTenantPaidExpenses() {
     var asset =
         realEstateWithTerms(
             newTerm(CashFlowType.RENT, "1000", false),
@@ -383,7 +383,7 @@ class LongTermAssetsApplicationServiceTest {
             newTerm(CashFlowType.OTHER_INCOME, "500", false),
             newTerm(CashFlowType.PROPERTY_TAX, "75", false));
 
-    assertThat(asset.totalPaymentMonthly()).isEqualByComparingTo("1675");
+    assertThat(asset.totalPaymentMonthly()).isEqualByComparingTo("1600");
   }
 
   @Test

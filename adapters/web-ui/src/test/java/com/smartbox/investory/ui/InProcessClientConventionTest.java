@@ -1,6 +1,5 @@
 package com.smartbox.investory.ui;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,8 +52,20 @@ class InProcessClientConventionTest {
       assertTrue(parameters.length > 0, client.getName());
       for (var parameter : parameters) {
         assertNotNull(parameter.getAnnotation(Qualifier.class), client.getName());
-        assertFalse(parameter.getType().getPackageName().contains(".web"), client.getName());
+        assertTrue(
+            isPublicBoundaryType(parameter.getType()),
+            () -> client.getName() + " depends on " + parameter.getType().getName());
       }
     }
+  }
+
+  private static boolean isPublicBoundaryType(Class<?> type) {
+    var packageName = type.getPackageName();
+    return type.isInterface()
+        && (packageName.startsWith("java.")
+            || packageName.equals("com.smartbox.investory.shared")
+            || packageName.startsWith("com.smartbox.investory.shared.")
+            || packageName.endsWith(".api")
+            || packageName.contains(".api."));
   }
 }

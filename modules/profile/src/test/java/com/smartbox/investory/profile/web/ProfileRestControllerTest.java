@@ -32,7 +32,10 @@ class ProfileRestControllerTest {
 
   @BeforeEach
   void setUp() {
-    mvc = MockMvcBuilders.standaloneSetup(new ProfileRestController(profiles)).build();
+    mvc =
+        MockMvcBuilders.standaloneSetup(
+                new ProfileRestController(profiles, new ProfileResponseMapper()))
+            .build();
   }
 
   @Test

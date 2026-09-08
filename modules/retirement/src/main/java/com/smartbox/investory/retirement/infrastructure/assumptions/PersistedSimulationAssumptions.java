@@ -1,0 +1,101 @@
+package com.smartbox.investory.retirement.infrastructure.assumptions;
+
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+/** Persistence shape for the canonical mutable retirement plan row. */
+public interface PersistedSimulationAssumptions {
+  LocalDate getBirthDate();
+
+  void setBirthDate(LocalDate value);
+
+  int getEffectiveYear();
+
+  void setEffectiveYear(int value);
+
+  int getEndAge();
+
+  void setEndAge(int value);
+
+  Integer getRetirementAge();
+
+  void setRetirementAge(Integer value);
+
+  BigDecimal getAnnualEmploymentIncome();
+
+  void setAnnualEmploymentIncome(BigDecimal value);
+
+  BigDecimal getAnnualPreRetirementContribution();
+
+  void setAnnualPreRetirementContribution(BigDecimal value);
+
+  BigDecimal getAnnualLivingExpenses();
+
+  void setAnnualLivingExpenses(BigDecimal value);
+
+  BigDecimal getAnnualDiscretionaryExpenses();
+
+  void setAnnualDiscretionaryExpenses(BigDecimal value);
+
+  BigDecimal getInflationRate();
+
+  void setInflationRate(BigDecimal value);
+
+  BigDecimal getRentalIncomeGrowthSpread();
+
+  void setRentalIncomeGrowthSpread(BigDecimal value);
+
+  BigDecimal getSpendingGrowthSpread();
+
+  void setSpendingGrowthSpread(BigDecimal value);
+
+  SimulationFundingStrategy getFundingStrategy();
+
+  void setFundingStrategy(SimulationFundingStrategy value);
+
+  String getFundingOrder();
+
+  void setFundingOrder(String value);
+
+  String getExpenseProfile();
+
+  void setExpenseProfile(String value);
+
+  BigDecimal getSafeReserveYears();
+
+  void setSafeReserveYears(BigDecimal value);
+
+  BigDecimal getEquityHarvestMinimumReturnRate();
+
+  void setEquityHarvestMinimumReturnRate(BigDecimal value);
+
+  BigDecimal getEquityGainHarvestRate();
+
+  void setEquityGainHarvestRate(BigDecimal value);
+
+  Boolean getAllowEmergencyEquityWithdrawal();
+
+  void setAllowEmergencyEquityWithdrawal(Boolean value);
+
+  BigDecimal getFixedIncomeReturnRate();
+
+  void setFixedIncomeReturnRate(BigDecimal value);
+
+  BigDecimal getEquityReturnRate();
+
+  void setEquityReturnRate(BigDecimal value);
+
+  int getPensionStartAge();
+
+  void setPensionStartAge(int value);
+
+  BigDecimal getAnnualPension();
+
+  void setAnnualPension(BigDecimal value);
+
+  BigDecimal getCapitalGainTaxRate();
+
+  void setCapitalGainTaxRate(BigDecimal value);
+}

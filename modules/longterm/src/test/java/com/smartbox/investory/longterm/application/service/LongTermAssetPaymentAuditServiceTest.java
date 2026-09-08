@@ -7,7 +7,6 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.longterm.api.model.CashFlowType;
 import com.smartbox.investory.longterm.api.model.Frequency;
-import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateEntity;
 import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
@@ -21,7 +20,7 @@ import org.junit.jupiter.api.Test;
 
 class LongTermAssetPaymentAuditServiceTest {
   @Test
-  void monthlyTenantPaymentMatchesAuthoritativeRentalEconomics() {
+  void monthlyTenantPaymentIncludesTenantPaidExpenses() {
     var realEstates = mock(RealEstateRepository.class);
     var contracts = mock(LongTermAssetRentalContractRepository.class);
     var estate = new RealEstateEntity();
@@ -46,20 +45,6 @@ class LongTermAssetPaymentAuditServiceTest {
     var rows =
         new LongTermAssetPaymentAuditService(realEstates, contracts)
             .paymentAudit(1L, LocalDate.of(2026, 6, 1));
-    var economics =
-        LongTermAssetEconomics.rental(
-            contract.getTerms().stream()
-                .map(
-                    value ->
-                        new RentalContractModel.Term(
-                            value.getType(),
-                            value.getAmount(),
-                            value.getFrequency(),
-                            value.isPaidByTenant()))
-                .toList(),
-            BigDecimal.ZERO,
-            new BigDecimal("100000"));
-
     assertThat(rows)
         .singleElement()
         .satisfies(
@@ -67,8 +52,6 @@ class LongTermAssetPaymentAuditServiceTest {
               assertThat(row.assetName()).isEqualTo("Rental home");
               assertThat(row.tenantName()).isEqualTo("Tenant");
               assertThat(row.totalMonthlyPayment()).isEqualByComparingTo("1300");
-              assertThat(row.totalMonthlyPayment())
-                  .isEqualByComparingTo(economics.monthlyPayment());
             });
   }
 

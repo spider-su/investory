@@ -2,6 +2,7 @@ package com.smartbox.investory.ui.presentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationCheckpoint;
 import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -31,5 +32,15 @@ class UiPresentationTest {
         .isEqualTo("177,201");
     assertThat(UiPresentation.monthly(new java.math.BigDecimal("102")))
         .isEqualByComparingTo("8.50");
+  }
+
+  @Test
+  void mapsReconciliationDiagnosticsToReadableLabelsWithoutChangingCodes() {
+    assertThat(UiPresentation.reconciliationCheckpoint(ReconciliationCheckpoint.C0))
+        .isEqualTo("Import consistency");
+    assertThat(UiPresentation.reconciliationCheckCode("IMPORT_NOT_COMPLETED"))
+        .isEqualTo("Import not completed");
+    assertThat(UiPresentation.reconciliationCode("IMPORT_NOT_COMPLETED"))
+        .isEqualTo("Code: IMPORT_NOT_COMPLETED");
   }
 }

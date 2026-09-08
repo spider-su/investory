@@ -40,6 +40,21 @@ source APIs + saved plan + temporal context
 - Interpretation: `RetirementAnalysisService`, `SimulationSensitivityAnalysisService`, and `SustainableSpendingAnalysisService`.
 - Sandbox: `RetirementSandboxSimulationService`; it must not mutate source domains or saved plans.
 
+## Package map
+
+- `retirement.simulation` is the deterministic bucket engine and core simulation contracts.
+- `retirement.analysis` evaluates simulation results and scenarios.
+- `retirement.preview` contains sandbox and editor previews that delegate to the core engine.
+- `retirement.planning.application` coordinates planning use cases; `projection`, `timeline`,
+  `review`, `reconciliation`, `input`, and `presentation` hold the narrower planning concerns.
+- `retirement.infrastructure.planningyear` owns planning-year persistence; `infrastructure.assumptions`
+  is the persistence boundary for the legacy plan-assumption columns.
+- `retirement.rest` is the HTTP adapter. It must not reach infrastructure or the simulation core directly.
+
+Funding behavior is owned by `RetirementFundingPolicy` and is exposed from
+`SimulationAssumptions.fundingPolicy()`. Legacy assumption accessors and persistence columns remain
+compatibility views at the API/database boundary; they are not a second active policy store.
+
 ## Safe-change rules
 
 - Keep the engine deterministic: pass baseline year/context; do not read system time inside core simulation.

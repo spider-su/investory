@@ -35,6 +35,8 @@
 }
 .iv-settings-card__header h2 { margin: 5px 0 3px; font-size: 1.1rem; }
 .iv-settings-card__header p { margin: 0; color: var(--iv-text-muted); font-size: .78rem; }
+.iv-settings-state { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 22px; border-bottom: 1px solid var(--iv-border); color: var(--iv-text-muted); font-size: .76rem; }
+.iv-settings-state strong { color: var(--iv-text); font-weight: 700; }
 .iv-status-badge {
     flex: 0 0 auto;
     padding: 5px 9px;
@@ -107,6 +109,7 @@
 .iv-settings-diagnostics { padding: 0 20px 12px; font-size: .82rem; }
 .iv-settings-jobs { padding: 16px 22px 20px; border-top: 1px solid var(--iv-border); }
 .iv-settings-jobs h3 { margin: 0 0 10px; font-size: .95rem; }
+.iv-settings-help { margin: -2px 0 12px; color: var(--iv-text-muted); font-size: .76rem; }
 .iv-settings-jobs form {
     display: grid;
     grid-template-columns: repeat(4, minmax(150px, 1fr)) auto auto;
@@ -115,6 +118,7 @@
     margin-top: 10px;
 }
 .iv-settings-jobs form h4 { grid-column: 1 / -1; margin: 0; font-size: .82rem; }
+.iv-settings-job-state { grid-column: 1 / -1; margin: -5px 0 0; color: var(--iv-text-muted); font-size: .74rem; }
 .iv-settings-jobs label { display: grid; gap: 4px; font-size: .78rem; color: var(--iv-text-muted); }
 .iv-settings-jobs input:not([type="checkbox"]):not([type="hidden"]),
 .iv-settings-jobs select { min-width: 180px; min-height: var(--iv-control-height); padding: 6px 9px; border: 1px solid var(--iv-border); border-radius: var(--iv-radius-sm); background: var(--iv-surface); color: var(--iv-text); font: inherit; }

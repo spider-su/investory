@@ -26,7 +26,7 @@ class RealEstateRentalContractTemplateContractTest {
         .contains(
             "iv-property-hero__metrics",
             "Monthly net income",
-            "Income yield",
+            "Net income yield",
             "summary.annualEconomics.grossYield",
             "summary.annualEconomics.netYieldAfterTax",
             "id=\"rental-contracts\"",

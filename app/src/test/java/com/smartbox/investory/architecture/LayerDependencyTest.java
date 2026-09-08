@@ -400,7 +400,7 @@ class LayerDependencyTest {
             "..investment.web..",
             "..longterm.web..",
             "..profile.web..",
-            "..retirement.web..")
+            "..retirement.rest..")
         .check(MAIN);
   }
 
@@ -480,7 +480,7 @@ class LayerDependencyTest {
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
-            "..investment.web..", "..longterm.web..", "..profile.web..", "..retirement.web..")
+            "..investment.web..", "..longterm.web..", "..profile.web..", "..retirement.rest..")
         .check(MAIN);
   }
 
@@ -542,7 +542,7 @@ class LayerDependencyTest {
     noClasses()
         .that()
         .resideInAnyPackage(
-            "..investment.web..", "..longterm.web..", "..profile.web..", "..retirement.web..")
+            "..investment.web..", "..longterm.web..", "..profile.web..", "..retirement.rest..")
         .should()
         .dependOnClassesThat()
         .areAnnotatedWith(Service.class)
@@ -554,10 +554,50 @@ class LayerDependencyTest {
   void retirementWebDoesNotDependOnSimulationImplementations() {
     noClasses()
         .that()
-        .resideInAnyPackage("..retirement.web..")
+        .resideInAnyPackage("..retirement.rest..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..retirement.simulation..")
+        .check(MAIN);
+  }
+
+  @DisplayName("retirement Simulation Core Does Not Depend On Adapters")
+  @Test
+  void retirementSimulationCoreDoesNotDependOnAdapters() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..retirement.simulation..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..retirement.rest..",
+            "..retirement.infrastructure..",
+            "..retirement.planning.application..",
+            "..retirement.preview..")
+        .check(MAIN);
+  }
+
+  @DisplayName("retirement Analysis Does Not Depend On Adapters")
+  @Test
+  void retirementAnalysisDoesNotDependOnAdapters() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..retirement.analysis..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..retirement.rest..", "..retirement.infrastructure..")
+        .check(MAIN);
+  }
+
+  @DisplayName("retirement Rest Does Not Depend On Persistence")
+  @Test
+  void retirementRestDoesNotDependOnPersistence() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..retirement.rest..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..retirement.infrastructure..")
         .check(MAIN);
   }
 
