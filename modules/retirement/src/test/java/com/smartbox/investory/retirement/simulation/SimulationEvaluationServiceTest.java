@@ -6,7 +6,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.analysis.*;
 import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.preview.*;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;

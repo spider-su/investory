@@ -110,29 +110,10 @@ public class RetirementSimulationService implements RetirementSimulation {
       BigDecimal bondIncome =
           bondCashFlows.cashIncome(profile, assumptions, year).multiply(recurringFraction);
       BigDecimal cashIncome =
-          employment.add(pension).add(eventIncome).add(periodRental).add(bondIncome);
+          recurringIncome(employment, pension, eventIncome, periodRental, bondIncome);
       BigDecimal annualBondReturn = effective.capitalBondReturnRate().multiply(recurringFraction);
       BigDecimal annualEquityReturn = effective.equityReturnRate().multiply(recurringFraction);
-      PlanningBuckets annualBuckets =
-          new PlanningBuckets(
-              current.cash(),
-              new PlanningBucket(
-                  EconomicBucket.FIXED_INCOME,
-                  current.bonds().startValue(),
-                  annualBondReturn,
-                  current.bonds().spendingPriority(),
-                  current.bonds().targetValue(),
-                  RefillPolicy.NONE),
-              new PlanningBucket(
-                  EconomicBucket.EQUITY,
-                  current.equities().startValue(),
-                  annualEquityReturn,
-                  current.equities().spendingPriority(),
-                  current.equities().targetValue(),
-                  RefillPolicy.EQUITY_HARVEST),
-              current.realEstate(),
-              current.rentalCashIncome(),
-              current.realEstateGrowthRate());
+      PlanningBuckets annualBuckets = annualBuckets(current, annualBondReturn, annualEquityReturn);
       var result =
           engine.simulate(
               annualBuckets,
@@ -149,16 +130,7 @@ public class RetirementSimulationService implements RetirementSimulation {
           retired
               ? ZERO
               : assumptions.annualPreRetirementContribution().multiply(recurringFraction);
-      var e =
-          retired || contribution.signum() == 0
-              ? rawEquities
-              : new BucketResult(
-                  EconomicBucket.EQUITY,
-                  rawEquities.startValue(),
-                  rawEquities.returnAmount(),
-                  rawEquities.refill(),
-                  rawEquities.withdrawal(),
-                  rawEquities.expectedEndValue().add(contribution));
+      var e = withContribution(rawEquities, retired, contribution);
       var re = result.buckets().get(EconomicBucket.REAL_ESTATE);
       if (result.unfunded().signum() > 0 && failureAge == null) {
         failureAge = age;
@@ -185,38 +157,7 @@ public class RetirementSimulationService implements RetirementSimulation {
               result.unfunded(),
               contribution));
       BigDecimal nextEquities = e.expectedEndValue();
-      current =
-          new PlanningBuckets(
-              new PlanningBucket(
-                  EconomicBucket.LIQUID_CASH,
-                  c.expectedEndValue(),
-                  ZERO,
-                  1,
-                  ZERO,
-                  RefillPolicy.NONE),
-              new PlanningBucket(
-                  EconomicBucket.FIXED_INCOME,
-                  b.expectedEndValue(),
-                  current.bonds().plannedYieldRate(),
-                  2,
-                  current.bonds().targetValue(),
-                  RefillPolicy.NONE),
-              new PlanningBucket(
-                  EconomicBucket.EQUITY,
-                  nextEquities,
-                  current.equities().plannedYieldRate(),
-                  3,
-                  ZERO,
-                  RefillPolicy.EQUITY_HARVEST),
-              new PlanningBucket(
-                  EconomicBucket.REAL_ESTATE,
-                  re.expectedEndValue(),
-                  ZERO,
-                  4,
-                  ZERO,
-                  RefillPolicy.NONE),
-              rental,
-              current.realEstateGrowthRate());
+      current = nextBuckets(current, c, b, nextEquities, re, rental);
       rental = rental.multiply(BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()));
       if (retired) spending = spending.multiply(BigDecimal.ONE.add(effective.spendingGrowthRate()));
       if (firstYearOnly) break;
@@ -249,5 +190,84 @@ public class RetirementSimulationService implements RetirementSimulation {
         .collect(
             java.util.stream.Collectors.toUnmodifiableMap(
                 SimulationEvent::year, SimulationEvent::amount, BigDecimal::add));
+  }
+
+  private static BigDecimal recurringIncome(
+      BigDecimal employment,
+      BigDecimal pension,
+      BigDecimal eventIncome,
+      BigDecimal periodRental,
+      BigDecimal bondIncome) {
+    return employment.add(pension).add(eventIncome).add(periodRental).add(bondIncome);
+  }
+
+  private static PlanningBuckets annualBuckets(
+      PlanningBuckets current, BigDecimal bondReturn, BigDecimal equityReturn) {
+    return new PlanningBuckets(
+        current.cash(),
+        new PlanningBucket(
+            EconomicBucket.FIXED_INCOME,
+            current.bonds().startValue(),
+            bondReturn,
+            current.bonds().spendingPriority(),
+            current.bonds().targetValue(),
+            RefillPolicy.NONE),
+        new PlanningBucket(
+            EconomicBucket.EQUITY,
+            current.equities().startValue(),
+            equityReturn,
+            current.equities().spendingPriority(),
+            current.equities().targetValue(),
+            RefillPolicy.EQUITY_HARVEST),
+        current.realEstate(),
+        current.rentalCashIncome(),
+        current.realEstateGrowthRate());
+  }
+
+  private static BucketResult withContribution(
+      BucketResult equities, boolean retired, BigDecimal contribution) {
+    if (retired || contribution.signum() == 0) return equities;
+    return new BucketResult(
+        EconomicBucket.EQUITY,
+        equities.startValue(),
+        equities.returnAmount(),
+        equities.refill(),
+        equities.withdrawal(),
+        equities.expectedEndValue().add(contribution));
+  }
+
+  private static PlanningBuckets nextBuckets(
+      PlanningBuckets current,
+      BucketResult cash,
+      BucketResult bonds,
+      BigDecimal equities,
+      BucketResult realEstate,
+      BigDecimal rental) {
+    return new PlanningBuckets(
+        new PlanningBucket(
+            EconomicBucket.LIQUID_CASH, cash.expectedEndValue(), ZERO, 1, ZERO, RefillPolicy.NONE),
+        new PlanningBucket(
+            EconomicBucket.FIXED_INCOME,
+            bonds.expectedEndValue(),
+            current.bonds().plannedYieldRate(),
+            2,
+            current.bonds().targetValue(),
+            RefillPolicy.NONE),
+        new PlanningBucket(
+            EconomicBucket.EQUITY,
+            equities,
+            current.equities().plannedYieldRate(),
+            3,
+            ZERO,
+            RefillPolicy.EQUITY_HARVEST),
+        new PlanningBucket(
+            EconomicBucket.REAL_ESTATE,
+            realEstate.expectedEndValue(),
+            ZERO,
+            4,
+            ZERO,
+            RefillPolicy.NONE),
+        rental,
+        current.realEstateGrowthRate());
   }
 }

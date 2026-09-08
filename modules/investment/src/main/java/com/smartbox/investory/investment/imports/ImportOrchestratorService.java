@@ -58,7 +58,7 @@ public class ImportOrchestratorService {
       AccountRepository accountRepository) {
     this.parserByBroker = new EnumMap<>(BrokerType.class);
     for (BrokerImportParser parser : parsers) {
-      BrokerType brokerType = BrokerType.valueOf(parser.brokerType().name());
+      BrokerType brokerType = BrokerType.fromApi(parser.brokerType());
       BrokerImportParser previous = this.parserByBroker.put(brokerType, parser);
       if (previous != null) {
         throw new IllegalStateException(

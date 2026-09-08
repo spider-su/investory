@@ -3,7 +3,9 @@ package com.smartbox.investory.retirement.simulation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.analysis.*;
 import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.preview.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;

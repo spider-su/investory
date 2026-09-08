@@ -3,7 +3,9 @@ package com.smartbox.investory.retirement.simulation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.smartbox.investory.retirement.analysis.*;
 import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.preview.*;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;

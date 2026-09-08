@@ -1,6 +1,6 @@
 package com.smartbox.investory.integrations.fx;
 
-import com.smartbox.investory.integrations.fx.exchangeratehost.ExchangeRateHostFxDataPlugin;
+import com.smartbox.investory.integrations.fx.nbp.NbpFxDataPlugin;
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.application.IntegrationConfigurationService;
 import com.smartbox.investory.integrations.management.model.PluginConfig;
@@ -10,11 +10,11 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-/** Resolves the configured ExchangeRate.host adapter for Investment's provider-neutral port. */
+/** Resolves the default NBP adapter for Investment's provider-neutral port. */
 @Component
 @RequiredArgsConstructor
 public class ConfiguredFxRateProvider implements FxRateProvider {
-  private final ExchangeRateHostFxDataPlugin plugin;
+  private final NbpFxDataPlugin plugin;
   private final IntegrationConfigurationService configuration;
 
   @Override
@@ -22,7 +22,7 @@ public class ConfiguredFxRateProvider implements FxRateProvider {
     try {
       PluginConfig config =
           configuration.resolveForRuntime(
-              IntegrationType.FX_DATA, ExchangeRateHostFxDataPlugin.ID, PluginConfig.empty());
+              IntegrationType.FX_DATA, NbpFxDataPlugin.ID, PluginConfig.empty());
       return plugin.fetchRates(request, config);
     } catch (RuntimeException exception) {
       throw new FxRateProviderException(exception.getMessage(), exception);

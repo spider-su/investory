@@ -102,11 +102,12 @@ small navigation and JavaScript controls without duplicating canonical financial
 Failed page cases write a screenshot, rendered HTML, and Playwright trace under
 `app/target/ui-test-results`.
 
-`LongTermAssetCrudUiIT` currently covers a canonical real-estate browser flow through the rendered
+`LongTermAssetCrudUiIT` covers a canonical real-estate browser flow through the rendered
 list/detail/create/edit pages, with PostgreSQL assertions for persisted property facts and rental
-term editing. It also checks long-term list rendering for cash reserves. It does not currently
-provide complete browser CRUD coverage for bonds, cash reserves, personal assets, or archive/
-reactivate behavior. `LongTermAssetLifecyclePostgresIT` covers the real-estate/rental command, JPA,
+term editing. It also covers cash-reserve create/edit/archive/reactivate through the rendered UI,
+including PostgreSQL assertions for the value and archive state. It does not provide complete
+browser CRUD coverage for bonds or personal assets. `LongTermAssetLifecyclePostgresIT` covers the
+real-estate/rental command, JPA,
 PostgreSQL, economics, historical snapshot, archive, and reactivate lifecycle without duplicating
 browser assertions. Do not treat either test as a complete browser lifecycle test for every
 Long-Term type.

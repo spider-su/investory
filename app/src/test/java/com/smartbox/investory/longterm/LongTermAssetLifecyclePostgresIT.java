@@ -85,7 +85,7 @@ class LongTermAssetLifecyclePostgresIT extends FastDatabaseTest {
 
     assertThat(updated.id()).isEqualTo(first.id());
     var current2025 = assets.realEstateSummary(PORTFOLIO_ID, estate.id(), LocalDate.of(2025, 6, 1));
-    assertThat(current2025.totalPaymentMonthly()).isEqualByComparingTo("2500");
+    assertThat(current2025.totalPaymentMonthly()).isEqualByComparingTo("2200");
     assertThat(current2025.annualEconomics().netAnnualIncomeAfterTax())
         .isEqualByComparingTo("22980");
 

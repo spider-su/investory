@@ -211,7 +211,6 @@ The container sets only local database variables. Optional integrations remain d
 Provide secrets through the host environment, a local uncommitted environment file, or the remote environment's secret manager. Do not commit values for:
 
 - `TWELVEDATA_API_KEY`
-- `EXCHANGERATE_API_KEY`
 - `TELEGRAM_BOT_TOKEN`
 - `OPENAI_API_KEY`
 - production database credentials

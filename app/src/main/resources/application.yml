@@ -29,7 +29,7 @@ spring:
     hikari:
       # Keep timestamptz -> date reporting semantics deterministic across local and CI databases.
       connection-init-sql: SET TIME ZONE 'Europe/Warsaw'
-      keepalive-time: 30000
+      keepalive-time: 20000
       max-lifetime: 1800000
       idle-timeout: 600000
       connection-test-query: SELECT 1
@@ -103,7 +103,6 @@ app:
     reconciliation-refresh-enabled: ${IMPORT_RECONCILIATION_REFRESH_ENABLED:false}
   api:
     twelve-data-key: ${TWELVEDATA_API_KEY:}
-    exchange-rate-key: ${EXCHANGERATE_API_KEY:}
   security:
     # Read routes require HTTP Basic by default. Set false only for a trusted local network.
     read-authentication-required: ${APP_SECURITY_READ_AUTHENTICATION_REQUIRED:true}

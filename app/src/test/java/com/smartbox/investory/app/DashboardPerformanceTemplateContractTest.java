@@ -242,12 +242,12 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("new Intl.NumberFormat('de-DE'"));
     assertTrue(html.contains("Market data"));
     assertTrue(html.contains("id=\"refresh-prices-btn\""));
-    assertTrue(html.contains("Base currency: USD"));
+    assertTrue(html.contains("Reporting currency: USD"));
     assertFalse(html.contains("Portfolio values are converted to"));
     assertFalse(html.contains("iv-topbar-fx-popover__total"));
     assertTrue(
         html.contains(
-            "th:text=\"${'Base currency: ' + stats.baseCurrency}\">Base currency: USD</span>"));
+            "th:text=\"${'Reporting currency: ' + stats.baseCurrency}\">Reporting currency: USD</span>"));
     assertTrue(headerControls.contains("stats.formatBase(account.netDepositBase)"));
     assertTrue(
         headerControls.contains(

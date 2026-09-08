@@ -26,7 +26,7 @@ broker files / manual prices / market + FX adapters
 ## Where to start
 
 - Public contracts: `investment.api.*`, especially `InvestmentDashboardApi`, `InvestmentAssetApi`, and `InvestmentImportApi`.
-- Commands/imports: `investment.imports.*`, `InvestmentMaintenanceApplicationService`.
+- Commands/imports: `investment.imports.*`, `investment.operations.application.InvestmentMaintenanceApplicationService`.
 - Ledger: `investment.ledger.*`.
 - Prices and FX: `investment.valuation.price.*` and `investment.valuation.fx.*`.
 - Derived data: `investment.projection.*`, `investment.reporting.*`, and `investment.reconciliation.*`.

@@ -17,7 +17,7 @@
             <div>
                 <div class="iv-section-heading__eyebrow">Data quality</div>
                 <h2>Reconciliation pipeline</h2>
-                <p th:text="${'System-wide current-state diagnostic · data as of ' + T(com.smartbox.investory.ui.presentation.UiPresentation).date(report.asOfDate) + '. Later failures and reviews are shown as blocked when an earlier checkpoint fails.'}">System-wide current-state diagnostic.</p>
+                <p th:text="${'System-wide current-state diagnostic · data as of ' + T(com.smartbox.investory.ui.presentation.UiPresentation).date(report.asOfDate) + '. A later checkpoint can be blocked when an earlier checkpoint fails; this preserves the dependency chain without claiming a new failure.'}">System-wide current-state diagnostic.</p>
             </div>
             <div class="iv-section-heading__actions">
                 <form method="post" th:action="@{/portfolios/{portfolioId}/dashboard/reconciliation/refresh(portfolioId=${portfolioId})}">
@@ -39,7 +39,7 @@
             </div>
             <div>
                 <span class="iv-kpi__label">First failing checkpoint</span>
-                <strong class="iv-kpi__value" th:classappend="${report.firstFailingCheckpoint != null} ? ' iv-neg' : ' iv-pos'" th:text="${report.firstFailingCheckpoint == null ? 'None' : report.firstFailingCheckpoint.checkpoint.code + ' — ' + #strings.replace(report.firstFailingCheckpoint.name, ' -> ', ' → ')}">None</strong>
+                <strong class="iv-kpi__value" th:classappend="${report.firstFailingCheckpoint != null} ? ' iv-neg' : ' iv-pos'" th:text="${report.firstFailingCheckpoint == null ? 'None' : report.firstFailingCheckpoint.checkpoint.code + ' — ' + T(com.smartbox.investory.ui.presentation.UiPresentation).reconciliationCheckpoint(report.firstFailingCheckpoint.checkpoint)}">None</strong>
             </div>
         </section>
 
@@ -47,7 +47,7 @@
             <div class="iv-card__head"><h3 id="checkpoint-counts-title" class="iv-card__title">Checkpoint counts</h3></div>
             <div class="iv-card__body iv-table-wrap">
                 <table class="iv-table"><thead><tr><th>Checkpoint</th><th>Status</th><th>Issues</th><th>Failures</th><th>Reviews</th></tr></thead>
-                    <tbody><tr th:each="checkpoint : ${report.checkpoints}"><td><strong th:text="${checkpoint.checkpoint.code}">C0</strong><small class="iv-report-table__sub" th:text="${#strings.replace(checkpoint.name, ' -> ', ' → ')}">files → import history</small></td><td><span class="iv-badge" th:classappend="${checkpoint.effectiveStatus.name() == 'FAIL'} ? ' iv-badge--neg' : (${checkpoint.effectiveStatus.name() == 'REVIEW' or checkpoint.effectiveStatus.name() == 'BLOCKED'} ? ' iv-badge--warn' : (${checkpoint.effectiveStatus.name() == 'PASS'} ? ' iv-badge--pos' : ' iv-badge--muted'))" th:text="${checkpoint.effectiveStatus}">NOT_CHECKED</span></td><td th:text="${#numbers.formatInteger(checkpoint.issueCount, 1, 'COMMA')}">0</td><td th:text="${#numbers.formatInteger(checkpoint.failureCount, 1, 'COMMA')}">0</td><td th:text="${#numbers.formatInteger(checkpoint.reviewCount, 1, 'COMMA')}">0</td></tr></tbody>
+                    <tbody><tr th:each="checkpoint : ${report.checkpoints}"><td><strong th:text="${checkpoint.checkpoint.code}">C0</strong><small class="iv-report-table__sub" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).reconciliationCheckpoint(checkpoint.checkpoint)}">Import consistency</small><small class="iv-report-table__sub" th:text="${#strings.replace(checkpoint.name, ' -> ', ' → ')}">files → import history</small></td><td><span class="iv-badge" th:classappend="${checkpoint.effectiveStatus.name() == 'FAIL'} ? ' iv-badge--neg' : (${checkpoint.effectiveStatus.name() == 'REVIEW' or checkpoint.effectiveStatus.name() == 'BLOCKED'} ? ' iv-badge--warn' : (${checkpoint.effectiveStatus.name() == 'PASS'} ? ' iv-badge--pos' : ' iv-badge--muted'))" th:text="${checkpoint.effectiveStatus}">NOT_CHECKED</span></td><td th:text="${#numbers.formatInteger(checkpoint.issueCount, 1, 'COMMA')}">0</td><td th:text="${#numbers.formatInteger(checkpoint.failureCount, 1, 'COMMA')}">0</td><td th:text="${#numbers.formatInteger(checkpoint.reviewCount, 1, 'COMMA')}">0</td></tr></tbody>
                 </table>
             </div>
         </section>
@@ -63,7 +63,7 @@
                             <tbody><tr th:each="issue : ${group.issues}">
                                 <td><span class="iv-badge" th:classappend="${issue.effectiveStatus.name() == 'FAIL'} ? ' iv-badge--neg' : (${issue.effectiveStatus.name() == 'BLOCKED' or issue.effectiveStatus.name() == 'REVIEW'} ? ' iv-badge--warn' : ' iv-badge--muted')" th:text="${issue.effectiveStatus}">FAIL</span><small class="iv-report-table__sub" th:if="${issue.originalStatus != issue.effectiveStatus}" th:text="${'Original: ' + issue.originalStatus}">Original: FAIL</small></td>
                                 <td th:text="${issue.location}">Provider / Account / Date</td>
-                                <td><strong th:text="${issue.checkCode}">ACCOUNT_DAILY_EQUITY_RECONCILIATION</strong><small class="iv-report-table__sub" th:text="${issue.checkName}">Equity reconciliation</small></td>
+                                <td><strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).reconciliationCheckCode(issue.checkCode)}">Account daily equity reconciliation</strong><small class="iv-report-table__sub" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).reconciliationCode(issue.checkCode)}">Code: ACCOUNT_DAILY_EQUITY_RECONCILIATION</small><small class="iv-report-table__sub" th:text="${issue.checkName}">Equity reconciliation</small></td>
                                 <td th:text="${issue.expected == null ? '—' : issue.expected}">100000</td>
                                 <td th:text="${issue.actual == null ? '—' : issue.actual}">99200</td>
                                 <td th:text="${issue.difference == null ? '—' : issue.difference}">-800</td>

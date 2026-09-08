@@ -217,11 +217,7 @@ class CurrencyRateServiceTest {
   @Test
   void updateRates_persistsNewRateWhenAbsent() {
     when(currencyRateRepository.findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
-            LocalDate.of(2026, 7, 5),
-            CurrencyType.USD,
-            CurrencyType.EUR,
-            "EXCHANGERATE_HOST",
-            "MARKET_DAILY"))
+            LocalDate.of(2026, 7, 5), CurrencyType.USD, CurrencyType.EUR, "NBP", "MARKET_DAILY"))
         .thenReturn(Optional.empty());
 
     service.updateRates(CurrencyType.USD, Map.of(CurrencyType.EUR, 0.95), LocalDate.of(2026, 7, 5));
@@ -241,11 +237,7 @@ class CurrencyRateServiceTest {
     CurrencyRateEntity existing =
         rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5), 0.8);
     when(currencyRateRepository.findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
-            LocalDate.of(2026, 7, 5),
-            CurrencyType.USD,
-            CurrencyType.EUR,
-            "EXCHANGERATE_HOST",
-            "MARKET_DAILY"))
+            LocalDate.of(2026, 7, 5), CurrencyType.USD, CurrencyType.EUR, "NBP", "MARKET_DAILY"))
         .thenReturn(Optional.of(existing));
 
     service.updateRates(CurrencyType.USD, Map.of(CurrencyType.EUR, 0.92), LocalDate.of(2026, 7, 5));

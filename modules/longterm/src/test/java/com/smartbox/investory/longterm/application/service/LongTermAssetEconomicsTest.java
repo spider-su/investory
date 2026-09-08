@@ -31,7 +31,7 @@ class LongTermAssetEconomicsTest {
     assertThat(result.economics().monthlyTaxBase()).isEqualByComparingTo("200");
     assertThat(result.economics().monthlyTax()).isEqualByComparingTo("17");
     assertThat(result.economics().netAnnualIncomeAfterTax()).isEqualByComparingTo("648");
-    assertThat(result.monthlyPayment()).isEqualByComparingTo("121");
+    assertThat(result.monthlyPayment()).isEqualByComparingTo("111");
   }
 
   @Test
@@ -113,7 +113,7 @@ class LongTermAssetEconomicsTest {
           .isEqualByComparingTo(income ? annual : "0");
       assertThat(landlord.economics().annualExpenses()).isEqualByComparingTo(income ? "0" : annual);
       assertThat(tenant.economics().annualExpenses()).isZero();
-      assertThat(tenant.monthlyPayment()).isEqualByComparingTo(monthly);
+      assertThat(tenant.monthlyPayment()).isEqualByComparingTo(income ? monthly : "0");
       assertThat(landlord.monthlyPayment()).isEqualByComparingTo(income ? monthly : "0");
     }
   }

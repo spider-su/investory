@@ -16,12 +16,14 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class ProfileRestController {
   private final ProfileSnapshotReader profiles;
+  private final ProfileResponseMapper responseMapper;
 
   @GetMapping
-  public InvestmentProfile profile(@PathVariable Long portfolioId) {
+  public ProfileResponse profile(@PathVariable Long portfolioId) {
     if (portfolioId == null || portfolioId <= 0) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "portfolioId must be positive");
     }
-    return profiles.loadProfile(portfolioId);
+    InvestmentProfile profile = profiles.loadProfile(portfolioId);
+    return responseMapper.map(profile);
   }
 }

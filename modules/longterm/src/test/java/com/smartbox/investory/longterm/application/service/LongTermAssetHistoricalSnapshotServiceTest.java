@@ -2,7 +2,10 @@ package com.smartbox.investory.longterm.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.longterm.api.model.CashFlowType;
@@ -34,10 +37,11 @@ class LongTermAssetHistoricalSnapshotServiceTest {
       mock(LongTermAssetRentalContractRepository.class);
   private final LongTermAssetHistoryRepository lifecycle =
       mock(LongTermAssetHistoryRepository.class);
+  private final CurrencyConversion conversion = mock(CurrencyConversion.class);
   private final PortfolioContextReader portfolios = mock(PortfolioContextReader.class);
   private final LongTermAssetHistoricalSnapshotService service =
       new LongTermAssetHistoricalSnapshotService(
-          estates, contracts, lifecycle, mock(CurrencyConversion.class), portfolios);
+          estates, contracts, lifecycle, conversion, portfolios);
 
   @BeforeEach
   void setUp() {
@@ -103,6 +107,66 @@ class LongTermAssetHistoricalSnapshotServiceTest {
     prepare(List.of(estate), List.of(), Set.of(), List.of());
 
     assertThat(service.snapshot(PORTFOLIO_ID, YEAR).rentalIncome()).isEqualByComparingTo("0");
+  }
+
+  @Test
+  void convertsHistoricalNetRentalIncomeUsingYearEndRate() {
+    var estate = estate(6L, LocalDate.of(2024, 1, 1));
+    estate.setCurrency(CurrencyType.EUR);
+    estate.setTaxBase(new BigDecimal("1000"));
+    var contract =
+        contract(61L, estate.getId(), LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
+    contract.setTerms(
+        List.of(
+            term(CashFlowType.RENT, "12000", false),
+            term(CashFlowType.INSURANCE, "1200", false),
+            term(CashFlowType.UTILITIES, "500", true)));
+    prepare(List.of(estate), List.of(contract), Set.of(estate.getId()), List.of());
+    when(conversion.convertToBaseCurrency(
+            any(BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.EUR),
+            eq(LocalDate.of(2025, 12, 31))))
+        .thenAnswer(invocation -> invocation.<BigDecimal>getArgument(0).multiply(BigDecimal.TWO));
+
+    assertThat(service.snapshot(PORTFOLIO_ID, YEAR).rentalIncome()).isEqualByComparingTo("21430");
+    var convertedValue = org.mockito.ArgumentCaptor.forClass(BigDecimal.class);
+    verify(conversion)
+        .convertToBaseCurrency(
+            convertedValue.capture(),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.EUR),
+            eq(LocalDate.of(2025, 12, 31)));
+    assertThat(convertedValue.getValue()).isEqualByComparingTo("10715");
+  }
+
+  @Test
+  void stopsHistoricalAccrualOnActualTerminationDate() {
+    var estate = estate(7L, LocalDate.of(2024, 1, 1));
+    var contract =
+        contract(71L, estate.getId(), LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
+    contract.setTerminatedDate(LocalDate.of(2025, 3, 31));
+    contract.setTerms(List.of(term(CashFlowType.RENT, "365", false)));
+    prepare(List.of(estate), List.of(contract), Set.of(estate.getId()), List.of());
+
+    assertThat(service.snapshot(PORTFOLIO_ID, YEAR).rentalIncome()).isEqualByComparingTo("90");
+  }
+
+  @Test
+  void archiveIntervalExcludesArchiveDayAndIncludesReactivationDay() {
+    var estate = estate(8L, LocalDate.of(2024, 1, 1));
+    var contract =
+        contract(81L, estate.getId(), LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
+    contract.setTerms(List.of(term(CashFlowType.RENT, "365", false)));
+    prepare(
+        List.of(estate),
+        List.of(contract),
+        Set.of(estate.getId()),
+        List.of(
+            new LongTermAssetHistoryRepository.ArchiveInterval(
+                estate.getId(), LocalDate.of(2025, 3, 1), LocalDate.of(2025, 4, 1))));
+
+    assertThat(service.snapshot(PORTFOLIO_ID, YEAR).rentalIncome()).isEqualByComparingTo("334");
   }
 
   private void prepare(

@@ -51,8 +51,7 @@ public class InvestmentOperationalReadService
             batch ->
                 new ImportOperationsSnapshot(
                     batch.getId(),
-                    com.smartbox.investory.investment.api.importing.ImportBroker.valueOf(
-                        batch.getBroker().name()),
+                    toApiBroker(batch.getBroker()),
                     batch.getStatus().name(),
                     batch.getStartedAt(),
                     batch.getFinishedAt()));
@@ -81,6 +80,14 @@ public class InvestmentOperationalReadService
     return values.entrySet().stream()
         .map(entry -> new SymbolExposure(entry.getKey(), decimal(entry.getValue()), "USD"))
         .toList();
+  }
+
+  private static com.smartbox.investory.investment.api.importing.ImportBroker toApiBroker(
+      com.smartbox.investory.investment.imports.BrokerType broker) {
+    return switch (broker) {
+      case XTB -> com.smartbox.investory.investment.api.importing.ImportBroker.XTB;
+      case IBKR -> com.smartbox.investory.investment.api.importing.ImportBroker.IBKR;
+    };
   }
 
   private static BigDecimal decimal(double value) {

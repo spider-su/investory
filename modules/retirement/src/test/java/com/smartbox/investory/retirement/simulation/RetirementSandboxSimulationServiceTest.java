@@ -3,12 +3,14 @@ package com.smartbox.investory.retirement.simulation;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
+import com.smartbox.investory.retirement.analysis.*;
 import com.smartbox.investory.retirement.api.RetirementFactsProvider;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.model.SandboxSimulationInput;
-import com.smartbox.investory.retirement.planning.CurrentYearProjectionBridge;
-import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
-import com.smartbox.investory.retirement.planning.RetirementProjectionService;
+import com.smartbox.investory.retirement.planning.projection.CurrentYearProjectionBridge;
+import com.smartbox.investory.retirement.planning.projection.ForwardSimulationInputService;
+import com.smartbox.investory.retirement.planning.projection.RetirementProjectionService;
+import com.smartbox.investory.retirement.preview.*;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;

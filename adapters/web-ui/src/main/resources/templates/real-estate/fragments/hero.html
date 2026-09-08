@@ -9,7 +9,7 @@
     <dl class="iv-property-hero__metrics">
       <div><dt>Current value</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(asset.value, asset.currency)}">0 PLN</dd></div>
       <div><dt>Monthly net income</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.annualEconomics.monthlyNetIncomeAfterTax, asset.currency)}">0 PLN</dd></div>
-      <div><dt>Income yield</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(summary.annualEconomics.netYieldAfterTax) + ' (' + T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(summary.annualEconomics.grossYield) + ')'}">0.0% (0.0%)</dd></div>
+      <div><dt>Net income yield</dt><dd class="iv-yield-cell"><strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(summary.annualEconomics.netYieldAfterTax)}">0.0%</strong><small th:text="${'Gross ' + T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(summary.annualEconomics.grossYield)}">Gross 0.0%</small></dd></div>
     </dl>
     <div class="iv-asset-page__actions">
       <a class="btn btn-outline-secondary" href="#property-settings">Property settings</a>

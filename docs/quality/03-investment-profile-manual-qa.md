@@ -28,6 +28,9 @@ Read-only whole-wealth composition of Investment and Long-Term facts. UI route:
 ## Integrity checks
 
 - Profile has no write side effects: compare source row counts/timestamps before and after repeated page loads. The automated `ProfilePersistedFactsIT` contract covers the same repeated-read check and all four empty/partial/mixed shapes.
+- The REST contract is served by the transport-specific `ProfileResponse`; verify the existing JSON
+  field names and structure remain unchanged and no tenant contact or Retirement implementation data
+  appears.
 - Planning consumers must receive the same source-derived economics: sample profile totals against the selected simulation input/baseline.
 - Any mismatch is a source-lineage defect; record the portfolio, as-of time, input rows, displayed value and full-precision difference.
 

@@ -84,6 +84,18 @@ class ProfileArchitectureTest {
         .check(MAIN);
   }
 
+  @DisplayName("application and API packages do not depend on REST transport")
+  @Test
+  void applicationAndApiDoNotDependOnRestTransport() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..profile.api..", "..profile.application..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..profile.web..")
+        .check(MAIN);
+  }
+
   @DisplayName("profile application uses only approved upstream boundaries")
   @Test
   void profileApplicationUsesOnlyApprovedUpstreamBoundaries() {

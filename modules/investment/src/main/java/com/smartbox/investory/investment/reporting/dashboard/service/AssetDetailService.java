@@ -222,7 +222,15 @@ public class AssetDetailService {
         priceCurrency,
         marketValue,
         unrealizedProfitLoss,
-        AssetSettlementModel.valueOf(settlementModel.name()));
+        assetSettlementModel(settlementModel));
+  }
+
+  private AssetSettlementModel assetSettlementModel(PositionSettlementModel settlementModel) {
+    return switch (settlementModel) {
+      case CASH_SETTLED -> AssetSettlementModel.CASH_SETTLED;
+      case RESULT_ONLY -> AssetSettlementModel.RESULT_ONLY;
+      case UNCLASSIFIED -> AssetSettlementModel.UNCLASSIFIED;
+    };
   }
 
   private PositionSettlementModel settlementModel(List<PositionEntity> positions) {

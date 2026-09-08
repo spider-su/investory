@@ -61,6 +61,12 @@
           <span class="iv-status-badge" th:classappend="${integration.status == 'CONNECTED' ? ' iv-status-badge--enabled' : ' iv-status-badge--disabled'}"
                 th:text="${integration.statusLabel}">Needs configuration</span>
         </div>
+        <div class="iv-settings-state" aria-label="Integration state">
+          <span><strong>Connection:</strong> <span th:text="${integration.statusLabel}">Needs configuration</span></span>
+          <span><strong>Integration:</strong> <span th:text="${integration.enabled ? 'Enabled' : 'Disabled'}">Disabled</span></span>
+          <span th:if="${integration.availableJobs.isEmpty()}"><strong>Automatic refresh:</strong> Not available</span>
+          <span th:unless="${integration.availableJobs.isEmpty()}"><strong>Automatic refresh:</strong> Configure below</span>
+        </div>
         <div class="iv-settings-diagnostics" th:if="${integration.lastTestStatus != null}">
           Last test: <strong th:text="${integration.lastTestStatus}">SUCCESS</strong>
           <span th:if="${integration.lastTestMessage != null}" th:text="${integration.lastTestMessage}"></span>
@@ -111,11 +117,13 @@
         </div>
         <section th:if="${!integration.availableJobs.isEmpty()}" class="iv-settings-jobs">
           <h3>Automatic refresh</h3>
+          <p class="iv-settings-help">Connection status, enablement, frequency, first execution, and timezone are separate settings. Turning automatic refresh off does not disconnect the provider.</p>
           <form th:each="jobDescriptor : ${integration.availableJobs}" method="post"
-                class="card iv-settings-job-form iv-settings-job-card" data-schedule-form
+                class="iv-settings-job-form iv-settings-job-card" data-schedule-form
                 th:attr="data-job-type=${jobDescriptor.jobType}"
                 th:action="@{'/settings/integrations/' + ${integration.type} + '/' + ${integration.pluginId} + '/jobs/' + ${jobDescriptor.jobType}}">
             <h4 th:text="${jobDescriptor.label}">Scheduled job</h4>
+            <p class="iv-settings-job-state" th:text="${'Automatic refresh: ' + (integration.jobEnabled(jobDescriptor.jobType) ? 'On' : 'Off')}">Automatic refresh: Off</p>
             <label th:if="${jobDescriptor.jobType != 'audit-long-term-payments'}"><span th:text="${jobDescriptor.label}">Refresh</span>
               <select name="frequency" data-schedule-frequency aria-label="Refresh frequency">
                 <option value="1">Once per day</option>

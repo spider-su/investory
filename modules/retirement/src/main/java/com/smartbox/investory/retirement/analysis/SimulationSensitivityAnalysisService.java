@@ -1,0 +1,418 @@
+package com.smartbox.investory.retirement.analysis;
+
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.FrozenBondCashFlowProjection;
+import com.smartbox.investory.retirement.simulation.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+/** Analysis-owned, deterministic one-driver-at-a-time catalogue. */
+@Service
+public class SimulationSensitivityAnalysisService {
+  private static final BigDecimal ONE_PP = new BigDecimal("0.01");
+  private static final BigDecimal TWO_PP = new BigDecimal("0.02");
+  private static final BigDecimal HALF_PP = new BigDecimal("0.005");
+  private static final BigDecimal TEN_PERCENT = new BigDecimal("0.10");
+  static final BigDecimal MATERIAL_SPENDABLE_ASSETS_DELTA = new BigDecimal("1000");
+  static final BigDecimal MATERIAL_RESERVE_COVERAGE_DELTA = new BigDecimal("0.5");
+  static final BigDecimal MATERIAL_WEALTH_PERCENT = new BigDecimal("0.01");
+  private final SimulationEvaluationService evaluations;
+  private final FrozenBondCashFlowProjection bondProjection;
+
+  public SimulationSensitivityAnalysisService(SimulationEvaluationService evaluations) {
+    this(evaluations, new FrozenBondCashFlowProjection());
+  }
+
+  @Autowired
+  public SimulationSensitivityAnalysisService(
+      SimulationEvaluationService evaluations, FrozenBondCashFlowProjection bondProjection) {
+    this.evaluations = evaluations;
+    this.bondProjection = bondProjection;
+  }
+
+  public SimulationSensitivityAnalysis analyze(
+      InvestmentProfile profile, SimulationAssumptions assumptions) {
+    return analyzeInternal(
+        profile,
+        assumptions,
+        assumptions.startYear(),
+        false,
+        evaluations.evaluate(profile, assumptions, SimulationScenario.BASE),
+        new SimulationEvaluationCache());
+  }
+
+  public SimulationSensitivityAnalysis analyze(DeterministicAnalysisContext context) {
+    return analyzeInternal(
+        context.profile(),
+        context.assumptions(),
+        context.baselineYear(),
+        true,
+        context.canonicalBase(),
+        context.cache());
+  }
+
+  private SimulationSensitivityAnalysis analyzeInternal(
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      int baselineYear,
+      boolean explicitBaseline,
+      SimulationEvaluation base,
+      SimulationEvaluationCache cache) {
+    Inputs inputs =
+        new Inputs(
+            profile,
+            assumptions,
+            base,
+            baselineYear,
+            explicitBaseline,
+            bondProjection.hasPlanBondReturnExposure(profile, baselineYear, baselineYear),
+            cache);
+    List<SimulationSensitivityResult> results =
+        catalogue().stream()
+            .filter(definition -> definition.applicable().test(inputs))
+            .map(definition -> evaluate(definition, inputs))
+            .filter(Objects::nonNull)
+            .filter(result -> result.lowerEvaluation() != null || result.higherEvaluation() != null)
+            .sorted(worstFirst())
+            .toList();
+    return new SimulationSensitivityAnalysis(
+        base,
+        results,
+        results.isEmpty()
+            ? "No active assumptions were available for sensitivity testing."
+            : "Measured one assumption at a time.");
+  }
+
+  private SimulationSensitivityResult evaluate(Definition definition, Inputs inputs) {
+    Perturbation lowerPerturbation = perturb(definition.lower(), definition, inputs.assumptions());
+    Perturbation higherPerturbation =
+        perturb(definition.higher(), definition, inputs.assumptions());
+    SimulationEvaluation lower = evaluate(inputs, lowerPerturbation);
+    SimulationEvaluation higher = evaluate(inputs, higherPerturbation);
+    if (lower == null && higher == null) return null;
+    SimulationEvaluation adverse;
+    SimulationEvaluation favorable;
+    String direction;
+    if (lower == null) {
+      adverse = higher;
+      favorable = null;
+      direction = "Higher";
+    } else if (higher == null) {
+      adverse = lower;
+      favorable = null;
+      direction = "Lower";
+    } else {
+      int comparison = compareHarm(lower, higher, inputs.base());
+      adverse = comparison >= 0 ? lower : higher;
+      favorable = comparison >= 0 ? higher : lower;
+      direction = comparison == 0 ? "Equivalent" : adverse == lower ? "Lower" : "Higher";
+    }
+    BigDecimal reserve = reserveDelta(inputs.base().sustainability(), adverse.sustainability());
+    BigDecimal spendable =
+        adverse
+            .sustainability()
+            .minimumSpendableAssets()
+            .subtract(inputs.base().sustainability().minimumSpendableAssets());
+    BigDecimal wealth =
+        adverse
+            .sustainability()
+            .finalNetWorth()
+            .subtract(inputs.base().sustainability().finalNetWorth());
+    return new SimulationSensitivityResult(
+        definition.driver(),
+        definition.shock(),
+        inputs.base(),
+        adverse,
+        favorable,
+        reserve,
+        !inputs.base().sustainability().recurringFundingGapRequired()
+            && adverse.sustainability().recurringFundingGapRequired(),
+        spendable,
+        wealth,
+        classify(inputs.base(), adverse, reserve, spendable, wealth),
+        lowerPerturbation == null ? null : lowerPerturbation.testedValue(),
+        definition.testedValue().apply(inputs.assumptions()),
+        higherPerturbation == null ? null : higherPerturbation.testedValue(),
+        lower,
+        higher,
+        direction);
+  }
+
+  private static Perturbation perturb(
+      Function<SimulationAssumptions, SimulationAssumptions> transformation,
+      Definition definition,
+      SimulationAssumptions assumptions) {
+    try {
+      SimulationAssumptions transformed = transformation.apply(assumptions);
+      return new Perturbation(transformed, definition.testedValue().apply(transformed));
+    } catch (IllegalArgumentException ex) {
+      return null;
+    }
+  }
+
+  private SimulationEvaluation evaluate(Inputs inputs, Perturbation perturbation) {
+    if (perturbation == null) return null;
+    SimulationEvaluation cached =
+        inputs.explicitBaseline()
+            ? evaluations.evaluate(
+                inputs.profile(),
+                perturbation.assumptions(),
+                SimulationScenario.BASE,
+                inputs.baselineYear(),
+                inputs.cache())
+            : inputs
+                .cache()
+                .getOrCompute(
+                    inputs.profile(),
+                    perturbation.assumptions(),
+                    SimulationScenario.BASE,
+                    inputs.baselineYear(),
+                    () ->
+                        evaluations.evaluate(
+                            inputs.profile(), perturbation.assumptions(), SimulationScenario.BASE));
+    return cached != null
+        ? cached
+        : evaluations.evaluate(
+            inputs.profile(),
+            perturbation.assumptions(),
+            SimulationScenario.BASE,
+            inputs.baselineYear());
+  }
+
+  /** Positive means a is more harmful than b. */
+  static int compareHarm(
+      SimulationEvaluation a, SimulationEvaluation b, SimulationEvaluation base) {
+    var x = a.sustainability();
+    var y = b.sustainability();
+    int c =
+        Boolean.compare(
+            base.sustainable() && !x.sustainable(), base.sustainable() && !y.sustainable());
+    if (c != 0) return c;
+    c = x.totalUnfundedAmount().compareTo(y.totalUnfundedAmount());
+    if (c != 0) return c;
+    c = Integer.compare(firstFailure(y), firstFailure(x));
+    if (c != 0) return c;
+    c = Boolean.compare(x.recurringFundingGapRequired(), y.recurringFundingGapRequired());
+    if (c != 0) return c;
+    c = y.minimumSpendableAssets().compareTo(x.minimumSpendableAssets());
+    if (c != 0) return c;
+    c = y.minimumSafeReserveCoverageYears().compareTo(x.minimumSafeReserveCoverageYears());
+    if (c != 0) return c;
+    return y.finalNetWorth().compareTo(x.finalNetWorth());
+  }
+
+  private static int firstFailure(PlanSustainabilityAssessment assessment) {
+    return assessment.firstFailureYear() == null
+        ? Integer.MAX_VALUE
+        : assessment.firstFailureYear();
+  }
+
+  static SensitivityImpact classify(
+      SimulationEvaluation baseline,
+      SimulationEvaluation tested,
+      BigDecimal reserve,
+      BigDecimal spendable,
+      BigDecimal wealth) {
+    var b = baseline.sustainability();
+    var t = tested.sustainability();
+    if (b.sustainable() && !t.sustainable()) return SensitivityImpact.CRITICAL;
+    if (t.totalUnfundedAmount().compareTo(b.totalUnfundedAmount()) > 0
+        || (!b.recurringFundingGapRequired() && t.recurringFundingGapRequired()))
+      return SensitivityImpact.HIGH;
+    if (reserve.compareTo(MATERIAL_RESERVE_COVERAGE_DELTA.negate()) <= 0)
+      return SensitivityImpact.MODERATE;
+    if (spendable.negate().compareTo(MATERIAL_SPENDABLE_ASSETS_DELTA) >= 0)
+      return SensitivityImpact.MODERATE;
+    BigDecimal baseWealth = b.finalNetWorth().abs();
+    BigDecimal pct =
+        baseWealth.signum() == 0
+            ? BigDecimal.ZERO
+            : wealth.negate().max(BigDecimal.ZERO).divide(baseWealth, 8, RoundingMode.HALF_UP);
+    return wealth.signum() < 0 && pct.compareTo(MATERIAL_WEALTH_PERCENT) >= 0
+        ? SensitivityImpact.WEALTH_ONLY
+        : SensitivityImpact.NEGLIGIBLE;
+  }
+
+  private static BigDecimal reserveDelta(
+      PlanSustainabilityAssessment base, PlanSustainabilityAssessment tested) {
+    if (!base.recurringFundingGapRequired() || !tested.recurringFundingGapRequired())
+      return BigDecimal.ZERO;
+    return tested
+        .minimumSafeReserveCoverageYears()
+        .subtract(base.minimumSafeReserveCoverageYears());
+  }
+
+  private static Comparator<SimulationSensitivityResult> worstFirst() {
+    return (left, right) -> {
+      int c = Integer.compare(rank(left.impact()), rank(right.impact()));
+      if (c != 0) return c;
+      c = compareHarm(left.adverse(), right.adverse(), left.baseline());
+      return c != 0 ? -c : left.driver().name().compareTo(right.driver().name());
+    };
+  }
+
+  private static int rank(SensitivityImpact impact) {
+    return switch (impact) {
+      case CRITICAL -> 0;
+      case HIGH -> 1;
+      case MODERATE -> 2;
+      case WEALTH_ONLY -> 3;
+      case NEGLIGIBLE -> 4;
+    };
+  }
+
+  /** Stable catalogue: id, label/category, shock, transformations, applicability, tested value. */
+  private List<Definition> catalogue() {
+    return List.of(
+        def(
+            SensitivityDriver.INFLATION,
+            "±1 pp",
+            a -> a.toBuilder().inflationRate(a.inflationRate().subtract(ONE_PP)).build(),
+            a -> a.toBuilder().inflationRate(a.inflationRate().add(ONE_PP)).build(),
+            Inputs::horizon,
+            SimulationAssumptions::inflationRate),
+        def(
+            SensitivityDriver.RENTAL_INCOME_GROWTH,
+            "±0.5 pp",
+            a ->
+                a.toBuilder()
+                    .rentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread().subtract(HALF_PP))
+                    .build(),
+            a ->
+                a.toBuilder()
+                    .rentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread().add(HALF_PP))
+                    .build(),
+            Inputs::rental,
+            SimulationAssumptions::effectiveRentalIncomeGrowthRate),
+        def(
+            SensitivityDriver.FIXED_INCOME_RETURN,
+            "±1 pp",
+            a ->
+                a.toBuilder()
+                    .fixedIncomeReturnRate(a.fixedIncomeReturnRate().subtract(ONE_PP))
+                    .build(),
+            a -> a.toBuilder().fixedIncomeReturnRate(a.fixedIncomeReturnRate().add(ONE_PP)).build(),
+            Inputs::bond,
+            SimulationAssumptions::fixedIncomeReturnRate),
+        def(
+            SensitivityDriver.EQUITY_RETURN,
+            "±2 pp",
+            a -> a.toBuilder().equityReturnRate(a.equityReturnRate().subtract(TWO_PP)).build(),
+            a -> a.toBuilder().equityReturnRate(a.equityReturnRate().add(TWO_PP)).build(),
+            Inputs::equity,
+            SimulationAssumptions::equityReturnRate),
+        def(
+            SensitivityDriver.SPENDING_GROWTH,
+            "±0.5 pp",
+            a ->
+                a.toBuilder()
+                    .spendingGrowthSpread(a.spendingGrowthSpread().subtract(HALF_PP))
+                    .build(),
+            a -> a.toBuilder().spendingGrowthSpread(a.spendingGrowthSpread().add(HALF_PP)).build(),
+            Inputs::spendingGrowth,
+            SimulationAssumptions::effectiveSpendingGrowthRate),
+        def(
+            SensitivityDriver.RECURRING_SPENDING,
+            "±10%",
+            a ->
+                a.toBuilder()
+                    .recurringSpending(spending(a).multiply(BigDecimal.ONE.subtract(TEN_PERCENT)))
+                    .build(),
+            a ->
+                a.toBuilder()
+                    .recurringSpending(spending(a).multiply(BigDecimal.ONE.add(TEN_PERCENT)))
+                    .build(),
+            i -> spending(i).signum() > 0,
+            a -> spending(a)),
+        def(
+            SensitivityDriver.PENSION,
+            "±10%",
+            a ->
+                a.toBuilder()
+                    .annualPension(a.annualPension().multiply(BigDecimal.ONE.subtract(TEN_PERCENT)))
+                    .build(),
+            a ->
+                a.toBuilder()
+                    .annualPension(a.annualPension().multiply(BigDecimal.ONE.add(TEN_PERCENT)))
+                    .build(),
+            i -> i.horizon() && i.assumptions().annualPension().signum() > 0,
+            SimulationAssumptions::annualPension));
+  }
+
+  private static Definition def(
+      SensitivityDriver driver,
+      String shock,
+      Function<SimulationAssumptions, SimulationAssumptions> lower,
+      Function<SimulationAssumptions, SimulationAssumptions> higher,
+      Predicate<Inputs> applicable,
+      Function<SimulationAssumptions, BigDecimal> testedValue) {
+    return new Definition(driver, shock, lower, higher, applicable, testedValue);
+  }
+
+  private static BigDecimal spending(Inputs inputs) {
+    return spending(inputs.assumptions());
+  }
+
+  private static BigDecimal spending(SimulationAssumptions assumptions) {
+    return assumptions.annualSpending();
+  }
+
+  private record Definition(
+      SensitivityDriver driver,
+      String shock,
+      Function<SimulationAssumptions, SimulationAssumptions> lower,
+      Function<SimulationAssumptions, SimulationAssumptions> higher,
+      Predicate<Inputs> applicable,
+      Function<SimulationAssumptions, BigDecimal> testedValue) {}
+
+  private record Perturbation(SimulationAssumptions assumptions, BigDecimal testedValue) {}
+
+  private record Inputs(
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      SimulationEvaluation base,
+      int baselineYear,
+      boolean explicitBaseline,
+      boolean planBondReturnExposure,
+      SimulationEvaluationCache cache) {
+    boolean horizon() {
+      return base.result() == null || !base.result().years().isEmpty();
+    }
+
+    boolean spendingGrowth() {
+      return horizon()
+          && (base.result() == null
+              || base.result().years().stream()
+                  .anyMatch(y -> y.coreExpenses().add(y.discretionaryExpenses()).signum() > 0));
+    }
+
+    boolean rental() {
+      return horizon()
+          && (base.result() == null
+              ? profile.currentRentalIncome() != null && profile.currentRentalIncome().signum() != 0
+              : base.result().years().stream().anyMatch(y -> y.rentalIncome().signum() != 0));
+    }
+
+    boolean equity() {
+      return horizon()
+          && (base.result() == null
+              ? profile.allocations().stream()
+                  .anyMatch(a -> a.bucket() == EconomicBucket.EQUITY && a.isNonZero())
+              : base.result().years().stream()
+                  .anyMatch(y -> y.equityStart().signum() != 0 || y.equityEnd().signum() != 0));
+    }
+
+    boolean bond() {
+      return horizon() && planBondReturnExposure;
+    }
+  }
+}

@@ -64,9 +64,10 @@ and current bond rates remain unavailable in a historical snapshot until backed 
 `LongTermAssetHistoricalSnapshotService` owns this historical reconstruction; the current overview
 and Profile snapshot path remains in `LongTermAssetReadService`.
 
-`paidByTenant` applies to expense terms. Payment Audit includes all rental-income terms plus
-tenant-paid expenses in the tenant's monthly payment; landlord-paid expenses are excluded from that
-payment and reduce property economics instead.
+`paidByTenant` applies to expense terms. The real-estate overview's total monthly payment includes
+rental-income terms only; tenant-paid expenses are not property income. Payment Audit separately
+includes all rental-income terms plus tenant-paid expenses in the tenant's monthly payment, while
+landlord-paid expenses are excluded from that payment and reduce property economics instead.
 
 The checked-in bootstrap document may accept `cashFlows` only for `REAL_ESTATE` import input.
 Bootstrap rejects cash-flow rows for every other asset type and converts accepted rows into rental
