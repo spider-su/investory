@@ -66,6 +66,10 @@ changes are owned by Flyway.
 
 Use the current package tree as the source of truth if these boundaries change.
 
+Investment module/dashboard monetary values always use the portfolio base currency. Profile and
+reporting views may use a selected reporting currency, but reporting currency must never be used
+as an intermediate currency for Investment calculations.
+
 ## Retirement simulation URL compatibility
 
 The server-rendered `/simulation` page supports legacy deep links that carry transient assumption

@@ -4,9 +4,9 @@
         <div class="iv-balance-popover__row iv-balance-popover__row--head">
             <button type="button" class="iv-sort-button" data-sort-key="account">Account</button>
             <button type="button" class="iv-sort-button" data-sort-key="name">Name</button>
-            <button type="button" class="iv-sort-button" data-sort-key="deposit">Net deposit (base)</button>
-            <button type="button" class="iv-sort-button" data-sort-key="balance">Balance (base)</button>
-            <button type="button" class="iv-sort-button" data-sort-key="profit">Result (base)</button>
+            <button type="button" class="iv-sort-button" data-sort-key="deposit">Net deposit</button>
+            <button type="button" class="iv-sort-button" data-sort-key="balance">Balance</button>
+            <button type="button" class="iv-sort-button" data-sort-key="profit">Result</button>
             <button type="button" class="iv-sort-button" data-sort-key="pl">Return</button>
             <button type="button" class="iv-sort-button" data-sort-key="cash">Cash</button>
         </div>
@@ -14,11 +14,11 @@
              th:attr="data-sort-account=${account.accountId},data-sort-name=${account.accountName},data-sort-deposit=${account.netDepositBase},data-sort-balance=${account.balanceBase},data-sort-profit=${account.profitBase},data-sort-pl=${account.profitLossPercent},data-sort-cash=${account.cashBase}">
             <span class="iv-account-id" th:text="${account.accountId}">0</span>
             <span class="iv-account-name" th:text="${account.accountName}">Account</span>
-            <span class="iv-account-metric"><span class="iv-account-number" th:text="${stats.formatBase(account.netDepositBase)}">0</span><span class="iv-balance-popover__local" th:if="${account.netDepositLocal != null and account.localCurrency != stats.baseCurrency}" th:text="${stats.formatMoney(account.netDepositLocal, account.localCurrency) + ' account-native'}">0 PLN account-native</span></span>
-            <span class="iv-account-metric"><span class="iv-account-number" th:text="${stats.formatBase(account.balanceBase)}">0</span><span class="iv-balance-popover__local" th:if="${account.balanceLocal != null and account.localCurrency != stats.baseCurrency}" th:text="${stats.formatMoney(account.balanceLocal, account.localCurrency) + ' account-native'}">0 PLN account-native</span></span>
-            <span class="iv-account-metric"><span class="iv-account-profit" th:if="${account.profitBase != null}" th:classappend="${account.profitBase >= 0} ? ' iv-pos' : ' iv-neg'" th:text="${stats.formatBase(account.profitBase)}">0</span><span th:unless="${account.profitBase != null}">—</span><span class="iv-balance-popover__local" th:if="${account.profitLocal != null and account.localCurrency != null and account.localCurrency != stats.baseCurrency}" th:text="${stats.formatMoney(account.profitLocal, account.localCurrency) + ' account-native'}">0 PLN account-native</span><span class="iv-balance-popover__local" th:if="${account.fxEffect != null and account.localCurrency != stats.baseCurrency}" th:text="${'FX effect ' + stats.formatBase(account.fxEffect)}">FX effect 0</span></span>
+            <span class="iv-account-metric"><span class="iv-account-number" th:text="${stats.formatBase(account.netDepositBase)}">0</span><span class="iv-balance-popover__local" th:if="${account.netDepositLocal != null and account.localCurrency != stats.baseCurrency}" th:text="${stats.formatMoney(account.netDepositLocal, account.localCurrency)}">0 PLN</span></span>
+            <span class="iv-account-metric"><span class="iv-account-number" th:text="${stats.formatBase(account.balanceBase)}">0</span><span class="iv-balance-popover__local" th:if="${account.balanceLocal != null and account.localCurrency != stats.baseCurrency}" th:text="${stats.formatMoney(account.balanceLocal, account.localCurrency)}">0 PLN</span></span>
+            <span class="iv-account-metric"><span class="iv-account-profit" th:if="${account.profitBase != null}" th:classappend="${account.profitBase >= 0} ? ' iv-pos' : ' iv-neg'" th:text="${stats.formatBase(account.profitBase)}">0</span><span th:unless="${account.profitBase != null}">—</span><span class="iv-balance-popover__local" th:if="${account.profitLocal != null and account.localCurrency != null and account.localCurrency != stats.baseCurrency}" th:text="${stats.formatMoney(account.profitLocal, account.localCurrency)}">0 PLN</span></span>
             <span class="iv-account-metric iv-account-pl" th:classappend="${account.profitLossPercent != null and account.profitLossPercent >= 0} ? ' iv-pos' : (${account.profitLossPercent != null} ? ' iv-neg' : '')" th:text="${stats.formatPercent(account.profitLossPercent)}">0,0%</span>
-            <span class="iv-account-metric"><span class="iv-account-number" th:text="${stats.formatBase(account.cashBase)}">0</span><span class="iv-balance-popover__local" th:if="${account.cashLocal != null and account.localCurrency != stats.baseCurrency}" th:text="${stats.formatMoney(account.cashLocal, account.localCurrency) + ' account-native'}">0 PLN account-native</span></span>
+            <span class="iv-account-metric"><span class="iv-account-number" th:text="${stats.formatBase(account.cashBase)}">0</span><span class="iv-balance-popover__local" th:if="${account.cashLocal != null and account.localCurrency != stats.baseCurrency}" th:text="${stats.formatMoney(account.cashLocal, account.localCurrency)}">0 PLN</span></span>
         </div>
         <div class="iv-balance-popover__row iv-balance-popover__row--total" th:if="${stats.accountBalancesTotal != null}">
             <span></span><span th:text="${stats.accountBalancesTotal.accountName}">Total</span>

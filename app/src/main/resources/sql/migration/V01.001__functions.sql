@@ -52,7 +52,7 @@ COMMENT ON FUNCTION investory.signed_position_quantity(investory.positions_opera
     'Canonical position quantity: BUY is positive and SELL is negative while stored positions.volume remains non-negative.';
 
 -- Canonical FX usability contract. Authoritative monetary conversion treats
--- OK, ESTIMATED, and SAME_CURRENCY as usable; STALE, MISSING_RATE, and
+-- OK, ESTIMATED, SAME_CURRENCY, and CARRY_FORWARD as usable; MISSING_RATE and
 -- MISSING_CURRENCY are not usable. Defined once here and reused everywhere so
 -- the usable-status list is never duplicated or patched after the fact.
 CREATE OR REPLACE FUNCTION investory.fx_status_usable(p_status varchar)
@@ -60,11 +60,11 @@ RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
 AS $$
-    SELECT COALESCE(p_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY'), false)
+    SELECT COALESCE(p_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY', 'CARRY_FORWARD'), false)
 $$;
 
 COMMENT ON FUNCTION investory.fx_status_usable(varchar) IS
-    'Central FX usability contract. ESTIMATED is usable and retains its provenance; STALE, MISSING_RATE, and MISSING_CURRENCY are not usable.';
+    'Central FX usability contract. ESTIMATED and CARRY_FORWARD are usable and retain provenance; MISSING_RATE and MISSING_CURRENCY are not usable.';
 
 CREATE OR REPLACE FUNCTION investory.reconciliation_parameter(p_parameter_name varchar(96))
 RETURNS numeric
@@ -130,7 +130,7 @@ COMMENT ON FUNCTION investory.reconciliation_display_value(numeric) IS
     'Rounds a reconciliation value for presentation only. It is never used for status decisions.';
 
 -- Final canonical valuation resolver. Java calls this function directly; no Java-side
--- candidate selection is allowed. Daily/reference freshness outranks stale observations.
+-- candidate selection is allowed. Daily/reference freshness outranks older observations.
 CREATE OR REPLACE FUNCTION investory.resolve_fx_rate(
     p_valuation_date date,
     p_source_currency varchar(3),
@@ -238,8 +238,7 @@ SELECT p_source_currency, p_target_currency,
        CASE WHEN p_source_currency = p_target_currency THEN 1 ELSE selected.rate END,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.chosen_source END,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
-            WHEN selected.chosen_method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
-                 AND selected.chosen_date < p_valuation_date
+            WHEN selected.chosen_date < p_valuation_date
                  THEN 'CARRY_FORWARD'
             ELSE selected.chosen_method END,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.chosen_rate_source END,
@@ -251,11 +250,11 @@ SELECT p_source_currency, p_target_currency,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
            WHEN selected.rate IS NULL THEN 'MISSING_RATE'
            WHEN selected.chosen_method = 'INTERPOLATED' THEN 'ESTIMATED'
+           WHEN selected.chosen_date < p_valuation_date THEN 'CARRY_FORWARD'
            WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
                 AND p_valuation_date >= cfg.daily_start THEN 'STALE'
            WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
                  AND selected.chosen_rate_source <> 'TEST' THEN 'ESTIMATED'
-            WHEN p_valuation_date - selected.chosen_date > cfg.max_age THEN 'STALE'
             ELSE 'OK' END
 FROM cfg LEFT JOIN selected ON true;
 $$;

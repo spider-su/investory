@@ -189,6 +189,7 @@ public class XtbImportService {
 
   private ImportExecutionResult importWorkbookBody(InputStream xlsxInputStream, String sourceName)
       throws Exception {
+    log.info("IMPORT STAGE xtb-workbook-read-start source={}", sourceName);
     try (Workbook workbook = new XSSFWorkbook(xlsxInputStream)) {
       if (!supports(workbook)) {
         throw new IllegalArgumentException("Not an XTB v2 workbook: " + sourceName);
@@ -212,6 +213,12 @@ public class XtbImportService {
       AccountEntity accountConfiguration = accountConfiguration(externalAccountId, sourceName);
       Long account = accountConfiguration.getId();
       boolean cashOnly = accountConfiguration.isCashOnly();
+      log.info(
+          "IMPORT STAGE xtb-workbook-account-resolved source={} externalAccountId={} accountId={} cashOnly={}",
+          sourceName,
+          externalAccountId,
+          account,
+          cashOnly);
 
       Map<String, Integer> cashColumns =
           XtbWorkbookReader.findHeader(cashSheet, "Type", "Time", "Amount");
@@ -240,6 +247,13 @@ public class XtbImportService {
       applyAssetIdentities(cashOperations, closedPositions, openedPositions);
       persistTradePriceHistory(closedPositions, openedPositions, currency);
 
+      log.info(
+          "IMPORT STAGE xtb-ledger-upsert-start source={} accountId={} cash={} closed={} open={}",
+          sourceName,
+          account,
+          cashOperations.size(),
+          closedPositions.size(),
+          openedPositions.size());
       cashOperationRepository.saveAll(cashOperations);
       currencyRateService.harvestXtbExecutionRates(cashOperations);
       closedPositionRepository.saveAll(closedPositions);
@@ -249,6 +263,13 @@ public class XtbImportService {
         openedPositionRepository.removeOpenByAccountNotIn(account, openedPositions);
         openedPositionRepository.saveAll(openedPositions);
       }
+      log.info(
+          "IMPORT STAGE xtb-ledger-upsert-saveall-returned source={} accountId={} cash={} closed={} open={}",
+          sourceName,
+          account,
+          cashOperations.size(),
+          closedPositions.size(),
+          openedPositions.size());
       int total = cashOperations.size() + closedPositions.size();
       String details =
           String.format(

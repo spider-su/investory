@@ -27,6 +27,7 @@ class InvestmentDashboardRestControllerIT {
   void queryAndKpiEndpointsBindRequests() throws Exception {
     mvc.perform(
             post("/api/v1/investment/dashboard/query")
+                .param("portfolioId", "1")
                 .contentType("application/json")
                 .content(
                     "{\"accountIds\":[],\"benchmarkAccountsSubmitted\":false,\"period\":\"YTD\",\"portfolioId\":1}"))

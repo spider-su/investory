@@ -16,6 +16,7 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.investment.api.importing.ImportBroker;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileEntity;
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
 import com.smartbox.investory.investment.port.importing.BrokerImportParser;
 import com.smartbox.investory.investment.port.importing.BrokerImportResult;
@@ -56,6 +57,11 @@ class ImportHistoryOrchestratorServiceTest {
   @BeforeEach
   void setUp() {
     when(xtbParser.brokerType()).thenReturn(ImportBroker.XTB);
+    ImportSourceFileEntity sourceFile = new ImportSourceFileEntity();
+    sourceFile.setId(100L);
+    org.mockito.Mockito.lenient()
+        .when(sourceEvidenceService.storeArtifact(any(), any(), anyString()))
+        .thenReturn(sourceFile);
     importOrchestratorService =
         new ImportOrchestratorService(
             List.of(xtbParser),

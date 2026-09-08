@@ -53,8 +53,12 @@ performance. Selected-account filtering is applied before numerator and opening-
 The benchmark baseline is the first available SPY monthly close immediately before the first
 portfolio comparison label. SPY is therefore a price-return series unless the stored provider
 series is explicitly documented otherwise. Both portfolio monetary inputs and the benchmark
-amount curves use the portfolio base currency; account-native PLN values are converted by the
-reporting MV before ratios are formed.
+amount curves use the portfolio base currency. The Investment module and dashboard have one
+monetary semantic: `portfolio.base_currency`. The reporting materialized view converts declared
+native values into that currency exactly once before they reach `PortfolioMetricsService`; dashboard
+base fields remain base-currency values through the API and Thymeleaf boundary. Profile/reporting
+views may use a selected reporting currency, but that currency must never be an intermediate
+currency for Investment calculations.
 
 The account summary percentage remains simple return on its accounting net-deposit denominator.
 It is intentionally not required to equal the flow-adjusted benchmark return when external flows

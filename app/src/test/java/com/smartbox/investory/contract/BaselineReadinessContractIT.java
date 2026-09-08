@@ -171,6 +171,7 @@ class BaselineReadinessContractIT {
       assertTrue(singleBoolean(statement, "SELECT investory.fx_status_usable('OK')"));
       assertTrue(singleBoolean(statement, "SELECT investory.fx_status_usable('ESTIMATED')"));
       assertTrue(singleBoolean(statement, "SELECT investory.fx_status_usable('SAME_CURRENCY')"));
+      assertTrue(singleBoolean(statement, "SELECT investory.fx_status_usable('CARRY_FORWARD')"));
       assertFalse(singleBoolean(statement, "SELECT investory.fx_status_usable('STALE')"));
       assertFalse(singleBoolean(statement, "SELECT investory.fx_status_usable('MISSING_RATE')"));
 
@@ -225,7 +226,8 @@ class BaselineReadinessContractIT {
       assertEquals("6.00000000|OK", resolverValue(statement, "2026-08-10", "USD", "PLN"));
 
       assertEquals("0.16666667|OK", resolverValue(statement, "2026-08-10", "PLN", "USD"));
-      assertEquals("0.12500000|STALE", resolverValue(statement, "2026-08-10", "EUR", "USD"));
+      assertEquals(
+          "0.12500000|CARRY_FORWARD", resolverValue(statement, "2026-08-10", "EUR", "USD"));
     }
   }
 

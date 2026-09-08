@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.investment.port.fx.FxRateHistoryProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxQuote;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -52,12 +53,14 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
   @Autowired private JdbcTemplate jdbc;
   @Autowired private CurrencyRateService currencyRateService;
   @MockitoBean private FxRateProvider fxRateProvider;
+  @MockitoBean private FxRateHistoryProvider fxRateHistoryProvider;
 
   @Test
   void canonicalHappyInvestorRefreshPersistsOrientedPlnEurUsdRates() {
     LocalDate date = LocalDate.of(2025, 12, 31);
     when(fxRateProvider.fetchRates(any()))
         .thenReturn(quotes(date, date, new BigDecimal("1.173562"), new BigDecimal("3.601600")));
+    when(fxRateHistoryProvider.fetchHistory(any(), any())).thenReturn(history(date));
 
     CurrencyRateUpdaterService.CurrencyRateRefreshResult result =
         updater.updateCurrencyRatesForDate(date);
@@ -70,6 +73,12 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
         jdbc.queryForObject(
             "select rate from investory.exchange_rates where base = 'USD' and to_currency = 'PLN' and rate_date = ? and source = 'NBP' and method = 'MARKET_DAILY'",
             java.math.BigDecimal.class,
+            date));
+    assertEquals(
+        6,
+        jdbc.queryForObject(
+            "select count(*) from investory.fx_daily_rates where rate_date = ?",
+            Integer.class,
             date));
     assertEquals(
         0,
@@ -318,5 +327,13 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
     return List.of(
         new FxQuote(CurrencyType.USD, CurrencyType.EUR, eur, effectiveDate, providerDate),
         new FxQuote(CurrencyType.USD, CurrencyType.PLN, pln, effectiveDate, providerDate));
+  }
+
+  private static List<FxRateProvider.FxHistoryQuote> history(LocalDate date) {
+    return List.of(
+        new FxRateProvider.FxHistoryQuote(
+            CurrencyType.USD, CurrencyType.EUR, new BigDecimal("1.173562"), date, date),
+        new FxRateProvider.FxHistoryQuote(
+            CurrencyType.USD, CurrencyType.PLN, new BigDecimal("3.601600"), date, date));
   }
 }

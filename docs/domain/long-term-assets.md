@@ -43,6 +43,12 @@ optional current interest rate and optional maturity: a null or zero rate is pla
 positive rate represents interest-bearing cash under the same global-tax rule. Merely holding a
 cash-reserve value does not create income or yield.
 
+Interest-bearing bond and cash-reserve income is effective before the maturity date only. Maturity
+is effective at the start of the stated maturity date, so income and yield are zero on and after
+that date; principal/value remains visible under the normal asset-value rules. A null maturity has
+no maturity cutoff. Long-Term owns this rule and publishes the resulting current and projection
+facts to all consumers.
+
 Yield is zero when current asset value is zero; income, expense, and tax amounts remain visible,
 but Long-Term does not invent a denominator for a percentage.
 
@@ -95,6 +101,11 @@ The application locks the real-estate row and validates overlap for useful feedb
 enforces non-overlap on each contract's effective date range, including concurrent writers. Expected
 and actual end dates must both be on or after the start, and an actual termination cannot follow a
 planned end.
+
+If legacy or externally introduced inconsistent data still contains overlapping effective contracts,
+the overview keeps the affected property visible and flags its economics as unavailable. It logs the
+integrity violation and continues calculating unaffected properties; it does not invent rental
+income, tax, or yield for the affected property.
 
 Deletion is correction of incorrectly entered data, not a normal lifecycle transition. It removes
 the selected contract and its terms after portfolio and real-estate ownership checks. It does not

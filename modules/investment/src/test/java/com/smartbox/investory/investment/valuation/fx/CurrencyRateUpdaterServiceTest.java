@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
+import com.smartbox.investory.investment.port.fx.FxRateHistoryProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxQuote;
 import com.smartbox.investory.investment.port.fx.FxRateProviderException;
@@ -42,7 +43,9 @@ class CurrencyRateUpdaterServiceTest {
           ZoneId.of("Europe/Warsaw"));
 
   @Mock private FxRateProvider fxRateProvider;
+  @Mock private FxRateHistoryProvider fxRateHistoryProvider;
   @Mock private CurrencyRateService currencyRateService;
+  @Mock private DailyFxRateService dailyFxRateService;
   @Mock private InvestmentCalculationCache calculationCache;
   @Mock private PortfolioProjectionRefreshService projectionRefreshService;
 
@@ -52,7 +55,13 @@ class CurrencyRateUpdaterServiceTest {
   void setUp() {
     updater =
         new CurrencyRateUpdaterService(
-            fxRateProvider, currencyRateService, calculationCache, projectionRefreshService, TIME);
+            fxRateProvider,
+            fxRateHistoryProvider,
+            currencyRateService,
+            dailyFxRateService,
+            calculationCache,
+            projectionRefreshService,
+            TIME);
   }
 
   @DisplayName("update Currency Rates pushes Rates For Usd Eur And Pln")

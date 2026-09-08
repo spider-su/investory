@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.valuation.fx;
 
+import com.smartbox.investory.investment.port.fx.FxRateHistoryProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxQuote;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxRequest;
@@ -23,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class CurrencyRateUpdaterService {
 
   private final FxRateProvider fxRateProvider;
+  private final FxRateHistoryProvider fxRateHistoryProvider;
   private final CurrencyRateService currencyRateService;
+  private final DailyFxRateService dailyFxRateService;
   private final com.smartbox.investory.investment.performance.InvestmentCalculationCache
       calculationCache;
   private final PortfolioProjectionRefreshService projectionRefreshService;
@@ -31,12 +34,16 @@ public class CurrencyRateUpdaterService {
 
   public CurrencyRateUpdaterService(
       FxRateProvider fxRateProvider,
+      FxRateHistoryProvider fxRateHistoryProvider,
       CurrencyRateService currencyRateService,
+      DailyFxRateService dailyFxRateService,
       com.smartbox.investory.investment.performance.InvestmentCalculationCache calculationCache,
       PortfolioProjectionRefreshService projectionRefreshService,
       ApplicationTime applicationTime) {
     this.fxRateProvider = fxRateProvider;
+    this.fxRateHistoryProvider = fxRateHistoryProvider;
     this.currencyRateService = currencyRateService;
+    this.dailyFxRateService = dailyFxRateService;
     this.calculationCache = calculationCache;
     this.projectionRefreshService = projectionRefreshService;
     this.applicationTime = applicationTime;
@@ -52,6 +59,10 @@ public class CurrencyRateUpdaterService {
 
   private CurrencyRateRefreshResult refresh(LocalDate effectiveDate) {
     try {
+      LocalDate historyStart = dailyFxRateService.refreshStart(effectiveDate);
+      List<FxRateProvider.FxHistoryQuote> history =
+          fxRateHistoryProvider.fetchHistory(historyStart, effectiveDate);
+      dailyFxRateService.replaceRange(history, historyStart, effectiveDate);
       List<FxQuote> quotes =
           fxRateProvider.fetchRates(
               new FxRequest(

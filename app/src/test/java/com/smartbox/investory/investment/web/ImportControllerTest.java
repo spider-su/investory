@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,6 +18,7 @@ import com.smartbox.investory.investment.api.importing.ImportSource;
 import com.smartbox.investory.investment.api.importing.ImportStatus;
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi.ImportResult;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -36,6 +38,12 @@ class ImportControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private InvestmentImportApi importApi;
+  @MockitoBean private com.smartbox.investory.config.AuthorizationService authorizationService;
+
+  @BeforeEach
+  void allowDefaultMutationScope() {
+    when(authorizationService.canWrite(any(Long.class), any())).thenReturn(true);
+  }
 
   @DisplayName("import By Broker uploads File And Returns Response")
   @Test
@@ -175,5 +183,38 @@ class ImportControllerTest {
     mockMvc
         .perform(multipart("/api/v1/investment/imports/broker/XTB").file(multipart).with(csrf()))
         .andExpect(status().isUnauthorized());
+  }
+
+  @DisplayName("profile owner can import only into an authorized profile")
+  @Test
+  @WithMockUser(username = "owner", roles = "PROFILE_OWNER")
+  void profileOwner_isScopedToProfile() throws Exception {
+    when(authorizationService.canWrite(eq(2L), any())).thenReturn(false);
+    MockMultipartFile file =
+        new MockMultipartFile(
+            "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/investment/imports/broker/XTB")
+                .file(file)
+                .param("portfolioId", "1")
+                .with(csrf()))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/investment/imports/broker/XTB")
+                .file(file)
+                .param("portfolioId", "2")
+                .with(csrf()))
+        .andExpect(status().isForbidden());
+  }
+
+  @DisplayName("non-admin cannot manage integrations")
+  @Test
+  @WithMockUser(username = "owner", roles = "PROFILE_OWNER")
+  void profileOwner_cannotManageIntegrations() throws Exception {
+    mockMvc.perform(get("/settings/integrations")).andExpect(status().isForbidden());
   }
 }

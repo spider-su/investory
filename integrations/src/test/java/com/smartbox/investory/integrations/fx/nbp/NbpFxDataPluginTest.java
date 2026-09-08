@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.integrations.management.model.PluginConfig;
+import com.smartbox.investory.investment.port.fx.FxRateProvider.FxHistoryQuote;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxQuote;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxRequest;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -77,6 +78,20 @@ class NbpFxDataPluginTest {
     assertEquals(
         "https://api.nbp.pl/api", plugin().descriptor().configuration().getFirst().defaultValue());
     assertEquals(true, plugin().validate(PluginConfig.empty()).valid());
+  }
+
+  @Test
+  void fetchesAllPublishedTablesForAHistoryRange() {
+    LocalDate from = LocalDate.of(2026, 8, 1);
+    LocalDate to = LocalDate.of(2026, 8, 5);
+    when(client.findTables(from, to, NbpClient.DEFAULT_BASE_URL))
+        .thenReturn(List.of(table(LocalDate.of(2026, 8, 1), "4.0", "4.5")));
+
+    List<FxHistoryQuote> quotes = plugin().fetchHistory(from, to, PluginConfig.empty());
+
+    assertEquals(2, quotes.size());
+    assertEquals(LocalDate.of(2026, 8, 1), quotes.getFirst().valuationDate());
+    assertEquals(LocalDate.of(2026, 8, 1), quotes.getFirst().providerDate());
   }
 
   private NbpFxDataPlugin plugin() {

@@ -8,6 +8,7 @@ import com.smartbox.investory.integrations.management.api.model.PluginFieldType;
 import com.smartbox.investory.integrations.management.model.PluginConfig;
 import com.smartbox.investory.integrations.management.model.PluginDescriptor;
 import com.smartbox.investory.integrations.management.model.ValidationResult;
+import com.smartbox.investory.investment.port.fx.FxRateProvider.FxHistoryQuote;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxQuote;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxRequest;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -91,6 +92,37 @@ public class NbpFxDataPlugin
                     request.effectiveDate(),
                     table.getEffectiveDate()))
         .toList();
+  }
+
+  public List<FxHistoryQuote> fetchHistory(LocalDate from, LocalDate to, PluginConfig config) {
+    if (from == null || to == null || from.isAfter(to)) return List.of();
+    String baseUrl = config.value(BASE_URL).orElse(NbpClient.DEFAULT_BASE_URL);
+    List<FxHistoryQuote> result = new java.util.ArrayList<>();
+    LocalDate cursor = from;
+    while (!cursor.isAfter(to)) {
+      LocalDate chunkEnd = cursor.plusDays(NBP_MAX_RANGE_DAYS - 1L);
+      if (chunkEnd.isAfter(to)) chunkEnd = to;
+      for (NbpClient.NbpTable table : client.findTables(cursor, chunkEnd, baseUrl)) {
+        BigDecimal usdPln = rate(table, "USD");
+        BigDecimal eurPln = rate(table, "EUR");
+        result.add(
+            new FxHistoryQuote(
+                CurrencyType.USD,
+                CurrencyType.PLN,
+                usdPln,
+                table.getEffectiveDate(),
+                table.getEffectiveDate()));
+        result.add(
+            new FxHistoryQuote(
+                CurrencyType.USD,
+                CurrencyType.EUR,
+                usdPln.divide(eurPln, 18, RoundingMode.HALF_UP),
+                table.getEffectiveDate(),
+                table.getEffectiveDate()));
+      }
+      cursor = chunkEnd.plusDays(1);
+    }
+    return result;
   }
 
   private NbpClient.NbpTable findLatestTable(LocalDate effectiveDate, String baseUrl) {

@@ -117,6 +117,21 @@ final class LongTermAssetEconomics {
         calculateYield(afterTax, value));
   }
 
+  /**
+   * Returns interest income only while the asset is not matured.
+   *
+   * <p>Maturity is effective at the start of the maturity date: the principal remains part of the
+   * asset value, but it produces no income on or after that date. A null maturity means the income
+   * has no maturity boundary.
+   */
+  static BigDecimal interestIncome(
+      BigDecimal value, BigDecimal interestRate, LocalDate maturityDate, LocalDate date) {
+    if (maturityDate != null && date != null && !date.isBefore(maturityDate)) {
+      return BigDecimal.ZERO;
+    }
+    return value.multiply(interestRate == null ? BigDecimal.ZERO : interestRate);
+  }
+
   static BigDecimal annualize(BigDecimal amount, Frequency frequency) {
     if (amount == null) return BigDecimal.ZERO;
     return switch (frequency) {

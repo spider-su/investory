@@ -213,6 +213,25 @@ class CurrencyRateServiceTest {
                 LocalDate.of(2026, 7, 5)));
   }
 
+  @DisplayName("authoritative Conversion accepts a dated carry-forward rate")
+  @Test
+  void authoritativeConversionAcceptsDatedCarryForwardRate() {
+    LocalDate date = LocalDate.of(2026, 9, 5);
+    when(currencyRateRepository.resolveFxRatesForDate(date))
+        .thenReturn(
+            List.of(resolution("USD", "PLN", "4.0", "FX", "NBP", "2026-09-02", "CARRY_FORWARD")));
+    CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository, TIME);
+
+    assertEquals(
+        new BigDecimal("40.00000000"),
+        freshService.convertToBaseCurrencyForDisplay(
+            new BigDecimal("10"), CurrencyType.PLN, CurrencyType.USD, date));
+    assertEquals(
+        new BigDecimal("40.00000000"),
+        freshService.convertToBaseCurrency(
+            new BigDecimal("10"), CurrencyType.PLN, CurrencyType.USD, date));
+  }
+
   @DisplayName("update Rates persists New Rate When Absent")
   @Test
   void updateRates_persistsNewRateWhenAbsent() {
@@ -376,12 +395,19 @@ class CurrencyRateServiceTest {
                 resolution("USD", "PLN", "4.0", "MARKET_DAILY", "NBP", "2026-08-10", "OK"),
                 resolution("EUR", "PLN", "4.3", "MARKET_DAILY", "NBP", "2026-08-10", "OK"),
                 resolution("PLN", "EUR", "0.23", "MARKET_DAILY", "NBP", "2026-08-10", "OK"),
-                resolution("EUR", "USD", "1", "HISTORICAL_MONTHLY", "NBP", "2026-07-31", "STALE")));
+                resolution(
+                    "EUR",
+                    "USD",
+                    "1",
+                    "HISTORICAL_MONTHLY",
+                    "NBP",
+                    "2026-07-31",
+                    "CARRY_FORWARD")));
 
     assertTrue(service.resolveRate(CurrencyType.USD, CurrencyType.PLN, date).isUsable());
     assertTrue(service.resolveRate(CurrencyType.EUR, CurrencyType.PLN, date).isUsable());
     assertTrue(service.resolveRate(CurrencyType.PLN, CurrencyType.EUR, date).isUsable());
-    assertFalse(service.resolveRate(CurrencyType.EUR, CurrencyType.USD, date).isUsable());
+    assertTrue(service.resolveRate(CurrencyType.EUR, CurrencyType.USD, date).isUsable());
     assertFalse(service.resolveRate(CurrencyType.USD, CurrencyType.EUR, date).isUsable());
     assertFalse(service.resolveRate(CurrencyType.USD, CurrencyType.EUR, date).isUsable());
 

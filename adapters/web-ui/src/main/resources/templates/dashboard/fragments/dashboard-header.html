@@ -90,10 +90,10 @@
             <div class="iv-topbar__toolbar">
                 <details class="iv-balance-popover iv-topbar-fx-popover iv-compact-popover">
                     <summary class="iv-topbar-fx-popover__trigger">
-                        <span th:text="${'Reporting currency: ' + stats.baseCurrency}">Reporting currency: USD</span> <span class="iv-info-icon" aria-hidden="true">i</span>
+                        <span th:text="${'Base currency: ' + stats.baseCurrency}">Base currency: USD</span> <span class="iv-info-icon" aria-hidden="true">i</span>
                     </summary>
                     <div class="iv-balance-popover__panel iv-topbar-fx-popover__panel iv-compact-popover__panel">
-                        <div class="iv-popover-heading iv-compact-popover__header" th:text="${'Reporting currency: ' + stats.baseCurrency}">Reporting currency: USD</div>
+                        <div class="iv-popover-heading iv-compact-popover__header" th:text="${'Base currency: ' + stats.baseCurrency}">Base currency: USD</div>
                         <div class="iv-compact-popover__body">
                         <div class="iv-position-popover__row iv-dividend-popover__row"
                              th:if="${stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).USD) != null}">

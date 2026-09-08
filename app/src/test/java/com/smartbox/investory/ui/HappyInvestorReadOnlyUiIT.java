@@ -30,6 +30,8 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /** Read-only browser contract for every financial page backed by the canonical snapshot. */
 @SpringBootTest(
@@ -51,8 +53,25 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
 
   @Autowired private PortfolioProjectionRefreshService projectionRefresh;
 
+  @Autowired private JdbcTemplate jdbc;
+
+  @Autowired private PasswordEncoder passwordEncoder;
+
   @BeforeAll
   void prepareProjectionAndLaunchBrowser() {
+    jdbc.update(
+        "INSERT INTO investory.app_users "
+            + "(username, display_name, active, password_hash, role) "
+            + "VALUES (?, ?, true, ?, 'USER') "
+            + "ON CONFLICT (username) DO UPDATE SET active = true, password_hash = EXCLUDED.password_hash, role = 'USER'",
+        "happy.profile.user",
+        "Happy Profile User",
+        passwordEncoder.encode("happy-profile-password"));
+    jdbc.update(
+        "INSERT INTO investory.profile_memberships (user_id, profile_id, role) "
+            + "SELECT id, 1, 'USER' FROM investory.app_users WHERE username = ? "
+            + "ON CONFLICT (user_id, profile_id) DO UPDATE SET role = 'USER'",
+        "happy.profile.user");
     projections.recalculateAccounts(
         Set.of(
             HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
@@ -125,7 +144,10 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   compact(HappyInvestorProfileFacts.COMBINED_ANNUAL_INCOME));
           assertThat(page.locator(".iv-profile-source-card").nth(0).textContent())
               .contains(
-                  "Market investments", "Value", "Annual income (net)", "Investment result YTD");
+                  "Market investments",
+                  "Income base",
+                  "Annual income (net)",
+                  "Investment result YTD");
           assertThat(page.locator(".iv-profile-source-card").nth(1).textContent())
               .contains(
                   "Long-term assets",
@@ -292,6 +314,24 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
         });
   }
 
+  @Test
+  @DisplayName("profile user can read the dashboard but receives read-only capabilities")
+  void profileUser_isReadOnly() throws IOException {
+    var failures = new ArrayList<String>();
+    try (BrowserContext context =
+        authenticatedContext("happy.profile.user", "happy-profile-password")) {
+      Page page = context.newPage();
+      page.onPageError(error -> failures.add("page error: " + error));
+      var response = page.navigate(baseUrl() + "/portfolios/1/dashboard?period=MAX");
+      assertThat(response).isNotNull();
+      assertThat(response.status()).isEqualTo(200);
+      assertThat(page.evaluate("window.investoryCapabilities.canEdit")).isEqualTo(false);
+      assertThat(page.evaluate("window.investoryCapabilities.canImport")).isEqualTo(false);
+      assertThat(page.locator("form[method='post'] button:enabled").count()).isZero();
+      assertThat(failures).isEmpty();
+    }
+  }
+
   private void assertPage(String name, String path, Consumer<Page> assertions) throws IOException {
     var failures = new ArrayList<String>();
     try (BrowserContext context = authenticatedContext()) {
@@ -350,10 +390,14 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
   }
 
   private BrowserContext authenticatedContext() {
+    return authenticatedContext("admin", "change-me-admin");
+  }
+
+  private BrowserContext authenticatedContext(String username, String password) {
     BrowserContext context =
         browser.newContext(
             new Browser.NewContextOptions()
-                .setHttpCredentials("admin", "change-me-admin")
+                .setHttpCredentials(username, password)
                 .setViewportSize(1440, 1000));
     context.setDefaultTimeout(Duration.ofMinutes(2).toMillis());
     context.setDefaultNavigationTimeout(Duration.ofMinutes(2).toMillis());

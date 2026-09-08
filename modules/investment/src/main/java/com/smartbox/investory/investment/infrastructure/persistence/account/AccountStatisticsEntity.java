@@ -25,7 +25,8 @@ import org.hibernate.annotations.Immutable;
 @Entity
 @Immutable
 @EqualsAndHashCode(of = "accountId")
-@Table(name = "app_v_account_statistics_reporting")
+/** Account statistics are canonical portfolio-base values, never selected reporting currency. */
+@Table(name = "app_v_account_statistics")
 public class AccountStatisticsEntity {
 
   @Id

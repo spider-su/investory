@@ -89,6 +89,7 @@ public class IbkrImportService {
    */
   public ImportExecutionResult importStatement(InputStream csvStream, String fileName)
       throws Exception {
+    log.info("IMPORT STAGE ibkr-csv-read-start file={}", fileName);
     List<String[]> rows;
     try (CSVReader reader =
         new CSVReader(new InputStreamReader(csvStream, StandardCharsets.UTF_8))) {
@@ -96,6 +97,12 @@ public class IbkrImportService {
     }
     Long accountIdFromFilename = parseAccountIdFromFilename(fileName);
     CurrencyType statementBaseCurrency = parseStatementBaseCurrency(rows);
+    log.info(
+        "IMPORT STAGE ibkr-csv-parsed file={} rows={} filenameAccountId={} baseCurrency={}",
+        fileName,
+        rows.size(),
+        accountIdFromFilename,
+        statementBaseCurrency);
     harvestReferenceRates(rows, statementBaseCurrency);
 
     Map<String, Integer> col = locateHeader(rows, SECTION);
@@ -213,11 +220,21 @@ public class IbkrImportService {
     }
     applyCashOperationAssetIdentities(cashOps);
     persistTradePriceHistory(tradePriceObservations);
+    log.info(
+        "IMPORT STAGE ibkr-ledger-upsert-start file={} cashOperations={} tradePriceObservations={} affectedAccounts={}",
+        fileName,
+        cashOps.size(),
+        tradePriceObservations.size(),
+        configuredAccounts.size());
     cashOperationRepository.saveAll(cashOps);
     // Reconstruction re-reads the full canonical cash history for the account. Flush the freshly
     // saved operations so the same-transaction read sees this file's rows; otherwise the rebuild
     // runs on stale (previously committed) data and drops multi-file position history.
     cashOperationRepository.flush();
+    log.info(
+        "IMPORT STAGE ibkr-ledger-upsert-complete file={} cashOperations={} flushed=true",
+        fileName,
+        cashOps.size());
 
     List<Long> affectedAccounts =
         cashOps.stream()

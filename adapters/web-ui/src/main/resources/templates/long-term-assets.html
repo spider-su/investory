@@ -49,10 +49,13 @@
                        th:text="${asset.name}">Asset</a>
                 </td>
                 <td class="text-end" th:text="${format.compactMoney(asset.totalPaymentMonthly) + ' / month'}">0 / month</td>
-                <td class="text-end iv-yield-cell"><strong th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax)}">0.0%</strong><small th:text="${'Gross ' + format.percentage(asset.annualEconomics.grossYield)}">Gross 0.0%</small></td>
-                <td class="text-end" th:text="${format.compactMoney(asset.annualEconomics.monthlyNetIncomeAfterTax) + ' / month'}">0 / month</td>
+                <td class="text-end iv-yield-cell" th:if="${!asset.integrityWarning}"><strong th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax)}">0.0%</strong><small th:text="${'Gross ' + format.percentage(asset.annualEconomics.grossYield)}">Gross 0.0%</small></td>
+                <td class="text-end" th:if="${asset.integrityWarning}">Unavailable</td>
+                <td class="text-end" th:if="${!asset.integrityWarning}" th:text="${format.compactMoney(asset.annualEconomics.monthlyNetIncomeAfterTax) + ' / month'}">0 / month</td>
+                <td class="text-end" th:if="${asset.integrityWarning}">Unavailable</td>
                 <td class="text-end" th:text="${format.date(asset.rentEnd)}">—</td>
-                <td class="text-end" th:text="${format.compactMoney(asset.annualEconomics.monthlyTaxBase) + ' / month'}">0 / month</td>
+                <td class="text-end" th:if="${!asset.integrityWarning}" th:text="${format.compactMoney(asset.annualEconomics.monthlyTaxBase) + ' / month'}">0 / month</td>
+                <td class="text-end" th:if="${asset.integrityWarning}">Unavailable</td>
                 <td><form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/archive(portfolioId=${portfolioId},id=${asset.id})}"><button class="btn btn-sm btn-outline-danger">Archive</button></form></td>
               </tr>
               <tr th:each="asset : ${group.assets}" th:if="${group.key == 'BOND'}">

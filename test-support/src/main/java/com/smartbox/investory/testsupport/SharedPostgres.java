@@ -27,7 +27,7 @@ public final class SharedPostgres {
   static final String CLEANUP_PROPERTY = "investory.test.database.cleanup";
   static final String WORKERS_PROPERTY = "investory.test.workers";
 
-  private static final String DEFAULT_IMAGE = "postgres:17-bookworm";
+  private static final String DEFAULT_IMAGE = "postgres:18.6-bookworm";
   private static final String USERNAME = "investory";
   private static final String PASSWORD = "investory";
   private static final Pattern IDENTIFIER = Pattern.compile("[a-z][a-z0-9_]{0,62}");
