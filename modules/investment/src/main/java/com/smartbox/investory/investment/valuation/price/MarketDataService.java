@@ -143,8 +143,7 @@ public class MarketDataService {
         activeAssets.stream()
             .filter(this::isSupportedForPriceUpdate)
             .collect(
-                Collectors.groupingBy(
-                    this::yahooSymbol, LinkedHashMap::new, Collectors.toList()));
+                Collectors.groupingBy(this::yahooSymbol, LinkedHashMap::new, Collectors.toList()));
     ZonedDateTime quoteFreshnessCutoff =
         applicationTime.now(applicationTime.businessZone()).minus(QUOTE_FRESHNESS);
     assetsByTicker

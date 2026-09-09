@@ -7,7 +7,6 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.integrations.market.yahoo.YahooFinanceService;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.TreeMap;

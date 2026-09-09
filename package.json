@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "scripts": {
+    "stress:long-term-assets": "./mvnw -pl app -am initialize test-compile failsafe:integration-test failsafe:verify -Dit.test=LongTermAssetsReadOnlyStress -Dfailsafe.failIfNoSpecifiedTests=false"
+  }
+}

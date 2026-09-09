@@ -86,11 +86,13 @@ class YahooFinanceServiceTest {
             """
             {"chart":{"result":[{"timestamp":[1788307200,1788393600],"indicators":{"quote":[{"close":[101.25,null]}]}}]}}
             """);
-    when(httpClient.send(any(HttpRequest.class),
+    when(httpClient.send(
+            any(HttpRequest.class),
             org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
         .thenReturn(response);
 
-    var closes = service.fetchDailyCloses("AAPL", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 3));
+    var closes =
+        service.fetchDailyCloses("AAPL", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 3));
 
     assertEquals(1, closes.size());
     assertEquals(101.25, closes.get(LocalDate.of(2026, 9, 2)), 0.000001);

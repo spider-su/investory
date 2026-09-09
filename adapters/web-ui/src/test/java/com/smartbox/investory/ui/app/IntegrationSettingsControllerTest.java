@@ -75,7 +75,8 @@ class IntegrationSettingsControllerTest {
             anySet()))
         .thenReturn(new ConnectionTestResult(true, false, "offline"));
     var redirect = new RedirectAttributesModelMap();
-    controller.save(IntegrationType.MARKET_DATA, "missing-market", Map.of("action", "test"), redirect);
+    controller.save(
+        IntegrationType.MARKET_DATA, "missing-market", Map.of("action", "test"), redirect);
     assertThat(redirect.getFlashAttributes().get("error").toString()).contains("offline");
 
     when(settings.setEnabled(IntegrationType.MARKET_DATA, "missing-market", true))
@@ -89,9 +90,16 @@ class IntegrationSettingsControllerTest {
   void jobsDelegateScheduleAndReportSuccess() {
     var redirect = new RedirectAttributesModelMap();
     controller.job(
-        IntegrationType.MARKET_DATA, "missing-market", "QUOTES", true, "0 0 * * * *", "UTC", redirect);
+        IntegrationType.MARKET_DATA,
+        "missing-market",
+        "QUOTES",
+        true,
+        "0 0 * * * *",
+        "UTC",
+        redirect);
     verify(settings)
-        .saveJob(IntegrationType.MARKET_DATA, "missing-market", "QUOTES", true, "0 0 * * * *", "UTC");
+        .saveJob(
+            IntegrationType.MARKET_DATA, "missing-market", "QUOTES", true, "0 0 * * * *", "UTC");
     assertThat(redirect.getFlashAttributes().get("success")).isEqualTo("Schedule saved");
   }
 

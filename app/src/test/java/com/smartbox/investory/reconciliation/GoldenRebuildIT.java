@@ -165,16 +165,17 @@ class GoldenRebuildIT {
     runCheck("local-fx-fixture", "reference/exchange_rates.csv", this::loadDeterministicFxFixture);
     runCheck("ibkr-import", "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv", this::importIbkrFixture);
     runCheck("xtb-import", "xtb/investory_xtb_golden.zip", this::importXtbFixture);
+    runCheck("source-statistics", "imported fixture tables", this::analyzeImportedSources);
 
-    // The fixtures call the import services directly, so reproduce the application refresh
-    // boundary that ImportOrchestratorService runs after a broker import. Reconciliation views
-    // depend on these application MVs (including normalized prices and cash flows).
+    // Projection reads normalized cash operations. Refresh only that prerequisite before
+    // projection; the full reporting refresh belongs after account_daily has been rebuilt.
     runCheck(
-        "application-refresh",
-        "application materialized views",
+        "projection-prerequisites",
+        "normalized cash operations",
         () ->
             portfolioProjectionRefreshService.refreshApplicationViews(
-                PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT));
+                PortfolioProjectionRefreshService.ApplicationRefreshScope
+                    .PROJECTION_PREREQUISITES));
 
     // Importers may add deterministic execution-rate observations. Rebuild the local cache after
     // all
@@ -186,11 +187,11 @@ class GoldenRebuildIT {
         () -> {
           currencyRateService.clearValuationResolutionCache();
           portfolioProjectionService.recalculateAccounts(GOLDEN_ACCOUNTS);
-          // account_daily supplies the valuation dates used by the FX and normalized-price MVs.
-          // Refresh those dependent MVs after rebuilding the projection; the upstream price MVs
-          // were already refreshed after the imports.
-          jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_portfolio_daily_fx_rate_mv");
-          jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_normalized_daily_price_mv");
+          // account_daily supplies the valuation dates used by these two dependent MVs. Use the
+          // normal timed/ordered refresh path; it sets JIT off and keeps both expensive steps
+          // visible in the logs without refreshing unrelated reporting views.
+          portfolioProjectionRefreshService.refreshApplicationViews(
+              PortfolioProjectionRefreshService.ApplicationRefreshScope.PROJECTION_DEPENDENCIES);
           portfolioProjectionService.refreshReconciliationViews();
         });
 
@@ -293,6 +294,12 @@ class GoldenRebuildIT {
       assertEquals(0, result.rowsFailed(), result.details());
       assertTrue(result.rowsApplied() > 0, result.details());
     }
+  }
+
+  private void analyzeImportedSources() {
+    jdbc.execute(
+        "ANALYZE investory.exchange_rates, investory.cash_operations, "
+            + "investory.positions, investory.asset_price_history, investory.account_daily");
   }
 
   private void loadDeterministicFxFixture() throws IOException {

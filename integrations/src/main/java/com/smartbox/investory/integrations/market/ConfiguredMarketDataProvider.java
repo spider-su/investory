@@ -68,5 +68,4 @@ public class ConfiguredMarketDataProvider implements MarketDataProvider {
     marketQuote.setClose(quote.price());
     return marketQuote;
   }
-
 }

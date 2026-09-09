@@ -34,6 +34,21 @@ jobs:
       - name: Check local Markdown links
         run: python3 tools/check_markdown_links.py
 
+  format:
+    name: Formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java and Maven
+        uses: ./.github/actions/setup-java-maven
+
+      - name: Check formatting
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" spotless:check
+
   unit:
     name: Unit
     runs-on: ubuntu-latest
@@ -295,9 +310,6 @@ jobs:
             initialize test-compile failsafe:integration-test failsafe:verify \
             "-Dit.test=GoldenRebuildIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
 
-      - name: Check formatting
-        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" spotless:check
-
       - name: Upload golden-path execution data
         uses: actions/upload-artifact@v7
         with:
@@ -307,7 +319,7 @@ jobs:
 
   aggregateCoverage:
     name: Aggregate coverage gate
-    needs: [unit, composition, backendIt, uiIt, goldenPath, schema]
+    needs: [unit, composition, backendIt, uiIt, goldenPath, schema, format]
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
