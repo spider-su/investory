@@ -47,7 +47,7 @@ class IntegrationSettingsControllerTest {
     var redirect = new RedirectAttributesModelMap();
     controller.save(
         IntegrationType.MARKET_DATA,
-        "twelve-data",
+        "missing-market",
         Map.of(
             "baseUrl", "https://market.test",
             "secret.apiKey", "secret",
@@ -58,7 +58,7 @@ class IntegrationSettingsControllerTest {
     verify(settings)
         .save(
             IntegrationType.MARKET_DATA,
-            "twelve-data",
+            "missing-market",
             Map.of("baseUrl", "https://market.test"),
             Map.of("apiKey", "secret"),
             java.util.Set.of("old"));
@@ -75,13 +75,14 @@ class IntegrationSettingsControllerTest {
             anySet()))
         .thenReturn(new ConnectionTestResult(true, false, "offline"));
     var redirect = new RedirectAttributesModelMap();
-    controller.save(IntegrationType.MARKET_DATA, "twelve-data", Map.of("action", "test"), redirect);
+    controller.save(
+        IntegrationType.MARKET_DATA, "missing-market", Map.of("action", "test"), redirect);
     assertThat(redirect.getFlashAttributes().get("error").toString()).contains("offline");
 
-    when(settings.setEnabled(IntegrationType.MARKET_DATA, "twelve-data", true))
+    when(settings.setEnabled(IntegrationType.MARKET_DATA, "missing-market", true))
         .thenThrow(new IllegalStateException("invalid config"));
     redirect = new RedirectAttributesModelMap();
-    controller.enabled(IntegrationType.MARKET_DATA, "twelve-data", true, redirect);
+    controller.enabled(IntegrationType.MARKET_DATA, "missing-market", true, redirect);
     assertThat(redirect.getFlashAttributes().get("error")).isEqualTo("invalid config");
   }
 
@@ -89,9 +90,16 @@ class IntegrationSettingsControllerTest {
   void jobsDelegateScheduleAndReportSuccess() {
     var redirect = new RedirectAttributesModelMap();
     controller.job(
-        IntegrationType.MARKET_DATA, "twelve-data", "QUOTES", true, "0 0 * * * *", "UTC", redirect);
+        IntegrationType.MARKET_DATA,
+        "missing-market",
+        "QUOTES",
+        true,
+        "0 0 * * * *",
+        "UTC",
+        redirect);
     verify(settings)
-        .saveJob(IntegrationType.MARKET_DATA, "twelve-data", "QUOTES", true, "0 0 * * * *", "UTC");
+        .saveJob(
+            IntegrationType.MARKET_DATA, "missing-market", "QUOTES", true, "0 0 * * * *", "UTC");
     assertThat(redirect.getFlashAttributes().get("success")).isEqualTo("Schedule saved");
   }
 

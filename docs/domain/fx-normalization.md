@@ -24,7 +24,7 @@ used as neutral portfolio valuation rates.
 
 ## FX data sources and refresh
 
-Neutral daily FX data is currently fetched through the configured ExchangeRate.host
+Neutral daily FX data is currently fetched through the configured NBP
 integration. The updater requests USD -> EUR and USD -> PLN for the effective refresh
 date, validates the complete response, and derives the other directed pairs through
 USD. The provider's date is stored as `rate_date`; the requested effective date is not

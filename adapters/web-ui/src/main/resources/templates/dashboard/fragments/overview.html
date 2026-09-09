@@ -51,10 +51,10 @@
                                     <span th:text="${#numbers.formatDecimal(position.marketPrice, 1, 'POINT', 2, 'COMMA') + ' ' + position.marketPriceCurrency}">0 USD</span>
                                     <span th:if="${position.yahooFinancePrice}"
                                           class="iv-badge iv-badge--muted"
-                                          title="Twelve Data had no usable quote; Yahoo Finance supplied this exact-listing price">Yahoo</span>
-                                    <span th:unless="${position.twelveDataPrice or position.yahooFinancePrice}"
+                                          title="Yahoo Finance supplied this exact-listing price">Yahoo</span>
+                                    <span th:unless="${position.yahooFinancePrice}"
                                           class="iv-badge iv-badge--neg"
-                                          th:title="${'Price source: ' + (position.priceSource == null ? 'Unavailable' : position.priceSource)}">No 12data update</span>
+                                          th:title="${'Price source: ' + (position.priceSource == null ? 'Unavailable' : position.priceSource)}">No Yahoo update</span>
                                 </span>
                                 <span th:text="${stats.formatBase(position.value)}">0</span>
                                 <span th:classappend="${position.unrealized >= 0} ? 'iv-pos' : 'iv-neg'"

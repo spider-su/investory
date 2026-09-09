@@ -56,6 +56,40 @@ class PortfolioProjectionRefreshServiceTest {
   }
 
   @Test
+  @DisplayName("projection prerequisites refresh price chain and normalized cash")
+  void projectionPrerequisitesRefreshOnlyNormalizedCashOperations() {
+    when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
+    doNothing().when(jdbcTemplate).execute(any(String.class));
+
+    PortfolioProjectionRefreshService service =
+        new PortfolioProjectionRefreshService(jdbcTemplate, transactionManager);
+
+    service.refreshApplicationViews(
+        PortfolioProjectionRefreshService.ApplicationRefreshScope.PROJECTION_PREREQUISITES);
+
+    verify(transactionManager, times(4)).getTransaction(any());
+    verify(transactionManager, times(4)).commit(transactionStatus);
+    verify(jdbcTemplate, times(4)).execute("SET LOCAL jit=off");
+    InOrder ordered = inOrder(jdbcTemplate);
+    ordered
+        .verify(jdbcTemplate)
+        .execute(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_canonical_asset_daily_price_mv");
+    ordered
+        .verify(jdbcTemplate)
+        .execute(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_canonical_asset_daily_price_ranked_mv");
+    ordered
+        .verify(jdbcTemplate)
+        .execute(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_normalized_daily_price_mv");
+    ordered
+        .verify(jdbcTemplate)
+        .execute(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_normalized_cash_operations");
+  }
+
+  @Test
   @DisplayName("dashboard refreshes price and reporting dependencies in order")
   void dashboardRefreshesPriceAndReportingDependenciesInOrder() {
     when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);

@@ -2,19 +2,24 @@
   "version": 1,
   "files": [
     {
+      "path": "README.md",
+      "sha256": "c7195ece795bd13316a1f7bef1341cabb8bbd2e00214232051956f4960c39f12",
+      "size_bytes": 2002
+    },
+    {
       "path": "expected/checkpoints.json",
-      "sha256": "19b74e41c795f649d878ef12159463364e93231ca7344d90319844e65797ae90",
-      "size_bytes": 3572
+      "sha256": "02572da54a1b0b2d71b0759b4f4ac904c01c18af1833cb03b190b497d8d7b83b",
+      "size_bytes": 3467
     },
     {
       "path": "expected/provenance.json",
-      "sha256": "552aba55a44b554f18e85eaa749fa47b622ff8973e54ef11b3ca9a2fcdc553a2",
-      "size_bytes": 984
+      "sha256": "a913bb62d4ebf5c681677c7303b61679ae4d07353941f2d339cd0bf127c54a44",
+      "size_bytes": 970
     },
     {
       "path": "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv",
-      "sha256": "227e1e45069d68f88d8d091f25d3a2de13dee987e460e83ca74bf9438ada4388",
-      "size_bytes": 3200
+      "sha256": "0d8b132bb01c34ee5d5b55c69160d289e30bba1b0a3fb9326c3cb0e06cde5591",
+      "size_bytes": 3179
     },
     {
       "path": "reference/exchange_rates.csv",

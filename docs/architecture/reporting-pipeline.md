@@ -186,8 +186,8 @@ of `V01.006__reconciliation_views.sql`, and rental-contract subtype enforcement 
 
 Integration adapters are under `com.smartbox.investory.integrations`; Investment-owned provider
 contracts remain under `investment.port`. The configured FX adapter is
-`NbpFxDataPlugin` as primary; `ExchangeRateHostFxDataPlugin` remains available as an alternative. `PluginRegistry` provides typed Spring discovery. IBKR and XTB parser
-beans expose the broker-import port; TwelveData owns external ticker mapping and request-key
+`NbpFxDataPlugin` as the FX adapter. `PluginRegistry` provides typed Spring discovery. IBKR and XTB parser
+beans expose the broker-import port; Yahoo Finance owns external ticker mapping and request-key
 overrides; Yahoo export is exposed through the export port. Persisted FX and market jobs are polled
 by `IntegrationJobScheduler`, with PostgreSQL advisory locks preventing overlapping runs. Runtime
 application configuration remains the compatibility fallback. The application-layer

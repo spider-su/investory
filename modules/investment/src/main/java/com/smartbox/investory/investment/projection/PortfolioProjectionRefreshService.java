@@ -56,6 +56,16 @@ public class PortfolioProjectionRefreshService {
           "app_v_symbol_performance",
           "app_v_portfolio_kpi_summary_mv");
 
+  private static final List<String> PROJECTION_PREREQUISITE_ORDER =
+      List.of(
+          "app_v_canonical_asset_daily_price_mv",
+          "app_v_canonical_asset_daily_price_ranked_mv",
+          "app_v_normalized_daily_price_mv",
+          "app_v_normalized_cash_operations");
+
+  private static final List<String> PROJECTION_DEPENDENCY_ORDER =
+      List.of("app_v_portfolio_daily_fx_rate_mv", "app_v_normalized_daily_price_mv");
+
   private static final List<String> DASHBOARD_ORDER =
       List.of(
           "app_v_canonical_asset_daily_price_mv",
@@ -98,6 +108,8 @@ public class PortfolioProjectionRefreshService {
     List<String> views =
         switch (scope) {
           case BROKER_IMPORT, MARKET_HISTORY, FULL -> APPLICATION_FULL_ORDER;
+          case PROJECTION_PREREQUISITES -> PROJECTION_PREREQUISITE_ORDER;
+          case PROJECTION_DEPENDENCIES -> PROJECTION_DEPENDENCY_ORDER;
           case CURRENT_MARKET_PRICE -> CURRENT_MARKET_PRICE_ORDER;
           case FX_UPDATE -> FX_ORDER;
           case DASHBOARD -> DASHBOARD_ORDER;
@@ -153,6 +165,8 @@ public class PortfolioProjectionRefreshService {
 
   public enum ApplicationRefreshScope {
     BROKER_IMPORT,
+    PROJECTION_PREREQUISITES,
+    PROJECTION_DEPENDENCIES,
     CURRENT_MARKET_PRICE,
     FX_UPDATE,
     DASHBOARD,

@@ -64,7 +64,7 @@ class PortfolioRepositoryTest extends FastDatabaseTest {
 
 The base class:
 
-- starts one shared PostgreSQL 17 container for the test JVM;
+- starts one shared PostgreSQL 18.6 container for the test JVM;
 - activates the `test-fast` profile;
 - disables Flyway;
 - loads the committed snapshot;
@@ -258,7 +258,7 @@ rebuild. Keep the full archive and credentials outside the repository and public
 
 Container startup can dominate a short test run. Local reuse is optional.
 
-Integration tests use one PostgreSQL 17 container per test JVM. `FastDatabase` creates the worker
+Integration tests use one PostgreSQL 18.6 container per test JVM. `FastDatabase` creates the worker
 database from the container's administrative `postgres` database and points Spring at that
 database; scoped migration and golden tests use additional isolated databases in the same
 container. Names are `it_<run-id>_<worker-id>[_scope]`, using `GITHUB_RUN_ID` when available.

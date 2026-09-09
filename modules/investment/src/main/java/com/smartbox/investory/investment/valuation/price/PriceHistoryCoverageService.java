@@ -122,10 +122,10 @@ public class PriceHistoryCoverageService {
         historyRepository.upsertObservedPrice(
             asset.getId(),
             entry.getKey(),
-            "TWELVE_DATA",
+            "YAHOO_FINANCE",
             providerSymbol,
             asset.getSymbol(),
-            "TWELVE_DATA_MARKET_CLOSE",
+            "YAHOO_FINANCE_MARKET_CLOSE",
             asset.getCurrency() == null ? null : asset.getCurrency().name(),
             BigDecimal.valueOf(entry.getValue()),
             100,

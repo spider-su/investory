@@ -39,6 +39,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,6 +69,7 @@ public class PortfolioProjectionService {
   private final AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
   private final PortfolioProjectionRefreshService projectionRefreshService;
   private final ApplicationTime applicationTime;
+  private final JdbcTemplate jdbcTemplate;
 
   @Transactional
   public void recalculateAll() {
@@ -112,6 +114,9 @@ public class PortfolioProjectionService {
         "Portfolio projection rebuild started mode=accounts requestedAccounts={}",
         accountIds == null ? 0 : accountIds.size());
     try {
+      // Projection performs many canonical FX resolutions. Keep PostgreSQL JIT disabled for this
+      // short-lived rebuild transaction; view refreshes use the same setting.
+      jdbcTemplate.execute("SET LOCAL jit=off");
       recalculateAccountsInternal(accountIds);
       log.info(
           "Portfolio projection rebuild completed mode=accounts requestedAccounts={} durationMs={}",

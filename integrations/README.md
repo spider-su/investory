@@ -36,9 +36,9 @@ Job handlers call public Investment APIs or ports. Financial calculations stay i
 notification-specific audit and delivery orchestration stays in its handler.
 
 Provider routing is explicit: `ConfiguredMarketDataProvider` uses Yahoo for current quotes and
-TwelveData for historical daily/monthly closes. FX configuration currently resolves the
-ExchangeRate.host adapter. Provider-specific configuration remains JSON and secrets remain
-encrypted persistence values.
+Yahoo Finance for historical daily/monthly closes. FX configuration currently resolves the
+NBP adapter. Provider-specific configuration remains JSON and secrets remain encrypted persistence
+values.
 
 ## Management contract
 

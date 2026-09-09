@@ -102,7 +102,7 @@ valuation, FX, projection, and reporting code.
 
 The alignment guard is `HappyInvestorSchemaCanonicalTest`; it checks the generated snapshot and
 both SQL overlays. Run it together with `HappyInvestorScenarioTest`, then run the owning ITs.
-The pinned `2025-01-01`/`STOOQ` price cache is the base snapshot. The `2026-08-20`/`TWELVE_DATA`
+The pinned `2025-01-01`/`STOOQ` price cache is the base snapshot. The `2026-08-20`/`YAHOO_FINANCE`
 values belong to the provider-refresh flow and must not be confused with the initial cache.
 
 ## F1-F17 flow map

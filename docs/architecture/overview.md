@@ -186,7 +186,7 @@ supplies portfolio-scoped calendar-year planning facts. Their Investment impleme
 persistence access behind the boundary.
 
 Market and FX provider configuration is adapter-owned. Investment defines `MarketDataProvider` and
-`FxRateProvider`; TwelveData, Yahoo Finance, NBP, and ExchangeRateHost implementations live in
+`FxRateProvider`; Yahoo Finance and NBP implementations live in
 `integrations`. Secondary exporters read a typed `PortfolioExportSnapshotReader`, and their own
 delivery/export state remains in `integrations`. Telegram, notifications, health checks, and AI use
 typed Investment query/command APIs; they do not read Investment repositories or scrape rendered UI.
