@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
+import com.smartbox.investory.investment.imports.ImportPortfolioContext;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
@@ -58,9 +59,12 @@ class XtbImportIT extends FastDatabaseTest {
     ImportExecutionResult result;
     try {
       TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
-      result =
-          xtbImportService.importWorkbook(
-              new ByteArrayInputStream(workbookBytes()), "IKE_51729109_2025-12-31_2026-07-31.xlsx");
+      try (ImportPortfolioContext.Scope ignored = ImportPortfolioContext.open(1L)) {
+        result =
+            xtbImportService.importWorkbook(
+                new ByteArrayInputStream(workbookBytes()),
+                "IKE_51729109_2025-12-31_2026-07-31.xlsx");
+      }
     } finally {
       TimeZone.setDefault(originalTimeZone);
     }
@@ -127,10 +131,13 @@ class XtbImportIT extends FastDatabaseTest {
   @DisplayName("treats Xtb Three Placeholder As Missing Ticker On Cash Only Rows")
   @Test
   void treatsXtbThreePlaceholderAsMissingTickerOnCashOnlyRows() throws Exception {
-    ImportExecutionResult result =
-        xtbImportService.importWorkbook(
-            new ByteArrayInputStream(cashOnlyPlaceholderWorkbookBytes()),
-            "PLN_50290466_2025-12-31_2026-07-31.xlsx");
+    ImportExecutionResult result;
+    try (ImportPortfolioContext.Scope ignored = ImportPortfolioContext.open(1L)) {
+      result =
+          xtbImportService.importWorkbook(
+              new ByteArrayInputStream(cashOnlyPlaceholderWorkbookBytes()),
+              "PLN_50290466_2025-12-31_2026-07-31.xlsx");
+    }
 
     assertEquals(1, result.rowsTotal());
     assertEquals(1, result.rowsApplied());

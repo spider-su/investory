@@ -74,7 +74,7 @@ class RetirementProjectionServiceTest {
                 Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC))
             .create(live, assumptions);
     ForwardSimulationInputService forwardInputs = mock(ForwardSimulationInputService.class);
-    when(forwardInputs.prepare(any(), eq(assumptions)))
+    when(forwardInputs.prepare(any(), any(), eq(assumptions)))
         .thenReturn(new ForwardSimulationInput(context, live, Optional.empty()));
     RetirementProjectionService facade =
         new RetirementProjectionService(
@@ -95,10 +95,12 @@ class RetirementProjectionServiceTest {
             new BigDecimal("12"),
             BigDecimal.ZERO));
 
-    var captor = org.mockito.ArgumentCaptor.forClass(InvestmentProfile.class);
-    verify(forwardInputs).prepare(captor.capture(), eq(assumptions));
-    assertEquals(new BigDecimal("590000"), captor.getValue().marketPortfolioValue());
-    assertEquals(new BigDecimal("90000"), captor.getValue().liquidAssets());
+    var liveCaptor = org.mockito.ArgumentCaptor.forClass(InvestmentProfile.class);
+    var reviewedCaptor = org.mockito.ArgumentCaptor.forClass(InvestmentProfile.class);
+    verify(forwardInputs).prepare(liveCaptor.capture(), reviewedCaptor.capture(), eq(assumptions));
+    assertEquals(live, liveCaptor.getValue());
+    assertEquals(new BigDecimal("590000"), reviewedCaptor.getValue().marketPortfolioValue());
+    assertEquals(new BigDecimal("90000"), reviewedCaptor.getValue().liquidAssets());
 
     InvestmentProfile changedLive =
         new InvestmentProfile(
@@ -144,9 +146,11 @@ class RetirementProjectionServiceTest {
             new BigDecimal("280000"),
             new BigDecimal("12"),
             BigDecimal.ZERO));
-    verify(forwardInputs, times(2)).prepare(captor.capture(), eq(assumptions));
-    assertEquals(new BigDecimal("590000"), captor.getAllValues().get(1).marketPortfolioValue());
-    assertEquals(new BigDecimal("90000"), captor.getAllValues().get(1).liquidAssets());
+    verify(forwardInputs, times(2))
+        .prepare(liveCaptor.capture(), reviewedCaptor.capture(), eq(assumptions));
+    assertEquals(
+        new BigDecimal("590000"), reviewedCaptor.getAllValues().get(1).marketPortfolioValue());
+    assertEquals(new BigDecimal("90000"), reviewedCaptor.getAllValues().get(1).liquidAssets());
   }
 
   @DisplayName("preserves No Forward Projection State Without Calling Simulation Engine")
@@ -224,13 +228,13 @@ class RetirementProjectionServiceTest {
                 7L, "Saved", assumptions, baseline));
     when(facts.load(1L))
         .thenReturn(new RetirementFacts(liveA, 2026), new RetirementFacts(liveB, 2026));
-    when(forwardInputs.prepare(any(), eq(assumptions)))
+    when(forwardInputs.prepare(any(), any(), eq(assumptions)))
         .thenAnswer(
             invocation -> {
-              InvestmentProfile prepared = invocation.getArgument(0);
-              var context =
-                  new ForwardSimulationContextFactory(clock).create(prepared, assumptions);
-              return new ForwardSimulationInput(context, prepared, Optional.empty());
+              InvestmentProfile live = invocation.getArgument(0);
+              InvestmentProfile reviewed = invocation.getArgument(1);
+              var context = new ForwardSimulationContextFactory(clock).create(live, assumptions);
+              return new ForwardSimulationInput(context, reviewed, Optional.empty());
             });
     var facade =
         new RetirementProjectionService(
@@ -242,7 +246,7 @@ class RetirementProjectionServiceTest {
     assertEquals(liveA, first.profile());
     assertEquals(liveB, second.profile());
     assertEquals(first.projectedProfile(), second.projectedProfile());
-    verify(forwardInputs, times(2)).prepare(any(), eq(assumptions));
+    verify(forwardInputs, times(2)).prepare(any(), any(), eq(assumptions));
   }
 
   private static InvestmentProfile profile(BigDecimal reserve, BigDecimal investment) {

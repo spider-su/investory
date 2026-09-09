@@ -3,15 +3,15 @@
 ## Scope
 
 Read-only exploratory verification of active controls on the Long-Term Assets overview and its asset
-detail/edit representations.
+detail/edit representations at `2560x1440`.
 
 ## Safe exploration
 
 Record a collapsed overview, expand each available category, inspect every asset row, and open every
 available asset GET detail/edit route. Confirm each opens the expected representation, then leave via
 Cancel, Back, Close, or browser Back without Save. Exercise safe disclosures, tooltips, popups,
-dialogs, menus, links, reload, back/forward, and one desktop plus one narrow/mobile viewport where
-the UI provides them. Let the browser agent choose semantic or accessible paths; do not require a
+dialogs, menus, links, reload, and back/forward. Let the browser agent choose semantic or accessible
+paths; do not require a
 fixed selector order.
 
 ## Invariants
@@ -22,6 +22,8 @@ fixed selector order.
 - Every discovered control class is exercised safely or marked `N/A` when absent.
 - URL, visible state, navigation result, console/page errors, relevant first-party requests, and
   useful visual evidence are recorded.
+- Obvious clipping, overlap, inaccessible controls, or broken horizontal layout at `2560x1440` is
+  recorded. Alternate viewport and breakpoint coverage are out of scope unless explicitly requested.
 
 ## References
 

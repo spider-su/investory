@@ -37,7 +37,7 @@ The persisted fixture is built in layers so every non-golden IT and the golden p
 - **Common overlay** (`db/snapshot/happyinvestor-common.sql`) = broker-agnostic Happy Investor data:
   identity, long-term/whole-wealth assets, rental, tax, plan, planning, and the pinned price cache.
 - **Broker overlay** (`db/snapshot/happyinvestor-broker.sql`) = the imported ledger
-  (`cash_operations` + `positions`) for the four canonical accounts, including the MSFT open lot
+  (`cash_operations` + `positions`) for the four canonical financial-story accounts, including the MSFT open lot
   (unrealized P/L derived from market price, stored profit 0) and the NATGAS closed `RESULT_ONLY`
   CFD lot with its `CLOSE_TRADE` + `ROLLOVER` realized trade cash and `SWAP` fee.
 
@@ -52,6 +52,11 @@ are a separate golden layer, not extra canonical HappyInvestor accounts. `HappyI
 guards the overlays and the generated snapshot against drift.
 
 
+The four canonical financial-story accounts are IBKR USD, XTB USD, XTB PLN, and XTB EUR cash-only;
+they participate in ledger, position, and reporting expectations. Additional seeded Happy Investor
+accounts are allowed for UI/account-management realism, but must remain empty unless deliberately
+added to the canonical story. They are not silently included in canonical parity assertions.
+
 Identity is fixture-backed: user ID `2`, portfolio ID `2`, `Happy Investor`, `Happy Investor Portfolio`,
 PLN, Europe/Warsaw, 2024-07-31 through 2025-12-31. Internal account IDs are IBKR `2017959259`,
 XTB USD `2051499241`, XTB PLN `2051551301`, and cash-only XTB EUR `2051548444`; their broker
@@ -65,13 +70,32 @@ history rather than synthetic curves. Independent financial happy-path fixtures 
 F1-F4. Add source facts here and independently specified expected facts at the owning boundary;
 never calculate expectations through production valuation, FX, projection, or reporting code.
 
-Dashboard and Profile boundary facts use `2025-12-31` as the canonical as-of date. Asset prices use
+Dashboard and Profile **unit/IT test-fixture** facts intentionally use the fixed checkpoint
+`2025-12-31`. This fixed date is correct for deterministic disposable tests. For a live browser,
+when no trades, cash operations, market-price updates, or FX updates occur after the checkpoint,
+the facts are observation-frozen and remain valid beyond that calendar date. Asset prices use
 the latest canonical observation at or before that date from the pinned `2025-01-01` price cache;
 the cache records `2024-12-31` market observations. FX uses the latest canonical rate at or before
-the same boundary: USD/PLN `3.6016` and EUR/USD `1.173562`. MAX covers `2024-07-31` through
-`2025-12-31`; YTD covers `2025-01-01` through `2025-12-31`. The complete broker source inventory
+the same checkpoint: USD/PLN `3.6016` and EUR/USD `1.173562`. A market-price update changes open
+position value and return/yield metrics; an FX update also changes reporting-currency values. New
+trades or operations change source/activity facts and period totals. The complete broker source inventory
 and independent boundary arithmetic live in `HappyInvestorBrokerFacts`, not in rendered Dashboard
 or Profile output. Treasury prices are percent-of-par, so `10000 * 98.81 / 100 * FX` is required.
+
+Dashboard account-scope invariant: whole-portfolio Dashboard balance/equity and cash include all
+four accounts, including the cash-only EUR account `2051548444`. The Dashboard Accounts popup
+intentionally lists only visible non-cash-only investment accounts and its `Total` is therefore a
+three-account investment subtotal, not whole-portfolio equity. The expected difference is the
+cash-only account's remaining `-2000 EUR` converted to PLN; do not classify this scope difference
+as a reporting or calculation defect.
+
+Profile income-base rule: validate `Income base` against
+the HappyInvestor story and the canonical [`portfolio accounting`](../../../../../../../../../docs/domain/portfolio-accounting.md)
+and [`reporting pipeline`](../../../../../../../../../docs/architecture/reporting-pipeline.md) contracts, including
+applicable external deposits and withdrawals. The owning reporting contract uses start-of-year
+market value plus month-weighted external flows. The fixed story fact and any derived reporting
+value must come from the owning independent fact/test contract; never replace that contract with
+the current balance or UI label interpretation.
 
 F8-F14 use the same non-investment facts: IDs 9401-9404 are the PLN cash reserve, Apartment A,
 Apartment B, and Family Car. The notes-only Family Car remains visible but is excluded from

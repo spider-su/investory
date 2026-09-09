@@ -8,7 +8,7 @@ Exact view definitions and column lists live in Flyway migrations.
 ```text
 broker imports
   -> immutable import_source_files / import_source_rows
-  -> positions / cash_operations / accounts / assets / exchange_rates
+  -> positions / cash_operations / accounts / assets / fx_daily_rates
   -> normalized cash ledger and position valuation
   -> account_daily
   -> portfolio/account reporting views and materialized views
@@ -79,6 +79,12 @@ same-day external flow as a beginning-of-day boundary adjustment. XIRR uses cont
 negative investor cash flows, withdrawals as positive cash flows, and includes the opening value as
 an initial negative flow and ending value as the terminal positive flow. Missing/invalid boundaries
 produce an unavailable metric, not zero.
+
+Income Base is the reporting input for projected market income. Its meaning and month-weighted
+external-flow treatment are owned by `InvestmentIncomeSummaryService` and the tested
+`InvestmentIncomeCalculator` contract. UI and AI tests must reference that contract and the
+canonical HappyInvestor source facts, including applicable external deposits and withdrawals;
+they must not replace it with a January-1-only balance or infer it from a label.
 
 Dashboard TWR and XIRR read base-currency, non-cash-only daily boundaries from
 `app_v_portfolio_performance_daily`; application code must not rebuild them by summing raw

@@ -47,12 +47,12 @@ class NotificationDeliveryHappyInvestorIT extends FastDatabaseTest {
     assertThat(event.getDeliveredAt()).isNotNull();
     verify(delivery)
         .send(
-            "🚨 Happy Investor import failed\n"
-                + "Import: 7001 · IBKR · FAILED\n"
-                + "Source: canonical HappyInvestor\n"
-                + "Rows total/imported/skipped/errors: 21/20/0/1\n"
-                + "Cause: canonical provider failure\n"
-                + "http://localhost:8080/dashboard/reconciliation");
+            "<b>🚨 Happy Investor import failed</b>\n\n"
+                + "<b>Import:</b> 7001 · IBKR · FAILED\n"
+                + "<b>Source:</b> canonical HappyInvestor\n"
+                + "<b>Rows total/imported/skipped/errors:</b> 21/20/0/1\n"
+                + "<b>Cause:</b> canonical provider failure\n\n"
+                + "<a href=\"http://localhost:8080/dashboard/reconciliation\">Open reconciliation</a>");
 
     assertThat(dispatcher.dispatchPending()).isZero();
   }

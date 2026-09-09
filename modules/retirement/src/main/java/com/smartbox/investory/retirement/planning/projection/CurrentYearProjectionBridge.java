@@ -52,6 +52,15 @@ public class CurrentYearProjectionBridge {
   }
 
   public CurrentYearProjection projectCurrentYearEnd(ForwardSimulationContext context) {
+    return projectCurrentYearEnd(context, context.currentProfile());
+  }
+
+  /**
+   * Projects CURRENT from factual state, then rebases a separate reviewed profile for PROJECTED.
+   * The two profiles must not be collapsed before the current-year simulation runs.
+   */
+  public CurrentYearProjection projectCurrentYearEnd(
+      ForwardSimulationContext context, InvestmentProfile reviewedProfile) {
     InvestmentProfile profile = context.currentProfile();
     SimulationAssumptions assumptions = context.originalAssumptions();
     if (!context.requiresCurrentYearBridge()) {
@@ -83,7 +92,7 @@ public class CurrentYearProjectionBridge {
     BigDecimal contribution = projected.preRetirementContribution();
     Map<EconomicBucket, CurrentYearProjection.BucketBoundary> boundaries =
         projectedBoundaries(projected);
-    InvestmentProfile bridgedProfile = rebaseSpendableState(profile, boundaries);
+    InvestmentProfile bridgedProfile = rebaseSpendableState(reviewedProfile, boundaries);
     return result(
         context,
         bridgedProfile,
@@ -225,7 +234,7 @@ public class CurrentYearProjectionBridge {
 
   private static Map<EconomicBucket, CurrentYearProjection.BucketBoundary> currentBoundaries(
       InvestmentProfile profile) {
-    PlanningBuckets buckets = PlanningBuckets.fromProfileWithBondYield(profile, ZERO, ZERO);
+    PlanningBuckets buckets = PlanningBuckets.fromLiveProfileWithBondYield(profile, ZERO, ZERO);
     EnumMap<EconomicBucket, CurrentYearProjection.BucketBoundary> result =
         new EnumMap<>(EconomicBucket.class);
     buckets

@@ -59,6 +59,14 @@ public final class PlanningProfileBaseline {
     BigDecimal reserve = zero(baseline.reserve());
     BigDecimal investment = zero(baseline.investmentCapital());
     BigDecimal longTerm = zero(baseline.longTermCapital());
+    // Plans created before the canonical baseline migration may have capital facts but no
+    // serialized Long-Term asset state. Keep the current reviewed profile state in that case;
+    // otherwise the future simulator loses fixed-income assets while live income still shows them.
+    var planningState =
+        baseline.longTermPlanningState().assets().isEmpty()
+                && !profile.longTermPlanningState().assets().isEmpty()
+            ? profile.longTermPlanningState()
+            : baseline.longTermPlanningState();
     return new InvestmentProfile(
         profile.portfolioId(),
         profile.currency(),
@@ -70,7 +78,7 @@ public final class PlanningProfileBaseline {
         profile.allocations(),
         baseline.rentalAnnualIncome(),
         baseline.longTermAnnualIncome(),
-        baseline.longTermPlanningState(),
+        planningState,
         reserve,
         investment,
         profile.incomeSummary(),

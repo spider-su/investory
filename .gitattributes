@@ -3,3 +3,4 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 Dockerfile text eol=lf
+test-support/src/main/resources/reconciliation/golden/** text eol=lf

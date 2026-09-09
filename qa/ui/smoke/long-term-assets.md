@@ -16,9 +16,13 @@ not a product failure.
 
 Verify page identity and visible application shell, the four supported category areas when data exists,
 useful summary/allocation content, and absence of loading, empty, access-denied, server-error, or
-exception states. Check desktop and narrow/mobile rendering for catastrophic clipping, overlap, or
-horizontal overflow. Inspect page errors, relevant console errors, and failed or unexpected
-first-party requests. Capture screenshots only when they materially prove a visual or state finding.
+exception states at `2560x1440`. Inspect page errors, relevant console errors, failed or unexpected
+first-party requests, and obvious clipping or overlap. Alternate viewport and breakpoint coverage
+are out of scope. Capture screenshots only when they materially prove a visual or state finding.
+
+Reconcile financial values with the canonical Happy Investor story and authoritative contracts;
+classify findings as `PASS`, `EXPECTED ROUNDING / LIVE DATA DRIFT`, `STALE CONTRACT / TEST DEFECT`,
+`PRODUCT DEFECT`, `BUILD DEFECT`, `ENVIRONMENT BLOCKER`, or `SUSPICIOUS / NEEDS RECONCILIATION`.
 
 ## References
 

@@ -133,8 +133,6 @@ public class IbkrImportService {
         rows.size(),
         accountIdFromFilename,
         statementBaseCurrency);
-    harvestReferenceRates(rows, statementBaseCurrency);
-
     Map<String, Integer> col = locateHeader(rows, SECTION);
     Map<String, Integer> dedup = new HashMap<>();
     Map<Long, AccountEntity> configuredAccounts = new HashMap<>();
@@ -870,74 +868,6 @@ public class IbkrImportService {
       }
     }
     return String.join(" | ", parts);
-  }
-
-  private void harvestReferenceRates(List<String[]> rows, CurrencyType statementBaseCurrency) {
-    for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
-      String[] headerRow = rows.get(rowIndex);
-      if (headerRow.length < 3 || !"Header".equalsIgnoreCase(valueAt(headerRow, 1))) continue;
-      String section = valueAt(headerRow, 0);
-      Map<String, Integer> columns = new HashMap<>();
-      for (int index = 2; index < headerRow.length; index++) {
-        if (StringUtils.hasText(headerRow[index])) columns.put(headerRow[index].trim(), index);
-      }
-      String rateColumn =
-          firstColumn(columns, "FX Rate", "FX Rate To Base", "Exchange Rate", "Conversion Rate");
-      if (rateColumn == null) continue;
-      Integer dataRow = rowIndex + 1;
-      while (dataRow < rows.size() && section.equals(valueAt(rows.get(dataRow), 0))) {
-        String[] row = rows.get(dataRow);
-        if ("Data".equalsIgnoreCase(valueAt(row, 1))) {
-          ZonedDateTime observedAt =
-              parseDate(value(row, columns, "Date", "Report Date", "Date/Time", "Trade Date"));
-          BigDecimal rate = decimal(value(row, columns, rateColumn));
-          CurrencyType base =
-              currency(value(row, columns, "From Currency", "Base Currency", "Source Currency"));
-          CurrencyType target =
-              currency(value(row, columns, "To Currency", "Quote Currency", "Target Currency"));
-          if (base == null) base = currency(value(row, columns, "Currency"));
-          if (target == null && rateColumn.toLowerCase(Locale.ROOT).contains("to base"))
-            target = statementBaseCurrency;
-          if (base != null && target != null && observedAt != null && rate != null) {
-            currencyRateService.harvestIbkrDailyReference(
-                observedAt, base, target, rate, "IBKR:REFERENCE:" + section + ":" + dataRow);
-          }
-        }
-        dataRow++;
-      }
-    }
-  }
-
-  private String value(String[] row, Map<String, Integer> columns, String column) {
-    Integer index = columns.get(column);
-    return index == null ? null : at(row, index);
-  }
-
-  private String firstColumn(Map<String, Integer> columns, String... aliases) {
-    for (String alias : aliases) {
-      for (String name : columns.keySet()) {
-        if (alias.equalsIgnoreCase(name)) return name;
-      }
-    }
-    return null;
-  }
-
-  private static String valueAt(String[] row, int index) {
-    return row != null && index < row.length && row[index] != null ? row[index].trim() : "";
-  }
-
-  private BigDecimal decimal(String value) {
-    Double parsed = parseNumber(value);
-    return parsed == null ? null : BigDecimal.valueOf(parsed);
-  }
-
-  private static CurrencyType currency(String value) {
-    if (!StringUtils.hasText(value)) return null;
-    try {
-      return CurrencyType.valueOf(value.trim().toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
   }
 
   private boolean isForexTradeComponent(String rawType, String rawSymbol, String description) {

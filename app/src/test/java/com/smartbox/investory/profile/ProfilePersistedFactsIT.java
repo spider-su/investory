@@ -103,8 +103,8 @@ class ProfilePersistedFactsIT {
                 rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
             WITH anchors AS (
               SELECT
-                (SELECT rate FROM investory.exchange_rates WHERE rate_date = ? AND base = 'USD' AND to_currency = 'PLN' ORDER BY id DESC LIMIT 1) AS usd_pln,
-                (SELECT rate FROM investory.exchange_rates WHERE rate_date = ? AND base = 'EUR' AND to_currency = 'USD' ORDER BY id DESC LIMIT 1) AS eur_usd
+                (SELECT rate FROM investory.fx_daily_rates WHERE rate_date = ? AND base = 'USD' AND to_currency = 'PLN' ORDER BY id DESC LIMIT 1) AS usd_pln,
+                (SELECT rate FROM investory.fx_daily_rates WHERE rate_date = ? AND base = 'EUR' AND to_currency = 'USD' ORDER BY id DESC LIMIT 1) AS eur_usd
             ), matrix(source_currency, target_currency, rate) AS (
               SELECT 'USD', 'PLN', usd_pln FROM anchors
               UNION ALL SELECT 'PLN', 'USD', 1 / usd_pln FROM anchors

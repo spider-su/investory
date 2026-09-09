@@ -403,6 +403,20 @@ class PortfolioMetricsServiceTest {
     verify(dataQualityRepository).findIssues(1L);
   }
 
+  @DisplayName("calculate Total Profit Loss loads the quality summary without enrichment")
+  @Test
+  void calculateTotalProfitLoss_loadsDataQualitySummaryWithoutEnrichment() {
+    portfolioProperties.setDashboardEnrichmentEnabled(false);
+    when(dataQualityRepository.findSnapshot(1L))
+        .thenReturn(List.<Object[]>of(dataQualitySnapshot()));
+
+    Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
+
+    assertEquals("HEALTHY", result.getDataQuality().state());
+    assertEquals(1L, result.getDataQuality().pricedOpenPositions());
+    assertEquals(1L, result.getDataQuality().totalOpenPositions());
+  }
+
   @DisplayName("calculate Total Profit Loss uses Portfolio Kpi Summary For Dashboard Metrics")
   @Test
   void calculateTotalProfitLoss_usesPortfolioKpiSummaryForDashboardMetrics() {

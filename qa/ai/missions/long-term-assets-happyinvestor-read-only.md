@@ -3,7 +3,7 @@
 - Status: `READY`
 - Environment: deployed Investory develop environment
 - Target portfolio: HappyInvestor portfolio, expected user/portfolio IDs `2`/`2`
-- Browser/viewport: fixed by the run coordinator; use one desktop and one narrow viewport consistently
+- Browser/viewport: use `2560x1440` only
 - Mission revision: `2026-09-09-complete-reference`
 
 ## Question
@@ -27,7 +27,7 @@ empty-state, or visual defects?
 
 Start at `/portfolios/2/long-term-assets`. Mandatory checkpoints are the collapsed overview, every
 expanded category, every currently seeded asset detail/edit route, safe tooltip/popover/disclosure
-content, overview reload, and the fixed narrow viewport. Current seeded assets are Apartment A,
+content, and overview reload at `2560x1440`. Current seeded assets are Apartment A,
 Apartment B, Treasury 2026, United States Treasury 4 3/8 07/31/33, Cash reserve, Term cash reserve,
 and Family Car. Use the actual rendered asset links; do not assume the page's DOM shape.
 
@@ -70,7 +70,8 @@ Let the browser agent choose observations and safe navigation paths. It should e
   result without applying the maturity rule. Distinguish current forward annual income from YTD,
   historical, or boundary-date income;
 - money, compact suffixes, currencies, percentages, dates, zero values, signs, precision, and
-  responsive layout are sensible and not misleading;
+  money, compact suffixes, currencies, percentages, dates, zero values, signs, precision, and
+  periods are sensible and not misleading;
 - safe links, read-only disclosure/expansion, reload, back/forward, and any discovered read-only
   query/filter/sort controls behave consistently. If no safe sorting/filtering control exists,
   record that control class as `N/A - no applicable control`, rather than inventing an action;
@@ -87,7 +88,8 @@ Let the browser agent choose observations and safe navigation paths. It should e
   cross-view inconsistency; do not save the form to infer persistence behavior;
 - no unexpected mutation is attempted or requested, and the pre/post overview remains unchanged;
 - first-party requests succeed, no relevant browser console/page errors occur, and no obvious
-  clipping, overlap, horizontal overflow, broken link, or inconsistent state is visible.
+  clipping, overlap, broken link, or inconsistent state is visible at `2560x1440`; responsive/mobile
+  behavior is out of scope.
 
 ## Forbidden actions
 
@@ -109,10 +111,11 @@ and sanitized evidence. Do not screenshot every successful asset. Use the report
 
 ## Completion
 
-Return exactly `PASS`, `SUSPICIOUS`, or `FAIL`. A FAIL must state what was observed, what was expected,
+Return exactly `PASS`, `EXPECTED ROUNDING / LIVE DATA DRIFT`, `STALE CONTRACT`, `PRODUCT DEFECT`, or
+`SUSPICIOUS / NEEDS RECONCILIATION`. A product defect must state what was observed, what was expected,
 why it is incorrect, URL/context, and supporting evidence. Browser/deployment/authentication
 unavailability is an environment blocker and must be reported separately, not as an application FAIL.
 The final report must include collapsed/expanded results, every asset's form result, popup/dialog
-results, a cross-view consistency matrix, financial reconciliation, desktop/narrow coverage,
+results, a cross-view consistency matrix, financial reconciliation, `2560x1440` coverage,
 console/network health, mutation safety, evidence, and whether Long-Term Assets coverage is
 `COMPLETE` for Phase 4 preparation.

@@ -10,12 +10,10 @@ Canonical conversion direction used by SQL and Java:
 Resolution order:
 
 1. same-currency (`rate = 1`),
-2. exact-date `MARKET_DAILY`,
-3. exact-date `IBKR_DAILY_REFERENCE`,
-4. direct/inverse neutral daily edge,
-5. permitted recent carry-forward,
-6. one-hop triangulation,
-7. pre-daily-history historical interpolation.
+2. exact `(rate_date, base, to_currency)` row in `fx_daily_rates`.
+
+There is no valuation fallback outside `fx_daily_rates`. An absent row returns `MISSING_RATE` with
+a null rate; execution FX cannot rescue valuation.
 
 `VALUATION` and `TRANSACTION` are separate resolver purposes. Valuation uses neutral
 market/reference rates. Transaction accounting uses an exact `XTB_EXECUTION` or
@@ -24,16 +22,13 @@ used as neutral portfolio valuation rates.
 
 ## FX data sources and refresh
 
-Neutral daily FX data is currently fetched through the configured NBP
-integration. The updater requests USD -> EUR and USD -> PLN for the effective refresh
-date, validates the complete response, and derives the other directed pairs through
-USD. The provider's date is stored as `rate_date`; the requested effective date is not
-silently substituted for a provider date.
+Neutral daily FX data is fetched through the configured NBP integration and stored only in
+`fx_daily_rates`. The updater requests USD -> EUR and USD -> PLN, validates the complete response,
+and derives the other directed pairs through USD. The provider's date is stored as `rate_date`.
 
-Historical monthly observations are stored separately, currently with `NBP` and
-`HISTORICAL_MONTHLY` provenance. IBKR daily reference observations use
-`IBKR_DAILY_REFERENCE`. XTB and IBKR execution observations are transaction-only and
-must not be used as neutral valuation data.
+`exchange_rates` is execution-only: it stores `XTB_EXECUTION` and `IBKR_EXECUTION` observations.
+Those rows retain broker timing and spread semantics for transaction accounting and are never used
+for neutral portfolio valuation.
 
 Before persistence, a neutral provider response must be non-empty and contain all
 required quotes. Each quote must have a USD base, a non-USD target, positive finite
@@ -56,25 +51,19 @@ Ownership and execution:
   `CurrencyRateRepository` once per valuation date, caches it, converts with
   `BigDecimal`, and throws `FxRateUnavailableException` when the result is not usable.
   Transaction execution rates are resolved separately from execution observations.
-- FX observation refresh is application-driven. The updater persists market/reference
-  and execution observations through `CurrencyRateRepository`; no database FX trigger
-  performs resolution or activates the daily-history boundary. Java explicitly flushes
-  observations, then advances `daily_history_start` only when the database coverage
-  check succeeds.
+- FX observation refresh is application-driven. The updater persists neutral observations through
+  `DailyFxRateRepository`; execution observations use `CurrencyRateRepository`.
 
 Statuses:
 
 - `OK`, `ESTIMATED`, `SAME_CURRENCY`, and `CARRY_FORWARD` are usable, with estimated or
   carried-forward provenance visible,
-- when the requested date has no neutral FX observation, the latest observation on or before
-  that date is used as `CARRY_FORWARD`,
+- when the requested date has no canonical daily row, the result is `MISSING_RATE`,
 - `MISSING_RATE` is not silently accepted.
 
-Daily history begins at `investory.fx_configuration.daily_history_start`, which is advanced only after a
-successful full neutral daily/reference refresh establishes coverage for every configured currency. Until then
-it is `9999-12-31`, so historical estimates remain available rather than creating a coverage hole. Before that boundary, gaps between historical checkpoints may be linearly interpolated and
-are marked `ESTIMATED`. After it, missing coverage is stale or missing rather than
-being hidden by an old monthly checkpoint.
+`investory.fx_configuration.daily_history_start` remains the refresh coverage boundary, but it no longer
+changes resolver source selection. Missing exact daily coverage is always `MISSING_RATE`; it is never
+hidden by an old monthly checkpoint.
 
 The database value `investory.fx_configuration.daily_history_start` is the authoritative
 runtime value for this boundary; application code must update it through the repository

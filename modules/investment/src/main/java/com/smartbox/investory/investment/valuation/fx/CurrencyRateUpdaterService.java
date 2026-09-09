@@ -9,8 +9,8 @@ import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshSe
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,17 +62,23 @@ public class CurrencyRateUpdaterService {
       LocalDate historyStart = dailyFxRateService.refreshStart(effectiveDate);
       List<FxRateProvider.FxHistoryQuote> history =
           fxRateHistoryProvider.fetchHistory(historyStart, effectiveDate);
-      dailyFxRateService.replaceRange(history, historyStart, effectiveDate);
       List<FxQuote> quotes =
           fxRateProvider.fetchRates(
               new FxRequest(
                   CurrencyType.USD, List.of(CurrencyType.EUR, CurrencyType.PLN), effectiveDate));
       validateQuotes(quotes, effectiveDate);
-      Map<CurrencyType, Double> usdRates = parseUsdRates(quotes);
+      List<FxRateProvider.FxHistoryQuote> effectiveHistory = new ArrayList<>(history);
+      quotes.forEach(
+          quote ->
+              effectiveHistory.add(
+                  new FxRateProvider.FxHistoryQuote(
+                      quote.base(),
+                      quote.target(),
+                      quote.rate(),
+                      quote.effectiveDate(),
+                      quote.providerDate())));
+      dailyFxRateService.replaceRange(effectiveHistory, historyStart, effectiveDate);
       LocalDate providerDate = quotes.getFirst().providerDate();
-      Map<CurrencyType, Map<CurrencyType, Double>> ratesByBase = deriveCrossRates(usdRates);
-      ratesByBase.forEach(
-          (base, rates) -> currencyRateService.updateRates(base, rates, providerDate));
       currencyRateService.activateDailyHistoryAt(providerDate);
       projectionRefreshService.refreshApplicationViews(
           PortfolioProjectionRefreshService.ApplicationRefreshScope.FX_UPDATE);
@@ -87,24 +93,6 @@ public class CurrencyRateUpdaterService {
       return new CurrencyRateRefreshResult(
           effectiveDate, List.of(), List.of("USD: " + e.getMessage()));
     }
-  }
-
-  private Map<CurrencyType, Double> parseUsdRates(List<FxQuote> quotes) {
-    if (quotes == null || quotes.isEmpty()) {
-      throw new IllegalArgumentException("empty FX plugin response");
-    }
-    Map<CurrencyType, Double> rates = new java.util.EnumMap<>(CurrencyType.class);
-    rates.put(CurrencyType.USD, 1.0);
-    quotes.forEach(quote -> rates.put(quote.target(), quote.rate().doubleValue()));
-    for (CurrencyType currency : CurrencyType.values()) {
-      if (!rates.containsKey(currency)
-          || rates.get(currency) == null
-          || !Double.isFinite(rates.get(currency))
-          || rates.get(currency) <= 0.0) {
-        throw new IllegalArgumentException("missing USD -> " + currency + " rate");
-      }
-    }
-    return rates;
   }
 
   private void validateQuotes(List<FxQuote> quotes, LocalDate effectiveDate) {
@@ -152,22 +140,6 @@ public class CurrencyRateUpdaterService {
     if (quotes.stream().anyMatch(quote -> !providerDate.equals(quote.providerDate()))) {
       throw new IllegalArgumentException("inconsistent FX provider dates");
     }
-  }
-
-  private Map<CurrencyType, Map<CurrencyType, Double>> deriveCrossRates(
-      Map<CurrencyType, Double> usdRates) {
-    Map<CurrencyType, Map<CurrencyType, Double>> ratesByBase = new EnumMap<>(CurrencyType.class);
-    for (CurrencyType base : CurrencyType.values()) {
-      Map<CurrencyType, Double> rates = new HashMap<>();
-      double usdToBase = usdRates.get(base);
-      for (CurrencyType target : CurrencyType.values()) {
-        if (target != base) {
-          rates.put(target, usdRates.get(target) / usdToBase);
-        }
-      }
-      ratesByBase.put(base, rates);
-    }
-    return ratesByBase;
   }
 
   public record CurrencyRateRefreshResult(

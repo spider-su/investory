@@ -22,6 +22,14 @@ meaning.
 - Supporting lineage: accounting/ledger → account daily/reporting views → read model → rendered
   page. Database evidence supports expected facts; Playwright verifies the UI.
 
+Financial source-of-truth rule: use the canonical HappyInvestor story for deterministic facts and
+the linked [`portfolio accounting contract`](../../../docs/domain/portfolio-accounting.md),
+[`reporting pipeline contract`](../../../docs/architecture/reporting-pipeline.md), and tested
+reporting contracts for metric meaning. Do not redefine Income Base, investment result, TWR, XIRR,
+net worth, income, allocation, cash, or invested capital in this scenario. External deposits and
+withdrawals must be reconciled according to the existing contract, including applicable flow
+treatment.
+
 ## Preconditions
 
 Confirm portfolio 2 is the canonical HappyInvestor reporting story, including account membership,
@@ -42,11 +50,13 @@ For the Dashboard reporting view, verify only facts present in the canonical cla
 For Reconciliation, verify the rendered scope, as-of date, checkpoint identity, status labels, and
 read-only diagnostic semantics. Existing canonical reporting facts or contract tests may establish
 intermediate checkpoint expectations. Do not invent expected issue counts for a live diagnostic.
-If the page reports an environment/import inconsistency, classify it as `SUSPICIOUS` or `BLOCKED`
-until the fixture source is confirmed.
+If the page reports an environment/import inconsistency, classify it as `ENVIRONMENT BLOCKER` or
+`SUSPICIOUS / NEEDS RECONCILIATION` until the fixture source is confirmed.
 
 For tables, reconcile row identity, date/period, currency, displayed totals, and ordering only when
 the domain contract defines the relationship. Distinguish unavailable, blocked, zero, and not-applicable.
+Keep fixed HappyInvestor facts and contract-derived reporting values separate from live Yahoo prices,
+FX, and other non-deterministic observations.
 
 ## Date and precision rules
 
@@ -57,11 +67,17 @@ Long-Term Treasury maturity rule does not automatically apply to investment-repo
 ## Browser/safety
 
 Run Dashboard at `MAX` and `YTD`, Reconciliation at its current as-of state, and applicable asset
-detail routes at `1440x1000` and `390x844` where layout is meaningful. Monitor console, page errors,
+detail routes at `2560x1440`. Monitor console, page errors,
 failed first-party requests, and non-GET requests. Never press Recheck now, Import, Update market
 data, Export, manual-price Save, or any other state-changing control.
 
+For Dashboard Performance, wait for portfolio performance data and benchmark state to settle before
+checking values. Accept populated benchmark data or an explicit authoritative unavailable state; an
+interim `—`, empty series, or loading state is not a final result.
+
 ## Result rules
 
-Use `PASS`, `SUSPICIOUS`, `FAIL`, or `BLOCKED`. A fact mismatch after fixture identity passes is a
-product/data defect; a wrong story or missing canonical expected fact is not.
+Use `PASS`, `EXPECTED ROUNDING / LIVE DATA DRIFT`, `STALE CONTRACT / TEST DEFECT`, `PRODUCT
+DEFECT`, `BUILD DEFECT`, `ENVIRONMENT BLOCKER`, or `SUSPICIOUS / NEEDS RECONCILIATION`. A wrong
+story or missing canonical expected fact is blocked or suspicious; reconcile the source ledger
+before declaring a product defect.

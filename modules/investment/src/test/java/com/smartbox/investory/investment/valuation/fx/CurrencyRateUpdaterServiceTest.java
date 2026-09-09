@@ -23,12 +23,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -71,34 +69,6 @@ class CurrencyRateUpdaterServiceTest {
 
     CurrencyRateRefreshResult result = updater.updateCurrencyRates();
 
-    ArgumentCaptor<CurrencyType> baseCaptor = ArgumentCaptor.forClass(CurrencyType.class);
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<Map<CurrencyType, Double>> ratesCaptor =
-        (ArgumentCaptor<Map<CurrencyType, Double>>)
-            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Map.class);
-    ArgumentCaptor<LocalDate> monthCaptor = ArgumentCaptor.forClass(LocalDate.class);
-    verify(currencyRateService, org.mockito.Mockito.times(3))
-        .updateRates(baseCaptor.capture(), ratesCaptor.capture(), monthCaptor.capture());
-
-    // Verify USD invocation contains expected rates.
-    Map<CurrencyType, Double> usdRates = null;
-    for (int i = 0; i < baseCaptor.getAllValues().size(); i++) {
-      if (baseCaptor.getAllValues().get(i) == CurrencyType.USD) {
-        usdRates = ratesCaptor.getAllValues().get(i);
-      }
-    }
-    assertEquals(0.9, java.util.Objects.requireNonNull(usdRates).get(CurrencyType.EUR));
-    assertEquals(4.0, usdRates.get(CurrencyType.PLN));
-    Map<CurrencyType, Double> eurRates = null;
-    for (int i = 0; i < baseCaptor.getAllValues().size(); i++) {
-      if (baseCaptor.getAllValues().get(i) == CurrencyType.EUR) {
-        eurRates = ratesCaptor.getAllValues().get(i);
-      }
-    }
-    assertEquals(
-        1.0 / 0.9, java.util.Objects.requireNonNull(eurRates).get(CurrencyType.USD), 0.000001);
-    assertEquals(4.0 / 0.9, eurRates.get(CurrencyType.PLN), 0.000001);
-    assertEquals(TODAY, monthCaptor.getAllValues().getFirst());
     assertEquals(List.of("USD", "EUR", "PLN"), result.updated());
     assertTrue(result.failed().isEmpty());
     verify(currencyRateService).activateDailyHistoryAt(TODAY);
@@ -114,15 +84,6 @@ class CurrencyRateUpdaterServiceTest {
     CurrencyRateRefreshResult result =
         updater.updateCurrencyRatesForDate(LocalDate.of(2026, 8, 17));
 
-    ArgumentCaptor<LocalDate> monthCaptor = ArgumentCaptor.forClass(LocalDate.class);
-    verify(currencyRateService, org.mockito.Mockito.times(3))
-        .updateRates(
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            monthCaptor.capture());
-    assertEquals(
-        List.of(LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17)),
-        monthCaptor.getAllValues());
     assertEquals(LocalDate.of(2026, 8, 17), result.rateDate());
     verify(currencyRateService).activateDailyHistoryAt(LocalDate.of(2026, 8, 17));
     verify(projectionRefreshService)
@@ -154,7 +115,6 @@ class CurrencyRateUpdaterServiceTest {
     CurrencyRateRefreshResult result = updater.updateCurrencyRatesForDate(date);
 
     assertTrue(result.updated().isEmpty());
-    verify(currencyRateService, never()).updateRates(any(), any(), any());
     verify(currencyRateService, never()).activateDailyHistoryAt(any());
   }
 
@@ -173,7 +133,6 @@ class CurrencyRateUpdaterServiceTest {
     CurrencyRateRefreshResult result = updater.updateCurrencyRatesForDate(date);
 
     assertTrue(result.updated().isEmpty());
-    verify(currencyRateService, never()).updateRates(any(), any(), any());
   }
 
   @DisplayName("update Currency Rates records Failure When Usd Request Is Rate Limited")

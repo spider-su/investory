@@ -47,9 +47,9 @@ class ManualAssetPriceServiceTest {
                 Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw")));
   }
 
-  @DisplayName("update Price Saves Manual Price And Refreshes Derived State")
+  @DisplayName("update Price Saves Only Current Manual Price Fields")
   @Test
-  void updatePriceSavesManualPriceAndRefreshesDerivedState() {
+  void updatePriceSavesOnlyCurrentManualPriceFields() {
     AssetEntity asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
     when(assetRepository.findBySymbol("PKO.PL")).thenReturn(Optional.of(asset));
     when(currencyRateService.convertToBaseCurrency(

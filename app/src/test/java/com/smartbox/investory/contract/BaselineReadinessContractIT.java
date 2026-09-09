@@ -193,41 +193,63 @@ class BaselineReadinessContractIT {
     }
   }
 
-  @DisplayName("resolver Uses Nearest Historical Bracket And Neutral Precedence")
+  @DisplayName("resolver Uses Canonical Daily FX And Never Execution Fallback")
   @Test
   @Order(2)
-  void resolverUsesNearestHistoricalBracketAndNeutralPrecedence() throws SQLException {
+  void resolverUsesCanonicalDailyFxAndNeverExecutionFallback() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       statement.execute("DELETE FROM investory.exchange_rates");
       statement.execute(
-          "INSERT INTO investory.exchange_rates "
-              + "(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2025-01-01', 'USD', 'EUR', 1, 'TEST', 'HISTORICAL_MONTHLY'), "
-              + "(DATE '2025-01-10', 'USD', 'EUR', 2, 'TEST', 'HISTORICAL_MONTHLY'), "
-              + "(DATE '2025-01-20', 'USD', 'EUR', 4, 'TEST', 'HISTORICAL_MONTHLY'), "
-              + "(DATE '2025-01-30', 'USD', 'EUR', 8, 'TEST', 'HISTORICAL_MONTHLY')");
-
-      assertEquals("3.00000000|ESTIMATED", resolverValue(statement, "2025-01-15", "USD", "EUR"));
-      assertEquals("0.37500000|ESTIMATED", resolverValue(statement, "2025-01-15", "EUR", "USD"));
-
+          "DELETE FROM investory.fx_daily_rates WHERE rate_date >= DATE '2025-01-01'");
       statement.execute(
-          "INSERT INTO investory.exchange_rates "
-              + "(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2026-08-05', 'USD', 'PLN', 4, 'TEST', 'MARKET_DAILY'), "
-              + "(DATE '2026-08-10', 'USD', 'PLN', 5, 'TEST', 'IBKR_DAILY_REFERENCE'), "
-              + "(DATE '2026-08-10', 'EUR', 'PLN', 99, 'TEST', 'IBKR_EXECUTION')");
-      assertEquals("5.00000000|OK", resolverValue(statement, "2026-08-10", "USD", "PLN"));
+          "INSERT INTO investory.fx_daily_rates "
+              + "(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
+              + "(DATE '2025-01-15', 'USD', 'EUR', 1.25, 'TEST', 'OBSERVED', DATE '2025-01-15'), "
+              + "(DATE '2025-01-15', 'EUR', 'USD', 0.80, 'TEST', 'INTERPOLATED', DATE '2025-01-14'), "
+              + "(DATE '2025-01-15', 'USD', 'PLN', 4.00, 'TEST', 'CARRY_FORWARD', DATE '2025-01-14')");
 
-      statement.execute(
-          "INSERT INTO investory.exchange_rates "
-              + "(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2026-08-10', 'USD', 'PLN', 6, 'TEST', 'MARKET_DAILY')");
-      assertEquals("6.00000000|OK", resolverValue(statement, "2026-08-10", "USD", "PLN"));
-
-      assertEquals("0.16666667|OK", resolverValue(statement, "2026-08-10", "PLN", "USD"));
       assertEquals(
-          "0.12500000|CARRY_FORWARD", resolverValue(statement, "2026-08-10", "EUR", "USD"));
+          "1.00000000|SAME_CURRENCY", resolverValue(statement, "2025-01-15", "USD", "USD"));
+      assertEquals("1.25000000|OK", resolverValue(statement, "2025-01-15", "USD", "EUR"));
+      assertEquals("0.80000000|ESTIMATED", resolverValue(statement, "2025-01-15", "EUR", "USD"));
+      assertEquals(
+          "4.00000000|CARRY_FORWARD", resolverValue(statement, "2025-01-15", "USD", "PLN"));
+
+      statement.execute(
+          "INSERT INTO investory.exchange_rates "
+              + "(rate_date, base, to_currency, rate, source, method, observed_at) VALUES "
+              + "(DATE '2025-01-15', 'EUR', 'PLN', 99, 'TEST', 'XTB_EXECUTION', now())");
+      assertEquals("null|MISSING_RATE", resolverValue(statement, "2025-01-15", "EUR", "PLN"));
+      assertEquals("null|MISSING_RATE", resolverValue(statement, "2025-01-16", "EUR", "PLN"));
+
+      statement.execute(
+          "INSERT INTO investory.fx_daily_rates "
+              + "(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
+              + "(DATE '2025-01-16', 'EUR', 'PLN', 4.50, 'DAILY', 'OBSERVED', DATE '2025-01-16')");
+      assertEquals("4.50000000|OK", resolverValue(statement, "2025-01-16", "EUR", "PLN"));
+      assertEquals("0.22222222|OK", resolverValue(statement, "2025-01-16", "PLN", "EUR"));
+      statement.execute(
+          "INSERT INTO investory.exchange_rates "
+              + "(rate_date, base, to_currency, rate, source, method, observed_at) VALUES "
+              + "(CURRENT_DATE, 'USD', 'EUR', 0.90, 'XTB', 'XTB_EXECUTION', now()), "
+              + "(CURRENT_DATE, 'PLN', 'EUR', 4.50, 'IBKR', 'IBKR_EXECUTION', now())");
+      assertEquals(
+          "0.90000000|OK",
+          singleString(
+              statement,
+              "SELECT round(fx_rate_to_target, 8) || '|' || conversion_status "
+                  + "FROM investory.resolve_transaction_fx_rate(now(), 'USD', 'EUR', 'TRANSACTION')"));
+      assertEquals(
+          "0.22222222|OK",
+          singleString(
+              statement,
+              "SELECT round(fx_rate_to_target, 8) || '|' || conversion_status "
+                  + "FROM investory.resolve_transaction_fx_rate(now(), 'EUR', 'PLN', 'TRANSACTION')"));
+      assertTrue(
+          singleBoolean(
+              statement,
+              "SELECT to_regprocedure('investory.resolve_fx_rate_legacy(date,character varying,character varying)') IS NULL"));
     }
   }
 
@@ -288,10 +310,12 @@ class BaselineReadinessContractIT {
               + "(id, external_account_id, currency, provider, name, owner, portfolio_id) "
               + "VALUES (-800002, 'estimated-fx-account', 'EUR', 'XTB', 'Estimated FX Test', 'Test', -800002)");
       statement.execute(
-          "INSERT INTO investory.exchange_rates "
-              + "(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2025-01-10', 'EUR', 'USD', 2, 'TEST', 'HISTORICAL_MONTHLY'), "
-              + "(DATE '2025-01-20', 'EUR', 'USD', 4, 'TEST', 'HISTORICAL_MONTHLY')");
+          "INSERT INTO investory.fx_daily_rates "
+              + "(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
+              + "(DATE '2025-01-15', 'EUR', 'USD', 3, 'TEST', 'INTERPOLATED', DATE '2025-01-15') "
+              + "ON CONFLICT (rate_date, base, to_currency) DO UPDATE SET "
+              + "rate = EXCLUDED.rate, source = EXCLUDED.source, method = EXCLUDED.method, "
+              + "source_rate_date = EXCLUDED.source_rate_date");
       statement.execute(
           "INSERT INTO investory.cash_operations "
               + "(id, account_id, operation, amount, currency, date) "

@@ -146,13 +146,12 @@ CREATE FUNCTION investory.fx_daily_coverage_supported(p_start_date date) RETURNS
         FROM investory.currencies c
         WHERE NOT EXISTS (
             SELECT 1
-            FROM investory.exchange_rates er
-            WHERE er.rate_date = p_start_date
-              AND er.method IN ('MARKET_DAILY', 'IBKR_DAILY_REFERENCE')
-              AND er.rate > 0
-              AND (er.base = c.id OR er.to_currency = c.id)
+            FROM investory.fx_daily_rates fx
+            WHERE fx.rate_date = p_start_date
+              AND fx.rate > 0
+              AND (fx.base = c.id OR fx.to_currency = c.id)
         )
-    );
+    )
 $$;
 
 
@@ -448,13 +447,26 @@ $$;
 CREATE FUNCTION investory.refresh_reconstructed_position_daily() RETURNS void
     LANGUAGE plpgsql
     AS $$
-DECLARE started_at timestamptz := clock_timestamp();
+DECLARE
+    started_at timestamptz := clock_timestamp();
 BEGIN
+    PERFORM pg_advisory_xact_lock(2147483647, 1001);
+    PERFORM investory.analyze_refresh_sources();
+    PERFORM investory.refresh_materialized_view('app_v_canonical_asset_daily_price_mv', false);
+    PERFORM investory.refresh_materialized_view('app_v_canonical_asset_daily_price_ranked_mv', true);
+    PERFORM investory.refresh_materialized_view('app_v_normalized_daily_price_mv', true);
     PERFORM investory.refresh_materialized_view('recon_v_reconstructed_position_daily_mv', false);
-    RAISE LOG 'investory refresh stage=recon_v_reconstructed_position_daily_mv elapsed_ms=%',
+    RAISE LOG 'investory refresh stage=valuation_price_and_reconstruction elapsed_ms=%',
         EXTRACT(milliseconds FROM clock_timestamp() - started_at);
 END;
 $$;
+
+
+--
+-- Name: FUNCTION refresh_reconstructed_position_daily(); Type: COMMENT; Schema: investory; Owner: -
+--
+
+COMMENT ON FUNCTION investory.refresh_reconstructed_position_daily() IS 'Refreshes canonical price, normalized price, and reconstructed position valuation in dependency order. Selected price and price_currency remain one observation pair.';
 
 
 --
@@ -464,174 +476,69 @@ $$;
 CREATE FUNCTION investory.resolve_fx_rate(p_valuation_date date, p_source_currency character varying, p_target_currency character varying) RETURNS TABLE(source_currency character varying, target_currency character varying, fx_rate_to_target numeric, source character varying, rate_method character varying, rate_source character varying, source_rate_date date, age_days integer, conversion_status character varying)
     LANGUAGE sql STABLE
     AS $$
-SELECT p_source_currency,
-       p_target_currency,
-       COALESCE(d.rate, legacy.fx_rate_to_target),
-       COALESCE(d.source, legacy.source),
-       CASE WHEN d.rate IS NOT NULL THEN d.method
-            WHEN legacy.rate_method = 'HISTORICAL_MONTHLY' THEN 'CARRY_FORWARD'
-            WHEN legacy.source_rate_date < p_valuation_date THEN 'CARRY_FORWARD'
-            ELSE legacy.rate_method END,
-       COALESCE(d.source, legacy.rate_source),
-       COALESCE(d.source_rate_date, legacy.source_rate_date),
-       COALESCE((p_valuation_date - d.source_rate_date)::integer, legacy.age_days),
-       COALESCE(
-           CASE WHEN d.method = 'OBSERVED' THEN 'OK'
-                WHEN d.method = 'INTERPOLATED' THEN 'ESTIMATED'
-                WHEN d.method = 'CARRY_FORWARD' THEN 'CARRY_FORWARD'
-                ELSE NULL END,
-           CASE WHEN legacy.rate_method = 'HISTORICAL_MONTHLY' THEN 'CARRY_FORWARD'
-                WHEN legacy.source_rate_date < p_valuation_date THEN 'CARRY_FORWARD'
-                ELSE legacy.conversion_status END,
-           CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
-                ELSE 'MISSING_RATE' END)
-FROM (SELECT 1) sentinel
-LEFT JOIN LATERAL (
-    SELECT rate, source, method, source_rate_date
-    FROM investory.fx_daily_rates
-    WHERE rate_date = p_valuation_date
-      AND base = p_source_currency
-      AND to_currency = p_target_currency
-) d ON true
-LEFT JOIN LATERAL (
-    SELECT * FROM investory.resolve_fx_rate_legacy(
-        p_valuation_date, p_source_currency, p_target_currency)
-) legacy ON d.rate IS NULL;
-$$;
-
-
---
--- Name: resolve_fx_rate_legacy(date, character varying, character varying); Type: FUNCTION; Schema: investory; Owner: -
---
-
-CREATE FUNCTION investory.resolve_fx_rate_legacy(p_valuation_date date, p_source_currency character varying, p_target_currency character varying) RETURNS TABLE(source_currency character varying, target_currency character varying, fx_rate_to_target numeric, source character varying, rate_method character varying, rate_source character varying, source_rate_date date, age_days integer, conversion_status character varying)
-    LANGUAGE sql STABLE
-    AS $$
 WITH cfg AS (
-    SELECT max(config_value::integer) FILTER (WHERE config_key = 'max_age_days') AS max_age,
-           max(config_value::date) FILTER (WHERE config_key = 'daily_history_start') AS daily_start
+    SELECT max(config_value::integer) FILTER (WHERE config_key = 'max_age_days') AS max_age
     FROM investory.fx_configuration
-), source_edges AS MATERIALIZED (
-    SELECT er.base::varchar(3) AS edge_source, er.to_currency::varchar(3) AS edge_target,
-           er.rate AS edge_rate, er.source::varchar(32) AS edge_rate_source,
-           er.method::varchar(32) AS edge_method, er.rate_date,
-            CASE WHEN er.rate_date = p_valuation_date AND er.method = 'MARKET_DAILY' THEN 1
-                WHEN er.rate_date = p_valuation_date AND er.method = 'IBKR_DAILY_REFERENCE' THEN 2
-                -- A direct observed rate for the exact pair must outrank triangulation (rank 6),
-                -- even when older than max_age. Staleness is reported via conversion_status, not
-                -- by demoting the rate below a triangulated value derived from ancient legs.
-                WHEN er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE') THEN 5
-                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 9 ELSE 9 END AS rank
-    FROM investory.exchange_rates er CROSS JOIN cfg
-    WHERE er.base <> er.to_currency AND er.rate > 0
-      AND er.rate_date <= p_valuation_date
-      AND er.method NOT IN ('XTB_EXECUTION','IBKR_EXECUTION','INTERPOLATED')
-), edges AS (
-    SELECT edge_source, edge_target, edge_rate, edge_rate_source, edge_method, rate_date, rank
-    FROM source_edges
-    UNION ALL
-    SELECT edge_target, edge_source, 1 / edge_rate, edge_rate_source, edge_method, rate_date, rank
-    FROM source_edges
 ), candidates AS (
-    SELECT edge_rate AS rate, ('DIRECT:' || edge_rate_source)::varchar(64) AS chosen_source,
-           edge_method AS chosen_method, edge_rate_source AS chosen_rate_source,
-           rate_date AS chosen_date, rank AS chosen_rank
-    FROM edges WHERE edge_source = p_source_currency AND edge_target = p_target_currency
+    SELECT rate, source, method, source_rate_date, rate_date, 1 AS priority
+    FROM investory.fx_daily_rates
+    WHERE base = p_source_currency AND to_currency = p_target_currency
+      AND rate_date <= p_valuation_date
+      AND rate_date >= p_valuation_date - (SELECT max_age FROM cfg)
     UNION ALL
-    SELECT a.edge_rate * b.edge_rate, ('TRIANGULATED:' || a.edge_target)::varchar(64),
-           CASE WHEN a.edge_method = b.edge_method THEN a.edge_method ELSE 'TRIANGULATED' END,
-           a.edge_rate_source, LEAST(a.rate_date, b.rate_date), 6
-    FROM edges a JOIN edges b ON b.edge_source = a.edge_target
-                              AND b.edge_target = p_target_currency
-    WHERE a.edge_source = p_source_currency
-      AND a.edge_target NOT IN (p_source_currency, p_target_currency)
-), historical_source_edges AS MATERIALIZED (
-    SELECT er.base::varchar(3) AS edge_source,
-           er.to_currency::varchar(3) AS edge_target,
-           er.rate AS edge_rate,
-           er.source::varchar(32) AS edge_rate_source,
-           er.method::varchar(32) AS edge_method,
-           er.rate_date,
-           false AS is_inverse
-    FROM investory.exchange_rates er
-    WHERE er.method = 'HISTORICAL_MONTHLY' AND er.rate > 0
-), historical_edges AS (
-    SELECT edge_source, edge_target, edge_rate, edge_rate_source, edge_method, rate_date, false AS is_inverse
-    FROM historical_source_edges
-    UNION ALL
-    SELECT edge_target, edge_source, 1 / edge_rate, edge_rate_source, edge_method, rate_date, true AS is_inverse
-    FROM historical_source_edges
-), historical AS (
-    SELECT lower.edge_rate + (upper.edge_rate - lower.edge_rate)
-                 * ((p_valuation_date - lower.rate_date)::numeric
-                 / (upper.rate_date - lower.rate_date)::numeric) AS rate,
-           ('INTERPOLATED:' || lower.edge_rate_source)::varchar(64) AS chosen_source,
-           'INTERPOLATED'::varchar(32) AS chosen_method,
-           lower.edge_rate_source::varchar(32) AS chosen_rate_source,
-           NULL::date AS chosen_date, 7 AS chosen_rank
-    FROM cfg
-    CROSS JOIN (
-      SELECT DISTINCT edge_rate_source, edge_method
-      FROM historical_edges
-      WHERE edge_source = p_source_currency
-        AND edge_target = p_target_currency
-    ) method_group
-    CROSS JOIN LATERAL (
-      SELECT h.* FROM historical_edges h
-      WHERE h.edge_source = p_source_currency
-        AND h.edge_target = p_target_currency
-        AND h.edge_rate_source = method_group.edge_rate_source
-        AND h.edge_method = method_group.edge_method
-        AND h.rate_date < p_valuation_date
-      ORDER BY h.rate_date DESC
-      LIMIT 1) lower
-    CROSS JOIN LATERAL (
-      SELECT h.* FROM historical_edges h
-      WHERE h.edge_source = p_source_currency
-        AND h.edge_target = p_target_currency
-        AND h.edge_rate_source = lower.edge_rate_source
-        AND h.edge_method = lower.edge_method
-        AND h.rate_date > p_valuation_date
-      ORDER BY h.rate_date
-      LIMIT 1) upper
-    WHERE p_valuation_date < cfg.daily_start
+    SELECT 1 / rate, source, method, source_rate_date, rate_date, 1
+    FROM investory.fx_daily_rates
+    WHERE base = p_target_currency AND to_currency = p_source_currency
+      AND rate_date <= p_valuation_date
+      AND rate_date >= p_valuation_date - (SELECT max_age FROM cfg)
 ), selected AS (
-    SELECT * FROM candidates
-    UNION ALL SELECT * FROM historical
-    ORDER BY chosen_rank, chosen_date DESC NULLS LAST, chosen_source
+    SELECT c.*
+    FROM candidates c
+    ORDER BY priority, rate_date DESC
     LIMIT 1
 )
-SELECT p_source_currency, p_target_currency,
+SELECT p_source_currency,
+       p_target_currency,
        CASE WHEN p_source_currency = p_target_currency THEN 1 ELSE selected.rate END,
-       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.chosen_source END,
+       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.source END,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
-            WHEN selected.chosen_date < p_valuation_date
-                 THEN 'CARRY_FORWARD'
-            ELSE selected.chosen_method END,
-       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.chosen_rate_source END,
-       CASE WHEN p_source_currency = p_target_currency THEN p_valuation_date
-            ELSE selected.chosen_date END,
+            WHEN selected.method = 'CARRY_FORWARD'
+                 OR selected.rate_date < p_valuation_date THEN 'CARRY_FORWARD'
+            ELSE selected.method END,
+       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.source END,
+       CASE WHEN p_source_currency = p_target_currency THEN p_valuation_date ELSE selected.source_rate_date END,
        CASE WHEN p_source_currency = p_target_currency THEN 0
-            WHEN selected.chosen_date IS NULL THEN NULL
-            ELSE (p_valuation_date - selected.chosen_date)::integer END,
+            WHEN selected.source_rate_date IS NULL THEN NULL
+            ELSE (p_valuation_date - selected.source_rate_date)::integer END,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
-           WHEN selected.rate IS NULL THEN 'MISSING_RATE'
-           WHEN selected.chosen_method = 'INTERPOLATED' THEN 'ESTIMATED'
-           WHEN selected.chosen_date < p_valuation_date THEN 'CARRY_FORWARD'
-           WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
-                AND p_valuation_date >= cfg.daily_start THEN 'STALE'
-           WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
-                 AND selected.chosen_rate_source <> 'TEST' THEN 'ESTIMATED'
+            WHEN selected.rate IS NULL THEN 'MISSING_RATE'
+            WHEN selected.method = 'CARRY_FORWARD'
+                 OR selected.rate_date < p_valuation_date THEN 'CARRY_FORWARD'
+            WHEN selected.method = 'OBSERVED' THEN 'OK'
+            WHEN selected.method = 'INTERPOLATED' THEN 'ESTIMATED'
             ELSE 'OK' END
-FROM cfg LEFT JOIN selected ON true;
+FROM (SELECT 1) sentinel
+LEFT JOIN selected ON true;
 $$;
 
 
 --
--- Name: FUNCTION resolve_fx_rate_legacy(p_valuation_date date, p_source_currency character varying, p_target_currency character varying); Type: COMMENT; Schema: investory; Owner: -
+-- Name: FUNCTION resolve_fx_rate(p_valuation_date date, p_source_currency character varying, p_target_currency character varying); Type: COMMENT; Schema: investory; Owner: -
 --
 
-COMMENT ON FUNCTION investory.resolve_fx_rate_legacy(p_valuation_date date, p_source_currency character varying, p_target_currency character varying) IS 'Canonical valuation FX resolver. Market daily and IBKR reference rates outrank broker execution rates. Historical gaps are explicitly estimated.';
+COMMENT ON FUNCTION investory.resolve_fx_rate(p_valuation_date date, p_source_currency character varying, p_target_currency character varying) IS 'Canonical valuation FX resolver. Uses the latest valid daily row at or before the valuation date and reports carry-forward age.';
+
+
+--
+-- Name: resolve_fx_rate_compat_oid(date, character varying, character varying); Type: FUNCTION; Schema: investory; Owner: -
+--
+
+CREATE FUNCTION investory.resolve_fx_rate_compat_oid(p_valuation_date date, p_source_currency character varying, p_target_currency character varying) RETURNS TABLE(source_currency character varying, target_currency character varying, fx_rate_to_target numeric, source character varying, rate_method character varying, rate_source character varying, source_rate_date date, age_days integer, conversion_status character varying)
+    LANGUAGE sql STABLE
+    AS $$
+    SELECT * FROM investory.resolve_fx_rate(
+        p_valuation_date, p_source_currency, p_target_currency)
+$$;
 
 
 --
@@ -641,24 +548,12 @@ COMMENT ON FUNCTION investory.resolve_fx_rate_legacy(p_valuation_date date, p_so
 CREATE FUNCTION investory.resolve_portfolio_fx_rate(p_portfolio_id bigint, p_valuation_date date, p_source_currency character varying) RETURNS TABLE(portfolio_id bigint, valuation_date date, source_currency character varying, base_currency character varying, fx_rate_to_base numeric, source character varying, rate_method character varying, rate_source character varying, source_rate_date date, age_days integer, conversion_status character varying)
     LANGUAGE sql STABLE
     AS $$
-SELECT
-    p.id,
-    p_valuation_date,
-    resolved.source_currency,
-    p.base_currency::varchar(3),
-    resolved.fx_rate_to_target,
-    resolved.source,
-    resolved.rate_method,
-    resolved.rate_source,
-    resolved.source_rate_date,
-    resolved.age_days,
-    resolved.conversion_status
+SELECT p.id, p_valuation_date, resolved.source_currency, p.base_currency::varchar(3),
+       resolved.fx_rate_to_target, resolved.source, resolved.rate_method, resolved.rate_source,
+       resolved.source_rate_date, resolved.age_days, resolved.conversion_status
 FROM investory.portfolios p
 CROSS JOIN LATERAL investory.resolve_fx_rate(
-    p_valuation_date,
-    p_source_currency,
-    p.base_currency::varchar(3)
-) resolved
+    p_valuation_date, p_source_currency, p.base_currency::varchar(3)) resolved
 WHERE p.id = p_portfolio_id
 $$;
 
@@ -1275,7 +1170,7 @@ CREATE MATERIALIZED VIEW investory.app_v_account_monthly AS
            FROM (((investory.account_daily ad
              JOIN investory.accounts a ON ((a.id = ad.account_id)))
              JOIN investory.portfolios p ON ((p.id = a.portfolio_id)))
-             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate_compat_oid(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
         ), month_rows AS (
          SELECT source_rows.account_id,
             source_rows.month,
@@ -1402,7 +1297,7 @@ CREATE VIEW investory.app_v_portfolio_performance_daily AS
            FROM (((investory.account_daily ad
              JOIN investory.accounts a ON ((a.id = ad.account_id)))
              JOIN investory.portfolios p ON ((p.id = a.portfolio_id)))
-             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate_compat_oid(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
           WHERE (NOT a.cash_only)
         ), converted AS (
          SELECT account_rows.portfolio_id,
@@ -2126,7 +2021,7 @@ CREATE MATERIALIZED VIEW investory.app_v_portfolio_daily_fx_rate_mv AS
              JOIN investory.accounts a ON ((a.id = ad.account_id)))
         UNION
          SELECT DISTINCT a.portfolio_id,
-            (co.date)::date AS date
+            ((co.date AT TIME ZONE 'Europe/Warsaw'::text))::date AS timezone
            FROM (investory.cash_operations co
              JOIN investory.accounts a ON ((a.id = co.account_id)))
         UNION
@@ -2543,19 +2438,21 @@ CREATE MATERIALIZED VIEW investory.app_v_normalized_cash_operations AS
         ), port_needed AS (
          SELECT DISTINCT classified.portfolio_id,
             ((classified.date AT TIME ZONE 'Europe/Warsaw'::text))::date AS vdate,
-            classified.currency
+            classified.currency,
+            classified.base_currency
            FROM classified
         ), port_resolved AS (
          SELECT n.portfolio_id AS k_portfolio_id,
             n.vdate AS k_vdate,
             n.currency AS k_currency,
-            fx_1.fx_rate_to_base,
+            fx_1.fx_rate_to_target AS fx_rate_to_base,
             fx_1.source,
             fx_1.source_rate_date,
             fx_1.age_days,
             fx_1.conversion_status
-           FROM (port_needed n
-             CROSS JOIN LATERAL investory.resolve_portfolio_fx_rate(n.portfolio_id, n.vdate, n.currency) fx_1(portfolio_id, valuation_date, source_currency, base_currency, fx_rate_to_base, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+           FROM ((port_needed n
+             JOIN investory.portfolios p ON ((p.id = n.portfolio_id)))
+             CROSS JOIN LATERAL investory.resolve_fx_rate(n.vdate, n.currency, p.base_currency) fx_1(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
         ), acct_needed AS (
          SELECT DISTINCT ((classified.date AT TIME ZONE 'Europe/Warsaw'::text))::date AS vdate,
             classified.currency,
@@ -2571,7 +2468,7 @@ CREATE MATERIALIZED VIEW investory.app_v_normalized_cash_operations AS
             r.age_days,
             r.conversion_status
            FROM (acct_needed n
-             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(n.vdate, n.currency, n.account_currency) r(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate_compat_oid(n.vdate, n.currency, n.account_currency) r(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
         ), txn_needed AS (
          SELECT DISTINCT classified.date,
             classified.currency,
@@ -2820,7 +2717,7 @@ CREATE MATERIALIZED VIEW investory.app_v_account_statistics AS
             sum((c.amount_native * fx.fx_rate_to_target)) FILTER (WHERE investory.fx_status_usable(fx.conversion_status)) AS converted_subtotal,
             count(*) FILTER (WHERE (NOT investory.fx_status_usable(fx.conversion_status))) AS missing_fx_count
            FROM (closed_position_components c
-             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(c.valuation_date, c.source_currency, c.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate(c.valuation_date, c.source_currency, c.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
           GROUP BY c.account_id
         ), portfolio_flow_rows AS (
          SELECT nco.operation_id,
@@ -4004,7 +3901,7 @@ CREATE MATERIALIZED VIEW investory.app_v_portfolio_currency_breakdown AS
             fx.fx_rate_to_target AS fx_rate_to_base,
             fx.conversion_status
            FROM (realized_components rc
-             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(rc.valuation_date, rc.currency, rc.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate_compat_oid(rc.valuation_date, rc.currency, rc.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
         ), realized AS (
          SELECT realized_with_fx.portfolio_id,
             realized_with_fx.base_currency,
@@ -4148,7 +4045,7 @@ CREATE VIEW investory.app_v_portfolio_daily AS
            FROM (((investory.account_daily ad
              JOIN investory.accounts a ON ((a.id = ad.account_id)))
              JOIN investory.portfolios p ON ((p.id = a.portfolio_id)))
-             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate_compat_oid(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
         ), account_rows AS (
          SELECT account_rows_with_fx.portfolio_id,
             account_rows_with_fx.base_currency,
@@ -4412,8 +4309,8 @@ CREATE VIEW investory.app_v_portfolio_tax_year_realized AS
    FROM ((((investory.positions p
      JOIN investory.accounts a ON ((a.id = p.account_id)))
      JOIN investory.portfolios portfolio ON ((portfolio.id = a.portfolio_id)))
-     CROSS JOIN LATERAL investory.resolve_fx_rate_legacy((p.close_time)::date, p.profit_currency, portfolio.base_currency) profit_fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
-     CROSS JOIN LATERAL investory.resolve_fx_rate_legacy((p.close_time)::date, p.commission_currency, portfolio.base_currency) commission_fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+     CROSS JOIN LATERAL investory.resolve_fx_rate_compat_oid((p.close_time)::date, p.profit_currency, portfolio.base_currency) profit_fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+     CROSS JOIN LATERAL investory.resolve_fx_rate_compat_oid((p.close_time)::date, p.commission_currency, portfolio.base_currency) commission_fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
   WHERE ((p.close_time IS NOT NULL) AND investory.fx_status_usable(profit_fx.conversion_status) AND investory.fx_status_usable(commission_fx.conversion_status))
   GROUP BY a.portfolio_id, (EXTRACT(year FROM p.close_time));
 
@@ -5011,7 +4908,7 @@ CREATE TABLE investory.exchange_rates (
 -- Name: TABLE exchange_rates; Type: COMMENT; Schema: investory; Owner: -
 --
 
-COMMENT ON TABLE investory.exchange_rates IS 'Historical exchange rates for USD/EUR/PLN currencies, used for reporting and analysis';
+COMMENT ON TABLE investory.exchange_rates IS 'Execution FX observations only. Neutral historical valuation FX is stored in fx_daily_rates.';
 
 
 --
@@ -5605,7 +5502,7 @@ CREATE VIEW investory.recon_v_realized_result AS
             fx.fx_rate_to_target,
             fx.conversion_status
            FROM (trade_fx_keys k
-             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(k.valuation_date, k.source_currency, k.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate_compat_oid(k.valuation_date, k.source_currency, k.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
         ), converted_trade_components AS (
          SELECT tc.account_id,
             tc.valuation_date,
@@ -5962,10 +5859,10 @@ CREATE MATERIALIZED VIEW investory.recon_v_account_daily_cashflow AS
             sum(nco.amount_in_portfolio_base_currency) FILTER (WHERE investory.fx_status_usable(nco.portfolio_conversion_status)) AS ledger_cash_base,
             sum(nco.amount_in_portfolio_base_currency) FILTER (WHERE ((nco.normalized_category)::text = 'EXTERNAL_DEPOSIT'::text)) AS ledger_deposits,
             sum(abs(nco.amount_in_portfolio_base_currency)) FILTER (WHERE ((nco.normalized_category)::text = 'EXTERNAL_WITHDRAWAL'::text)) AS ledger_withdrawals,
-            sum(nco.amount_in_portfolio_base_currency) FILTER (WHERE ((nco.normalized_category)::text = ANY ((ARRAY['DIVIDEND'::character varying, 'DIVIDEND_REVERSAL'::character varying])::text[]))) AS ledger_dividends,
-            sum(nco.amount_in_portfolio_base_currency) FILTER (WHERE ((nco.normalized_category)::text = ANY ((ARRAY['INTEREST'::character varying, 'INTEREST_REVERSAL'::character varying])::text[]))) AS ledger_interest,
+            sum(nco.amount_in_portfolio_base_currency) FILTER (WHERE ((nco.normalized_category)::text = ANY (ARRAY[('DIVIDEND'::character varying)::text, ('DIVIDEND_REVERSAL'::character varying)::text]))) AS ledger_dividends,
+            sum(nco.amount_in_portfolio_base_currency) FILTER (WHERE ((nco.normalized_category)::text = ANY (ARRAY[('INTEREST'::character varying)::text, ('INTEREST_REVERSAL'::character varying)::text]))) AS ledger_interest,
             sum((- nco.amount_in_portfolio_base_currency)) FILTER (WHERE ((nco.normalized_category)::text = 'FEE'::text)) AS ledger_fees,
-            sum((- nco.amount_in_portfolio_base_currency)) FILTER (WHERE ((nco.normalized_category)::text = ANY ((ARRAY['WITHHOLDING_TAX'::character varying, 'WITHHOLDING_TAX_REVERSAL'::character varying, 'OTHER_TAX'::character varying])::text[]))) AS ledger_taxes,
+            sum((- nco.amount_in_portfolio_base_currency)) FILTER (WHERE ((nco.normalized_category)::text = ANY (ARRAY[('WITHHOLDING_TAX'::character varying)::text, ('WITHHOLDING_TAX_REVERSAL'::character varying)::text, ('OTHER_TAX'::character varying)::text]))) AS ledger_taxes,
             count(*) FILTER (WHERE (NOT investory.fx_status_usable(nco.portfolio_conversion_status))) AS missing_fx_count,
             (count(*) FILTER (WHERE (NOT investory.fx_status_usable(nco.portfolio_conversion_status))) = 0) AS is_complete
            FROM investory.app_v_normalized_cash_operations nco
@@ -6054,11 +5951,11 @@ CREATE VIEW investory.recon_v_account_daily_cashflow_full_precision AS
             sum(nco.amount_in_portfolio_base_currency) FILTER (WHERE investory.fx_status_usable(nco.portfolio_conversion_status)) AS ledger_cash_base,
             sum(nco.account_flow_amount) FILTER (WHERE (nco.account_flow_amount_in_portfolio_base_currency > (0)::numeric)) AS ledger_deposits,
             sum((- nco.account_flow_amount)) FILTER (WHERE (nco.account_flow_amount_in_portfolio_base_currency < (0)::numeric)) AS ledger_withdrawals,
-            sum(nco.amount) FILTER (WHERE ((nco.normalized_category)::text = ANY ((ARRAY['DIVIDEND'::character varying, 'DIVIDEND_REVERSAL'::character varying])::text[]))) AS ledger_dividends,
-            sum(nco.amount) FILTER (WHERE ((nco.normalized_category)::text = ANY ((ARRAY['INTEREST'::character varying, 'INTEREST_REVERSAL'::character varying])::text[]))) AS ledger_interest,
+            sum(nco.amount) FILTER (WHERE ((nco.normalized_category)::text = ANY (ARRAY[('DIVIDEND'::character varying)::text, ('DIVIDEND_REVERSAL'::character varying)::text]))) AS ledger_dividends,
+            sum(nco.amount) FILTER (WHERE ((nco.normalized_category)::text = ANY (ARRAY[('INTEREST'::character varying)::text, ('INTEREST_REVERSAL'::character varying)::text]))) AS ledger_interest,
             sum((- nco.amount)) FILTER (WHERE ((nco.normalized_category)::text = 'FEE'::text)) AS ledger_fees,
-            sum((- nco.amount)) FILTER (WHERE ((nco.normalized_category)::text = ANY ((ARRAY['WITHHOLDING_TAX'::character varying, 'WITHHOLDING_TAX_REVERSAL'::character varying, 'OTHER_TAX'::character varying])::text[]))) AS ledger_taxes,
-            count(*) FILTER (WHERE ((nco.normalized_category)::text = ANY ((ARRAY['INTERNAL_TRANSFER_IN'::character varying, 'INTERNAL_TRANSFER_OUT'::character varying, 'INTERNAL_BOOKKEEPING'::character varying])::text[]))) AS internal_operation_count,
+            sum((- nco.amount)) FILTER (WHERE ((nco.normalized_category)::text = ANY (ARRAY[('WITHHOLDING_TAX'::character varying)::text, ('WITHHOLDING_TAX_REVERSAL'::character varying)::text, ('OTHER_TAX'::character varying)::text]))) AS ledger_taxes,
+            count(*) FILTER (WHERE ((nco.normalized_category)::text = ANY (ARRAY[('INTERNAL_TRANSFER_IN'::character varying)::text, ('INTERNAL_TRANSFER_OUT'::character varying)::text, ('INTERNAL_BOOKKEEPING'::character varying)::text]))) AS internal_operation_count,
             (count(*) FILTER (WHERE (NOT investory.fx_status_usable(nco.portfolio_conversion_status))) = 0) AS is_complete
            FROM investory.app_v_normalized_cash_operation_flows nco
           GROUP BY nco.account_id, ((nco.date)::date), nco.account_currency, nco.base_currency
@@ -6127,9 +6024,9 @@ CREATE MATERIALIZED VIEW investory.recon_v_account_daily_cashflow_scope AS
  WITH internal_daily AS (
          SELECT nco.account_id,
             (nco.date)::date AS snapshot_date,
-            COALESCE(sum(nco.amount_in_portfolio_base_currency) FILTER (WHERE ((nco.amount_in_portfolio_base_currency > (0)::numeric) AND ((nco.normalized_category)::text = ANY ((ARRAY['INTERNAL_TRANSFER_IN'::character varying, 'INTERNAL_BOOKKEEPING'::character varying])::text[])))), (0)::numeric) AS internal_inflow_base,
-            COALESCE(sum((- nco.amount_in_portfolio_base_currency)) FILTER (WHERE ((nco.amount_in_portfolio_base_currency < (0)::numeric) AND ((nco.normalized_category)::text = ANY ((ARRAY['INTERNAL_TRANSFER_OUT'::character varying, 'INTERNAL_BOOKKEEPING'::character varying])::text[])))), (0)::numeric) AS internal_outflow_base,
-            count(*) FILTER (WHERE ((nco.normalized_category)::text = ANY ((ARRAY['INTERNAL_TRANSFER_IN'::character varying, 'INTERNAL_TRANSFER_OUT'::character varying, 'INTERNAL_BOOKKEEPING'::character varying])::text[]))) AS internal_operation_count
+            COALESCE(sum(nco.amount_in_portfolio_base_currency) FILTER (WHERE ((nco.amount_in_portfolio_base_currency > (0)::numeric) AND ((nco.normalized_category)::text = ANY (ARRAY[('INTERNAL_TRANSFER_IN'::character varying)::text, ('INTERNAL_BOOKKEEPING'::character varying)::text])))), (0)::numeric) AS internal_inflow_base,
+            COALESCE(sum((- nco.amount_in_portfolio_base_currency)) FILTER (WHERE ((nco.amount_in_portfolio_base_currency < (0)::numeric) AND ((nco.normalized_category)::text = ANY (ARRAY[('INTERNAL_TRANSFER_OUT'::character varying)::text, ('INTERNAL_BOOKKEEPING'::character varying)::text])))), (0)::numeric) AS internal_outflow_base,
+            count(*) FILTER (WHERE ((nco.normalized_category)::text = ANY (ARRAY[('INTERNAL_TRANSFER_IN'::character varying)::text, ('INTERNAL_TRANSFER_OUT'::character varying)::text, ('INTERNAL_BOOKKEEPING'::character varying)::text]))) AS internal_operation_count
            FROM investory.app_v_normalized_cash_operations nco
           GROUP BY nco.account_id, ((nco.date)::date)
         ), evidence AS (
@@ -6618,6 +6515,107 @@ COMMENT ON MATERIALIZED VIEW investory.recon_v_account_statistics_vs_daily IS 'C
 
 
 --
+-- Name: recon_v_account_temporal_anomaly; Type: VIEW; Schema: investory; Owner: -
+--
+
+CREATE VIEW investory.recon_v_account_temporal_anomaly AS
+ WITH days AS (
+         SELECT ad.id,
+            ad.account_id,
+            ad.snapshot_date,
+            ad.valuation_currency,
+            ad.cash_balance,
+            ad.market_value,
+            ad.equity,
+            ad.cost_base,
+            ad.unrealized_profit,
+            ad.dividends,
+            ad.interest,
+            ad.fees,
+            ad.taxes,
+            ad.deposits,
+            ad.withdrawals,
+            ad.realized_profit,
+            ad.daily_profit_amount,
+            ad.daily_return_pct,
+            ad.portfolio_weight,
+            ad.created_at,
+            ad.updated_at,
+            lag(ad.snapshot_date) OVER w AS previous_date,
+            lag(ad.equity) OVER w AS previous_equity,
+            lag(ad.market_value) OVER w AS previous_market_value
+           FROM investory.account_daily ad
+          WINDOW w AS (PARTITION BY ad.account_id ORDER BY ad.snapshot_date)
+        ), movements AS (
+         SELECT d.id,
+            d.account_id,
+            d.snapshot_date,
+            d.valuation_currency,
+            d.cash_balance,
+            d.market_value,
+            d.equity,
+            d.cost_base,
+            d.unrealized_profit,
+            d.dividends,
+            d.interest,
+            d.fees,
+            d.taxes,
+            d.deposits,
+            d.withdrawals,
+            d.realized_profit,
+            d.daily_profit_amount,
+            d.daily_return_pct,
+            d.portfolio_weight,
+            d.created_at,
+            d.updated_at,
+            d.previous_date,
+            d.previous_equity,
+            d.previous_market_value,
+            ((((((d.deposits - d.withdrawals) + d.dividends) + d.interest) - d.fees) - d.taxes) + d.realized_profit) AS known_change,
+            ((d.equity - d.previous_equity) - ((((((d.deposits - d.withdrawals) + d.dividends) + d.interest) - d.fees) - d.taxes) + d.realized_profit)) AS unexplained_equity_change,
+            (d.market_value - d.previous_market_value) AS unexplained_market_change
+           FROM days d
+        ), p AS (
+         SELECT (investory.reconciliation_parameter('reconciliation_temporal_short_gap_days'::character varying))::integer AS short_gap,
+            investory.reconciliation_parameter('reconciliation_account_unexplained_move_ratio'::character varying) AS move_ratio
+        )
+ SELECT 'WARN'::character varying(16) AS severity,
+    (
+        CASE
+            WHEN ((abs(m.unexplained_market_change) / GREATEST(abs(m.previous_market_value), abs(m.market_value), (1)::numeric)) >= p.move_ratio) THEN 'ACCOUNT_MARKET_VALUE_SPIKE'::text
+            ELSE 'ACCOUNT_EQUITY_SPIKE'::text
+        END)::character varying(64) AS issue_code,
+    'ACCOUNT'::character varying(16) AS entity_type,
+    m.account_id AS entity_id,
+    (a.name)::character varying(64) AS entity_key,
+    m.snapshot_date AS event_date,
+    m.previous_date,
+    NULL::date AS next_date,
+    (m.snapshot_date - m.previous_date) AS gap_days,
+    m.previous_equity AS previous_value,
+    m.equity AS current_value,
+    NULL::numeric AS next_value,
+    (m.unexplained_equity_change / GREATEST(abs(m.previous_equity), abs(m.equity), (1)::numeric)) AS change_pct,
+    (m.unexplained_equity_change / NULLIF(m.previous_equity, (0)::numeric)) AS ratio,
+    ((((((('unexplained equity change='::text || m.unexplained_equity_change) || ', unexplained market change='::text) || m.unexplained_market_change) || ', known change='::text) || m.known_change) || ', valuation currency='::text) || (m.valuation_currency)::text) AS explanation,
+    NULL::character varying(32) AS source,
+    NULL::character varying(64) AS source_symbol,
+    m.valuation_currency AS observation_currency,
+    NULL::character varying(3) AS mapping_currency,
+    NULL::numeric AS scale_factor,
+    NULL::numeric AS mapping_scale_factor,
+    NULL::character varying(32) AS price_origin,
+    NULL::character varying(64) AS quality_class,
+    NULL::boolean AS is_proxy,
+    NULL::boolean AS is_exact_listing,
+    NULL::boolean AS is_alternate_listing
+   FROM ((movements m
+     JOIN investory.accounts a ON ((a.id = m.account_id)))
+     CROSS JOIN p)
+  WHERE ((m.previous_date IS NOT NULL) AND ((m.snapshot_date - m.previous_date) <= p.short_gap) AND (((abs(m.unexplained_market_change) / GREATEST(abs(m.previous_market_value), abs(m.market_value), (1)::numeric)) >= p.move_ratio) OR ((abs(m.unexplained_equity_change) / GREATEST(abs(m.previous_equity), abs(m.equity), (1)::numeric)) >= p.move_ratio)));
+
+
+--
 -- Name: recon_v_asset_identity_issues; Type: VIEW; Schema: investory; Owner: -
 --
 
@@ -6821,14 +6819,14 @@ CREATE VIEW investory.recon_v_fx AS
              CROSS JOIN investory.currencies c2)
           WHERE ((c1.id)::text <> (c2.id)::text)
         ), latest AS (
-         SELECT DISTINCT ON (er.base, er.to_currency) er.base AS source_currency,
-            er.to_currency AS target_currency,
-            er.rate_date,
-            er.source,
-            er.method,
-            er.rate
-           FROM investory.exchange_rates er
-          ORDER BY er.base, er.to_currency, er.rate_date DESC, er.imported_at DESC
+         SELECT DISTINCT ON (fx.base, fx.to_currency) fx.base AS source_currency,
+            fx.to_currency AS target_currency,
+            fx.rate_date,
+            fx.source,
+            fx.method,
+            fx.rate
+           FROM investory.fx_daily_rates fx
+          ORDER BY fx.base, fx.to_currency, fx.rate_date DESC, fx.source_reference DESC NULLS LAST
         ), resolved AS (
          SELECT p.source_currency,
             p.target_currency,
@@ -6839,7 +6837,7 @@ CREATE VIEW investory.recon_v_fx AS
             r_1.age_days,
             r_1.conversion_status
            FROM (pairs p
-             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(CURRENT_DATE, p.source_currency, p.target_currency) r_1(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate(CURRENT_DATE, p.source_currency, p.target_currency) r_1(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
         )
  SELECT r.source_currency,
     r.target_currency,
@@ -6853,9 +6851,7 @@ CREATE VIEW investory.recon_v_fx AS
     l.rate_date AS latest_stored_date,
     l.source AS latest_stored_source,
     l.method AS latest_stored_method,
-    ( SELECT count(*) AS count
-           FROM investory.exchange_rates e
-          WHERE (((e.method)::text = 'INTERPOLATED'::text) AND ((e.base)::text = (r.source_currency)::text) AND ((e.to_currency)::text = (r.target_currency)::text))) AS interpolated_observation_count,
+    (0)::bigint AS interpolated_observation_count,
     ( SELECT count(*) AS count
            FROM investory.exchange_rates e
           WHERE ((e.method)::text = 'XTB_EXECUTION'::text)) AS xtb_execution_observation_count,
@@ -6878,26 +6874,15 @@ COMMENT ON VIEW investory.recon_v_fx IS 'FX audit output: coverage, latest store
 --
 
 CREATE VIEW investory.recon_v_fx_consistency AS
- SELECT 'RECIPROCAL_MISMATCH'::character varying(32) AS issue_code,
-    er.base,
-    er.to_currency,
-    er.rate_date,
-    abs(((er.rate * inverse_rate.rate) - (1)::numeric)) AS deviation,
+ SELECT 'RECIPROCAL_MISMATCH'::character varying AS issue_code,
+    fx.base,
+    fx.to_currency,
+    fx.rate_date,
+    abs(((fx.rate * inverse_fx.rate) - (1)::numeric)) AS deviation,
     'Direct and reciprocal observations differ'::text AS details
-   FROM (investory.exchange_rates er
-     JOIN investory.exchange_rates inverse_rate ON (((inverse_rate.rate_date = er.rate_date) AND ((inverse_rate.base)::text = (er.to_currency)::text) AND ((inverse_rate.to_currency)::text = (er.base)::text) AND ((inverse_rate.source)::text = (er.source)::text) AND ((inverse_rate.method)::text = (er.method)::text))))
-  WHERE (abs(((er.rate * inverse_rate.rate) - (1)::numeric)) > 0.0001)
-UNION ALL
- SELECT 'CROSS_RATE_MISMATCH'::character varying AS issue_code,
-    eur_usd.base,
-    eur_usd.to_currency,
-    eur_usd.rate_date,
-    abs(((eur_usd.rate * usd_pln.rate) - eur_pln.rate)) AS deviation,
-    'EURUSD * USDPLN differs from EURPLN'::text AS details
-   FROM ((investory.exchange_rates eur_usd
-     JOIN investory.exchange_rates usd_pln ON (((usd_pln.rate_date = eur_usd.rate_date) AND ((usd_pln.source)::text = (eur_usd.source)::text) AND ((usd_pln.method)::text = (eur_usd.method)::text) AND ((usd_pln.base)::text = 'USD'::text) AND ((usd_pln.to_currency)::text = 'PLN'::text))))
-     JOIN investory.exchange_rates eur_pln ON (((eur_pln.rate_date = eur_usd.rate_date) AND ((eur_pln.source)::text = (eur_usd.source)::text) AND ((eur_pln.method)::text = (eur_usd.method)::text) AND ((eur_pln.base)::text = 'EUR'::text) AND ((eur_pln.to_currency)::text = 'PLN'::text))))
-  WHERE (((eur_usd.base)::text = 'EUR'::text) AND ((eur_usd.to_currency)::text = 'USD'::text) AND (abs(((eur_usd.rate * usd_pln.rate) - eur_pln.rate)) > 0.01));
+   FROM (investory.fx_daily_rates fx
+     JOIN investory.fx_daily_rates inverse_fx ON (((inverse_fx.rate_date = fx.rate_date) AND ((inverse_fx.base)::text = (fx.to_currency)::text) AND ((inverse_fx.to_currency)::text = (fx.base)::text))))
+  WHERE (abs(((fx.rate * inverse_fx.rate) - (1)::numeric)) > 0.0001);
 
 
 --
@@ -6913,29 +6898,19 @@ COMMENT ON VIEW investory.recon_v_fx_consistency IS 'Diagnostic reciprocal and c
 
 CREATE VIEW investory.recon_v_fx_data_quality AS
  WITH jumps AS (
-         SELECT exchange_rates.base,
-            exchange_rates.to_currency,
-            exchange_rates.rate_date,
-            exchange_rates.rate,
-            lag(exchange_rates.rate) OVER (PARTITION BY exchange_rates.base, exchange_rates.to_currency ORDER BY exchange_rates.rate_date) AS previous_rate
-           FROM investory.exchange_rates
-          WHERE ((exchange_rates.method)::text = ANY ((ARRAY['MARKET_DAILY'::character varying, 'IBKR_DAILY_REFERENCE'::character varying])::text[]))
+         SELECT fx_daily_rates.base,
+            fx_daily_rates.to_currency,
+            fx_daily_rates.rate_date,
+            fx_daily_rates.rate,
+            lag(fx_daily_rates.rate) OVER (PARTITION BY fx_daily_rates.base, fx_daily_rates.to_currency ORDER BY fx_daily_rates.rate_date) AS previous_rate
+           FROM investory.fx_daily_rates
         )
- SELECT 'INVALID_RATE'::character varying(32) AS issue_code,
-    exchange_rates.base,
-    exchange_rates.to_currency,
-    exchange_rates.rate_date,
-    (exchange_rates.rate)::numeric AS rate,
-    'Rate must be positive'::text AS details
-   FROM investory.exchange_rates
-  WHERE (exchange_rates.rate <= (0)::numeric)
-UNION ALL
  SELECT 'FX_SPIKE'::character varying AS issue_code,
     jumps.base,
     jumps.to_currency,
     jumps.rate_date,
     jumps.rate,
-    'Daily/reference move exceeds 5%'::text AS details
+    'Daily neutral move exceeds 5%'::text AS details
    FROM jumps
   WHERE ((jumps.previous_rate IS NOT NULL) AND (abs(((jumps.rate / jumps.previous_rate) - (1)::numeric)) > 0.05))
 UNION ALL
@@ -6944,15 +6919,126 @@ UNION ALL
     (pairs.to_currency)::character varying(3) AS to_currency,
     CURRENT_DATE AS rate_date,
     NULL::numeric AS rate,
-    'No recent market/reference observation after daily-history boundary'::text AS details
+    'Missing canonical daily neutral FX row'::text AS details
    FROM ( VALUES ('USD'::character varying(3),'EUR'::character varying(3)), ('USD'::character varying,'PLN'::character varying), ('EUR'::character varying,'USD'::character varying), ('EUR'::character varying,'PLN'::character varying), ('PLN'::character varying,'USD'::character varying), ('PLN'::character varying,'EUR'::character varying)) pairs(base, to_currency)
   WHERE ((CURRENT_DATE >= ( SELECT (fx_configuration.config_value)::date AS config_value
            FROM investory.fx_configuration
           WHERE ((fx_configuration.config_key)::text = 'daily_history_start'::text))) AND (NOT (EXISTS ( SELECT 1
-           FROM investory.exchange_rates er
-          WHERE (((er.base)::text = (pairs.base)::text) AND ((er.to_currency)::text = (pairs.to_currency)::text) AND ((er.method)::text = ANY ((ARRAY['MARKET_DAILY'::character varying, 'IBKR_DAILY_REFERENCE'::character varying])::text[])) AND (er.rate_date >= (CURRENT_DATE - ( SELECT (fx_configuration.config_value)::integer AS config_value
-                   FROM investory.fx_configuration
-                  WHERE ((fx_configuration.config_key)::text = 'max_age_days'::text)))))))));
+           FROM investory.fx_daily_rates fx
+          WHERE ((fx.rate_date = CURRENT_DATE) AND ((fx.base)::text = (pairs.base)::text) AND ((fx.to_currency)::text = (pairs.to_currency)::text))))));
+
+
+--
+-- Name: recon_v_fx_temporal_anomaly; Type: VIEW; Schema: investory; Owner: -
+--
+
+CREATE VIEW investory.recon_v_fx_temporal_anomaly AS
+ WITH observations AS (
+         SELECT fx.base,
+            fx.to_currency,
+            fx.rate_date,
+            fx.rate,
+            fx.source,
+            fx.method,
+            lag(fx.rate) OVER w AS previous_rate,
+            lag(fx.rate_date) OVER w AS previous_date,
+            lead(fx.rate) OVER w AS next_rate,
+            lead(fx.rate_date) OVER w AS next_date
+           FROM investory.fx_daily_rates fx
+          WINDOW w AS (PARTITION BY fx.base, fx.to_currency ORDER BY fx.rate_date)
+        ), params AS (
+         SELECT (investory.reconciliation_parameter('reconciliation_temporal_short_gap_days'::character varying))::integer AS short_gap,
+            investory.reconciliation_parameter('reconciliation_fx_extreme_move_ratio'::character varying) AS extreme_move,
+            investory.reconciliation_parameter('reconciliation_fx_isolated_spike_ratio'::character varying) AS spike_ratio,
+            investory.reconciliation_parameter('reconciliation_temporal_neighbor_recovery_ratio'::character varying) AS recovery,
+            investory.reconciliation_parameter('reconciliation_fx_reciprocal_tolerance'::character varying) AS reciprocal_tolerance
+        )
+ SELECT (
+        CASE
+            WHEN ((abs(((o.rate / NULLIF(o.previous_rate, (0)::numeric)) - (1)::numeric)) >= p.spike_ratio) AND (abs(((o.next_rate / NULLIF(o.previous_rate, (0)::numeric)) - (1)::numeric)) <= p.recovery)) THEN 'ERROR'::text
+            ELSE 'WARN'::text
+        END)::character varying(16) AS severity,
+    (
+        CASE
+            WHEN ((abs(((o.rate / NULLIF(o.previous_rate, (0)::numeric)) - (1)::numeric)) >= p.spike_ratio) AND (abs(((o.next_rate / NULLIF(o.previous_rate, (0)::numeric)) - (1)::numeric)) <= p.recovery)) THEN 'FX_ISOLATED_SPIKE'::text
+            ELSE 'FX_EXTREME_MOVE'::text
+        END)::character varying(64) AS issue_code,
+    'FX'::character varying(16) AS entity_type,
+    NULL::bigint AS entity_id,
+    ((((o.base)::text || '/'::text) || (o.to_currency)::text))::character varying(64) AS entity_key,
+    o.base AS base_currency,
+    o.to_currency AS quote_currency,
+    o.rate_date AS event_date,
+    o.previous_date,
+    o.next_date,
+    (o.rate_date - o.previous_date) AS gap_days,
+    o.previous_rate AS previous_value,
+    o.rate AS current_value,
+    o.next_rate AS next_value,
+    ((o.rate / NULLIF(o.previous_rate, (0)::numeric)) - (1)::numeric) AS change_pct,
+    (o.rate / NULLIF(o.previous_rate, (0)::numeric)) AS ratio,
+    ((((((((((((('canonical neutral FX '::text || (o.base)::text) || '/'::text) || (o.to_currency)::text) || ' moved from '::text) || o.previous_rate) || ' to '::text) || o.rate) || ' over '::text) || (o.rate_date - o.previous_date)) || ' day(s); source='::text) || (o.source)::text) || ', method='::text) || (o.method)::text) AS explanation,
+    o.source,
+    o.method AS source_symbol,
+    NULL::character varying(3) AS observation_currency,
+    NULL::numeric AS scale_factor,
+    NULL::boolean AS is_proxy
+   FROM (observations o
+     CROSS JOIN params p)
+  WHERE ((o.previous_rate > (0)::numeric) AND ((o.rate_date - o.previous_date) <= p.short_gap) AND (abs(((o.rate / o.previous_rate) - (1)::numeric)) >= p.extreme_move) AND (NOT ((abs(((o.rate / NULLIF(o.previous_rate, (0)::numeric)) - (1)::numeric)) >= p.spike_ratio) AND (o.next_rate > (0)::numeric) AND ((o.next_date - o.rate_date) <= p.short_gap) AND (abs(((o.next_rate / NULLIF(o.previous_rate, (0)::numeric)) - (1)::numeric)) <= p.recovery))))
+UNION ALL
+ SELECT 'ERROR'::character varying AS severity,
+    'FX_ISOLATED_SPIKE'::character varying AS issue_code,
+    'FX'::character varying AS entity_type,
+    NULL::bigint AS entity_id,
+    (((o.base)::text || '/'::text) || (o.to_currency)::text) AS entity_key,
+    o.base AS base_currency,
+    o.to_currency AS quote_currency,
+    o.rate_date AS event_date,
+    o.previous_date,
+    o.next_date,
+    (o.rate_date - o.previous_date) AS gap_days,
+    o.previous_rate AS previous_value,
+    o.rate AS current_value,
+    o.next_rate AS next_value,
+    ((o.rate / NULLIF(o.previous_rate, (0)::numeric)) - (1)::numeric) AS change_pct,
+    (o.rate / NULLIF(o.previous_rate, (0)::numeric)) AS ratio,
+    ((((('isolated canonical FX spike: neighbors recover from '::text || o.previous_rate) || ' to '::text) || o.next_rate) || ', current='::text) || o.rate) AS explanation,
+    o.source,
+    o.method AS source_symbol,
+    NULL::character varying AS observation_currency,
+    NULL::numeric AS scale_factor,
+    NULL::boolean AS is_proxy
+   FROM (observations o
+     CROSS JOIN params p)
+  WHERE ((o.previous_rate > (0)::numeric) AND (o.next_rate > (0)::numeric) AND ((o.rate_date - o.previous_date) <= p.short_gap) AND ((o.next_date - o.rate_date) <= p.short_gap) AND (abs(((o.rate / o.previous_rate) - (1)::numeric)) >= p.spike_ratio) AND (abs(((o.next_rate / o.previous_rate) - (1)::numeric)) <= p.recovery))
+UNION ALL
+ SELECT 'ERROR'::character varying AS severity,
+    'FX_RECIPROCAL_INCONSISTENCY'::character varying AS issue_code,
+    'FX'::character varying AS entity_type,
+    NULL::bigint AS entity_id,
+    (((fx.base)::text || '/'::text) || (fx.to_currency)::text) AS entity_key,
+    fx.base AS base_currency,
+    fx.to_currency AS quote_currency,
+    fx.rate_date AS event_date,
+    NULL::date AS previous_date,
+    NULL::date AS next_date,
+    NULL::integer AS gap_days,
+    NULL::numeric AS previous_value,
+    fx.rate AS current_value,
+    inverse.rate AS next_value,
+    abs(((fx.rate * inverse.rate) - (1)::numeric)) AS change_pct,
+    (fx.rate * inverse.rate) AS ratio,
+    ((('reciprocal product='::text || (fx.rate * inverse.rate)) || ', tolerance='::text) || p.reciprocal_tolerance) AS explanation,
+    fx.source,
+    fx.method AS source_symbol,
+    NULL::character varying AS observation_currency,
+    NULL::numeric AS scale_factor,
+    NULL::boolean AS is_proxy
+   FROM ((investory.fx_daily_rates fx
+     JOIN investory.fx_daily_rates inverse ON (((inverse.rate_date = fx.rate_date) AND ((inverse.base)::text = (fx.to_currency)::text) AND ((inverse.to_currency)::text = (fx.base)::text))))
+     CROSS JOIN params p)
+  WHERE (abs(((fx.rate * inverse.rate) - (1)::numeric)) > p.reciprocal_tolerance);
 
 
 --
@@ -7237,7 +7323,7 @@ CREATE VIEW investory.recon_v_non_usd_closed_trade AS
             fx_1.fx_rate_to_target,
             fx_1.conversion_status
            FROM (fx_keys k
-             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(k.close_date, k.source_currency, k.portfolio_base_currency) fx_1(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate_compat_oid(k.close_date, k.source_currency, k.portfolio_base_currency) fx_1(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
         ), fx_at_close AS (
          SELECT cp_1.position_id,
             profit_fx.fx_rate_to_target AS close_fx_rate_to_base,
@@ -7251,7 +7337,7 @@ CREATE VIEW investory.recon_v_non_usd_closed_trade AS
          SELECT cp_1.position_id,
             sum(
                 CASE
-                    WHEN ((nco.normalized_category)::text = ANY ((ARRAY['TRADE_PURCHASE'::character varying, 'TRADE_SALE'::character varying, 'REALIZED_TRADE_RESULT'::character varying])::text[])) THEN (0)::numeric
+                    WHEN ((nco.normalized_category)::text = ANY (ARRAY[('TRADE_PURCHASE'::character varying)::text, ('TRADE_SALE'::character varying)::text, ('REALIZED_TRADE_RESULT'::character varying)::text])) THEN (0)::numeric
                     ELSE nco.amount_in_portfolio_base_currency
                 END) AS non_trade_cash_flow_base
            FROM (closed_positions cp_1
@@ -7822,8 +7908,8 @@ CREATE VIEW investory.recon_v_portfolio_data_quality_refresh AS
           WHERE (import_history.status = 'COMPLETED'::text)) AS broker_imported_at,
     ( SELECT max(assets.price_updated_at) AS max
            FROM investory.assets) AS prices_updated_at,
-    ( SELECT max(exchange_rates.imported_at) AS max
-           FROM investory.exchange_rates) AS fx_updated_at,
+    ( SELECT ((max(fx_daily_rates.rate_date))::timestamp without time zone AT TIME ZONE 'UTC'::text) AS timezone
+           FROM investory.fx_daily_rates) AS fx_updated_at,
     ( SELECT max(account_daily.updated_at) AS max
            FROM investory.account_daily) AS projections_rebuilt_at,
     ( SELECT max(account_daily.updated_at) AS max
@@ -7894,7 +7980,7 @@ CREATE VIEW investory.recon_v_portfolio_service_fallback AS
             fx.fx_rate_to_target,
             fx.conversion_status
            FROM (position_components pc
-             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(pc.valuation_date, pc.source_currency, pc.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate_compat_oid(pc.valuation_date, pc.source_currency, pc.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
         ), raw_position_totals AS (
          SELECT cpc.portfolio_id,
                 CASE
@@ -8124,6 +8210,289 @@ COMMENT ON VIEW investory.recon_v_price_history_contract_issues IS 'Deterministi
 
 
 --
+-- Name: recon_v_price_temporal_anomaly; Type: VIEW; Schema: investory; Owner: -
+--
+
+CREATE VIEW investory.recon_v_price_temporal_anomaly AS
+ WITH observations AS (
+         SELECT aph.asset_id,
+            a.symbol AS asset_symbol,
+            aph.source,
+            aph.source_symbol,
+            aph.price_date,
+            aph.price_currency,
+            aph.price_origin,
+            aph.quality_class,
+            aph.is_proxy,
+            aph.price_scale_factor,
+            aph.source_mapping_id,
+            ass.price_currency AS mapping_currency,
+            ass.price_scale_factor AS mapping_scale_factor,
+            ass.requires_fx_conversion,
+            ass.is_exact_listing,
+            ass.is_alternate_listing,
+            (aph.close_price * aph.price_scale_factor) AS normalized_price,
+            lag((aph.close_price * aph.price_scale_factor)) OVER w AS previous_price,
+            lag(aph.price_date) OVER w AS previous_date,
+            lag(aph.price_currency) OVER w AS previous_currency,
+            lead((aph.close_price * aph.price_scale_factor)) OVER w AS next_price,
+            lead(aph.price_date) OVER w AS next_date
+           FROM ((investory.asset_price_history aph
+             JOIN investory.assets a ON (((a.id = aph.asset_id) AND (NOT a.exclude_from_import))))
+             LEFT JOIN investory.asset_source_symbols ass ON ((ass.id = aph.source_mapping_id)))
+          WHERE (aph.is_observed AND (NOT aph.estimated) AND (aph.close_price > (0)::numeric))
+          WINDOW w AS (PARTITION BY aph.asset_id, aph.source, aph.source_symbol ORDER BY aph.price_date)
+        ), p AS (
+         SELECT (investory.reconciliation_parameter('reconciliation_temporal_short_gap_days'::character varying))::integer AS short_gap,
+            investory.reconciliation_parameter('reconciliation_price_extreme_move_ratio'::character varying) AS extreme_move,
+            investory.reconciliation_parameter('reconciliation_price_isolated_spike_ratio'::character varying) AS spike_ratio,
+            investory.reconciliation_parameter('reconciliation_temporal_neighbor_recovery_ratio'::character varying) AS recovery,
+            investory.reconciliation_parameter('reconciliation_price_scale_upper_ratio'::character varying) AS scale_upper,
+            investory.reconciliation_parameter('reconciliation_price_scale_lower_ratio'::character varying) AS scale_lower,
+            investory.reconciliation_parameter('reconciliation_price_scale_ten_upper_ratio'::character varying) AS ten_upper,
+            investory.reconciliation_parameter('reconciliation_price_scale_ten_lower_ratio'::character varying) AS ten_lower
+        ), short_moves AS (
+         SELECT o.asset_id,
+            o.asset_symbol,
+            o.source,
+            o.source_symbol,
+            o.price_date,
+            o.price_currency,
+            o.price_origin,
+            o.quality_class,
+            o.is_proxy,
+            o.price_scale_factor,
+            o.source_mapping_id,
+            o.mapping_currency,
+            o.mapping_scale_factor,
+            o.requires_fx_conversion,
+            o.is_exact_listing,
+            o.is_alternate_listing,
+            o.normalized_price,
+            o.previous_price,
+            o.previous_date,
+            o.previous_currency,
+            o.next_price,
+            o.next_date,
+            (o.normalized_price / NULLIF(o.previous_price, (0)::numeric)) AS price_ratio,
+            ((o.normalized_price / NULLIF(o.previous_price, (0)::numeric)) - (1)::numeric) AS change_pct
+           FROM (observations o
+             CROSS JOIN p)
+          WHERE ((o.previous_price > (0)::numeric) AND ((o.price_date - o.previous_date) <= p.short_gap))
+        ), isolated AS (
+         SELECT s.asset_id,
+            s.asset_symbol,
+            s.source,
+            s.source_symbol,
+            s.price_date,
+            s.price_currency,
+            s.price_origin,
+            s.quality_class,
+            s.is_proxy,
+            s.price_scale_factor,
+            s.source_mapping_id,
+            s.mapping_currency,
+            s.mapping_scale_factor,
+            s.requires_fx_conversion,
+            s.is_exact_listing,
+            s.is_alternate_listing,
+            s.normalized_price,
+            s.previous_price,
+            s.previous_date,
+            s.previous_currency,
+            s.next_price,
+            s.next_date,
+            s.price_ratio,
+            s.change_pct
+           FROM (short_moves s
+             CROSS JOIN p)
+          WHERE ((s.next_price > (0)::numeric) AND ((s.next_date - s.price_date) <= p.short_gap) AND (abs((s.price_ratio - (1)::numeric)) >= p.spike_ratio) AND (abs(((s.next_price / s.previous_price) - (1)::numeric)) <= p.recovery))
+        )
+ SELECT 'WARN'::character varying(16) AS severity,
+    'PRICE_EXTREME_MOVE'::character varying(64) AS issue_code,
+    'ASSET'::character varying(16) AS entity_type,
+    s.asset_id AS entity_id,
+    s.asset_symbol AS entity_key,
+    s.price_date AS event_date,
+    s.previous_date,
+    s.next_date,
+    (s.price_date - s.previous_date) AS gap_days,
+    s.previous_price AS previous_value,
+    s.normalized_price AS current_value,
+    s.next_price AS next_value,
+    s.change_pct,
+    s.price_ratio AS ratio,
+    ((((((((((((('observed '::text || (s.asset_symbol)::text) || ' '::text) || (s.source)::text) || '/'::text) || (s.source_symbol)::text) || ' moved from '::text) || s.previous_price) || ' to '::text) || s.normalized_price) || '; origin='::text) || (s.price_origin)::text) || ', quality='::text) || (COALESCE(s.quality_class, 'n/a'::character varying))::text) AS explanation,
+    s.source,
+    s.source_symbol,
+    s.price_currency AS observation_currency,
+    s.mapping_currency,
+    s.price_scale_factor AS scale_factor,
+    s.mapping_scale_factor,
+    s.price_origin,
+    s.quality_class,
+    s.is_proxy,
+    s.requires_fx_conversion,
+    s.is_exact_listing,
+    s.is_alternate_listing
+   FROM (short_moves s
+     CROSS JOIN p)
+  WHERE ((abs(s.change_pct) >= p.extreme_move) AND (NOT (EXISTS ( SELECT 1
+           FROM isolated i
+          WHERE ((i.asset_id = s.asset_id) AND ((i.source)::text = (s.source)::text) AND ((i.source_symbol)::text = (s.source_symbol)::text) AND (i.price_date = s.price_date))))))
+UNION ALL
+ SELECT 'ERROR'::character varying AS severity,
+    'PRICE_ISOLATED_SPIKE'::character varying AS issue_code,
+    'ASSET'::character varying AS entity_type,
+    isolated.asset_id AS entity_id,
+    isolated.asset_symbol AS entity_key,
+    isolated.price_date AS event_date,
+    isolated.previous_date,
+    isolated.next_date,
+    (isolated.price_date - isolated.previous_date) AS gap_days,
+    isolated.previous_price AS previous_value,
+    isolated.normalized_price AS current_value,
+    isolated.next_price AS next_value,
+    isolated.change_pct,
+    isolated.price_ratio AS ratio,
+    ((((('isolated observed price spike; neighbors recover from '::text || isolated.previous_price) || ' to '::text) || isolated.next_price) || ', current='::text) || isolated.normalized_price) AS explanation,
+    isolated.source,
+    isolated.source_symbol,
+    isolated.price_currency AS observation_currency,
+    isolated.mapping_currency,
+    isolated.price_scale_factor AS scale_factor,
+    isolated.mapping_scale_factor,
+    isolated.price_origin,
+    isolated.quality_class,
+    isolated.is_proxy,
+    isolated.requires_fx_conversion,
+    isolated.is_exact_listing,
+    isolated.is_alternate_listing
+   FROM isolated
+UNION ALL
+ SELECT 'ERROR'::character varying AS severity,
+    'PRICE_CURRENCY_MISMATCH'::character varying AS issue_code,
+    'ASSET'::character varying AS entity_type,
+    observations.asset_id AS entity_id,
+    observations.asset_symbol AS entity_key,
+    observations.price_date AS event_date,
+    observations.previous_date,
+    observations.next_date,
+    NULL::integer AS gap_days,
+    observations.previous_price AS previous_value,
+    observations.normalized_price AS current_value,
+    observations.next_price AS next_value,
+    NULL::numeric AS change_pct,
+    NULL::numeric AS ratio,
+    (((('observed currency '::text || (observations.price_currency)::text) || ' differs from applicable '::text) || 'provider/listing mapping currency '::text) || (observations.mapping_currency)::text) AS explanation,
+    observations.source,
+    observations.source_symbol,
+    observations.price_currency AS observation_currency,
+    observations.mapping_currency,
+    observations.price_scale_factor AS scale_factor,
+    observations.mapping_scale_factor,
+    observations.price_origin,
+    observations.quality_class,
+    observations.is_proxy,
+    observations.requires_fx_conversion,
+    observations.is_exact_listing,
+    observations.is_alternate_listing
+   FROM observations
+  WHERE ((observations.mapping_currency IS NOT NULL) AND ((observations.price_currency)::text IS DISTINCT FROM (observations.mapping_currency)::text))
+UNION ALL
+ SELECT 'WARN'::character varying AS severity,
+    'PRICE_CURRENCY_SWITCH'::character varying AS issue_code,
+    'ASSET'::character varying AS entity_type,
+    observations.asset_id AS entity_id,
+    observations.asset_symbol AS entity_key,
+    observations.price_date AS event_date,
+    observations.previous_date,
+    observations.next_date,
+    (observations.price_date - observations.previous_date) AS gap_days,
+    observations.previous_price AS previous_value,
+    observations.normalized_price AS current_value,
+    observations.next_price AS next_value,
+    NULL::numeric AS change_pct,
+    (observations.normalized_price / NULLIF(observations.previous_price, (0)::numeric)) AS ratio,
+    ((('provider/listing observation currency switched from '::text || (observations.previous_currency)::text) || ' to '::text) || (observations.price_currency)::text) AS explanation,
+    observations.source,
+    observations.source_symbol,
+    observations.price_currency AS observation_currency,
+    observations.mapping_currency,
+    observations.price_scale_factor AS scale_factor,
+    observations.mapping_scale_factor,
+    observations.price_origin,
+    observations.quality_class,
+    observations.is_proxy,
+    observations.requires_fx_conversion,
+    observations.is_exact_listing,
+    observations.is_alternate_listing
+   FROM observations
+  WHERE ((observations.previous_currency IS NOT NULL) AND ((observations.price_currency)::text IS DISTINCT FROM (observations.previous_currency)::text))
+UNION ALL
+ SELECT 'ERROR'::character varying AS severity,
+    'PRICE_SCALE_MISMATCH'::character varying AS issue_code,
+    'ASSET'::character varying AS entity_type,
+    observations.asset_id AS entity_id,
+    observations.asset_symbol AS entity_key,
+    observations.price_date AS event_date,
+    observations.previous_date,
+    observations.next_date,
+    NULL::integer AS gap_days,
+    observations.previous_price AS previous_value,
+    observations.normalized_price AS current_value,
+    observations.next_price AS next_value,
+    NULL::numeric AS change_pct,
+    NULL::numeric AS ratio,
+    ((('history scale '::text || observations.price_scale_factor) || ' differs from mapping scale '::text) || observations.mapping_scale_factor) AS explanation,
+    observations.source,
+    observations.source_symbol,
+    observations.price_currency AS observation_currency,
+    observations.mapping_currency,
+    observations.price_scale_factor AS scale_factor,
+    observations.mapping_scale_factor,
+    observations.price_origin,
+    observations.quality_class,
+    observations.is_proxy,
+    observations.requires_fx_conversion,
+    observations.is_exact_listing,
+    observations.is_alternate_listing
+   FROM observations
+  WHERE ((observations.mapping_scale_factor IS NOT NULL) AND (observations.price_scale_factor IS DISTINCT FROM observations.mapping_scale_factor))
+UNION ALL
+ SELECT 'WARN'::character varying AS severity,
+    'PRICE_SCALE_DISCONTINUITY'::character varying AS issue_code,
+    'ASSET'::character varying AS entity_type,
+    s.asset_id AS entity_id,
+    s.asset_symbol AS entity_key,
+    s.price_date AS event_date,
+    s.previous_date,
+    s.next_date,
+    (s.price_date - s.previous_date) AS gap_days,
+    s.previous_price AS previous_value,
+    s.normalized_price AS current_value,
+    s.next_price AS next_value,
+    ((s.normalized_price / NULLIF(s.previous_price, (0)::numeric)) - (1)::numeric) AS change_pct,
+    (s.normalized_price / NULLIF(s.previous_price, (0)::numeric)) AS ratio,
+    ('observed normalized price ratio suggests a unit boundary; ratio='::text || (s.normalized_price / NULLIF(s.previous_price, (0)::numeric))) AS explanation,
+    s.source,
+    s.source_symbol,
+    s.price_currency AS observation_currency,
+    s.mapping_currency,
+    s.price_scale_factor AS scale_factor,
+    s.mapping_scale_factor,
+    s.price_origin,
+    s.quality_class,
+    s.is_proxy,
+    s.requires_fx_conversion,
+    s.is_exact_listing,
+    s.is_alternate_listing
+   FROM (short_moves s
+     CROSS JOIN p)
+  WHERE ((s.price_ratio >= p.scale_upper) OR (s.price_ratio <= p.scale_lower) OR ((s.price_ratio >= p.ten_lower) AND (s.price_ratio <= p.ten_upper)) OR ((((1)::numeric / NULLIF(s.price_ratio, (0)::numeric)) >= p.ten_lower) AND (((1)::numeric / NULLIF(s.price_ratio, (0)::numeric)) <= p.ten_upper)));
+
+
+--
 -- Name: recon_v_reconciliation_position_issues; Type: VIEW; Schema: investory; Owner: -
 --
 
@@ -8165,9 +8534,9 @@ CREATE VIEW investory.recon_v_reconciliation_position_issues AS
     vpv.validation_code,
     (
         CASE
-            WHEN ((vpv.validation_code)::text = ANY ((ARRAY['MISSING_PRICE'::character varying, 'MISSING_MULTIPLIER'::character varying, 'MISSING_FX'::character varying])::text[])) THEN 'INCOMPLETE_INPUT'::text
-            WHEN ((vpv.validation_code)::text = ANY ((ARRAY['PRICE_RATIO_100X'::character varying, 'TRADE_OBSERVATION_SELECTED'::character varying, 'INTERPOLATED_PRICE_SELECTED'::character varying, 'ALTERNATE_LISTING_SELECTED'::character varying])::text[])) THEN 'LIKELY_PRICE_OR_SCALE'::text
-            WHEN ((vpv.validation_code)::text = ANY ((ARRAY['ZERO_QUANTITY_NONZERO_VALUE'::character varying, 'NONZERO_QUANTITY_ZERO_PRICE'::character varying])::text[])) THEN 'LIKELY_POSITION_OR_SETTLEMENT'::text
+            WHEN ((vpv.validation_code)::text = ANY (ARRAY[('MISSING_PRICE'::character varying)::text, ('MISSING_MULTIPLIER'::character varying)::text, ('MISSING_FX'::character varying)::text])) THEN 'INCOMPLETE_INPUT'::text
+            WHEN ((vpv.validation_code)::text = ANY (ARRAY[('PRICE_RATIO_100X'::character varying)::text, ('TRADE_OBSERVATION_SELECTED'::character varying)::text, ('INTERPOLATED_PRICE_SELECTED'::character varying)::text, ('ALTERNATE_LISTING_SELECTED'::character varying)::text])) THEN 'LIKELY_PRICE_OR_SCALE'::text
+            WHEN ((vpv.validation_code)::text = ANY (ARRAY[('ZERO_QUANTITY_NONZERO_VALUE'::character varying)::text, ('NONZERO_QUANTITY_ZERO_PRICE'::character varying)::text])) THEN 'LIKELY_POSITION_OR_SETTLEMENT'::text
             ELSE 'REVIEW'::text
         END)::character varying(64) AS suspected_source,
     rpd.selected_price,
@@ -8288,13 +8657,13 @@ CREATE VIEW investory.recon_v_valuation_input_issues AS
                 CASE
                     WHEN (rpd.selected_price IS NULL) THEN 'MISSING_PRICE'::text
                     WHEN (rpd.price_age_days > 10) THEN 'STALE_PRICE'::text
-                    WHEN ((rpd.fx_conversion_status)::text = ANY ((ARRAY['MISSING_RATE'::character varying, 'MISSING_CURRENCY'::character varying])::text[])) THEN 'MISSING_FX'::text
+                    WHEN ((rpd.fx_conversion_status)::text = ANY (ARRAY[('MISSING_RATE'::character varying)::text, ('MISSING_CURRENCY'::character varying)::text])) THEN 'MISSING_FX'::text
                     WHEN ((rpd.fx_conversion_status)::text = 'STALE'::text) THEN 'STALE_FX'::text
                     ELSE NULL::text
                 END)::character varying(64) AS issue_code,
             (
                 CASE
-                    WHEN ((rpd.selected_price IS NULL) OR ((rpd.fx_conversion_status)::text = ANY ((ARRAY['MISSING_RATE'::character varying, 'MISSING_CURRENCY'::character varying])::text[]))) THEN 'ERROR'::text
+                    WHEN ((rpd.selected_price IS NULL) OR ((rpd.fx_conversion_status)::text = ANY (ARRAY[('MISSING_RATE'::character varying)::text, ('MISSING_CURRENCY'::character varying)::text]))) THEN 'ERROR'::text
                     ELSE 'WARN'::text
                 END)::character varying(16) AS severity,
             account.portfolio_id,
@@ -8313,7 +8682,7 @@ CREATE VIEW investory.recon_v_valuation_input_issues AS
                 CASE
                     WHEN (rpd.selected_price IS NULL) THEN 'Import a canonical price on or before the valuation date, then rebuild reporting.'::text
                     WHEN (rpd.price_age_days > 10) THEN 'Review whether the last available price is valid for this instrument and valuation date.'::text
-                    WHEN ((rpd.fx_conversion_status)::text = ANY ((ARRAY['MISSING_RATE'::character varying, 'MISSING_CURRENCY'::character varying])::text[])) THEN 'Import the required FX rate, then rebuild reporting.'::text
+                    WHEN ((rpd.fx_conversion_status)::text = ANY (ARRAY[('MISSING_RATE'::character varying)::text, ('MISSING_CURRENCY'::character varying)::text])) THEN 'Import the required FX rate, then rebuild reporting.'::text
                     ELSE 'Review the stale FX rate before accepting reporting.'::text
                 END)::character varying(255) AS required_action
            FROM ((((investory.app_v_reconstructed_position_daily rpd
@@ -8325,12 +8694,12 @@ CREATE VIEW investory.recon_v_valuation_input_issues AS
         ), cash_fx_issues AS (
          SELECT (
                 CASE
-                    WHEN ((nco.portfolio_conversion_status)::text = ANY ((ARRAY['MISSING_RATE'::character varying, 'MISSING_CURRENCY'::character varying])::text[])) THEN 'MISSING_FX'::text
+                    WHEN ((nco.portfolio_conversion_status)::text = ANY (ARRAY[('MISSING_RATE'::character varying)::text, ('MISSING_CURRENCY'::character varying)::text])) THEN 'MISSING_FX'::text
                     ELSE 'STALE_FX'::text
                 END)::character varying(64) AS issue_code,
             (
                 CASE
-                    WHEN ((nco.portfolio_conversion_status)::text = ANY ((ARRAY['MISSING_RATE'::character varying, 'MISSING_CURRENCY'::character varying])::text[])) THEN 'ERROR'::text
+                    WHEN ((nco.portfolio_conversion_status)::text = ANY (ARRAY[('MISSING_RATE'::character varying)::text, ('MISSING_CURRENCY'::character varying)::text])) THEN 'ERROR'::text
                     ELSE 'WARN'::text
                 END)::character varying(16) AS severity,
             nco.portfolio_id,
@@ -8344,7 +8713,7 @@ CREATE VIEW investory.recon_v_valuation_input_issues AS
             concat_ws('; '::text, ('operation_id='::text || nco.operation_id), ('operation='::text || (nco.raw_operation)::text), ('category='::text || (nco.normalized_category)::text), ('fx_status='::text || (nco.portfolio_conversion_status)::text)) AS details,
             (
                 CASE
-                    WHEN ((nco.portfolio_conversion_status)::text = ANY ((ARRAY['MISSING_RATE'::character varying, 'MISSING_CURRENCY'::character varying])::text[])) THEN 'Import the required FX rate, then rebuild reporting.'::text
+                    WHEN ((nco.portfolio_conversion_status)::text = ANY (ARRAY[('MISSING_RATE'::character varying)::text, ('MISSING_CURRENCY'::character varying)::text])) THEN 'Import the required FX rate, then rebuild reporting.'::text
                     ELSE 'Review the stale FX rate before accepting reporting.'::text
                 END)::character varying(255) AS required_action
            FROM investory.app_v_normalized_cash_operations nco
@@ -8473,6 +8842,97 @@ CREATE VIEW investory.recon_v_system_audit AS
 --
 
 COMMENT ON VIEW investory.recon_v_system_audit IS 'Canonical persisted audit API. structured_log_payload can be logged as JSON and notification_ready can drive Telegram, email, or other adapters outside the database.';
+
+
+--
+-- Name: recon_v_temporal_anomaly; Type: VIEW; Schema: investory; Owner: -
+--
+
+CREATE VIEW investory.recon_v_temporal_anomaly AS
+ SELECT recon_v_fx_temporal_anomaly.severity,
+    recon_v_fx_temporal_anomaly.issue_code,
+    recon_v_fx_temporal_anomaly.entity_type,
+    recon_v_fx_temporal_anomaly.entity_id,
+    recon_v_fx_temporal_anomaly.entity_key,
+    recon_v_fx_temporal_anomaly.event_date,
+    recon_v_fx_temporal_anomaly.previous_date,
+    recon_v_fx_temporal_anomaly.next_date,
+    recon_v_fx_temporal_anomaly.gap_days,
+    recon_v_fx_temporal_anomaly.previous_value,
+    recon_v_fx_temporal_anomaly.current_value,
+    recon_v_fx_temporal_anomaly.next_value,
+    recon_v_fx_temporal_anomaly.change_pct,
+    recon_v_fx_temporal_anomaly.ratio,
+    recon_v_fx_temporal_anomaly.explanation,
+    recon_v_fx_temporal_anomaly.source,
+    recon_v_fx_temporal_anomaly.source_symbol,
+    recon_v_fx_temporal_anomaly.observation_currency,
+    NULL::character varying(3) AS mapping_currency,
+    recon_v_fx_temporal_anomaly.scale_factor,
+    NULL::numeric AS mapping_scale_factor,
+    NULL::character varying(32) AS price_origin,
+    NULL::character varying(64) AS quality_class,
+    recon_v_fx_temporal_anomaly.is_proxy
+   FROM investory.recon_v_fx_temporal_anomaly
+UNION ALL
+ SELECT recon_v_price_temporal_anomaly.severity,
+    recon_v_price_temporal_anomaly.issue_code,
+    recon_v_price_temporal_anomaly.entity_type,
+    recon_v_price_temporal_anomaly.entity_id,
+    recon_v_price_temporal_anomaly.entity_key,
+    recon_v_price_temporal_anomaly.event_date,
+    recon_v_price_temporal_anomaly.previous_date,
+    recon_v_price_temporal_anomaly.next_date,
+    recon_v_price_temporal_anomaly.gap_days,
+    recon_v_price_temporal_anomaly.previous_value,
+    recon_v_price_temporal_anomaly.current_value,
+    recon_v_price_temporal_anomaly.next_value,
+    recon_v_price_temporal_anomaly.change_pct,
+    recon_v_price_temporal_anomaly.ratio,
+    recon_v_price_temporal_anomaly.explanation,
+    recon_v_price_temporal_anomaly.source,
+    recon_v_price_temporal_anomaly.source_symbol,
+    recon_v_price_temporal_anomaly.observation_currency,
+    recon_v_price_temporal_anomaly.mapping_currency,
+    recon_v_price_temporal_anomaly.scale_factor,
+    recon_v_price_temporal_anomaly.mapping_scale_factor,
+    recon_v_price_temporal_anomaly.price_origin,
+    recon_v_price_temporal_anomaly.quality_class,
+    recon_v_price_temporal_anomaly.is_proxy
+   FROM investory.recon_v_price_temporal_anomaly
+UNION ALL
+ SELECT recon_v_account_temporal_anomaly.severity,
+    recon_v_account_temporal_anomaly.issue_code,
+    recon_v_account_temporal_anomaly.entity_type,
+    recon_v_account_temporal_anomaly.entity_id,
+    recon_v_account_temporal_anomaly.entity_key,
+    recon_v_account_temporal_anomaly.event_date,
+    recon_v_account_temporal_anomaly.previous_date,
+    recon_v_account_temporal_anomaly.next_date,
+    recon_v_account_temporal_anomaly.gap_days,
+    recon_v_account_temporal_anomaly.previous_value,
+    recon_v_account_temporal_anomaly.current_value,
+    recon_v_account_temporal_anomaly.next_value,
+    recon_v_account_temporal_anomaly.change_pct,
+    recon_v_account_temporal_anomaly.ratio,
+    recon_v_account_temporal_anomaly.explanation,
+    recon_v_account_temporal_anomaly.source,
+    recon_v_account_temporal_anomaly.source_symbol,
+    recon_v_account_temporal_anomaly.observation_currency,
+    recon_v_account_temporal_anomaly.mapping_currency,
+    recon_v_account_temporal_anomaly.scale_factor,
+    recon_v_account_temporal_anomaly.mapping_scale_factor,
+    recon_v_account_temporal_anomaly.price_origin,
+    recon_v_account_temporal_anomaly.quality_class,
+    recon_v_account_temporal_anomaly.is_proxy
+   FROM investory.recon_v_account_temporal_anomaly;
+
+
+--
+-- Name: VIEW recon_v_temporal_anomaly; Type: COMMENT; Schema: investory; Owner: -
+--
+
+COMMENT ON VIEW investory.recon_v_temporal_anomaly IS 'Common non-destructive temporal anomaly contract. FX, observed asset prices, and account movements retain layer-specific context; WARN/ERROR means review evidence, not proof of corruption.';
 
 
 --
@@ -9691,21 +10151,28 @@ COPY investory.account_daily (id, account_id, snapshot_date, valuation_currency,
 --
 
 COPY investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only, created_at) FROM stdin;
-51551301	51551301	PLN	XTB	Sample PLN Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
-51822121	51822121	USD	XTB	Sample USD Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
-51747407	51747407	EUR	XTB	Sample EUR Account	Sample User	1	t	2026-09-09 18:44:02.17447+00
-53582946	53582946	USD	XTB	Sample Metals Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
-51729109	51729109	PLN	XTB	Sample Retirement Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
-50290466	50290466	PLN	XTB	Sample PLN Cash Account	Sample User	1	t	2026-09-09 18:44:02.17447+00
-51499241	51499241	USD	XTB	Sample USD Trading Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
-51548444	51548444	EUR	XTB	Sample EUR Cash Account	Sample User	1	t	2026-09-09 18:44:02.17447+00
-51993106	51993106	USD	XTB	Sample Income Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
-51707603	51707603	PLN	XTB	Sample PLN Reserve Account	Sample User	1	t	2026-09-09 18:44:02.17447+00
-17959259	17959259	USD	IBKR	Sample IBKR Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
-2017959259	17959259	USD	IBKR	IBKR USD investment account	Happy Investor	2	f	2026-09-09 18:44:04.779199+00
-2051499241	51499241	USD	XTB	XTB USD investment account	Happy Investor	2	f	2026-09-09 18:44:04.779199+00
-2051551301	51551301	PLN	XTB	XTB PLN investment account	Happy Investor	2	f	2026-09-09 18:44:04.779199+00
-2051548444	51548444	EUR	XTB	XTB EUR cash-only account	Happy Investor	2	t	2026-09-09 18:44:04.779199+00
+51551301	51551301	PLN	XTB	Sample PLN Account	Sample User	1	f	2026-09-10 16:53:37.003076+00
+51822121	51822121	USD	XTB	Sample USD Account	Sample User	1	f	2026-09-10 16:53:37.003076+00
+51747407	51747407	EUR	XTB	Sample EUR Account	Sample User	1	t	2026-09-10 16:53:37.003076+00
+53582946	53582946	USD	XTB	Sample Metals Account	Sample User	1	f	2026-09-10 16:53:37.003076+00
+51729109	51729109	PLN	XTB	Sample Retirement Account	Sample User	1	f	2026-09-10 16:53:37.003076+00
+50290466	50290466	PLN	XTB	Sample PLN Cash Account	Sample User	1	t	2026-09-10 16:53:37.003076+00
+51499241	51499241	USD	XTB	Sample USD Trading Account	Sample User	1	f	2026-09-10 16:53:37.003076+00
+51548444	51548444	EUR	XTB	Sample EUR Cash Account	Sample User	1	t	2026-09-10 16:53:37.003076+00
+51993106	51993106	USD	XTB	Sample Income Account	Sample User	1	f	2026-09-10 16:53:37.003076+00
+51707603	51707603	PLN	XTB	Sample PLN Reserve Account	Sample User	1	t	2026-09-10 16:53:37.003076+00
+17959259	17959259	USD	IBKR	Sample IBKR Account	Sample User	1	f	2026-09-10 16:53:37.003076+00
+2051822121	51822121	USD	XTB	XTB USD reserve account	Happy Investor	2	f	2026-09-10 16:53:37.003076+00
+2051747407	51747407	EUR	XTB	XTB EUR cash account	Happy Investor	2	t	2026-09-10 16:53:37.003076+00
+2053582946	53582946	USD	XTB	XTB metals account	Happy Investor	2	f	2026-09-10 16:53:37.003076+00
+2051729109	51729109	PLN	XTB	XTB retirement account	Happy Investor	2	f	2026-09-10 16:53:37.003076+00
+2050290466	50290466	PLN	XTB	XTB cash account	Happy Investor	2	t	2026-09-10 16:53:37.003076+00
+2051993106	51993106	USD	XTB	XTB income account	Happy Investor	2	f	2026-09-10 16:53:37.003076+00
+2051707603	51707603	PLN	XTB	XTB PLN reserve account	Happy Investor	2	t	2026-09-10 16:53:37.003076+00
+2017959259	17959259	USD	IBKR	IBKR USD investment account	Happy Investor	2	f	2026-09-10 16:53:37.003076+00
+2051499241	51499241	USD	XTB	XTB USD investment account	Happy Investor	2	f	2026-09-10 16:53:37.003076+00
+2051551301	51551301	PLN	XTB	XTB PLN investment account	Happy Investor	2	f	2026-09-10 16:53:37.003076+00
+2051548444	51548444	EUR	XTB	XTB EUR cash-only account	Happy Investor	2	t	2026-09-10 16:53:37.003076+00
 \.
 
 
@@ -9714,8 +10181,8 @@ COPY investory.accounts (id, external_account_id, currency, provider, name, owne
 --
 
 COPY investory.app_users (id, username, display_name, birth_date, active, created_at, updated_at, password_hash, role) FROM stdin;
-1	sample.user	Sample User	1985-09-09	t	2026-09-09 18:44:02.167006+00	2026-09-09 18:44:04.604544+00	\N	PROFILE_OWNER
-2	happy.investor	Happy Investor	1984-01-01	t	2026-09-09 18:44:04.771848+00	2026-09-09 18:44:04.771848+00	\N	PROFILE_OWNER
+1	sample.user	Sample User	1985-09-09	t	2026-09-10 16:53:36.993507+00	2026-09-10 16:53:41.329594+00	\N	PROFILE_OWNER
+2	happy.investor	Happy Investor	1984-01-01	t	2026-09-10 16:53:36.995838+00	2026-09-10 16:53:41.4319+00	\N	PROFILE_OWNER
 \.
 
 
@@ -9724,29 +10191,30 @@ COPY investory.app_users (id, username, display_name, birth_date, active, create
 --
 
 COPY investory.asset_price_history (asset_id, price_date, source, source_symbol, source_mapping_id, price_origin, price_currency, open_price, high_price, low_price, close_price, adjusted_close_price, volume, estimated, interpolation_method, interpolation_left_date, interpolation_right_date, observation_count, source_date, imported_at, quality_score, quality_class, is_observed, is_proxy, price_scale_factor, scale_reason, original_source_symbol) FROM stdin;
-1	2025-01-01	STOOQ	aapl.us	11	STOOQ	USD	251.06900000	251.90500000	248.07500000	249.05900000	\N	39696389.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	aapl.us
-51	2025-01-01	STOOQ	ale	17	STOOQ	PLN	27.49500000	28.24000000	27.20000000	28.24000000	\N	1690982.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	ale
-101	2025-01-01	STOOQ	amzn.us	4	STOOQ	USD	222.96500000	223.22990000	218.94000000	219.39000000	\N	24819655.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	amzn.us
-151	2025-01-01	STOOQ	emim.uk	12	STOOQ	USD	2713.00000000	2727.00000000	2712.00000000	2724.00000000	\N	94147.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	90	EXACT_LISTING_SCALED	t	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	emim.uk
-201	2025-01-01	STOOQ	etfbw20tr.pl	14	STOOQ	PLN	42.20500000	42.45500000	41.87000000	42.34000000	\N	19855.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	etfbw20tr.pl
-251	2025-01-01	STOOQ	googl.us	2	STOOQ	USD	191.07500000	191.96000000	188.51000000	189.30000000	\N	17466919.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	googl.us
-301	2025-01-01	STOOQ	hprd.uk	8	STOOQ	USD	20.82000000	20.94250000	20.82000000	20.94250000	\N	1704.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	hprd.uk
-351	2025-01-01	MANUAL	jgpi.de	\N	MANUAL_WEEKLY	EUR	25.30000000	25.39000000	24.92000000	25.25000000	\N	389706.00000000	f	\N	\N	\N	1	2025-01-06	2026-09-09 18:44:02.227882+00	90	MANUAL_WEEKLY_CLOSE	t	f	1.00000000	Manual weekly backfill	jgpi.de
-401	2025-01-01	STOOQ	meta.us	3	STOOQ	USD	592.26500000	593.97000000	583.85000000	585.51000000	\N	6019520.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	meta.us
-451	2025-01-01	STOOQ	msft.us	10	STOOQ	USD	426.10000000	426.73000000	420.66000000	421.50000000	\N	13246509.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	msft.us
-501	2025-01-01	XTB_TRADE_CLOSE	NATGAS	\N	XTB_TRADE_CLOSE	USD	\N	\N	\N	2.94600000	\N	0.01000000	f	\N	\N	\N	1	2024-11-11	2026-09-09 18:44:02.227882+00	60	XTB_TRADE_OBSERVATION	t	f	1.00000000	\N	\N
-551	2025-01-01	STOOQ	nclr.uk	19	STOOQ	USD	24.42500000	24.42500000	24.42500000	24.42500000	\N	0.00000000	f	\N	\N	\N	1	2025-03-13	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nclr.uk
-601	2025-01-01	STOOQ	nucl.uk	18	STOOQ	USD	32.20000000	32.20000000	32.03000000	32.10000000	\N	1671.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nucl.uk
-651	2025-01-01	STOOQ	nvda.us	5	STOOQ	USD	138.03000000	138.07000000	133.83000000	134.29000000	\N	155659211.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nvda.us
-701	2025-01-01	STOOQ	o.us	7	STOOQ	USD	52.96000000	53.48000000	52.87000000	53.41000000	\N	5643315.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	o.us
-751	2025-01-01	STOOQ	pall.us	21	STOOQ	USD	16.63720000	16.84510000	16.61200000	16.70400000	\N	255610.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pall.us
-801	2025-01-01	STOOQ	pkn	16	STOOQ	PLN	41.80190000	43.53180000	41.80190000	43.24280000	\N	4468832.77048588	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pkn
-851	2025-01-01	STOOQ	pko	15	STOOQ	PLN	55.93010000	56.34040000	54.68060000	55.25870000	\N	1958279.91280614	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pko
-901	2025-01-01	STOOQ	pzu	13	STOOQ	PLN	42.58700000	43.23540000	42.49440000	43.01310000	\N	1378040.63739274	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pzu
-951	2025-01-01	INTERPOLATED_XTB	SPYW.DE	\N	INTERPOLATED_XTB	EUR	\N	\N	\N	23.87250000	\N	\N	t	LINEAR_BUSINESS_DAY	2024-12-30	2025-01-03	\N	\N	2026-09-09 18:44:02.227882+00	30	INTERPOLATED_XTB	f	f	1.00000000	\N	\N
-1001	2025-01-01	STOOQ	tsla.us	6	STOOQ	USD	423.79000000	427.93000000	402.54000000	403.84000000	\N	76825121.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	tsla.us
-1101	2025-01-01	STOOQ	vhyd.uk	20	STOOQ	USD	66.26500000	66.65000000	66.26000000	66.51250000	\N	2136.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	vhyd.uk
-1151	2025-01-01	STOOQ	vwra.uk	1	STOOQ	USD	138.78000000	139.40000000	138.70000000	139.34000000	\N	27062.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	vwra.uk
+1	2025-01-01	STOOQ	aapl.us	11	STOOQ	USD	251.06900000	251.90500000	248.07500000	249.05900000	\N	39696389.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	aapl.us
+51	2025-01-01	STOOQ	ale	17	STOOQ	PLN	27.49500000	28.24000000	27.20000000	28.24000000	\N	1690982.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	ale
+101	2025-01-01	STOOQ	amzn.us	4	STOOQ	USD	222.96500000	223.22990000	218.94000000	219.39000000	\N	24819655.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	amzn.us
+151	2025-01-01	STOOQ	emim.uk	12	STOOQ	USD	2713.00000000	2727.00000000	2712.00000000	2724.00000000	\N	94147.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	90	EXACT_LISTING_SCALED	t	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	emim.uk
+201	2025-01-01	STOOQ	etfbw20tr.pl	14	STOOQ	PLN	42.20500000	42.45500000	41.87000000	42.34000000	\N	19855.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	etfbw20tr.pl
+251	2025-01-01	STOOQ	googl.us	2	STOOQ	USD	191.07500000	191.96000000	188.51000000	189.30000000	\N	17466919.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	googl.us
+301	2025-01-01	STOOQ	hprd.uk	8	STOOQ	USD	20.82000000	20.94250000	20.82000000	20.94250000	\N	1704.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	hprd.uk
+351	2025-01-01	MANUAL	jgpi.de	\N	MANUAL_WEEKLY	EUR	25.30000000	25.39000000	24.92000000	25.25000000	\N	389706.00000000	f	\N	\N	\N	1	2025-01-06	2026-09-10 16:53:37.140063+00	90	MANUAL_WEEKLY_CLOSE	t	f	1.00000000	Manual weekly backfill	jgpi.de
+401	2025-01-01	STOOQ	meta.us	3	STOOQ	USD	592.26500000	593.97000000	583.85000000	585.51000000	\N	6019520.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	meta.us
+451	2025-01-01	STOOQ	msft.us	10	STOOQ	USD	426.10000000	426.73000000	420.66000000	421.50000000	\N	13246509.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	msft.us
+501	2025-01-01	XTB_TRADE_CLOSE	NATGAS	\N	XTB_TRADE_CLOSE	USD	\N	\N	\N	2.94600000	\N	0.01000000	f	\N	\N	\N	1	2024-11-11	2026-09-10 16:53:37.140063+00	60	XTB_TRADE_OBSERVATION	t	f	1.00000000	\N	\N
+551	2025-01-01	STOOQ	nclr.uk	19	STOOQ	USD	24.42500000	24.42500000	24.42500000	24.42500000	\N	0.00000000	f	\N	\N	\N	1	2025-03-13	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nclr.uk
+601	2025-01-01	STOOQ	nucl.uk	18	STOOQ	USD	32.20000000	32.20000000	32.03000000	32.10000000	\N	1671.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nucl.uk
+651	2025-01-01	STOOQ	nvda.us	5	STOOQ	USD	138.03000000	138.07000000	133.83000000	134.29000000	\N	155659211.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nvda.us
+701	2025-01-01	STOOQ	o.us	7	STOOQ	USD	52.96000000	53.48000000	52.87000000	53.41000000	\N	5643315.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	o.us
+751	2025-01-01	STOOQ	pall.us	21	STOOQ	USD	16.63720000	16.84510000	16.61200000	16.70400000	\N	255610.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pall.us
+801	2025-01-01	STOOQ	pkn	16	STOOQ	PLN	41.80190000	43.53180000	41.80190000	43.24280000	\N	4468832.77048588	f	\N	\N	\N	1	2025-01-02	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pkn
+851	2025-01-01	STOOQ	pko	15	STOOQ	PLN	55.93010000	56.34040000	54.68060000	55.25870000	\N	1958279.91280614	f	\N	\N	\N	1	2025-01-02	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pko
+901	2025-01-01	STOOQ	pzu	13	STOOQ	PLN	42.58700000	43.23540000	42.49440000	43.01310000	\N	1378040.63739274	f	\N	\N	\N	1	2025-01-02	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pzu
+951	2025-01-01	INTERPOLATED_XTB	SPYW.DE	\N	INTERPOLATED_XTB	EUR	\N	\N	\N	23.87250000	\N	\N	t	LINEAR_BUSINESS_DAY	2024-12-30	2025-01-03	\N	\N	2026-09-10 16:53:37.140063+00	30	INTERPOLATED_XTB	f	f	1.00000000	\N	\N
+1001	2025-01-01	STOOQ	tsla.us	6	STOOQ	USD	423.79000000	427.93000000	402.54000000	403.84000000	\N	76825121.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	tsla.us
+1101	2025-01-01	STOOQ	vhyd.uk	20	STOOQ	USD	66.26500000	66.65000000	66.26000000	66.51250000	\N	2136.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	vhyd.uk
+1151	2025-01-01	STOOQ	vwra.uk	1	STOOQ	USD	138.78000000	139.40000000	138.70000000	139.34000000	\N	27062.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-10 16:53:37.140063+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	vwra.uk
+1201	2025-12-31	HAPPYINVESTOR_FIXTURE	US91282CKB62	\N	FIXTURE	USD	100.00000000	100.00000000	100.00000000	100.00000000	\N	\N	f	\N	\N	\N	\N	2025-12-31	2026-09-10 16:53:41.514048+00	100	FIXTURE_PERCENT_OF_PAR	t	f	1.00000000	\N	T458022826
 \.
 
 
@@ -9755,27 +10223,27 @@ COPY investory.asset_price_history (asset_id, price_date, source, source_symbol,
 --
 
 COPY investory.asset_source_symbols (id, asset_id, source, source_symbol, source_market, price_currency, active, created_at, updated_at, xtb_symbol, match_method, match_status, confidence, is_exact_listing, is_alternate_listing, original_exchange, matched_exchange, original_currency, matched_currency, requires_fx_conversion, price_scale_factor, scale_reason, scale_confidence, scale_observation_count, scale_median_ratio, scale_dispersion, manual_approval_status, substitution_reason) FROM stdin;
-1	1151	STOOQ	vwra.uk	uk/lse etfs/3	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	VWRA	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	HIGH	43	0.99890666	0.00178020	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-2	251	STOOQ	googl.us	us/nasdaq stocks/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	GOOGL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	155	0.99915645	0.00461066	AUTO_ACCEPTED	\N
-3	401	STOOQ	meta.us	us/nasdaq stocks/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	META.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	120	1.00133297	0.00462610	AUTO_ACCEPTED	\N
-4	101	STOOQ	amzn.us	us/nasdaq stocks/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	AMZN.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	107	0.99966079	0.00655302	AUTO_ACCEPTED	\N
-5	651	STOOQ	nvda.us	us/nasdaq stocks/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	NVDA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	192	1.00118575	0.00695909	AUTO_ACCEPTED	\N
-6	1001	STOOQ	tsla.us	us/nasdaq stocks/3	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	TSLA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	121	1.00301594	0.01051235	AUTO_ACCEPTED	\N
-7	701	STOOQ	o.us	us/nyse stocks/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	O.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	76	0.99889614	0.00433819	AUTO_ACCEPTED	\N
-8	301	STOOQ	hprd.uk	uk/lse etfs/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	HPRD	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-9	1051	STOOQ	vhyl.uk	uk/lse etfs/3	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	VHYL	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-10	451	STOOQ	msft.us	us/nasdaq stocks/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	MSFT.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	108	1.00035589	0.00426819	AUTO_ACCEPTED	\N
-11	1	STOOQ	aapl.us	us/nasdaq stocks/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	AAPL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	124	1.00318564	0.00398781	AUTO_ACCEPTED	\N
-12	151	STOOQ	emim.uk	uk/lse etfs/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	EMIM.UK	EXACT_SYMBOL	ACCEPTED_SCALED	HIGH	t	f	UK	UK	USD	USD	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	MANUAL	2	0.01000626	0.00133110	AUTO_ACCEPTED	\N
-13	901	STOOQ	pzu	pl/wse stocks	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	PZU.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	45	1.06728790	0.02651832	AUTO_ACCEPTED	\N
-14	201	STOOQ	etfbw20tr.pl	pl/wse etfs	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	ETFBW20TR.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	59	1.00074716	0.00442657	AUTO_ACCEPTED	\N
-15	851	STOOQ	pko	pl/wse stocks	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	PKO.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	48	1.06537170	0.01184250	AUTO_ACCEPTED	\N
-16	801	STOOQ	pkn	pl/wse stocks	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	PKN.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	55	1.13417093	0.01231641	AUTO_ACCEPTED	\N
-17	51	STOOQ	ale	pl/wse stocks	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	ALE.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	4	0.99693386	0.00657529	AUTO_ACCEPTED	\N
-18	601	STOOQ	nucl.uk	uk/lse etfs/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	NUCL.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	16	1.00190817	0.00580955	AUTO_ACCEPTED	\N
-19	551	STOOQ	nclr.uk	uk/lse etfs/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	NCLR.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	3	1.01019041	0.01449302	AUTO_ACCEPTED	\N
-20	1101	STOOQ	vhyd.uk	uk/lse etfs/3	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	VHYD.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	29	0.99826191	0.00178553	AUTO_ACCEPTED	\N
-21	751	STOOQ	pall.us	us/nyse etfs/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	PALL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	\N	2	5.02832373	\N	AUTO_ACCEPTED	\N
+1	1151	STOOQ	vwra.uk	uk/lse etfs/3	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	VWRA	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	HIGH	43	0.99890666	0.00178020	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+2	251	STOOQ	googl.us	us/nasdaq stocks/1	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	GOOGL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	155	0.99915645	0.00461066	AUTO_ACCEPTED	\N
+3	401	STOOQ	meta.us	us/nasdaq stocks/2	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	META.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	120	1.00133297	0.00462610	AUTO_ACCEPTED	\N
+4	101	STOOQ	amzn.us	us/nasdaq stocks/1	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	AMZN.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	107	0.99966079	0.00655302	AUTO_ACCEPTED	\N
+5	651	STOOQ	nvda.us	us/nasdaq stocks/2	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	NVDA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	192	1.00118575	0.00695909	AUTO_ACCEPTED	\N
+6	1001	STOOQ	tsla.us	us/nasdaq stocks/3	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	TSLA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	121	1.00301594	0.01051235	AUTO_ACCEPTED	\N
+7	701	STOOQ	o.us	us/nyse stocks/2	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	O.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	76	0.99889614	0.00433819	AUTO_ACCEPTED	\N
+8	301	STOOQ	hprd.uk	uk/lse etfs/2	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	HPRD	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+9	1051	STOOQ	vhyl.uk	uk/lse etfs/3	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	VHYL	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+10	451	STOOQ	msft.us	us/nasdaq stocks/2	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	MSFT.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	108	1.00035589	0.00426819	AUTO_ACCEPTED	\N
+11	1	STOOQ	aapl.us	us/nasdaq stocks/1	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	AAPL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	124	1.00318564	0.00398781	AUTO_ACCEPTED	\N
+12	151	STOOQ	emim.uk	uk/lse etfs/1	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	EMIM.UK	EXACT_SYMBOL	ACCEPTED_SCALED	HIGH	t	f	UK	UK	USD	USD	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	MANUAL	2	0.01000626	0.00133110	AUTO_ACCEPTED	\N
+13	901	STOOQ	pzu	pl/wse stocks	PLN	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	PZU.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	45	1.06728790	0.02651832	AUTO_ACCEPTED	\N
+14	201	STOOQ	etfbw20tr.pl	pl/wse etfs	PLN	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	ETFBW20TR.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	59	1.00074716	0.00442657	AUTO_ACCEPTED	\N
+15	851	STOOQ	pko	pl/wse stocks	PLN	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	PKO.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	48	1.06537170	0.01184250	AUTO_ACCEPTED	\N
+16	801	STOOQ	pkn	pl/wse stocks	PLN	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	PKN.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	55	1.13417093	0.01231641	AUTO_ACCEPTED	\N
+17	51	STOOQ	ale	pl/wse stocks	PLN	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	ALE.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	4	0.99693386	0.00657529	AUTO_ACCEPTED	\N
+18	601	STOOQ	nucl.uk	uk/lse etfs/2	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	NUCL.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	16	1.00190817	0.00580955	AUTO_ACCEPTED	\N
+19	551	STOOQ	nclr.uk	uk/lse etfs/2	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	NCLR.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	3	1.01019041	0.01449302	AUTO_ACCEPTED	\N
+20	1101	STOOQ	vhyd.uk	uk/lse etfs/3	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	VHYD.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	29	0.99826191	0.00178553	AUTO_ACCEPTED	\N
+21	751	STOOQ	pall.us	us/nyse etfs/1	USD	t	2026-09-10 16:53:37.130673+00	2026-09-10 16:53:37.130673+00	PALL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	\N	2	5.02832373	\N	AUTO_ACCEPTED	\N
 \.
 
 
@@ -9845,8 +10313,8 @@ COPY investory.benchmark_monthly_closes (id, symbol, month, close_price, fetched
 --
 
 COPY investory.bond (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9405	2	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-09-09 18:44:04.781141+00	2026-09-09 18:44:04.781141+00
-9407	2	United States Treasury 4 3/8 07/31/33	PLN	10000.000000000000	2026-03-01	0.043750000000	2033-07-31	\N	Happy Investor reinvestment of Treasury 2026 principal	\N	2026-09-09 18:44:04.78319+00	2026-09-09 18:44:04.78319+00
+9405	2	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-09-10 16:53:41.441882+00	2026-09-10 16:53:41.441882+00
+9407	2	United States Treasury 4 3/8 07/31/33	PLN	10000.000000000000	2026-03-01	0.043750000000	2033-07-31	\N	Happy Investor reinvestment of Treasury 2026 principal	\N	2026-09-10 16:53:41.445034+00	2026-09-10 16:53:41.445034+00
 \.
 
 
@@ -9890,8 +10358,8 @@ COPY investory.cash_operations (id, account_id, operation, asset_id, source_asse
 --
 
 COPY investory.cash_reserve (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9406	2	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-09-09 18:44:04.784363+00	2026-09-09 18:44:04.784363+00
-9401	2	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-09-09 18:44:04.788689+00	2026-09-09 18:44:04.788689+00
+9406	2	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-09-10 16:53:41.446393+00	2026-09-10 16:53:41.446393+00
+9401	2	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-09-10 16:53:41.453534+00	2026-09-10 16:53:41.453534+00
 \.
 
 
@@ -9919,56 +10387,6 @@ COPY investory.drawdown_alert_state (id, peak_equity, last_alert_at) FROM stdin;
 --
 
 COPY investory.exchange_rates (id, rate_date, base, to_currency, rate, source, method, observed_at, source_reference, imported_at) FROM stdin;
-1	2024-07-31	EUR	USD	1.08223900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-2	2024-08-30	EUR	USD	1.10749400	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-3	2024-09-30	EUR	USD	1.12038900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-4	2024-10-31	EUR	USD	1.08664700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-5	2024-11-29	EUR	USD	1.05575200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-6	2024-12-31	EUR	USD	1.04189000	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-7	2025-01-31	EUR	USD	1.03829900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-8	2025-02-28	EUR	USD	1.03955700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-9	2025-03-31	EUR	USD	1.08270600	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-10	2025-04-30	EUR	USD	1.13719900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-11	2025-05-30	EUR	USD	1.13240300	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-12	2025-06-30	EUR	USD	1.17296200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-13	2025-07-31	EUR	USD	1.14504700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-14	2025-08-29	EUR	USD	1.16753700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-15	2025-09-30	EUR	USD	1.17560200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-16	2025-10-31	EUR	USD	1.15760100	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-17	2025-11-28	EUR	USD	1.15686400	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-18	2025-12-31	EUR	USD	1.17356200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-19	2026-01-30	EUR	USD	1.19084800	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-20	2026-02-27	EUR	USD	1.17956100	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-21	2026-03-31	EUR	USD	1.14665300	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-22	2026-04-30	EUR	USD	1.16810200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-23	2026-05-29	EUR	USD	1.16285200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-24	2026-06-30	EUR	USD	1.13936000	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-25	2026-07-31	EUR	USD	1.15238500	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
-26	2024-07-31	USD	PLN	3.96890000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-27	2024-08-30	USD	PLN	3.86440000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-28	2024-09-30	USD	PLN	3.81930000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-29	2024-10-31	USD	PLN	4.00590000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-30	2024-11-29	USD	PLN	4.07700000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-31	2024-12-31	USD	PLN	4.10120000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-32	2025-01-31	USD	PLN	4.05760000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-33	2025-02-28	USD	PLN	3.99930000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-34	2025-03-31	USD	PLN	3.86430000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-35	2025-04-30	USD	PLN	3.76170000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-36	2025-05-30	USD	PLN	3.75370000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-37	2025-06-30	USD	PLN	3.61640000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-38	2025-07-31	USD	PLN	3.72570000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-39	2025-08-29	USD	PLN	3.65590000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-40	2025-09-30	USD	PLN	3.63150000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-41	2025-10-31	USD	PLN	3.67510000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-42	2025-11-28	USD	PLN	3.66240000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-43	2025-12-31	USD	PLN	3.60160000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-44	2026-01-30	USD	PLN	3.53790000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-45	2026-02-27	USD	PLN	3.58040000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-46	2026-03-31	USD	PLN	3.74080000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-47	2026-04-30	USD	PLN	3.64600000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-48	2026-05-29	USD	PLN	3.63950000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-49	2026-06-30	USD	PLN	3.77080000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
-50	2026-07-31	USD	PLN	3.74250000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
 \.
 
 
@@ -9987,6 +10405,4758 @@ max_age_days	4
 --
 
 COPY investory.fx_daily_rates (id, rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference) FROM stdin;
+1	2024-07-31	EUR	PLN	4.29529837	DB60_INITIAL	OBSERVED	2024-07-31	V01.003:DB60:EUR:PLN
+2	2024-08-01	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+3	2024-08-02	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+4	2024-08-03	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+5	2024-08-04	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+6	2024-08-05	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+7	2024-08-06	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+8	2024-08-07	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+9	2024-08-08	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+10	2024-08-09	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+11	2024-08-10	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+12	2024-08-11	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+13	2024-08-12	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+14	2024-08-13	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+15	2024-08-14	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+16	2024-08-15	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+17	2024-08-16	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+18	2024-08-17	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+19	2024-08-18	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+20	2024-08-19	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+21	2024-08-20	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+22	2024-08-21	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+23	2024-08-22	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+24	2024-08-23	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+25	2024-08-24	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+26	2024-08-25	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+27	2024-08-26	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+28	2024-08-27	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+29	2024-08-28	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+30	2024-08-29	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+31	2024-08-30	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+32	2024-08-31	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+33	2024-09-01	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+34	2024-09-02	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+35	2024-09-03	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+36	2024-09-04	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+37	2024-09-05	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+38	2024-09-06	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+39	2024-09-07	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+40	2024-09-08	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+41	2024-09-09	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+42	2024-09-10	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+43	2024-09-11	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+44	2024-09-12	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+45	2024-09-13	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+46	2024-09-14	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+47	2024-09-15	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+48	2024-09-16	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+49	2024-09-17	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+50	2024-09-18	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+51	2024-09-19	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+52	2024-09-20	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+53	2024-09-21	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+54	2024-09-22	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+55	2024-09-23	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+56	2024-09-24	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+57	2024-09-25	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+58	2024-09-26	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+59	2024-09-27	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+60	2024-09-28	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+61	2024-09-29	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+62	2024-09-30	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+63	2024-10-01	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+64	2024-10-02	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+65	2024-10-03	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+66	2024-10-04	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+67	2024-10-05	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+68	2024-10-06	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+69	2024-10-07	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+70	2024-10-08	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+71	2024-10-09	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+72	2024-10-10	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+73	2024-10-11	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+74	2024-10-12	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+75	2024-10-13	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+76	2024-10-14	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+77	2024-10-15	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+78	2024-10-16	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+79	2024-10-17	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+80	2024-10-18	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+81	2024-10-19	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+82	2024-10-20	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+83	2024-10-21	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+84	2024-10-22	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+85	2024-10-23	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+86	2024-10-24	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+87	2024-10-25	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+88	2024-10-26	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+89	2024-10-27	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+90	2024-10-28	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+91	2024-10-29	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+92	2024-10-30	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+93	2024-10-31	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+94	2024-11-01	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+95	2024-11-02	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+96	2024-11-03	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+97	2024-11-04	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+98	2024-11-05	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+99	2024-11-06	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+100	2024-11-07	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+101	2024-11-08	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+102	2024-11-09	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+103	2024-11-10	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+104	2024-11-11	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+105	2024-11-12	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+106	2024-11-13	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+107	2024-11-14	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+108	2024-11-15	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+109	2024-11-16	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+110	2024-11-17	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+111	2024-11-18	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+112	2024-11-19	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+113	2024-11-20	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+114	2024-11-21	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+115	2024-11-22	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+116	2024-11-23	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+117	2024-11-24	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+118	2024-11-25	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+119	2024-11-26	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+120	2024-11-27	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+121	2024-11-28	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+122	2024-11-29	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+123	2024-11-30	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+124	2024-12-01	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+125	2024-12-02	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+126	2024-12-03	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+127	2024-12-04	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+128	2024-12-05	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+129	2024-12-06	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+130	2024-12-07	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+131	2024-12-08	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+132	2024-12-09	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+133	2024-12-10	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+134	2024-12-11	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+135	2024-12-12	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+136	2024-12-13	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+137	2024-12-14	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+138	2024-12-15	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+139	2024-12-16	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+140	2024-12-17	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+141	2024-12-18	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+142	2024-12-19	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+143	2024-12-20	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+144	2024-12-21	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+145	2024-12-22	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+146	2024-12-23	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+147	2024-12-24	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+148	2024-12-25	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+149	2024-12-26	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+150	2024-12-27	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+151	2024-12-28	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+152	2024-12-29	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+153	2024-12-30	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+154	2024-12-31	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+155	2025-01-01	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+156	2025-01-02	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+157	2025-01-03	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+158	2025-01-04	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+159	2025-01-05	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+160	2025-01-06	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+161	2025-01-07	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+162	2025-01-08	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+163	2025-01-09	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+164	2025-01-10	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+165	2025-01-11	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+166	2025-01-12	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+167	2025-01-13	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+168	2025-01-14	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+169	2025-01-15	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+170	2025-01-16	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+171	2025-01-17	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+172	2025-01-18	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+173	2025-01-19	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+174	2025-01-20	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+175	2025-01-21	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+176	2025-01-22	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+177	2025-01-23	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+178	2025-01-24	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+179	2025-01-25	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+180	2025-01-26	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+181	2025-01-27	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+182	2025-01-28	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+183	2025-01-29	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+184	2025-01-30	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+185	2025-01-31	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+186	2025-02-01	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+187	2025-02-02	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+188	2025-02-03	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+189	2025-02-04	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+190	2025-02-05	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+191	2025-02-06	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+192	2025-02-07	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+193	2025-02-08	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+194	2025-02-09	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+195	2025-02-10	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+196	2025-02-11	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+197	2025-02-12	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+198	2025-02-13	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+199	2025-02-14	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+200	2025-02-15	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+201	2025-02-16	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+202	2025-02-17	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+203	2025-02-18	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+204	2025-02-19	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+205	2025-02-20	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+206	2025-02-21	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+207	2025-02-22	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+208	2025-02-23	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+209	2025-02-24	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+210	2025-02-25	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+211	2025-02-26	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+212	2025-02-27	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+213	2025-02-28	EUR	PLN	4.29529837	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:PLN
+214	2025-03-01	EUR	PLN	4.20964008	DB60_INITIAL	OBSERVED	2025-03-01	V01.003:DB60:EUR:PLN
+215	2025-03-02	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+216	2025-03-03	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+217	2025-03-04	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+218	2025-03-05	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+219	2025-03-06	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+220	2025-03-07	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+221	2025-03-08	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+222	2025-03-09	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+223	2025-03-10	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+224	2025-03-11	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+225	2025-03-12	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+226	2025-03-13	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+227	2025-03-14	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+228	2025-03-15	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+229	2025-03-16	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+230	2025-03-17	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+231	2025-03-18	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+232	2025-03-19	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+233	2025-03-20	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+234	2025-03-21	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+235	2025-03-22	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+236	2025-03-23	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+237	2025-03-24	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+238	2025-03-25	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+239	2025-03-26	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+240	2025-03-27	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+241	2025-03-28	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+242	2025-03-29	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+243	2025-03-30	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+244	2025-03-31	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:PLN
+245	2025-04-01	EUR	PLN	4.20964008	DB60_INITIAL	OBSERVED	2025-04-01	V01.003:DB60:EUR:PLN
+246	2025-04-02	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+247	2025-04-03	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+248	2025-04-04	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+249	2025-04-05	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+250	2025-04-06	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+251	2025-04-07	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+252	2025-04-08	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+253	2025-04-09	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+254	2025-04-10	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+255	2025-04-11	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+256	2025-04-12	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+257	2025-04-13	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+258	2025-04-14	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+259	2025-04-15	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+260	2025-04-16	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+261	2025-04-17	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+262	2025-04-18	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+263	2025-04-19	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+264	2025-04-20	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+265	2025-04-21	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+266	2025-04-22	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+267	2025-04-23	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+268	2025-04-24	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+269	2025-04-25	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+270	2025-04-26	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+271	2025-04-27	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+272	2025-04-28	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+273	2025-04-29	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+274	2025-04-30	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:PLN
+275	2025-05-01	EUR	PLN	4.20964008	DB60_INITIAL	OBSERVED	2025-05-01	V01.003:DB60:EUR:PLN
+276	2025-05-02	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+277	2025-05-03	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+278	2025-05-04	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+279	2025-05-05	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+280	2025-05-06	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+281	2025-05-07	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+282	2025-05-08	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+283	2025-05-09	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+284	2025-05-10	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+285	2025-05-11	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+286	2025-05-12	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+287	2025-05-13	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+288	2025-05-14	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+289	2025-05-15	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+290	2025-05-16	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+291	2025-05-17	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+292	2025-05-18	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+293	2025-05-19	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+294	2025-05-20	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+295	2025-05-21	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+296	2025-05-22	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+297	2025-05-23	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+298	2025-05-24	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+299	2025-05-25	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+300	2025-05-26	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+301	2025-05-27	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+302	2025-05-28	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+303	2025-05-29	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+304	2025-05-30	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+305	2025-05-31	EUR	PLN	4.20964008	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:PLN
+306	2025-06-01	EUR	PLN	4.22199000	DB60_INITIAL	OBSERVED	2025-06-01	V01.003:DB60:EUR:PLN
+307	2025-06-02	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+308	2025-06-03	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+309	2025-06-04	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+310	2025-06-05	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+311	2025-06-06	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+312	2025-06-07	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+313	2025-06-08	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+314	2025-06-09	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+315	2025-06-10	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+316	2025-06-11	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+317	2025-06-12	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+318	2025-06-13	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+319	2025-06-14	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+320	2025-06-15	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+321	2025-06-16	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+322	2025-06-17	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+323	2025-06-18	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+324	2025-06-19	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+325	2025-06-20	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+326	2025-06-21	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+327	2025-06-22	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+328	2025-06-23	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+329	2025-06-24	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+330	2025-06-25	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+331	2025-06-26	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+332	2025-06-27	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+333	2025-06-28	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+334	2025-06-29	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+335	2025-06-30	EUR	PLN	4.22199000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:PLN
+336	2025-07-01	EUR	PLN	4.25373100	DB60_INITIAL	OBSERVED	2025-07-01	V01.003:DB60:EUR:PLN
+337	2025-07-02	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+338	2025-07-03	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+339	2025-07-04	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+340	2025-07-05	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+341	2025-07-06	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+342	2025-07-07	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+343	2025-07-08	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+344	2025-07-09	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+345	2025-07-10	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+346	2025-07-11	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+347	2025-07-12	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+348	2025-07-13	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+349	2025-07-14	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+350	2025-07-15	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+351	2025-07-16	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+352	2025-07-17	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+353	2025-07-18	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+354	2025-07-19	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+355	2025-07-20	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+356	2025-07-21	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+357	2025-07-22	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+358	2025-07-23	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+359	2025-07-24	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+360	2025-07-25	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+361	2025-07-26	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+362	2025-07-27	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+363	2025-07-28	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+364	2025-07-29	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+365	2025-07-30	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+366	2025-07-31	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:PLN
+367	2025-08-01	EUR	PLN	4.25373100	DB60_INITIAL	OBSERVED	2025-08-01	V01.003:DB60:EUR:PLN
+368	2025-08-02	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+369	2025-08-03	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+370	2025-08-04	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+371	2025-08-05	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+372	2025-08-06	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+373	2025-08-07	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+374	2025-08-08	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+375	2025-08-09	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+376	2025-08-10	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+377	2025-08-11	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+378	2025-08-12	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+379	2025-08-13	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+380	2025-08-14	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+381	2025-08-15	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+382	2025-08-16	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+383	2025-08-17	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+384	2025-08-18	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+385	2025-08-19	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+386	2025-08-20	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+387	2025-08-21	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+388	2025-08-22	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+389	2025-08-23	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+390	2025-08-24	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+391	2025-08-25	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+392	2025-08-26	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+393	2025-08-27	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+394	2025-08-28	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+395	2025-08-29	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+396	2025-08-30	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+397	2025-08-31	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:PLN
+398	2025-09-01	EUR	PLN	4.25373100	DB60_INITIAL	OBSERVED	2025-09-01	V01.003:DB60:EUR:PLN
+399	2025-09-02	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+400	2025-09-03	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+401	2025-09-04	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+402	2025-09-05	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+403	2025-09-06	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+404	2025-09-07	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+405	2025-09-08	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+406	2025-09-09	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+407	2025-09-10	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+408	2025-09-11	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+409	2025-09-12	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+410	2025-09-13	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+411	2025-09-14	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+412	2025-09-15	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+413	2025-09-16	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+414	2025-09-17	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+415	2025-09-18	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+416	2025-09-19	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+417	2025-09-20	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+418	2025-09-21	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+419	2025-09-22	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+420	2025-09-23	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+421	2025-09-24	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+422	2025-09-25	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+423	2025-09-26	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+424	2025-09-27	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+425	2025-09-28	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+426	2025-09-29	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+427	2025-09-30	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:PLN
+428	2025-10-01	EUR	PLN	4.25373100	DB60_INITIAL	OBSERVED	2025-10-01	V01.003:DB60:EUR:PLN
+429	2025-10-02	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+430	2025-10-03	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+431	2025-10-04	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+432	2025-10-05	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+433	2025-10-06	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+434	2025-10-07	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+435	2025-10-08	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+436	2025-10-09	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+437	2025-10-10	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+438	2025-10-11	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+439	2025-10-12	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+440	2025-10-13	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+441	2025-10-14	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+442	2025-10-15	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+443	2025-10-16	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+444	2025-10-17	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+445	2025-10-18	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+446	2025-10-19	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+447	2025-10-20	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+448	2025-10-21	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+449	2025-10-22	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+450	2025-10-23	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+451	2025-10-24	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+452	2025-10-25	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+453	2025-10-26	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+454	2025-10-27	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+455	2025-10-28	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+456	2025-10-29	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+457	2025-10-30	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+458	2025-10-31	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:PLN
+459	2025-11-01	EUR	PLN	4.25373100	DB60_INITIAL	OBSERVED	2025-11-01	V01.003:DB60:EUR:PLN
+460	2025-11-02	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+461	2025-11-03	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+462	2025-11-04	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+463	2025-11-05	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+464	2025-11-06	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+465	2025-11-07	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+466	2025-11-08	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+467	2025-11-09	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+468	2025-11-10	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+469	2025-11-11	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+470	2025-11-12	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+471	2025-11-13	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+472	2025-11-14	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+473	2025-11-15	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+474	2025-11-16	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+475	2025-11-17	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+476	2025-11-18	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+477	2025-11-19	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+478	2025-11-20	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+479	2025-11-21	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+480	2025-11-22	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+481	2025-11-23	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+482	2025-11-24	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+483	2025-11-25	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+484	2025-11-26	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+485	2025-11-27	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+486	2025-11-28	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+487	2025-11-29	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+488	2025-11-30	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:PLN
+489	2025-12-01	EUR	PLN	4.25373100	DB60_INITIAL	OBSERVED	2025-12-01	V01.003:DB60:EUR:PLN
+490	2025-12-02	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+491	2025-12-03	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+492	2025-12-04	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+493	2025-12-05	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+494	2025-12-06	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+495	2025-12-07	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+496	2025-12-08	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+497	2025-12-09	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+498	2025-12-10	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+499	2025-12-11	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+500	2025-12-12	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+501	2025-12-13	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+502	2025-12-14	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+503	2025-12-15	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+504	2025-12-16	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+505	2025-12-17	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+506	2025-12-18	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+507	2025-12-19	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+508	2025-12-20	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+509	2025-12-21	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+510	2025-12-22	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+511	2025-12-23	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+512	2025-12-24	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+513	2025-12-25	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+514	2025-12-26	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+515	2025-12-27	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+516	2025-12-28	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+517	2025-12-29	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+518	2025-12-30	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:PLN
+519	2025-12-31	EUR	PLN	4.22670090	DB60_INITIAL	OBSERVED	2025-12-31	V01.003:DB60:EUR:PLN
+520	2026-01-01	EUR	PLN	4.25373100	DB60_INITIAL	OBSERVED	2026-01-01	V01.003:DB60:EUR:PLN
+521	2026-01-02	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+522	2026-01-03	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+523	2026-01-04	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+524	2026-01-05	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+525	2026-01-06	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+526	2026-01-07	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+527	2026-01-08	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+528	2026-01-09	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+529	2026-01-10	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+530	2026-01-11	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+531	2026-01-12	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+532	2026-01-13	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+533	2026-01-14	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+534	2026-01-15	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+535	2026-01-16	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+536	2026-01-17	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+537	2026-01-18	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+538	2026-01-19	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+539	2026-01-20	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+540	2026-01-21	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+541	2026-01-22	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+542	2026-01-23	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+543	2026-01-24	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+544	2026-01-25	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+545	2026-01-26	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+546	2026-01-27	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+547	2026-01-28	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+548	2026-01-29	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+549	2026-01-30	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+550	2026-01-31	EUR	PLN	4.25373100	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:PLN
+551	2026-02-01	EUR	PLN	4.18726300	DB60_INITIAL	OBSERVED	2026-02-01	V01.003:DB60:EUR:PLN
+552	2026-02-02	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+553	2026-02-03	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+554	2026-02-04	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+555	2026-02-05	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+556	2026-02-06	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+557	2026-02-07	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+558	2026-02-08	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+559	2026-02-09	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+560	2026-02-10	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+561	2026-02-11	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+562	2026-02-12	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+563	2026-02-13	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+564	2026-02-14	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+565	2026-02-15	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+566	2026-02-16	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+567	2026-02-17	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+568	2026-02-18	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+569	2026-02-19	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+570	2026-02-20	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+571	2026-02-21	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+572	2026-02-22	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+573	2026-02-23	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+574	2026-02-24	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+575	2026-02-25	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+576	2026-02-26	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+577	2026-02-27	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+578	2026-02-28	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:PLN
+579	2026-03-01	EUR	PLN	4.18726300	DB60_INITIAL	OBSERVED	2026-03-01	V01.003:DB60:EUR:PLN
+580	2026-03-02	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+581	2026-03-03	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+582	2026-03-04	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+583	2026-03-05	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+584	2026-03-06	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+585	2026-03-07	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+586	2026-03-08	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+587	2026-03-09	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+588	2026-03-10	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+589	2026-03-11	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+590	2026-03-12	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+591	2026-03-13	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+592	2026-03-14	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+593	2026-03-15	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+594	2026-03-16	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+595	2026-03-17	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+596	2026-03-18	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+597	2026-03-19	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+598	2026-03-20	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+599	2026-03-21	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+600	2026-03-22	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+601	2026-03-23	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+602	2026-03-24	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+603	2026-03-25	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+604	2026-03-26	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+605	2026-03-27	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+606	2026-03-28	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+607	2026-03-29	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+608	2026-03-30	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+609	2026-03-31	EUR	PLN	4.18726300	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:PLN
+610	2026-04-01	EUR	PLN	4.25313400	DB60_INITIAL	OBSERVED	2026-04-01	V01.003:DB60:EUR:PLN
+611	2026-04-02	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+612	2026-04-03	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+613	2026-04-04	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+614	2026-04-05	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+615	2026-04-06	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+616	2026-04-07	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+617	2026-04-08	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+618	2026-04-09	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+619	2026-04-10	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+620	2026-04-11	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+621	2026-04-12	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+622	2026-04-13	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+623	2026-04-14	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+624	2026-04-15	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+625	2026-04-16	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+626	2026-04-17	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+627	2026-04-18	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+628	2026-04-19	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+629	2026-04-20	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+630	2026-04-21	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+631	2026-04-22	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+632	2026-04-23	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+633	2026-04-24	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+634	2026-04-25	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+635	2026-04-26	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+636	2026-04-27	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+637	2026-04-28	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+638	2026-04-29	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+639	2026-04-30	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:PLN
+640	2026-05-01	EUR	PLN	4.25313400	DB60_INITIAL	OBSERVED	2026-05-01	V01.003:DB60:EUR:PLN
+641	2026-05-02	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+642	2026-05-03	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+643	2026-05-04	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+644	2026-05-05	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+645	2026-05-06	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+646	2026-05-07	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+647	2026-05-08	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+648	2026-05-09	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+649	2026-05-10	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+650	2026-05-11	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+651	2026-05-12	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+652	2026-05-13	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+653	2026-05-14	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+654	2026-05-15	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+655	2026-05-16	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+656	2026-05-17	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+657	2026-05-18	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+658	2026-05-19	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+659	2026-05-20	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+660	2026-05-21	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+661	2026-05-22	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+662	2026-05-23	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+663	2026-05-24	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+664	2026-05-25	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+665	2026-05-26	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+666	2026-05-27	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+667	2026-05-28	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+668	2026-05-29	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+669	2026-05-30	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+670	2026-05-31	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:PLN
+671	2026-06-01	EUR	PLN	4.25313400	DB60_INITIAL	OBSERVED	2026-06-01	V01.003:DB60:EUR:PLN
+672	2026-06-02	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+673	2026-06-03	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+674	2026-06-04	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+675	2026-06-05	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+676	2026-06-06	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+677	2026-06-07	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+678	2026-06-08	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+679	2026-06-09	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+680	2026-06-10	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+681	2026-06-11	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+682	2026-06-12	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+683	2026-06-13	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+684	2026-06-14	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+685	2026-06-15	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+686	2026-06-16	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+687	2026-06-17	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+688	2026-06-18	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+689	2026-06-19	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+690	2026-06-20	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+691	2026-06-21	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+692	2026-06-22	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+693	2026-06-23	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+694	2026-06-24	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+695	2026-06-25	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+696	2026-06-26	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+697	2026-06-27	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+698	2026-06-28	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+699	2026-06-29	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+700	2026-06-30	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:PLN
+701	2026-07-01	EUR	PLN	4.25313400	DB60_INITIAL	OBSERVED	2026-07-01	V01.003:DB60:EUR:PLN
+702	2026-07-02	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+703	2026-07-03	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+704	2026-07-04	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+705	2026-07-05	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+706	2026-07-06	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+707	2026-07-07	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+708	2026-07-08	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+709	2026-07-09	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+710	2026-07-10	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+711	2026-07-11	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+712	2026-07-12	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+713	2026-07-13	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+714	2026-07-14	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+715	2026-07-15	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+716	2026-07-16	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+717	2026-07-17	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+718	2026-07-18	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+719	2026-07-19	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+720	2026-07-20	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+721	2026-07-21	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+722	2026-07-22	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+723	2026-07-23	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+724	2026-07-24	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+725	2026-07-25	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+726	2026-07-26	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+727	2026-07-27	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+728	2026-07-28	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+729	2026-07-29	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+730	2026-07-30	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+731	2026-07-31	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:PLN
+732	2026-08-01	EUR	PLN	4.25313400	DB60_INITIAL	OBSERVED	2026-08-01	V01.003:DB60:EUR:PLN
+733	2026-08-02	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+734	2026-08-03	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+735	2026-08-04	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+736	2026-08-05	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+737	2026-08-06	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+738	2026-08-07	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+739	2026-08-08	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+740	2026-08-09	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+741	2026-08-10	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+742	2026-08-11	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+743	2026-08-12	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+744	2026-08-13	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+745	2026-08-14	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+746	2026-08-15	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+747	2026-08-16	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+748	2026-08-17	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+749	2026-08-18	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+750	2026-08-19	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+751	2026-08-20	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+752	2026-08-21	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+753	2026-08-22	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+754	2026-08-23	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+755	2026-08-24	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+756	2026-08-25	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+757	2026-08-26	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+758	2026-08-27	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+759	2026-08-28	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+760	2026-08-29	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+761	2026-08-30	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+762	2026-08-31	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+763	2026-09-01	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+764	2026-09-02	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+765	2026-09-03	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+766	2026-09-04	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+767	2026-09-05	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+768	2026-09-06	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+769	2026-09-07	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+770	2026-09-08	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+771	2026-09-09	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+772	2026-09-10	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+773	2026-09-11	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+774	2026-09-12	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+775	2026-09-13	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+776	2026-09-14	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+777	2026-09-15	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+778	2026-09-16	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+779	2026-09-17	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+780	2026-09-18	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+781	2026-09-19	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+782	2026-09-20	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+783	2026-09-21	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+784	2026-09-22	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+785	2026-09-23	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+786	2026-09-24	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+787	2026-09-25	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+788	2026-09-26	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+789	2026-09-27	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+790	2026-09-28	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+791	2026-09-29	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+792	2026-09-30	EUR	PLN	4.25313400	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:PLN
+793	2024-07-31	EUR	USD	1.08223900	DB60_INITIAL	OBSERVED	2024-07-31	V01.003:DB60:EUR:USD
+794	2024-08-01	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+795	2024-08-02	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+796	2024-08-03	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+797	2024-08-04	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+798	2024-08-05	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+799	2024-08-06	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+800	2024-08-07	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+801	2024-08-08	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+802	2024-08-09	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+803	2024-08-10	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+804	2024-08-11	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+805	2024-08-12	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+806	2024-08-13	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+807	2024-08-14	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+808	2024-08-15	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+809	2024-08-16	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+810	2024-08-17	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+811	2024-08-18	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+812	2024-08-19	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+813	2024-08-20	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+814	2024-08-21	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+815	2024-08-22	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+816	2024-08-23	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+817	2024-08-24	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+818	2024-08-25	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+819	2024-08-26	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+820	2024-08-27	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+821	2024-08-28	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+822	2024-08-29	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+823	2024-08-30	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+824	2024-08-31	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+825	2024-09-01	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+826	2024-09-02	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+827	2024-09-03	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+828	2024-09-04	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+829	2024-09-05	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+830	2024-09-06	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+831	2024-09-07	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+832	2024-09-08	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+833	2024-09-09	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+834	2024-09-10	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+835	2024-09-11	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+836	2024-09-12	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+837	2024-09-13	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+838	2024-09-14	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+839	2024-09-15	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+840	2024-09-16	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+841	2024-09-17	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+842	2024-09-18	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+843	2024-09-19	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+844	2024-09-20	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+845	2024-09-21	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+846	2024-09-22	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+847	2024-09-23	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+848	2024-09-24	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+849	2024-09-25	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+850	2024-09-26	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+851	2024-09-27	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+852	2024-09-28	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+853	2024-09-29	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+854	2024-09-30	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+855	2024-10-01	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+856	2024-10-02	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+857	2024-10-03	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+858	2024-10-04	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+859	2024-10-05	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+860	2024-10-06	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+861	2024-10-07	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+862	2024-10-08	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+863	2024-10-09	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+864	2024-10-10	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+865	2024-10-11	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+866	2024-10-12	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+867	2024-10-13	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+868	2024-10-14	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+869	2024-10-15	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+870	2024-10-16	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+871	2024-10-17	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+872	2024-10-18	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+873	2024-10-19	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+874	2024-10-20	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+875	2024-10-21	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+876	2024-10-22	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+877	2024-10-23	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+878	2024-10-24	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+879	2024-10-25	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+880	2024-10-26	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+881	2024-10-27	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+882	2024-10-28	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+883	2024-10-29	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+884	2024-10-30	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+885	2024-10-31	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+886	2024-11-01	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+887	2024-11-02	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+888	2024-11-03	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+889	2024-11-04	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+890	2024-11-05	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+891	2024-11-06	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+892	2024-11-07	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+893	2024-11-08	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+894	2024-11-09	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+895	2024-11-10	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+896	2024-11-11	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+897	2024-11-12	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+898	2024-11-13	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+899	2024-11-14	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+900	2024-11-15	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+901	2024-11-16	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+902	2024-11-17	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+903	2024-11-18	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+904	2024-11-19	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+905	2024-11-20	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+906	2024-11-21	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+907	2024-11-22	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+908	2024-11-23	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+909	2024-11-24	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+910	2024-11-25	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+911	2024-11-26	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+912	2024-11-27	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+913	2024-11-28	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+914	2024-11-29	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+915	2024-11-30	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+916	2024-12-01	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+917	2024-12-02	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+918	2024-12-03	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+919	2024-12-04	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+920	2024-12-05	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+921	2024-12-06	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+922	2024-12-07	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+923	2024-12-08	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+924	2024-12-09	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+925	2024-12-10	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+926	2024-12-11	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+927	2024-12-12	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+928	2024-12-13	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+929	2024-12-14	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+930	2024-12-15	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+931	2024-12-16	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+932	2024-12-17	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+933	2024-12-18	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+934	2024-12-19	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+935	2024-12-20	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+936	2024-12-21	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+937	2024-12-22	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+938	2024-12-23	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+939	2024-12-24	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+940	2024-12-25	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+941	2024-12-26	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+942	2024-12-27	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+943	2024-12-28	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+944	2024-12-29	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+945	2024-12-30	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+946	2024-12-31	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+947	2025-01-01	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+948	2025-01-02	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+949	2025-01-03	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+950	2025-01-04	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+951	2025-01-05	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+952	2025-01-06	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+953	2025-01-07	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+954	2025-01-08	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+955	2025-01-09	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+956	2025-01-10	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+957	2025-01-11	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+958	2025-01-12	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+959	2025-01-13	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+960	2025-01-14	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+961	2025-01-15	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+962	2025-01-16	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+963	2025-01-17	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+964	2025-01-18	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+965	2025-01-19	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+966	2025-01-20	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+967	2025-01-21	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+968	2025-01-22	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+969	2025-01-23	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+970	2025-01-24	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+971	2025-01-25	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+972	2025-01-26	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+973	2025-01-27	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+974	2025-01-28	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+975	2025-01-29	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+976	2025-01-30	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+977	2025-01-31	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+978	2025-02-01	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+979	2025-02-02	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+980	2025-02-03	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+981	2025-02-04	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+982	2025-02-05	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+983	2025-02-06	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+984	2025-02-07	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+985	2025-02-08	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+986	2025-02-09	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+987	2025-02-10	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+988	2025-02-11	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+989	2025-02-12	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+990	2025-02-13	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+991	2025-02-14	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+992	2025-02-15	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+993	2025-02-16	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+994	2025-02-17	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+995	2025-02-18	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+996	2025-02-19	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+997	2025-02-20	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+998	2025-02-21	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+999	2025-02-22	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+1000	2025-02-23	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+1001	2025-02-24	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+1002	2025-02-25	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+1003	2025-02-26	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+1004	2025-02-27	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+1005	2025-02-28	EUR	USD	1.08223900	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:EUR:USD
+1006	2025-03-01	EUR	USD	1.03955700	DB60_INITIAL	OBSERVED	2025-03-01	V01.003:DB60:EUR:USD
+1007	2025-03-02	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1008	2025-03-03	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1009	2025-03-04	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1010	2025-03-05	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1011	2025-03-06	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1012	2025-03-07	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1013	2025-03-08	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1014	2025-03-09	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1015	2025-03-10	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1016	2025-03-11	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1017	2025-03-12	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1018	2025-03-13	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1019	2025-03-14	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1020	2025-03-15	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1021	2025-03-16	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1022	2025-03-17	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1023	2025-03-18	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1024	2025-03-19	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1025	2025-03-20	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1026	2025-03-21	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1027	2025-03-22	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1028	2025-03-23	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1029	2025-03-24	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1030	2025-03-25	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1031	2025-03-26	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1032	2025-03-27	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1033	2025-03-28	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1034	2025-03-29	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1035	2025-03-30	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1036	2025-03-31	EUR	USD	1.03955700	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:EUR:USD
+1037	2025-04-01	EUR	USD	1.08270600	DB60_INITIAL	OBSERVED	2025-04-01	V01.003:DB60:EUR:USD
+1038	2025-04-02	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1039	2025-04-03	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1040	2025-04-04	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1041	2025-04-05	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1042	2025-04-06	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1043	2025-04-07	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1044	2025-04-08	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1045	2025-04-09	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1046	2025-04-10	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1047	2025-04-11	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1048	2025-04-12	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1049	2025-04-13	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1050	2025-04-14	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1051	2025-04-15	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1052	2025-04-16	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1053	2025-04-17	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1054	2025-04-18	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1055	2025-04-19	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1056	2025-04-20	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1057	2025-04-21	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1058	2025-04-22	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1059	2025-04-23	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1060	2025-04-24	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1061	2025-04-25	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1062	2025-04-26	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1063	2025-04-27	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1064	2025-04-28	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1065	2025-04-29	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1066	2025-04-30	EUR	USD	1.08270600	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:EUR:USD
+1067	2025-05-01	EUR	USD	1.13719900	DB60_INITIAL	OBSERVED	2025-05-01	V01.003:DB60:EUR:USD
+1068	2025-05-02	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1069	2025-05-03	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1070	2025-05-04	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1071	2025-05-05	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1072	2025-05-06	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1073	2025-05-07	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1074	2025-05-08	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1075	2025-05-09	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1076	2025-05-10	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1077	2025-05-11	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1078	2025-05-12	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1079	2025-05-13	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1080	2025-05-14	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1081	2025-05-15	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1082	2025-05-16	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1083	2025-05-17	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1084	2025-05-18	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1085	2025-05-19	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1086	2025-05-20	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1087	2025-05-21	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1088	2025-05-22	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1089	2025-05-23	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1090	2025-05-24	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1091	2025-05-25	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1092	2025-05-26	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1093	2025-05-27	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1094	2025-05-28	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1095	2025-05-29	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1096	2025-05-30	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1097	2025-05-31	EUR	USD	1.13719900	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:EUR:USD
+1098	2025-06-01	EUR	USD	1.13240300	DB60_INITIAL	OBSERVED	2025-06-01	V01.003:DB60:EUR:USD
+1099	2025-06-02	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1100	2025-06-03	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1101	2025-06-04	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1102	2025-06-05	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1103	2025-06-06	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1104	2025-06-07	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1105	2025-06-08	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1106	2025-06-09	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1107	2025-06-10	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1108	2025-06-11	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1109	2025-06-12	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1110	2025-06-13	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1111	2025-06-14	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1112	2025-06-15	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1113	2025-06-16	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1114	2025-06-17	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1115	2025-06-18	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1116	2025-06-19	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1117	2025-06-20	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1118	2025-06-21	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1119	2025-06-22	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1120	2025-06-23	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1121	2025-06-24	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1122	2025-06-25	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1123	2025-06-26	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1124	2025-06-27	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1125	2025-06-28	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1126	2025-06-29	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1127	2025-06-30	EUR	USD	1.13240300	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:EUR:USD
+1128	2025-07-01	EUR	USD	1.17296200	DB60_INITIAL	OBSERVED	2025-07-01	V01.003:DB60:EUR:USD
+1129	2025-07-02	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1130	2025-07-03	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1131	2025-07-04	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1132	2025-07-05	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1133	2025-07-06	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1134	2025-07-07	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1135	2025-07-08	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1136	2025-07-09	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1137	2025-07-10	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1138	2025-07-11	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1139	2025-07-12	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1140	2025-07-13	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1141	2025-07-14	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1142	2025-07-15	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1143	2025-07-16	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1144	2025-07-17	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1145	2025-07-18	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1146	2025-07-19	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1147	2025-07-20	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1148	2025-07-21	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1149	2025-07-22	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1150	2025-07-23	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1151	2025-07-24	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1152	2025-07-25	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1153	2025-07-26	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1154	2025-07-27	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1155	2025-07-28	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1156	2025-07-29	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1157	2025-07-30	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1158	2025-07-31	EUR	USD	1.17296200	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:EUR:USD
+1159	2025-08-01	EUR	USD	1.14504700	DB60_INITIAL	OBSERVED	2025-08-01	V01.003:DB60:EUR:USD
+1160	2025-08-02	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1161	2025-08-03	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1162	2025-08-04	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1163	2025-08-05	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1164	2025-08-06	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1165	2025-08-07	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1166	2025-08-08	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1167	2025-08-09	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1168	2025-08-10	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1169	2025-08-11	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1170	2025-08-12	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1171	2025-08-13	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1172	2025-08-14	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1173	2025-08-15	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1174	2025-08-16	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1175	2025-08-17	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1176	2025-08-18	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1177	2025-08-19	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1178	2025-08-20	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1179	2025-08-21	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1180	2025-08-22	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1181	2025-08-23	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1182	2025-08-24	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1183	2025-08-25	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1184	2025-08-26	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1185	2025-08-27	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1186	2025-08-28	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1187	2025-08-29	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1188	2025-08-30	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1189	2025-08-31	EUR	USD	1.14504700	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:EUR:USD
+1190	2025-09-01	EUR	USD	1.16753700	DB60_INITIAL	OBSERVED	2025-09-01	V01.003:DB60:EUR:USD
+1191	2025-09-02	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1192	2025-09-03	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1193	2025-09-04	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1194	2025-09-05	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1195	2025-09-06	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1196	2025-09-07	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1197	2025-09-08	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1198	2025-09-09	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1199	2025-09-10	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1200	2025-09-11	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1201	2025-09-12	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1202	2025-09-13	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1203	2025-09-14	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1204	2025-09-15	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1205	2025-09-16	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1206	2025-09-17	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1207	2025-09-18	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1208	2025-09-19	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1209	2025-09-20	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1210	2025-09-21	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1211	2025-09-22	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1212	2025-09-23	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1213	2025-09-24	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1214	2025-09-25	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1215	2025-09-26	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1216	2025-09-27	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1217	2025-09-28	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1218	2025-09-29	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1219	2025-09-30	EUR	USD	1.16753700	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:EUR:USD
+1220	2025-10-01	EUR	USD	1.17560200	DB60_INITIAL	OBSERVED	2025-10-01	V01.003:DB60:EUR:USD
+1221	2025-10-02	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1222	2025-10-03	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1223	2025-10-04	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1224	2025-10-05	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1225	2025-10-06	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1226	2025-10-07	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1227	2025-10-08	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1228	2025-10-09	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1229	2025-10-10	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1230	2025-10-11	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1231	2025-10-12	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1232	2025-10-13	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1233	2025-10-14	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1234	2025-10-15	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1235	2025-10-16	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1236	2025-10-17	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1237	2025-10-18	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1238	2025-10-19	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1239	2025-10-20	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1240	2025-10-21	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1241	2025-10-22	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1242	2025-10-23	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1243	2025-10-24	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1244	2025-10-25	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1245	2025-10-26	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1246	2025-10-27	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1247	2025-10-28	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1248	2025-10-29	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1249	2025-10-30	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1250	2025-10-31	EUR	USD	1.17560200	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:EUR:USD
+1251	2025-11-01	EUR	USD	1.15760100	DB60_INITIAL	OBSERVED	2025-11-01	V01.003:DB60:EUR:USD
+1252	2025-11-02	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1253	2025-11-03	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1254	2025-11-04	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1255	2025-11-05	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1256	2025-11-06	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1257	2025-11-07	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1258	2025-11-08	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1259	2025-11-09	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1260	2025-11-10	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1261	2025-11-11	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1262	2025-11-12	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1263	2025-11-13	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1264	2025-11-14	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1265	2025-11-15	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1266	2025-11-16	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1267	2025-11-17	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1268	2025-11-18	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1269	2025-11-19	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1270	2025-11-20	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1271	2025-11-21	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1272	2025-11-22	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1273	2025-11-23	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1274	2025-11-24	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1275	2025-11-25	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1276	2025-11-26	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1277	2025-11-27	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1278	2025-11-28	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1279	2025-11-29	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1280	2025-11-30	EUR	USD	1.15760100	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:EUR:USD
+1281	2025-12-01	EUR	USD	1.15686400	DB60_INITIAL	OBSERVED	2025-12-01	V01.003:DB60:EUR:USD
+1282	2025-12-02	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1283	2025-12-03	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1284	2025-12-04	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1285	2025-12-05	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1286	2025-12-06	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1287	2025-12-07	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1288	2025-12-08	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1289	2025-12-09	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1290	2025-12-10	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1291	2025-12-11	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1292	2025-12-12	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1293	2025-12-13	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1294	2025-12-14	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1295	2025-12-15	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1296	2025-12-16	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1297	2025-12-17	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1298	2025-12-18	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1299	2025-12-19	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1300	2025-12-20	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1301	2025-12-21	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1302	2025-12-22	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1303	2025-12-23	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1304	2025-12-24	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1305	2025-12-25	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1306	2025-12-26	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1307	2025-12-27	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1308	2025-12-28	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1309	2025-12-29	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1310	2025-12-30	EUR	USD	1.15686400	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:EUR:USD
+1311	2025-12-31	EUR	USD	1.17356200	DB60_INITIAL	OBSERVED	2025-12-31	V01.003:DB60:EUR:USD
+1312	2026-01-01	EUR	USD	1.17356200	DB60_INITIAL	OBSERVED	2026-01-01	V01.003:DB60:EUR:USD
+1313	2026-01-02	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1314	2026-01-03	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1315	2026-01-04	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1316	2026-01-05	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1317	2026-01-06	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1318	2026-01-07	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1319	2026-01-08	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1320	2026-01-09	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1321	2026-01-10	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1322	2026-01-11	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1323	2026-01-12	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1324	2026-01-13	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1325	2026-01-14	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1326	2026-01-15	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1327	2026-01-16	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1328	2026-01-17	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1329	2026-01-18	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1330	2026-01-19	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1331	2026-01-20	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1332	2026-01-21	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1333	2026-01-22	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1334	2026-01-23	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1335	2026-01-24	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1336	2026-01-25	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1337	2026-01-26	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1338	2026-01-27	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1339	2026-01-28	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1340	2026-01-29	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1341	2026-01-30	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1342	2026-01-31	EUR	USD	1.17356200	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:EUR:USD
+1343	2026-02-01	EUR	USD	1.19084800	DB60_INITIAL	OBSERVED	2026-02-01	V01.003:DB60:EUR:USD
+1344	2026-02-02	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1345	2026-02-03	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1346	2026-02-04	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1347	2026-02-05	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1348	2026-02-06	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1349	2026-02-07	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1350	2026-02-08	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1351	2026-02-09	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1352	2026-02-10	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1353	2026-02-11	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1354	2026-02-12	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1355	2026-02-13	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1356	2026-02-14	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1357	2026-02-15	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1358	2026-02-16	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1359	2026-02-17	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1360	2026-02-18	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1361	2026-02-19	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1362	2026-02-20	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1363	2026-02-21	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1364	2026-02-22	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1365	2026-02-23	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1366	2026-02-24	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1367	2026-02-25	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1368	2026-02-26	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1369	2026-02-27	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1370	2026-02-28	EUR	USD	1.19084800	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:EUR:USD
+1371	2026-03-01	EUR	USD	1.17956100	DB60_INITIAL	OBSERVED	2026-03-01	V01.003:DB60:EUR:USD
+1372	2026-03-02	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1373	2026-03-03	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1374	2026-03-04	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1375	2026-03-05	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1376	2026-03-06	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1377	2026-03-07	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1378	2026-03-08	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1379	2026-03-09	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1380	2026-03-10	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1381	2026-03-11	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1382	2026-03-12	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1383	2026-03-13	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1384	2026-03-14	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1385	2026-03-15	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1386	2026-03-16	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1387	2026-03-17	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1388	2026-03-18	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1389	2026-03-19	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1390	2026-03-20	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1391	2026-03-21	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1392	2026-03-22	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1393	2026-03-23	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1394	2026-03-24	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1395	2026-03-25	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1396	2026-03-26	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1397	2026-03-27	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1398	2026-03-28	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1399	2026-03-29	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1400	2026-03-30	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1401	2026-03-31	EUR	USD	1.17956100	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:EUR:USD
+1402	2026-04-01	EUR	USD	1.14665300	DB60_INITIAL	OBSERVED	2026-04-01	V01.003:DB60:EUR:USD
+1403	2026-04-02	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1404	2026-04-03	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1405	2026-04-04	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1406	2026-04-05	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1407	2026-04-06	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1408	2026-04-07	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1409	2026-04-08	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1410	2026-04-09	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1411	2026-04-10	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1412	2026-04-11	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1413	2026-04-12	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1414	2026-04-13	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1415	2026-04-14	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1416	2026-04-15	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1417	2026-04-16	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1418	2026-04-17	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1419	2026-04-18	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1420	2026-04-19	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1421	2026-04-20	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1422	2026-04-21	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1423	2026-04-22	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1424	2026-04-23	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1425	2026-04-24	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1426	2026-04-25	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1427	2026-04-26	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1428	2026-04-27	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1429	2026-04-28	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1430	2026-04-29	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1431	2026-04-30	EUR	USD	1.14665300	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:EUR:USD
+1432	2026-05-01	EUR	USD	1.16810200	DB60_INITIAL	OBSERVED	2026-05-01	V01.003:DB60:EUR:USD
+1433	2026-05-02	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1434	2026-05-03	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1435	2026-05-04	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1436	2026-05-05	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1437	2026-05-06	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1438	2026-05-07	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1439	2026-05-08	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1440	2026-05-09	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1441	2026-05-10	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1442	2026-05-11	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1443	2026-05-12	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1444	2026-05-13	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1445	2026-05-14	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1446	2026-05-15	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1447	2026-05-16	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1448	2026-05-17	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1449	2026-05-18	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1450	2026-05-19	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1451	2026-05-20	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1452	2026-05-21	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1453	2026-05-22	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1454	2026-05-23	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1455	2026-05-24	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1456	2026-05-25	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1457	2026-05-26	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1458	2026-05-27	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1459	2026-05-28	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1460	2026-05-29	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1461	2026-05-30	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1462	2026-05-31	EUR	USD	1.16810200	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:EUR:USD
+1463	2026-06-01	EUR	USD	1.16285200	DB60_INITIAL	OBSERVED	2026-06-01	V01.003:DB60:EUR:USD
+1464	2026-06-02	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1465	2026-06-03	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1466	2026-06-04	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1467	2026-06-05	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1468	2026-06-06	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1469	2026-06-07	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1470	2026-06-08	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1471	2026-06-09	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1472	2026-06-10	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1473	2026-06-11	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1474	2026-06-12	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1475	2026-06-13	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1476	2026-06-14	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1477	2026-06-15	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1478	2026-06-16	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1479	2026-06-17	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1480	2026-06-18	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1481	2026-06-19	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1482	2026-06-20	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1483	2026-06-21	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1484	2026-06-22	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1485	2026-06-23	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1486	2026-06-24	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1487	2026-06-25	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1488	2026-06-26	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1489	2026-06-27	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1490	2026-06-28	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1491	2026-06-29	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1492	2026-06-30	EUR	USD	1.16285200	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:EUR:USD
+1493	2026-07-01	EUR	USD	1.13936000	DB60_INITIAL	OBSERVED	2026-07-01	V01.003:DB60:EUR:USD
+1494	2026-07-02	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1495	2026-07-03	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1496	2026-07-04	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1497	2026-07-05	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1498	2026-07-06	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1499	2026-07-07	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1500	2026-07-08	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1501	2026-07-09	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1502	2026-07-10	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1503	2026-07-11	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1504	2026-07-12	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1505	2026-07-13	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1506	2026-07-14	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1507	2026-07-15	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1508	2026-07-16	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1509	2026-07-17	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1510	2026-07-18	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1511	2026-07-19	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1512	2026-07-20	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1513	2026-07-21	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1514	2026-07-22	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1515	2026-07-23	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1516	2026-07-24	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1517	2026-07-25	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1518	2026-07-26	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1519	2026-07-27	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1520	2026-07-28	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1521	2026-07-29	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1522	2026-07-30	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1523	2026-07-31	EUR	USD	1.13936000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:EUR:USD
+1524	2026-08-01	EUR	USD	1.15238500	DB60_INITIAL	OBSERVED	2026-08-01	V01.003:DB60:EUR:USD
+1525	2026-08-02	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1526	2026-08-03	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1527	2026-08-04	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1528	2026-08-05	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1529	2026-08-06	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1530	2026-08-07	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1531	2026-08-08	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1532	2026-08-09	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1533	2026-08-10	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1534	2026-08-11	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1535	2026-08-12	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1536	2026-08-13	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1537	2026-08-14	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1538	2026-08-15	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1539	2026-08-16	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1540	2026-08-17	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1541	2026-08-18	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1542	2026-08-19	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1543	2026-08-20	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1544	2026-08-21	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1545	2026-08-22	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1546	2026-08-23	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1547	2026-08-24	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1548	2026-08-25	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1549	2026-08-26	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1550	2026-08-27	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1551	2026-08-28	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1552	2026-08-29	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1553	2026-08-30	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1554	2026-08-31	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1555	2026-09-01	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1556	2026-09-02	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1557	2026-09-03	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1558	2026-09-04	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1559	2026-09-05	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1560	2026-09-06	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1561	2026-09-07	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1562	2026-09-08	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1563	2026-09-09	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1564	2026-09-10	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1565	2026-09-11	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1566	2026-09-12	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1567	2026-09-13	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1568	2026-09-14	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1569	2026-09-15	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1570	2026-09-16	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1571	2026-09-17	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1572	2026-09-18	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1573	2026-09-19	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1574	2026-09-20	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1575	2026-09-21	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1576	2026-09-22	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1577	2026-09-23	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1578	2026-09-24	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1579	2026-09-25	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1580	2026-09-26	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1581	2026-09-27	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1582	2026-09-28	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1583	2026-09-29	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1584	2026-09-30	EUR	USD	1.15238500	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:EUR:USD
+1585	2024-07-31	PLN	USD	0.25195898	DB60_INITIAL	OBSERVED	2024-07-31	V01.003:DB60:PLN:USD
+1586	2024-08-01	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1587	2024-08-02	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1588	2024-08-03	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1589	2024-08-04	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1590	2024-08-05	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1591	2024-08-06	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1592	2024-08-07	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1593	2024-08-08	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1594	2024-08-09	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1595	2024-08-10	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1596	2024-08-11	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1597	2024-08-12	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1598	2024-08-13	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1599	2024-08-14	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1600	2024-08-15	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1601	2024-08-16	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1602	2024-08-17	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1603	2024-08-18	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1604	2024-08-19	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1605	2024-08-20	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1606	2024-08-21	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1607	2024-08-22	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1608	2024-08-23	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1609	2024-08-24	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1610	2024-08-25	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1611	2024-08-26	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1612	2024-08-27	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1613	2024-08-28	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1614	2024-08-29	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1615	2024-08-30	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1616	2024-08-31	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1617	2024-09-01	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1618	2024-09-02	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1619	2024-09-03	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1620	2024-09-04	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1621	2024-09-05	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1622	2024-09-06	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1623	2024-09-07	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1624	2024-09-08	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1625	2024-09-09	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1626	2024-09-10	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1627	2024-09-11	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1628	2024-09-12	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1629	2024-09-13	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1630	2024-09-14	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1631	2024-09-15	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1632	2024-09-16	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1633	2024-09-17	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1634	2024-09-18	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1635	2024-09-19	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1636	2024-09-20	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1637	2024-09-21	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1638	2024-09-22	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1639	2024-09-23	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1640	2024-09-24	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1641	2024-09-25	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1642	2024-09-26	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1643	2024-09-27	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1644	2024-09-28	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1645	2024-09-29	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1646	2024-09-30	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1647	2024-10-01	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1648	2024-10-02	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1649	2024-10-03	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1650	2024-10-04	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1651	2024-10-05	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1652	2024-10-06	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1653	2024-10-07	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1654	2024-10-08	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1655	2024-10-09	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1656	2024-10-10	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1657	2024-10-11	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1658	2024-10-12	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1659	2024-10-13	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1660	2024-10-14	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1661	2024-10-15	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1662	2024-10-16	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1663	2024-10-17	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1664	2024-10-18	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1665	2024-10-19	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1666	2024-10-20	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1667	2024-10-21	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1668	2024-10-22	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1669	2024-10-23	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1670	2024-10-24	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1671	2024-10-25	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1672	2024-10-26	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1673	2024-10-27	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1674	2024-10-28	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1675	2024-10-29	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1676	2024-10-30	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1677	2024-10-31	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1678	2024-11-01	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1679	2024-11-02	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1680	2024-11-03	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1681	2024-11-04	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1682	2024-11-05	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1683	2024-11-06	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1684	2024-11-07	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1685	2024-11-08	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1686	2024-11-09	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1687	2024-11-10	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1688	2024-11-11	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1689	2024-11-12	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1690	2024-11-13	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1691	2024-11-14	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1692	2024-11-15	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1693	2024-11-16	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1694	2024-11-17	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1695	2024-11-18	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1696	2024-11-19	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1697	2024-11-20	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1698	2024-11-21	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1699	2024-11-22	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1700	2024-11-23	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1701	2024-11-24	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1702	2024-11-25	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1703	2024-11-26	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1704	2024-11-27	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1705	2024-11-28	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1706	2024-11-29	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1707	2024-11-30	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1708	2024-12-01	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1709	2024-12-02	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1710	2024-12-03	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1711	2024-12-04	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1712	2024-12-05	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1713	2024-12-06	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1714	2024-12-07	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1715	2024-12-08	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1716	2024-12-09	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1717	2024-12-10	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1718	2024-12-11	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1719	2024-12-12	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1720	2024-12-13	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1721	2024-12-14	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1722	2024-12-15	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1723	2024-12-16	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1724	2024-12-17	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1725	2024-12-18	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1726	2024-12-19	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1727	2024-12-20	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1728	2024-12-21	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1729	2024-12-22	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1730	2024-12-23	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1731	2024-12-24	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1732	2024-12-25	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1733	2024-12-26	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1734	2024-12-27	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1735	2024-12-28	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1736	2024-12-29	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1737	2024-12-30	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1738	2024-12-31	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1739	2025-01-01	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1740	2025-01-02	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1741	2025-01-03	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1742	2025-01-04	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1743	2025-01-05	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1744	2025-01-06	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1745	2025-01-07	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1746	2025-01-08	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1747	2025-01-09	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1748	2025-01-10	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1749	2025-01-11	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1750	2025-01-12	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1751	2025-01-13	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1752	2025-01-14	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1753	2025-01-15	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1754	2025-01-16	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1755	2025-01-17	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1756	2025-01-18	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1757	2025-01-19	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1758	2025-01-20	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1759	2025-01-21	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1760	2025-01-22	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1761	2025-01-23	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1762	2025-01-24	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1763	2025-01-25	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1764	2025-01-26	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1765	2025-01-27	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1766	2025-01-28	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1767	2025-01-29	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1768	2025-01-30	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1769	2025-01-31	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1770	2025-02-01	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1771	2025-02-02	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1772	2025-02-03	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1773	2025-02-04	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1774	2025-02-05	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1775	2025-02-06	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1776	2025-02-07	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1777	2025-02-08	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1778	2025-02-09	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1779	2025-02-10	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1780	2025-02-11	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1781	2025-02-12	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1782	2025-02-13	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1783	2025-02-14	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1784	2025-02-15	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1785	2025-02-16	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1786	2025-02-17	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1787	2025-02-18	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1788	2025-02-19	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1789	2025-02-20	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1790	2025-02-21	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1791	2025-02-22	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1792	2025-02-23	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1793	2025-02-24	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1794	2025-02-25	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1795	2025-02-26	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1796	2025-02-27	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1797	2025-02-28	PLN	USD	0.25195898	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:USD
+1798	2025-03-01	PLN	USD	0.25099000	DB60_INITIAL	OBSERVED	2025-03-01	V01.003:DB60:PLN:USD
+1799	2025-03-02	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1800	2025-03-03	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1801	2025-03-04	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1802	2025-03-05	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1803	2025-03-06	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1804	2025-03-07	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1805	2025-03-08	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1806	2025-03-09	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1807	2025-03-10	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1808	2025-03-11	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1809	2025-03-12	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1810	2025-03-13	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1811	2025-03-14	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1812	2025-03-15	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1813	2025-03-16	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1814	2025-03-17	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1815	2025-03-18	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1816	2025-03-19	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1817	2025-03-20	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1818	2025-03-21	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1819	2025-03-22	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1820	2025-03-23	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1821	2025-03-24	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1822	2025-03-25	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1823	2025-03-26	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1824	2025-03-27	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1825	2025-03-28	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1826	2025-03-29	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1827	2025-03-30	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1828	2025-03-31	PLN	USD	0.25099000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:USD
+1829	2025-04-01	PLN	USD	0.25860800	DB60_INITIAL	OBSERVED	2025-04-01	V01.003:DB60:PLN:USD
+1830	2025-04-02	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1831	2025-04-03	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1832	2025-04-04	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1833	2025-04-05	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1834	2025-04-06	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1835	2025-04-07	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1836	2025-04-08	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1837	2025-04-09	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1838	2025-04-10	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1839	2025-04-11	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1840	2025-04-12	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1841	2025-04-13	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1842	2025-04-14	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1843	2025-04-15	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1844	2025-04-16	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1845	2025-04-17	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1846	2025-04-18	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1847	2025-04-19	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1848	2025-04-20	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1849	2025-04-21	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1850	2025-04-22	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1851	2025-04-23	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1852	2025-04-24	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1853	2025-04-25	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1854	2025-04-26	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1855	2025-04-27	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1856	2025-04-28	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1857	2025-04-29	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1858	2025-04-30	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:USD
+1859	2025-05-01	PLN	USD	0.25860800	DB60_INITIAL	OBSERVED	2025-05-01	V01.003:DB60:PLN:USD
+1860	2025-05-02	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1861	2025-05-03	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1862	2025-05-04	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1863	2025-05-05	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1864	2025-05-06	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1865	2025-05-07	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1866	2025-05-08	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1867	2025-05-09	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1868	2025-05-10	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1869	2025-05-11	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1870	2025-05-12	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1871	2025-05-13	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1872	2025-05-14	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1873	2025-05-15	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1874	2025-05-16	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1875	2025-05-17	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1876	2025-05-18	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1877	2025-05-19	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1878	2025-05-20	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1879	2025-05-21	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1880	2025-05-22	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1881	2025-05-23	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1882	2025-05-24	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1883	2025-05-25	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1884	2025-05-26	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1885	2025-05-27	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1886	2025-05-28	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1887	2025-05-29	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1888	2025-05-30	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1889	2025-05-31	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:USD
+1890	2025-06-01	PLN	USD	0.25860800	DB60_INITIAL	OBSERVED	2025-06-01	V01.003:DB60:PLN:USD
+1891	2025-06-02	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1892	2025-06-03	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1893	2025-06-04	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1894	2025-06-05	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1895	2025-06-06	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1896	2025-06-07	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1897	2025-06-08	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1898	2025-06-09	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1899	2025-06-10	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1900	2025-06-11	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1901	2025-06-12	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1902	2025-06-13	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1903	2025-06-14	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1904	2025-06-15	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1905	2025-06-16	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1906	2025-06-17	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1907	2025-06-18	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1908	2025-06-19	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1909	2025-06-20	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1910	2025-06-21	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1911	2025-06-22	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1912	2025-06-23	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1913	2025-06-24	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1914	2025-06-25	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1915	2025-06-26	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1916	2025-06-27	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1917	2025-06-28	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1918	2025-06-29	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1919	2025-06-30	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:USD
+1920	2025-07-01	PLN	USD	0.25860800	DB60_INITIAL	OBSERVED	2025-07-01	V01.003:DB60:PLN:USD
+1921	2025-07-02	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1922	2025-07-03	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1923	2025-07-04	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1924	2025-07-05	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1925	2025-07-06	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1926	2025-07-07	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1927	2025-07-08	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1928	2025-07-09	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1929	2025-07-10	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1930	2025-07-11	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1931	2025-07-12	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1932	2025-07-13	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1933	2025-07-14	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1934	2025-07-15	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1935	2025-07-16	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1936	2025-07-17	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1937	2025-07-18	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1938	2025-07-19	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1939	2025-07-20	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1940	2025-07-21	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1941	2025-07-22	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1942	2025-07-23	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1943	2025-07-24	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1944	2025-07-25	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1945	2025-07-26	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1946	2025-07-27	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1947	2025-07-28	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1948	2025-07-29	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1949	2025-07-30	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1950	2025-07-31	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:USD
+1951	2025-08-01	PLN	USD	0.25860800	DB60_INITIAL	OBSERVED	2025-08-01	V01.003:DB60:PLN:USD
+1952	2025-08-02	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1953	2025-08-03	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1954	2025-08-04	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1955	2025-08-05	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1956	2025-08-06	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1957	2025-08-07	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1958	2025-08-08	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1959	2025-08-09	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1960	2025-08-10	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1961	2025-08-11	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1962	2025-08-12	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1963	2025-08-13	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1964	2025-08-14	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1965	2025-08-15	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1966	2025-08-16	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1967	2025-08-17	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1968	2025-08-18	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1969	2025-08-19	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1970	2025-08-20	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1971	2025-08-21	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1972	2025-08-22	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1973	2025-08-23	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1974	2025-08-24	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1975	2025-08-25	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1976	2025-08-26	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1977	2025-08-27	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1978	2025-08-28	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1979	2025-08-29	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1980	2025-08-30	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1981	2025-08-31	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:USD
+1982	2025-09-01	PLN	USD	0.25860800	DB60_INITIAL	OBSERVED	2025-09-01	V01.003:DB60:PLN:USD
+1983	2025-09-02	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1984	2025-09-03	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1985	2025-09-04	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1986	2025-09-05	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1987	2025-09-06	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1988	2025-09-07	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1989	2025-09-08	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1990	2025-09-09	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1991	2025-09-10	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1992	2025-09-11	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1993	2025-09-12	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1994	2025-09-13	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1995	2025-09-14	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1996	2025-09-15	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1997	2025-09-16	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1998	2025-09-17	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+1999	2025-09-18	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2000	2025-09-19	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2001	2025-09-20	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2002	2025-09-21	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2003	2025-09-22	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2004	2025-09-23	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2005	2025-09-24	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2006	2025-09-25	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2007	2025-09-26	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2008	2025-09-27	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2009	2025-09-28	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2010	2025-09-29	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2011	2025-09-30	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:USD
+2012	2025-10-01	PLN	USD	0.25860800	DB60_INITIAL	OBSERVED	2025-10-01	V01.003:DB60:PLN:USD
+2013	2025-10-02	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2014	2025-10-03	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2015	2025-10-04	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2016	2025-10-05	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2017	2025-10-06	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2018	2025-10-07	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2019	2025-10-08	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2020	2025-10-09	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2021	2025-10-10	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2022	2025-10-11	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2023	2025-10-12	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2024	2025-10-13	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2025	2025-10-14	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2026	2025-10-15	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2027	2025-10-16	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2028	2025-10-17	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2029	2025-10-18	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2030	2025-10-19	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2031	2025-10-20	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2032	2025-10-21	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2033	2025-10-22	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2034	2025-10-23	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2035	2025-10-24	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2036	2025-10-25	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2037	2025-10-26	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2038	2025-10-27	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2039	2025-10-28	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2040	2025-10-29	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2041	2025-10-30	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2042	2025-10-31	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:USD
+2043	2025-11-01	PLN	USD	0.25860800	DB60_INITIAL	OBSERVED	2025-11-01	V01.003:DB60:PLN:USD
+2044	2025-11-02	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2045	2025-11-03	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2046	2025-11-04	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2047	2025-11-05	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2048	2025-11-06	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2049	2025-11-07	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2050	2025-11-08	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2051	2025-11-09	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2052	2025-11-10	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2053	2025-11-11	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2054	2025-11-12	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2055	2025-11-13	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2056	2025-11-14	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2057	2025-11-15	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2058	2025-11-16	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2059	2025-11-17	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2060	2025-11-18	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2061	2025-11-19	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2062	2025-11-20	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2063	2025-11-21	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2064	2025-11-22	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2065	2025-11-23	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2066	2025-11-24	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2067	2025-11-25	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2068	2025-11-26	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2069	2025-11-27	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2070	2025-11-28	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2071	2025-11-29	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2072	2025-11-30	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:USD
+2073	2025-12-01	PLN	USD	0.25860800	DB60_INITIAL	OBSERVED	2025-12-01	V01.003:DB60:PLN:USD
+2074	2025-12-02	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2075	2025-12-03	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2076	2025-12-04	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2077	2025-12-05	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2078	2025-12-06	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2079	2025-12-07	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2080	2025-12-08	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2081	2025-12-09	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2082	2025-12-10	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2083	2025-12-11	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2084	2025-12-12	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2085	2025-12-13	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2086	2025-12-14	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2087	2025-12-15	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2088	2025-12-16	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2089	2025-12-17	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2090	2025-12-18	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2091	2025-12-19	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2092	2025-12-20	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2093	2025-12-21	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2094	2025-12-22	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2095	2025-12-23	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2096	2025-12-24	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2097	2025-12-25	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2098	2025-12-26	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2099	2025-12-27	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2100	2025-12-28	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2101	2025-12-29	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2102	2025-12-30	PLN	USD	0.25860800	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:USD
+2103	2025-12-31	PLN	USD	0.27765434	DB60_INITIAL	OBSERVED	2025-12-31	V01.003:DB60:PLN:USD
+2104	2026-01-01	PLN	USD	0.27703500	DB60_INITIAL	OBSERVED	2026-01-01	V01.003:DB60:PLN:USD
+2105	2026-01-02	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2106	2026-01-03	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2107	2026-01-04	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2108	2026-01-05	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2109	2026-01-06	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2110	2026-01-07	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2111	2026-01-08	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2112	2026-01-09	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2113	2026-01-10	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2114	2026-01-11	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2115	2026-01-12	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2116	2026-01-13	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2117	2026-01-14	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2118	2026-01-15	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2119	2026-01-16	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2120	2026-01-17	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2121	2026-01-18	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2122	2026-01-19	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2123	2026-01-20	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2124	2026-01-21	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2125	2026-01-22	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2126	2026-01-23	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2127	2026-01-24	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2128	2026-01-25	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2129	2026-01-26	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2130	2026-01-27	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2131	2026-01-28	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2132	2026-01-29	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2133	2026-01-30	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2134	2026-01-31	PLN	USD	0.27703500	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:USD
+2135	2026-02-01	PLN	USD	0.27633400	DB60_INITIAL	OBSERVED	2026-02-01	V01.003:DB60:PLN:USD
+2136	2026-02-02	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2137	2026-02-03	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2138	2026-02-04	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2139	2026-02-05	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2140	2026-02-06	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2141	2026-02-07	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2142	2026-02-08	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2143	2026-02-09	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2144	2026-02-10	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2145	2026-02-11	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2146	2026-02-12	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2147	2026-02-13	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2148	2026-02-14	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2149	2026-02-15	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2150	2026-02-16	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2151	2026-02-17	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2152	2026-02-18	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2153	2026-02-19	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2154	2026-02-20	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2155	2026-02-21	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2156	2026-02-22	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2157	2026-02-23	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2158	2026-02-24	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2159	2026-02-25	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2160	2026-02-26	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2161	2026-02-27	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2162	2026-02-28	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:USD
+2163	2026-03-01	PLN	USD	0.27633400	DB60_INITIAL	OBSERVED	2026-03-01	V01.003:DB60:PLN:USD
+2164	2026-03-02	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2165	2026-03-03	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2166	2026-03-04	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2167	2026-03-05	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2168	2026-03-06	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2169	2026-03-07	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2170	2026-03-08	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2171	2026-03-09	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2172	2026-03-10	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2173	2026-03-11	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2174	2026-03-12	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2175	2026-03-13	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2176	2026-03-14	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2177	2026-03-15	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2178	2026-03-16	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2179	2026-03-17	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2180	2026-03-18	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2181	2026-03-19	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2182	2026-03-20	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2183	2026-03-21	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2184	2026-03-22	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2185	2026-03-23	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2186	2026-03-24	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2187	2026-03-25	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2188	2026-03-26	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2189	2026-03-27	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2190	2026-03-28	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2191	2026-03-29	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2192	2026-03-30	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2193	2026-03-31	PLN	USD	0.27633400	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:USD
+2194	2026-04-01	PLN	USD	0.26849000	DB60_INITIAL	OBSERVED	2026-04-01	V01.003:DB60:PLN:USD
+2195	2026-04-02	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2196	2026-04-03	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2197	2026-04-04	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2198	2026-04-05	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2199	2026-04-06	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2200	2026-04-07	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2201	2026-04-08	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2202	2026-04-09	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2203	2026-04-10	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2204	2026-04-11	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2205	2026-04-12	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2206	2026-04-13	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2207	2026-04-14	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2208	2026-04-15	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2209	2026-04-16	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2210	2026-04-17	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2211	2026-04-18	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2212	2026-04-19	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2213	2026-04-20	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2214	2026-04-21	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2215	2026-04-22	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2216	2026-04-23	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2217	2026-04-24	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2218	2026-04-25	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2219	2026-04-26	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2220	2026-04-27	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2221	2026-04-28	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2222	2026-04-29	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2223	2026-04-30	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:USD
+2224	2026-05-01	PLN	USD	0.26849000	DB60_INITIAL	OBSERVED	2026-05-01	V01.003:DB60:PLN:USD
+2225	2026-05-02	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2226	2026-05-03	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2227	2026-05-04	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2228	2026-05-05	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2229	2026-05-06	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2230	2026-05-07	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2231	2026-05-08	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2232	2026-05-09	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2233	2026-05-10	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2234	2026-05-11	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2235	2026-05-12	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2236	2026-05-13	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2237	2026-05-14	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2238	2026-05-15	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2239	2026-05-16	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2240	2026-05-17	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2241	2026-05-18	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2242	2026-05-19	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2243	2026-05-20	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2244	2026-05-21	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2245	2026-05-22	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2246	2026-05-23	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2247	2026-05-24	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2248	2026-05-25	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2249	2026-05-26	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2250	2026-05-27	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2251	2026-05-28	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2252	2026-05-29	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2253	2026-05-30	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2254	2026-05-31	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:USD
+2255	2026-06-01	PLN	USD	0.26849000	DB60_INITIAL	OBSERVED	2026-06-01	V01.003:DB60:PLN:USD
+2256	2026-06-02	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2257	2026-06-03	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2258	2026-06-04	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2259	2026-06-05	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2260	2026-06-06	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2261	2026-06-07	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2262	2026-06-08	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2263	2026-06-09	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2264	2026-06-10	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2265	2026-06-11	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2266	2026-06-12	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2267	2026-06-13	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2268	2026-06-14	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2269	2026-06-15	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2270	2026-06-16	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2271	2026-06-17	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2272	2026-06-18	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2273	2026-06-19	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2274	2026-06-20	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2275	2026-06-21	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2276	2026-06-22	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2277	2026-06-23	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2278	2026-06-24	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2279	2026-06-25	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2280	2026-06-26	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2281	2026-06-27	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2282	2026-06-28	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2283	2026-06-29	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2284	2026-06-30	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:USD
+2285	2026-07-01	PLN	USD	0.26849000	DB60_INITIAL	OBSERVED	2026-07-01	V01.003:DB60:PLN:USD
+2286	2026-07-02	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2287	2026-07-03	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2288	2026-07-04	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2289	2026-07-05	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2290	2026-07-06	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2291	2026-07-07	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2292	2026-07-08	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2293	2026-07-09	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2294	2026-07-10	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2295	2026-07-11	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2296	2026-07-12	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2297	2026-07-13	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2298	2026-07-14	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2299	2026-07-15	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2300	2026-07-16	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2301	2026-07-17	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2302	2026-07-18	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2303	2026-07-19	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2304	2026-07-20	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2305	2026-07-21	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2306	2026-07-22	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2307	2026-07-23	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2308	2026-07-24	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2309	2026-07-25	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2310	2026-07-26	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2311	2026-07-27	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2312	2026-07-28	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2313	2026-07-29	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2314	2026-07-30	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2315	2026-07-31	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:USD
+2316	2026-08-01	PLN	USD	0.26849000	DB60_INITIAL	OBSERVED	2026-08-01	V01.003:DB60:PLN:USD
+2317	2026-08-02	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2318	2026-08-03	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2319	2026-08-04	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2320	2026-08-05	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2321	2026-08-06	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2322	2026-08-07	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2323	2026-08-08	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2324	2026-08-09	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2325	2026-08-10	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2326	2026-08-11	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2327	2026-08-12	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2328	2026-08-13	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2329	2026-08-14	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2330	2026-08-15	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2331	2026-08-16	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2332	2026-08-17	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2333	2026-08-18	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2334	2026-08-19	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2335	2026-08-20	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2336	2026-08-21	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2337	2026-08-22	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2338	2026-08-23	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2339	2026-08-24	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2340	2026-08-25	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2341	2026-08-26	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2342	2026-08-27	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2343	2026-08-28	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2344	2026-08-29	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2345	2026-08-30	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2346	2026-08-31	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2347	2026-09-01	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2348	2026-09-02	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2349	2026-09-03	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2350	2026-09-04	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2351	2026-09-05	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2352	2026-09-06	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2353	2026-09-07	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2354	2026-09-08	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2355	2026-09-09	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2356	2026-09-10	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2357	2026-09-11	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2358	2026-09-12	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2359	2026-09-13	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2360	2026-09-14	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2361	2026-09-15	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2362	2026-09-16	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2363	2026-09-17	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2364	2026-09-18	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2365	2026-09-19	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2366	2026-09-20	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2367	2026-09-21	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2368	2026-09-22	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2369	2026-09-23	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2370	2026-09-24	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2371	2026-09-25	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2372	2026-09-26	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2373	2026-09-27	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2374	2026-09-28	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2375	2026-09-29	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2376	2026-09-30	PLN	USD	0.26849000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:USD
+2377	2024-07-31	USD	PLN	3.96890000	DB60_INITIAL	OBSERVED	2024-07-31	V01.003:DB60:USD:PLN
+2378	2024-08-01	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2379	2024-08-02	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2380	2024-08-03	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2381	2024-08-04	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2382	2024-08-05	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2383	2024-08-06	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2384	2024-08-07	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2385	2024-08-08	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2386	2024-08-09	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2387	2024-08-10	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2388	2024-08-11	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2389	2024-08-12	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2390	2024-08-13	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2391	2024-08-14	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2392	2024-08-15	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2393	2024-08-16	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2394	2024-08-17	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2395	2024-08-18	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2396	2024-08-19	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2397	2024-08-20	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2398	2024-08-21	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2399	2024-08-22	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2400	2024-08-23	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2401	2024-08-24	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2402	2024-08-25	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2403	2024-08-26	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2404	2024-08-27	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2405	2024-08-28	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2406	2024-08-29	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2407	2024-08-30	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2408	2024-08-31	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2409	2024-09-01	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2410	2024-09-02	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2411	2024-09-03	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2412	2024-09-04	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2413	2024-09-05	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2414	2024-09-06	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2415	2024-09-07	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2416	2024-09-08	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2417	2024-09-09	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2418	2024-09-10	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2419	2024-09-11	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2420	2024-09-12	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2421	2024-09-13	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2422	2024-09-14	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2423	2024-09-15	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2424	2024-09-16	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2425	2024-09-17	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2426	2024-09-18	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2427	2024-09-19	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2428	2024-09-20	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2429	2024-09-21	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2430	2024-09-22	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2431	2024-09-23	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2432	2024-09-24	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2433	2024-09-25	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2434	2024-09-26	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2435	2024-09-27	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2436	2024-09-28	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2437	2024-09-29	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2438	2024-09-30	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2439	2024-10-01	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2440	2024-10-02	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2441	2024-10-03	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2442	2024-10-04	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2443	2024-10-05	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2444	2024-10-06	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2445	2024-10-07	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2446	2024-10-08	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2447	2024-10-09	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2448	2024-10-10	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2449	2024-10-11	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2450	2024-10-12	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2451	2024-10-13	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2452	2024-10-14	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2453	2024-10-15	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2454	2024-10-16	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2455	2024-10-17	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2456	2024-10-18	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2457	2024-10-19	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2458	2024-10-20	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2459	2024-10-21	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2460	2024-10-22	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2461	2024-10-23	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2462	2024-10-24	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2463	2024-10-25	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2464	2024-10-26	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2465	2024-10-27	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2466	2024-10-28	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2467	2024-10-29	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2468	2024-10-30	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2469	2024-10-31	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2470	2024-11-01	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2471	2024-11-02	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2472	2024-11-03	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2473	2024-11-04	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2474	2024-11-05	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2475	2024-11-06	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2476	2024-11-07	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2477	2024-11-08	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2478	2024-11-09	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2479	2024-11-10	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2480	2024-11-11	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2481	2024-11-12	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2482	2024-11-13	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2483	2024-11-14	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2484	2024-11-15	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2485	2024-11-16	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2486	2024-11-17	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2487	2024-11-18	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2488	2024-11-19	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2489	2024-11-20	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2490	2024-11-21	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2491	2024-11-22	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2492	2024-11-23	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2493	2024-11-24	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2494	2024-11-25	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2495	2024-11-26	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2496	2024-11-27	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2497	2024-11-28	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2498	2024-11-29	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2499	2024-11-30	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2500	2024-12-01	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2501	2024-12-02	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2502	2024-12-03	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2503	2024-12-04	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2504	2024-12-05	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2505	2024-12-06	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2506	2024-12-07	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2507	2024-12-08	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2508	2024-12-09	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2509	2024-12-10	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2510	2024-12-11	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2511	2024-12-12	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2512	2024-12-13	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2513	2024-12-14	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2514	2024-12-15	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2515	2024-12-16	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2516	2024-12-17	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2517	2024-12-18	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2518	2024-12-19	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2519	2024-12-20	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2520	2024-12-21	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2521	2024-12-22	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2522	2024-12-23	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2523	2024-12-24	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2524	2024-12-25	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2525	2024-12-26	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2526	2024-12-27	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2527	2024-12-28	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2528	2024-12-29	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2529	2024-12-30	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2530	2024-12-31	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2531	2025-01-01	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2532	2025-01-02	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2533	2025-01-03	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2534	2025-01-04	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2535	2025-01-05	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2536	2025-01-06	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2537	2025-01-07	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2538	2025-01-08	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2539	2025-01-09	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2540	2025-01-10	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2541	2025-01-11	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2542	2025-01-12	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2543	2025-01-13	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2544	2025-01-14	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2545	2025-01-15	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2546	2025-01-16	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2547	2025-01-17	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2548	2025-01-18	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2549	2025-01-19	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2550	2025-01-20	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2551	2025-01-21	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2552	2025-01-22	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2553	2025-01-23	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2554	2025-01-24	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2555	2025-01-25	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2556	2025-01-26	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2557	2025-01-27	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2558	2025-01-28	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2559	2025-01-29	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2560	2025-01-30	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2561	2025-01-31	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2562	2025-02-01	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2563	2025-02-02	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2564	2025-02-03	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2565	2025-02-04	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2566	2025-02-05	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2567	2025-02-06	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2568	2025-02-07	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2569	2025-02-08	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2570	2025-02-09	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2571	2025-02-10	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2572	2025-02-11	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2573	2025-02-12	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2574	2025-02-13	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2575	2025-02-14	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2576	2025-02-15	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2577	2025-02-16	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2578	2025-02-17	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2579	2025-02-18	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2580	2025-02-19	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2581	2025-02-20	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2582	2025-02-21	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2583	2025-02-22	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2584	2025-02-23	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2585	2025-02-24	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2586	2025-02-25	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2587	2025-02-26	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2588	2025-02-27	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2589	2025-02-28	USD	PLN	3.96890000	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:PLN
+2590	2025-03-01	USD	PLN	3.99930000	DB60_INITIAL	OBSERVED	2025-03-01	V01.003:DB60:USD:PLN
+2591	2025-03-02	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2592	2025-03-03	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2593	2025-03-04	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2594	2025-03-05	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2595	2025-03-06	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2596	2025-03-07	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2597	2025-03-08	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2598	2025-03-09	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2599	2025-03-10	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2600	2025-03-11	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2601	2025-03-12	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2602	2025-03-13	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2603	2025-03-14	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2604	2025-03-15	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2605	2025-03-16	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2606	2025-03-17	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2607	2025-03-18	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2608	2025-03-19	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2609	2025-03-20	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2610	2025-03-21	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2611	2025-03-22	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2612	2025-03-23	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2613	2025-03-24	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2614	2025-03-25	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2615	2025-03-26	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2616	2025-03-27	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2617	2025-03-28	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2618	2025-03-29	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2619	2025-03-30	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2620	2025-03-31	USD	PLN	3.99930000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:PLN
+2621	2025-04-01	USD	PLN	3.86430000	DB60_INITIAL	OBSERVED	2025-04-01	V01.003:DB60:USD:PLN
+2622	2025-04-02	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2623	2025-04-03	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2624	2025-04-04	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2625	2025-04-05	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2626	2025-04-06	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2627	2025-04-07	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2628	2025-04-08	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2629	2025-04-09	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2630	2025-04-10	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2631	2025-04-11	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2632	2025-04-12	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2633	2025-04-13	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2634	2025-04-14	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2635	2025-04-15	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2636	2025-04-16	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2637	2025-04-17	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2638	2025-04-18	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2639	2025-04-19	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2640	2025-04-20	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2641	2025-04-21	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2642	2025-04-22	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2643	2025-04-23	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2644	2025-04-24	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2645	2025-04-25	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2646	2025-04-26	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2647	2025-04-27	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2648	2025-04-28	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2649	2025-04-29	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2650	2025-04-30	USD	PLN	3.86430000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:PLN
+2651	2025-05-01	USD	PLN	3.76170000	DB60_INITIAL	OBSERVED	2025-05-01	V01.003:DB60:USD:PLN
+2652	2025-05-02	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2653	2025-05-03	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2654	2025-05-04	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2655	2025-05-05	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2656	2025-05-06	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2657	2025-05-07	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2658	2025-05-08	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2659	2025-05-09	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2660	2025-05-10	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2661	2025-05-11	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2662	2025-05-12	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2663	2025-05-13	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2664	2025-05-14	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2665	2025-05-15	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2666	2025-05-16	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2667	2025-05-17	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2668	2025-05-18	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2669	2025-05-19	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2670	2025-05-20	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2671	2025-05-21	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2672	2025-05-22	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2673	2025-05-23	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2674	2025-05-24	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2675	2025-05-25	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2676	2025-05-26	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2677	2025-05-27	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2678	2025-05-28	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2679	2025-05-29	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2680	2025-05-30	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2681	2025-05-31	USD	PLN	3.76170000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:PLN
+2682	2025-06-01	USD	PLN	3.75370000	DB60_INITIAL	OBSERVED	2025-06-01	V01.003:DB60:USD:PLN
+2683	2025-06-02	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2684	2025-06-03	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2685	2025-06-04	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2686	2025-06-05	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2687	2025-06-06	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2688	2025-06-07	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2689	2025-06-08	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2690	2025-06-09	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2691	2025-06-10	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2692	2025-06-11	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2693	2025-06-12	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2694	2025-06-13	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2695	2025-06-14	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2696	2025-06-15	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2697	2025-06-16	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2698	2025-06-17	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2699	2025-06-18	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2700	2025-06-19	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2701	2025-06-20	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2702	2025-06-21	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2703	2025-06-22	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2704	2025-06-23	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2705	2025-06-24	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2706	2025-06-25	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2707	2025-06-26	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2708	2025-06-27	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2709	2025-06-28	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2710	2025-06-29	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2711	2025-06-30	USD	PLN	3.75370000	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:PLN
+2712	2025-07-01	USD	PLN	3.61640000	DB60_INITIAL	OBSERVED	2025-07-01	V01.003:DB60:USD:PLN
+2713	2025-07-02	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2714	2025-07-03	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2715	2025-07-04	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2716	2025-07-05	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2717	2025-07-06	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2718	2025-07-07	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2719	2025-07-08	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2720	2025-07-09	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2721	2025-07-10	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2722	2025-07-11	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2723	2025-07-12	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2724	2025-07-13	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2725	2025-07-14	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2726	2025-07-15	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2727	2025-07-16	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2728	2025-07-17	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2729	2025-07-18	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2730	2025-07-19	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2731	2025-07-20	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2732	2025-07-21	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2733	2025-07-22	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2734	2025-07-23	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2735	2025-07-24	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2736	2025-07-25	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2737	2025-07-26	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2738	2025-07-27	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2739	2025-07-28	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2740	2025-07-29	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2741	2025-07-30	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2742	2025-07-31	USD	PLN	3.61640000	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:PLN
+2743	2025-08-01	USD	PLN	3.72570000	DB60_INITIAL	OBSERVED	2025-08-01	V01.003:DB60:USD:PLN
+2744	2025-08-02	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2745	2025-08-03	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2746	2025-08-04	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2747	2025-08-05	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2748	2025-08-06	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2749	2025-08-07	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2750	2025-08-08	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2751	2025-08-09	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2752	2025-08-10	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2753	2025-08-11	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2754	2025-08-12	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2755	2025-08-13	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2756	2025-08-14	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2757	2025-08-15	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2758	2025-08-16	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2759	2025-08-17	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2760	2025-08-18	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2761	2025-08-19	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2762	2025-08-20	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2763	2025-08-21	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2764	2025-08-22	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2765	2025-08-23	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2766	2025-08-24	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2767	2025-08-25	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2768	2025-08-26	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2769	2025-08-27	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2770	2025-08-28	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2771	2025-08-29	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2772	2025-08-30	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2773	2025-08-31	USD	PLN	3.72570000	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:PLN
+2774	2025-09-01	USD	PLN	3.65590000	DB60_INITIAL	OBSERVED	2025-09-01	V01.003:DB60:USD:PLN
+2775	2025-09-02	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2776	2025-09-03	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2777	2025-09-04	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2778	2025-09-05	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2779	2025-09-06	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2780	2025-09-07	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2781	2025-09-08	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2782	2025-09-09	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2783	2025-09-10	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2784	2025-09-11	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2785	2025-09-12	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2786	2025-09-13	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2787	2025-09-14	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2788	2025-09-15	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2789	2025-09-16	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2790	2025-09-17	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2791	2025-09-18	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2792	2025-09-19	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2793	2025-09-20	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2794	2025-09-21	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2795	2025-09-22	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2796	2025-09-23	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2797	2025-09-24	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2798	2025-09-25	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2799	2025-09-26	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2800	2025-09-27	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2801	2025-09-28	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2802	2025-09-29	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2803	2025-09-30	USD	PLN	3.65590000	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:PLN
+2804	2025-10-01	USD	PLN	3.63150000	DB60_INITIAL	OBSERVED	2025-10-01	V01.003:DB60:USD:PLN
+2805	2025-10-02	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2806	2025-10-03	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2807	2025-10-04	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2808	2025-10-05	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2809	2025-10-06	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2810	2025-10-07	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2811	2025-10-08	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2812	2025-10-09	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2813	2025-10-10	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2814	2025-10-11	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2815	2025-10-12	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2816	2025-10-13	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2817	2025-10-14	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2818	2025-10-15	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2819	2025-10-16	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2820	2025-10-17	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2821	2025-10-18	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2822	2025-10-19	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2823	2025-10-20	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2824	2025-10-21	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2825	2025-10-22	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2826	2025-10-23	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2827	2025-10-24	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2828	2025-10-25	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2829	2025-10-26	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2830	2025-10-27	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2831	2025-10-28	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2832	2025-10-29	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2833	2025-10-30	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2834	2025-10-31	USD	PLN	3.63150000	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:PLN
+2835	2025-11-01	USD	PLN	3.67510000	DB60_INITIAL	OBSERVED	2025-11-01	V01.003:DB60:USD:PLN
+2836	2025-11-02	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2837	2025-11-03	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2838	2025-11-04	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2839	2025-11-05	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2840	2025-11-06	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2841	2025-11-07	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2842	2025-11-08	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2843	2025-11-09	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2844	2025-11-10	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2845	2025-11-11	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2846	2025-11-12	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2847	2025-11-13	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2848	2025-11-14	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2849	2025-11-15	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2850	2025-11-16	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2851	2025-11-17	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2852	2025-11-18	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2853	2025-11-19	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2854	2025-11-20	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2855	2025-11-21	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2856	2025-11-22	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2857	2025-11-23	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2858	2025-11-24	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2859	2025-11-25	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2860	2025-11-26	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2861	2025-11-27	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2862	2025-11-28	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2863	2025-11-29	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2864	2025-11-30	USD	PLN	3.67510000	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:PLN
+2865	2025-12-01	USD	PLN	3.66240000	DB60_INITIAL	OBSERVED	2025-12-01	V01.003:DB60:USD:PLN
+2866	2025-12-02	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2867	2025-12-03	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2868	2025-12-04	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2869	2025-12-05	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2870	2025-12-06	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2871	2025-12-07	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2872	2025-12-08	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2873	2025-12-09	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2874	2025-12-10	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2875	2025-12-11	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2876	2025-12-12	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2877	2025-12-13	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2878	2025-12-14	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2879	2025-12-15	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2880	2025-12-16	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2881	2025-12-17	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2882	2025-12-18	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2883	2025-12-19	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2884	2025-12-20	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2885	2025-12-21	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2886	2025-12-22	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2887	2025-12-23	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2888	2025-12-24	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2889	2025-12-25	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2890	2025-12-26	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2891	2025-12-27	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2892	2025-12-28	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2893	2025-12-29	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2894	2025-12-30	USD	PLN	3.66240000	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:PLN
+2895	2025-12-31	USD	PLN	3.60160000	DB60_INITIAL	OBSERVED	2025-12-31	V01.003:DB60:USD:PLN
+2896	2026-01-01	USD	PLN	3.60160000	DB60_INITIAL	OBSERVED	2026-01-01	V01.003:DB60:USD:PLN
+2897	2026-01-02	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2898	2026-01-03	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2899	2026-01-04	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2900	2026-01-05	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2901	2026-01-06	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2902	2026-01-07	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2903	2026-01-08	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2904	2026-01-09	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2905	2026-01-10	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2906	2026-01-11	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2907	2026-01-12	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2908	2026-01-13	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2909	2026-01-14	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2910	2026-01-15	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2911	2026-01-16	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2912	2026-01-17	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2913	2026-01-18	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2914	2026-01-19	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2915	2026-01-20	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2916	2026-01-21	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2917	2026-01-22	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2918	2026-01-23	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2919	2026-01-24	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2920	2026-01-25	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2921	2026-01-26	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2922	2026-01-27	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2923	2026-01-28	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2924	2026-01-29	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2925	2026-01-30	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2926	2026-01-31	USD	PLN	3.60160000	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:PLN
+2927	2026-02-01	USD	PLN	3.53790000	DB60_INITIAL	OBSERVED	2026-02-01	V01.003:DB60:USD:PLN
+2928	2026-02-02	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2929	2026-02-03	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2930	2026-02-04	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2931	2026-02-05	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2932	2026-02-06	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2933	2026-02-07	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2934	2026-02-08	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2935	2026-02-09	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2936	2026-02-10	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2937	2026-02-11	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2938	2026-02-12	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2939	2026-02-13	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2940	2026-02-14	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2941	2026-02-15	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2942	2026-02-16	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2943	2026-02-17	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2944	2026-02-18	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2945	2026-02-19	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2946	2026-02-20	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2947	2026-02-21	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2948	2026-02-22	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2949	2026-02-23	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2950	2026-02-24	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2951	2026-02-25	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2952	2026-02-26	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2953	2026-02-27	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2954	2026-02-28	USD	PLN	3.53790000	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:PLN
+2955	2026-03-01	USD	PLN	3.58040000	DB60_INITIAL	OBSERVED	2026-03-01	V01.003:DB60:USD:PLN
+2956	2026-03-02	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2957	2026-03-03	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2958	2026-03-04	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2959	2026-03-05	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2960	2026-03-06	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2961	2026-03-07	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2962	2026-03-08	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2963	2026-03-09	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2964	2026-03-10	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2965	2026-03-11	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2966	2026-03-12	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2967	2026-03-13	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2968	2026-03-14	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2969	2026-03-15	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2970	2026-03-16	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2971	2026-03-17	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2972	2026-03-18	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2973	2026-03-19	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2974	2026-03-20	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2975	2026-03-21	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2976	2026-03-22	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2977	2026-03-23	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2978	2026-03-24	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2979	2026-03-25	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2980	2026-03-26	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2981	2026-03-27	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2982	2026-03-28	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2983	2026-03-29	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2984	2026-03-30	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2985	2026-03-31	USD	PLN	3.58040000	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:PLN
+2986	2026-04-01	USD	PLN	3.74080000	DB60_INITIAL	OBSERVED	2026-04-01	V01.003:DB60:USD:PLN
+2987	2026-04-02	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2988	2026-04-03	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2989	2026-04-04	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2990	2026-04-05	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2991	2026-04-06	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2992	2026-04-07	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2993	2026-04-08	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2994	2026-04-09	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2995	2026-04-10	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2996	2026-04-11	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2997	2026-04-12	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2998	2026-04-13	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+2999	2026-04-14	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3000	2026-04-15	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3001	2026-04-16	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3002	2026-04-17	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3003	2026-04-18	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3004	2026-04-19	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3005	2026-04-20	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3006	2026-04-21	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3007	2026-04-22	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3008	2026-04-23	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3009	2026-04-24	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3010	2026-04-25	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3011	2026-04-26	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3012	2026-04-27	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3013	2026-04-28	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3014	2026-04-29	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3015	2026-04-30	USD	PLN	3.74080000	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:PLN
+3016	2026-05-01	USD	PLN	3.64600000	DB60_INITIAL	OBSERVED	2026-05-01	V01.003:DB60:USD:PLN
+3017	2026-05-02	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3018	2026-05-03	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3019	2026-05-04	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3020	2026-05-05	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3021	2026-05-06	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3022	2026-05-07	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3023	2026-05-08	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3024	2026-05-09	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3025	2026-05-10	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3026	2026-05-11	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3027	2026-05-12	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3028	2026-05-13	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3029	2026-05-14	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3030	2026-05-15	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3031	2026-05-16	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3032	2026-05-17	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3033	2026-05-18	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3034	2026-05-19	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3035	2026-05-20	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3036	2026-05-21	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3037	2026-05-22	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3038	2026-05-23	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3039	2026-05-24	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3040	2026-05-25	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3041	2026-05-26	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3042	2026-05-27	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3043	2026-05-28	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3044	2026-05-29	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3045	2026-05-30	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3046	2026-05-31	USD	PLN	3.64600000	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:PLN
+3047	2026-06-01	USD	PLN	3.63950000	DB60_INITIAL	OBSERVED	2026-06-01	V01.003:DB60:USD:PLN
+3048	2026-06-02	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3049	2026-06-03	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3050	2026-06-04	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3051	2026-06-05	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3052	2026-06-06	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3053	2026-06-07	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3054	2026-06-08	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3055	2026-06-09	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3056	2026-06-10	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3057	2026-06-11	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3058	2026-06-12	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3059	2026-06-13	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3060	2026-06-14	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3061	2026-06-15	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3062	2026-06-16	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3063	2026-06-17	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3064	2026-06-18	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3065	2026-06-19	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3066	2026-06-20	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3067	2026-06-21	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3068	2026-06-22	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3069	2026-06-23	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3070	2026-06-24	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3071	2026-06-25	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3072	2026-06-26	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3073	2026-06-27	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3074	2026-06-28	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3075	2026-06-29	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3076	2026-06-30	USD	PLN	3.63950000	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:PLN
+3077	2026-07-01	USD	PLN	3.77080000	DB60_INITIAL	OBSERVED	2026-07-01	V01.003:DB60:USD:PLN
+3078	2026-07-02	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3079	2026-07-03	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3080	2026-07-04	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3081	2026-07-05	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3082	2026-07-06	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3083	2026-07-07	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3084	2026-07-08	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3085	2026-07-09	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3086	2026-07-10	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3087	2026-07-11	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3088	2026-07-12	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3089	2026-07-13	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3090	2026-07-14	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3091	2026-07-15	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3092	2026-07-16	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3093	2026-07-17	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3094	2026-07-18	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3095	2026-07-19	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3096	2026-07-20	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3097	2026-07-21	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3098	2026-07-22	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3099	2026-07-23	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3100	2026-07-24	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3101	2026-07-25	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3102	2026-07-26	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3103	2026-07-27	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3104	2026-07-28	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3105	2026-07-29	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3106	2026-07-30	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3107	2026-07-31	USD	PLN	3.77080000	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:PLN
+3108	2026-08-01	USD	PLN	3.74250000	DB60_INITIAL	OBSERVED	2026-08-01	V01.003:DB60:USD:PLN
+3109	2026-08-02	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3110	2026-08-03	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3111	2026-08-04	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3112	2026-08-05	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3113	2026-08-06	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3114	2026-08-07	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3115	2026-08-08	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3116	2026-08-09	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3117	2026-08-10	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3118	2026-08-11	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3119	2026-08-12	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3120	2026-08-13	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3121	2026-08-14	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3122	2026-08-15	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3123	2026-08-16	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3124	2026-08-17	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3125	2026-08-18	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3126	2026-08-19	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3127	2026-08-20	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3128	2026-08-21	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3129	2026-08-22	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3130	2026-08-23	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3131	2026-08-24	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3132	2026-08-25	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3133	2026-08-26	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3134	2026-08-27	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3135	2026-08-28	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3136	2026-08-29	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3137	2026-08-30	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3138	2026-08-31	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3139	2026-09-01	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3140	2026-09-02	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3141	2026-09-03	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3142	2026-09-04	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3143	2026-09-05	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3144	2026-09-06	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3145	2026-09-07	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3146	2026-09-08	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3147	2026-09-09	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3148	2026-09-10	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3149	2026-09-11	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3150	2026-09-12	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3151	2026-09-13	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3152	2026-09-14	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3153	2026-09-15	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3154	2026-09-16	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3155	2026-09-17	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3156	2026-09-18	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3157	2026-09-19	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3158	2026-09-20	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3159	2026-09-21	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3160	2026-09-22	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3161	2026-09-23	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3162	2026-09-24	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3163	2026-09-25	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3164	2026-09-26	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3165	2026-09-27	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3166	2026-09-28	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3167	2026-09-29	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3168	2026-09-30	USD	PLN	3.74250000	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:PLN
+3169	2024-07-31	USD	EUR	0.92401032	DB60_INITIAL	OBSERVED	2024-07-31	V01.003:DB60:USD:EUR
+3170	2024-08-01	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3171	2024-08-02	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3172	2024-08-03	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3173	2024-08-04	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3174	2024-08-05	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3175	2024-08-06	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3176	2024-08-07	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3177	2024-08-08	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3178	2024-08-09	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3179	2024-08-10	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3180	2024-08-11	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3181	2024-08-12	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3182	2024-08-13	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3183	2024-08-14	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3184	2024-08-15	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3185	2024-08-16	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3186	2024-08-17	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3187	2024-08-18	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3188	2024-08-19	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3189	2024-08-20	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3190	2024-08-21	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3191	2024-08-22	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3192	2024-08-23	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3193	2024-08-24	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3194	2024-08-25	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3195	2024-08-26	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3196	2024-08-27	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3197	2024-08-28	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3198	2024-08-29	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3199	2024-08-30	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3200	2024-08-31	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3201	2024-09-01	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3202	2024-09-02	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3203	2024-09-03	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3204	2024-09-04	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3205	2024-09-05	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3206	2024-09-06	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3207	2024-09-07	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3208	2024-09-08	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3209	2024-09-09	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3210	2024-09-10	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3211	2024-09-11	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3212	2024-09-12	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3213	2024-09-13	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3214	2024-09-14	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3215	2024-09-15	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3216	2024-09-16	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3217	2024-09-17	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3218	2024-09-18	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3219	2024-09-19	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3220	2024-09-20	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3221	2024-09-21	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3222	2024-09-22	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3223	2024-09-23	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3224	2024-09-24	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3225	2024-09-25	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3226	2024-09-26	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3227	2024-09-27	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3228	2024-09-28	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3229	2024-09-29	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3230	2024-09-30	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3231	2024-10-01	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3232	2024-10-02	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3233	2024-10-03	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3234	2024-10-04	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3235	2024-10-05	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3236	2024-10-06	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3237	2024-10-07	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3238	2024-10-08	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3239	2024-10-09	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3240	2024-10-10	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3241	2024-10-11	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3242	2024-10-12	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3243	2024-10-13	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3244	2024-10-14	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3245	2024-10-15	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3246	2024-10-16	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3247	2024-10-17	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3248	2024-10-18	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3249	2024-10-19	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3250	2024-10-20	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3251	2024-10-21	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3252	2024-10-22	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3253	2024-10-23	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3254	2024-10-24	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3255	2024-10-25	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3256	2024-10-26	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3257	2024-10-27	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3258	2024-10-28	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3259	2024-10-29	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3260	2024-10-30	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3261	2024-10-31	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3262	2024-11-01	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3263	2024-11-02	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3264	2024-11-03	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3265	2024-11-04	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3266	2024-11-05	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3267	2024-11-06	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3268	2024-11-07	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3269	2024-11-08	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3270	2024-11-09	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3271	2024-11-10	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3272	2024-11-11	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3273	2024-11-12	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3274	2024-11-13	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3275	2024-11-14	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3276	2024-11-15	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3277	2024-11-16	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3278	2024-11-17	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3279	2024-11-18	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3280	2024-11-19	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3281	2024-11-20	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3282	2024-11-21	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3283	2024-11-22	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3284	2024-11-23	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3285	2024-11-24	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3286	2024-11-25	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3287	2024-11-26	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3288	2024-11-27	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3289	2024-11-28	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3290	2024-11-29	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3291	2024-11-30	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3292	2024-12-01	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3293	2024-12-02	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3294	2024-12-03	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3295	2024-12-04	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3296	2024-12-05	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3297	2024-12-06	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3298	2024-12-07	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3299	2024-12-08	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3300	2024-12-09	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3301	2024-12-10	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3302	2024-12-11	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3303	2024-12-12	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3304	2024-12-13	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3305	2024-12-14	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3306	2024-12-15	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3307	2024-12-16	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3308	2024-12-17	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3309	2024-12-18	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3310	2024-12-19	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3311	2024-12-20	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3312	2024-12-21	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3313	2024-12-22	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3314	2024-12-23	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3315	2024-12-24	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3316	2024-12-25	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3317	2024-12-26	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3318	2024-12-27	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3319	2024-12-28	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3320	2024-12-29	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3321	2024-12-30	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3322	2024-12-31	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3323	2025-01-01	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3324	2025-01-02	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3325	2025-01-03	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3326	2025-01-04	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3327	2025-01-05	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3328	2025-01-06	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3329	2025-01-07	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3330	2025-01-08	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3331	2025-01-09	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3332	2025-01-10	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3333	2025-01-11	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3334	2025-01-12	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3335	2025-01-13	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3336	2025-01-14	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3337	2025-01-15	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3338	2025-01-16	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3339	2025-01-17	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3340	2025-01-18	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3341	2025-01-19	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3342	2025-01-20	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3343	2025-01-21	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3344	2025-01-22	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3345	2025-01-23	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3346	2025-01-24	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3347	2025-01-25	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3348	2025-01-26	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3349	2025-01-27	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3350	2025-01-28	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3351	2025-01-29	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3352	2025-01-30	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3353	2025-01-31	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3354	2025-02-01	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3355	2025-02-02	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3356	2025-02-03	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3357	2025-02-04	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3358	2025-02-05	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3359	2025-02-06	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3360	2025-02-07	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3361	2025-02-08	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3362	2025-02-09	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3363	2025-02-10	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3364	2025-02-11	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3365	2025-02-12	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3366	2025-02-13	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3367	2025-02-14	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3368	2025-02-15	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3369	2025-02-16	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3370	2025-02-17	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3371	2025-02-18	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3372	2025-02-19	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3373	2025-02-20	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3374	2025-02-21	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3375	2025-02-22	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3376	2025-02-23	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3377	2025-02-24	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3378	2025-02-25	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3379	2025-02-26	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3380	2025-02-27	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3381	2025-02-28	USD	EUR	0.92401032	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:USD:EUR
+3382	2025-03-01	USD	EUR	0.96194821	DB60_INITIAL	OBSERVED	2025-03-01	V01.003:DB60:USD:EUR
+3383	2025-03-02	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3384	2025-03-03	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3385	2025-03-04	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3386	2025-03-05	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3387	2025-03-06	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3388	2025-03-07	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3389	2025-03-08	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3390	2025-03-09	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3391	2025-03-10	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3392	2025-03-11	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3393	2025-03-12	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3394	2025-03-13	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3395	2025-03-14	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3396	2025-03-15	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3397	2025-03-16	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3398	2025-03-17	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3399	2025-03-18	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3400	2025-03-19	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3401	2025-03-20	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3402	2025-03-21	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3403	2025-03-22	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3404	2025-03-23	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3405	2025-03-24	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3406	2025-03-25	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3407	2025-03-26	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3408	2025-03-27	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3409	2025-03-28	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3410	2025-03-29	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3411	2025-03-30	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3412	2025-03-31	USD	EUR	0.96194821	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:USD:EUR
+3413	2025-04-01	USD	EUR	0.92361177	DB60_INITIAL	OBSERVED	2025-04-01	V01.003:DB60:USD:EUR
+3414	2025-04-02	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3415	2025-04-03	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3416	2025-04-04	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3417	2025-04-05	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3418	2025-04-06	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3419	2025-04-07	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3420	2025-04-08	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3421	2025-04-09	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3422	2025-04-10	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3423	2025-04-11	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3424	2025-04-12	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3425	2025-04-13	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3426	2025-04-14	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3427	2025-04-15	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3428	2025-04-16	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3429	2025-04-17	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3430	2025-04-18	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3431	2025-04-19	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3432	2025-04-20	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3433	2025-04-21	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3434	2025-04-22	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3435	2025-04-23	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3436	2025-04-24	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3437	2025-04-25	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3438	2025-04-26	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3439	2025-04-27	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3440	2025-04-28	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3441	2025-04-29	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3442	2025-04-30	USD	EUR	0.92361177	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:USD:EUR
+3443	2025-05-01	USD	EUR	0.87935357	DB60_INITIAL	OBSERVED	2025-05-01	V01.003:DB60:USD:EUR
+3444	2025-05-02	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3445	2025-05-03	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3446	2025-05-04	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3447	2025-05-05	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3448	2025-05-06	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3449	2025-05-07	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3450	2025-05-08	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3451	2025-05-09	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3452	2025-05-10	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3453	2025-05-11	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3454	2025-05-12	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3455	2025-05-13	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3456	2025-05-14	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3457	2025-05-15	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3458	2025-05-16	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3459	2025-05-17	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3460	2025-05-18	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3461	2025-05-19	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3462	2025-05-20	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3463	2025-05-21	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3464	2025-05-22	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3465	2025-05-23	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3466	2025-05-24	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3467	2025-05-25	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3468	2025-05-26	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3469	2025-05-27	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3470	2025-05-28	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3471	2025-05-29	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3472	2025-05-30	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3473	2025-05-31	USD	EUR	0.87935357	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:USD:EUR
+3474	2025-06-01	USD	EUR	0.88307784	DB60_INITIAL	OBSERVED	2025-06-01	V01.003:DB60:USD:EUR
+3475	2025-06-02	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3476	2025-06-03	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3477	2025-06-04	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3478	2025-06-05	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3479	2025-06-06	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3480	2025-06-07	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3481	2025-06-08	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3482	2025-06-09	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3483	2025-06-10	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3484	2025-06-11	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3485	2025-06-12	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3486	2025-06-13	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3487	2025-06-14	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3488	2025-06-15	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3489	2025-06-16	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3490	2025-06-17	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3491	2025-06-18	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3492	2025-06-19	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3493	2025-06-20	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3494	2025-06-21	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3495	2025-06-22	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3496	2025-06-23	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3497	2025-06-24	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3498	2025-06-25	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3499	2025-06-26	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3500	2025-06-27	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3501	2025-06-28	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3502	2025-06-29	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3503	2025-06-30	USD	EUR	0.88307784	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:USD:EUR
+3504	2025-07-01	USD	EUR	0.85254254	DB60_INITIAL	OBSERVED	2025-07-01	V01.003:DB60:USD:EUR
+3505	2025-07-02	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3506	2025-07-03	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3507	2025-07-04	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3508	2025-07-05	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3509	2025-07-06	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3510	2025-07-07	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3511	2025-07-08	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3512	2025-07-09	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3513	2025-07-10	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3514	2025-07-11	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3515	2025-07-12	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3516	2025-07-13	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3517	2025-07-14	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3518	2025-07-15	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3519	2025-07-16	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3520	2025-07-17	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3521	2025-07-18	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3522	2025-07-19	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3523	2025-07-20	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3524	2025-07-21	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3525	2025-07-22	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3526	2025-07-23	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3527	2025-07-24	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3528	2025-07-25	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3529	2025-07-26	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3530	2025-07-27	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3531	2025-07-28	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3532	2025-07-29	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3533	2025-07-30	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3534	2025-07-31	USD	EUR	0.85254254	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:USD:EUR
+3535	2025-08-01	USD	EUR	0.87332660	DB60_INITIAL	OBSERVED	2025-08-01	V01.003:DB60:USD:EUR
+3536	2025-08-02	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3537	2025-08-03	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3538	2025-08-04	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3539	2025-08-05	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3540	2025-08-06	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3541	2025-08-07	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3542	2025-08-08	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3543	2025-08-09	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3544	2025-08-10	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3545	2025-08-11	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3546	2025-08-12	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3547	2025-08-13	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3548	2025-08-14	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3549	2025-08-15	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3550	2025-08-16	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3551	2025-08-17	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3552	2025-08-18	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3553	2025-08-19	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3554	2025-08-20	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3555	2025-08-21	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3556	2025-08-22	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3557	2025-08-23	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3558	2025-08-24	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3559	2025-08-25	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3560	2025-08-26	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3561	2025-08-27	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3562	2025-08-28	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3563	2025-08-29	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3564	2025-08-30	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3565	2025-08-31	USD	EUR	0.87332660	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:USD:EUR
+3566	2025-09-01	USD	EUR	0.85650391	DB60_INITIAL	OBSERVED	2025-09-01	V01.003:DB60:USD:EUR
+3567	2025-09-02	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3568	2025-09-03	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3569	2025-09-04	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3570	2025-09-05	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3571	2025-09-06	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3572	2025-09-07	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3573	2025-09-08	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3574	2025-09-09	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3575	2025-09-10	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3576	2025-09-11	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3577	2025-09-12	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3578	2025-09-13	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3579	2025-09-14	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3580	2025-09-15	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3581	2025-09-16	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3582	2025-09-17	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3583	2025-09-18	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3584	2025-09-19	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3585	2025-09-20	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3586	2025-09-21	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3587	2025-09-22	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3588	2025-09-23	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3589	2025-09-24	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3590	2025-09-25	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3591	2025-09-26	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3592	2025-09-27	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3593	2025-09-28	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3594	2025-09-29	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3595	2025-09-30	USD	EUR	0.85650391	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:USD:EUR
+3596	2025-10-01	USD	EUR	0.85062802	DB60_INITIAL	OBSERVED	2025-10-01	V01.003:DB60:USD:EUR
+3597	2025-10-02	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3598	2025-10-03	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3599	2025-10-04	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3600	2025-10-05	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3601	2025-10-06	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3602	2025-10-07	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3603	2025-10-08	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3604	2025-10-09	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3605	2025-10-10	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3606	2025-10-11	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3607	2025-10-12	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3608	2025-10-13	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3609	2025-10-14	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3610	2025-10-15	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3611	2025-10-16	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3612	2025-10-17	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3613	2025-10-18	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3614	2025-10-19	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3615	2025-10-20	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3616	2025-10-21	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3617	2025-10-22	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3618	2025-10-23	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3619	2025-10-24	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3620	2025-10-25	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3621	2025-10-26	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3622	2025-10-27	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3623	2025-10-28	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3624	2025-10-29	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3625	2025-10-30	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3626	2025-10-31	USD	EUR	0.85062802	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:USD:EUR
+3627	2025-11-01	USD	EUR	0.86385551	DB60_INITIAL	OBSERVED	2025-11-01	V01.003:DB60:USD:EUR
+3628	2025-11-02	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3629	2025-11-03	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3630	2025-11-04	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3631	2025-11-05	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3632	2025-11-06	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3633	2025-11-07	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3634	2025-11-08	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3635	2025-11-09	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3636	2025-11-10	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3637	2025-11-11	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3638	2025-11-12	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3639	2025-11-13	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3640	2025-11-14	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3641	2025-11-15	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3642	2025-11-16	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3643	2025-11-17	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3644	2025-11-18	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3645	2025-11-19	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3646	2025-11-20	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3647	2025-11-21	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3648	2025-11-22	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3649	2025-11-23	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3650	2025-11-24	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3651	2025-11-25	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3652	2025-11-26	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3653	2025-11-27	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3654	2025-11-28	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3655	2025-11-29	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3656	2025-11-30	USD	EUR	0.86385551	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:USD:EUR
+3657	2025-12-01	USD	EUR	0.86440584	DB60_INITIAL	OBSERVED	2025-12-01	V01.003:DB60:USD:EUR
+3658	2025-12-02	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3659	2025-12-03	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3660	2025-12-04	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3661	2025-12-05	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3662	2025-12-06	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3663	2025-12-07	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3664	2025-12-08	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3665	2025-12-09	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3666	2025-12-10	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3667	2025-12-11	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3668	2025-12-12	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3669	2025-12-13	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3670	2025-12-14	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3671	2025-12-15	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3672	2025-12-16	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3673	2025-12-17	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3674	2025-12-18	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3675	2025-12-19	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3676	2025-12-20	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3677	2025-12-21	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3678	2025-12-22	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3679	2025-12-23	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3680	2025-12-24	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3681	2025-12-25	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3682	2025-12-26	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3683	2025-12-27	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3684	2025-12-28	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3685	2025-12-29	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3686	2025-12-30	USD	EUR	0.86440584	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:USD:EUR
+3687	2025-12-31	USD	EUR	0.85210666	DB60_INITIAL	OBSERVED	2025-12-31	V01.003:DB60:USD:EUR
+3688	2026-01-01	USD	EUR	0.85210666	DB60_INITIAL	OBSERVED	2026-01-01	V01.003:DB60:USD:EUR
+3689	2026-01-02	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3690	2026-01-03	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3691	2026-01-04	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3692	2026-01-05	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3693	2026-01-06	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3694	2026-01-07	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3695	2026-01-08	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3696	2026-01-09	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3697	2026-01-10	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3698	2026-01-11	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3699	2026-01-12	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3700	2026-01-13	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3701	2026-01-14	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3702	2026-01-15	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3703	2026-01-16	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3704	2026-01-17	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3705	2026-01-18	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3706	2026-01-19	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3707	2026-01-20	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3708	2026-01-21	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3709	2026-01-22	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3710	2026-01-23	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3711	2026-01-24	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3712	2026-01-25	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3713	2026-01-26	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3714	2026-01-27	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3715	2026-01-28	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3716	2026-01-29	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3717	2026-01-30	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3718	2026-01-31	USD	EUR	0.85210666	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:USD:EUR
+3719	2026-02-01	USD	EUR	0.83973773	DB60_INITIAL	OBSERVED	2026-02-01	V01.003:DB60:USD:EUR
+3720	2026-02-02	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3721	2026-02-03	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3722	2026-02-04	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3723	2026-02-05	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3724	2026-02-06	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3725	2026-02-07	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3726	2026-02-08	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3727	2026-02-09	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3728	2026-02-10	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3729	2026-02-11	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3730	2026-02-12	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3731	2026-02-13	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3732	2026-02-14	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3733	2026-02-15	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3734	2026-02-16	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3735	2026-02-17	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3736	2026-02-18	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3737	2026-02-19	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3738	2026-02-20	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3739	2026-02-21	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3740	2026-02-22	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3741	2026-02-23	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3742	2026-02-24	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3743	2026-02-25	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3744	2026-02-26	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3745	2026-02-27	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3746	2026-02-28	USD	EUR	0.83973773	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:USD:EUR
+3747	2026-03-01	USD	EUR	0.84777303	DB60_INITIAL	OBSERVED	2026-03-01	V01.003:DB60:USD:EUR
+3748	2026-03-02	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3749	2026-03-03	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3750	2026-03-04	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3751	2026-03-05	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3752	2026-03-06	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3753	2026-03-07	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3754	2026-03-08	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3755	2026-03-09	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3756	2026-03-10	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3757	2026-03-11	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3758	2026-03-12	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3759	2026-03-13	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3760	2026-03-14	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3761	2026-03-15	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3762	2026-03-16	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3763	2026-03-17	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3764	2026-03-18	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3765	2026-03-19	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3766	2026-03-20	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3767	2026-03-21	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3768	2026-03-22	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3769	2026-03-23	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3770	2026-03-24	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3771	2026-03-25	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3772	2026-03-26	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3773	2026-03-27	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3774	2026-03-28	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3775	2026-03-29	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3776	2026-03-30	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3777	2026-03-31	USD	EUR	0.84777303	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:USD:EUR
+3778	2026-04-01	USD	EUR	0.87210342	DB60_INITIAL	OBSERVED	2026-04-01	V01.003:DB60:USD:EUR
+3779	2026-04-02	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3780	2026-04-03	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3781	2026-04-04	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3782	2026-04-05	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3783	2026-04-06	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3784	2026-04-07	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3785	2026-04-08	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3786	2026-04-09	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3787	2026-04-10	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3788	2026-04-11	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3789	2026-04-12	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3790	2026-04-13	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3791	2026-04-14	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3792	2026-04-15	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3793	2026-04-16	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3794	2026-04-17	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3795	2026-04-18	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3796	2026-04-19	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3797	2026-04-20	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3798	2026-04-21	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3799	2026-04-22	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3800	2026-04-23	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3801	2026-04-24	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3802	2026-04-25	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3803	2026-04-26	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3804	2026-04-27	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3805	2026-04-28	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3806	2026-04-29	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3807	2026-04-30	USD	EUR	0.87210342	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:USD:EUR
+3808	2026-05-01	USD	EUR	0.85608962	DB60_INITIAL	OBSERVED	2026-05-01	V01.003:DB60:USD:EUR
+3809	2026-05-02	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3810	2026-05-03	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3811	2026-05-04	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3812	2026-05-05	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3813	2026-05-06	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3814	2026-05-07	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3815	2026-05-08	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3816	2026-05-09	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3817	2026-05-10	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3818	2026-05-11	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3819	2026-05-12	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3820	2026-05-13	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3821	2026-05-14	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3822	2026-05-15	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3823	2026-05-16	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3824	2026-05-17	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3825	2026-05-18	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3826	2026-05-19	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3827	2026-05-20	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3828	2026-05-21	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3829	2026-05-22	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3830	2026-05-23	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3831	2026-05-24	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3832	2026-05-25	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3833	2026-05-26	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3834	2026-05-27	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3835	2026-05-28	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3836	2026-05-29	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3837	2026-05-30	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3838	2026-05-31	USD	EUR	0.85608962	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:USD:EUR
+3839	2026-06-01	USD	EUR	0.85995466	DB60_INITIAL	OBSERVED	2026-06-01	V01.003:DB60:USD:EUR
+3840	2026-06-02	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3841	2026-06-03	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3842	2026-06-04	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3843	2026-06-05	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3844	2026-06-06	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3845	2026-06-07	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3846	2026-06-08	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3847	2026-06-09	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3848	2026-06-10	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3849	2026-06-11	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3850	2026-06-12	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3851	2026-06-13	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3852	2026-06-14	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3853	2026-06-15	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3854	2026-06-16	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3855	2026-06-17	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3856	2026-06-18	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3857	2026-06-19	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3858	2026-06-20	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3859	2026-06-21	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3860	2026-06-22	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3861	2026-06-23	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3862	2026-06-24	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3863	2026-06-25	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3864	2026-06-26	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3865	2026-06-27	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3866	2026-06-28	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3867	2026-06-29	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3868	2026-06-30	USD	EUR	0.85995466	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:USD:EUR
+3869	2026-07-01	USD	EUR	0.87768572	DB60_INITIAL	OBSERVED	2026-07-01	V01.003:DB60:USD:EUR
+3870	2026-07-02	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3871	2026-07-03	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3872	2026-07-04	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3873	2026-07-05	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3874	2026-07-06	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3875	2026-07-07	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3876	2026-07-08	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3877	2026-07-09	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3878	2026-07-10	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3879	2026-07-11	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3880	2026-07-12	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3881	2026-07-13	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3882	2026-07-14	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3883	2026-07-15	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3884	2026-07-16	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3885	2026-07-17	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3886	2026-07-18	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3887	2026-07-19	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3888	2026-07-20	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3889	2026-07-21	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3890	2026-07-22	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3891	2026-07-23	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3892	2026-07-24	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3893	2026-07-25	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3894	2026-07-26	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3895	2026-07-27	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3896	2026-07-28	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3897	2026-07-29	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3898	2026-07-30	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3899	2026-07-31	USD	EUR	0.87768572	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:USD:EUR
+3900	2026-08-01	USD	EUR	0.86776555	DB60_INITIAL	OBSERVED	2026-08-01	V01.003:DB60:USD:EUR
+3901	2026-08-02	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3902	2026-08-03	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3903	2026-08-04	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3904	2026-08-05	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3905	2026-08-06	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3906	2026-08-07	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3907	2026-08-08	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3908	2026-08-09	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3909	2026-08-10	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3910	2026-08-11	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3911	2026-08-12	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3912	2026-08-13	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3913	2026-08-14	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3914	2026-08-15	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3915	2026-08-16	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3916	2026-08-17	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3917	2026-08-18	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3918	2026-08-19	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3919	2026-08-20	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3920	2026-08-21	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3921	2026-08-22	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3922	2026-08-23	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3923	2026-08-24	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3924	2026-08-25	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3925	2026-08-26	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3926	2026-08-27	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3927	2026-08-28	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3928	2026-08-29	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3929	2026-08-30	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3930	2026-08-31	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3931	2026-09-01	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3932	2026-09-02	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3933	2026-09-03	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3934	2026-09-04	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3935	2026-09-05	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3936	2026-09-06	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3937	2026-09-07	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3938	2026-09-08	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3939	2026-09-09	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3940	2026-09-10	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3941	2026-09-11	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3942	2026-09-12	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3943	2026-09-13	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3944	2026-09-14	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3945	2026-09-15	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3946	2026-09-16	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3947	2026-09-17	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3948	2026-09-18	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3949	2026-09-19	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3950	2026-09-20	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3951	2026-09-21	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3952	2026-09-22	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3953	2026-09-23	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3954	2026-09-24	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3955	2026-09-25	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3956	2026-09-26	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3957	2026-09-27	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3958	2026-09-28	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3959	2026-09-29	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3960	2026-09-30	USD	EUR	0.86776555	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:USD:EUR
+3961	2024-07-31	PLN	EUR	0.23281270	DB60_INITIAL	OBSERVED	2024-07-31	V01.003:DB60:PLN:EUR
+3962	2024-08-01	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3963	2024-08-02	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3964	2024-08-03	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3965	2024-08-04	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3966	2024-08-05	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3967	2024-08-06	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3968	2024-08-07	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3969	2024-08-08	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3970	2024-08-09	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3971	2024-08-10	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3972	2024-08-11	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3973	2024-08-12	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3974	2024-08-13	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3975	2024-08-14	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3976	2024-08-15	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3977	2024-08-16	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3978	2024-08-17	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3979	2024-08-18	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3980	2024-08-19	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3981	2024-08-20	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3982	2024-08-21	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3983	2024-08-22	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3984	2024-08-23	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3985	2024-08-24	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3986	2024-08-25	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3987	2024-08-26	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3988	2024-08-27	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3989	2024-08-28	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3990	2024-08-29	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3991	2024-08-30	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3992	2024-08-31	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3993	2024-09-01	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3994	2024-09-02	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3995	2024-09-03	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3996	2024-09-04	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3997	2024-09-05	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3998	2024-09-06	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+3999	2024-09-07	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4000	2024-09-08	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4001	2024-09-09	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4002	2024-09-10	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4003	2024-09-11	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4004	2024-09-12	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4005	2024-09-13	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4006	2024-09-14	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4007	2024-09-15	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4008	2024-09-16	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4009	2024-09-17	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4010	2024-09-18	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4011	2024-09-19	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4012	2024-09-20	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4013	2024-09-21	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4014	2024-09-22	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4015	2024-09-23	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4016	2024-09-24	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4017	2024-09-25	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4018	2024-09-26	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4019	2024-09-27	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4020	2024-09-28	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4021	2024-09-29	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4022	2024-09-30	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4023	2024-10-01	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4024	2024-10-02	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4025	2024-10-03	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4026	2024-10-04	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4027	2024-10-05	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4028	2024-10-06	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4029	2024-10-07	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4030	2024-10-08	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4031	2024-10-09	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4032	2024-10-10	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4033	2024-10-11	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4034	2024-10-12	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4035	2024-10-13	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4036	2024-10-14	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4037	2024-10-15	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4038	2024-10-16	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4039	2024-10-17	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4040	2024-10-18	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4041	2024-10-19	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4042	2024-10-20	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4043	2024-10-21	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4044	2024-10-22	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4045	2024-10-23	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4046	2024-10-24	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4047	2024-10-25	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4048	2024-10-26	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4049	2024-10-27	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4050	2024-10-28	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4051	2024-10-29	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4052	2024-10-30	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4053	2024-10-31	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4054	2024-11-01	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4055	2024-11-02	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4056	2024-11-03	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4057	2024-11-04	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4058	2024-11-05	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4059	2024-11-06	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4060	2024-11-07	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4061	2024-11-08	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4062	2024-11-09	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4063	2024-11-10	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4064	2024-11-11	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4065	2024-11-12	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4066	2024-11-13	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4067	2024-11-14	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4068	2024-11-15	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4069	2024-11-16	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4070	2024-11-17	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4071	2024-11-18	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4072	2024-11-19	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4073	2024-11-20	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4074	2024-11-21	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4075	2024-11-22	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4076	2024-11-23	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4077	2024-11-24	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4078	2024-11-25	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4079	2024-11-26	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4080	2024-11-27	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4081	2024-11-28	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4082	2024-11-29	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4083	2024-11-30	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4084	2024-12-01	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4085	2024-12-02	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4086	2024-12-03	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4087	2024-12-04	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4088	2024-12-05	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4089	2024-12-06	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4090	2024-12-07	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4091	2024-12-08	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4092	2024-12-09	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4093	2024-12-10	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4094	2024-12-11	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4095	2024-12-12	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4096	2024-12-13	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4097	2024-12-14	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4098	2024-12-15	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4099	2024-12-16	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4100	2024-12-17	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4101	2024-12-18	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4102	2024-12-19	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4103	2024-12-20	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4104	2024-12-21	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4105	2024-12-22	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4106	2024-12-23	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4107	2024-12-24	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4108	2024-12-25	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4109	2024-12-26	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4110	2024-12-27	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4111	2024-12-28	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4112	2024-12-29	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4113	2024-12-30	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4114	2024-12-31	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4115	2025-01-01	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4116	2025-01-02	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4117	2025-01-03	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4118	2025-01-04	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4119	2025-01-05	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4120	2025-01-06	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4121	2025-01-07	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4122	2025-01-08	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4123	2025-01-09	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4124	2025-01-10	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4125	2025-01-11	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4126	2025-01-12	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4127	2025-01-13	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4128	2025-01-14	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4129	2025-01-15	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4130	2025-01-16	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4131	2025-01-17	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4132	2025-01-18	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4133	2025-01-19	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4134	2025-01-20	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4135	2025-01-21	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4136	2025-01-22	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4137	2025-01-23	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4138	2025-01-24	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4139	2025-01-25	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4140	2025-01-26	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4141	2025-01-27	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4142	2025-01-28	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4143	2025-01-29	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4144	2025-01-30	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4145	2025-01-31	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4146	2025-02-01	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4147	2025-02-02	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4148	2025-02-03	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4149	2025-02-04	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4150	2025-02-05	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4151	2025-02-06	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4152	2025-02-07	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4153	2025-02-08	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4154	2025-02-09	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4155	2025-02-10	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4156	2025-02-11	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4157	2025-02-12	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4158	2025-02-13	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4159	2025-02-14	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4160	2025-02-15	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4161	2025-02-16	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4162	2025-02-17	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4163	2025-02-18	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4164	2025-02-19	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4165	2025-02-20	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4166	2025-02-21	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4167	2025-02-22	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4168	2025-02-23	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4169	2025-02-24	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4170	2025-02-25	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4171	2025-02-26	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4172	2025-02-27	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4173	2025-02-28	PLN	EUR	0.23281270	DB60_INITIAL	CARRY_FORWARD	2024-07-31	V01.003:DB60:PLN:EUR
+4174	2025-03-01	PLN	EUR	0.23755000	DB60_INITIAL	OBSERVED	2025-03-01	V01.003:DB60:PLN:EUR
+4175	2025-03-02	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4176	2025-03-03	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4177	2025-03-04	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4178	2025-03-05	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4179	2025-03-06	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4180	2025-03-07	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4181	2025-03-08	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4182	2025-03-09	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4183	2025-03-10	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4184	2025-03-11	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4185	2025-03-12	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4186	2025-03-13	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4187	2025-03-14	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4188	2025-03-15	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4189	2025-03-16	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4190	2025-03-17	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4191	2025-03-18	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4192	2025-03-19	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4193	2025-03-20	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4194	2025-03-21	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4195	2025-03-22	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4196	2025-03-23	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4197	2025-03-24	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4198	2025-03-25	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4199	2025-03-26	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4200	2025-03-27	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4201	2025-03-28	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4202	2025-03-29	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4203	2025-03-30	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4204	2025-03-31	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-03-01	V01.003:DB60:PLN:EUR
+4205	2025-04-01	PLN	EUR	0.23755000	DB60_INITIAL	OBSERVED	2025-04-01	V01.003:DB60:PLN:EUR
+4206	2025-04-02	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4207	2025-04-03	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4208	2025-04-04	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4209	2025-04-05	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4210	2025-04-06	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4211	2025-04-07	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4212	2025-04-08	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4213	2025-04-09	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4214	2025-04-10	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4215	2025-04-11	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4216	2025-04-12	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4217	2025-04-13	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4218	2025-04-14	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4219	2025-04-15	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4220	2025-04-16	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4221	2025-04-17	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4222	2025-04-18	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4223	2025-04-19	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4224	2025-04-20	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4225	2025-04-21	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4226	2025-04-22	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4227	2025-04-23	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4228	2025-04-24	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4229	2025-04-25	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4230	2025-04-26	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4231	2025-04-27	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4232	2025-04-28	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4233	2025-04-29	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4234	2025-04-30	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-04-01	V01.003:DB60:PLN:EUR
+4235	2025-05-01	PLN	EUR	0.23755000	DB60_INITIAL	OBSERVED	2025-05-01	V01.003:DB60:PLN:EUR
+4236	2025-05-02	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4237	2025-05-03	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4238	2025-05-04	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4239	2025-05-05	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4240	2025-05-06	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4241	2025-05-07	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4242	2025-05-08	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4243	2025-05-09	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4244	2025-05-10	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4245	2025-05-11	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4246	2025-05-12	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4247	2025-05-13	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4248	2025-05-14	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4249	2025-05-15	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4250	2025-05-16	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4251	2025-05-17	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4252	2025-05-18	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4253	2025-05-19	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4254	2025-05-20	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4255	2025-05-21	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4256	2025-05-22	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4257	2025-05-23	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4258	2025-05-24	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4259	2025-05-25	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4260	2025-05-26	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4261	2025-05-27	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4262	2025-05-28	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4263	2025-05-29	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4264	2025-05-30	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4265	2025-05-31	PLN	EUR	0.23755000	DB60_INITIAL	CARRY_FORWARD	2025-05-01	V01.003:DB60:PLN:EUR
+4266	2025-06-01	PLN	EUR	0.23685513	DB60_INITIAL	OBSERVED	2025-06-01	V01.003:DB60:PLN:EUR
+4267	2025-06-02	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4268	2025-06-03	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4269	2025-06-04	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4270	2025-06-05	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4271	2025-06-06	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4272	2025-06-07	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4273	2025-06-08	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4274	2025-06-09	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4275	2025-06-10	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4276	2025-06-11	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4277	2025-06-12	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4278	2025-06-13	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4279	2025-06-14	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4280	2025-06-15	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4281	2025-06-16	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4282	2025-06-17	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4283	2025-06-18	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4284	2025-06-19	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4285	2025-06-20	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4286	2025-06-21	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4287	2025-06-22	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4288	2025-06-23	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4289	2025-06-24	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4290	2025-06-25	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4291	2025-06-26	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4292	2025-06-27	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4293	2025-06-28	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4294	2025-06-29	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4295	2025-06-30	PLN	EUR	0.23685513	DB60_INITIAL	CARRY_FORWARD	2025-06-01	V01.003:DB60:PLN:EUR
+4296	2025-07-01	PLN	EUR	0.23508774	DB60_INITIAL	OBSERVED	2025-07-01	V01.003:DB60:PLN:EUR
+4297	2025-07-02	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4298	2025-07-03	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4299	2025-07-04	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4300	2025-07-05	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4301	2025-07-06	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4302	2025-07-07	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4303	2025-07-08	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4304	2025-07-09	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4305	2025-07-10	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4306	2025-07-11	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4307	2025-07-12	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4308	2025-07-13	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4309	2025-07-14	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4310	2025-07-15	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4311	2025-07-16	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4312	2025-07-17	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4313	2025-07-18	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4314	2025-07-19	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4315	2025-07-20	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4316	2025-07-21	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4317	2025-07-22	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4318	2025-07-23	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4319	2025-07-24	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4320	2025-07-25	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4321	2025-07-26	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4322	2025-07-27	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4323	2025-07-28	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4324	2025-07-29	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4325	2025-07-30	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4326	2025-07-31	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-07-01	V01.003:DB60:PLN:EUR
+4327	2025-08-01	PLN	EUR	0.23508774	DB60_INITIAL	OBSERVED	2025-08-01	V01.003:DB60:PLN:EUR
+4328	2025-08-02	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4329	2025-08-03	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4330	2025-08-04	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4331	2025-08-05	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4332	2025-08-06	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4333	2025-08-07	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4334	2025-08-08	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4335	2025-08-09	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4336	2025-08-10	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4337	2025-08-11	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4338	2025-08-12	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4339	2025-08-13	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4340	2025-08-14	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4341	2025-08-15	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4342	2025-08-16	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4343	2025-08-17	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4344	2025-08-18	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4345	2025-08-19	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4346	2025-08-20	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4347	2025-08-21	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4348	2025-08-22	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4349	2025-08-23	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4350	2025-08-24	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4351	2025-08-25	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4352	2025-08-26	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4353	2025-08-27	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4354	2025-08-28	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4355	2025-08-29	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4356	2025-08-30	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4357	2025-08-31	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-08-01	V01.003:DB60:PLN:EUR
+4358	2025-09-01	PLN	EUR	0.23508774	DB60_INITIAL	OBSERVED	2025-09-01	V01.003:DB60:PLN:EUR
+4359	2025-09-02	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4360	2025-09-03	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4361	2025-09-04	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4362	2025-09-05	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4363	2025-09-06	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4364	2025-09-07	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4365	2025-09-08	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4366	2025-09-09	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4367	2025-09-10	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4368	2025-09-11	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4369	2025-09-12	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4370	2025-09-13	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4371	2025-09-14	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4372	2025-09-15	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4373	2025-09-16	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4374	2025-09-17	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4375	2025-09-18	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4376	2025-09-19	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4377	2025-09-20	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4378	2025-09-21	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4379	2025-09-22	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4380	2025-09-23	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4381	2025-09-24	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4382	2025-09-25	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4383	2025-09-26	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4384	2025-09-27	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4385	2025-09-28	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4386	2025-09-29	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4387	2025-09-30	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-09-01	V01.003:DB60:PLN:EUR
+4388	2025-10-01	PLN	EUR	0.23508774	DB60_INITIAL	OBSERVED	2025-10-01	V01.003:DB60:PLN:EUR
+4389	2025-10-02	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4390	2025-10-03	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4391	2025-10-04	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4392	2025-10-05	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4393	2025-10-06	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4394	2025-10-07	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4395	2025-10-08	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4396	2025-10-09	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4397	2025-10-10	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4398	2025-10-11	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4399	2025-10-12	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4400	2025-10-13	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4401	2025-10-14	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4402	2025-10-15	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4403	2025-10-16	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4404	2025-10-17	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4405	2025-10-18	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4406	2025-10-19	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4407	2025-10-20	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4408	2025-10-21	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4409	2025-10-22	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4410	2025-10-23	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4411	2025-10-24	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4412	2025-10-25	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4413	2025-10-26	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4414	2025-10-27	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4415	2025-10-28	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4416	2025-10-29	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4417	2025-10-30	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4418	2025-10-31	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-10-01	V01.003:DB60:PLN:EUR
+4419	2025-11-01	PLN	EUR	0.23508774	DB60_INITIAL	OBSERVED	2025-11-01	V01.003:DB60:PLN:EUR
+4420	2025-11-02	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4421	2025-11-03	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4422	2025-11-04	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4423	2025-11-05	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4424	2025-11-06	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4425	2025-11-07	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4426	2025-11-08	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4427	2025-11-09	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4428	2025-11-10	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4429	2025-11-11	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4430	2025-11-12	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4431	2025-11-13	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4432	2025-11-14	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4433	2025-11-15	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4434	2025-11-16	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4435	2025-11-17	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4436	2025-11-18	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4437	2025-11-19	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4438	2025-11-20	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4439	2025-11-21	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4440	2025-11-22	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4441	2025-11-23	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4442	2025-11-24	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4443	2025-11-25	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4444	2025-11-26	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4445	2025-11-27	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4446	2025-11-28	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4447	2025-11-29	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4448	2025-11-30	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-11-01	V01.003:DB60:PLN:EUR
+4449	2025-12-01	PLN	EUR	0.23508774	DB60_INITIAL	OBSERVED	2025-12-01	V01.003:DB60:PLN:EUR
+4450	2025-12-02	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4451	2025-12-03	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4452	2025-12-04	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4453	2025-12-05	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4454	2025-12-06	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4455	2025-12-07	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4456	2025-12-08	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4457	2025-12-09	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4458	2025-12-10	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4459	2025-12-11	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4460	2025-12-12	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4461	2025-12-13	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4462	2025-12-14	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4463	2025-12-15	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4464	2025-12-16	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4465	2025-12-17	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4466	2025-12-18	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4467	2025-12-19	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4468	2025-12-20	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4469	2025-12-21	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4470	2025-12-22	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4471	2025-12-23	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4472	2025-12-24	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4473	2025-12-25	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4474	2025-12-26	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4475	2025-12-27	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4476	2025-12-28	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4477	2025-12-29	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4478	2025-12-30	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2025-12-01	V01.003:DB60:PLN:EUR
+4479	2025-12-31	PLN	EUR	0.23659114	DB60_INITIAL	OBSERVED	2025-12-31	V01.003:DB60:PLN:EUR
+4480	2026-01-01	PLN	EUR	0.23508774	DB60_INITIAL	OBSERVED	2026-01-01	V01.003:DB60:PLN:EUR
+4481	2026-01-02	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4482	2026-01-03	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4483	2026-01-04	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4484	2026-01-05	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4485	2026-01-06	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4486	2026-01-07	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4487	2026-01-08	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4488	2026-01-09	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4489	2026-01-10	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4490	2026-01-11	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4491	2026-01-12	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4492	2026-01-13	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4493	2026-01-14	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4494	2026-01-15	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4495	2026-01-16	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4496	2026-01-17	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4497	2026-01-18	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4498	2026-01-19	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4499	2026-01-20	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4500	2026-01-21	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4501	2026-01-22	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4502	2026-01-23	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4503	2026-01-24	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4504	2026-01-25	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4505	2026-01-26	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4506	2026-01-27	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4507	2026-01-28	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4508	2026-01-29	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4509	2026-01-30	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4510	2026-01-31	PLN	EUR	0.23508774	DB60_INITIAL	CARRY_FORWARD	2026-01-01	V01.003:DB60:PLN:EUR
+4511	2026-02-01	PLN	EUR	0.23881949	DB60_INITIAL	OBSERVED	2026-02-01	V01.003:DB60:PLN:EUR
+4512	2026-02-02	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4513	2026-02-03	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4514	2026-02-04	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4515	2026-02-05	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4516	2026-02-06	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4517	2026-02-07	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4518	2026-02-08	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4519	2026-02-09	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4520	2026-02-10	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4521	2026-02-11	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4522	2026-02-12	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4523	2026-02-13	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4524	2026-02-14	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4525	2026-02-15	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4526	2026-02-16	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4527	2026-02-17	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4528	2026-02-18	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4529	2026-02-19	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4530	2026-02-20	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4531	2026-02-21	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4532	2026-02-22	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4533	2026-02-23	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4534	2026-02-24	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4535	2026-02-25	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4536	2026-02-26	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4537	2026-02-27	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4538	2026-02-28	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-02-01	V01.003:DB60:PLN:EUR
+4539	2026-03-01	PLN	EUR	0.23881949	DB60_INITIAL	OBSERVED	2026-03-01	V01.003:DB60:PLN:EUR
+4540	2026-03-02	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4541	2026-03-03	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4542	2026-03-04	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4543	2026-03-05	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4544	2026-03-06	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4545	2026-03-07	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4546	2026-03-08	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4547	2026-03-09	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4548	2026-03-10	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4549	2026-03-11	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4550	2026-03-12	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4551	2026-03-13	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4552	2026-03-14	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4553	2026-03-15	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4554	2026-03-16	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4555	2026-03-17	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4556	2026-03-18	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4557	2026-03-19	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4558	2026-03-20	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4559	2026-03-21	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4560	2026-03-22	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4561	2026-03-23	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4562	2026-03-24	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4563	2026-03-25	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4564	2026-03-26	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4565	2026-03-27	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4566	2026-03-28	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4567	2026-03-29	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4568	2026-03-30	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4569	2026-03-31	PLN	EUR	0.23881949	DB60_INITIAL	CARRY_FORWARD	2026-03-01	V01.003:DB60:PLN:EUR
+4570	2026-04-01	PLN	EUR	0.23512074	DB60_INITIAL	OBSERVED	2026-04-01	V01.003:DB60:PLN:EUR
+4571	2026-04-02	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4572	2026-04-03	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4573	2026-04-04	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4574	2026-04-05	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4575	2026-04-06	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4576	2026-04-07	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4577	2026-04-08	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4578	2026-04-09	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4579	2026-04-10	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4580	2026-04-11	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4581	2026-04-12	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4582	2026-04-13	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4583	2026-04-14	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4584	2026-04-15	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4585	2026-04-16	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4586	2026-04-17	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4587	2026-04-18	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4588	2026-04-19	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4589	2026-04-20	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4590	2026-04-21	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4591	2026-04-22	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4592	2026-04-23	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4593	2026-04-24	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4594	2026-04-25	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4595	2026-04-26	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4596	2026-04-27	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4597	2026-04-28	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4598	2026-04-29	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4599	2026-04-30	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-04-01	V01.003:DB60:PLN:EUR
+4600	2026-05-01	PLN	EUR	0.23512074	DB60_INITIAL	OBSERVED	2026-05-01	V01.003:DB60:PLN:EUR
+4601	2026-05-02	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4602	2026-05-03	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4603	2026-05-04	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4604	2026-05-05	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4605	2026-05-06	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4606	2026-05-07	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4607	2026-05-08	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4608	2026-05-09	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4609	2026-05-10	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4610	2026-05-11	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4611	2026-05-12	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4612	2026-05-13	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4613	2026-05-14	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4614	2026-05-15	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4615	2026-05-16	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4616	2026-05-17	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4617	2026-05-18	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4618	2026-05-19	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4619	2026-05-20	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4620	2026-05-21	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4621	2026-05-22	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4622	2026-05-23	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4623	2026-05-24	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4624	2026-05-25	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4625	2026-05-26	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4626	2026-05-27	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4627	2026-05-28	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4628	2026-05-29	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4629	2026-05-30	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4630	2026-05-31	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-05-01	V01.003:DB60:PLN:EUR
+4631	2026-06-01	PLN	EUR	0.23512074	DB60_INITIAL	OBSERVED	2026-06-01	V01.003:DB60:PLN:EUR
+4632	2026-06-02	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4633	2026-06-03	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4634	2026-06-04	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4635	2026-06-05	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4636	2026-06-06	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4637	2026-06-07	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4638	2026-06-08	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4639	2026-06-09	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4640	2026-06-10	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4641	2026-06-11	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4642	2026-06-12	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4643	2026-06-13	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4644	2026-06-14	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4645	2026-06-15	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4646	2026-06-16	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4647	2026-06-17	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4648	2026-06-18	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4649	2026-06-19	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4650	2026-06-20	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4651	2026-06-21	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4652	2026-06-22	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4653	2026-06-23	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4654	2026-06-24	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4655	2026-06-25	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4656	2026-06-26	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4657	2026-06-27	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4658	2026-06-28	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4659	2026-06-29	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4660	2026-06-30	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-06-01	V01.003:DB60:PLN:EUR
+4661	2026-07-01	PLN	EUR	0.23512074	DB60_INITIAL	OBSERVED	2026-07-01	V01.003:DB60:PLN:EUR
+4662	2026-07-02	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4663	2026-07-03	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4664	2026-07-04	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4665	2026-07-05	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4666	2026-07-06	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4667	2026-07-07	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4668	2026-07-08	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4669	2026-07-09	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4670	2026-07-10	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4671	2026-07-11	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4672	2026-07-12	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4673	2026-07-13	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4674	2026-07-14	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4675	2026-07-15	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4676	2026-07-16	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4677	2026-07-17	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4678	2026-07-18	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4679	2026-07-19	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4680	2026-07-20	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4681	2026-07-21	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4682	2026-07-22	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4683	2026-07-23	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4684	2026-07-24	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4685	2026-07-25	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4686	2026-07-26	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4687	2026-07-27	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4688	2026-07-28	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4689	2026-07-29	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4690	2026-07-30	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4691	2026-07-31	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-07-01	V01.003:DB60:PLN:EUR
+4692	2026-08-01	PLN	EUR	0.23512074	DB60_INITIAL	OBSERVED	2026-08-01	V01.003:DB60:PLN:EUR
+4693	2026-08-02	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4694	2026-08-03	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4695	2026-08-04	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4696	2026-08-05	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4697	2026-08-06	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4698	2026-08-07	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4699	2026-08-08	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4700	2026-08-09	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4701	2026-08-10	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4702	2026-08-11	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4703	2026-08-12	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4704	2026-08-13	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4705	2026-08-14	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4706	2026-08-15	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4707	2026-08-16	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4708	2026-08-17	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4709	2026-08-18	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4710	2026-08-19	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4711	2026-08-20	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4712	2026-08-21	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4713	2026-08-22	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4714	2026-08-23	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4715	2026-08-24	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4716	2026-08-25	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4717	2026-08-26	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4718	2026-08-27	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4719	2026-08-28	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4720	2026-08-29	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4721	2026-08-30	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4722	2026-08-31	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4723	2026-09-01	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4724	2026-09-02	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4725	2026-09-03	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4726	2026-09-04	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4727	2026-09-05	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4728	2026-09-06	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4729	2026-09-07	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4730	2026-09-08	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4731	2026-09-09	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4732	2026-09-10	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4733	2026-09-11	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4734	2026-09-12	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4735	2026-09-13	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4736	2026-09-14	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4737	2026-09-15	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4738	2026-09-16	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4739	2026-09-17	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4740	2026-09-18	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4741	2026-09-19	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4742	2026-09-20	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4743	2026-09-21	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4744	2026-09-22	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4745	2026-09-23	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4746	2026-09-24	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4747	2026-09-25	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4748	2026-09-26	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4749	2026-09-27	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4750	2026-09-28	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4751	2026-09-29	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
+4752	2026-09-30	PLN	EUR	0.23512074	DB60_INITIAL	CARRY_FORWARD	2026-08-01	V01.003:DB60:PLN:EUR
 \.
 
 
@@ -10077,7 +15247,7 @@ COPY investory.notification_event (id, event_type, severity, portfolio_id, sourc
 --
 
 COPY investory.personal_asset (id, portfolio_id, name, category, currency, value, acquisition_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9404	2	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-09-09 18:44:04.789801+00	2026-09-09 18:44:04.789801+00
+9404	2	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-09-10 16:53:41.455005+00	2026-09-10 16:53:41.455005+00
 \.
 
 
@@ -10086,8 +15256,8 @@ COPY investory.personal_asset (id, portfolio_id, name, category, currency, value
 --
 
 COPY investory.portfolios (id, name, base_currency, local_currency, owner, user_id, created_at) FROM stdin;
-1	Sample Portfolio	USD	PLN	Sample User	1	2026-09-09 18:44:02.171134+00
-2	Happy Investor Portfolio	PLN	PLN	Happy Investor	2	2026-09-09 18:44:04.776077+00
+1	Sample Portfolio	USD	PLN	Sample User	1	2026-09-10 16:53:36.998905+00
+2	Happy Investor Portfolio	PLN	PLN	Happy Investor	2	2026-09-10 16:53:37.000675+00
 \.
 
 
@@ -10115,8 +15285,8 @@ COPY investory.positions (id, account_id, asset_id, source_asset_symbol, broker_
 --
 
 COPY investory.profile_memberships (user_id, profile_id, role, created_at) FROM stdin;
-1	1	OWNER	2026-09-09 18:44:04.601971+00
-2	2	OWNER	2026-09-09 18:44:04.777779+00
+1	1	OWNER	2026-09-10 16:53:41.326827+00
+2	2	OWNER	2026-09-10 16:53:41.326827+00
 \.
 
 
@@ -10135,8 +15305,8 @@ IBKR
 --
 
 COPY investory.real_estate (id, portfolio_id, name, currency, value, tax_base, acquisition_date, land_register_number, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9402	2	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	KR1P/4322432/0	\N	Happy Investor canonical profile	\N	2026-09-09 18:44:04.785945+00	2026-09-09 18:44:04.785945+00
-9403	2	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-09-09 18:44:04.785945+00	2026-09-09 18:44:04.785945+00
+9402	2	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	KR1P/4322432/0	\N	Happy Investor canonical profile	\N	2026-09-10 16:53:41.448543+00	2026-09-10 16:53:41.448543+00
+9403	2	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-09-10 16:53:41.448543+00	2026-09-10 16:53:41.448543+00
 \.
 
 
@@ -10174,6 +15344,18 @@ reconciliation_valuation_jump_absolute_threshold	250.000000000000	Domain thresho
 reconciliation_source_disagreement_ratio	1.250000000000	Price-source disagreement ratio that requires review.
 reconciliation_interpolation_deviation_ratio	0.250000000000	Interpolation deviation ratio that requires review.
 reconciliation_reconstruction_window_days	90.000000000000	Number of recent calendar days retained by settlement reconciliation reconstruction.
+reconciliation_temporal_short_gap_days	3.000000000000	Maximum elapsed observation gap considered a short-period temporal anomaly.
+reconciliation_fx_extreme_move_ratio	0.100000000000	Absolute canonical daily FX move that creates a review issue.
+reconciliation_fx_isolated_spike_ratio	0.250000000000	FX absolute current/neighbor move for an isolated spike candidate.
+reconciliation_fx_reciprocal_tolerance	0.000100000000	Allowed absolute deviation of a same-date reciprocal FX product from one.
+reconciliation_price_extreme_move_ratio	0.200000000000	Absolute observed short-gap asset-price move that creates a review issue.
+reconciliation_price_isolated_spike_ratio	1.500000000000	Asset current/neighbor ratio for an isolated spike candidate.
+reconciliation_temporal_neighbor_recovery_ratio	0.100000000000	Allowed relative difference between the observations surrounding an isolated spike.
+reconciliation_account_unexplained_move_ratio	0.200000000000	Unexplained short-gap account movement that creates a review issue.
+reconciliation_price_scale_upper_ratio	100.000000000000	Upper ratio treated as a possible price scale discontinuity.
+reconciliation_price_scale_lower_ratio	0.010000000000	Lower ratio treated as a possible price scale discontinuity.
+reconciliation_price_scale_ten_upper_ratio	10.500000000000	Upper boundary for a possible tenfold price scale discontinuity.
+reconciliation_price_scale_ten_lower_ratio	9.500000000000	Lower boundary for a possible tenfold price scale discontinuity.
 \.
 
 
@@ -10182,9 +15364,9 @@ reconciliation_reconstruction_window_days	90.000000000000	Number of recent calen
 --
 
 COPY investory.rental_contract (id, real_estate_id, start_date, end_date, terminated_date, bootstrap_managed, tenant_name, tenant_email, tenant_phone, notes, created_at, updated_at) FROM stdin;
-9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-09-09 18:44:04.791113+00	2026-09-09 18:44:04.791113+00
-9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-09-09 18:44:04.791113+00	2026-09-09 18:44:04.791113+00
-9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-09-09 18:44:04.791113+00	2026-09-09 18:44:04.791113+00
+9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-09-10 16:53:41.457276+00	2026-09-10 16:53:41.457276+00
+9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-09-10 16:53:41.457276+00	2026-09-10 16:53:41.457276+00
+9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-09-10 16:53:41.457276+00	2026-09-10 16:53:41.457276+00
 \.
 
 
@@ -10212,7 +15394,7 @@ COPY investory.retirement_plan_events (id, plan_id, event_year, name, amount, ev
 --
 
 COPY investory.retirement_planning_years (id, portfolio_id, planning_year, status, state, created_at, updated_at) FROM stdin;
-9301	2	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-09-09 18:44:04.797599+00	2026-09-09 18:44:04.797599+00
+9301	2	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-09-10 16:53:41.465+00	2026-09-10 16:53:41.465+00
 \.
 
 
@@ -10302,7 +15484,7 @@ SELECT pg_catalog.setval('investory.exchange_rates_id_seq', 50, true);
 -- Name: fx_daily_rates_id_seq; Type: SEQUENCE SET; Schema: investory; Owner: -
 --
 
-SELECT pg_catalog.setval('investory.fx_daily_rates_id_seq', 1, false);
+SELECT pg_catalog.setval('investory.fx_daily_rates_id_seq', 4752, true);
 
 
 --
@@ -10372,7 +15554,7 @@ SELECT pg_catalog.setval('investory.notification_event_id_seq', 1, false);
 -- Name: portfolios_id_seq; Type: SEQUENCE SET; Schema: investory; Owner: -
 --
 
-SELECT pg_catalog.setval('investory.portfolios_id_seq', 1, true);
+SELECT pg_catalog.setval('investory.portfolios_id_seq', 2, true);
 
 
 --
@@ -11511,7 +16693,7 @@ CREATE UNIQUE INDEX ux_recon_v_reconstructed_position_daily_mv_key ON investory.
 -- Name: asset_price_history investment_trg_asset_price_history_bind_source_mapping; Type: TRIGGER; Schema: investory; Owner: -
 --
 
-CREATE TRIGGER investment_trg_asset_price_history_bind_source_mapping BEFORE INSERT OR UPDATE OF asset_id, source, source_symbol, source_mapping_id ON investory.asset_price_history FOR EACH ROW EXECUTE FUNCTION investory.investment_fn_bind_asset_price_history_source_mapping();
+CREATE TRIGGER investment_trg_asset_price_history_bind_source_mapping BEFORE INSERT OR UPDATE OF asset_id, source, source_symbol, source_mapping_id, price_currency ON investory.asset_price_history FOR EACH ROW EXECUTE FUNCTION investory.investment_fn_bind_asset_price_history_source_mapping();
 
 
 --

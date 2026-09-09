@@ -71,7 +71,7 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
     assertEquals(
         new java.math.BigDecimal("3.60160000"),
         jdbc.queryForObject(
-            "select rate from investory.exchange_rates where base = 'USD' and to_currency = 'PLN' and rate_date = ? and source = 'NBP' and method = 'MARKET_DAILY'",
+            "select rate from investory.fx_daily_rates where base = 'USD' and to_currency = 'PLN' and rate_date = ?",
             java.math.BigDecimal.class,
             date));
     assertEquals(
@@ -83,7 +83,7 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
     assertEquals(
         0,
         jdbc.queryForObject(
-                "select rate from investory.exchange_rates where base = 'EUR' and to_currency = 'PLN' and rate_date = ? and source = 'NBP' and method = 'MARKET_DAILY'",
+                "select rate from investory.fx_daily_rates where base = 'EUR' and to_currency = 'PLN' and rate_date = ?",
                 java.math.BigDecimal.class,
                 date)
             .compareTo(new java.math.BigDecimal("3.06894736")));
@@ -108,12 +108,12 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
     updater.updateCurrencyRatesForDate(LocalDate.of(2026, 8, 21));
     int firstCount =
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
+            "select count(*) from investory.fx_daily_rates where rate_date = date '2026-08-20'",
             Integer.class);
     updater.updateCurrencyRatesForDate(LocalDate.of(2026, 8, 21));
     int secondCount =
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
+            "select count(*) from investory.fx_daily_rates where rate_date = date '2026-08-20'",
             Integer.class);
 
     assertEquals(6, firstCount);
@@ -124,10 +124,11 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
             "select count(*) from investory.exchange_rates where base = to_currency",
             Integer.class));
     assertEquals(
-        4.0,
+        0,
         jdbc.queryForObject(
-            "select rate from investory.exchange_rates where base = 'USD' and to_currency = 'PLN' and rate_date = date '2026-08-20'",
-            Double.class));
+            "select count(*) from investory.exchange_rates where base = 'USD' and to_currency = 'PLN' and rate_date = date '2026-08-20'",
+            Integer.class),
+        "FX updater must not persist valuation rates in legacy exchange_rates");
     assertEquals(
         "2026-08-20",
         jdbc.queryForObject(
@@ -230,7 +231,7 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
 
     int before =
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
+            "select count(*) from investory.fx_daily_rates where rate_date = date '2026-08-20'",
             Integer.class);
     String startBefore =
         jdbc.queryForObject(
@@ -244,7 +245,7 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
     assertEquals(
         before,
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'EXCHANGERATE_HOST' and method = 'MARKET_DAILY' and rate_date = date '2026-08-20'",
+            "select count(*) from investory.fx_daily_rates where rate_date = date '2026-08-20'",
             Integer.class));
     assertEquals(
         startBefore,
@@ -297,7 +298,7 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
   private void assertInvalidRefreshLeavesDatabaseUnchanged(LocalDate effectiveDate) {
     int before =
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = ?",
+            "select count(*) from investory.fx_daily_rates where rate_date = ?",
             Integer.class,
             effectiveDate);
     String startBefore =
@@ -312,7 +313,7 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
     assertEquals(
         before,
         jdbc.queryForObject(
-            "select count(*) from investory.exchange_rates where source = 'NBP' and method = 'MARKET_DAILY' and rate_date = ?",
+            "select count(*) from investory.fx_daily_rates where rate_date = ?",
             Integer.class,
             effectiveDate));
     assertEquals(

@@ -186,7 +186,7 @@ WITH portfolio_dates AS (
     SELECT DISTINCT a.portfolio_id, ad.snapshot_date AS valuation_date
     FROM investory.account_daily ad JOIN investory.accounts a ON a.id = ad.account_id
     UNION
-    SELECT DISTINCT a.portfolio_id, co.date::date
+    SELECT DISTINCT a.portfolio_id, (co.date AT TIME ZONE 'Europe/Warsaw')::date
     FROM investory.cash_operations co JOIN investory.accounts a ON a.id = co.account_id
     UNION
     SELECT id, CURRENT_DATE FROM investory.portfolios
@@ -584,7 +584,8 @@ WITH classified AS (
     SELECT DISTINCT
         portfolio_id,
         (date AT TIME ZONE 'Europe/Warsaw')::date AS vdate,
-        currency
+        currency,
+        base_currency
     FROM classified
 ), port_resolved AS (
     SELECT
@@ -597,15 +598,13 @@ WITH classified AS (
         r.age_days,
         r.conversion_status
     FROM port_needed n
-    CROSS JOIN LATERAL investory.resolve_portfolio_fx_rate(
-        n.portfolio_id,
+    CROSS JOIN LATERAL investory.resolve_fx_rate(
         n.vdate,
-        n.currency
+        n.currency,
+        n.base_currency
     ) AS r(
-        portfolio_id,
-        valuation_date,
         source_currency,
-        base_currency,
+        target_currency,
         fx_rate_to_base,
         source,
         rate_method,
@@ -3009,7 +3008,7 @@ BEGIN
     d := regexp_replace(d, ';[[:space:]]*$', '');
     p := strpos(d, 'port_resolved AS (');
     q := p + strpos(substr(d, p), '), acct_needed AS (') - 1;
-    r := 'port_resolved AS ( SELECT n.portfolio_id AS k_portfolio_id, n.vdate AS k_vdate, n.currency AS k_currency, fx.fx_rate_to_base, fx.source, fx.source_rate_date, fx.age_days, fx.conversion_status FROM port_needed n CROSS JOIN LATERAL investory.resolve_portfolio_fx_rate(n.portfolio_id, n.vdate, n.currency) fx(portfolio_id, valuation_date, source_currency, base_currency, fx_rate_to_base, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) )';
+    r := 'port_resolved AS ( SELECT n.portfolio_id AS k_portfolio_id, n.vdate AS k_vdate, n.currency AS k_currency, fx.fx_rate_to_target AS fx_rate_to_base, fx.source, fx.source_rate_date, fx.age_days, fx.conversion_status FROM port_needed n CROSS JOIN LATERAL investory.resolve_fx_rate(n.vdate, n.currency, n.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) )';
     d := left(d, p - 1) || r || substr(d, q + 1);
     EXECUTE 'CREATE MATERIALIZED VIEW investory.app_v_normalized_cash_operations AS ' || d || ' WITH DATA';
     CREATE UNIQUE INDEX ux_normalized_cash_operations ON investory.app_v_normalized_cash_operations(operation_id);

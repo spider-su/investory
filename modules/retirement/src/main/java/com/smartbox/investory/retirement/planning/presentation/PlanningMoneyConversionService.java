@@ -5,6 +5,8 @@ import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import org.springframework.stereotype.Service;
@@ -45,6 +47,9 @@ public class PlanningMoneyConversionService {
         ? fallback
         : display == CANONICAL
             ? amount
-            : rates.convertToBaseCurrency(amount, CANONICAL, display, LocalDate.now(clock));
+            : amount.divide(
+                rates.convertToBaseCurrency(
+                    BigDecimal.ONE, display, CANONICAL, LocalDate.now(clock)),
+                new MathContext(18, RoundingMode.HALF_UP));
   }
 }

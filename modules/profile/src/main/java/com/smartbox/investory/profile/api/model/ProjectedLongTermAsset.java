@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+/** Long-Term facts frozen in the {@link InvestmentProfile} base currency. */
 public record ProjectedLongTermAsset(
     Long id,
     String name,

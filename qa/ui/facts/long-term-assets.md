@@ -32,5 +32,8 @@ a two-decimal presentation field and is expected to render them as `4.63%` and `
 ## Evidence
 
 Record missing/mismatched values with URL/context, expected source fact, observed text, and concise
-evidence. Uncertain or presentation-only concerns are `SUSPICIOUS`; objective mismatches are `FAIL`
-only with concrete evidence.
+evidence. Use `2560x1440` only and record obvious clipping or overlap only. Classify as `PASS`,
+`EXPECTED ROUNDING / LIVE DATA DRIFT`, `STALE CONTRACT / TEST DEFECT`, `PRODUCT DEFECT`, `BUILD
+DEFECT`, `ENVIRONMENT BLOCKER`, or `SUSPICIOUS / NEEDS RECONCILIATION`; reconcile the source ledger
+before declaring a financial product defect. Missing
+Alternate viewport and breakpoint coverage are out of scope.

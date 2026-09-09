@@ -45,6 +45,16 @@ public final class HappyInvestorScenario {
 
   private HappyInvestorScenario() {}
 
+  /** Returns only investor-facing deposits and withdrawals from the canonical scenario ledger. */
+  public static List<CashOperationEntity> externalCashOperations() {
+    return create().ledger().stream()
+        .filter(
+            operation ->
+                operation.getType() == CashOperationType.DEPOSIT
+                    || operation.getType() == CashOperationType.WITHDRAWAL)
+        .toList();
+  }
+
   public static HappyInvestorContext create() {
     var ibkr = account(IBKR).build();
     var xtbUsd = account(XTB_USD).build();

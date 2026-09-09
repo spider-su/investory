@@ -12,6 +12,9 @@ public record IntegrationJobDescriptor(
       case "audit-long-term-payments" ->
           new IntegrationJobDescriptor(
               jobType, "Check long-term payments", "0 0 11 5 * *", "Europe/Warsaw");
+      case "export-portfolio" ->
+          new IntegrationJobDescriptor(
+              jobType, "Export portfolio", "0 0 22 * * *", "Europe/Warsaw");
       default -> new IntegrationJobDescriptor(jobType, jobType, "0 0 * * * *", "Europe/Warsaw");
     };
   }

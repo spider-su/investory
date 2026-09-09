@@ -13,6 +13,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+/**
+ * Legacy manual-price flow. It intentionally updates only the asset's current manual price fields;
+ * deprecated manual updates do not rebuild projections, refresh statistics, synchronize IBKR
+ * positions, or write {@code MANUAL} observations to {@code asset_price_history}.
+ */
 @Service
 @RequiredArgsConstructor
 public class ManualAssetPriceService {

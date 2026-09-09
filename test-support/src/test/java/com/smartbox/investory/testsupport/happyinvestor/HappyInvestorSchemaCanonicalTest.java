@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** Detects drift between the committed FastDatabase snapshot and canonical source facts. */
@@ -14,6 +15,20 @@ class HappyInvestorSchemaCanonicalTest {
     String snapshot = resource("db/snapshot/schema.sql");
     String common = resource("db/snapshot/happyinvestor-common.sql");
     String broker = resource("db/snapshot/happyinvestor-broker.sql");
+
+    assertTrue(common.contains("(2, 'happy.investor', 'Happy Investor'"));
+    assertTrue(common.contains("(2, 'Happy Investor Portfolio', 'PLN', 'PLN'"));
+    assertTrue(snapshot.contains("2\tHappy Investor Portfolio\tPLN\tPLN"));
+
+    List<String> canonicalAccounts =
+        List.of(
+            "(2017959259, '17959259', 'USD', 'IBKR', 'IBKR USD investment account', 'Happy Investor', 2, false)",
+            "(2051499241, '51499241', 'USD', 'XTB', 'XTB USD investment account', 'Happy Investor', 2, false)",
+            "(2051551301, '51551301', 'PLN', 'XTB', 'XTB PLN investment account', 'Happy Investor', 2, false)",
+            "(2051548444, '51548444', 'EUR', 'XTB', 'XTB EUR cash-only account', 'Happy Investor', 2, true)");
+    canonicalAccounts.forEach(account -> assertTrue(common.contains(account), account));
+    assertTrue(common.contains("base_currency = EXCLUDED.base_currency"));
+    assertTrue(common.contains("VALUES (2, 'Happy Investor Portfolio', 'PLN', 'PLN'"));
 
     assertTrue(snapshot.contains("9401\t2\tCash reserve\tPLN\t25000.000000000000"));
     assertTrue(snapshot.contains("9402\t2\tApartment A\tPLN\t400000.000000000000"));
@@ -54,14 +69,29 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(common.contains("(9402, 2, 'Apartment A', 'PLN', 400000, 3200, DATE '2024-08-01'"));
     assertTrue(common.contains("(9503, 9403, DATE '2025-07-01', NULL, NULL, false"));
     assertTrue(common.contains("(9201, 2, 'Happy Investor Plan'"));
+    assertTrue(
+        common.contains("2024, 85, 60, 90000, 12000,\n" + "    36000, 6000, 0.025, 0.025, 0.035"));
+    assertTrue(common.contains("'CASH,BONDS,STOCKS', 2, 0.05, 0.25, true"));
+    assertTrue(common.contains("0.035, 0.07, 67, 24000, 0.19"));
+    assertTrue(common.contains("2025, 50000, 159307.015664, 970000, 74400, 74400, 1"));
     assertTrue(broker.contains("(7108, 2017959259, 451, 'MSFT.US', 'MSFT', 'BUY', 'CASH_SETTLED'"));
     assertTrue(broker.contains("(7110, 2051499241, 501, 'NATGAS', 'NATGAS', 'BUY', 'RESULT_ONLY'"));
     assertTrue(broker.contains("(7111, 2017959259, 1201, 'US91282CKB62'"));
     assertTrue(broker.contains("(7112, 2017959259, 1251, 'US91282CRC72'"));
+    assertTrue(broker.contains("'HAPPYINVESTOR_FIXTURE', 'US91282CKB62'"));
+    assertTrue(broker.contains("'FIXTURE_PERCENT_OF_PAR'"));
     assertTrue(!broker.contains("'AMZN.US'"), "AMZN must not be a seeded HappyInvestor position");
     assertTrue(!broker.contains("'META.US'"), "META must not be a seeded HappyInvestor position");
     assertTrue(!broker.contains("'O.US'"), "O must not be a seeded HappyInvestor position");
     assertTrue(broker.contains("'CLOSE_TRADE', 501, 'NATGAS'"));
+    assertTrue(broker.contains("105.90 net of -86.10 rollover"));
+    assertTrue(broker.contains("19.80, 'USD'"));
+    assertTrue(broker.contains("-0.68, 'USD'"));
+    assertTrue(broker.contains("19.12"));
+    assertTrue(broker.contains("'Full call redemption principal returned'"));
+    assertTrue(broker.contains("'Next-day Treasury principal reinvestment'"));
+    assertTrue(common.contains("DATE '2026-02-28'"));
+    assertTrue(common.contains("DATE '2026-03-01'"));
     assertTrue(broker.contains("'EUR', 'PLN', 4.2952983671"));
     assertTrue(broker.contains("17181.1934684000, 'PLN'"));
     assertTrue(broker.contains("'PLN', 'USD', 0.2519589810778805"));
@@ -81,6 +111,23 @@ class HappyInvestorSchemaCanonicalTest {
                 + ", "
                 + HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_GROSS_ANNUAL.toPlainString()
                 + ", 1"));
+
+    // The generated snapshot must retain representative rows from both canonical overlays.
+    List<String> generatedMarkers =
+        List.of(
+            "Happy Investor Portfolio",
+            "IBKR USD investment account",
+            "XTB EUR cash-only account",
+            "Apartment A",
+            "Happy Investor Plan",
+            "EUR-USD-2024-07-31",
+            "EUR-PLN-2024-07-31",
+            "PLN-USD-2025-03",
+            "USD-PLN-2025-03",
+            "NATGAS CFD 2040572606",
+            "US91282CRC72");
+    generatedMarkers.forEach(
+        marker -> assertTrue(snapshot.contains(marker), "stale snapshot: " + marker));
   }
 
   private static String resource(String path) throws IOException {

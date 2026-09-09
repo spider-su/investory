@@ -54,7 +54,8 @@ public class ProfileQueryService implements ProfileSnapshotReader {
     this.currencyNormalizer = new ProfileCurrencyNormalizer(currencyRates);
     this.incomeCalculator = new ProfileIncomeCalculator(currencyNormalizer);
     this.liquidityCalculator = new ProfileLiquidityCalculator(currencyNormalizer);
-    this.planningCalculator = new ProfilePlanningCalculator(allocationCalculator);
+    this.planningCalculator =
+        new ProfilePlanningCalculator(allocationCalculator, currencyNormalizer);
     this.investmentIncome = investmentIncome;
   }
 
@@ -172,7 +173,7 @@ public class ProfileQueryService implements ProfileSnapshotReader {
             longTermSnapshot.annualSnapshot().currency(),
             base,
             date),
-        planningCalculator.state(longTermSnapshot.projectionInputs(), date),
+        planningCalculator.state(longTermSnapshot.projectionInputs(), base, date),
         liquidity.reserve(),
         liquidity.investmentCapital(),
         income,

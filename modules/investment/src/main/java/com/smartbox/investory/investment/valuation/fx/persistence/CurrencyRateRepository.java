@@ -60,6 +60,10 @@ public interface CurrencyRateRepository extends JpaRepository<CurrencyRateEntity
           SET config_value = to_char(CAST(:firstSupportedDate AS timestamp), 'YYYY-MM-DD')
           WHERE config_key = 'daily_history_start'
             AND (
+              CAST(config_value AS date) = DATE '9999-12-31'
+              OR CAST(:firstSupportedDate AS date) >= CAST(config_value AS date)
+            )
+            AND (
               CAST(:firstSupportedDate AS date) = DATE '9999-12-31'
               OR investory.fx_daily_coverage_supported(CAST(:firstSupportedDate AS date))
             )

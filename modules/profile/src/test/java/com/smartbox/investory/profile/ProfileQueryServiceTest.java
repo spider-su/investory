@@ -25,6 +25,7 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RentalContractProjectionModel;
 import com.smartbox.investory.profile.api.model.AssetHorizon;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.api.model.ProfileAllocation;
 import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
@@ -308,7 +309,7 @@ class ProfileQueryServiceTest {
                 false));
 
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
-    assertEquals(new BigDecimal("100000.0"), profile.retirementReserve());
+    assertEquals(BigDecimal.ZERO, profile.retirementReserve());
     assertEquals(new BigDecimal("500000.0"), profile.investmentCapital());
     assertEquals(new BigDecimal("38880"), profile.currentBondIncome());
     assertEquals(
@@ -423,6 +424,68 @@ class ProfileQueryServiceTest {
         .convertToBaseCurrency(any(), eq(CurrencyType.USD), eq(CurrencyType.EUR), eq(DATE));
   }
 
+  @Test
+  void normalizesMixedCurrencyPlanningStateExactlyOnceAtProfileBoundary() {
+    when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO))
+        .thenReturn(snapshot(CurrencyType.USD, 0, 0, 0, 0, List.of()));
+    when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
+    when(currencyRates.convertToBaseCurrency(
+            any(), eq(CurrencyType.USD), eq(CurrencyType.PLN), eq(DATE)))
+        .thenAnswer(
+            invocation ->
+                ((BigDecimal) invocation.getArgument(0)).multiply(new BigDecimal("0.25")));
+    longTermSummary =
+        new LongTermAssetProfileSummaryModel(
+            CurrencyType.PLN, new BigDecimal("4440000"), new BigDecimal("100000"));
+    longTermAssetRows =
+        List.of(
+            summary(LongTermAssetType.BOND, "800000", "80000", CurrencyType.PLN),
+            summary(LongTermAssetType.REAL_ESTATE, "3640000", "20000", CurrencyType.PLN));
+    longTermProjectionInputs =
+        List.of(
+            projection(1L, "Bond", AssetEconomicCategory.FIXED_INCOME, "800000", "80000"),
+            projection(2L, "Real Estate", AssetEconomicCategory.REAL_ESTATE, "3640000", "20000"));
+
+    InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
+
+    assertEquals(CurrencyType.USD, profile.currency());
+    assertEquals(
+        0, new BigDecimal("200000").compareTo(allocation(profile, EconomicBucket.FIXED_INCOME)));
+    assertEquals(
+        0, new BigDecimal("910000").compareTo(allocation(profile, EconomicBucket.REAL_ESTATE)));
+    assertEquals(
+        0,
+        new BigDecimal("200000")
+            .compareTo(profile.longTermPlanningState().assets().get(0).currentValue()));
+    assertEquals(
+        0,
+        new BigDecimal("910000")
+            .compareTo(profile.longTermPlanningState().assets().get(1).currentValue()));
+    assertEquals(CurrencyType.USD, profile.longTermPlanningState().assets().get(0).currency());
+    assertEquals(
+        0,
+        new BigDecimal("20000")
+            .compareTo(
+                profile
+                    .longTermPlanningState()
+                    .assets()
+                    .get(0)
+                    .periods()
+                    .getFirst()
+                    .annualIncome()));
+    assertEquals(
+        0,
+        new BigDecimal("5000")
+            .compareTo(
+                profile
+                    .longTermPlanningState()
+                    .assets()
+                    .get(1)
+                    .periods()
+                    .getFirst()
+                    .annualIncome()));
+  }
+
   @DisplayName("denominates the profile in the portfolio base currency from the market snapshot")
   @Test
   void denominatesProfileInPortfolioBaseCurrency() {
@@ -535,6 +598,36 @@ class ProfileQueryServiceTest {
     BigDecimal v = new BigDecimal(value);
     return new LongTermAssetProfileAssetModel(
         category(type), currency, v, type == LongTermAssetType.CASH_RESERVE);
+  }
+
+  private static LongTermAssetProjectionModel projection(
+      Long id, String name, AssetEconomicCategory category, String value, String income) {
+    return new LongTermAssetProjectionModel(
+        id,
+        name,
+        category,
+        CurrencyType.PLN,
+        new BigDecimal(value),
+        List.of(
+            new LongTermAssetProjectionModel.Period(
+                DATE,
+                null,
+                new BigDecimal(income),
+                new BigDecimal("4000"),
+                BigDecimal.ZERO,
+                null,
+                false)),
+        List.of(),
+        null,
+        false);
+  }
+
+  private static BigDecimal allocation(InvestmentProfile profile, EconomicBucket bucket) {
+    return profile.allocations().stream()
+        .filter(allocation -> allocation.bucket() == bucket)
+        .map(ProfileAllocation::value)
+        .findFirst()
+        .orElseThrow();
   }
 
   private static AssetEconomicCategory category(LongTermAssetType type) {

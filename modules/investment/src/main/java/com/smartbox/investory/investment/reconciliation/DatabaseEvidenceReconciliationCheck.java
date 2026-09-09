@@ -86,6 +86,8 @@ final class DatabaseEvidenceReconciliationCheck {
         case C0 -> "recon_v_import_provenance_issues + latest import attempts";
         case C1 -> "account_daily + normalized_cash_operation_flows (full precision)";
         case C2 -> "recon_v_position_lot_duplicates";
+        case C3 -> "recon_v_temporal_anomaly (FX + observed asset prices)";
+        case C4 -> "recon_v_temporal_anomaly (account flow-adjusted movements)";
         case C5 -> "recon_v_reporting_validation_summary";
         case C6 -> "recon_v_portfolio_service_fallback";
         default -> checkpoint.displayName();
@@ -98,6 +100,8 @@ final class DatabaseEvidenceReconciliationCheck {
             case C0 -> C0_EVIDENCE;
             case C1 -> C1_EVIDENCE;
             case C2 -> C2_EVIDENCE;
+            case C3 -> C3_EVIDENCE;
+            case C4 -> C4_EVIDENCE;
             case C5 -> C5_EVIDENCE;
             case C6 -> C6_EVIDENCE;
             default -> EMPTY_EVIDENCE;
@@ -123,6 +127,12 @@ final class DatabaseEvidenceReconciliationCheck {
                     "WHERE r.portfolio_id = "
                         + portfolioId
                         + " AND r.fallback_reconciliation_status <> 'MATCH'");
+        scopedEvidence =
+            scopedEvidence.replace(
+                "WHERE t.entity_type = 'ACCOUNT'",
+                "WHERE t.entity_type = 'ACCOUNT' AND EXISTS (SELECT 1 FROM investory.accounts scoped_account WHERE scoped_account.id = t.entity_id AND scoped_account.portfolio_id = "
+                    + portfolioId
+                    + ")");
       }
       return """
       WITH evidence AS (
@@ -250,6 +260,39 @@ final class DatabaseEvidenceReconciliationCheck {
       FROM investory.recon_v_position_lot_duplicates r
       JOIN investory.accounts account ON account.id = r.account_id
       JOIN investory.assets asset ON asset.id = r.asset_id
+      """;
+
+  private static final String C3_EVIDENCE =
+      """
+      SELECT CASE WHEN t.severity = 'ERROR' THEN 'FAIL' ELSE 'REVIEW' END::text AS issue_status,
+             t.issue_code AS check_code,
+             t.entity_type || ' / ' || COALESCE(t.entity_key, 'unknown') || ' / ' || t.event_date AS location,
+             t.previous_value AS expected,
+             t.current_value AS actual,
+             t.current_value - t.previous_value AS difference,
+             t.explanation AS cause,
+             'gapDays=' || COALESCE(t.gap_days::text, 'n/a')
+               || ', nextValue=' || COALESCE(t.next_value::text, 'n/a')
+               || ', source=' || COALESCE(t.source, 'n/a') AS details,
+             'Inspect upstream FX/price observations and mapping context; do not repair history automatically.'::text AS suggested_action
+      FROM investory.recon_v_temporal_anomaly t
+      WHERE t.entity_type IN ('FX', 'ASSET')
+      """;
+
+  private static final String C4_EVIDENCE =
+      """
+      SELECT 'REVIEW'::text AS issue_status,
+             t.issue_code AS check_code,
+             'account / ' || t.entity_key || ' / ' || t.event_date AS location,
+             t.previous_value AS expected,
+             t.current_value AS actual,
+             t.current_value - t.previous_value AS difference,
+             t.explanation AS cause,
+             'gapDays=' || COALESCE(t.gap_days::text, 'n/a')
+               || ', accountId=' || t.entity_id AS details,
+             'Inspect account flows and correlated upstream price/FX anomalies.'::text AS suggested_action
+      FROM investory.recon_v_temporal_anomaly t
+      WHERE t.entity_type = 'ACCOUNT'
       """;
 
   private static final String C5_EVIDENCE =

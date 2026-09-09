@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -164,10 +165,12 @@ class GoldenRebuildIT {
   void rebuildsReducedRealCorpusAndPassesGoldenContracts() throws Exception {
     runCheck("checkpoint-contract", "expected/checkpoints.json", this::loadCheckpointContract);
     runCheck("local-fx-fixture", "reference/exchange_rates.csv", this::loadDeterministicFxFixture);
-    runCheck("canonical-import-scope", "HappyInvestor portfolio 2", this::seedCanonicalImportScope);
+    runCheck(
+        "canonical-initial-data", "HappyInvestor portfolio 2", this::assertCanonicalImportScope);
     runCheck("ibkr-import", "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv", this::importIbkrFixture);
     runCheck("xtb-import", "xtb/investory_xtb_golden.zip", this::importXtbFixture);
     runCheck("source-statistics", "imported fixture tables", this::analyzeImportedSources);
+    runCheck("complete-fx-coverage", "all fixture valuation dates", this::completeGoldenFxCoverage);
 
     // Projection reads normalized cash operations. Refresh only that prerequisite before
     // projection; the full reporting refresh belongs after account_daily has been rebuilt.
@@ -178,6 +181,7 @@ class GoldenRebuildIT {
             portfolioProjectionRefreshService.refreshApplicationViews(
                 PortfolioProjectionRefreshService.ApplicationRefreshScope
                     .PROJECTION_PREREQUISITES));
+    runCheck("cash-fx-readiness", "normalized cash operations", this::assertNormalizedCashFxReady);
 
     // Importers may add deterministic execution-rate observations. Rebuild the local cache after
     // all
@@ -301,46 +305,34 @@ class GoldenRebuildIT {
     }
   }
 
-  private void seedCanonicalImportScope() {
-    jdbc.update(
-        """
-        INSERT INTO investory.app_users
-            (id, username, display_name, birth_date, active, role)
-        VALUES (2, 'happy.investor', 'Happy Investor', DATE '1984-01-01', true, 'PROFILE_OWNER')
-        ON CONFLICT (id) DO UPDATE SET username = EXCLUDED.username,
-            display_name = EXCLUDED.display_name, birth_date = EXCLUDED.birth_date,
-            active = EXCLUDED.active, role = EXCLUDED.role
-        """);
-    jdbc.update(
-        """
-        INSERT INTO investory.portfolios
-            (id, name, base_currency, local_currency, owner, user_id)
-        VALUES (2, 'Happy Investor Portfolio', 'PLN', 'PLN', 'Happy Investor', 2)
-        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name,
-            base_currency = EXCLUDED.base_currency, local_currency = EXCLUDED.local_currency,
-            owner = EXCLUDED.owner, user_id = EXCLUDED.user_id
-        """);
-    jdbc.update(
-        """
-        INSERT INTO investory.profile_memberships (user_id, profile_id, role)
-        VALUES (2, 2, 'OWNER')
-        ON CONFLICT (user_id, profile_id) DO UPDATE SET role = EXCLUDED.role
-        """);
-    jdbc.update(
-        """
-        INSERT INTO investory.accounts
-            (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only)
-        VALUES
-            (2017959259, '17959259', 'USD', 'IBKR', 'IBKR USD investment account', 'Happy Investor', 2, false),
-            (2051499241, '51499241', 'USD', 'XTB', 'XTB USD investment account', 'Happy Investor', 2, false),
-            (2051551301, '51551301', 'PLN', 'XTB', 'XTB PLN investment account', 'Happy Investor', 2, false),
-            (2051993106, '51993106', 'USD', 'XTB', 'XTB income account', 'Happy Investor', 2, false),
-            (2050290466, '50290466', 'PLN', 'XTB', 'XTB cash account', 'Happy Investor', 2, true)
-        ON CONFLICT (id) DO UPDATE SET external_account_id = EXCLUDED.external_account_id,
-            currency = EXCLUDED.currency, provider = EXCLUDED.provider, name = EXCLUDED.name,
-            owner = EXCLUDED.owner, portfolio_id = EXCLUDED.portfolio_id,
-            cash_only = EXCLUDED.cash_only
-        """);
+  private void assertCanonicalImportScope() {
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "select count(*) from investory.app_users where id = 2 and username = 'happy.investor'",
+            Integer.class));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            """
+            select count(*) from investory.portfolios
+            where id = 2 and user_id = 2 and base_currency = 'PLN' and local_currency = 'PLN'
+            """,
+            Integer.class));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            """
+            select count(*) from investory.accounts
+            where id = 2017959259 and portfolio_id = 2 and provider = 'IBKR'
+              and external_account_id = '17959259'
+            """,
+            Integer.class));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "select count(*) from investory.accounts where portfolio_id = 2 and provider = 'IBKR' and external_account_id = '17959259'",
+            Integer.class));
   }
 
   private void importXtbFixture() throws Exception {
@@ -360,8 +352,6 @@ class GoldenRebuildIT {
   }
 
   private void loadDeterministicFxFixture() throws IOException {
-    jdbc.update("delete from investory.exchange_rates where source = 'TEST'");
-
     try (BufferedReader reader =
         new BufferedReader(
             new InputStreamReader(
@@ -381,31 +371,23 @@ class GoldenRebuildIT {
         String base = column[1];
         String target = column[2];
         BigDecimal rate = new BigDecimal(column[3]);
-        String reference = "GOLDEN:" + date + ":" + base + ":" + target;
-
-        jdbc.update(
-            """
-                insert into investory.exchange_rates(
-                    rate_date, base, to_currency, rate,
-                    source, method, source_reference
-                )
-                select day::date, ?, ?, ?, 'TEST', 'MARKET_DAILY', ? || ':' || day::date
-                from generate_series(
-                    ?,
-                    (date_trunc('month', ?::date + interval '1 month') - interval '1 day')::date,
-                    interval '1 day'
-                ) day
-                on conflict do nothing
+        BigDecimal actual =
+            jdbc.queryForObject(
+                """
+                select rate from investory.fx_daily_rates
+                where rate_date = ? and base = ? and to_currency = ?
                 """,
-            base,
-            target,
-            rate,
-            reference,
-            date,
-            date);
+                BigDecimal.class,
+                date,
+                base,
+                target);
+        assertNotNull(actual, "missing initial FX " + date + " " + base + "->" + target);
+        assertEquals(
+            0,
+            rate.setScale(8, RoundingMode.HALF_UP).compareTo(actual),
+            "initial FX " + date + " " + base + "->" + target);
       }
     }
-    extendDeterministicFxThroughCurrentDate();
     currencyRateService.clearValuationResolutionCache();
   }
 
@@ -415,16 +397,16 @@ class GoldenRebuildIT {
         with latest as (
             select distinct on (base, to_currency)
                    rate_date, base, to_currency, rate
-            from investory.exchange_rates
+            from investory.fx_daily_rates
             where source = 'TEST'
             order by base, to_currency, rate_date desc, id desc
         )
-        insert into investory.exchange_rates(
+        insert into investory.fx_daily_rates(
             rate_date, base, to_currency, rate,
-            source, method, source_reference
+            source, method, source_rate_date, source_reference
         )
         select day::date, latest.base, latest.to_currency, latest.rate,
-               'TEST', 'MARKET_DAILY',
+               'TEST', 'CARRY_FORWARD', latest.rate_date,
                'GOLDEN:current-coverage:' || latest.base || ':' || latest.to_currency || ':' || day::date
         from latest
         cross join lateral generate_series(
@@ -434,6 +416,127 @@ class GoldenRebuildIT {
         ) day
         on conflict do nothing
         """);
+  }
+
+  private void deriveMissingGoldenFxDirections() {
+    jdbc.update(
+        """
+        insert into investory.fx_daily_rates(
+            rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
+        select rate_date, 'USD', 'EUR', 1 / rate, 'TEST', 'OBSERVED', source_rate_date,
+               source_reference || ':RECIPROCAL'
+        from investory.fx_daily_rates
+        where source = 'TEST' and base = 'EUR' and to_currency = 'USD'
+        on conflict do nothing
+        """);
+    jdbc.update(
+        """
+        insert into investory.fx_daily_rates(
+            rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
+        select rate_date, 'PLN', 'EUR', 1 / rate, 'TEST', 'OBSERVED', source_rate_date,
+               source_reference || ':RECIPROCAL'
+        from investory.fx_daily_rates
+        where source = 'TEST' and base = 'EUR' and to_currency = 'PLN'
+        on conflict do nothing
+        """);
+    jdbc.update(
+        """
+        insert into investory.fx_daily_rates(
+            rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
+        select day::date, pairs.base, pairs.to_currency, latest.rate, 'TEST', 'CARRY_FORWARD',
+               latest.source_rate_date,
+               'GOLDEN:complete-coverage:' || pairs.base || ':' || pairs.to_currency || ':' || day::date
+        from generate_series(
+                 (select min(rate_date) from investory.fx_daily_rates where source = 'TEST'),
+                 current_date, interval '1 day') day
+        cross join (values ('EUR'::varchar(3), 'USD'::varchar(3)),
+                           ('USD'::varchar(3), 'EUR'::varchar(3)),
+                           ('EUR'::varchar(3), 'PLN'::varchar(3)),
+                           ('PLN'::varchar(3), 'EUR'::varchar(3)),
+                           ('USD'::varchar(3), 'PLN'::varchar(3)),
+                           ('PLN'::varchar(3), 'USD'::varchar(3))) pairs(base, to_currency)
+        cross join lateral (
+            select rate, source_rate_date
+            from investory.fx_daily_rates fx
+            where fx.source = 'TEST' and fx.base = pairs.base and fx.to_currency = pairs.to_currency
+              and fx.rate_date <= day::date
+            order by fx.rate_date desc
+            limit 1) latest
+        on conflict do nothing
+        """);
+  }
+
+  private void completeGoldenFxCoverage() {
+    jdbc.update(
+        """
+        INSERT INTO investory.fx_daily_rates(
+            rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
+        SELECT DATE '2026-04-15', base, to_currency, rate, 'TEST', 'OBSERVED', DATE '2026-04-15',
+               'GOLDEN:2026-04-15:' || base || ':' || to_currency
+        FROM investory.fx_daily_rates
+        WHERE rate_date = DATE '2026-04-01' AND source = 'DB60_INITIAL'
+          AND base IN ('USD', 'EUR', 'PLN') AND to_currency IN ('USD', 'EUR', 'PLN')
+          AND base <> to_currency
+        ON CONFLICT (rate_date, base, to_currency) DO UPDATE SET
+            rate = EXCLUDED.rate, source = EXCLUDED.source, method = EXCLUDED.method,
+            source_rate_date = EXCLUDED.source_rate_date, source_reference = EXCLUDED.source_reference
+        """);
+    currencyRateService.clearValuationResolutionCache();
+
+    LocalDate knownRequiredDate = LocalDate.of(2026, 4, 15);
+    Integer dailyRows =
+        jdbc.queryForObject(
+            """
+            select count(*) from investory.fx_daily_rates
+            where rate_date = ? and base = 'USD' and to_currency = 'PLN'
+            """,
+            Integer.class,
+            knownRequiredDate);
+    assertEquals(1, dailyRows);
+    String conversionStatus =
+        jdbc.queryForObject(
+            """
+            select conversion_status
+            from investory.resolve_fx_rate(?, 'USD', 'PLN')
+            """,
+            String.class,
+            knownRequiredDate);
+    assertTrue(
+        "OK".equals(conversionStatus) || "CARRY_FORWARD".equals(conversionStatus),
+        "initial USD->PLN resolver status: " + conversionStatus);
+    String portfolioConversionStatus =
+        jdbc.queryForObject(
+            """
+            select conversion_status
+            from investory.resolve_portfolio_fx_rate(2, ?, 'USD')
+            """,
+            String.class,
+            knownRequiredDate);
+    assertTrue(
+        "OK".equals(portfolioConversionStatus) || "CARRY_FORWARD".equals(portfolioConversionStatus),
+        "initial portfolio USD->PLN resolver status: " + portfolioConversionStatus);
+  }
+
+  private void assertNormalizedCashFxReady() {
+    List<Map<String, Object>> missing =
+        jdbc.queryForList(
+            """
+            select nco.operation_id, nco.date, nco.currency, nco.base_currency,
+                   nco.portfolio_fx_source, nco.portfolio_source_rate_date,
+                   nco.portfolio_conversion_status, nco.account_conversion_status,
+                   direct.source as direct_portfolio_fx_source,
+                   direct.source_rate_date as direct_portfolio_source_rate_date,
+                   direct.conversion_status as direct_portfolio_conversion_status
+            from investory.app_v_normalized_cash_operations nco
+            cross join lateral investory.resolve_portfolio_fx_rate(
+                nco.portfolio_id,
+                (nco.date at time zone 'Europe/Warsaw')::date,
+                nco.currency) direct
+            where not investory.fx_status_usable(portfolio_conversion_status)
+               or not investory.fx_status_usable(account_conversion_status)
+            order by date, operation_id
+            """);
+    assertTrue(missing.isEmpty(), "normalized cash operations missing FX: " + missing);
   }
 
   private void assertTreasuryLifecycle() {

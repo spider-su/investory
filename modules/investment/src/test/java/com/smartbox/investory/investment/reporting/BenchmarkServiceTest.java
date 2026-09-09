@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -123,6 +124,20 @@ class BenchmarkServiceTest {
     Benchmark benchmark = benchmarkService.calculate(1L, null);
 
     assertFalse(benchmark.isAvailable());
+  }
+
+  @DisplayName("calculate starts history at the earliest recorded account snapshot")
+  @Test
+  void calculate_startsHistoryAtEarliestRecordedAccountSnapshot() {
+    LocalDate earliest = LocalDate.of(2025, 4, 15);
+    when(accountDailyRepository.findEarliestDateByAccountIdIn(any())).thenReturn(earliest);
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
+        .thenReturn(List.of());
+
+    benchmarkService.calculate(1L, null);
+
+    verify(accountDailyRepository)
+        .findByDateGreaterThanEqualAndAccountIdInOrderByDateAscAccountIdAsc(eq(earliest), any());
   }
 
   @DisplayName("calculate is Not Wrapped In One Service Transaction")

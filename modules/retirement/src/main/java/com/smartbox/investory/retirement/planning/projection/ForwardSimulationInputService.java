@@ -32,4 +32,18 @@ public class ForwardSimulationInputService {
         context.forwardAssumptions(),
         currentYearBridge);
   }
+
+  /** Bridges live facts while carrying the resulting boundary into a reviewed forward profile. */
+  public ForwardSimulationInput prepare(
+      InvestmentProfile liveProfile,
+      InvestmentProfile reviewedProfile,
+      SimulationAssumptions assumptions) {
+    var context = contexts.create(liveProfile, assumptions);
+    var currentYearBridge = bridge.projectCurrentYearEnd(context, reviewedProfile);
+    return new ForwardSimulationInput(
+        context,
+        currentYearBridge.bridgedProfile(),
+        context.forwardAssumptions(),
+        currentYearBridge);
+  }
 }

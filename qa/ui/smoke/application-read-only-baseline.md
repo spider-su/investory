@@ -23,9 +23,16 @@ manifest; it was not invented from the prompt.
 
 For each route, the runner checks response status, title, visible body/main content, stable page
 heading, application-error text, page/console errors, failed first-party requests, and browser
-requests for unexpected non-GET methods. The same route set is checked at `1440x1000` and
-`390x844`; narrow coverage additionally checks whole-page horizontal overflow. Failures capture
+requests for unexpected non-GET methods at `2560x1440`. Check only obvious clipping, overlap, or
+broken rendering at that supported desktop viewport. Failures capture
 HTML, screenshot, and trace artifacts under `app/target/ui-test-results`.
+
+Use `2560x1440` for exploratory checks. Alternate viewport, breakpoint, touch, and runtime resize
+coverage are out of scope unless explicitly requested.
+
+Route rendering is separate from financial readiness. HTTP 200, `DOMContentLoaded`, and the main
+page marker do not prove async financial widgets are settled; financial scenarios must wait for
+component-level readiness before checking values.
 
 ## Safe boundary
 

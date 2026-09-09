@@ -1,12 +1,17 @@
 # Investory HappyInvestor Facts coverage report
 
-Status: `REAL-CLOCK VALIDATION IN PROGRESS`; no application clock override is used. Shared-database
+Status: `HISTORICAL REPORT`; no application clock override was used for that run. Shared-database
 isolation and valuation defects are resolved; the closed-fixture price-cache overlay was hardened.
+
+This file is a prior-run record, not current live-Neon evidence. A local application at
+`http://localhost:8080` can use Neon as its datasource; current reports must record the application
+endpoint and database target separately and must not reuse the rendered values below without a new
+browser run.
 
 ## Browser execution
 
 - Browser: Playwright MCP
-- Environment: `http://localhost:8080`
+- App endpoint: `http://localhost:8080` (the datasource target must be recorded separately)
 - Portfolio requested: `2`
 - Viewports inspected: `1440x1000`, `390x844` where applicable
 - Persistent mutations: none
@@ -46,10 +51,9 @@ canonical asset identity, but the reporting side does not yet match canonical Ha
 - Production Dashboard/Profile use the application clock/current reporting period. Browser facts
   therefore classify MAX/YTD, maturity, current income, stale-price, and carry-forward values as
   date-sensitive and derive them independently.
-- The browser instance still rendered the pre-overlay market cache after the Neon seed completed;
-  this indicates the running local application is not connected to the seeded database (or its
-  reporting cache was not refreshed). The browser result is therefore `SUSPICIOUS`, not a product
-  defect conclusion.
+- The browser values below were captured before the current Neon-backed run and are therefore stale
+  for current live-browser assertions. They must not be used to conclude that the local app is
+  disconnected from Neon; verify the datasource and reporting freshness directly in the current run.
 
 Assertions were not weakened and no clock override was introduced. The seed now pins all canonical
 market-cache symbols by business identity, so the closed fixture remains deterministic under normal

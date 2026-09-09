@@ -3,12 +3,12 @@
   "files": [
     {
       "path": "README.md",
-      "sha256": "9f3e13d181c11359bb45714fa5f647288769f10f9a777091b03bd6ea70dbab73",
-      "size_bytes": 2242
+      "sha256": "efd26a5aad2058267e2b4f31ba4f78fd52cd8065472f28edba5a9d72fe20b834",
+      "size_bytes": 2478
     },
     {
       "path": "expected/checkpoints.json",
-      "sha256": "130ddf30f359ca351735ae117d6b7b409dfc63c2e0befe2622bee54c88a873dd",
+      "sha256": "bfa2fe562865461348543efe93d020495a32192f8c28a7586ad72d918b984a92",
       "size_bytes": 3591
     },
     {

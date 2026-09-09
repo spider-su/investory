@@ -8,6 +8,7 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.Liquidity;
 import com.smartbox.investory.shared.assets.AssetEconomicCategory;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -40,8 +41,9 @@ class ProfilePlanningCalculatorTest {
 
     var state =
         new ProfilePlanningCalculator(
-                new ProfileAllocationCalculator(mock(BrokerageAssetClassificationReader.class)))
-            .state(List.of(input), date);
+                new ProfileAllocationCalculator(mock(BrokerageAssetClassificationReader.class)),
+                new ProfileCurrencyNormalizer(mock(CurrencyConversion.class)))
+            .state(List.of(input), CurrencyType.USD, date);
 
     assertThat(state.rentalIncomeGrowthRate()).isZero();
     assertThat(state.rentalIncomeBaseYear()).isEqualTo(2026);
@@ -69,8 +71,9 @@ class ProfilePlanningCalculatorTest {
 
     var assets =
         new ProfilePlanningCalculator(
-                new ProfileAllocationCalculator(mock(BrokerageAssetClassificationReader.class)))
-            .state(List.of(unavailableCash, availableCash), date)
+                new ProfileAllocationCalculator(mock(BrokerageAssetClassificationReader.class)),
+                new ProfileCurrencyNormalizer(mock(CurrencyConversion.class)))
+            .state(List.of(unavailableCash, availableCash), CurrencyType.USD, date)
             .assets();
 
     assertThat(assets.get(0).liquidity()).isEqualTo(Liquidity.ILLIQUID);

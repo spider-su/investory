@@ -95,7 +95,7 @@ class ExportHappyInvestorIT extends FastDatabaseTest {
                   "BUY"),
               row(
                   "GOOGL",
-                  "",
+                  "189.3",
                   TRADE_DATE_DISPLAY,
                   TRADE_TIME,
                   "",
@@ -113,7 +113,7 @@ class ExportHappyInvestorIT extends FastDatabaseTest {
                   "BUY"),
               row(
                   "MSFT",
-                  "",
+                  "421.5",
                   TRADE_DATE_DISPLAY,
                   TRADE_TIME,
                   "",
@@ -131,7 +131,7 @@ class ExportHappyInvestorIT extends FastDatabaseTest {
                   "BUY"),
               row(
                   "NVDA",
-                  "",
+                  "134.29",
                   TRADE_DATE_DISPLAY,
                   TRADE_TIME,
                   "",
@@ -177,7 +177,7 @@ class ExportHappyInvestorIT extends FastDatabaseTest {
                   "",
                   TRADE_DATE,
                   "1.0",
-                  "10000",
+                  "98.81",
                   "",
                   "",
                   "",
@@ -185,7 +185,7 @@ class ExportHappyInvestorIT extends FastDatabaseTest {
                   "BUY"),
               row(
                   "VWRA.L",
-                  "",
+                  "139.34",
                   TRADE_DATE_DISPLAY,
                   TRADE_TIME,
                   "",

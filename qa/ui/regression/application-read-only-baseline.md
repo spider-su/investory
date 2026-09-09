@@ -8,9 +8,11 @@ page independently enough that one page failure does not hide unrelated page res
 
 ## Result rules
 
-Use `PASS`, `SUSPICIOUS`, `FAIL`, or `BLOCKED`. Keep skipped and unexecuted checks separate. A
+Use `PASS`, `EXPECTED ROUNDING / LIVE DATA DRIFT`, `STALE CONTRACT / TEST DEFECT`, `PRODUCT
+DEFECT`, `BUILD DEFECT`, `ENVIRONMENT BLOCKER`, or `SUSPICIOUS / NEEDS RECONCILIATION`. Keep skipped, blocked, and unexecuted checks separate. A
 browser, deployment, authentication, or fixture problem is an environment/precondition blocker,
-not an application failure. A FAIL needs concrete expected-versus-observed evidence.
+not an application failure. A product defect needs concrete expected-versus-observed evidence after
+source-ledger and contract reconciliation.
 
 ## Cross-page checks
 

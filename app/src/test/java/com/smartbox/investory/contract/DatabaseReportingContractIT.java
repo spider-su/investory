@@ -127,6 +127,9 @@ class DatabaseReportingContractIT {
         Statement statement = connection.createStatement()) {
       deleteCurrencySemanticsFixtures(statement);
       statement.execute(
+          "DELETE FROM investory.fx_daily_rates WHERE rate_date BETWEEN DATE '2026-01-15' AND DATE '2026-01-18' "
+              + "AND ((base = 'USD' AND to_currency = 'PLN') OR (base = 'EUR' AND to_currency = 'PLN'))");
+      statement.execute(
           "INSERT INTO investory.portfolios (id, name, base_currency, owner, user_id) VALUES "
               + "(910013, 'Currency semantics PLN', 'PLN', 'contract', 1), "
               + "(910014, 'Currency semantics USD', 'USD', 'contract', 1)");
@@ -134,10 +137,20 @@ class DatabaseReportingContractIT {
           "INSERT INTO investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only) VALUES "
               + "(910013, '910013', 'PLN', 'XTB', 'Currency semantics PLN', 'contract', 910013, false), "
               + "(910014, '910014', 'USD', 'IBKR', 'Currency semantics USD', 'contract', 910014, false)");
-      statement.execute(
-          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2026-01-15', 'USD', 'PLN', 4.00, 'TEST', 'MARKET_DAILY'), "
-              + "(DATE '2026-01-15', 'EUR', 'PLN', 4.00, 'TEST', 'MARKET_DAILY')");
+      for (int day = 0; day < 4; day++) {
+        LocalDate valuationDate = firstDate.plusDays(day);
+        try (PreparedStatement fx =
+            connection.prepareStatement(
+                "INSERT INTO investory.fx_daily_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) "
+                    + "VALUES (?, 'USD', 'PLN', 4.00, 'TEST', 'OBSERVED', ?), "
+                    + "(?, 'EUR', 'PLN', 4.00, 'TEST', 'OBSERVED', ?)")) {
+          fx.setObject(1, valuationDate);
+          fx.setObject(2, valuationDate);
+          fx.setObject(3, valuationDate);
+          fx.setObject(4, valuationDate);
+          fx.executeUpdate();
+        }
+      }
 
       long usdAssetId = insertAsset(connection, "SEMUSD.US", "USD");
       long eurAssetId = insertAsset(connection, "SEMEUR.DE", "EUR");
@@ -288,8 +301,17 @@ class DatabaseReportingContractIT {
     try (Connection connection = connection()) {
       connection.setAutoCommit(false);
       try {
-        long assetId = insertAsset(connection, "UNPRICED.MIXED.CONTRACT", "USD");
-        insertPosition(connection, 51499241L, assetId, "USD", LocalDate.of(2026, 1, 31));
+        long accountId = 2051551301L;
+        long unpricedAssetId = insertAsset(connection, "UNPRICED.MIXED.CONTRACT", "PLN");
+        long pricedAssetId = insertAsset(connection, "PRICED.MIXED.CONTRACT", "PLN");
+        insertPosition(connection, accountId, unpricedAssetId, "PLN", LocalDate.of(2026, 1, 31));
+        insertPosition(connection, accountId, pricedAssetId, "PLN", LocalDate.of(2026, 1, 31));
+        try (PreparedStatement update =
+            connection.prepareStatement(
+                "UPDATE investory.assets SET market_price = 100 WHERE id = ?")) {
+          update.setLong(1, pricedAssetId);
+          update.executeUpdate();
+        }
         refreshDashboardViews(connection);
 
         try (PreparedStatement statement =
@@ -304,7 +326,7 @@ class DatabaseReportingContractIT {
                     + "FROM investory.app_v_account_statistics s "
                     + "JOIN investory.app_v_current_open_position_rows v ON v.account_id = s.account_id "
                     + "WHERE s.account_id = ? GROUP BY s.market_value, s.unrealized_profit, s.missing_fx_count")) {
-          statement.setLong(1, 51499241L);
+          statement.setLong(1, accountId);
           try (ResultSet result = statement.executeQuery()) {
             assertTrue(result.next(), "fixture account must have open positions");
             assertTrue(result.getLong("missing") > 0, "fixture must include an unvalued position");
@@ -362,8 +384,8 @@ class DatabaseReportingContractIT {
 
         try (Statement statement = connection.createStatement()) {
           statement.execute(
-              "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) "
-                  + "VALUES (DATE '2099-01-31', 'GBP', 'PLN', 5, 'TEST', 'MARKET_DAILY')");
+              "INSERT INTO investory.fx_daily_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) "
+                  + "VALUES (DATE '2099-01-31', 'GBP', 'PLN', 5, 'TEST', 'OBSERVED', DATE '2099-01-31')");
         }
         refreshDashboardViews(connection);
 
@@ -705,7 +727,8 @@ class DatabaseReportingContractIT {
 
       try (ResultSet result =
           statement.executeQuery(
-              "SELECT count(*) FROM investory.portfolios WHERE user_id IS NULL OR user_id <> 1")) {
+              "SELECT count(*) FROM investory.portfolios p LEFT JOIN investory.app_users u ON u.id = p.user_id "
+                  + "WHERE p.user_id IS NULL OR u.id IS NULL")) {
         assertTrue(result.next());
         assertEquals(0, result.getLong(1));
       }
@@ -793,10 +816,9 @@ class DatabaseReportingContractIT {
         }
 
         double[] after = portfolioContributionSummary(connection, 1L);
-        double usdToPln = portfolioFxRate(connection);
-        assertEquals(130.0 * usdToPln, after[0] - before[0], 0.001, "deposit delta");
-        assertEquals(30.0 * usdToPln, after[1] - before[1], 0.001, "withdrawal delta");
-        assertEquals(100.0 * usdToPln, after[2] - before[2], 0.001, "net contribution delta");
+        assertEquals(130.0, after[0] - before[0], 0.001, "deposit delta");
+        assertEquals(30.0, after[1] - before[1], 0.001, "withdrawal delta");
+        assertEquals(100.0, after[2] - before[2], 0.001, "net contribution delta");
       } finally {
         connection.rollback();
       }

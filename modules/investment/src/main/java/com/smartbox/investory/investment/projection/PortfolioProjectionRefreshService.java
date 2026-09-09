@@ -61,6 +61,7 @@ public class PortfolioProjectionRefreshService {
           "app_v_canonical_asset_daily_price_mv",
           "app_v_canonical_asset_daily_price_ranked_mv",
           "app_v_normalized_daily_price_mv",
+          "app_v_portfolio_daily_fx_rate_mv",
           "app_v_normalized_cash_operations");
 
   private static final List<String> PROJECTION_DEPENDENCY_ORDER =
@@ -84,7 +85,6 @@ public class PortfolioProjectionRefreshService {
 
   private static final List<String> RECONCILIATION_ORDER =
       List.of(
-          "recon_v_reconstructed_position_daily_mv",
           "recon_v_reconstructed_account_market_daily_mv",
           "recon_v_reconstructed_cash_daily_mv",
           "recon_v_account_daily_reconciliation_mv",
@@ -118,6 +118,10 @@ public class PortfolioProjectionRefreshService {
   }
 
   public void refreshReconciliationViews() {
+    // This SQL function is the authoritative dependency-aware entry point for the
+    // reconstructed valuation spine. Do not refresh its first MV directly here.
+    transactionTemplate.executeWithoutResult(
+        status -> jdbcTemplate.execute("SELECT investory.refresh_reconstructed_position_daily()"));
     refreshViews("reconciliation", RECONCILIATION_ORDER);
   }
 

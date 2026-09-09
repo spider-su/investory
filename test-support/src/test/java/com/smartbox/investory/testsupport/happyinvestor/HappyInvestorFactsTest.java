@@ -2,6 +2,7 @@ package com.smartbox.investory.testsupport.happyinvestor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.investment.ledger.cash.CashOperationType;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
@@ -83,6 +84,11 @@ class HappyInvestorFactsTest {
         .containsExactly(
             "AAPL.US", "VWRA.UK", "NVDA.US", "TSLA.US", "GOOGL.US", "MSFT.US", "US91282CKB62");
     assertThat(HappyInvestorBrokerFacts.OPEN_POSITIONS_VALUE).isEqualByComparingTo("174847.919664");
+    assertThat(HappyInvestorBrokerFacts.START_OF_YEAR_BALANCE)
+        .isEqualByComparingTo(
+            HappyInvestorBrokerFacts.OPEN_POSITIONS_VALUE.add(
+                HappyInvestorBrokerFacts.BROKERAGE_CASH))
+        .isEqualByComparingTo("174831.6796640");
     assertThat(HappyInvestorBrokerFacts.OPEN_POSITIONS_UNREALIZED)
         .isEqualByComparingTo("14036.479664");
     assertThat(HappyInvestorBrokerFacts.AAPL_VALUE).isEqualByComparingTo("134551.634160");
@@ -93,5 +99,26 @@ class HappyInvestorFactsTest {
                 .movePointLeft(2)
                 .multiply(new BigDecimal("3.6016")))
         .isEqualByComparingTo("35587.4096");
+  }
+
+  @Test
+  void dashboardFlowsAreDerivedFromCanonicalExternalLedger() {
+    assertThat(HappyInvestorScenario.externalCashOperations())
+        .hasSize(10)
+        .allMatch(
+            operation ->
+                operation.getType() == CashOperationType.DEPOSIT
+                    || operation.getType() == CashOperationType.WITHDRAWAL);
+    assertThat(
+            HappyInvestorScenario.externalCashOperations().stream()
+                .filter(operation -> operation.getType() == CashOperationType.WITHDRAWAL)
+                .count())
+        .isEqualTo(6);
+    assertThat(HappyInvestorDashboardFacts.DEPOSITS).isEqualByComparingTo("451127.98693680");
+    assertThat(HappyInvestorDashboardFacts.WITHDRAWALS).isEqualByComparingTo("412597.53729850");
+    assertThat(HappyInvestorDashboardFacts.NET_DEPOSITS).isEqualByComparingTo("38530.44963830");
+    assertThat(
+            HappyInvestorDashboardFacts.DEPOSITS.subtract(HappyInvestorDashboardFacts.WITHDRAWALS))
+        .isEqualByComparingTo(HappyInvestorDashboardFacts.NET_DEPOSITS);
   }
 }

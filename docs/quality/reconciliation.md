@@ -51,6 +51,14 @@ Also check:
 - missing/stale FX follows `docs/domain/fx-normalization.md`;
 - dashboard and adapter totals trace back to the same reporting lineage.
 
+Temporal anomaly evidence is a review layer over C3 and C4. `recon_v_temporal_anomaly`
+combines gap-aware FX, observed asset-price, and flow-adjusted account checks. Its `ERROR`
+rows indicate strong structural evidence (for example, reciprocal FX inconsistency or an
+isolated price spike); they do not authorize historical data repair. Large movements across
+long observation gaps are not classified as short-period spikes, and account movement checks
+remove deposits, withdrawals, income, expenses, and realized profit before applying the
+unexplained-movement threshold.
+
 Known non-accounting price-source conditions are evidence-quality classifications, not valuation
 failures: trade observations, interpolated prices, alternate listings, and stale carry-forward
 prices remain visible for traceability. Trade-observation and stale-carry-forward selections are

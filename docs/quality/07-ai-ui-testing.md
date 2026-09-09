@@ -15,6 +15,16 @@ its bounded initial report is [`2026-09-09 report`](../../qa/ai/reports/2026-09-
 
 ## Contract
 
+### Financial source-of-truth rule
+
+AI UI tests validate the canonical HappyInvestor story and existing domain/reporting contracts.
+They must not redefine financial metric semantics locally. Expected values are canonical story facts
+or values derived from tested reporting contracts. External deposits and withdrawals remain subject
+to the existing reporting/domain contract. For a mismatch, identify the story fact, locate the
+authoritative contract, reconcile the observation, and only then classify it as a product defect.
+Deterministic fixture facts, derived reporting values, and live/non-deterministic market observations
+such as Yahoo prices and FX must be reported separately.
+
 AI QA is read-only by default. Navigation, reload, back/forward, viewport changes, read-only query
 filters, and expansion of read-only sections are allowed. Form submissions and actions that create,
 edit, delete, archive, reactivate, import, export, refresh, reconcile, schedule, or change provider

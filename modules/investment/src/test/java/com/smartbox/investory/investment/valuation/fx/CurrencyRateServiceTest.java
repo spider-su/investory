@@ -22,7 +22,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -232,40 +231,6 @@ class CurrencyRateServiceTest {
             new BigDecimal("10"), CurrencyType.PLN, CurrencyType.USD, date));
   }
 
-  @DisplayName("update Rates persists New Rate When Absent")
-  @Test
-  void updateRates_persistsNewRateWhenAbsent() {
-    when(currencyRateRepository.findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
-            LocalDate.of(2026, 7, 5), CurrencyType.USD, CurrencyType.EUR, "NBP", "MARKET_DAILY"))
-        .thenReturn(Optional.empty());
-
-    service.updateRates(CurrencyType.USD, Map.of(CurrencyType.EUR, 0.95), LocalDate.of(2026, 7, 5));
-
-    ArgumentCaptor<CurrencyRateEntity> captor = ArgumentCaptor.forClass(CurrencyRateEntity.class);
-    verify(currencyRateRepository).save(captor.capture());
-    CurrencyRateEntity saved = captor.getValue();
-    assertEquals(LocalDate.of(2026, 7, 5), saved.getRateDate());
-    assertEquals(CurrencyType.USD, saved.getBase());
-    assertEquals(CurrencyType.EUR, saved.getToCurrency());
-    assertEquals(new BigDecimal("0.95000000"), saved.getRate());
-  }
-
-  @DisplayName("update Rates updates Existing Rate")
-  @Test
-  void updateRates_updatesExistingRate() {
-    CurrencyRateEntity existing =
-        rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5), 0.8);
-    when(currencyRateRepository.findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
-            LocalDate.of(2026, 7, 5), CurrencyType.USD, CurrencyType.EUR, "NBP", "MARKET_DAILY"))
-        .thenReturn(Optional.of(existing));
-
-    service.updateRates(CurrencyType.USD, Map.of(CurrencyType.EUR, 0.92), LocalDate.of(2026, 7, 5));
-
-    verify(currencyRateRepository).save(existing);
-    assertEquals(LocalDate.of(2026, 7, 5), existing.getRateDate());
-    assertEquals(new BigDecimal("0.92000000"), existing.getRate());
-  }
-
   @DisplayName("get Rate returns Persisted Rate")
   @Test
   void getRate_returnsPersistedRate() {
@@ -436,9 +401,8 @@ class CurrencyRateServiceTest {
     service.resolveRate(CurrencyType.PLN, CurrencyType.USD, first);
     verify(currencyRateRepository, times(2)).resolveFxRatesForDate(first);
 
-    service.updateRates(CurrencyType.USD, Map.of(), first);
     service.resolveRate(CurrencyType.PLN, CurrencyType.USD, first);
-    verify(currencyRateRepository, times(3)).resolveFxRatesForDate(first);
+    verify(currencyRateRepository, times(2)).resolveFxRatesForDate(first);
   }
 
   private static CurrencyRateEntity rate(

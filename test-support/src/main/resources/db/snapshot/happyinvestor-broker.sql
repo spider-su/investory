@@ -81,6 +81,32 @@ VALUES
     (7108, 2017959259, 451, 'MSFT.US', 'MSFT', 'BUY', 'CASH_SETTLED', 10, 'USD', 'USD', 'USD', 'USD', '2024-07-31 12:00:00+02', 100, 100, 1, 1000, 1000, -1, NULL, 0)
 ON CONFLICT (id) DO NOTHING;
 
+-- The Treasury quote is expressed as percent of par. Keep the reference-date observation with
+-- the imported lot so fixture valuation is independent from snapshot fallback prices.
+INSERT INTO asset_price_history
+    (asset_id, price_date, source, source_symbol, price_origin, price_currency,
+     open_price, high_price, low_price, close_price, source_date, quality_score,
+     quality_class, is_observed, is_proxy, price_scale_factor, original_source_symbol)
+VALUES
+    (1201, DATE '2025-12-31', 'HAPPYINVESTOR_FIXTURE', 'US91282CKB62',
+     'FIXTURE', 'USD', 100, 100, 100, 100, DATE '2025-12-31', 100,
+     'FIXTURE_PERCENT_OF_PAR', true, false, 1, 'T458022826')
+ON CONFLICT (asset_id, price_date, source) DO UPDATE
+SET source_symbol = EXCLUDED.source_symbol,
+    price_origin = EXCLUDED.price_origin,
+    price_currency = EXCLUDED.price_currency,
+    open_price = EXCLUDED.open_price,
+    high_price = EXCLUDED.high_price,
+    low_price = EXCLUDED.low_price,
+    close_price = EXCLUDED.close_price,
+    source_date = EXCLUDED.source_date,
+    quality_score = EXCLUDED.quality_score,
+    quality_class = EXCLUDED.quality_class,
+    is_observed = EXCLUDED.is_observed,
+    is_proxy = EXCLUDED.is_proxy,
+    price_scale_factor = EXCLUDED.price_scale_factor,
+    original_source_symbol = EXCLUDED.original_source_symbol;
+
 INSERT INTO positions
     (id, account_id, asset_id, source_asset_symbol, broker_symbol, operation,
      settlement_model, volume, price_currency, cost_currency, profit_currency,

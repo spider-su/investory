@@ -73,9 +73,15 @@ public class BenchmarkService {
               .map(AccountEntity::getId)
               .filter(Objects::nonNull)
               .collect(Collectors.toSet());
+      LocalDate earliestRecordedDate =
+          accountDailyRepository.findEarliestDateByAccountIdIn(portfolioAccounts);
+      LocalDate reportingStart =
+          earliestRecordedDate == null || earliestRecordedDate.isAfter(historyStart.atDay(1))
+              ? historyStart.atDay(1)
+              : earliestRecordedDate;
       List<AccountDailyEntity> allRows =
           accountDailyRepository.findByDateGreaterThanEqualAndAccountIdInOrderByDateAscAccountIdAsc(
-              historyStart.atDay(1), portfolioAccounts);
+              reportingStart, portfolioAccounts);
       Set<Long> requestedAccounts =
           com.smartbox.investory.shared.util.CollectionUtils.immutableSetOrEmpty(accountIds);
       boolean filterSubmitted = accountIds != null;
@@ -119,7 +125,7 @@ public class BenchmarkService {
 
       List<AccountMonthlyPerformanceEntity> monthlyRows =
           accountMonthlyPerformanceRepository
-              .findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(historyStart.atDay(1))
+              .findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(reportingStart)
               .stream()
               .filter(row -> row.getMonth() != null)
               .filter(row -> eligibleAccounts.contains(row.getAccountId()))

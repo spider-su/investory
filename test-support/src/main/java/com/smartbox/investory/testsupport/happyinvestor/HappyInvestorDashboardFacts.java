@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 
-/** Named F4 facts maintained from the Happy Investor specification, not UI output. */
+/** F4 presentation checkpoints and aliases to independently owned Happy Investor facts. */
 public final class HappyInvestorDashboardFacts {
   public enum Strength {
     CANONICAL,
@@ -31,9 +31,12 @@ public final class HappyInvestorDashboardFacts {
 
   public static final String REPORTING_CURRENCY = HappyInvestorTestData.REPORTING_CURRENCY.name();
   public static final BigDecimal BALANCE = HappyInvestorBrokerFacts.MARKET_PORTFOLIO_VALUE;
-  public static final BigDecimal NET_DEPOSITS = new BigDecimal("39024.56");
-  public static final BigDecimal DEPOSITS = new BigDecimal("451127.99");
-  public static final BigDecimal WITHDRAWALS = new BigDecimal("23842.15");
+  public static final BigDecimal NET_DEPOSITS =
+      HappyInvestorBrokerFacts.EXTERNAL_CASH_TOTALS.netDepositsPln();
+  public static final BigDecimal DEPOSITS =
+      HappyInvestorBrokerFacts.EXTERNAL_CASH_TOTALS.depositsPln();
+  public static final BigDecimal WITHDRAWALS =
+      HappyInvestorBrokerFacts.EXTERNAL_CASH_TOTALS.withdrawalsPln();
   public static final BigDecimal OPEN_POSITIONS_VALUE =
       HappyInvestorBrokerFacts.OPEN_POSITIONS_VALUE;
   public static final BigDecimal OPEN_POSITIONS_UNREALIZED =
@@ -43,9 +46,9 @@ public final class HappyInvestorDashboardFacts {
           .divide(OPEN_POSITIONS_VALUE, 16, RoundingMode.HALF_UP)
           .movePointRight(2);
   public static final BigDecimal APPLE_VALUE = HappyInvestorBrokerFacts.AAPL_VALUE;
-  public static final BigDecimal APPLE_UNREALIZED = new BigDecimal("33706.83416000");
-  public static final BigDecimal TESLA_VALUE = new BigDecimal("1454.470144");
-  public static final BigDecimal TESLA_UNREALIZED = new BigDecimal("734.150144");
+  public static final BigDecimal APPLE_UNREALIZED = HappyInvestorBrokerFacts.AAPL_UNREALIZED;
+  public static final BigDecimal TESLA_VALUE = HappyInvestorBrokerFacts.TESLA_VALUE;
+  public static final BigDecimal TESLA_UNREALIZED = HappyInvestorBrokerFacts.TESLA_UNREALIZED;
   public static final BigDecimal EQUITY_WEIGHT_PERCENT =
       HappyInvestorBrokerFacts.EQUITY_VALUE
           .divide(OPEN_POSITIONS_VALUE, 16, RoundingMode.HALF_UP)
@@ -67,10 +70,11 @@ public final class HappyInvestorDashboardFacts {
 
   /** Independent source facts for derived income/realized checks, in their transaction currency. */
   public static final BigDecimal NATGAS_REALIZED_RESULT_USD =
-      HappyInvestorTestData.NATGAS_NET_RESULT;
+      HappyInvestorBrokerFacts.NATGAS_REALIZED_RESULT_USD;
 
-  public static final BigDecimal DIVIDEND_GROSS_USD = new BigDecimal("120.00");
-  public static final BigDecimal DIVIDEND_WITHHOLDING_TAX_USD = new BigDecimal("-22.80");
+  public static final BigDecimal DIVIDEND_GROSS_USD = HappyInvestorBrokerFacts.DIVIDEND_GROSS_USD;
+  public static final BigDecimal DIVIDEND_WITHHOLDING_TAX_USD =
+      HappyInvestorBrokerFacts.DIVIDEND_WITHHOLDING_TAX_USD;
   public static final String REALIZED_RESULT_FORMULA =
       "closed-trade result + swap + applicable commissions, converted on the close date";
   public static final String DIVIDEND_FORMULA =

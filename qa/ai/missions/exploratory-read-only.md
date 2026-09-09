@@ -3,13 +3,13 @@
 - Status: `DRAFT` / `READY`
 - Environment: `<deployed develop base URL>`
 - Profile/user scope: `<operator-provided scope>`
-- Browser/viewport: `<browser and width x height>`
+- Browser/viewport: `<browser at 2560x1440>`
 - Mission revision: `<date or identifier>`
 
 ## Question
 
 <One observable UI question. Example: can a read-only user move from the dashboard to the profile
-and long-term-assets pages without visible errors or broken responsive layout?>
+and long-term-assets pages without visible errors or broken desktop rendering?>
 
 ## Routes and source contracts
 
@@ -22,7 +22,7 @@ Use links to existing sources. Do not paste expected financial facts here.
 ## Allowed actions
 
 - Navigate to the listed routes and safe linked read-only pages.
-- Reload, resize, use back/forward, change read-only filters/query parameters, and expand read-only
+- Reload, use back/forward, change read-only filters/query parameters, and expand read-only
   sections.
 - Inspect rendered text, accessible structure, geometry, page errors, console, and network events.
 
@@ -37,7 +37,7 @@ Use links to existing sources. Do not paste expected financial facts here.
 
 - [ ] Each route loads with the expected HTTP response and visible shell/content.
 - [ ] Safe navigation and reload preserve the expected route/state.
-- [ ] Requested viewport has usable content, no unintended overflow, and no obvious clipping.
+- [ ] At `2560x1440`, content renders without obvious clipping or overlap.
 - [ ] No unexplained page errors, relevant console errors, or failed first-party requests.
 - [ ] Useful evidence is captured for every suspicious observation.
 

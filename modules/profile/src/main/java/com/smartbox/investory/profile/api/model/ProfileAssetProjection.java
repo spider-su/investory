@@ -8,8 +8,10 @@ import java.util.List;
 /**
  * Immutable asset facts captured for deterministic future planning.
  *
- * <p>Profile does not own rental-growth assumptions, so its baseline value is zero. Retirement
- * overlays the scenario-owned rental growth when it builds effective simulation assumptions.
+ * <p>All monetary values in this state are denominated in the containing {@link InvestmentProfile}
+ * base currency. Profile does not own rental-growth assumptions, so its baseline value is zero.
+ * Retirement overlays the scenario-owned rental growth when it builds effective simulation
+ * assumptions.
  */
 public record ProfileAssetProjection(
     List<ProjectedLongTermAsset> assets,

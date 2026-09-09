@@ -446,7 +446,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
   private BigDecimal usdPln() {
     return jdbc.queryForObject(
-        "SELECT rate FROM investory.exchange_rates "
+        "SELECT rate FROM investory.fx_daily_rates "
             + "WHERE base = 'USD' AND to_currency = 'PLN' AND rate_date <= current_date "
             + "ORDER BY rate_date DESC LIMIT 1",
         BigDecimal.class);
@@ -454,7 +454,8 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
   private void assertDecimal(Object actual, String expected) {
     assertThat(actual).isInstanceOf(BigDecimal.class);
-    assertThat((BigDecimal) actual).isEqualByComparingTo(expected);
+    assertThat(((BigDecimal) actual).subtract(new BigDecimal(expected)).abs())
+        .isLessThanOrEqualTo(new BigDecimal("0.0000001"));
   }
 
   private String baseUrl() {

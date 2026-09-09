@@ -163,6 +163,43 @@ class MaterializedViewRefreshContractIT {
     }
   }
 
+  @DisplayName("reconstruction refresh keeps normalized currency coupled to selected observation")
+  @Test
+  void reconstructionRefreshKeepsNormalizedCurrencyCoupledToSelectedObservation()
+      throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      statement.execute("SELECT investory.refresh_reconstructed_position_daily()");
+
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT count(*) "
+                  + "FROM investory.app_v_normalized_daily_price normalized "
+                  + "JOIN investory.app_v_canonical_asset_daily_price canonical "
+                  + "  ON canonical.asset_id = normalized.asset_id "
+                  + " AND canonical.price_date = normalized.selected_price_date "
+                  + " AND canonical.source = normalized.source_name "
+                  + "WHERE normalized.price_currency IS DISTINCT FROM canonical.price_currency")) {
+        assertTrue(result.next());
+        assertEquals(
+            0, result.getLong(1), "selected price and currency must come from one observation");
+      }
+
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT count(*) "
+                  + "FROM investory.recon_v_reconstructed_position_daily_mv reconstructed "
+                  + "JOIN investory.app_v_normalized_daily_price normalized "
+                  + "  ON normalized.asset_id = reconstructed.asset_id "
+                  + " AND normalized.valuation_date = reconstructed.valuation_date "
+                  + "WHERE reconstructed.price_currency IS DISTINCT FROM normalized.price_currency")) {
+        assertTrue(result.next());
+        assertEquals(
+            0, result.getLong(1), "reconstruction must consume normalized observation currency");
+      }
+    }
+  }
+
   @DisplayName("portfolio Performance View Excludes Cash Only Accounts")
   @Test
   void portfolioPerformanceViewExcludesCashOnlyAccounts() throws SQLException {
