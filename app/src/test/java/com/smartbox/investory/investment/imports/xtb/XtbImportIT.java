@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.TimeZone;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -67,6 +68,7 @@ class XtbImportIT extends FastDatabaseTest {
     assertEquals(3, result.rowsTotal());
     assertEquals(3, result.rowsApplied());
     assertEquals(0, result.rowsFailed());
+    assertEquals(Set.of(ACCOUNT_ID), result.affectedAccountIds());
     assertTrue(result.details().contains("cash=2 closed=1 open=2"));
 
     List<CashOperationEntity> cash = cashOperationRepository.findAllByAccount(ACCOUNT_ID);

@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -164,6 +165,7 @@ class XtbImportHistoryServiceTest {
 
       assertTrue(result.rowsApplied() > 0);
       assertTrue(result.details().contains("workbook"));
+      assertEquals(Set.of(51499241L, 51993106L), result.affectedAccountIds());
     }
 
     verify(cashOperationRepository, atLeastOnce()).saveAll(anyList());
@@ -200,6 +202,9 @@ class XtbImportHistoryServiceTest {
       assertTrue(result.details().contains("acc=51822121"));
       assertTrue(result.details().contains("acc=53582946"));
       assertTrue(result.details().contains("acc=51729109"));
+      assertEquals(
+          Set.of(51707603L, 51747407L, 51822121L, 53582946L, 51729109L),
+          result.affectedAccountIds());
     }
   }
 

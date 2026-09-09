@@ -943,6 +943,9 @@ SELECT
         AS portfolio_flow_amount_in_portfolio_base_currency
 FROM effects;
 
+COMMENT ON VIEW investory.app_v_normalized_cash_operation_flows IS
+    'Canonical cash-flow currency contract: amount is in the operation currency; account_flow_amount_in_account_currency is the local account-funding amount; account_flow_amount_in_portfolio_base_currency is the same funding flow converted once to portfolio base on the operation date; portfolio_flow_amount_in_portfolio_base_currency contains external contributions only.';
+
 CREATE OR REPLACE VIEW investory.app_v_portfolio_daily AS
 WITH account_rows_with_fx AS (
     SELECT
@@ -1273,6 +1276,7 @@ closed_position_totals AS (
                  SELECT 1
                  FROM investory.accounts counterparty
                  WHERE counterparty.id = substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint
+                   AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)
              ) THEN nco.amount_in_portfolio_base_currency
             WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING'
              AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+'
@@ -1282,6 +1286,7 @@ closed_position_totals AS (
                  SELECT 1
                  FROM investory.accounts counterparty
                  WHERE counterparty.id = substring(nco.comment from '(?i)to ([0-9]+)')::bigint
+                   AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)
              ) THEN nco.amount_in_portfolio_base_currency
             ELSE 0::numeric
         END AS scoped_portfolio_flow_amount_in_portfolio_base_currency
@@ -2328,6 +2333,7 @@ WITH contribution_rows AS (
                  FROM investory.accounts counterparty
                  WHERE counterparty.id = substring(
                      nco.comment from '(?i)transfer from ([0-9]+)')::bigint
+                   AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)
              ) THEN 'BOUNDARY_TRANSFER'
             WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING'
              AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+'
@@ -2338,6 +2344,7 @@ WITH contribution_rows AS (
                  FROM investory.accounts counterparty
                  WHERE counterparty.id = substring(
                      nco.comment from '(?i)to ([0-9]+)')::bigint
+                   AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)
              ) THEN 'BOUNDARY_TRANSFER'
             ELSE NULL
         END AS contribution_kind,

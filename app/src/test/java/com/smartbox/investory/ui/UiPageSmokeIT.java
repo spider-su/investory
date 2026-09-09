@@ -19,12 +19,12 @@ import java.time.Duration;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -67,6 +67,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void pageRendersWithoutBrowserErrors(PageCase pageCase) throws IOException {
     String baseUrl = "http://127.0.0.1:" + port;
     var failures = new ArrayList<String>();
+    var writes = new ArrayList<String>();
     BrowserContext context = authenticatedContext();
     context
         .tracing()
@@ -83,6 +84,12 @@ class UiPageSmokeIT extends FastDatabaseTest {
           if (request.url().startsWith(baseUrl))
             failures.add("request failed: " + request.method() + " " + request.url());
         });
+    page.onRequest(
+        request -> {
+          if (request.url().startsWith(baseUrl)
+              && !Set.of("GET", "HEAD", "OPTIONS").contains(request.method()))
+            writes.add(request.method() + " " + request.url());
+        });
 
     boolean passed = false;
     try {
@@ -98,6 +105,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
           .contains(pageCase.headingText())
           .doesNotContain("Whitelabel Error Page", "Internal Server Error", "Exception:");
       assertThat(failures).isEmpty();
+      assertThat(writes).as("read-only route navigation").isEmpty();
       passed = true;
     } catch (AssertionError | RuntimeException failure) {
       saveFailureArtifacts(pageCase, page, context);
@@ -108,12 +116,49 @@ class UiPageSmokeIT extends FastDatabaseTest {
     }
   }
 
+  @DisplayName("primary pages render at narrow viewport without whole-page overflow")
+  @Test
+  void primaryPagesRenderAtNarrowViewportWithoutOverflow() throws IOException {
+    for (Object argument : pageCases().toList()) {
+      PageCase pageCase = (PageCase) ((Arguments) argument).get()[0];
+      var failures = new ArrayList<String>();
+      var writes = new ArrayList<String>();
+      try (BrowserContext context = narrowAuthenticatedContext()) {
+        Page page = context.newPage();
+        page.onPageError(error -> failures.add("page error: " + error));
+        page.onConsoleMessage(
+            message -> {
+              if ("error".equals(message.type()) && pageCase.expectedStatus() < 400)
+                failures.add("console error: " + message.text());
+            });
+        page.onRequest(
+            request -> {
+              if (request.url().startsWith(baseUrl())
+                  && !Set.of("GET", "HEAD", "OPTIONS").contains(request.method()))
+                writes.add(request.method() + " " + request.url());
+            });
+        Response response = page.navigate(baseUrl() + pageCase.path());
+        assertThat(response).as("navigation response for %s", pageCase.name()).isNotNull();
+        assertThat(response.status()).isEqualTo(pageCase.expectedStatus());
+        assertThat(page.locator("body").isVisible()).isTrue();
+        assertThat(page.locator("body").textContent()).contains(pageCase.headingText());
+        assertThat(
+                page.evaluate(
+                    "document.documentElement.scrollWidth <= document.documentElement.clientWidth"))
+            .as("no whole-page horizontal overflow for %s", pageCase.name())
+            .isEqualTo(true);
+        assertThat(failures).isEmpty();
+        assertThat(writes).as("read-only narrow route navigation").isEmpty();
+      }
+    }
+  }
+
   @DisplayName("dashboard Period Navigation Loads Selected Period")
   @Test
   void dashboardPeriodNavigationLoadsSelectedPeriod() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/dashboard?");
+      page.navigate(baseUrl() + "/portfolios/2/dashboard?");
 
       var yearToDate =
           page.locator(".iv-period-nav a").filter(new Locator.FilterOptions().setHasText("YTD"));
@@ -129,7 +174,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void sharedNavigationPreservesCrossPageJourneyAcrossBackAndForward() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/dashboard?");
+      page.navigate(baseUrl() + "/portfolios/2/dashboard?");
 
       clickNavigation(page, "Long-term assets");
       assertThat(page.url()).contains("/long-term-assets");
@@ -163,7 +208,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void assetDetailPeriodNavigationLoadsSelectedPeriod() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/dashboard/assets/AAPL.US?");
+      page.navigate(baseUrl() + "/portfolios/2/dashboard/assets/AAPL.US?");
 
       page.getByRole(
               com.microsoft.playwright.options.AriaRole.LINK,
@@ -185,7 +230,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void longTermAssetCategoryCanBeExpanded() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/long-term-assets?");
+      page.navigate(baseUrl() + "/portfolios/2/long-term-assets?");
 
       var details = page.locator("#real-estate .iv-planning-section__details");
       page.locator("#real-estate .iv-planning-section__header").click();
@@ -200,7 +245,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void longTermSummaryShowsOtherAllocationAndCashEconomics() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/long-term-assets?");
+      page.navigate(baseUrl() + "/portfolios/2/long-term-assets?");
 
       var personal = page.locator("#personal-assets");
       assertThat(
@@ -226,7 +271,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void investmentProfileShowsModuleOwnedSummarySemantics() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/investment-profile?");
+      page.navigate(baseUrl() + "/portfolios/2/investment-profile?");
 
       String header = page.locator(".iv-planning-topbar").textContent();
       assertThat(header)
@@ -284,7 +329,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void realEstateContractEditCanBeOpenedAndCancelled() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/long-term-assets/9402/real-estate?");
+      page.navigate(baseUrl() + "/portfolios/2/long-term-assets/9402/real-estate?");
 
       page.locator("[data-edit-contract]").click();
       assertThat(page.locator("[data-contract-edit]").isVisible()).isTrue();
@@ -299,7 +344,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void simulationYearControlChangesVisibleSnapshot() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/simulation?&planId=9201");
+      page.navigate(baseUrl() + "/portfolios/2/simulation?&planId=9201");
       String initialYear = page.locator("#plan-year-selector").inputValue();
 
       page.locator("[data-plan-next]").click();
@@ -314,7 +359,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void planEditorShowsInvalidRetirementAge() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/simulation/plan/edit?&planId=9201");
+      page.navigate(baseUrl() + "/portfolios/2/simulation/plan/edit?&planId=9201");
 
       page.locator("#retirement-age").fill("90");
 
@@ -328,7 +373,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void retirementAnalysisTabsSwitchPanels() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/analysis?&planId=9201");
+      page.navigate(baseUrl() + "/portfolios/2/analysis?&planId=9201");
 
       page.locator("[data-analysis-tab='risk']").click();
 
@@ -388,7 +433,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void investmentProfileIncomeSummaryPopoverOpens() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/investment-profile?");
+      page.navigate(baseUrl() + "/portfolios/2/investment-profile?");
 
       Locator incomeSummary = page.locator(".iv-planning-summary__item.iv-hover-context");
       Locator popover = incomeSummary.locator("[role='tooltip']");
@@ -407,7 +452,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void reconciliationSharedNavigationOpensProfile() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/dashboard/reconciliation?");
+      page.navigate(baseUrl() + "/portfolios/2/dashboard/reconciliation?");
 
       Locator profile =
           page.locator(".iv-page-nav")
@@ -415,7 +460,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
       assertThat(profile.isVisible()).isTrue();
       profile.click();
 
-      assertThat(page.url()).contains("/portfolios/1/investment-profile");
+      assertThat(page.url()).contains("/portfolios/2/investment-profile");
       assertThat(page.locator("#sources-title").textContent()).isEqualTo("Income sources");
     }
   }
@@ -425,7 +470,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void longTermAssetDatesUseReadableDisplayFormat() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/long-term-assets/9402/real-estate?");
+      page.navigate(baseUrl() + "/portfolios/2/long-term-assets/9402/real-estate?");
 
       assertThat(page.locator(".iv-rental-contract__date").first().textContent())
           .containsPattern("\\b\\d{1,2} [A-Z][a-z]{2} \\d{4}\\b")
@@ -438,114 +483,120 @@ class UiPageSmokeIT extends FastDatabaseTest {
     return Stream.of(
             new PageCase("home", "/", 200, "Investory", "Welcome to Investory"),
             new PageCase(
-                "dashboard", "/portfolios/1/dashboard?", 200, "Investory", "Portfolio structure"),
+                "dashboard", "/portfolios/2/dashboard?", 200, "Investory", "Portfolio structure"),
             new PageCase(
                 "asset detail",
-                "/portfolios/1/dashboard/assets/AAPL.US?",
+                "/portfolios/2/dashboard/assets/AAPL.US?",
                 200,
                 "AAPL.US",
                 "AAPL.US"),
             new PageCase(
                 "asset not found",
-                "/portfolios/1/dashboard/assets/UI-NOT-FOUND?",
+                "/portfolios/2/dashboard/assets/UI-NOT-FOUND?",
                 404,
                 "Asset not found",
                 "Asset not found"),
             new PageCase(
                 "reconciliation",
-                "/portfolios/1/dashboard/reconciliation?",
+                "/portfolios/2/dashboard/reconciliation?",
                 200,
                 "Reconciliation",
                 "Reconciliation"),
             new PageCase(
                 "long-term assets",
-                "/portfolios/1/long-term-assets?",
+                "/portfolios/2/long-term-assets?",
                 200,
                 "Long-term assets",
                 "Long-term assets"),
             new PageCase(
-                "new bond", "/portfolios/1/long-term-assets/new/bond?", 200, "Bond", "Add bond"),
+                "new bond", "/portfolios/2/long-term-assets/new/bond?", 200, "Bond", "Add bond"),
             new PageCase(
                 "new cash reserve",
-                "/portfolios/1/long-term-assets/new/cash-reserve?",
+                "/portfolios/2/long-term-assets/new/cash-reserve?",
                 200,
                 "Cash reserve",
                 "Add cash reserve"),
             new PageCase(
                 "new real estate",
-                "/portfolios/1/long-term-assets/new/real-estate?",
+                "/portfolios/2/long-term-assets/new/real-estate?",
                 200,
                 "Real estate",
                 "Add real estate"),
             new PageCase(
                 "new personal asset",
-                "/portfolios/1/long-term-assets/new/personal-asset?",
+                "/portfolios/2/long-term-assets/new/personal-asset?",
                 200,
                 "Personal asset",
                 "Add personal asset"),
             new PageCase(
                 "cash reserve detail",
-                "/portfolios/1/long-term-assets/9401/cash-reserve?",
+                "/portfolios/2/long-term-assets/9401/cash-reserve?",
                 200,
                 "Cash reserve",
                 "Edit cash reserve"),
             new PageCase(
                 "bond detail",
-                "/portfolios/1/long-term-assets/9405/bond?",
+                "/portfolios/2/long-term-assets/9405/bond?",
                 200,
                 "Bond",
                 "Edit bond"),
             new PageCase(
                 "interest-bearing cash reserve detail",
-                "/portfolios/1/long-term-assets/9406/cash-reserve?",
+                "/portfolios/2/long-term-assets/9406/cash-reserve?",
                 200,
                 "Cash reserve",
                 "Edit cash reserve"),
             new PageCase(
                 "personal asset detail",
-                "/portfolios/1/long-term-assets/9404/personal-asset?",
+                "/portfolios/2/long-term-assets/9404/personal-asset?",
                 200,
                 "Personal asset",
                 "Edit personal asset"),
             new PageCase(
                 "apartment A detail",
-                "/portfolios/1/long-term-assets/9402/real-estate?",
+                "/portfolios/2/long-term-assets/9402/real-estate?",
                 200,
                 "Apartment A",
                 "Apartment A"),
             new PageCase(
                 "investment profile",
-                "/portfolios/1/investment-profile?",
+                "/portfolios/2/investment-profile?",
                 200,
                 "Profile",
                 "Income sources"),
             new PageCase(
                 "simulation",
-                "/portfolios/1/simulation?&planId=9201",
+                "/portfolios/2/simulation?&planId=9201",
                 200,
                 "Retirement simulation",
                 "Plan timeline"),
             new PageCase(
+                "retirement sandbox",
+                "/portfolios/2/simulation/sandbox",
+                200,
+                "Retirement sandbox",
+                "Sustainable"),
+            new PageCase(
                 "plan editor",
-                "/portfolios/1/simulation/plan/edit?&planId=9201",
+                "/portfolios/2/simulation/plan/edit?&planId=9201",
                 200,
                 "Edit plan",
                 "Edit plan"),
             new PageCase(
                 "retirement analysis",
-                "/portfolios/1/analysis?&planId=9201",
+                "/portfolios/2/analysis?&planId=9201",
                 200,
                 "Retirement analysis",
                 "Economic risks"),
             new PageCase(
                 "live year review",
-                "/portfolios/1/simulation/timeline/" + currentYear + "?&planId=9201",
+                "/portfolios/2/simulation/timeline/" + currentYear + "?&planId=9201",
                 200,
                 "Live year review",
                 "Live Year Review"),
             new PageCase(
                 "past year review",
-                "/portfolios/1/simulation/timeline/2025?&planId=9201",
+                "/portfolios/2/simulation/timeline/2025?&planId=9201",
                 200,
                 "Year review",
                 "2025 Year review"),
@@ -555,7 +606,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
                 200,
                 "Integration settings",
                 "Integration settings"))
-        .map(page -> Arguments.of(Named.of(page.name(), page)));
+        .map(Arguments::of);
   }
 
   private void saveFailureArtifacts(PageCase pageCase, Page page, BrowserContext context)
@@ -578,6 +629,17 @@ class UiPageSmokeIT extends FastDatabaseTest {
             new Browser.NewContextOptions()
                 .setHttpCredentials("admin", "change-me-admin")
                 .setViewportSize(1440, 1000));
+    context.setDefaultTimeout(Duration.ofMinutes(2).toMillis());
+    context.setDefaultNavigationTimeout(Duration.ofMinutes(2).toMillis());
+    return context;
+  }
+
+  private BrowserContext narrowAuthenticatedContext() {
+    BrowserContext context =
+        browser.newContext(
+            new Browser.NewContextOptions()
+                .setHttpCredentials("admin", "change-me-admin")
+                .setViewportSize(390, 844));
     context.setDefaultTimeout(Duration.ofMinutes(2).toMillis());
     context.setDefaultNavigationTimeout(Duration.ofMinutes(2).toMillis());
     return context;

@@ -132,6 +132,22 @@ public class PortfolioProjectionService {
     }
   }
 
+  @Transactional
+  public void recalculateAccountsScoped(Long portfolioId, Set<Long> accountIds) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
+    Set<Long> portfolioAccountIds =
+        new HashSet<>(accountRepository.findIdsByPortfolioId(portfolioId));
+    if (accountIds != null && !portfolioAccountIds.containsAll(accountIds)) {
+      Set<Long> foreignAccounts = new HashSet<>(accountIds);
+      foreignAccounts.removeAll(portfolioAccountIds);
+      throw new IllegalStateException(
+          "Projection accounts outside portfolio " + portfolioId + ": " + foreignAccounts);
+    }
+    recalculateAccounts(accountIds);
+  }
+
   private void recalculateAccountsInternal(Set<Long> accountIds) {
     ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
     if (accountIds == null || accountIds.isEmpty()) {

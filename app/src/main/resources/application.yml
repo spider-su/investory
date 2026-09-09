@@ -64,12 +64,12 @@ server:
   tomcat:
     connection-timeout: 600s
 
-# FX matrix resolution is already batched and cached by CurrencyRateService. Keep the generated
-# native SQL out of normal application logs; enable DEBUG locally when diagnosing SQL itself.
+# FX matrix resolution is already batched and cached by CurrencyRateService. Keep generated SQL
+# and bind values out of normal application logs; override these levels explicitly when diagnosing.
 logging:
   level:
-    org.hibernate.SQL: INFO
-    org.hibernate.orm.jdbc.bind: INFO
+    org.hibernate.SQL: OFF
+    org.hibernate.orm.jdbc.bind: OFF
 
 # Development-only calculation tables in the Plan Editor. Disable in production.
 develop:

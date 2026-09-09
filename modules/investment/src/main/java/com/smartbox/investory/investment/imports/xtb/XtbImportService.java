@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.imports.xtb;
 
+import com.smartbox.investory.investment.imports.AssignedIdBatchWriter;
 import com.smartbox.investory.investment.imports.BrokerSourceRowIdentity;
 import com.smartbox.investory.investment.imports.ImportEvidenceContext;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
@@ -19,6 +20,7 @@ import com.smartbox.investory.investment.ledger.position.PositionType;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryBatchWriter;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.io.InputStream;
@@ -84,6 +86,8 @@ public class XtbImportService {
   private final PositionSettlementModelService positionSettlementModelService;
   private final XtbPositionCurrencyResolver positionCurrencyResolver;
   private final CurrencyRateService currencyRateService;
+  private final AssignedIdBatchWriter assignedIdBatchWriter;
+  private final AssetPriceHistoryBatchWriter priceBatchWriter;
   private final ImportSourceEvidenceService sourceEvidenceService;
 
   @Autowired
@@ -98,7 +102,9 @@ public class XtbImportService {
       PositionSettlementModelService positionSettlementModelService,
       XtbPositionCurrencyResolver positionCurrencyResolver,
       CurrencyRateService currencyRateService,
-      ImportSourceEvidenceService sourceEvidenceService) {
+      ImportSourceEvidenceService sourceEvidenceService,
+      AssignedIdBatchWriter assignedIdBatchWriter,
+      AssetPriceHistoryBatchWriter priceBatchWriter) {
     this.closedPositionRepository = closedPositionRepository;
     this.openedPositionRepository = openedPositionRepository;
     this.cashOperationRepository = cashOperationRepository;
@@ -109,7 +115,37 @@ public class XtbImportService {
     this.positionSettlementModelService = positionSettlementModelService;
     this.positionCurrencyResolver = positionCurrencyResolver;
     this.currencyRateService = currencyRateService;
+    this.assignedIdBatchWriter = assignedIdBatchWriter;
+    this.priceBatchWriter = priceBatchWriter;
     this.sourceEvidenceService = sourceEvidenceService;
+  }
+
+  public XtbImportService(
+      PositionRepository closedPositionRepository,
+      PositionRepository openedPositionRepository,
+      CashOperationRepository cashOperationRepository,
+      AssetPriceHistoryRepository assetPriceHistoryRepository,
+      AssetRepository assetRepository,
+      AccountRepository accountRepository,
+      AssetCatalogService assetCatalogService,
+      PositionSettlementModelService positionSettlementModelService,
+      XtbPositionCurrencyResolver positionCurrencyResolver,
+      CurrencyRateService currencyRateService,
+      ImportSourceEvidenceService sourceEvidenceService) {
+    this(
+        closedPositionRepository,
+        openedPositionRepository,
+        cashOperationRepository,
+        assetPriceHistoryRepository,
+        assetRepository,
+        accountRepository,
+        assetCatalogService,
+        positionSettlementModelService,
+        positionCurrencyResolver,
+        currencyRateService,
+        sourceEvidenceService,
+        null,
+        null);
   }
 
   public boolean isZipReport(String fileName) {
@@ -132,6 +168,7 @@ public class XtbImportService {
     int failed = 0;
     int files = 0;
     List<String> importedAccounts = new ArrayList<>();
+    Set<Long> affectedAccountIds = new HashSet<>();
 
     Path temporaryZip = Files.createTempFile("investory-xtb-", ".zip");
     try {
@@ -151,6 +188,7 @@ public class XtbImportService {
           failed += partial.rowsFailed();
           files++;
           importedAccounts.add(partial.details());
+          affectedAccountIds.addAll(partial.affectedAccountIds());
         }
       }
     } finally {
@@ -170,7 +208,7 @@ public class XtbImportService {
             applied,
             failed,
             String.join(", ", importedAccounts));
-    return new ImportExecutionResult(total, applied, failed, details);
+    return new ImportExecutionResult(total, applied, failed, details, affectedAccountIds);
   }
 
   public ImportExecutionResult importWorkbook(InputStream xlsxInputStream, String sourceName)
@@ -254,14 +292,29 @@ public class XtbImportService {
           cashOperations.size(),
           closedPositions.size(),
           openedPositions.size());
-      cashOperationRepository.saveAll(cashOperations);
+      if (assignedIdBatchWriter == null) {
+        cashOperationRepository.saveAll(cashOperations);
+      } else {
+        assignedIdBatchWriter.saveAll(
+            cashOperationRepository, cashOperations, CashOperationEntity::getId);
+      }
       currencyRateService.harvestXtbExecutionRates(cashOperations);
-      closedPositionRepository.saveAll(closedPositions);
+      if (assignedIdBatchWriter == null) {
+        closedPositionRepository.saveAll(closedPositions);
+      } else {
+        assignedIdBatchWriter.saveAll(
+            closedPositionRepository, closedPositions, PositionEntity::getId);
+      }
       if (openedPositions.isEmpty()) {
         openedPositionRepository.deleteOpenByAccount(account);
       } else {
         openedPositionRepository.removeOpenByAccountNotIn(account, openedPositions);
-        openedPositionRepository.saveAll(openedPositions);
+        if (assignedIdBatchWriter == null) {
+          openedPositionRepository.saveAll(openedPositions);
+        } else {
+          assignedIdBatchWriter.saveAll(
+              openedPositionRepository, openedPositions, PositionEntity::getId);
+        }
       }
       log.info(
           "IMPORT STAGE xtb-ledger-upsert-saveall-returned source={} accountId={} cash={} closed={} open={}",
@@ -275,7 +328,7 @@ public class XtbImportService {
           String.format(
               "acc=%s cash=%d closed=%d open=%d",
               account, cashOperations.size(), closedPositions.size(), openedPositions.size());
-      return new ImportExecutionResult(total, total, 0, details);
+      return new ImportExecutionResult(total, total, 0, details, Set.of(account));
     }
   }
 
@@ -901,6 +954,7 @@ public class XtbImportService {
                 java.util.stream.Collectors.toMap(
                     AssetEntity::getSymbol, AssetEntity::getId, (a, b) -> a));
 
+    List<AssetPriceHistoryBatchWriter.ObservedPrice> prices = new ArrayList<>();
     for (Map.Entry<PriceCheckpointKey, WeightedPrice> entry : aggregated.entrySet()) {
       Long assetId = assetIdsBySymbol.get(entry.getKey().symbol());
       if (assetId == null) {
@@ -910,17 +964,35 @@ public class XtbImportService {
       if (weightedPrice.totalWeight.signum() <= 0) {
         continue;
       }
-      assetPriceHistoryRepository.upsertObservedPrice(
-          assetId,
-          entry.getKey().priceDate(),
-          entry.getKey().source(),
-          entry.getKey().symbol(),
-          entry.getKey().symbol(),
-          entry.getKey().priceOrigin(),
-          entry.getKey().currency().name(),
-          weightedPrice.weightedAverage(),
-          90,
-          entry.getKey().qualityClass());
+      prices.add(
+          new AssetPriceHistoryBatchWriter.ObservedPrice(
+              assetId,
+              entry.getKey().priceDate(),
+              entry.getKey().source(),
+              entry.getKey().symbol(),
+              entry.getKey().symbol(),
+              entry.getKey().priceOrigin(),
+              entry.getKey().currency().name(),
+              weightedPrice.weightedAverage(),
+              90,
+              entry.getKey().qualityClass()));
+    }
+    if (priceBatchWriter == null) {
+      for (AssetPriceHistoryBatchWriter.ObservedPrice price : prices) {
+        assetPriceHistoryRepository.upsertObservedPrice(
+            price.assetId(),
+            price.priceDate(),
+            price.source(),
+            price.sourceSymbol(),
+            price.originalSourceSymbol(),
+            price.priceOrigin(),
+            price.priceCurrency(),
+            price.priceValue(),
+            price.qualityScore(),
+            price.qualityClass());
+      }
+    } else {
+      priceBatchWriter.upsertObserved(prices);
     }
   }
 

@@ -6,8 +6,8 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 --
 
 
--- Dumped from database version 17.11 (Debian 17.11-1.pgdg12+2)
--- Dumped by pg_dump version 17.11 (Debian 17.11-1.pgdg12+2)
+-- Dumped from database version 18.6 (Debian 18.6-1.pgdg12+2)
+-- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg12+2)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -464,6 +464,49 @@ $$;
 CREATE FUNCTION investory.resolve_fx_rate(p_valuation_date date, p_source_currency character varying, p_target_currency character varying) RETURNS TABLE(source_currency character varying, target_currency character varying, fx_rate_to_target numeric, source character varying, rate_method character varying, rate_source character varying, source_rate_date date, age_days integer, conversion_status character varying)
     LANGUAGE sql STABLE
     AS $$
+SELECT p_source_currency,
+       p_target_currency,
+       COALESCE(d.rate, legacy.fx_rate_to_target),
+       COALESCE(d.source, legacy.source),
+       CASE WHEN d.rate IS NOT NULL THEN d.method
+            WHEN legacy.rate_method = 'HISTORICAL_MONTHLY' THEN 'CARRY_FORWARD'
+            WHEN legacy.source_rate_date < p_valuation_date THEN 'CARRY_FORWARD'
+            ELSE legacy.rate_method END,
+       COALESCE(d.source, legacy.rate_source),
+       COALESCE(d.source_rate_date, legacy.source_rate_date),
+       COALESCE((p_valuation_date - d.source_rate_date)::integer, legacy.age_days),
+       COALESCE(
+           CASE WHEN d.method = 'OBSERVED' THEN 'OK'
+                WHEN d.method = 'INTERPOLATED' THEN 'ESTIMATED'
+                WHEN d.method = 'CARRY_FORWARD' THEN 'CARRY_FORWARD'
+                ELSE NULL END,
+           CASE WHEN legacy.rate_method = 'HISTORICAL_MONTHLY' THEN 'CARRY_FORWARD'
+                WHEN legacy.source_rate_date < p_valuation_date THEN 'CARRY_FORWARD'
+                ELSE legacy.conversion_status END,
+           CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
+                ELSE 'MISSING_RATE' END)
+FROM (SELECT 1) sentinel
+LEFT JOIN LATERAL (
+    SELECT rate, source, method, source_rate_date
+    FROM investory.fx_daily_rates
+    WHERE rate_date = p_valuation_date
+      AND base = p_source_currency
+      AND to_currency = p_target_currency
+) d ON true
+LEFT JOIN LATERAL (
+    SELECT * FROM investory.resolve_fx_rate_legacy(
+        p_valuation_date, p_source_currency, p_target_currency)
+) legacy ON d.rate IS NULL;
+$$;
+
+
+--
+-- Name: resolve_fx_rate_legacy(date, character varying, character varying); Type: FUNCTION; Schema: investory; Owner: -
+--
+
+CREATE FUNCTION investory.resolve_fx_rate_legacy(p_valuation_date date, p_source_currency character varying, p_target_currency character varying) RETURNS TABLE(source_currency character varying, target_currency character varying, fx_rate_to_target numeric, source character varying, rate_method character varying, rate_source character varying, source_rate_date date, age_days integer, conversion_status character varying)
+    LANGUAGE sql STABLE
+    AS $$
 WITH cfg AS (
     SELECT max(config_value::integer) FILTER (WHERE config_key = 'max_age_days') AS max_age,
            max(config_value::date) FILTER (WHERE config_key = 'daily_history_start') AS daily_start
@@ -564,9 +607,6 @@ SELECT p_source_currency, p_target_currency,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
             WHEN selected.chosen_date < p_valuation_date
                  THEN 'CARRY_FORWARD'
-            WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
-                 AND p_valuation_date >= cfg.daily_start
-                 THEN 'CARRY_FORWARD'
             ELSE selected.chosen_method END,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.chosen_rate_source END,
        CASE WHEN p_source_currency = p_target_currency THEN p_valuation_date
@@ -578,9 +618,8 @@ SELECT p_source_currency, p_target_currency,
            WHEN selected.rate IS NULL THEN 'MISSING_RATE'
            WHEN selected.chosen_method = 'INTERPOLATED' THEN 'ESTIMATED'
            WHEN selected.chosen_date < p_valuation_date THEN 'CARRY_FORWARD'
-           WHEN selected.chosen_date < p_valuation_date THEN 'CARRY_FORWARD'
            WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
-                AND p_valuation_date >= cfg.daily_start THEN 'CARRY_FORWARD'
+                AND p_valuation_date >= cfg.daily_start THEN 'STALE'
            WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
                  AND selected.chosen_rate_source <> 'TEST' THEN 'ESTIMATED'
             ELSE 'OK' END
@@ -589,10 +628,11 @@ $$;
 
 
 --
--- Name: FUNCTION resolve_fx_rate(p_valuation_date date, p_source_currency character varying, p_target_currency character varying); Type: COMMENT; Schema: investory; Owner: -
+-- Name: FUNCTION resolve_fx_rate_legacy(p_valuation_date date, p_source_currency character varying, p_target_currency character varying); Type: COMMENT; Schema: investory; Owner: -
 --
 
-COMMENT ON FUNCTION investory.resolve_fx_rate(p_valuation_date date, p_source_currency character varying, p_target_currency character varying) IS 'Canonical valuation FX resolver. Market daily and IBKR reference rates outrank broker execution rates. Historical gaps are explicitly estimated.';
+COMMENT ON FUNCTION investory.resolve_fx_rate_legacy(p_valuation_date date, p_source_currency character varying, p_target_currency character varying) IS 'Canonical valuation FX resolver. Market daily and IBKR reference rates outrank broker execution rates. Historical gaps are explicitly estimated.';
+
 
 --
 -- Name: resolve_portfolio_fx_rate(bigint, date, character varying); Type: FUNCTION; Schema: investory; Owner: -
@@ -1235,7 +1275,7 @@ CREATE MATERIALIZED VIEW investory.app_v_account_monthly AS
            FROM (((investory.account_daily ad
              JOIN investory.accounts a ON ((a.id = ad.account_id)))
              JOIN investory.portfolios p ON ((p.id = a.portfolio_id)))
-             CROSS JOIN LATERAL investory.resolve_fx_rate(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
         ), month_rows AS (
          SELECT source_rows.account_id,
             source_rows.month,
@@ -1362,7 +1402,7 @@ CREATE VIEW investory.app_v_portfolio_performance_daily AS
            FROM (((investory.account_daily ad
              JOIN investory.accounts a ON ((a.id = ad.account_id)))
              JOIN investory.portfolios p ON ((p.id = a.portfolio_id)))
-             CROSS JOIN LATERAL investory.resolve_fx_rate(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
           WHERE (NOT a.cash_only)
         ), converted AS (
          SELECT account_rows.portfolio_id,
@@ -1719,7 +1759,7 @@ COMMENT ON COLUMN investory.asset_price_history.quality_score IS 'Relative sourc
 -- Name: COLUMN asset_price_history.quality_class; Type: COMMENT; Schema: investory; Owner: -
 --
 
-COMMENT ON COLUMN investory.asset_price_history.quality_class IS 'Quality/provenance class such as EXACT_LISTING_MARKET_CLOSE, EXACT_LISTING_SCALED, XTB_TRADE_OBSERVATION, or INTERPOLATED_XTB.';
+COMMENT ON COLUMN investory.asset_price_history.quality_class IS 'Price quality and quote convention. Bond classes containing PERCENT_OF_PAR preserve the percent-of-par multiplier through valuation and carry-forward.';
 
 
 --
@@ -2304,8 +2344,8 @@ CREATE VIEW investory.app_v_current_open_position_rows AS
     p.cost_currency AS cost_basis_currency,
     investory.signed_position_quantity(p.operation, p.volume) AS volume,
     COALESCE(p.purchase_value, (p.volume * p.open_price), (0)::numeric) AS cost_basis_native,
-    price.selected_price AS market_price,
-    price.price_currency AS market_price_currency,
+    COALESCE(price.selected_price, asset.market_price) AS market_price,
+    COALESCE(price.price_currency, asset.currency) AS market_price_currency,
     price.price_selection_source,
     price.selected_price_date,
     price.price_source,
@@ -2319,7 +2359,7 @@ CREATE VIEW investory.app_v_current_open_position_rows AS
             ELSE NULL::numeric
         END AS cost_basis_in_base_currency,
         CASE
-            WHEN ((price.selected_price IS NOT NULL) AND investory.fx_status_usable(market_fx.conversion_status)) THEN (((investory.signed_position_quantity(p.operation, p.volume) * price.selected_price) *
+            WHEN ((COALESCE(price.selected_price, asset.market_price) IS NOT NULL) AND investory.fx_status_usable(market_fx.conversion_status)) THEN (((investory.signed_position_quantity(p.operation, p.volume) * COALESCE(price.selected_price, asset.market_price)) *
             CASE
                 WHEN ((price.quality_class)::text ~~ '%PERCENT_OF_PAR%'::text) THEN 0.01
                 ELSE (1)::numeric
@@ -2332,8 +2372,8 @@ CREATE VIEW investory.app_v_current_open_position_rows AS
      JOIN investory.assets asset ON ((asset.id = p.asset_id)))
      LEFT JOIN investory.app_v_current_asset_price_mv price ON ((price.asset_id = asset.id)))
      LEFT JOIN investory.app_v_portfolio_daily_fx_rate_mv cost_fx ON (((cost_fx.portfolio_id = pf.id) AND (cost_fx.valuation_date = CURRENT_DATE) AND ((cost_fx.source_currency)::text = (p.cost_currency)::text))))
-     LEFT JOIN investory.app_v_portfolio_daily_fx_rate_mv market_fx ON (((market_fx.portfolio_id = pf.id) AND (market_fx.valuation_date = CURRENT_DATE) AND ((market_fx.source_currency)::text = (price.price_currency)::text))))
-  WHERE ((p.close_time IS NULL) AND (asset.exclude_from_import = false) AND (COALESCE(p.volume, (0)::numeric) > (0)::numeric));
+     LEFT JOIN investory.app_v_portfolio_daily_fx_rate_mv market_fx ON (((market_fx.portfolio_id = pf.id) AND (market_fx.valuation_date = CURRENT_DATE) AND ((market_fx.source_currency)::text = (COALESCE(price.price_currency, asset.currency))::text))))
+  WHERE (((p.open_time IS NULL) OR (p.open_time <= CURRENT_DATE)) AND (p.close_time IS NULL) AND (asset.exclude_from_import = false) AND (COALESCE(p.volume, (0)::numeric) > (0)::numeric));
 
 
 --
@@ -2531,7 +2571,7 @@ CREATE MATERIALIZED VIEW investory.app_v_normalized_cash_operations AS
             r.age_days,
             r.conversion_status
            FROM (acct_needed n
-             CROSS JOIN LATERAL investory.resolve_fx_rate(n.vdate, n.currency, n.account_currency) r(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(n.vdate, n.currency, n.account_currency) r(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
         ), txn_needed AS (
          SELECT DISTINCT classified.date,
             classified.currency,
@@ -2780,7 +2820,7 @@ CREATE MATERIALIZED VIEW investory.app_v_account_statistics AS
             sum((c.amount_native * fx.fx_rate_to_target)) FILTER (WHERE investory.fx_status_usable(fx.conversion_status)) AS converted_subtotal,
             count(*) FILTER (WHERE (NOT investory.fx_status_usable(fx.conversion_status))) AS missing_fx_count
            FROM (closed_position_components c
-             LEFT JOIN LATERAL investory.resolve_fx_rate(c.valuation_date, c.source_currency, c.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(c.valuation_date, c.source_currency, c.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
           GROUP BY c.account_id
         ), portfolio_flow_rows AS (
          SELECT nco.operation_id,
@@ -2828,10 +2868,14 @@ CREATE MATERIALIZED VIEW investory.app_v_account_statistics AS
                     WHEN ((nco.normalized_category)::text = ANY ((ARRAY['EXTERNAL_DEPOSIT'::character varying, 'EXTERNAL_WITHDRAWAL'::character varying])::text[])) THEN nco.amount_in_portfolio_base_currency
                     WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND (("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint = nco.account_id) AND (nco.amount > (0)::numeric) AND (NOT (EXISTS ( SELECT 1
                        FROM investory.accounts counterparty
-                      WHERE (counterparty.id = ("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint))))) THEN nco.amount_in_portfolio_base_currency
+                      WHERE ((counterparty.id = ("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
+                               FROM investory.accounts source
+                              WHERE (source.id = nco.account_id)))))))) THEN nco.amount_in_portfolio_base_currency
                     WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND (("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint = nco.account_id) AND (nco.amount < (0)::numeric) AND (NOT (EXISTS ( SELECT 1
                        FROM investory.accounts counterparty
-                      WHERE (counterparty.id = ("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint))))) THEN nco.amount_in_portfolio_base_currency
+                      WHERE ((counterparty.id = ("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
+                               FROM investory.accounts source
+                              WHERE (source.id = nco.account_id)))))))) THEN nco.amount_in_portfolio_base_currency
                     ELSE (0)::numeric
                 END AS scoped_portfolio_flow_amount_in_portfolio_base_currency
            FROM investory.app_v_normalized_cash_operations nco
@@ -3489,7 +3533,7 @@ CREATE VIEW investory.app_v_normalized_cash_operation_flows AS
 -- Name: VIEW app_v_normalized_cash_operation_flows; Type: COMMENT; Schema: investory; Owner: -
 --
 
-COMMENT ON VIEW investory.app_v_normalized_cash_operation_flows IS 'Flow contract with separate account funding, performance-neutralizing, and portfolio-scoped values. INTERNAL_BOOKKEEPING remains cash/account-funding diagnostic data but is not performance flow; external and genuine tracked-account transfers are performance flow at account level and cancel when aggregated within a portfolio.';
+COMMENT ON VIEW investory.app_v_normalized_cash_operation_flows IS 'Canonical cash-flow currency contract: amount is in the operation currency; account_flow_amount_in_account_currency is the local account-funding amount; account_flow_amount_in_portfolio_base_currency is the same funding flow converted once to portfolio base on the operation date; portfolio_flow_amount_in_portfolio_base_currency contains external contributions only.';
 
 
 --
@@ -3835,10 +3879,14 @@ CREATE MATERIALIZED VIEW investory.app_v_portfolio_contribution_summary_mv AS
                     WHEN ((nco.normalized_category)::text = 'EXTERNAL_WITHDRAWAL'::text) THEN 'EXTERNAL_WITHDRAWAL'::text
                     WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND (("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint = nco.account_id) AND (nco.amount > (0)::numeric) AND (NOT (EXISTS ( SELECT 1
                        FROM investory.accounts counterparty
-                      WHERE (counterparty.id = ("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint))))) THEN 'BOUNDARY_TRANSFER'::text
+                      WHERE ((counterparty.id = ("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
+                               FROM investory.accounts source
+                              WHERE (source.id = nco.account_id)))))))) THEN 'BOUNDARY_TRANSFER'::text
                     WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND (("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint = nco.account_id) AND (nco.amount < (0)::numeric) AND (NOT (EXISTS ( SELECT 1
                        FROM investory.accounts counterparty
-                      WHERE (counterparty.id = ("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint))))) THEN 'BOUNDARY_TRANSFER'::text
+                      WHERE ((counterparty.id = ("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
+                               FROM investory.accounts source
+                              WHERE (source.id = nco.account_id)))))))) THEN 'BOUNDARY_TRANSFER'::text
                     ELSE NULL::text
                 END AS contribution_kind,
             nco.amount_in_portfolio_base_currency AS amount_in_base_currency
@@ -3956,7 +4004,7 @@ CREATE MATERIALIZED VIEW investory.app_v_portfolio_currency_breakdown AS
             fx.fx_rate_to_target AS fx_rate_to_base,
             fx.conversion_status
            FROM (realized_components rc
-             LEFT JOIN LATERAL investory.resolve_fx_rate(rc.valuation_date, rc.currency, rc.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(rc.valuation_date, rc.currency, rc.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
         ), realized AS (
          SELECT realized_with_fx.portfolio_id,
             realized_with_fx.base_currency,
@@ -4100,7 +4148,7 @@ CREATE VIEW investory.app_v_portfolio_daily AS
            FROM (((investory.account_daily ad
              JOIN investory.accounts a ON ((a.id = ad.account_id)))
              JOIN investory.portfolios p ON ((p.id = a.portfolio_id)))
-             CROSS JOIN LATERAL investory.resolve_fx_rate(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(ad.snapshot_date, ad.valuation_currency, p.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
         ), account_rows AS (
          SELECT account_rows_with_fx.portfolio_id,
             account_rows_with_fx.base_currency,
@@ -4364,8 +4412,8 @@ CREATE VIEW investory.app_v_portfolio_tax_year_realized AS
    FROM ((((investory.positions p
      JOIN investory.accounts a ON ((a.id = p.account_id)))
      JOIN investory.portfolios portfolio ON ((portfolio.id = a.portfolio_id)))
-     CROSS JOIN LATERAL investory.resolve_fx_rate((p.close_time)::date, p.profit_currency, portfolio.base_currency) profit_fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
-     CROSS JOIN LATERAL investory.resolve_fx_rate((p.close_time)::date, p.commission_currency, portfolio.base_currency) commission_fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+     CROSS JOIN LATERAL investory.resolve_fx_rate_legacy((p.close_time)::date, p.profit_currency, portfolio.base_currency) profit_fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+     CROSS JOIN LATERAL investory.resolve_fx_rate_legacy((p.close_time)::date, p.commission_currency, portfolio.base_currency) commission_fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
   WHERE ((p.close_time IS NOT NULL) AND investory.fx_status_usable(profit_fx.conversion_status) AND investory.fx_status_usable(commission_fx.conversion_status))
   GROUP BY a.portfolio_id, (EXTRACT(year FROM p.close_time));
 
@@ -4938,27 +4986,6 @@ COMMENT ON TABLE investory.drawdown_alert_state IS 'Singleton durable state for 
 
 
 --
--- Name: fx_daily_rates; Type: TABLE; Schema: investory; Owner: -
---
-
-CREATE TABLE investory.fx_daily_rates (
-    id bigint GENERATED BY DEFAULT AS IDENTITY NOT NULL,
-    rate_date date NOT NULL,
-    base character varying(3) NOT NULL,
-    to_currency character varying(3) NOT NULL,
-    rate numeric(20,8) NOT NULL,
-    source character varying(32) NOT NULL,
-    method character varying(32) NOT NULL,
-    source_rate_date date NOT NULL,
-    source_reference character varying(256),
-    CONSTRAINT fx_daily_rates_pkey PRIMARY KEY (id),
-    CONSTRAINT ux_fx_daily_rate UNIQUE (rate_date, base, to_currency),
-    CONSTRAINT chk_fx_daily_distinct_currencies CHECK (((base)::text <> (to_currency)::text)),
-    CONSTRAINT fx_daily_rates_method_check CHECK ((method)::text = ANY (ARRAY['OBSERVED'::text, 'INTERPOLATED'::text, 'CARRY_FORWARD'::text]))
-);
-
-CREATE INDEX ix_fx_daily_lookup ON investory.fx_daily_rates USING btree (rate_date, base, to_currency);
-
 -- Name: exchange_rates; Type: TABLE; Schema: investory; Owner: -
 --
 
@@ -5021,6 +5048,47 @@ CREATE TABLE investory.fx_configuration (
 --
 
 COMMENT ON COLUMN investory.fx_configuration.config_value IS 'Runtime FX policy value. daily_history_start is the immutable migration boundary used by SQL and Java resolver calls.';
+
+
+--
+-- Name: fx_daily_rates; Type: TABLE; Schema: investory; Owner: -
+--
+
+CREATE TABLE investory.fx_daily_rates (
+    id bigint NOT NULL,
+    rate_date date NOT NULL,
+    base character varying(3) NOT NULL,
+    to_currency character varying(3) NOT NULL,
+    rate numeric(20,8) NOT NULL,
+    source character varying(32) NOT NULL,
+    method character varying(32) NOT NULL,
+    source_rate_date date NOT NULL,
+    source_reference character varying(256),
+    CONSTRAINT chk_fx_daily_distinct_currencies CHECK (((base)::text <> (to_currency)::text)),
+    CONSTRAINT fx_daily_rates_method_check CHECK (((method)::text = ANY ((ARRAY['OBSERVED'::character varying, 'INTERPOLATED'::character varying, 'CARRY_FORWARD'::character varying])::text[]))),
+    CONSTRAINT fx_daily_rates_rate_check CHECK ((rate > (0)::numeric))
+);
+
+
+--
+-- Name: TABLE fx_daily_rates; Type: COMMENT; Schema: investory; Owner: -
+--
+
+COMMENT ON TABLE investory.fx_daily_rates IS 'Canonical daily neutral FX rates. One row per calendar date and directed currency pair.';
+
+
+--
+-- Name: fx_daily_rates_id_seq; Type: SEQUENCE; Schema: investory; Owner: -
+--
+
+ALTER TABLE investory.fx_daily_rates ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME investory.fx_daily_rates_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -5180,7 +5248,7 @@ COMMENT ON COLUMN investory.import_source_rows.logical_row_sha256 IS 'Stable log
 
 CREATE SEQUENCE investory.import_source_rows_id_seq
     START WITH 1
-    INCREMENT BY 1
+    INCREMENT BY 50
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
@@ -5537,7 +5605,7 @@ CREATE VIEW investory.recon_v_realized_result AS
             fx.fx_rate_to_target,
             fx.conversion_status
            FROM (trade_fx_keys k
-             LEFT JOIN LATERAL investory.resolve_fx_rate(k.valuation_date, k.source_currency, k.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(k.valuation_date, k.source_currency, k.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
         ), converted_trade_components AS (
          SELECT tc.account_id,
             tc.valuation_date,
@@ -6771,7 +6839,7 @@ CREATE VIEW investory.recon_v_fx AS
             r_1.age_days,
             r_1.conversion_status
            FROM (pairs p
-             CROSS JOIN LATERAL investory.resolve_fx_rate(CURRENT_DATE, p.source_currency, p.target_currency) r_1(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
+             CROSS JOIN LATERAL investory.resolve_fx_rate_legacy(CURRENT_DATE, p.source_currency, p.target_currency) r_1(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status))
         )
  SELECT r.source_currency,
     r.target_currency,
@@ -7169,7 +7237,7 @@ CREATE VIEW investory.recon_v_non_usd_closed_trade AS
             fx_1.fx_rate_to_target,
             fx_1.conversion_status
            FROM (fx_keys k
-             LEFT JOIN LATERAL investory.resolve_fx_rate(k.close_date, k.source_currency, k.portfolio_base_currency) fx_1(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(k.close_date, k.source_currency, k.portfolio_base_currency) fx_1(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
         ), fx_at_close AS (
          SELECT cp_1.position_id,
             profit_fx.fx_rate_to_target AS close_fx_rate_to_base,
@@ -7826,7 +7894,7 @@ CREATE VIEW investory.recon_v_portfolio_service_fallback AS
             fx.fx_rate_to_target,
             fx.conversion_status
            FROM (position_components pc
-             LEFT JOIN LATERAL investory.resolve_fx_rate(pc.valuation_date, pc.source_currency, pc.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
+             LEFT JOIN LATERAL investory.resolve_fx_rate_legacy(pc.valuation_date, pc.source_currency, pc.base_currency) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) ON (true))
         ), raw_position_totals AS (
          SELECT cpc.portfolio_id,
                 CASE
@@ -9623,17 +9691,21 @@ COPY investory.account_daily (id, account_id, snapshot_date, valuation_currency,
 --
 
 COPY investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only, created_at) FROM stdin;
-51822121	51822121	USD	XTB	Sample USD Account	Sample User	1	f	2026-09-08 13:22:29.515971+00
-51747407	51747407	EUR	XTB	Sample EUR Account	Sample User	1	t	2026-09-08 13:22:29.515971+00
-53582946	53582946	USD	XTB	Sample Metals Account	Sample User	1	f	2026-09-08 13:22:29.515971+00
-51729109	51729109	PLN	XTB	Sample Retirement Account	Sample User	1	f	2026-09-08 13:22:29.515971+00
-50290466	50290466	PLN	XTB	Sample PLN Cash Account	Sample User	1	t	2026-09-08 13:22:29.515971+00
-51993106	51993106	USD	XTB	Sample Income Account	Sample User	1	f	2026-09-08 13:22:29.515971+00
-51707603	51707603	PLN	XTB	Sample PLN Reserve Account	Sample User	1	t	2026-09-08 13:22:29.515971+00
-17959259	17959259	USD	IBKR	IBKR USD investment account	Happy Investor	1	f	2026-09-08 13:22:29.515971+00
-51499241	51499241	USD	XTB	XTB USD investment account	Happy Investor	1	f	2026-09-08 13:22:29.515971+00
-51548444	51548444	EUR	XTB	XTB EUR cash-only account	Happy Investor	1	t	2026-09-08 13:22:29.515971+00
-51551301	51551301	PLN	XTB	XTB PLN investment account	Happy Investor	1	f	2026-09-08 13:22:29.515971+00
+51551301	51551301	PLN	XTB	Sample PLN Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
+51822121	51822121	USD	XTB	Sample USD Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
+51747407	51747407	EUR	XTB	Sample EUR Account	Sample User	1	t	2026-09-09 18:44:02.17447+00
+53582946	53582946	USD	XTB	Sample Metals Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
+51729109	51729109	PLN	XTB	Sample Retirement Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
+50290466	50290466	PLN	XTB	Sample PLN Cash Account	Sample User	1	t	2026-09-09 18:44:02.17447+00
+51499241	51499241	USD	XTB	Sample USD Trading Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
+51548444	51548444	EUR	XTB	Sample EUR Cash Account	Sample User	1	t	2026-09-09 18:44:02.17447+00
+51993106	51993106	USD	XTB	Sample Income Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
+51707603	51707603	PLN	XTB	Sample PLN Reserve Account	Sample User	1	t	2026-09-09 18:44:02.17447+00
+17959259	17959259	USD	IBKR	Sample IBKR Account	Sample User	1	f	2026-09-09 18:44:02.17447+00
+2017959259	17959259	USD	IBKR	IBKR USD investment account	Happy Investor	2	f	2026-09-09 18:44:04.779199+00
+2051499241	51499241	USD	XTB	XTB USD investment account	Happy Investor	2	f	2026-09-09 18:44:04.779199+00
+2051551301	51551301	PLN	XTB	XTB PLN investment account	Happy Investor	2	f	2026-09-09 18:44:04.779199+00
+2051548444	51548444	EUR	XTB	XTB EUR cash-only account	Happy Investor	2	t	2026-09-09 18:44:04.779199+00
 \.
 
 
@@ -9642,7 +9714,8 @@ COPY investory.accounts (id, external_account_id, currency, provider, name, owne
 --
 
 COPY investory.app_users (id, username, display_name, birth_date, active, created_at, updated_at, password_hash, role) FROM stdin;
-1	sample.user	Happy Investor	1985-09-09	t	2026-09-08 13:22:29.508519+00	2026-09-08 13:22:31.560271+00	\N	PROFILE_OWNER
+1	sample.user	Sample User	1985-09-09	t	2026-09-09 18:44:02.167006+00	2026-09-09 18:44:04.604544+00	\N	PROFILE_OWNER
+2	happy.investor	Happy Investor	1984-01-01	t	2026-09-09 18:44:04.771848+00	2026-09-09 18:44:04.771848+00	\N	PROFILE_OWNER
 \.
 
 
@@ -9651,29 +9724,29 @@ COPY investory.app_users (id, username, display_name, birth_date, active, create
 --
 
 COPY investory.asset_price_history (asset_id, price_date, source, source_symbol, source_mapping_id, price_origin, price_currency, open_price, high_price, low_price, close_price, adjusted_close_price, volume, estimated, interpolation_method, interpolation_left_date, interpolation_right_date, observation_count, source_date, imported_at, quality_score, quality_class, is_observed, is_proxy, price_scale_factor, scale_reason, original_source_symbol) FROM stdin;
-1	2025-01-01	STOOQ	aapl.us	11	STOOQ	USD	251.06900000	251.90500000	248.07500000	249.05900000	\N	39696389.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	aapl.us
-51	2025-01-01	STOOQ	ale	17	STOOQ	PLN	27.49500000	28.24000000	27.20000000	28.24000000	\N	1690982.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	ale
-101	2025-01-01	STOOQ	amzn.us	4	STOOQ	USD	222.96500000	223.22990000	218.94000000	219.39000000	\N	24819655.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	amzn.us
-151	2025-01-01	STOOQ	emim.uk	12	STOOQ	USD	2713.00000000	2727.00000000	2712.00000000	2724.00000000	\N	94147.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	90	EXACT_LISTING_SCALED	t	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	emim.uk
-201	2025-01-01	STOOQ	etfbw20tr.pl	14	STOOQ	PLN	42.20500000	42.45500000	41.87000000	42.34000000	\N	19855.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	etfbw20tr.pl
-251	2025-01-01	STOOQ	googl.us	2	STOOQ	USD	191.07500000	191.96000000	188.51000000	189.30000000	\N	17466919.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	googl.us
-301	2025-01-01	STOOQ	hprd.uk	8	STOOQ	USD	20.82000000	20.94250000	20.82000000	20.94250000	\N	1704.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	hprd.uk
-351	2025-01-01	MANUAL	jgpi.de	\N	MANUAL_WEEKLY	EUR	25.30000000	25.39000000	24.92000000	25.25000000	\N	389706.00000000	f	\N	\N	\N	1	2025-01-06	2026-09-08 13:22:29.55478+00	90	MANUAL_WEEKLY_CLOSE	t	f	1.00000000	Manual weekly backfill	jgpi.de
-401	2025-01-01	STOOQ	meta.us	3	STOOQ	USD	592.26500000	593.97000000	583.85000000	585.51000000	\N	6019520.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	meta.us
-451	2025-01-01	STOOQ	msft.us	10	STOOQ	USD	426.10000000	426.73000000	420.66000000	421.50000000	\N	13246509.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	msft.us
-501	2025-01-01	XTB_TRADE_CLOSE	NATGAS	\N	XTB_TRADE_CLOSE	USD	\N	\N	\N	2.94600000	\N	0.01000000	f	\N	\N	\N	1	2024-11-11	2026-09-08 13:22:29.55478+00	60	XTB_TRADE_OBSERVATION	t	f	1.00000000	\N	\N
-551	2025-01-01	STOOQ	nclr.uk	19	STOOQ	USD	24.42500000	24.42500000	24.42500000	24.42500000	\N	0.00000000	f	\N	\N	\N	1	2025-03-13	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nclr.uk
-601	2025-01-01	STOOQ	nucl.uk	18	STOOQ	USD	32.20000000	32.20000000	32.03000000	32.10000000	\N	1671.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nucl.uk
-651	2025-01-01	STOOQ	nvda.us	5	STOOQ	USD	138.03000000	138.07000000	133.83000000	134.29000000	\N	155659211.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nvda.us
-701	2025-01-01	STOOQ	o.us	7	STOOQ	USD	52.96000000	53.48000000	52.87000000	53.41000000	\N	5643315.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	o.us
-751	2025-01-01	STOOQ	pall.us	21	STOOQ	USD	16.63720000	16.84510000	16.61200000	16.70400000	\N	255610.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pall.us
-801	2025-01-01	STOOQ	pkn	16	STOOQ	PLN	41.80190000	43.53180000	41.80190000	43.24280000	\N	4468832.77048588	f	\N	\N	\N	1	2025-01-02	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pkn
-851	2025-01-01	STOOQ	pko	15	STOOQ	PLN	55.93010000	56.34040000	54.68060000	55.25870000	\N	1958279.91280614	f	\N	\N	\N	1	2025-01-02	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pko
-901	2025-01-01	STOOQ	pzu	13	STOOQ	PLN	42.58700000	43.23540000	42.49440000	43.01310000	\N	1378040.63739274	f	\N	\N	\N	1	2025-01-02	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pzu
-951	2025-01-01	INTERPOLATED_XTB	SPYW.DE	\N	INTERPOLATED_XTB	EUR	\N	\N	\N	23.87250000	\N	\N	t	LINEAR_BUSINESS_DAY	2024-12-30	2025-01-03	\N	\N	2026-09-08 13:22:29.55478+00	30	INTERPOLATED_XTB	f	f	1.00000000	\N	\N
-1001	2025-01-01	STOOQ	tsla.us	6	STOOQ	USD	423.79000000	427.93000000	402.54000000	403.84000000	\N	76825121.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	tsla.us
-1101	2025-01-01	STOOQ	vhyd.uk	20	STOOQ	USD	66.26500000	66.65000000	66.26000000	66.51250000	\N	2136.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	vhyd.uk
-1151	2025-01-01	STOOQ	vwra.uk	1	STOOQ	USD	138.78000000	139.40000000	138.70000000	139.34000000	\N	27062.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-08 13:22:29.55478+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	vwra.uk
+1	2025-01-01	STOOQ	aapl.us	11	STOOQ	USD	251.06900000	251.90500000	248.07500000	249.05900000	\N	39696389.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	aapl.us
+51	2025-01-01	STOOQ	ale	17	STOOQ	PLN	27.49500000	28.24000000	27.20000000	28.24000000	\N	1690982.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	ale
+101	2025-01-01	STOOQ	amzn.us	4	STOOQ	USD	222.96500000	223.22990000	218.94000000	219.39000000	\N	24819655.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	amzn.us
+151	2025-01-01	STOOQ	emim.uk	12	STOOQ	USD	2713.00000000	2727.00000000	2712.00000000	2724.00000000	\N	94147.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	90	EXACT_LISTING_SCALED	t	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	emim.uk
+201	2025-01-01	STOOQ	etfbw20tr.pl	14	STOOQ	PLN	42.20500000	42.45500000	41.87000000	42.34000000	\N	19855.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	etfbw20tr.pl
+251	2025-01-01	STOOQ	googl.us	2	STOOQ	USD	191.07500000	191.96000000	188.51000000	189.30000000	\N	17466919.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	googl.us
+301	2025-01-01	STOOQ	hprd.uk	8	STOOQ	USD	20.82000000	20.94250000	20.82000000	20.94250000	\N	1704.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	hprd.uk
+351	2025-01-01	MANUAL	jgpi.de	\N	MANUAL_WEEKLY	EUR	25.30000000	25.39000000	24.92000000	25.25000000	\N	389706.00000000	f	\N	\N	\N	1	2025-01-06	2026-09-09 18:44:02.227882+00	90	MANUAL_WEEKLY_CLOSE	t	f	1.00000000	Manual weekly backfill	jgpi.de
+401	2025-01-01	STOOQ	meta.us	3	STOOQ	USD	592.26500000	593.97000000	583.85000000	585.51000000	\N	6019520.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	meta.us
+451	2025-01-01	STOOQ	msft.us	10	STOOQ	USD	426.10000000	426.73000000	420.66000000	421.50000000	\N	13246509.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	msft.us
+501	2025-01-01	XTB_TRADE_CLOSE	NATGAS	\N	XTB_TRADE_CLOSE	USD	\N	\N	\N	2.94600000	\N	0.01000000	f	\N	\N	\N	1	2024-11-11	2026-09-09 18:44:02.227882+00	60	XTB_TRADE_OBSERVATION	t	f	1.00000000	\N	\N
+551	2025-01-01	STOOQ	nclr.uk	19	STOOQ	USD	24.42500000	24.42500000	24.42500000	24.42500000	\N	0.00000000	f	\N	\N	\N	1	2025-03-13	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nclr.uk
+601	2025-01-01	STOOQ	nucl.uk	18	STOOQ	USD	32.20000000	32.20000000	32.03000000	32.10000000	\N	1671.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nucl.uk
+651	2025-01-01	STOOQ	nvda.us	5	STOOQ	USD	138.03000000	138.07000000	133.83000000	134.29000000	\N	155659211.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nvda.us
+701	2025-01-01	STOOQ	o.us	7	STOOQ	USD	52.96000000	53.48000000	52.87000000	53.41000000	\N	5643315.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	o.us
+751	2025-01-01	STOOQ	pall.us	21	STOOQ	USD	16.63720000	16.84510000	16.61200000	16.70400000	\N	255610.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pall.us
+801	2025-01-01	STOOQ	pkn	16	STOOQ	PLN	41.80190000	43.53180000	41.80190000	43.24280000	\N	4468832.77048588	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pkn
+851	2025-01-01	STOOQ	pko	15	STOOQ	PLN	55.93010000	56.34040000	54.68060000	55.25870000	\N	1958279.91280614	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pko
+901	2025-01-01	STOOQ	pzu	13	STOOQ	PLN	42.58700000	43.23540000	42.49440000	43.01310000	\N	1378040.63739274	f	\N	\N	\N	1	2025-01-02	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pzu
+951	2025-01-01	INTERPOLATED_XTB	SPYW.DE	\N	INTERPOLATED_XTB	EUR	\N	\N	\N	23.87250000	\N	\N	t	LINEAR_BUSINESS_DAY	2024-12-30	2025-01-03	\N	\N	2026-09-09 18:44:02.227882+00	30	INTERPOLATED_XTB	f	f	1.00000000	\N	\N
+1001	2025-01-01	STOOQ	tsla.us	6	STOOQ	USD	423.79000000	427.93000000	402.54000000	403.84000000	\N	76825121.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	tsla.us
+1101	2025-01-01	STOOQ	vhyd.uk	20	STOOQ	USD	66.26500000	66.65000000	66.26000000	66.51250000	\N	2136.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	vhyd.uk
+1151	2025-01-01	STOOQ	vwra.uk	1	STOOQ	USD	138.78000000	139.40000000	138.70000000	139.34000000	\N	27062.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-09 18:44:02.227882+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	vwra.uk
 \.
 
 
@@ -9682,27 +9755,27 @@ COPY investory.asset_price_history (asset_id, price_date, source, source_symbol,
 --
 
 COPY investory.asset_source_symbols (id, asset_id, source, source_symbol, source_market, price_currency, active, created_at, updated_at, xtb_symbol, match_method, match_status, confidence, is_exact_listing, is_alternate_listing, original_exchange, matched_exchange, original_currency, matched_currency, requires_fx_conversion, price_scale_factor, scale_reason, scale_confidence, scale_observation_count, scale_median_ratio, scale_dispersion, manual_approval_status, substitution_reason) FROM stdin;
-1	1151	STOOQ	vwra.uk	uk/lse etfs/3	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	VWRA	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	HIGH	43	0.99890666	0.00178020	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-2	251	STOOQ	googl.us	us/nasdaq stocks/1	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	GOOGL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	155	0.99915645	0.00461066	AUTO_ACCEPTED	\N
-3	401	STOOQ	meta.us	us/nasdaq stocks/2	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	META.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	120	1.00133297	0.00462610	AUTO_ACCEPTED	\N
-4	101	STOOQ	amzn.us	us/nasdaq stocks/1	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	AMZN.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	107	0.99966079	0.00655302	AUTO_ACCEPTED	\N
-5	651	STOOQ	nvda.us	us/nasdaq stocks/2	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	NVDA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	192	1.00118575	0.00695909	AUTO_ACCEPTED	\N
-6	1001	STOOQ	tsla.us	us/nasdaq stocks/3	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	TSLA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	121	1.00301594	0.01051235	AUTO_ACCEPTED	\N
-7	701	STOOQ	o.us	us/nyse stocks/2	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	O.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	76	0.99889614	0.00433819	AUTO_ACCEPTED	\N
-8	301	STOOQ	hprd.uk	uk/lse etfs/2	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	HPRD	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-9	1051	STOOQ	vhyl.uk	uk/lse etfs/3	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	VHYL	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-10	451	STOOQ	msft.us	us/nasdaq stocks/2	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	MSFT.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	108	1.00035589	0.00426819	AUTO_ACCEPTED	\N
-11	1	STOOQ	aapl.us	us/nasdaq stocks/1	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	AAPL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	124	1.00318564	0.00398781	AUTO_ACCEPTED	\N
-12	151	STOOQ	emim.uk	uk/lse etfs/1	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	EMIM.UK	EXACT_SYMBOL	ACCEPTED_SCALED	HIGH	t	f	UK	UK	USD	USD	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	MANUAL	2	0.01000626	0.00133110	AUTO_ACCEPTED	\N
-13	901	STOOQ	pzu	pl/wse stocks	PLN	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	PZU.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	45	1.06728790	0.02651832	AUTO_ACCEPTED	\N
-14	201	STOOQ	etfbw20tr.pl	pl/wse etfs	PLN	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	ETFBW20TR.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	59	1.00074716	0.00442657	AUTO_ACCEPTED	\N
-15	851	STOOQ	pko	pl/wse stocks	PLN	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	PKO.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	48	1.06537170	0.01184250	AUTO_ACCEPTED	\N
-16	801	STOOQ	pkn	pl/wse stocks	PLN	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	PKN.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	55	1.13417093	0.01231641	AUTO_ACCEPTED	\N
-17	51	STOOQ	ale	pl/wse stocks	PLN	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	ALE.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	4	0.99693386	0.00657529	AUTO_ACCEPTED	\N
-18	601	STOOQ	nucl.uk	uk/lse etfs/2	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	NUCL.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	16	1.00190817	0.00580955	AUTO_ACCEPTED	\N
-19	551	STOOQ	nclr.uk	uk/lse etfs/2	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	NCLR.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	3	1.01019041	0.01449302	AUTO_ACCEPTED	\N
-20	1101	STOOQ	vhyd.uk	uk/lse etfs/3	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	VHYD.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	29	0.99826191	0.00178553	AUTO_ACCEPTED	\N
-21	751	STOOQ	pall.us	us/nyse etfs/1	USD	t	2026-09-08 13:22:29.548496+00	2026-09-08 13:22:29.548496+00	PALL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	\N	2	5.02832373	\N	AUTO_ACCEPTED	\N
+1	1151	STOOQ	vwra.uk	uk/lse etfs/3	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	VWRA	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	HIGH	43	0.99890666	0.00178020	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+2	251	STOOQ	googl.us	us/nasdaq stocks/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	GOOGL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	155	0.99915645	0.00461066	AUTO_ACCEPTED	\N
+3	401	STOOQ	meta.us	us/nasdaq stocks/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	META.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	120	1.00133297	0.00462610	AUTO_ACCEPTED	\N
+4	101	STOOQ	amzn.us	us/nasdaq stocks/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	AMZN.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	107	0.99966079	0.00655302	AUTO_ACCEPTED	\N
+5	651	STOOQ	nvda.us	us/nasdaq stocks/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	NVDA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	192	1.00118575	0.00695909	AUTO_ACCEPTED	\N
+6	1001	STOOQ	tsla.us	us/nasdaq stocks/3	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	TSLA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	121	1.00301594	0.01051235	AUTO_ACCEPTED	\N
+7	701	STOOQ	o.us	us/nyse stocks/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	O.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	76	0.99889614	0.00433819	AUTO_ACCEPTED	\N
+8	301	STOOQ	hprd.uk	uk/lse etfs/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	HPRD	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+9	1051	STOOQ	vhyl.uk	uk/lse etfs/3	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	VHYL	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+10	451	STOOQ	msft.us	us/nasdaq stocks/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	MSFT.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	108	1.00035589	0.00426819	AUTO_ACCEPTED	\N
+11	1	STOOQ	aapl.us	us/nasdaq stocks/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	AAPL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	124	1.00318564	0.00398781	AUTO_ACCEPTED	\N
+12	151	STOOQ	emim.uk	uk/lse etfs/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	EMIM.UK	EXACT_SYMBOL	ACCEPTED_SCALED	HIGH	t	f	UK	UK	USD	USD	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	MANUAL	2	0.01000626	0.00133110	AUTO_ACCEPTED	\N
+13	901	STOOQ	pzu	pl/wse stocks	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	PZU.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	45	1.06728790	0.02651832	AUTO_ACCEPTED	\N
+14	201	STOOQ	etfbw20tr.pl	pl/wse etfs	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	ETFBW20TR.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	59	1.00074716	0.00442657	AUTO_ACCEPTED	\N
+15	851	STOOQ	pko	pl/wse stocks	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	PKO.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	48	1.06537170	0.01184250	AUTO_ACCEPTED	\N
+16	801	STOOQ	pkn	pl/wse stocks	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	PKN.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	55	1.13417093	0.01231641	AUTO_ACCEPTED	\N
+17	51	STOOQ	ale	pl/wse stocks	PLN	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	ALE.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	4	0.99693386	0.00657529	AUTO_ACCEPTED	\N
+18	601	STOOQ	nucl.uk	uk/lse etfs/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	NUCL.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	16	1.00190817	0.00580955	AUTO_ACCEPTED	\N
+19	551	STOOQ	nclr.uk	uk/lse etfs/2	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	NCLR.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	3	1.01019041	0.01449302	AUTO_ACCEPTED	\N
+20	1101	STOOQ	vhyd.uk	uk/lse etfs/3	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	VHYD.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	29	0.99826191	0.00178553	AUTO_ACCEPTED	\N
+21	751	STOOQ	pall.us	us/nyse etfs/1	USD	t	2026-09-09 18:44:02.219648+00	2026-09-09 18:44:02.219648+00	PALL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	\N	2	5.02832373	\N	AUTO_ACCEPTED	\N
 \.
 
 
@@ -9734,15 +9807,12 @@ COPY investory.assets (id, name, symbol, ticker, ibkr, yahoo, country, currency,
 101	Amazon.com, Inc.	AMZN.US	AMZN	AMZN	\N	US	USD	EQUITY	\N	\N	\N	t	f	\N	\N	\N	\N
 151	iShares Core MSCI Emerging Markets IMI UCITS ETF (Acc)	EMIM.UK	EMIM	EMIM	EMIM.L	UK	USD	ETF	\N	\N	\N	f	f	\N	\N	\N	\N
 201	Beta ETF WIG20TR	ETFBW20TR.PL	ETFBW20TR	ETFBW20TR	\N	PL	PLN	ETF	\N	\N	\N	t	f	\N	\N	\N	\N
-251	Alphabet Inc.	GOOGL.US	GOOGL	GOOGL	\N	US	USD	EQUITY	\N	\N	\N	t	f	\N	\N	\N	\N
 301	HSBC FTSE EPRA NAREIT Developed UCITS ETF	HPRD.UK	HPRD	HPRD	HPRD.L	UK	USD	ETF	\N	\N	\N	f	f	\N	\N	\N	\N
 351	JPMorgan Equity Premium Income ETF	JGPI.DE	JGPI	JGPI	JGPI.DE	DE	EUR	ETF	\N	\N	\N	t	f	\N	\N	\N	\N
 401	Meta Platforms Inc Class A	META.US	META	META	\N	US	USD	EQUITY	\N	\N	\N	t	f	\N	\N	\N	\N
-451	Microsoft Corp.	MSFT.US	MSFT	MSFT	\N	US	USD	EQUITY	\N	\N	\N	t	f	\N	\N	\N	\N
 501	NATGAS	NATGAS	NATGAS	NATGAS	\N	US	USD	COMMODITY	\N	\N	\N	f	f	\N	\N	\N	\N
 551	WisdomTree Uranium and Nuclear Energy UCITS ETF USD Acc	NCLR.UK	NCLR	NCLR	NCLR.L	UK	USD	ETF	\N	\N	\N	f	f	\N	\N	\N	\N
 601	VanEck Uranium and Nuclear Technologies UCITS ETF	NUCL.UK	NUCL	NUCL	NUCL.L	UK	USD	ETF	\N	\N	\N	f	f	\N	\N	\N	\N
-651	NVIDIA Corporation	NVDA.US	NVDA	NVDA	\N	US	USD	EQUITY	\N	\N	\N	t	f	\N	\N	\N	\N
 701	Realty Income Corporation	O.US	O	O	\N	US	USD	EQUITY	\N	\N	\N	f	f	\N	\N	\N	\N
 751	abrdn Physical Palladium Shares ETF	PALL.US	PALL	PALL	\N	US	USD	ETF	\N	\N	\N	f	f	\N	\N	\N	\N
 801	ORLEN S.A.	PKN.PL	PKN	PKN	\N	PL	PLN	EQUITY	\N	\N	\N	f	f	\N	\N	\N	\N
@@ -9751,11 +9821,14 @@ COPY investory.assets (id, name, symbol, ticker, ibkr, yahoo, country, currency,
 951	SPDR S&P Euro Dividend Aristocrats UCITS ETF (Dist)	SPYW.DE	SPYW	SPYW	\N	DE	EUR	ETF	\N	\N	\N	f	f	\N	\N	\N	\N
 1051	Vanguard FTSE All-World High Dividend Yield UCITS ETF (USD) Distributing	VHYL.UK	VHYL	VHYL	VHYL.L	UK	USD	ETF	\N	\N	\N	f	f	\N	\N	\N	\N
 1101	Vanguard Funds Public Limited Company - Vanguard FTSE All-World High Dividend Yield UCITS ETF	VHYD.UK	VHYD	VHYD	VHYD.L	UK	USD	ETF	\N	\N	\N	t	f	\N	\N	\N	\N
-1151	Vanguard FTSE All-World UCITS ETF (USD) Accumulating	VWRA.UK	VWRA	VWRA	VWRA.L	UK	USD	ETF	\N	\N	\N	t	f	\N	\N	\N	\N
-1201	United States Treasury 4 5/8 02/28/26	US91282CKB62	US91282CKB62	T458022826	\N	US	USD	BOND	US91282CKB62	\N	\N	f	f	\N	\N	\N	\N
-1251	United States Treasury 4 3/8 07/31/33	US91282CRC72	US91282CRC72	T438073133	\N	US	USD	BOND	US91282CRC72	\N	\N	t	f	\N	\N	\N	\N
 1	Apple Inc.	AAPL.US	AAPL	AAPL	\N	US	USD	EQUITY	\N	\N	\N	t	f	249.05900000	249.05900000	STOOQ	2025-01-01 11:00:00+00
+251	Alphabet Inc.	GOOGL.US	GOOGL	GOOGL	\N	US	USD	EQUITY	\N	\N	\N	t	f	189.30000000	189.30000000	STOOQ	2025-01-01 11:00:00+00
+451	Microsoft Corp.	MSFT.US	MSFT	MSFT	\N	US	USD	EQUITY	\N	\N	\N	t	f	421.50000000	421.50000000	STOOQ	2025-01-01 11:00:00+00
+651	NVIDIA Corporation	NVDA.US	NVDA	NVDA	\N	US	USD	EQUITY	\N	\N	\N	t	f	134.29000000	134.29000000	STOOQ	2025-01-01 11:00:00+00
 1001	Tesla, Inc.	TSLA.US	TSLA	TSLA	\N	US	USD	EQUITY	\N	\N	\N	f	f	403.84000000	403.84000000	STOOQ	2025-01-01 11:00:00+00
+1151	Vanguard FTSE All-World UCITS ETF (USD) Accumulating	VWRA.UK	VWRA	VWRA	VWRA.L	UK	USD	ETF	\N	\N	\N	t	f	139.34000000	139.34000000	STOOQ	2025-01-01 11:00:00+00
+1201	United States Treasury 4 5/8 02/28/26	US91282CKB62	US91282CKB62	T458022826	\N	US	USD	BOND	US91282CKB62	\N	\N	f	f	0.01000000	0.01000000	STOOQ	2025-01-01 11:00:00+00
+1251	United States Treasury 4 3/8 07/31/33	US91282CRC72	US91282CRC72	T438073133	\N	US	USD	BOND	US91282CRC72	\N	\N	t	f	0.98810000	0.98810000	STOOQ	2025-01-01 11:00:00+00
 \.
 
 
@@ -9772,7 +9845,8 @@ COPY investory.benchmark_monthly_closes (id, symbol, month, close_price, fetched
 --
 
 COPY investory.bond (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9405	1	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-09-08 13:22:31.591688+00	2026-09-08 13:22:31.591688+00
+9405	2	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-09-09 18:44:04.781141+00	2026-09-09 18:44:04.781141+00
+9407	2	United States Treasury 4 3/8 07/31/33	PLN	10000.000000000000	2026-03-01	0.043750000000	2033-07-31	\N	Happy Investor reinvestment of Treasury 2026 principal	\N	2026-09-09 18:44:04.78319+00	2026-09-09 18:44:04.78319+00
 \.
 
 
@@ -9781,31 +9855,33 @@ COPY investory.bond (id, portfolio_id, name, currency, value, acquisition_date, 
 --
 
 COPY investory.cash_operations (id, account_id, operation, asset_id, source_asset_symbol, broker_symbol, amount, currency, comment, date, execution_fx_base, execution_fx_to_currency, execution_fx_rate, execution_fx_observed_at, execution_fx_source, execution_fx_reference, import_history_id, import_source_row_id) FROM stdin;
-7001	17959259	DEPOSIT	\N	\N	\N	100000.00000000	USD	Happy Investor external funding	2024-07-31 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7002	17959259	WITHDRAWAL	\N	\N	\N	-3000.00000000	USD	Happy Investor explicit withdrawal	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7003	51499241	DEPOSIT	\N	\N	\N	4000.00000000	USD	Happy Investor external funding	2024-07-31 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7004	51499241	WITHDRAWAL	\N	\N	\N	-1000.00000000	USD	Happy Investor explicit withdrawal	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7005	51551301	DEPOSIT	\N	\N	\N	4000.00000000	PLN	Happy Investor external funding	2024-07-31 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7006	51551301	WITHDRAWAL	\N	\N	\N	-1000.00000000	PLN	Happy Investor explicit withdrawal	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7007	51548444	DEPOSIT	\N	\N	\N	8000.00000000	EUR	Happy Investor external funding	2024-07-31 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7008	51548444	WITHDRAWAL	\N	\N	\N	-2000.00000000	EUR	Happy Investor explicit withdrawal	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7009	51548444	TRANSFER	\N	\N	\N	-4000.00000000	EUR	EUR-USD-2024-07-31	2024-07-31 10:00:00+00	EUR	USD	1.08223900	\N	\N	\N	\N	\N
-7010	51499241	TRANSFER	\N	\N	\N	4328.95600000	USD	EUR-USD-2024-07-31	2024-07-31 10:00:00+00	EUR	USD	1.08223900	\N	\N	\N	\N	\N
-7011	51548444	TRANSFER	\N	\N	\N	-4000.00000000	EUR	EUR-PLN-2024-07-31	2024-07-31 10:00:00+00	EUR	PLN	4.29529837	\N	\N	\N	\N	\N
-7012	51551301	TRANSFER	\N	\N	\N	17181.19346840	PLN	EUR-PLN-2024-07-31	2024-07-31 10:00:00+00	EUR	PLN	4.29529837	\N	\N	\N	\N	\N
-7013	51551301	TRANSFER	\N	\N	\N	-500.00000000	PLN	PLN-USD-2025-03	2025-03-31 10:00:00+00	PLN	USD	0.25195898	\N	\N	\N	\N	\N
-7014	51499241	TRANSFER	\N	\N	\N	125.97949054	USD	PLN-USD-2025-03	2025-03-31 10:00:00+00	PLN	USD	0.25195898	\N	\N	\N	\N	\N
-7015	51499241	TRANSFER	\N	\N	\N	-500.00000000	USD	USD-PLN-2025-03	2025-03-31 10:00:00+00	USD	PLN	3.99930000	\N	\N	\N	\N	\N
-7016	51551301	TRANSFER	\N	\N	\N	1999.65000000	PLN	USD-PLN-2025-03	2025-03-31 10:00:00+00	USD	PLN	3.99930000	\N	\N	\N	\N	\N
-7017	17959259	COMMISSION	\N	\N	\N	-1.00000000	USD	IBKR trade commission	2024-08-08 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7018	17959259	DIVIDEND	\N	\N	\N	120.00000000	USD	Canonical dividend	2025-06-30 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7019	17959259	WITHHOLDING_TAX	\N	\N	\N	-22.80000000	USD	Canonical dividend tax 19%	2025-06-30 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7020	17959259	FREE_FUNDS_INTEREST	\N	\N	\N	231.25000000	USD	Canonical Treasury interest	2025-02-28 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7021	17959259	FREE_FUNDS_INTEREST_TAX	\N	\N	\N	-43.93750000	USD	Canonical Treasury interest tax 19%	2025-02-28 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7024	17959259	WITHDRAWAL	\N	\N	\N	-100000.00000000	USD	Happy Investor boundary withdrawal of uninvested IBKR cash	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7025	17959259	WITHDRAWAL	\N	\N	\N	-7934.73331300	USD	Happy Investor boundary withdrawal of residual brokerage cash	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7022	51499241	CLOSE_TRADE	501	NATGAS	NATGAS	19.80000000	USD	NATGAS CFD 2040572606 close (gross 105.90 net of -86.10 rollover)	2025-09-26 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7023	51499241	SWAP	501	NATGAS	NATGAS	-0.68000000	USD	NATGAS CFD 2040572606 swap	2025-09-26 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7001	2017959259	DEPOSIT	\N	\N	\N	100000.00000000	USD	Happy Investor external funding	2024-07-31 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7002	2017959259	WITHDRAWAL	\N	\N	\N	-3000.00000000	USD	Happy Investor explicit withdrawal	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7003	2051499241	DEPOSIT	\N	\N	\N	4000.00000000	USD	Happy Investor external funding	2024-07-31 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7004	2051499241	WITHDRAWAL	\N	\N	\N	-1000.00000000	USD	Happy Investor explicit withdrawal	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7005	2051551301	DEPOSIT	\N	\N	\N	4000.00000000	PLN	Happy Investor external funding	2024-07-31 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7006	2051551301	WITHDRAWAL	\N	\N	\N	-1000.00000000	PLN	Happy Investor explicit withdrawal	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7007	2051548444	DEPOSIT	\N	\N	\N	8000.00000000	EUR	Happy Investor external funding	2024-07-31 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7008	2051548444	WITHDRAWAL	\N	\N	\N	-2000.00000000	EUR	Happy Investor explicit withdrawal	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7009	2051548444	TRANSFER	\N	\N	\N	-4000.00000000	EUR	EUR-USD-2024-07-31	2024-07-31 10:00:00+00	EUR	USD	1.08223900	\N	\N	\N	\N	\N
+7010	2051499241	TRANSFER	\N	\N	\N	4328.95600000	USD	EUR-USD-2024-07-31	2024-07-31 10:00:00+00	EUR	USD	1.08223900	\N	\N	\N	\N	\N
+7011	2051548444	TRANSFER	\N	\N	\N	-4000.00000000	EUR	EUR-PLN-2024-07-31	2024-07-31 10:00:00+00	EUR	PLN	4.29529837	\N	\N	\N	\N	\N
+7012	2051551301	TRANSFER	\N	\N	\N	17181.19346840	PLN	EUR-PLN-2024-07-31	2024-07-31 10:00:00+00	EUR	PLN	4.29529837	\N	\N	\N	\N	\N
+7013	2051551301	TRANSFER	\N	\N	\N	-500.00000000	PLN	PLN-USD-2025-03	2025-03-31 10:00:00+00	PLN	USD	0.25195898	\N	\N	\N	\N	\N
+7014	2051499241	TRANSFER	\N	\N	\N	125.97949054	USD	PLN-USD-2025-03	2025-03-31 10:00:00+00	PLN	USD	0.25195898	\N	\N	\N	\N	\N
+7015	2051499241	TRANSFER	\N	\N	\N	-500.00000000	USD	USD-PLN-2025-03	2025-03-31 10:00:00+00	USD	PLN	3.99930000	\N	\N	\N	\N	\N
+7016	2051551301	TRANSFER	\N	\N	\N	1999.65000000	PLN	USD-PLN-2025-03	2025-03-31 10:00:00+00	USD	PLN	3.99930000	\N	\N	\N	\N	\N
+7017	2017959259	COMMISSION	\N	\N	\N	-1.00000000	USD	IBKR trade commission	2024-08-08 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7018	2017959259	DIVIDEND	\N	\N	\N	120.00000000	USD	Canonical dividend	2025-06-30 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7019	2017959259	WITHHOLDING_TAX	\N	\N	\N	-22.80000000	USD	Canonical dividend tax 19%	2025-06-30 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7020	2017959259	FREE_FUNDS_INTEREST	\N	\N	\N	231.25000000	USD	Canonical Treasury interest	2025-02-28 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7021	2017959259	FREE_FUNDS_INTEREST_TAX	\N	\N	\N	-43.93750000	USD	Canonical Treasury interest tax 19%	2025-02-28 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7024	2017959259	WITHDRAWAL	\N	\N	\N	-100000.00000000	USD	Happy Investor boundary withdrawal of uninvested IBKR cash	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7025	2017959259	WITHDRAWAL	\N	\N	\N	-7934.73331300	USD	Happy Investor boundary withdrawal of residual brokerage cash	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7022	2051499241	CLOSE_TRADE	501	NATGAS	NATGAS	19.80000000	USD	NATGAS CFD 2040572606 close (gross 105.90 net of -86.10 rollover)	2025-09-26 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7023	2051499241	SWAP	501	NATGAS	NATGAS	-0.68000000	USD	NATGAS CFD 2040572606 swap	2025-09-26 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7026	2017959259	TRANSFER	1201	US91282CKB62	T458022826	10000.00000000	USD	Full call redemption principal returned	2026-02-28 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7027	2017959259	STOCK_PURCHASE	1251	US91282CRC72	T438073133	-10000.00000000	USD	Next-day Treasury principal reinvestment	2026-03-01 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
 \.
 
 
@@ -9814,8 +9890,8 @@ COPY investory.cash_operations (id, account_id, operation, asset_id, source_asse
 --
 
 COPY investory.cash_reserve (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9406	1	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-09-08 13:22:31.593415+00	2026-09-08 13:22:31.593415+00
-9401	1	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-09-08 13:22:31.598159+00	2026-09-08 13:22:31.598159+00
+9406	2	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-09-09 18:44:04.784363+00	2026-09-09 18:44:04.784363+00
+9401	2	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-09-09 18:44:04.788689+00	2026-09-09 18:44:04.788689+00
 \.
 
 
@@ -9843,56 +9919,56 @@ COPY investory.drawdown_alert_state (id, peak_equity, last_alert_at) FROM stdin;
 --
 
 COPY investory.exchange_rates (id, rate_date, base, to_currency, rate, source, method, observed_at, source_reference, imported_at) FROM stdin;
-1	2024-07-31	EUR	USD	1.08223900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-2	2024-08-30	EUR	USD	1.10749400	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-3	2024-09-30	EUR	USD	1.12038900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-4	2024-10-31	EUR	USD	1.08664700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-5	2024-11-29	EUR	USD	1.05575200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-6	2024-12-31	EUR	USD	1.04189000	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-7	2025-01-31	EUR	USD	1.03829900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-8	2025-02-28	EUR	USD	1.03955700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-9	2025-03-31	EUR	USD	1.08270600	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-10	2025-04-30	EUR	USD	1.13719900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-11	2025-05-30	EUR	USD	1.13240300	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-12	2025-06-30	EUR	USD	1.17296200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-13	2025-07-31	EUR	USD	1.14504700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-14	2025-08-29	EUR	USD	1.16753700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-15	2025-09-30	EUR	USD	1.17560200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-16	2025-10-31	EUR	USD	1.15760100	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-17	2025-11-28	EUR	USD	1.15686400	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-18	2025-12-31	EUR	USD	1.17356200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-19	2026-01-30	EUR	USD	1.19084800	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-20	2026-02-27	EUR	USD	1.17956100	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-21	2026-03-31	EUR	USD	1.14665300	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-22	2026-04-30	EUR	USD	1.16810200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-23	2026-05-29	EUR	USD	1.16285200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-24	2026-06-30	EUR	USD	1.13936000	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-25	2026-07-31	EUR	USD	1.15238500	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.51833+00
-26	2024-07-31	USD	PLN	3.96890000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-27	2024-08-30	USD	PLN	3.86440000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-28	2024-09-30	USD	PLN	3.81930000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-29	2024-10-31	USD	PLN	4.00590000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-30	2024-11-29	USD	PLN	4.07700000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-31	2024-12-31	USD	PLN	4.10120000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-32	2025-01-31	USD	PLN	4.05760000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-33	2025-02-28	USD	PLN	3.99930000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-34	2025-03-31	USD	PLN	3.86430000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-35	2025-04-30	USD	PLN	3.76170000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-36	2025-05-30	USD	PLN	3.75370000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-37	2025-06-30	USD	PLN	3.61640000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-38	2025-07-31	USD	PLN	3.72570000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-39	2025-08-29	USD	PLN	3.65590000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-40	2025-09-30	USD	PLN	3.63150000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-41	2025-10-31	USD	PLN	3.67510000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-42	2025-11-28	USD	PLN	3.66240000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-43	2025-12-31	USD	PLN	3.60160000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-44	2026-01-30	USD	PLN	3.53790000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-45	2026-02-27	USD	PLN	3.58040000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-46	2026-03-31	USD	PLN	3.74080000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-47	2026-04-30	USD	PLN	3.64600000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-48	2026-05-29	USD	PLN	3.63950000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-49	2026-06-30	USD	PLN	3.77080000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
-50	2026-07-31	USD	PLN	3.74250000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-08 13:22:29.520496+00
+1	2024-07-31	EUR	USD	1.08223900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+2	2024-08-30	EUR	USD	1.10749400	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+3	2024-09-30	EUR	USD	1.12038900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+4	2024-10-31	EUR	USD	1.08664700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+5	2024-11-29	EUR	USD	1.05575200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+6	2024-12-31	EUR	USD	1.04189000	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+7	2025-01-31	EUR	USD	1.03829900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+8	2025-02-28	EUR	USD	1.03955700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+9	2025-03-31	EUR	USD	1.08270600	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+10	2025-04-30	EUR	USD	1.13719900	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+11	2025-05-30	EUR	USD	1.13240300	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+12	2025-06-30	EUR	USD	1.17296200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+13	2025-07-31	EUR	USD	1.14504700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+14	2025-08-29	EUR	USD	1.16753700	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+15	2025-09-30	EUR	USD	1.17560200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+16	2025-10-31	EUR	USD	1.15760100	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+17	2025-11-28	EUR	USD	1.15686400	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+18	2025-12-31	EUR	USD	1.17356200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+19	2026-01-30	EUR	USD	1.19084800	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+20	2026-02-27	EUR	USD	1.17956100	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+21	2026-03-31	EUR	USD	1.14665300	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+22	2026-04-30	EUR	USD	1.16810200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+23	2026-05-29	EUR	USD	1.16285200	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+24	2026-06-30	EUR	USD	1.13936000	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+25	2026-07-31	EUR	USD	1.15238500	STATIC_BOOTSTRAP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.176709+00
+26	2024-07-31	USD	PLN	3.96890000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+27	2024-08-30	USD	PLN	3.86440000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+28	2024-09-30	USD	PLN	3.81930000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+29	2024-10-31	USD	PLN	4.00590000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+30	2024-11-29	USD	PLN	4.07700000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+31	2024-12-31	USD	PLN	4.10120000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+32	2025-01-31	USD	PLN	4.05760000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+33	2025-02-28	USD	PLN	3.99930000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+34	2025-03-31	USD	PLN	3.86430000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+35	2025-04-30	USD	PLN	3.76170000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+36	2025-05-30	USD	PLN	3.75370000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+37	2025-06-30	USD	PLN	3.61640000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+38	2025-07-31	USD	PLN	3.72570000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+39	2025-08-29	USD	PLN	3.65590000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+40	2025-09-30	USD	PLN	3.63150000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+41	2025-10-31	USD	PLN	3.67510000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+42	2025-11-28	USD	PLN	3.66240000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+43	2025-12-31	USD	PLN	3.60160000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+44	2026-01-30	USD	PLN	3.53790000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+45	2026-02-27	USD	PLN	3.58040000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+46	2026-03-31	USD	PLN	3.74080000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+47	2026-04-30	USD	PLN	3.64600000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+48	2026-05-29	USD	PLN	3.63950000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+49	2026-06-30	USD	PLN	3.77080000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
+50	2026-07-31	USD	PLN	3.74250000	NBP	HISTORICAL_MONTHLY	\N	\N	2026-09-09 18:44:02.179528+00
 \.
 
 
@@ -9903,6 +9979,14 @@ COPY investory.exchange_rates (id, rate_date, base, to_currency, rate, source, m
 COPY investory.fx_configuration (config_key, config_value) FROM stdin;
 daily_history_start	9999-12-31
 max_age_days	4
+\.
+
+
+--
+-- Data for Name: fx_daily_rates; Type: TABLE DATA; Schema: investory; Owner: -
+--
+
+COPY investory.fx_daily_rates (id, rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference) FROM stdin;
 \.
 
 
@@ -9993,7 +10077,7 @@ COPY investory.notification_event (id, event_type, severity, portfolio_id, sourc
 --
 
 COPY investory.personal_asset (id, portfolio_id, name, category, currency, value, acquisition_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9404	1	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-09-08 13:22:31.599284+00	2026-09-08 13:22:31.599284+00
+9404	2	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-09-09 18:44:04.789801+00	2026-09-09 18:44:04.789801+00
 \.
 
 
@@ -10002,7 +10086,8 @@ COPY investory.personal_asset (id, portfolio_id, name, category, currency, value
 --
 
 COPY investory.portfolios (id, name, base_currency, local_currency, owner, user_id, created_at) FROM stdin;
-1	Happy Investor Portfolio	PLN	PLN	Happy Investor	1	2026-09-08 13:22:29.512539+00
+1	Sample Portfolio	USD	PLN	Sample User	1	2026-09-09 18:44:02.171134+00
+2	Happy Investor Portfolio	PLN	PLN	Happy Investor	2	2026-09-09 18:44:04.776077+00
 \.
 
 
@@ -10011,15 +10096,17 @@ COPY investory.portfolios (id, name, base_currency, local_currency, owner, user_
 --
 
 COPY investory.positions (id, account_id, asset_id, source_asset_symbol, broker_symbol, broker_product, source_position_id, source_row_occurrence, operation, settlement_model, volume, price_currency, cost_currency, profit_currency, commission_currency, open_time, open_price, source_open_price, open_conversion_rate, close_time, close_price, source_close_price, close_conversion_rate, base_value, purchase_value, sale_value, margin, commission, swap, profit, import_history_id, import_source_row_id) FROM stdin;
-7101	17959259	1	AAPL.US	AAPL	\N	\N	1	BUY	CASH_SETTLED	100.00000000	USD	USD	USD	USD	2024-08-08 10:00:00+00	180.00000000	180.00000000	1.00000000	\N	\N	\N	\N	18000.00000000	18000.00000000	\N	\N	-1.00000000	\N	0.00000000	\N	\N
-7102	17959259	1	AAPL.US	AAPL	\N	\N	1	BUY	CASH_SETTLED	50.00000000	USD	USD	USD	USD	2025-02-12 11:00:00+00	200.00000000	200.00000000	1.00000000	\N	\N	\N	\N	10000.00000000	10000.00000000	\N	\N	-1.00000000	\N	0.00000000	\N	\N
-7103	17959259	1151	VWRA.UK	VWRA	\N	\N	1	BUY	CASH_SETTLED	20.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	120.00000000	120.00000000	1.00000000	\N	\N	\N	\N	2400.00000000	2400.00000000	\N	\N	-1.00000000	\N	0.00000000	\N	\N
-7104	51551301	1151	VWRA.UK	VWRA	\N	\N	1	BUY	CASH_SETTLED	10.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	130.00000000	130.00000000	1.00000000	\N	\N	\N	\N	1300.00000000	1300.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
-7105	51499241	651	NVDA.US	NVDA	\N	\N	1	BUY	CASH_SETTLED	10.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	100.00000000	100.00000000	1.00000000	\N	\N	\N	\N	1000.00000000	1000.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
-7106	51499241	1001	TSLA.US	TSLA	\N	\N	1	BUY	CASH_SETTLED	1.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	200.00000000	200.00000000	1.00000000	\N	\N	\N	\N	200.00000000	200.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
-7107	51551301	251	GOOGL.US	GOOGL	\N	\N	1	BUY	CASH_SETTLED	5.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	150.00000000	150.00000000	1.00000000	\N	\N	\N	\N	750.00000000	750.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
-7108	17959259	451	MSFT.US	MSFT	\N	\N	1	BUY	CASH_SETTLED	10.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	100.00000000	100.00000000	1.00000000	\N	\N	\N	\N	1000.00000000	1000.00000000	\N	\N	-1.00000000	\N	0.00000000	\N	\N
-7110	51499241	501	NATGAS	NATGAS	\N	\N	1	BUY	RESULT_ONLY	0.01000000	USD	USD	USD	USD	2025-09-26 10:00:00+00	2.94600000	2.94600000	1.00000000	2025-09-26 10:00:00+00	\N	\N	\N	0.02946000	0.02946000	\N	\N	0.00000000	-0.68000000	19.12000000	\N	\N
+7101	2017959259	1	AAPL.US	AAPL	\N	\N	1	BUY	CASH_SETTLED	100.00000000	USD	USD	USD	USD	2024-08-08 10:00:00+00	180.00000000	180.00000000	1.00000000	\N	\N	\N	\N	18000.00000000	18000.00000000	\N	\N	-1.00000000	\N	0.00000000	\N	\N
+7102	2017959259	1	AAPL.US	AAPL	\N	\N	1	BUY	CASH_SETTLED	50.00000000	USD	USD	USD	USD	2025-02-12 11:00:00+00	200.00000000	200.00000000	1.00000000	\N	\N	\N	\N	10000.00000000	10000.00000000	\N	\N	-1.00000000	\N	0.00000000	\N	\N
+7103	2017959259	1151	VWRA.UK	VWRA	\N	\N	1	BUY	CASH_SETTLED	20.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	120.00000000	120.00000000	1.00000000	\N	\N	\N	\N	2400.00000000	2400.00000000	\N	\N	-1.00000000	\N	0.00000000	\N	\N
+7104	2051551301	1151	VWRA.UK	VWRA	\N	\N	1	BUY	CASH_SETTLED	10.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	130.00000000	130.00000000	1.00000000	\N	\N	\N	\N	1300.00000000	1300.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
+7105	2051499241	651	NVDA.US	NVDA	\N	\N	1	BUY	CASH_SETTLED	10.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	100.00000000	100.00000000	1.00000000	\N	\N	\N	\N	1000.00000000	1000.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
+7106	2051499241	1001	TSLA.US	TSLA	\N	\N	1	BUY	CASH_SETTLED	1.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	200.00000000	200.00000000	1.00000000	\N	\N	\N	\N	200.00000000	200.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
+7107	2051551301	251	GOOGL.US	GOOGL	\N	\N	1	BUY	CASH_SETTLED	5.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	150.00000000	150.00000000	1.00000000	\N	\N	\N	\N	750.00000000	750.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
+7108	2017959259	451	MSFT.US	MSFT	\N	\N	1	BUY	CASH_SETTLED	10.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	100.00000000	100.00000000	1.00000000	\N	\N	\N	\N	1000.00000000	1000.00000000	\N	\N	-1.00000000	\N	0.00000000	\N	\N
+7110	2051499241	501	NATGAS	NATGAS	\N	\N	1	BUY	RESULT_ONLY	0.01000000	USD	USD	USD	USD	2025-09-26 10:00:00+00	2.94600000	2.94600000	1.00000000	2025-09-26 10:00:00+00	\N	\N	\N	0.02946000	0.02946000	\N	\N	0.00000000	-0.68000000	19.12000000	\N	\N
+7111	2017959259	1201	US91282CKB62	T458022826	\N	\N	1	BUY	CASH_SETTLED	10000.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	1.00000000	1.00000000	1.00000000	2026-02-28 11:00:00+00	1.00000000	1.00000000	1.00000000	10000.00000000	10000.00000000	10000.00000000	\N	0.00000000	\N	0.00000000	\N	\N
+7112	2017959259	1251	US91282CRC72	T438073133	\N	\N	1	BUY	CASH_SETTLED	10000.00000000	USD	USD	USD	USD	2026-03-01 11:00:00+00	1.00000000	1.00000000	1.00000000	\N	\N	\N	\N	10000.00000000	10000.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
 \.
 
 
@@ -10028,7 +10115,8 @@ COPY investory.positions (id, account_id, asset_id, source_asset_symbol, broker_
 --
 
 COPY investory.profile_memberships (user_id, profile_id, role, created_at) FROM stdin;
-1	1	OWNER	2026-09-08 13:22:31.558063+00
+1	1	OWNER	2026-09-09 18:44:04.601971+00
+2	2	OWNER	2026-09-09 18:44:04.777779+00
 \.
 
 
@@ -10047,8 +10135,8 @@ IBKR
 --
 
 COPY investory.real_estate (id, portfolio_id, name, currency, value, tax_base, acquisition_date, land_register_number, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9402	1	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	KR1P/4322432/0	\N	Happy Investor canonical profile	\N	2026-09-08 13:22:31.595105+00	2026-09-08 13:22:31.595105+00
-9403	1	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-09-08 13:22:31.595105+00	2026-09-08 13:22:31.595105+00
+9402	2	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	KR1P/4322432/0	\N	Happy Investor canonical profile	\N	2026-09-09 18:44:04.785945+00	2026-09-09 18:44:04.785945+00
+9403	2	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-09-09 18:44:04.785945+00	2026-09-09 18:44:04.785945+00
 \.
 
 
@@ -10094,9 +10182,9 @@ reconciliation_reconstruction_window_days	90.000000000000	Number of recent calen
 --
 
 COPY investory.rental_contract (id, real_estate_id, start_date, end_date, terminated_date, bootstrap_managed, tenant_name, tenant_email, tenant_phone, notes, created_at, updated_at) FROM stdin;
-9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-09-08 13:22:31.601266+00	2026-09-08 13:22:31.601266+00
-9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-09-08 13:22:31.601266+00	2026-09-08 13:22:31.601266+00
-9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-09-08 13:22:31.601266+00	2026-09-08 13:22:31.601266+00
+9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-09-09 18:44:04.791113+00	2026-09-09 18:44:04.791113+00
+9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-09-09 18:44:04.791113+00	2026-09-09 18:44:04.791113+00
+9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-09-09 18:44:04.791113+00	2026-09-09 18:44:04.791113+00
 \.
 
 
@@ -10124,7 +10212,7 @@ COPY investory.retirement_plan_events (id, plan_id, event_year, name, amount, ev
 --
 
 COPY investory.retirement_planning_years (id, portfolio_id, planning_year, status, state, created_at, updated_at) FROM stdin;
-9301	1	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-09-08 13:22:31.607535+00	2026-09-08 13:22:31.607535+00
+9301	2	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-09-09 18:44:04.797599+00	2026-09-09 18:44:04.797599+00
 \.
 
 
@@ -10133,7 +10221,7 @@ COPY investory.retirement_planning_years (id, portfolio_id, planning_year, statu
 --
 
 COPY investory.retirement_plans (id, portfolio_id, name, birth_date, effective_year, end_age, retirement_age, annual_employment_income, annual_pre_retirement_contribution, annual_living_expenses, annual_discretionary_expenses, inflation_rate, rental_income_growth_rate, spending_growth_rate, funding_strategy, funding_order, expense_profile, safe_reserve_years, equity_harvest_minimum_return_rate, equity_gain_harvest_rate, allow_emergency_equity_withdrawal, fixed_income_return_rate, equity_return_rate, pension_start_age, annual_pension, capital_gain_tax_rate, baseline_as_of_year, baseline_reserve, baseline_investment_capital, baseline_long_term_capital, baseline_rental_income, baseline_long_term_income, baseline_long_term_state, baseline_long_term_state_version, archived, created_at, updated_at) FROM stdin;
-9201	1	Happy Investor Plan	1984-01-01	2024	85	60	90000.000000000000	12000.000000000000	36000.000000000000	6000.000000000000	0.025000000000	0.025000000000	0.035000000000	SIMPLE_WATERFALL	CASH,BONDS,STOCKS	\N	2.000000000000	0.050000000000	0.250000000000	t	0.035000000000	0.070000000000	67	24000.000000000000	0.190000000000	2025	50000.000000000000	159307.015664000000	970000.000000000000	74400.000000000000	74400.000000000000	\N	1	f	2025-01-01 00:00:00+00	2025-01-01 00:00:00+00
+9201	2	Happy Investor Plan	1984-01-01	2024	85	60	90000.000000000000	12000.000000000000	36000.000000000000	6000.000000000000	0.025000000000	0.025000000000	0.035000000000	SIMPLE_WATERFALL	CASH,BONDS,STOCKS	\N	2.000000000000	0.050000000000	0.250000000000	t	0.035000000000	0.070000000000	67	24000.000000000000	0.190000000000	2025	50000.000000000000	159307.015664000000	970000.000000000000	74400.000000000000	74400.000000000000	\N	1	f	2025-01-01 00:00:00+00	2025-01-01 00:00:00+00
 \.
 
 
@@ -10179,7 +10267,7 @@ SELECT pg_catalog.setval('investory.accounts_id_seq', 1, false);
 -- Name: app_users_id_seq; Type: SEQUENCE SET; Schema: investory; Owner: -
 --
 
-SELECT pg_catalog.setval('investory.app_users_id_seq', 1, true);
+SELECT pg_catalog.setval('investory.app_users_id_seq', 2, true);
 
 
 --
@@ -10208,6 +10296,13 @@ SELECT pg_catalog.setval('investory.benchmark_monthly_closes_id_seq', 1, false);
 --
 
 SELECT pg_catalog.setval('investory.exchange_rates_id_seq', 50, true);
+
+
+--
+-- Name: fx_daily_rates_id_seq; Type: SEQUENCE SET; Schema: investory; Owner: -
+--
+
+SELECT pg_catalog.setval('investory.fx_daily_rates_id_seq', 1, false);
 
 
 --
@@ -10459,6 +10554,14 @@ ALTER TABLE ONLY investory.fx_configuration
 
 
 --
+-- Name: fx_daily_rates fx_daily_rates_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.fx_daily_rates
+    ADD CONSTRAINT fx_daily_rates_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: import_history import_history_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
@@ -10707,6 +10810,14 @@ ALTER TABLE ONLY investory.accounts
 
 
 --
+-- Name: fx_daily_rates ux_fx_daily_rate; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.fx_daily_rates
+    ADD CONSTRAINT ux_fx_daily_rate UNIQUE (rate_date, base, to_currency);
+
+
+--
 -- Name: integration_instances ux_integration_instances_plugin_owner; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
@@ -10862,6 +10973,13 @@ CREATE INDEX ix_cash_operations_import_source_row ON investory.cash_operations U
 --
 
 CREATE INDEX ix_cash_reserve_portfolio_active ON investory.cash_reserve USING btree (portfolio_id, archived_at);
+
+
+--
+-- Name: ix_fx_daily_lookup; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_fx_daily_lookup ON investory.fx_daily_rates USING btree (rate_date, base, to_currency);
 
 
 --
@@ -11608,6 +11726,22 @@ ALTER TABLE ONLY investory.exchange_rates
 
 ALTER TABLE ONLY investory.exchange_rates
     ADD CONSTRAINT exchange_rates_to_currency_fkey FOREIGN KEY (to_currency) REFERENCES investory.currencies(id);
+
+
+--
+-- Name: fx_daily_rates fx_daily_rates_base_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.fx_daily_rates
+    ADD CONSTRAINT fx_daily_rates_base_fkey FOREIGN KEY (base) REFERENCES investory.currencies(id);
+
+
+--
+-- Name: fx_daily_rates fx_daily_rates_to_currency_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.fx_daily_rates
+    ADD CONSTRAINT fx_daily_rates_to_currency_fkey FOREIGN KEY (to_currency) REFERENCES investory.currencies(id);
 
 
 --

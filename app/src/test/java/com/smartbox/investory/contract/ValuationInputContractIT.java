@@ -201,7 +201,7 @@ class ValuationInputContractIT {
         Statement statement = connection.createStatement();
         ResultSet result =
             statement.executeQuery(
-                "SELECT net_deposits FROM investory.app_v_portfolio_kpi_summary WHERE portfolio_id = 1")) {
+                "SELECT net_deposits FROM investory.app_v_portfolio_kpi_summary WHERE portfolio_id = 2")) {
       assertTrue(result.next());
       BigDecimal netDeposits = result.getBigDecimal(1);
       assertEquals(

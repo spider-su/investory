@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -337,7 +338,8 @@ class DatabaseReportingContractIT {
           statement.execute(
               "INSERT INTO investory.accounts(id, external_account_id, currency, provider, name, owner, portfolio_id) "
                   + "SELECT 999997, '999997', 'GBP', 'XTB', 'Missing cash FX', 'Sample User', id "
-                  + "FROM investory.portfolios ORDER BY id LIMIT 1");
+                  + "FROM investory.portfolios WHERE id = "
+                  + HappyInvestorTestData.PORTFOLIO_ID);
           statement.execute(
               "INSERT INTO investory.account_daily(account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity) "
                   + "VALUES (999997, DATE '2099-01-31', 'GBP', 10, 20, 30)");
@@ -698,7 +700,7 @@ class DatabaseReportingContractIT {
               "SELECT username, display_name FROM investory.app_users WHERE id = 1")) {
         assertTrue(result.next());
         assertEquals("sample.user", result.getString("username"));
-        assertEquals("Happy Investor", result.getString("display_name"));
+        assertEquals("Sample User", result.getString("display_name"));
       }
 
       try (ResultSet result =

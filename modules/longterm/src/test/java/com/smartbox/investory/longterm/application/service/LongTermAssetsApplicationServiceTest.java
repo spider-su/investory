@@ -1,9 +1,12 @@
 package com.smartbox.investory.longterm.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.longterm.api.model.AssetSummaryView;
@@ -11,6 +14,11 @@ import com.smartbox.investory.longterm.api.model.CashFlowType;
 import com.smartbox.investory.longterm.api.model.Frequency;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetType;
+import com.smartbox.investory.longterm.api.model.RentalContractCommand;
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
+import com.smartbox.investory.longterm.api.model.RentalContractView;
+import com.smartbox.investory.longterm.api.model.ResourceNotFoundException;
+import com.smartbox.investory.longterm.api.model.UpdateRentalContractCommand;
 import com.smartbox.investory.longterm.infrastructure.bond.BondEntity;
 import com.smartbox.investory.longterm.infrastructure.bond.BondRepository;
 import com.smartbox.investory.longterm.infrastructure.cash.CashReserveEntity;
@@ -44,6 +52,13 @@ class LongTermAssetsApplicationServiceTest {
   private final PersonalAssetRepository personalAssets = mock(PersonalAssetRepository.class);
   private final LongTermAssetRentalContractRepository contracts =
       mock(LongTermAssetRentalContractRepository.class);
+  private final BondCommandService bondCommands = mock(BondCommandService.class);
+  private final RealEstateCommandService realEstateCommands = mock(RealEstateCommandService.class);
+  private final CashReserveCommandService cashReserveCommands =
+      mock(CashReserveCommandService.class);
+  private final PersonalAssetCommandService personalAssetCommands =
+      mock(PersonalAssetCommandService.class);
+  private final RentalContractService rentalCommandService = mock(RentalContractService.class);
   private final PortfolioContextReader portfolios = mock(PortfolioContextReader.class);
   private final CurrencyConversion conversion = mock(CurrencyConversion.class);
   private final com.smartbox.investory.longterm.infrastructure.lifecycle
@@ -60,7 +75,123 @@ class LongTermAssetsApplicationServiceTest {
           realEstates, contracts, lifecycle, conversion, portfolios);
   private final LongTermAssetsApplicationService service =
       new LongTermAssetsApplicationService(
-          null, null, null, null, null, reads, historical, null, Clock.systemUTC());
+          bondCommands,
+          realEstateCommands,
+          cashReserveCommands,
+          personalAssetCommands,
+          rentalCommandService,
+          reads,
+          historical,
+          mock(LongTermAssetLifecycleService.class),
+          Clock.systemUTC());
+
+  @Test
+  void missingAssetDetailsAreReportedAtTheApplicationBoundary() {
+    when(bondCommands.find(PORTFOLIO_ID, 1L)).thenReturn(Optional.empty());
+    when(realEstateCommands.find(PORTFOLIO_ID, 2L)).thenReturn(Optional.empty());
+    when(cashReserveCommands.find(PORTFOLIO_ID, 3L)).thenReturn(Optional.empty());
+    when(personalAssetCommands.find(PORTFOLIO_ID, 4L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.bond(PORTFOLIO_ID, 1L))
+        .isInstanceOf(ResourceNotFoundException.class)
+        .hasMessage("Bond not found");
+    assertThatThrownBy(() -> service.realEstate(PORTFOLIO_ID, 2L))
+        .isInstanceOf(ResourceNotFoundException.class)
+        .hasMessage("Real estate not found");
+    assertThatThrownBy(() -> service.cashReserve(PORTFOLIO_ID, 3L))
+        .isInstanceOf(ResourceNotFoundException.class)
+        .hasMessage("Cash reserve not found");
+    assertThatThrownBy(() -> service.personalAsset(PORTFOLIO_ID, 4L))
+        .isInstanceOf(ResourceNotFoundException.class)
+        .hasMessage("Personal asset not found");
+  }
+
+  @Test
+  void rentalAndLifecycleCommandsRejectMissingInputAndDelegateScope() {
+    assertThatThrownBy(() -> service.createRentalContract(null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> service.updateRentalContract(null))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    service.deleteRentalContract(PORTFOLIO_ID, 5L, 6L);
+    service.terminateRentalContract(PORTFOLIO_ID, 5L, 6L, DATE);
+    service.archive(PORTFOLIO_ID, 7L);
+    service.reactivate(PORTFOLIO_ID, 7L);
+
+    verify(rentalCommandService).delete(PORTFOLIO_ID, 5L, 6L);
+  }
+
+  @Test
+  void simpleCommandsAndReadListsStayAtTheApplicationBoundary() {
+    assertThat(service.createBond(null)).isNull();
+    assertThat(service.updateBond(null)).isNull();
+    assertThat(service.createRealEstate(null)).isNull();
+    assertThat(service.updateRealEstate(null)).isNull();
+    assertThat(service.createCashReserve(null)).isNull();
+    assertThat(service.updateCashReserve(null)).isNull();
+    assertThat(service.createPersonalAsset(null)).isNull();
+    assertThat(service.updatePersonalAsset(null)).isNull();
+
+    when(reads.archived(PORTFOLIO_ID, DATE)).thenReturn(List.of());
+    when(rentalCommandService.list(PORTFOLIO_ID, 8L)).thenReturn(List.of());
+    assertThat(service.archived(PORTFOLIO_ID, DATE)).isEmpty();
+    assertThat(service.rentalContracts(PORTFOLIO_ID, 8L, DATE)).isEmpty();
+  }
+
+  @Test
+  void rentalCommandsMapReturnedDomainContractToPublicView() {
+    var model =
+        new RentalContractModel(
+            90L,
+            DATE.minusDays(1),
+            DATE.plusDays(10),
+            null,
+            "Tenant",
+            "tenant@example.com",
+            "555",
+            List.of(
+                new RentalContractModel.Term(
+                    CashFlowType.RENT, new BigDecimal("100"), Frequency.MONTHLY, false)));
+    when(rentalCommandService.create(
+            any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
+        .thenReturn(model);
+    when(rentalCommandService.update(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        .thenReturn(model);
+    when(rentalCommandService.end(any(), any(), any(), any())).thenReturn(model);
+
+    RentalContractCommand command =
+        new RentalContractCommand(
+            PORTFOLIO_ID,
+            8L,
+            "Tenant",
+            "tenant@example.com",
+            "555",
+            DATE.minusDays(1),
+            DATE.plusDays(10),
+            false,
+            List.of());
+    RentalContractView created = service.createRentalContract(command);
+    assertThat(created.id()).isEqualTo(90L);
+    assertThat(created.tenantName()).isEqualTo("Tenant");
+    assertThat(created.terms())
+        .singleElement()
+        .satisfies(term -> assertThat(term.amount()).isEqualByComparingTo("100"));
+
+    assertThat(
+            service.updateRentalContract(
+                new UpdateRentalContractCommand(
+                    PORTFOLIO_ID,
+                    8L,
+                    90L,
+                    "Tenant",
+                    "tenant@example.com",
+                    "555",
+                    DATE.minusDays(1),
+                    DATE.plusDays(10),
+                    List.of())))
+        .isNotNull();
+    assertThat(service.endRentalContract(PORTFOLIO_ID, 8L, 90L, DATE)).isNotNull();
+  }
 
   @BeforeEach
   void setUp() {

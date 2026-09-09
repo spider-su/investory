@@ -10,6 +10,7 @@ public final class HappyInvestorLongTermFacts {
   public static final long APARTMENT_B_ID = 9403L;
   public static final long FAMILY_CAR_ID = 9404L;
   public static final long TREASURY_ID = 9405L;
+  public static final String TREASURY_FORM_RATE_DISPLAY = "4.63";
   public static final long INTEREST_BEARING_RESERVE_ID = 9406L;
   public static final LocalDate ACQUISITION_DATE = LocalDate.of(2024, 8, 1);
 
@@ -17,6 +18,7 @@ public final class HappyInvestorLongTermFacts {
   public static final BigDecimal REAL_ESTATE_TOTAL = new BigDecimal("900000");
 
   public static final BigDecimal BOND_TOTAL = new BigDecimal("10000");
+  public static final BigDecimal POST_REINVESTMENT_BOND_TOTAL = new BigDecimal("20000");
   public static final BigDecimal PLAIN_CASH_RESERVE_PRINCIPAL = new BigDecimal("25000");
   public static final BigDecimal CASH_RESERVE_TOTAL = new BigDecimal("50000");
   public static final BigDecimal PERSONAL_ASSET_TOTAL = new BigDecimal("10000");
@@ -53,6 +55,16 @@ public final class HappyInvestorLongTermFacts {
   public static final BigDecimal TREASURY_ANNUAL_RATE = new BigDecimal("0.04625");
   public static final LocalDate TREASURY_ACQUISITION_DATE = LocalDate.of(2024, 7, 31);
   public static final LocalDate TREASURY_MATURITY_DATE = LocalDate.of(2026, 2, 28);
+  public static final String REINVESTMENT_TREASURY_ISIN = "US91282CRC72";
+  public static final String REINVESTMENT_TREASURY_NAME = "United States Treasury 4 3/8 07/31/33";
+  public static final String REINVESTMENT_TREASURY_FORM_RATE_DISPLAY = "4.38";
+  public static final BigDecimal REINVESTMENT_TREASURY_COUPON = new BigDecimal("0.04375");
+  public static final LocalDate REINVESTMENT_DATE = LocalDate.of(2026, 3, 1);
+  public static final LocalDate REINVESTMENT_TREASURY_MATURITY_DATE = LocalDate.of(2033, 7, 31);
+  public static final BigDecimal REINVESTMENT_TREASURY_GROSS_ANNUAL = new BigDecimal("437.50");
+  public static final BigDecimal REINVESTMENT_TREASURY_NET_ANNUAL = new BigDecimal("354.375");
+  public static final BigDecimal POST_REINVESTMENT_AGGREGATE_NET_ANNUAL =
+      new BigDecimal("75037.375");
   public static final BigDecimal INTEREST_BEARING_RESERVE_PRINCIPAL = new BigDecimal("25000");
   public static final BigDecimal INTEREST_BEARING_RESERVE_ANNUAL_RATE = new BigDecimal("0.04");
   public static final LocalDate INTEREST_BEARING_RESERVE_MATURITY_DATE = LocalDate.of(2027, 8, 1);

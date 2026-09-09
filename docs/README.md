@@ -86,6 +86,8 @@ resolved by changing the documentation.
   integration settings, provider, secret, and failure-boundary manual checks.
 - [`quality/06-reconciliation-data-quality-manual-qa.md`](quality/06-reconciliation-data-quality-manual-qa.md):
   reconciliation and persisted data-quality manual checks.
+- [`quality/07-ai-ui-testing.md`](quality/07-ai-ui-testing.md): Codex-led read-only exploratory UI QA,
+  mission/report conventions, and evidence rules.
 - [`reconciliation/local-profile-db-persistence-freeze-readiness.md`](reconciliation/local-profile-db-persistence-freeze-readiness.md): current database/persistence freeze-readiness audit and required remaining checks.
 
 ## Operational and investigation material

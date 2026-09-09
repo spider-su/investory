@@ -49,4 +49,49 @@ class HappyInvestorFactsTest {
     assertThat(boundaryAnnualized.subtract(boundaryTax))
         .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_NET_ANNUAL);
   }
+
+  @Test
+  void documentsTreasuryLifecycleAndPostReinvestmentIncome() {
+    assertThat(
+            HappyInvestorLongTermFacts.TREASURY_PRINCIPAL
+                .multiply(HappyInvestorLongTermFacts.TREASURY_ANNUAL_RATE)
+                .multiply(new BigDecimal("0.81")))
+        .isEqualByComparingTo("374.625");
+    assertThat(
+            HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.multiply(
+                HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_COUPON))
+        .isEqualByComparingTo(HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_GROSS_ANNUAL);
+    assertThat(
+            HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_GROSS_ANNUAL.multiply(
+                new BigDecimal("0.81")))
+        .isEqualByComparingTo(HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_NET_ANNUAL);
+    assertThat(
+            HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_NET_ANNUAL
+                .add(new BigDecimal("810"))
+                .add(HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_NET_ANNUAL))
+        .isEqualByComparingTo(HappyInvestorLongTermFacts.POST_REINVESTMENT_AGGREGATE_NET_ANNUAL);
+  }
+
+  @Test
+  void independentlyReconcilesCompleteBrokerStoryAtReferenceDate() {
+    assertThat(HappyInvestorBrokerFacts.AS_OF_DATE).isEqualTo(HappyInvestorTestData.REFERENCE_DATE);
+    assertThat(HappyInvestorDashboardFacts.AS_OF_DATE)
+        .isEqualTo(HappyInvestorBrokerFacts.AS_OF_DATE);
+    assertThat(HappyInvestorProfileFacts.AS_OF_DATE).isEqualTo(HappyInvestorBrokerFacts.AS_OF_DATE);
+    assertThat(HappyInvestorBrokerFacts.OPEN_POSITIONS)
+        .extracting("symbol")
+        .containsExactly(
+            "AAPL.US", "VWRA.UK", "NVDA.US", "TSLA.US", "GOOGL.US", "MSFT.US", "US91282CKB62");
+    assertThat(HappyInvestorBrokerFacts.OPEN_POSITIONS_VALUE).isEqualByComparingTo("174847.919664");
+    assertThat(HappyInvestorBrokerFacts.OPEN_POSITIONS_UNREALIZED)
+        .isEqualByComparingTo("14036.479664");
+    assertThat(HappyInvestorBrokerFacts.AAPL_VALUE).isEqualByComparingTo("134551.634160");
+    assertThat(HappyInvestorBrokerFacts.FIXED_INCOME_VALUE).isEqualByComparingTo("360.160000");
+    assertThat(
+            new BigDecimal("10000")
+                .multiply(new BigDecimal("98.81"))
+                .movePointLeft(2)
+                .multiply(new BigDecimal("3.6016")))
+        .isEqualByComparingTo("35587.4096");
+  }
 }

@@ -101,3 +101,15 @@ WHERE asset_type = 'BOND'
   AND price_source IN ('TwelveData', 'YahooFinance')
   AND market_price IS NOT NULL
   AND market_price > 10;
+
+-- Carry-forward prices preserve the quote convention of their source price.
+UPDATE investory.asset_price_history aph
+SET quality_class = 'STALE_CARRY_FORWARD_PERCENT_OF_PAR'
+FROM investory.assets asset
+WHERE asset.id = aph.asset_id
+  AND asset.asset_type = 'BOND'
+  AND aph.source = 'CARRY_FORWARD'
+  AND aph.quality_class = 'STALE_CARRY_FORWARD';
+
+COMMENT ON COLUMN investory.asset_price_history.quality_class IS
+    'Price quality and quote convention. Bond classes containing PERCENT_OF_PAR preserve the percent-of-par multiplier through valuation and carry-forward.';

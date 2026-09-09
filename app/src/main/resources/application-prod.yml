@@ -12,6 +12,11 @@ springdoc:
   swagger-ui:
     enabled: false
 
+logging:
+  level:
+    org.hibernate.SQL: OFF
+    org.hibernate.orm.jdbc.bind: OFF
+
 app:
   integrations:
     # Production must provide a stable key; never use the development fallback.

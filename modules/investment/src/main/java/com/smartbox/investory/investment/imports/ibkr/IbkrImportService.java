@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.imports.ibkr;
 
 import com.opencsv.CSVReader;
+import com.smartbox.investory.investment.imports.AssignedIdBatchWriter;
 import com.smartbox.investory.investment.imports.BrokerSourceRowIdentity;
 import com.smartbox.investory.investment.imports.ImportEvidenceContext;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
@@ -18,6 +19,7 @@ import com.smartbox.investory.investment.ledger.position.PositionType;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryBatchWriter;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.io.InputStream;
@@ -57,14 +59,39 @@ public class IbkrImportService {
 
   private final CashOperationRepository cashOperationRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
+  private final AssetPriceHistoryBatchWriter priceBatchWriter;
   private final AssetRepository assetRepository;
   private final AccountRepository accountRepository;
   private final AssetCatalogService assetCatalogService;
   private final IbkrPositionReconstructionService ibkrPositionReconstructionService;
   private final ImportSourceEvidenceService sourceEvidenceService;
   private final CurrencyRateService currencyRateService;
+  private final AssignedIdBatchWriter assignedIdBatchWriter;
 
   @Autowired
+  public IbkrImportService(
+      CashOperationRepository cashOperationRepository,
+      AssetPriceHistoryRepository assetPriceHistoryRepository,
+      AssetPriceHistoryBatchWriter priceBatchWriter,
+      AssetRepository assetRepository,
+      AccountRepository accountRepository,
+      AssetCatalogService assetCatalogService,
+      IbkrPositionReconstructionService ibkrPositionReconstructionService,
+      ImportSourceEvidenceService sourceEvidenceService,
+      CurrencyRateService currencyRateService,
+      AssignedIdBatchWriter assignedIdBatchWriter) {
+    this.cashOperationRepository = cashOperationRepository;
+    this.assetPriceHistoryRepository = assetPriceHistoryRepository;
+    this.priceBatchWriter = priceBatchWriter;
+    this.assetRepository = assetRepository;
+    this.accountRepository = accountRepository;
+    this.assetCatalogService = assetCatalogService;
+    this.ibkrPositionReconstructionService = ibkrPositionReconstructionService;
+    this.sourceEvidenceService = sourceEvidenceService;
+    this.currencyRateService = currencyRateService;
+    this.assignedIdBatchWriter = assignedIdBatchWriter;
+  }
+
   public IbkrImportService(
       CashOperationRepository cashOperationRepository,
       AssetPriceHistoryRepository assetPriceHistoryRepository,
@@ -74,14 +101,17 @@ public class IbkrImportService {
       IbkrPositionReconstructionService ibkrPositionReconstructionService,
       ImportSourceEvidenceService sourceEvidenceService,
       CurrencyRateService currencyRateService) {
-    this.cashOperationRepository = cashOperationRepository;
-    this.assetPriceHistoryRepository = assetPriceHistoryRepository;
-    this.assetRepository = assetRepository;
-    this.accountRepository = accountRepository;
-    this.assetCatalogService = assetCatalogService;
-    this.ibkrPositionReconstructionService = ibkrPositionReconstructionService;
-    this.sourceEvidenceService = sourceEvidenceService;
-    this.currencyRateService = currencyRateService;
+    this(
+        cashOperationRepository,
+        assetPriceHistoryRepository,
+        null,
+        assetRepository,
+        accountRepository,
+        assetCatalogService,
+        ibkrPositionReconstructionService,
+        sourceEvidenceService,
+        currencyRateService,
+        null);
   }
 
   /**
@@ -226,7 +256,11 @@ public class IbkrImportService {
         cashOps.size(),
         tradePriceObservations.size(),
         configuredAccounts.size());
-    cashOperationRepository.saveAll(cashOps);
+    if (assignedIdBatchWriter == null) {
+      cashOperationRepository.saveAll(cashOps);
+    } else {
+      assignedIdBatchWriter.saveAll(cashOperationRepository, cashOps, CashOperationEntity::getId);
+    }
     // Reconstruction re-reads the full canonical cash history for the account. Flush the freshly
     // saved operations so the same-transaction read sees this file's rows; otherwise the rebuild
     // runs on stale (previously committed) data and drops multi-file position history.
@@ -284,7 +318,10 @@ public class IbkrImportService {
     log.info(details);
     // Batch audit counters are row-level import metrics, not projection/rebuild output sizes.
     int applied = Math.max(0, total - failed);
-    return new ImportExecutionResult(total, applied, failed, details);
+    Set<Long> affectedAccountIds = new HashSet<>(affectedAccounts);
+    affectedAccountIds.addAll(
+        openPositions.stream().map(PositionEntity::getAccount).filter(Objects::nonNull).toList());
+    return new ImportExecutionResult(total, applied, failed, details, affectedAccountIds);
   }
 
   /**
@@ -663,18 +700,33 @@ public class IbkrImportService {
             .collect(
                 java.util.stream.Collectors.toMap(
                     AssetEntity::getSymbol, AssetEntity::getId, (existing, ignored) -> existing));
+    List<AssetPriceHistoryBatchWriter.IbkrPrice> prices = new ArrayList<>();
     for (IbkrTradePriceObservation observation : observations) {
       Long assetId = assetIdsBySymbol.get(observation.symbol());
       if (assetId == null) {
         continue;
       }
-      assetPriceHistoryRepository.upsertIbkrTradeObservation(
-          assetId,
-          observation.priceDate(),
-          observation.symbol(),
-          observation.originalSourceSymbol(),
-          observation.priceCurrency().name(),
-          BigDecimal.valueOf(observation.priceValue()));
+      prices.add(
+          new AssetPriceHistoryBatchWriter.IbkrPrice(
+              assetId,
+              observation.priceDate(),
+              observation.symbol(),
+              observation.originalSourceSymbol(),
+              observation.priceCurrency().name(),
+              BigDecimal.valueOf(observation.priceValue())));
+    }
+    if (priceBatchWriter == null) {
+      for (AssetPriceHistoryBatchWriter.IbkrPrice price : prices) {
+        assetPriceHistoryRepository.upsertIbkrTradeObservation(
+            price.assetId(),
+            price.priceDate(),
+            price.sourceSymbol(),
+            price.originalSourceSymbol(),
+            price.priceCurrency(),
+            price.priceValue());
+      }
+    } else {
+      priceBatchWriter.upsertIbkr(prices);
     }
   }
 

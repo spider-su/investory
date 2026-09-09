@@ -86,6 +86,9 @@ shapes, plus repeated-read source immutability.
 - `HappyInvestorReadOnlyUiIT` starts the same application and snapshot with Chromium. Its tests are
   grouped by page/module and verify the financial values users see. It performs navigation only;
   writes, refreshes, imports, exports, and form submissions belong to action integration tests.
+  Dashboard and portfolio monetary summaries use the shared compact display contract: values show
+  stable `K`/`M` suffixes with the same precision as Long-Term Assets; prices, rates, percentages,
+  and form inputs keep their own exact display rules.
 - `HappyInvestorOverlayIdempotencyIT` proves that reapplying the canonical overlay restores all
   mutable columns and is idempotent.
 

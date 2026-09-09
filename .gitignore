@@ -41,7 +41,8 @@ src/main/resources/application-k3s.yml
 .playwright/
 
 # Local scripts/tools
-/scripts/
+/scripts/*
+!/scripts/seed-happyinvestor-demo.sh
 /tools/
 /src/test/python/
 
@@ -51,3 +52,7 @@ src/main/resources/application-k3s.yml
 /.codex-tmp/
 /.tmp-golden-xlb-inspect/
 /.tmp-golden-xtb/
+/qa/ai/reports/
+/.playwright-mcp/
+/*-blocker.png
+/*-isolation.png

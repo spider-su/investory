@@ -219,7 +219,9 @@ public interface AssetPriceHistoryRepository extends Repository<AssetEntity, Lon
               :priceValue,
               :sourceDate,
               40,
-              'STALE_CARRY_FORWARD',
+              CASE WHEN :scaleReason LIKE '%PERCENT_OF_PAR%'
+                   THEN 'STALE_CARRY_FORWARD_PERCENT_OF_PAR'
+                   ELSE 'STALE_CARRY_FORWARD' END,
               true,
               false,
               false,

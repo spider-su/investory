@@ -34,7 +34,7 @@
                 <div class="iv-topbar-metric__content">
                     <div class="iv-topbar-metric__value-row">
                         <span class="iv-topbar-metric__value iv-cash-flow-violet"
-                              th:text="${format.wholeNumber(stats.netDeposits)}">0</span>
+                              th:text="${format.compactMoney(stats.netDeposits)}">0</span>
                     </div>
                     <span class="iv-topbar-metric__label">INVESTED</span>
                 </div>
@@ -59,7 +59,7 @@
                      th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'">
                     <span class="iv-topbar-metric__profit-value-wrap">
                         <span class="iv-topbar-metric__value"
-                              th:text="${format.wholeNumber(stats.totalProfit)}">0</span>
+                          th:text="${format.compactMoney(stats.totalProfit)}">0</span>
                         <span class="iv-topbar-metric__percent"
                               th:if="${stats.gainPct != null}"
                               th:text="|(${stats.formatSignedPercent(stats.gainPct)})|">(+0,0%)</span>
@@ -80,7 +80,7 @@
                 <div class="iv-topbar-metric__content">
                     <div class="iv-topbar-metric__value-row">
                     <span class="iv-topbar-metric__value"
-                          th:text="${format.wholeNumber(stats.balance)}">0</span>
+                          th:text="${format.compactMoney(stats.balance)}">0</span>
                     </div>
                     <span class="iv-topbar-metric__label">BALANCE</span>
                 </div>

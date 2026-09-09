@@ -57,14 +57,14 @@ class MarketDataRefreshPostgresIT extends FastDatabaseTest {
               return quotes;
             });
 
-    marketData.updateStocks(1L);
+    marketData.updateStocks(2L);
 
     assertQuote(251L, "GOOGL.US", HappyInvestorMarketDataFacts.GOOGL_CLOSE);
     assertQuote(1001L, "TSLA.US", HappyInvestorMarketDataFacts.TESLA_CLOSE);
     verify(provider).fetchQuotes(anyList());
 
     int before = countRefreshRows();
-    marketData.updateStocks(1L);
+    marketData.updateStocks(2L);
     assertThat(countRefreshRows()).isEqualTo(before);
   }
 
@@ -77,7 +77,7 @@ class MarketDataRefreshPostgresIT extends FastDatabaseTest {
                 "GOOGL", quote("GOOGL", "251.25"),
                 "TSLA", quote("TSLA", "NaN")));
 
-    marketData.updateStocks(1L);
+    marketData.updateStocks(2L);
 
     assertThat(
             jdbc.queryForObject(

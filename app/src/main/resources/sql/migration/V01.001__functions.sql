@@ -706,3 +706,54 @@ $$;
 
 COMMENT ON FUNCTION investory.run_system_audit(bigint, varchar) IS
     'Runs and persists the canonical reporting audit. The JSON summary is suitable for structured application logs and notification adapters.';
+
+-- Daily neutral FX rates supersede the original exchange-rate-only resolver.
+ALTER FUNCTION investory.resolve_fx_rate(date, varchar, varchar)
+    RENAME TO resolve_fx_rate_legacy;
+
+CREATE OR REPLACE FUNCTION investory.resolve_fx_rate(
+    p_valuation_date date,
+    p_source_currency varchar(3),
+    p_target_currency varchar(3)
+) RETURNS TABLE (
+    source_currency varchar(3), target_currency varchar(3), fx_rate_to_target numeric,
+    source varchar(64), rate_method varchar(32), rate_source varchar(32),
+    source_rate_date date, age_days integer, conversion_status varchar(32)
+) LANGUAGE sql STABLE AS $$
+SELECT p_source_currency,
+       p_target_currency,
+       COALESCE(d.rate, legacy.fx_rate_to_target),
+       COALESCE(d.source, legacy.source),
+       CASE WHEN d.rate IS NOT NULL THEN d.method
+            WHEN legacy.rate_method = 'HISTORICAL_MONTHLY' THEN 'CARRY_FORWARD'
+            WHEN legacy.source_rate_date < p_valuation_date THEN 'CARRY_FORWARD'
+            ELSE legacy.rate_method END,
+       COALESCE(d.source, legacy.rate_source),
+       COALESCE(d.source_rate_date, legacy.source_rate_date),
+       COALESCE((p_valuation_date - d.source_rate_date)::integer, legacy.age_days),
+       COALESCE(
+           CASE WHEN d.method = 'OBSERVED' THEN 'OK'
+                WHEN d.method = 'INTERPOLATED' THEN 'ESTIMATED'
+                WHEN d.method = 'CARRY_FORWARD' THEN 'CARRY_FORWARD'
+                ELSE NULL END,
+           CASE WHEN legacy.rate_method = 'HISTORICAL_MONTHLY' THEN 'CARRY_FORWARD'
+                WHEN legacy.source_rate_date < p_valuation_date THEN 'CARRY_FORWARD'
+                ELSE legacy.conversion_status END,
+           CASE WHEN p_source_currency = p_target_currency
+                THEN 'SAME_CURRENCY' ELSE 'MISSING_RATE' END)
+FROM (SELECT 1) sentinel
+LEFT JOIN LATERAL (
+    SELECT rate, source, method, source_rate_date
+    FROM investory.fx_daily_rates
+    WHERE rate_date = p_valuation_date
+      AND base = p_source_currency
+      AND to_currency = p_target_currency
+) d ON true
+LEFT JOIN LATERAL (
+    SELECT * FROM investory.resolve_fx_rate_legacy(
+        p_valuation_date, p_source_currency, p_target_currency)
+) legacy ON d.rate IS NULL;
+$$;
+
+COMMENT ON TABLE investory.fx_daily_rates IS
+    'Canonical daily neutral FX rates. One row per calendar date and directed currency pair.';

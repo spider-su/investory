@@ -69,9 +69,12 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
         passwordEncoder.encode("happy-profile-password"));
     jdbc.update(
         "INSERT INTO investory.profile_memberships (user_id, profile_id, role) "
-            + "SELECT id, 1, 'USER' FROM investory.app_users WHERE username = ? "
+            + "SELECT id, "
+            + HappyInvestorTestData.PORTFOLIO_ID
+            + ", 'USER' FROM investory.app_users WHERE username = ? "
             + "ON CONFLICT (user_id, profile_id) DO UPDATE SET role = 'USER'",
         "happy.profile.user");
+    prepareCanonicalBoundary();
     projections.recalculateAccounts(
         Set.of(
             HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
@@ -82,6 +85,48 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
         PortfolioProjectionRefreshService.ApplicationRefreshScope.DASHBOARD);
     playwright = Playwright.create();
     browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
+  }
+
+  private void prepareCanonicalBoundary() {
+    jdbc.update(
+        "DELETE FROM investory.positions WHERE open_time::date > ?",
+        HappyInvestorTestData.REFERENCE_DATE);
+    jdbc.update(
+        "UPDATE investory.positions SET close_time = NULL WHERE close_time::date > ?",
+        HappyInvestorTestData.REFERENCE_DATE);
+    jdbc.update(
+        "DELETE FROM investory.cash_operations WHERE date::date > ?",
+        HappyInvestorTestData.REFERENCE_DATE);
+    jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_normalized_cash_operations");
+    jdbc.update(
+        """
+        INSERT INTO investory.fx_daily_rates(
+            rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
+        WITH anchors AS (
+          SELECT
+            (SELECT rate FROM investory.exchange_rates WHERE rate_date = ? AND base = 'USD' AND to_currency = 'PLN' ORDER BY id DESC LIMIT 1) AS usd_pln,
+            (SELECT rate FROM investory.exchange_rates WHERE rate_date = ? AND base = 'EUR' AND to_currency = 'USD' ORDER BY id DESC LIMIT 1) AS eur_usd
+        ), matrix(source_currency, target_currency, rate) AS (
+          SELECT 'USD', 'PLN', usd_pln FROM anchors
+          UNION ALL SELECT 'PLN', 'USD', 1 / usd_pln FROM anchors
+          UNION ALL SELECT 'EUR', 'USD', eur_usd FROM anchors
+          UNION ALL SELECT 'USD', 'EUR', 1 / eur_usd FROM anchors
+          UNION ALL SELECT 'EUR', 'PLN', eur_usd * usd_pln FROM anchors
+          UNION ALL SELECT 'PLN', 'EUR', 1 / (eur_usd * usd_pln) FROM anchors
+        )
+        SELECT CURRENT_DATE, source_currency, target_currency, rate,
+               'TEST', 'OBSERVED', ?, 'HAPPYINVESTOR_REFERENCE'
+        FROM matrix
+        ON CONFLICT (rate_date, base, to_currency) DO UPDATE
+          SET rate = EXCLUDED.rate,
+              source = EXCLUDED.source,
+              method = EXCLUDED.method,
+              source_rate_date = EXCLUDED.source_rate_date,
+              source_reference = EXCLUDED.source_reference
+        """,
+        HappyInvestorTestData.REFERENCE_DATE,
+        HappyInvestorTestData.REFERENCE_DATE,
+        HappyInvestorTestData.REFERENCE_DATE);
   }
 
   @AfterAll
@@ -96,21 +141,21 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
     for (String period : new String[] {"MAX", "YTD"}) {
       assertPage(
           "dashboard-" + period.toLowerCase(),
-          "/portfolios/1/dashboard?period=" + period,
+          "/portfolios/" + HappyInvestorTestData.PORTFOLIO_ID + "/dashboard?period=" + period,
           page -> {
             assertThat(page.locator(".iv-period-nav a[aria-current='page']").textContent())
                 .isEqualTo("MAX".equals(period) ? "Max" : period);
             assertThat(page.locator("#dashboard-page-data").textContent())
-                .contains("\"portfolioId\": 1", "\"selectedDashboardPeriod\": \"" + period + "\"");
+                .contains("\"portfolioId\": 2", "\"selectedDashboardPeriod\": \"" + period + "\"");
             assertThat(page.locator("#balance-cash").textContent())
-                .contains(FinancialPresentation.wholeNumber(HappyInvestorDashboardFacts.BALANCE));
+                .contains(FinancialPresentation.compactMoney(HappyInvestorDashboardFacts.BALANCE));
             String structure = page.locator(".iv-portfolio-structure").textContent();
             assertThat(structure)
                 .contains(
                     "Cash",
                     "Largest holding",
                     "AAPL.US",
-                    FinancialPresentation.wholeNumber(HappyInvestorDashboardFacts.APPLE_VALUE),
+                    FinancialPresentation.compactMoney(HappyInvestorDashboardFacts.APPLE_VALUE),
                     "Top 5",
                     "100.0%",
                     "Equity",
@@ -121,9 +166,9 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                 .contains(
                     "AAPL.US",
                     "TSLA.US",
-                    FinancialPresentation.wholeNumber(
+                    FinancialPresentation.compactMoney(
                         HappyInvestorDashboardFacts.OPEN_POSITIONS_VALUE),
-                    FinancialPresentation.wholeNumber(
+                    FinancialPresentation.compactMoney(
                         HappyInvestorDashboardFacts.OPEN_POSITIONS_UNREALIZED));
           });
     }
@@ -134,7 +179,7 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
   void profile() throws IOException {
     assertPage(
         "profile",
-        "/portfolios/1/investment-profile",
+        "/portfolios/" + HappyInvestorTestData.PORTFOLIO_ID + "/investment-profile",
         page -> {
           assertThat(page.locator(".iv-planning-topbar").textContent())
               .contains(
@@ -176,7 +221,7 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
   void longTermListAndDetail() throws IOException {
     assertPage(
         "long-term-list",
-        "/portfolios/1/long-term-assets",
+        "/portfolios/" + HappyInvestorTestData.PORTFOLIO_ID + "/long-term-assets",
         page -> {
           assertThat(page.locator(".iv-planning-topbar").textContent())
               .contains(
@@ -203,7 +248,9 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
 
     assertPage(
         "long-term-detail",
-        "/portfolios/1/long-term-assets/"
+        "/portfolios/"
+            + HappyInvestorTestData.PORTFOLIO_ID
+            + "/long-term-assets/"
             + HappyInvestorLongTermFacts.APARTMENT_A_ID
             + "/real-estate",
         page -> {
@@ -229,6 +276,18 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
           assertThat(page.locator("#land-register-number").inputValue())
               .isEqualTo("KR1P/4322432/0");
         });
+
+    assertPage(
+        "long-term-bond-form",
+        "/portfolios/"
+            + HappyInvestorTestData.PORTFOLIO_ID
+            + "/long-term-assets/"
+            + HappyInvestorLongTermFacts.TREASURY_ID
+            + "/bond",
+        page ->
+            assertThat(page.locator("#bond-rate").inputValue())
+                .as("bond form uses the documented two-decimal presentation boundary")
+                .isEqualTo(HappyInvestorLongTermFacts.TREASURY_FORM_RATE_DISPLAY));
   }
 
   @Test
@@ -236,7 +295,9 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
   void retirementPlanAndProjection() throws IOException {
     assertPage(
         "retirement-plan",
-        "/portfolios/1/simulation/plan/edit?planId="
+        "/portfolios/"
+            + HappyInvestorTestData.PORTFOLIO_ID
+            + "/simulation/plan/edit?planId="
             + HappyInvestorPlanFacts.SEED_PLAN_ID
             + "&planningDisplayCurrency=USD",
         page -> {
@@ -263,7 +324,9 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
 
     assertPage(
         "retirement-conservative-projection",
-        "/portfolios/1/simulation?planId="
+        "/portfolios/"
+            + HappyInvestorTestData.PORTFOLIO_ID
+            + "/simulation?planId="
             + HappyInvestorPlanFacts.SEED_PLAN_ID
             + "&planningDisplayCurrency=USD&selectedScenario=CONSERVATIVE",
         page -> {
@@ -297,7 +360,9 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
   void investmentAssetDetail() throws IOException {
     assertPage(
         "investment-asset-detail",
-        "/portfolios/1/dashboard/assets/TSLA.US?period=MAX",
+        "/portfolios/"
+            + HappyInvestorTestData.PORTFOLIO_ID
+            + "/dashboard/assets/TSLA.US?period=MAX",
         page -> {
           assertThat(page.locator("h1").textContent()).isEqualTo("TSLA.US");
           assertThat(new BigDecimal(page.locator("#manual-market-price").inputValue()))
@@ -322,7 +387,12 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
         authenticatedContext("happy.profile.user", "happy-profile-password")) {
       Page page = context.newPage();
       page.onPageError(error -> failures.add("page error: " + error));
-      var response = page.navigate(baseUrl() + "/portfolios/1/dashboard?period=MAX");
+      var response =
+          page.navigate(
+              baseUrl()
+                  + "/portfolios/"
+                  + HappyInvestorTestData.PORTFOLIO_ID
+                  + "/dashboard?period=MAX");
       assertThat(response).isNotNull();
       assertThat(response.status()).isEqualTo(200);
       assertThat(page.evaluate("window.investoryCapabilities.canEdit")).isEqualTo(false);

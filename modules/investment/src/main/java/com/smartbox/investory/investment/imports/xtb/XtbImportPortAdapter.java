@@ -38,6 +38,10 @@ final class XtbImportPortAdapter implements XtbImportPort {
 
   private static BrokerImportResult toPortResult(ImportExecutionResult result) {
     return new BrokerImportResult(
-        result.rowsTotal(), result.rowsApplied(), result.rowsFailed(), result.details());
+        result.rowsTotal(),
+        result.rowsApplied(),
+        result.rowsFailed(),
+        result.details(),
+        result.affectedAccountIds());
   }
 }

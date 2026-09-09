@@ -551,8 +551,8 @@ SELECT
     p.cost_currency::varchar(3) AS cost_basis_currency,
     investory.signed_position_quantity(p.operation, p.volume) AS volume,
     COALESCE(p.purchase_value, p.volume * p.open_price, 0) AS cost_basis_native,
-    price.selected_price AS market_price,
-    price.price_currency::varchar(3) AS market_price_currency,
+    COALESCE(price.selected_price, asset.market_price) AS market_price,
+    COALESCE(price.price_currency, asset.currency)::varchar(3) AS market_price_currency,
     price.price_selection_source,
     price.selected_price_date,
     price.price_source,
@@ -567,10 +567,10 @@ SELECT
         ELSE NULL::numeric
     END AS cost_basis_in_base_currency,
     CASE
-        WHEN price.selected_price IS NOT NULL
+        WHEN COALESCE(price.selected_price, asset.market_price) IS NOT NULL
          AND investory.fx_status_usable(market_fx.conversion_status)
             THEN investory.signed_position_quantity(p.operation, p.volume)
-                 * price.selected_price
+                 * COALESCE(price.selected_price, asset.market_price)
                  * CASE WHEN price.quality_class LIKE '%PERCENT_OF_PAR%' THEN 0.01::numeric
                         ELSE 1::numeric END
                  * market_fx.fx_rate_to_base
@@ -588,8 +588,9 @@ LEFT JOIN investory.app_v_portfolio_daily_fx_rate_mv cost_fx
 LEFT JOIN investory.app_v_portfolio_daily_fx_rate_mv market_fx
   ON market_fx.portfolio_id = pf.id
  AND market_fx.valuation_date = CURRENT_DATE
- AND market_fx.source_currency = price.price_currency::varchar(3)
-WHERE p.close_time IS NULL
+ AND market_fx.source_currency = COALESCE(price.price_currency, asset.currency)::varchar(3)
+WHERE (p.open_time IS NULL OR p.open_time <= CURRENT_DATE)
+  AND p.close_time IS NULL
   AND asset.exclude_from_import = false
   AND COALESCE(p.volume, 0) > 0;
 
@@ -699,8 +700,8 @@ WITH latest_daily AS (
     SELECT nco.*,
         CASE
             WHEN nco.normalized_category IN ('EXTERNAL_DEPOSIT', 'EXTERNAL_WITHDRAWAL') THEN nco.amount_in_portfolio_base_currency
-            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING' AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+' AND substring(nco.comment from '(?i)to ([0-9]+)')::bigint = nco.account_id AND nco.amount > 0 AND NOT EXISTS (SELECT 1 FROM investory.accounts counterparty WHERE counterparty.id = substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint) THEN nco.amount_in_portfolio_base_currency
-            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING' AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+' AND substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint = nco.account_id AND nco.amount < 0 AND NOT EXISTS (SELECT 1 FROM investory.accounts counterparty WHERE counterparty.id = substring(nco.comment from '(?i)to ([0-9]+)')::bigint) THEN nco.amount_in_portfolio_base_currency
+            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING' AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+' AND substring(nco.comment from '(?i)to ([0-9]+)')::bigint = nco.account_id AND nco.amount > 0 AND NOT EXISTS (SELECT 1 FROM investory.accounts counterparty WHERE counterparty.id = substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)) THEN nco.amount_in_portfolio_base_currency
+            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING' AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+' AND substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint = nco.account_id AND nco.amount < 0 AND NOT EXISTS (SELECT 1 FROM investory.accounts counterparty WHERE counterparty.id = substring(nco.comment from '(?i)to ([0-9]+)')::bigint AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)) THEN nco.amount_in_portfolio_base_currency
             ELSE 0::numeric
         END AS scoped_portfolio_flow_amount_in_portfolio_base_currency
     FROM investory.app_v_normalized_cash_operations nco

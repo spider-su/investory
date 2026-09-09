@@ -10,10 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
-import com.smartbox.investory.investment.projection.StatisticsRefreshService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService.ManualAssetPrice;
-import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
@@ -29,17 +27,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Manual Asset Price Service")
 class ManualAssetPriceServiceTest {
 
   @Mock private AssetRepository assetRepository;
-  @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private CurrencyRateService currencyRateService;
-  @Mock private MarketDataService marketDataService;
-  @Mock private StatisticsRefreshService statisticsRefreshService;
 
   private ManualAssetPriceService service;
 
@@ -48,10 +42,7 @@ class ManualAssetPriceServiceTest {
     service =
         new ManualAssetPriceService(
             assetRepository,
-            assetPriceHistoryRepository,
             currencyRateService,
-            marketDataService,
-            statisticsRefreshService,
             MutableApplicationTime.fixed(
                 Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw")));
   }
@@ -79,20 +70,6 @@ class ManualAssetPriceServiceTest {
     assertEquals("Manual", asset.getPriceSource());
 
     verify(assetRepository).save(asset);
-    verify(assetPriceHistoryRepository)
-        .upsertObservedPrice(
-            eq(asset.getId()),
-            any(LocalDate.class),
-            eq("MANUAL"),
-            eq("PKO.PL"),
-            eq("PKO.PL"),
-            eq("MANUAL"),
-            eq("PLN"),
-            eq(BigDecimal.valueOf(123.45)),
-            eq(100),
-            eq("MANUAL"));
-    verify(marketDataService).syncIbkrPositions();
-    verify(statisticsRefreshService).refreshAll();
   }
 
   @DisplayName("update Price Rejects Non Positive Price")
@@ -101,7 +78,7 @@ class ManualAssetPriceServiceTest {
     assertThrows(
         IllegalArgumentException.class, () -> service.updatePrice("CDR.PL", BigDecimal.ZERO));
 
-    verifyNoInteractions(assetRepository, marketDataService, statisticsRefreshService);
+    verifyNoInteractions(assetRepository, currencyRateService);
   }
 
   @DisplayName("update Price Rejects Blank Symbol")
@@ -109,7 +86,7 @@ class ManualAssetPriceServiceTest {
   void updatePriceRejectsBlankSymbol() {
     assertThrows(IllegalArgumentException.class, () -> service.updatePrice(" ", BigDecimal.TEN));
 
-    verifyNoInteractions(assetRepository, marketDataService, statisticsRefreshService);
+    verifyNoInteractions(assetRepository, currencyRateService);
   }
 
   @DisplayName("update Price Rejects Missing Asset Without Refreshing Derived State")
@@ -124,7 +101,7 @@ class ManualAssetPriceServiceTest {
 
     assertEquals("AssetEntity not found: MISSING.US", exception.getMessage());
     verify(assetRepository).findBySymbol("MISSING.US");
-    verifyNoInteractions(currencyRateService, marketDataService, statisticsRefreshService);
+    verifyNoInteractions(currencyRateService);
   }
 
   @DisplayName("update Price Rejects Excluded Asset Without Changing History")
@@ -140,35 +117,6 @@ class ManualAssetPriceServiceTest {
 
     assertEquals(
         "AssetEntity is excluded from Investory calculations: PKO.PL", exception.getMessage());
-    verifyNoInteractions(
-        currencyRateService,
-        assetPriceHistoryRepository,
-        marketDataService,
-        statisticsRefreshService);
-  }
-
-  @DisplayName("update Price Refreshes Projections Only After The Price Transaction Commits")
-  @Test
-  void updatePriceRefreshesProjectionsOnlyAfterThePriceTransactionCommits() {
-    AssetEntity asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
-    when(assetRepository.findBySymbol("PKO.PL")).thenReturn(Optional.of(asset));
-    when(currencyRateService.convertToBaseCurrency(
-            eq(BigDecimal.valueOf(123.45)),
-            eq(CurrencyType.USD),
-            eq(CurrencyType.PLN),
-            any(LocalDate.class)))
-        .thenReturn(BigDecimal.valueOf(30.0));
-
-    TransactionSynchronizationManager.initSynchronization();
-    try {
-      service.updatePrice("PKO.PL", BigDecimal.valueOf(123.45));
-
-      verifyNoInteractions(statisticsRefreshService);
-      TransactionSynchronizationManager.getSynchronizations()
-          .forEach(synchronization -> synchronization.afterCommit());
-      verify(statisticsRefreshService).refreshAllAfterCommittedMutation();
-    } finally {
-      TransactionSynchronizationManager.clearSynchronization();
-    }
+    verifyNoInteractions(currencyRateService);
   }
 }

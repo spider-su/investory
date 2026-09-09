@@ -1,12 +1,10 @@
 package com.smartbox.investory.investment.api.reporting.model;
 
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public record OverviewView(
@@ -140,23 +138,23 @@ public record OverviewView(
   }
 
   /**
-   * @deprecated display formatting belongs to the web adapter; retained for old templates.
+   * @deprecated display formatting belongs to the web adapter; retained as a compatibility bridge.
    */
   @Deprecated(forRemoval = false)
   public String formatBase(double value) {
-    return formatNumber(BigDecimal.valueOf(value));
+    return FinancialPresentation.compactMoney(BigDecimal.valueOf(value));
   }
 
   public String formatBase(BigDecimal value) {
-    return formatNumber(value);
+    return FinancialPresentation.compactMoney(value);
   }
 
   /**
-   * @deprecated display formatting belongs to the web adapter; retained for old templates.
+   * @deprecated display formatting belongs to the web adapter; retained as a compatibility bridge.
    */
   @Deprecated(forRemoval = false)
   public String formatMoney(double value, CurrencyType currency) {
-    String formatted = formatNumber(BigDecimal.valueOf(value));
+    String formatted = FinancialPresentation.compactMoney(BigDecimal.valueOf(value));
     return currency == null || currency == baseCurrency
         ? formatted
         : formatted + " " + currency.name();
@@ -176,14 +174,6 @@ public record OverviewView(
 
   public String formatSignedPercent(BigDecimal value) {
     return value == null ? "-" : DashboardPercentageFormatter.signedPercent(value.doubleValue());
-  }
-
-  private String formatNumber(BigDecimal value) {
-    NumberFormat formatter = NumberFormat.getNumberInstance(Locale.US);
-    formatter.setRoundingMode(RoundingMode.HALF_UP);
-    formatter.setMinimumFractionDigits(0);
-    formatter.setMaximumFractionDigits(0);
-    return formatter.format(value);
   }
 
   private static BigDecimal decimal(Double value) {

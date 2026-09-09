@@ -113,11 +113,11 @@
                                         </div>
                                         <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol, row : ${topGainers}" data-sort-row th:classappend="${row.index >= 7 and symbol.symbol != 'Other'} ? ' iv-realized-attribution-row--initially-hidden' : (${symbol.symbol == 'Other'} ? ' iv-realized-attribution-row--other-toggle' : '')" th:attr="data-sort-symbol=${symbol.symbol},data-sort-total=${symbol.total},data-sort-realized=${symbol.closedProfit},data-sort-unrealized=${symbol.unrealizedProfit},data-sort-dividends=${symbol.dividends},data-sort-tax=${symbol.withholdingTax},data-initially-hidden=${row.index >= 7 and symbol.symbol != 'Other'},data-other-toggle=${symbol.symbol == 'Other'}">
                                             <span class="iv-sym"><a th:if="${symbol.symbol != 'Other'}" th:href="@{/portfolios/{portfolioId}/dashboard/assets/{symbol}(symbol=${symbol.symbol},portfolioId=${portfolioId})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
-                                            <span class="iv-amt iv-pos" th:text="${format.wholeNumber(symbol.total)}"></span>
-                                            <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></span>
-                                            <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></span>
-                                            <span class="iv-amt" th:text="${format.wholeNumber(symbol.dividends)}"></span>
-                                            <span class="iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.wholeNumber(symbol.withholdingTax)}"></span>
+                                            <span class="iv-amt iv-pos" th:text="${format.compactMoney(symbol.total)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.compactMoney(symbol.closedProfit)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.compactMoney(symbol.unrealizedProfit)}"></span>
+                                            <span class="iv-amt" th:text="${format.compactMoney(symbol.dividends)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.compactMoney(symbol.withholdingTax)}"></span>
                                         </div>
                                     </div>
                                 </section>
@@ -129,11 +129,11 @@
                                         </div>
                                         <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol, row : ${topLosers}" data-sort-row th:classappend="${row.index >= 7 and symbol.symbol != 'Other'} ? ' iv-realized-attribution-row--initially-hidden' : (${symbol.symbol == 'Other'} ? ' iv-realized-attribution-row--other-toggle' : '')" th:attr="data-sort-symbol=${symbol.symbol},data-sort-total=${symbol.total},data-sort-realized=${symbol.closedProfit},data-sort-unrealized=${symbol.unrealizedProfit},data-sort-dividends=${symbol.dividends},data-sort-tax=${symbol.withholdingTax},data-initially-hidden=${row.index >= 7 and symbol.symbol != 'Other'},data-other-toggle=${symbol.symbol == 'Other'}">
                                             <span class="iv-sym"><a th:if="${symbol.symbol != 'Other'}" th:href="@{/portfolios/{portfolioId}/dashboard/assets/{symbol}(symbol=${symbol.symbol},portfolioId=${portfolioId})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
-                                            <span class="iv-amt iv-neg" th:text="${format.wholeNumber(symbol.total)}"></span>
-                                            <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></span>
-                                            <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></span>
-                                            <span class="iv-amt" th:text="${format.wholeNumber(symbol.dividends)}"></span>
-                                            <span class="iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.wholeNumber(symbol.withholdingTax)}"></span>
+                                            <span class="iv-amt iv-neg" th:text="${format.compactMoney(symbol.total)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.compactMoney(symbol.closedProfit)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.compactMoney(symbol.unrealizedProfit)}"></span>
+                                            <span class="iv-amt" th:text="${format.compactMoney(symbol.dividends)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.compactMoney(symbol.withholdingTax)}"></span>
                                         </div>
                                     </div>
                                 </section>

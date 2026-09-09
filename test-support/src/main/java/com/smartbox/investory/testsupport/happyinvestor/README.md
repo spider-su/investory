@@ -52,13 +52,26 @@ are a separate golden layer, not extra canonical HappyInvestor accounts. `HappyI
 guards the overlays and the generated snapshot against drift.
 
 
-Identity is migration-backed: `Happy Investor`, `Happy Investor Portfolio`, PLN, Europe/Warsaw,
-2024-07-31 through 2025-12-31; account IDs are IBKR `17959259`, XTB USD `51499241`, XTB PLN
-`51551301`, and cash-only XTB EUR `51548444`. The WIG20 ETF is `ETFBW20TR.PL`; the seeded
-Treasury identities are `US91282CKB62` and `US91282CRC72`. Happy Investor must consume the migration FX and price
+Identity is fixture-backed: user ID `2`, portfolio ID `2`, `Happy Investor`, `Happy Investor Portfolio`,
+PLN, Europe/Warsaw, 2024-07-31 through 2025-12-31. Internal account IDs are IBKR `2017959259`,
+XTB USD `2051499241`, XTB PLN `2051551301`, and cash-only XTB EUR `2051548444`; their broker
+external IDs remain `17959259`, `51499241`, `51551301`, and `51548444`. The WIG20 ETF is `ETFBW20TR.PL`; the seeded
+Treasury identities are `US91282CKB62` and `US91282CRC72`. The original `US91282CKB62` is owned from
+`2024-07-31`, matures/redempts on `2026-02-28`, and returns principal `10000`. That principal is reinvested on
+`2026-03-01` into `US91282CRC72` (`United States Treasury 4 3/8 07/31/33`, coupon `4.375%`, maturity `2033-07-31`).
+The old bond remains historical and has zero forward income on and after maturity; the new bond contributes net
+annual income `354.375` under the existing 19% tax rule. Happy Investor must consume the migration FX and price
 history rather than synthetic curves. Independent financial happy-path fixtures are prohibited in
 F1-F4. Add source facts here and independently specified expected facts at the owning boundary;
 never calculate expectations through production valuation, FX, projection, or reporting code.
+
+Dashboard and Profile boundary facts use `2025-12-31` as the canonical as-of date. Asset prices use
+the latest canonical observation at or before that date from the pinned `2025-01-01` price cache;
+the cache records `2024-12-31` market observations. FX uses the latest canonical rate at or before
+the same boundary: USD/PLN `3.6016` and EUR/USD `1.173562`. MAX covers `2024-07-31` through
+`2025-12-31`; YTD covers `2025-01-01` through `2025-12-31`. The complete broker source inventory
+and independent boundary arithmetic live in `HappyInvestorBrokerFacts`, not in rendered Dashboard
+or Profile output. Treasury prices are percent-of-par, so `10000 * 98.81 / 100 * FX` is required.
 
 F8-F14 use the same non-investment facts: IDs 9401-9404 are the PLN cash reserve, Apartment A,
 Apartment B, and Family Car. The notes-only Family Car remains visible but is excluded from

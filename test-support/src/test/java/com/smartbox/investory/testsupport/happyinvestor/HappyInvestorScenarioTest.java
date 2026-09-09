@@ -96,6 +96,7 @@ class HappyInvestorScenarioTest {
     assertTrue(
         investor.ledger().stream()
             .filter(op -> op.getType() == CashOperationType.TRANSFER)
+            .filter(op -> !op.getComment().toLowerCase().contains("redemption"))
             .map(op -> op.getComment())
             .distinct()
             .allMatch(
@@ -175,11 +176,44 @@ class HappyInvestorScenarioTest {
                 op ->
                     op.getType() == CashOperationType.SWAP
                         && op.getAmount().compareTo(HappyInvestorTestData.NATGAS_SWAP) == 0));
-    assertEquals(1, investor.closedPositions().size());
-    var position = investor.closedPositions().getFirst();
+    assertEquals(2, investor.closedPositions().size());
+    var position =
+        investor.closedPositions().stream()
+            .filter(p -> HappyInvestorTestData.NATGAS_SYMBOL.equals(p.getSymbol()))
+            .findFirst()
+            .orElseThrow();
     assertEquals(HappyInvestorTestData.NATGAS_CLOSE_DATE, position.getCloseTime().toLocalDate());
     assertEquals(0, HappyInvestorTestData.NATGAS_NET_RESULT.compareTo(position.getProfit()));
     assertEquals(0, HappyInvestorTestData.NATGAS_SWAP.compareTo(position.getSwap()));
+  }
+
+  @Test
+  void modelsTreasuryRedemptionAndNextDayPrincipalReinvestment() {
+    HappyInvestorContext investor = HappyInvestorScenario.create();
+    assertTrue(
+        investor.closedPositions().stream()
+            .anyMatch(
+                p ->
+                    HappyInvestorTestData.TREASURY_2026.symbol().equals(p.getSymbol())
+                        && HappyInvestorLongTermFacts.TREASURY_MATURITY_DATE.equals(
+                            p.getCloseTime().toLocalDate())));
+    assertTrue(
+        investor.openPositions().stream()
+            .anyMatch(
+                p ->
+                    HappyInvestorTestData.TREASURY_2033.symbol().equals(p.getSymbol())
+                        && HappyInvestorLongTermFacts.REINVESTMENT_DATE.equals(
+                            p.getOpenTime().toLocalDate())
+                        && p.getVolume().compareTo(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL)
+                            == 0));
+    assertTrue(
+        investor.ledger().stream()
+            .anyMatch(
+                op ->
+                    op.getType() == CashOperationType.TRANSFER
+                        && HappyInvestorTestData.TREASURY_2026.symbol().equals(op.getSymbol())
+                        && op.getAmount().compareTo(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL)
+                            == 0));
   }
 
   private static double amount(HappyInvestorContext investor, String comment, long accountId) {

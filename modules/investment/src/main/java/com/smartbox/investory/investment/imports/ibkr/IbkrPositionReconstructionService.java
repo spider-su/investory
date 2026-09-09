@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.imports.ibkr;
 
+import com.smartbox.investory.investment.imports.AssignedIdBatchWriter;
 import com.smartbox.investory.investment.ledger.cash.CashOperationType;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRepository;
@@ -24,15 +25,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class IbkrPositionReconstructionService {
 
   private static final BigDecimal EPSILON = new BigDecimal("0.000001");
@@ -44,6 +44,26 @@ public class IbkrPositionReconstructionService {
   private final CashOperationRepository cashOperationRepository;
   private final PositionRepository openedPositionRepository;
   private final PositionRepository closedPositionRepository;
+  private final AssignedIdBatchWriter assignedIdBatchWriter;
+
+  @Autowired
+  public IbkrPositionReconstructionService(
+      CashOperationRepository cashOperationRepository,
+      PositionRepository openedPositionRepository,
+      PositionRepository closedPositionRepository,
+      AssignedIdBatchWriter assignedIdBatchWriter) {
+    this.cashOperationRepository = cashOperationRepository;
+    this.openedPositionRepository = openedPositionRepository;
+    this.closedPositionRepository = closedPositionRepository;
+    this.assignedIdBatchWriter = assignedIdBatchWriter;
+  }
+
+  public IbkrPositionReconstructionService(
+      CashOperationRepository cashOperationRepository,
+      PositionRepository openedPositionRepository,
+      PositionRepository closedPositionRepository) {
+    this(cashOperationRepository, openedPositionRepository, closedPositionRepository, null);
+  }
 
   @Transactional
   public ReconstructionResult rebuildFromCanonicalHistory(
@@ -82,11 +102,19 @@ public class IbkrPositionReconstructionService {
     openedPositionRepository.deleteOpenByAccount(accountId);
     closedPositionRepository.deleteClosedByAccount(accountId);
     if (!closed.isEmpty()) {
-      closedPositionRepository.saveAll(closed);
+      if (assignedIdBatchWriter == null) {
+        closedPositionRepository.saveAll(closed);
+      } else {
+        assignedIdBatchWriter.saveAll(closedPositionRepository, closed, PositionEntity::getId);
+      }
       closedPositionRepository.flush();
     }
     if (!open.isEmpty()) {
-      openedPositionRepository.saveAll(open);
+      if (assignedIdBatchWriter == null) {
+        openedPositionRepository.saveAll(open);
+      } else {
+        assignedIdBatchWriter.saveAll(openedPositionRepository, open, PositionEntity::getId);
+      }
       openedPositionRepository.flush();
     }
   }
