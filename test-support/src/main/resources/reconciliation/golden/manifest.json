@@ -13,8 +13,8 @@
     },
     {
       "path": "expected/provenance.json",
-      "sha256": "552aba55a44b554f18e85eaa749fa47b622ff8973e54ef11b3ca9a2fcdc553a2",
-      "size_bytes": 984
+      "sha256": "a913bb62d4ebf5c681677c7303b61679ae4d07353941f2d339cd0bf127c54a44",
+      "size_bytes": 970
     },
     {
       "path": "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv",
