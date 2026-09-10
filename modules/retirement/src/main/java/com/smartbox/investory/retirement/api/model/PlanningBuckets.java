@@ -126,14 +126,13 @@ public record PlanningBuckets(
   /** Maps reviewed forward profile state with an explicit normalized Bond yield. */
   public static PlanningBuckets fromReviewedProfileWithBondYield(
       InvestmentProfile profile, BigDecimal equityYield, BigDecimal bondYield) {
-    boolean hasFrozenAssets = !profile.longTermPlanningState().assets().isEmpty();
     BigDecimal bonds =
-        hasFrozenAssets
+        hasFrozenAsset(profile, EconomicBucket.FIXED_INCOME)
             ? frozenAssetValue(profile, EconomicBucket.FIXED_INCOME)
             : allocation(profile, EconomicBucket.FIXED_INCOME);
     BigDecimal equities = zeroIfNull(profile.investmentCapital());
     BigDecimal realEstate =
-        hasFrozenAssets
+        hasFrozenAsset(profile, EconomicBucket.REAL_ESTATE)
             ? frozenAssetValue(profile, EconomicBucket.REAL_ESTATE)
             : allocation(profile, EconomicBucket.REAL_ESTATE);
     return of(

@@ -41,6 +41,15 @@ class PlanningBucketsTest {
   }
 
   @Test
+  void reviewedProfileKeepsAllocationBondWhenFrozenStateOnlyContainsRealEstate() {
+    var buckets =
+        PlanningBuckets.fromReviewedProfileWithBondYield(profileWithMissingFrozenBonds(), ZERO, ZERO);
+
+    assertThat(buckets.bonds().startValue()).isEqualByComparingTo("800000");
+    assertThat(buckets.realEstate().startValue()).isEqualByComparingTo("500000");
+  }
+
+  @Test
   void usesNormalizedLongTermValuesWithoutApplyingAnotherFxConversion() {
     var profile =
         withState(
