@@ -3,8 +3,8 @@ package com.smartbox.investory.poc.accounting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
-import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.math.BigDecimal;
@@ -21,7 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class AccountingGoldenMatrixIT extends FastDatabaseTest {
 
   @Autowired private AccountingFactService service;
-  @MockitoBean private CurrencyConversion currencyConversion;
+  @MockitoBean private CurrencyRateService currencyConversion;
 
   @BeforeEach
   void configureCapturedFxGoldens() {
