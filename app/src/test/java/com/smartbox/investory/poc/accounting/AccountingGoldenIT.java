@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
+import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
@@ -18,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class AccountingGoldenIT extends FastDatabaseTest {
 
   private static final LocalDate FEBRUARY = LocalDate.of(2026, 2, 1);
+  private static final LocalDate JUNE = LocalDate.of(2026, 6, 1);
   private static final LocalDate JULY = LocalDate.of(2026, 7, 1);
 
   @Autowired private AccountingFactService service;
@@ -26,10 +28,7 @@ class AccountingGoldenIT extends FastDatabaseTest {
   @Test
   void cleanFebruaryReconstructsExactGoldenResultsFromPersistedFixtures() {
     when(currencyConversion.convertToBaseCurrency(
-            new BigDecimal("7636.0000"),
-            CurrencyType.PLN,
-            CurrencyType.EUR,
-            LocalDate.of(2026, 2, 27)))
+            new BigDecimal("7636.0000"), CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 2, 27)))
         .thenReturn(new BigDecimal("32249.1200"));
 
     AccountingMonthSnapshot snapshot = service.snapshot(FEBRUARY);
@@ -39,20 +38,29 @@ class AccountingGoldenIT extends FastDatabaseTest {
     assertComparison(snapshot, "VAT", "6707", "6707.0000", "0.0000", "MATCH");
     assertComparison(snapshot, "ZUS", "1495.04", "1495.04", "0.00", "MATCH");
     assertComparison(snapshot, "FX", "32249.12", "32249.12", "0.00", "MATCH");
-
     assertThat(snapshot.vat().deductibleInputVat()).isEqualByComparingTo("100.55");
-    assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()).isZero();
-    assertThat(snapshot.vat().julyOnlySalesCorrectionVat()).isZero();
-    assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isZero();
   }
 
   @Test
-  void julySpecialMonthReconstructsExactGoldenResultsAndExcludesPrivateAndInternalCashFlows() {
+  void juneUsesOriginalFv4RevenueAndDoesNotApplyJulyCorrectionEarly() {
     when(currencyConversion.convertToBaseCurrency(
-            new BigDecimal("7636.0000"),
-            CurrencyType.PLN,
-            CurrencyType.EUR,
-            LocalDate.of(2026, 7, 30)))
+            new BigDecimal("7636.0000"), CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 6, 29)))
+        .thenReturn(new BigDecimal("32750.8000"));
+
+    AccountingMonthSnapshot snapshot = service.snapshot(JUNE);
+
+    assertComparison(snapshot, "REVENUE", "65310.80", "65310.80", "0.00", "MATCH");
+    assertComparison(snapshot, "RYCZALT", "7748", "7748.0000", "0.0000", "MATCH");
+    assertThat(snapshot.domesticRevenueNetPln()).isEqualByComparingTo("32560.0000");
+    assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()).isZero();
+    assertThat(snapshot.invoices()).extracting(InvoiceRow::reference)
+        .containsExactly("FV 4/2026", "EU-SERVICE-2026-06");
+  }
+
+  @Test
+  void julySpecialMonthUsesDocumentPurchaseVatAndExcludesPrivateAndInternalCashFlows() {
+    when(currencyConversion.convertToBaseCurrency(
+            new BigDecimal("7636.0000"), CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 7, 30)))
         .thenReturn(new BigDecimal("32908.8700"));
 
     AccountingMonthSnapshot snapshot = service.snapshot(JULY);
@@ -63,10 +71,14 @@ class AccountingGoldenIT extends FastDatabaseTest {
     assertComparison(snapshot, "ZUS", "1495.04", "1495.04", "0.00", "MATCH");
     assertComparison(snapshot, "FX", "32908.87", "32908.87", "0.00", "MATCH");
 
-    assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment())
-        .isEqualByComparingTo("-150.00");
+    assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()).isEqualByComparingTo("-150.00");
     assertThat(snapshot.vat().julyOnlySalesCorrectionVat()).isEqualByComparingTo("-34.50");
-    assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isEqualByComparingTo("146.00");
+    assertThat(snapshot.vat().deductibleInputVat()).isEqualByComparingTo("145.99");
+    assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isZero();
+
+    assertThat(snapshot.invoices()).extracting(InvoiceRow::reference)
+        .containsExactly("FV 5/2026", "EU-SERVICE-2026-07")
+        .doesNotContain("FV 4/2026");
 
     assertThat(snapshot.bankTransactions())
         .anyMatch(row -> "EXCLUDED_INTERNAL".equals(row.scope()))
@@ -74,11 +86,17 @@ class AccountingGoldenIT extends FastDatabaseTest {
 
     assertThat(snapshot.reconciliations())
         .noneMatch(row -> "Transfer of funds".equals(row.reference()))
-        .noneMatch(row -> "26M07 PPE rental".equals(row.reference()));
+        .noneMatch(row -> "26M07 PPE rental".equals(row.reference()))
+        .noneMatch(row -> "FV 4/2026".equals(row.reference()));
 
     assertThat(snapshot.reconciliations())
-        .filteredOn(row -> "INVOICE_PAYMENT".equals(row.kind()))
-        .allMatch(row -> "MATCHED".equals(row.status()));
+        .filteredOn(row -> "ZUS".equals(row.reference()))
+        .singleElement()
+        .satisfies(row -> {
+          assertThat(row.status()).isEqualTo("DIFF");
+          assertThat(row.expectedAmount()).isEqualByComparingTo("1495.04");
+          assertThat(row.matchedAmount()).isEqualByComparingTo("1495.00");
+        });
   }
 
   private void assertComparison(
