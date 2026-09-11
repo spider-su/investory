@@ -12,6 +12,7 @@ public class AccountingFactController {
 
   @GetMapping("/poc/accounting")
   public String facts(Model model) {
+    model.addAttribute("snapshot", service.july2026());
     model.addAttribute("facts", service.facts());
     return "poc/accounting-facts";
   }
