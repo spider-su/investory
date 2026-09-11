@@ -1,6 +1,7 @@
 package com.smartbox.investory.poc.accounting;
 
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.BankRow;
+import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.FxCalculation;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ObligationRow;
@@ -39,6 +40,7 @@ public class AccountingFactService {
 
   public AccountingMonthSnapshot snapshot(LocalDate period) {
     List<InvoiceRow> invoices = pocRepository.invoicesForPeriod(period);
+    List<ExpenseRow> expenses = pocRepository.expensesForPeriod(period);
     List<BankRow> bankTransactions = pocRepository.bankTransactionsForPeriod(period);
     List<ObligationRow> obligations = pocRepository.obligationsForPeriod(period);
     List<TaxInputRow> taxInputs = pocRepository.taxInputsForPeriod(period);
@@ -69,7 +71,8 @@ public class AccountingFactService {
     FxCalculation fx = calculateFx(periodInvoices, foreignBookedRevenue, foreignSourceEur);
     RyczałtCalculation ryczalt =
         calculateRyczalt(period, invoices, domesticRevenue, fx, obligations, taxInputs);
-    VatCalculation vat = calculateVat(period, invoices, periodInvoices, obligations, taxInputs);
+    VatCalculation vat =
+        calculateVat(period, invoices, periodInvoices, expenses, obligations, taxInputs);
 
     List<ReconciliationRow> reconciliations =
         reconcile(invoices, bankTransactions, obligations);
@@ -84,6 +87,7 @@ public class AccountingFactService {
         ryczalt,
         vat,
         invoices,
+        expenses,
         reconciliations,
         obligations,
         bankTransactions);
@@ -94,7 +98,10 @@ public class AccountingFactService {
       BigDecimal expectedForeignPln,
       BigDecimal foreignSourceEur) {
     InvoiceRow eurInvoice =
-        periodInvoices.stream().filter(invoice -> "EUR".equals(invoice.currency())).findFirst().orElse(null);
+        periodInvoices.stream()
+            .filter(invoice -> "EUR".equals(invoice.currency()))
+            .findFirst()
+            .orElse(null);
     if (eurInvoice == null) {
       return new FxCalculation(
           null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "NO_FX_SOURCE");
@@ -106,7 +113,10 @@ public class AccountingFactService {
       calculated =
           currencyConversion
               .convertToBaseCurrency(
-                  eurInvoice.netAmount(), CurrencyType.PLN, CurrencyType.EUR, eurInvoice.fxRateDate())
+                  eurInvoice.netAmount(),
+                  CurrencyType.PLN,
+                  CurrencyType.EUR,
+                  eurInvoice.fxRateDate())
               .setScale(2, RoundingMode.HALF_UP);
       status =
           calculated.compareTo(expectedForeignPln.setScale(2, RoundingMode.HALF_UP)) == 0
@@ -136,14 +146,17 @@ public class AccountingFactService {
       List<TaxInputRow> taxInputs) {
     BigDecimal julyOnlyCorrectionNet =
         JULY_2026.equals(period)
-            ? invoices.stream().map(InvoiceRow::correctionNetAmount).reduce(BigDecimal.ZERO, BigDecimal::add)
+            ? invoices.stream()
+                .map(InvoiceRow::correctionNetAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
             : BigDecimal.ZERO;
     BigDecimal revenueBeforeDeductions =
         domesticRevenue.add(fx.calculatedPln()).add(julyOnlyCorrectionNet);
 
     BigDecimal healthPaid = taxInput(taxInputs, "HEALTH_CONTRIBUTION_PAID");
     BigDecimal healthDeduction = healthPaid.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
-    BigDecimal taxableBase = revenueBeforeDeductions.subtract(healthDeduction).setScale(2, RoundingMode.HALF_UP);
+    BigDecimal taxableBase =
+        revenueBeforeDeductions.subtract(healthDeduction).setScale(2, RoundingMode.HALF_UP);
 
     BigDecimal rate =
         invoices.stream()
@@ -160,7 +173,11 @@ public class AccountingFactService {
     boolean missingForeignSource =
         fx.status().equals("NO_FX_SOURCE") && period.getMonthValue() <= 7;
     String status =
-        !hasGolden ? "NO_GOLDEN" : missingForeignSource ? "INPUTS_INCOMPLETE" : difference.signum() == 0 ? "MATCH" : "DIFF";
+        !hasGolden
+            ? "NO_GOLDEN"
+            : missingForeignSource
+                ? "INPUTS_INCOMPLETE"
+                : difference.signum() == 0 ? "MATCH" : "DIFF";
 
     return new RyczałtCalculation(
         revenueBeforeDeductions,
@@ -179,6 +196,7 @@ public class AccountingFactService {
       LocalDate period,
       List<InvoiceRow> invoices,
       List<InvoiceRow> periodInvoices,
+      List<ExpenseRow> expenses,
       List<ObligationRow> obligations,
       List<TaxInputRow> taxInputs) {
     BigDecimal outputBeforeCorrection =
@@ -189,25 +207,46 @@ public class AccountingFactService {
 
     BigDecimal julyOnlySalesCorrectionVat =
         JULY_2026.equals(period)
-            ? invoices.stream().map(InvoiceRow::correctionVatAmount).reduce(BigDecimal.ZERO, BigDecimal::add)
+            ? invoices.stream()
+                .map(InvoiceRow::correctionVatAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
             : BigDecimal.ZERO;
     BigDecimal outputVat = outputBeforeCorrection.add(julyOnlySalesCorrectionVat);
 
-    BigDecimal deductibleOrJulyAdjustment =
+    BigDecimal deductibleInputVat =
+        JULY_2026.equals(period)
+            ? BigDecimal.ZERO
+            : expenses.stream()
+                .map(ExpenseRow::deductibleVat)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+    BigDecimal julyOnlyAdjustment =
         JULY_2026.equals(period)
             ? taxInput(taxInputs, "JULY_ONLY_VAT_CORRECTION_ADJUSTMENT")
-            : taxInput(taxInputs, "DEDUCTIBLE_INPUT_VAT");
-    BigDecimal calculatedVat = outputVat.subtract(deductibleOrJulyAdjustment).setScale(0, RoundingMode.HALF_UP);
+            : BigDecimal.ZERO;
+
+    BigDecimal calculatedVat =
+        outputVat
+            .subtract(deductibleInputVat)
+            .subtract(julyOnlyAdjustment)
+            .setScale(0, RoundingMode.HALF_UP);
     BigDecimal expectedVat = obligationAmount(obligations, "VAT");
     BigDecimal difference = calculatedVat.subtract(expectedVat);
     boolean hasGolden = hasObligation(obligations, "VAT");
-    String status = !hasGolden ? "NO_GOLDEN" : difference.signum() == 0 ? "MATCH" : "DIFF";
+    boolean expenseDocumentsMissing = !JULY_2026.equals(period) && expenses.isEmpty() && hasGolden;
+    String status =
+        !hasGolden
+            ? "NO_GOLDEN"
+            : expenseDocumentsMissing
+                ? "EXPENSES_MISSING"
+                : difference.signum() == 0 ? "MATCH" : "DIFF";
 
     return new VatCalculation(
         outputBeforeCorrection,
         julyOnlySalesCorrectionVat,
         outputVat,
-        deductibleOrJulyAdjustment,
+        deductibleInputVat,
+        julyOnlyAdjustment,
         calculatedVat,
         expectedVat,
         difference,
@@ -247,7 +286,8 @@ public class AccountingFactService {
               .filter(row -> "CUSTOMER_RECEIPT".equals(row.transactionType()))
               .filter(row -> invoice.currency().equals(row.currency()))
               .filter(row -> invoice.expectedReceivable().compareTo(row.amount()) == 0)
-              .filter(row -> row.relatedPeriod() == null || invoice.taxPeriod().equals(row.relatedPeriod()))
+              .filter(
+                  row -> row.relatedPeriod() == null || invoice.taxPeriod().equals(row.relatedPeriod()))
               .filter(
                   row ->
                       invoice.reference().equalsIgnoreCase(row.reference())
