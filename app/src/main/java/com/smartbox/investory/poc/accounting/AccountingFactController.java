@@ -20,6 +20,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 @RequiredArgsConstructor
 public class AccountingFactController {
+  private static final BigDecimal RYCZALT_RATE = new BigDecimal("0.12");
+
   private final AccountingFactService service;
   private final AccountingInvoiceRecognitionService invoiceRecognitionService;
   private final AccountingExpenseNormalizer expenseNormalizer;
@@ -37,62 +39,101 @@ public class AccountingFactController {
       @RequestParam("invoice") MultipartFile invoice,
       Model model) {
     LocalDate selected = populateModel(month, model);
-    AccountingExpenseForm form = new AccountingExpenseForm();
+    AccountingInvoiceForm form = new AccountingInvoiceForm();
     form.setMonth(formatMonth(selected));
     try {
       RecognizedInvoice recognized =
           invoiceRecognitionService.recognize(
               invoice.getOriginalFilename(), invoice.getContentType(), invoice.getBytes());
       copyRecognized(recognized, form);
-      model.addAttribute("expenseDraft", form);
+      model.addAttribute("invoiceDraft", form);
       model.addAttribute(
           "recognitionMessage",
-          "Invoice fields were extracted from the uploaded document. Review them before saving.");
+          "Invoice fields and document direction were extracted. Review the type, counterparty and dates before saving.");
     } catch (IOException | RuntimeException exception) {
-      model.addAttribute("expenseDraft", form);
+      model.addAttribute("invoiceDraft", form);
       model.addAttribute("recognitionError", exception.getMessage());
     }
     return "poc/accounting-facts";
   }
 
-  @PostMapping("/poc/accounting/expense")
-  public String saveExpense(
-      @ModelAttribute AccountingExpenseForm expenseDraft, RedirectAttributes redirectAttributes) {
-    String month = expenseDraft.getMonth();
+  @PostMapping("/poc/accounting/invoice")
+  public String saveInvoice(
+      @ModelAttribute AccountingInvoiceForm invoiceDraft, RedirectAttributes redirectAttributes) {
+    String month = invoiceDraft.getMonth();
     try {
       LocalDate taxPeriod = parseMonth(month);
-      validateRequired(expenseDraft);
-      BigDecimal deductionRatio =
-          expenseDraft.getVatDeductionRatio() == null
-              ? defaultDeductionRatio(expenseDraft.getCategory())
-              : expenseDraft.getVatDeductionRatio();
-      NormalizedExpense normalized =
-          expenseNormalizer.normalize(
-              new ExpenseImportCandidate(
-                  expenseDraft.getCategory(),
-                  expenseDraft.getGrossAmount(),
-                  expenseDraft.getNetAmount(),
-                  expenseDraft.getVatAmount(),
-                  deductionRatio));
-
-      repository.insertExpense(
-          taxPeriod,
-          expenseDraft.getInvoiceDate(),
-          expenseDraft.getReference().trim(),
-          expenseDraft.getSupplierAlias().trim(),
-          expenseDraft.getCategory().trim(),
-          expenseDraft.getCurrency().trim().toUpperCase(),
-          normalized.netAmount(),
-          normalized.vatAmount(),
-          normalized.grossAmount(),
-          normalized.vatDeductionRatio(),
-          "AI_EXTRACTED_REVIEWED",
-          buildReviewedNote(expenseDraft.getNote()));
-      redirectAttributes.addFlashAttribute("expenseSaved", "Expense invoice saved.");
+      validateRequired(invoiceDraft);
+      String documentType = invoiceDraft.getDocumentType().trim().toUpperCase();
+      switch (documentType) {
+        case "PURCHASE_INVOICE", "RECEIPT" -> savePurchase(taxPeriod, invoiceDraft);
+        case "SALES_INVOICE" -> saveSales(taxPeriod, invoiceDraft);
+        case "CREDIT_NOTE" ->
+            throw new IllegalArgumentException(
+                "Credit-note persistence is intentionally parked; review the document without saving it yet.");
+        default ->
+            throw new IllegalArgumentException(
+                "Choose whether this is a sales invoice or purchase invoice before saving.");
+      }
+      redirectAttributes.addFlashAttribute(
+          "invoiceSaved",
+          "SALES_INVOICE".equals(documentType)
+              ? "Sales invoice saved."
+              : "Purchase invoice saved.");
     } catch (RuntimeException exception) {
-      redirectAttributes.addFlashAttribute("expenseSaveError", exception.getMessage());
+      redirectAttributes.addFlashAttribute("invoiceSaveError", exception.getMessage());
     }
     return "redirect:/poc/accounting?month=" + month;
+  }
+
+  private void savePurchase(LocalDate taxPeriod, AccountingInvoiceForm form) {
+    BigDecimal deductionRatio =
+        form.getVatDeductionRatio() == null
+            ? defaultDeductionRatio(form.getCategory())
+            : form.getVatDeductionRatio();
+    NormalizedExpense normalized =
+        expenseNormalizer.normalize(
+            new ExpenseImportCandidate(
+                form.getCategory(),
+                form.getGrossAmount(),
+                form.getNetAmount(),
+                form.getVatAmount(),
+                deductionRatio));
+
+    repository.insertExpense(
+        taxPeriod,
+        firstNonNull(form.getIssueDate(), form.getSaleDate()),
+        form.getReference().trim(),
+        form.getCounterpartyAlias().trim(),
+        form.getCategory().trim(),
+        form.getCurrency().trim().toUpperCase(),
+        normalized.netAmount(),
+        normalized.vatAmount(),
+        normalized.grossAmount(),
+        normalized.vatDeductionRatio(),
+        "AI_EXTRACTED_REVIEWED",
+        buildReviewedNote(form));
+  }
+
+  private void saveSales(LocalDate taxPeriod, AccountingInvoiceForm form) {
+    String currency = form.getCurrency().trim().toUpperCase();
+    String invoiceKind = "PLN".equals(currency) ? "DOMESTIC_SERVICE" : "EU_SERVICE";
+    BigDecimal bookedNetPln = "PLN".equals(currency) ? form.getNetAmount() : null;
+
+    repository.insertSalesInvoice(
+        taxPeriod,
+        form.getIssueDate(),
+        form.getSaleDate(),
+        form.getReference().trim(),
+        form.getCounterpartyAlias().trim(),
+        invoiceKind,
+        currency,
+        form.getNetAmount(),
+        form.getVatAmount(),
+        form.getGrossAmount(),
+        bookedNetPln,
+        RYCZALT_RATE,
+        buildReviewedNote(form));
   }
 
   private LocalDate populateModel(String month, Model model) {
@@ -114,25 +155,41 @@ public class AccountingFactController {
     return selected;
   }
 
-  private void copyRecognized(RecognizedInvoice recognized, AccountingExpenseForm form) {
-    form.setInvoiceDate(recognized.invoiceDate());
+  private void copyRecognized(RecognizedInvoice recognized, AccountingInvoiceForm form) {
+    form.setDocumentType(recognized.documentType());
+    form.setIssueDate(recognized.issueDate());
+    form.setSaleDate(recognized.saleDate());
+    form.setDueDate(recognized.dueDate());
     form.setReference(recognized.reference());
-    form.setSupplierAlias(recognized.supplier());
+    form.setCounterpartyAlias(counterparty(recognized));
     form.setCategory(recognized.category());
     form.setCurrency(recognized.currency());
     form.setNetAmount(recognized.netAmount());
     form.setVatAmount(recognized.vatAmount());
     form.setGrossAmount(recognized.grossAmount());
-    form.setVatDeductionRatio(defaultDeductionRatio(recognized.category()));
+    form.setVatDeductionRatio(
+        "SALES_INVOICE".equals(recognized.documentType())
+            ? BigDecimal.ZERO
+            : defaultDeductionRatio(recognized.category()));
     form.setNote(recognized.note());
   }
 
-  private void validateRequired(AccountingExpenseForm form) {
+  private String counterparty(RecognizedInvoice recognized) {
+    if ("SALES_INVOICE".equals(recognized.documentType())) {
+      return firstNonBlank(recognized.buyer(), recognized.seller());
+    }
+    return firstNonBlank(recognized.seller(), recognized.buyer());
+  }
+
+  private void validateRequired(AccountingInvoiceForm form) {
+    if (form.getDocumentType() == null || form.getDocumentType().isBlank()) {
+      throw new IllegalArgumentException("Document type is required");
+    }
     if (form.getReference() == null || form.getReference().isBlank()) {
       throw new IllegalArgumentException("Invoice reference is required");
     }
-    if (form.getSupplierAlias() == null || form.getSupplierAlias().isBlank()) {
-      throw new IllegalArgumentException("Supplier is required");
+    if (form.getCounterpartyAlias() == null || form.getCounterpartyAlias().isBlank()) {
+      throw new IllegalArgumentException("Counterparty is required");
     }
     if (form.getCategory() == null || form.getCategory().isBlank()) {
       throw new IllegalArgumentException("Category is required");
@@ -143,16 +200,33 @@ public class AccountingFactController {
     if (form.getNetAmount() == null || form.getVatAmount() == null || form.getGrossAmount() == null) {
       throw new IllegalArgumentException("Net, VAT and gross amounts are required before saving");
     }
+    if (form.getNetAmount().add(form.getVatAmount()).compareTo(form.getGrossAmount()) != 0) {
+      throw new IllegalArgumentException("Net + VAT must equal gross before saving");
+    }
   }
 
   private BigDecimal defaultDeductionRatio(String category) {
     return "VEHICLE_FUEL".equals(category) ? new BigDecimal("0.50") : BigDecimal.ONE;
   }
 
-  private String buildReviewedNote(String note) {
-    String base =
-        note == null || note.isBlank() ? "" : note.trim() + " ";
-    return base + "Uploaded invoice recognized by AI and reviewed in the accounting form before persistence.";
+  private String buildReviewedNote(AccountingInvoiceForm form) {
+    StringBuilder note = new StringBuilder();
+    if (form.getNote() != null && !form.getNote().isBlank()) {
+      note.append(form.getNote().trim()).append(' ');
+    }
+    if (form.getDueDate() != null) {
+      note.append("Due date ").append(form.getDueDate()).append(". ");
+    }
+    note.append("Uploaded document recognized by AI and reviewed before persistence.");
+    return note.toString();
+  }
+
+  private LocalDate firstNonNull(LocalDate first, LocalDate second) {
+    return first != null ? first : second;
+  }
+
+  private String firstNonBlank(String first, String second) {
+    return first != null && !first.isBlank() ? first : second;
   }
 
   private LocalDate parseMonth(String month) {
