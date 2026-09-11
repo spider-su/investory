@@ -119,7 +119,7 @@ public class AccountingInvoiceRecognitionService {
           decimal(node, "vatAmount"),
           decimal(node, "grossAmount"),
           text(node, "note"));
-    } catch (RuntimeException exception) {
+    } catch (Exception exception) {
       log.warn("Could not parse invoice recognition payload: {}", abbreviate(output, 500));
       throw new IllegalStateException("AI result could not be parsed as an invoice", exception);
     }
