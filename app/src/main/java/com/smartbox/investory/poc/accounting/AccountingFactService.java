@@ -42,7 +42,9 @@ public class AccountingFactService {
   public AccountingMonthSnapshot snapshot(LocalDate period) {
     List<InvoiceRow> invoices = pocRepository.invoicesForPeriod(period);
     List<InvoiceRow> correctionSources =
-        JULY_2026.equals(period) ? pocRepository.invoicesForPeriod(period.minusMonths(1)) : List.of();
+        JULY_2026.equals(period)
+            ? pocRepository.invoicesForPeriod(period.minusMonths(1))
+            : List.of();
     List<ExpenseRow> expenses = pocRepository.expensesForPeriod(period);
     List<BankRow> bankTransactions = pocRepository.bankTransactionsForPeriod(period);
     List<ObligationRow> obligations = pocRepository.obligationsForPeriod(period);
@@ -70,11 +72,19 @@ public class AccountingFactService {
 
     FxCalculation fx = calculateFx(invoices, foreignBookedRevenue, foreignSourceEur);
     RyczałtCalculation ryczalt =
-        calculateRyczalt(period, invoices, correctionSources, domesticRevenue, fx, obligations, taxInputs);
-    VatCalculation vat =
-        calculateVat(period, invoices, correctionSources, expenses, obligations);
+        calculateRyczalt(
+            period, invoices, correctionSources, domesticRevenue, fx, obligations, taxInputs);
+    VatCalculation vat = calculateVat(period, invoices, correctionSources, expenses, obligations);
     List<ComparisonRow> comparisons =
-        buildComparisons(period, domesticRevenue, foreignBookedRevenue, fx, ryczalt, vat, obligations, taxInputs);
+        buildComparisons(
+            period,
+            domesticRevenue,
+            foreignBookedRevenue,
+            fx,
+            ryczalt,
+            vat,
+            obligations,
+            taxInputs);
 
     List<ReconciliationRow> reconciliations = reconcile(invoices, bankTransactions, obligations);
 
@@ -179,11 +189,12 @@ public class AccountingFactService {
   }
 
   private FxCalculation calculateFx(
-      List<InvoiceRow> invoices,
-      BigDecimal expectedForeignPln,
-      BigDecimal foreignSourceEur) {
+      List<InvoiceRow> invoices, BigDecimal expectedForeignPln, BigDecimal foreignSourceEur) {
     InvoiceRow eurInvoice =
-        invoices.stream().filter(invoice -> "EUR".equals(invoice.currency())).findFirst().orElse(null);
+        invoices.stream()
+            .filter(invoice -> "EUR".equals(invoice.currency()))
+            .findFirst()
+            .orElse(null);
     if (eurInvoice == null) {
       return new FxCalculation(
           null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "NO_FX_SOURCE");
@@ -349,9 +360,7 @@ public class AccountingFactService {
   }
 
   private List<ReconciliationRow> reconcile(
-      List<InvoiceRow> invoices,
-      List<BankRow> bankTransactions,
-      List<ObligationRow> obligations) {
+      List<InvoiceRow> invoices, List<BankRow> bankTransactions, List<ObligationRow> obligations) {
     List<ReconciliationRow> result = new ArrayList<>();
 
     for (InvoiceRow invoice : invoices) {
@@ -396,8 +405,12 @@ public class AccountingFactService {
           && obligation.expectedAmount().compareTo(obligation.paidAmount()) != 0) {
         status = "DIFF";
         BigDecimal cashDifference =
-            obligation.paidAmount().subtract(obligation.expectedAmount()).setScale(2, RoundingMode.HALF_UP);
-        explanation = obligation.note() + " Cash difference: " + cashDifference.toPlainString() + " PLN.";
+            obligation
+                .paidAmount()
+                .subtract(obligation.expectedAmount())
+                .setScale(2, RoundingMode.HALF_UP);
+        explanation =
+            obligation.note() + " Cash difference: " + cashDifference.toPlainString() + " PLN.";
       }
       result.add(
           new ReconciliationRow(
