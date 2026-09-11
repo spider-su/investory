@@ -26,6 +26,7 @@
 <body>
 <h1>Accounting POC — July 2026</h1>
 <p>Deterministic July reconstruction. Calculated values are compared directly with the captured wFirma/bank golden outputs.</p>
+<p class="muted">July contains an unusual invoice correction. It is intentionally kept as a July-only fixture; generic correction processing is parked for a later POC stage.</p>
 
 <div class="grid">
   <div class="card">
@@ -84,8 +85,8 @@
     <td class="amount" th:text="${snapshot.vat().difference()}">0</td>
     <td th:text="${snapshot.vat().status()}" th:classappend="${snapshot.vat().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</td>
     <td>
-      output <span th:text="${snapshot.vat().outputVat()}">3703.00</span>,
-      input <span th:text="${snapshot.vat().deductibleInputVat()}">146.00</span>
+      output after July sales correction <span th:text="${snapshot.vat().outputVatAfterSalesCorrection()}">3703.00</span>,
+      July-only correction adjustment <span th:text="${snapshot.vat().julyOnlyVatCorrectionAdjustment()}">146.00</span>
     </td>
   </tr>
   </tbody>
@@ -96,7 +97,7 @@
   <tbody>
   <tr><th>Domestic July revenue</th><td class="amount" th:text="${snapshot.domesticRevenueNetPln()}">16250.00</td></tr>
   <tr><th>Foreign revenue via FX</th><td class="amount" th:text="${snapshot.fx().calculatedPln()}">32908.87</td></tr>
-  <tr><th>July correction net</th><td class="amount" th:text="${snapshot.ryczalt().correctionNet()}">-150.00</td></tr>
+  <tr><th>July-only correction net</th><td class="amount" th:text="${snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()}">-150.00</td></tr>
   <tr><th>Revenue before deductions</th><td class="amount" th:text="${snapshot.ryczalt().revenueBeforeDeductions()}">49008.87</td></tr>
   <tr><th>Health contribution paid</th><td class="amount" th:text="${snapshot.ryczalt().healthContributionPaid()}">1495.04</td></tr>
   <tr><th>50% health deduction</th><td class="amount" th:text="${snapshot.ryczalt().healthDeduction()}">747.52</td></tr>
@@ -109,14 +110,14 @@
 <h2>VAT trace</h2>
 <table>
   <tbody>
-  <tr><th>July domestic output VAT</th><td class="amount" th:text="${snapshot.vat().outputVatBeforeCorrections()}">3737.50</td></tr>
-  <tr><th>Correction VAT</th><td class="amount" th:text="${snapshot.vat().correctionVat()}">-34.50</td></tr>
-  <tr><th>Output VAT after correction</th><td class="amount" th:text="${snapshot.vat().outputVat()}">3703.00</td></tr>
-  <tr><th>Deductible input VAT</th><td class="amount" th:text="${snapshot.vat().deductibleInputVat()}">146.00</td></tr>
+  <tr><th>July domestic output VAT</th><td class="amount" th:text="${snapshot.vat().outputVatBeforeJulyCorrection()}">3737.50</td></tr>
+  <tr><th>July-only sales correction VAT</th><td class="amount" th:text="${snapshot.vat().julyOnlySalesCorrectionVat()}">-34.50</td></tr>
+  <tr><th>Output VAT after sales correction</th><td class="amount" th:text="${snapshot.vat().outputVatAfterSalesCorrection()}">3703.00</td></tr>
+  <tr><th>July-only VAT correction adjustment</th><td class="amount" th:text="${snapshot.vat().julyOnlyVatCorrectionAdjustment()}">146.00</td></tr>
   <tr><th>VAT payable</th><td class="amount" th:text="${snapshot.vat().calculatedVat()}">3557</td></tr>
   </tbody>
 </table>
-<p class="muted">The 146 PLN input-VAT total is currently a transparent July fixture derived from the golden JPK/payment result; document-level expense expansion is the next data-hardening step.</p>
+<p class="muted">The 146 PLN value is treated only as a historical July correction adjustment. It is not modeled as normal deductible input VAT, and no reusable correction engine is claimed yet.</p>
 
 <h2>Reconciliation</h2>
 <table>
@@ -134,7 +135,7 @@
   </tbody>
 </table>
 
-<h2>Invoices / corrections</h2>
+<h2>Invoices / July correction fixture</h2>
 <table>
   <thead><tr><th>Period</th><th>Reference</th><th>Currency</th><th class="amount">Net</th><th class="amount">VAT</th><th class="amount">Correction net</th><th class="amount">Correction VAT</th><th class="amount">Receivable</th><th>FX date</th></tr></thead>
   <tbody>
