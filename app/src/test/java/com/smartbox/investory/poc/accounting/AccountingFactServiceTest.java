@@ -91,7 +91,10 @@ class AccountingFactServiceTest {
         .thenReturn(
             List.of(
                 new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("1495.04"), "golden"),
-                new TaxInputRow("DEDUCTIBLE_INPUT_VAT", new BigDecimal("146.00"), "golden")));
+                new TaxInputRow(
+                    "JULY_ONLY_VAT_CORRECTION_ADJUSTMENT",
+                    new BigDecimal("146.00"),
+                    "July-only correction fixture")));
     when(fx.convertToBaseCurrency(
             new BigDecimal("7636.00"),
             CurrencyType.PLN,
@@ -104,11 +107,13 @@ class AccountingFactServiceTest {
     assertThat(snapshot.fx().status()).isEqualTo("MATCH");
     assertThat(snapshot.fx().calculatedPln()).isEqualByComparingTo("32908.87");
     assertThat(snapshot.ryczalt().revenueBeforeDeductions()).isEqualByComparingTo("49008.87");
+    assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment())
+        .isEqualByComparingTo("-150.00");
     assertThat(snapshot.ryczalt().healthDeduction()).isEqualByComparingTo("747.52");
     assertThat(snapshot.ryczalt().calculatedTax()).isEqualByComparingTo("5791");
     assertThat(snapshot.ryczalt().status()).isEqualTo("MATCH");
-    assertThat(snapshot.vat().outputVat()).isEqualByComparingTo("3703.00");
-    assertThat(snapshot.vat().deductibleInputVat()).isEqualByComparingTo("146.00");
+    assertThat(snapshot.vat().outputVatAfterSalesCorrection()).isEqualByComparingTo("3703.00");
+    assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isEqualByComparingTo("146.00");
     assertThat(snapshot.vat().calculatedVat()).isEqualByComparingTo("3557");
     assertThat(snapshot.vat().status()).isEqualTo("MATCH");
     assertThat(snapshot.reconciliations())
