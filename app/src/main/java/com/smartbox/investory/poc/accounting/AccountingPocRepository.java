@@ -15,6 +15,24 @@ import org.springframework.stereotype.Repository;
 public class AccountingPocRepository {
   private final JdbcTemplate jdbcTemplate;
 
+  public List<LocalDate> availablePeriods() {
+    return jdbcTemplate.queryForList(
+        """
+        SELECT period
+          FROM (
+                SELECT DISTINCT tax_period AS period
+                  FROM investory.accounting_poc_invoice
+                 WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2027-01-01'
+                UNION
+                SELECT DISTINCT tax_period AS period
+                  FROM investory.accounting_poc_obligation
+                 WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2027-01-01'
+               ) months
+         ORDER BY period
+        """,
+        LocalDate.class);
+  }
+
   public List<InvoiceRow> invoicesForPeriod(LocalDate period) {
     return jdbcTemplate.query(
         """
