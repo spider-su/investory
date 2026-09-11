@@ -6,7 +6,7 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.testsupport.FastDatabaseTest;
+import com.smartbox.investory.testsupport.PocDatabaseTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -18,7 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class AccountingGoldenMatrixIT extends FastDatabaseTest {
+class AccountingGoldenMatrixIT extends PocDatabaseTest {
 
   @Autowired private AccountingFactService service;
 

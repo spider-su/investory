@@ -10,6 +10,7 @@ import org.testcontainers.utility.MountableFile;
 public final class FastDatabase {
 
   private static final String SNAPSHOT = "db/snapshot/schema.sql";
+  private static final String POC_SNAPSHOT = "db/snapshot/poc.sql";
 
   private static final WorkerDatabase DATABASE = startDatabase();
 
@@ -31,6 +32,18 @@ public final class FastDatabase {
     return DATABASE.password();
   }
 
+  public static String pocJdbcUrl() {
+    return PocDatabaseHolder.INSTANCE.jdbcUrl();
+  }
+
+  public static String pocUsername() {
+    return PocDatabaseHolder.INSTANCE.username();
+  }
+
+  public static String pocPassword() {
+    return PocDatabaseHolder.INSTANCE.password();
+  }
+
   /** Returns a separately initialized snapshot-backed database for a stateful test scope. */
   public static WorkerDatabase scopedDatabase(String scope) {
     if (scope == null || scope.isBlank()) {
@@ -46,15 +59,39 @@ public final class FastDatabase {
   private static WorkerDatabase startDatabase(String scope) {
     WorkerDatabase database = SharedPostgres.database(scope);
 
+    loadSnapshot(database, false);
+    return database;
+  }
+
+  private static WorkerDatabase startPocDatabase() {
+    WorkerDatabase database = SharedPostgres.database("accounting_poc");
+
+    loadSnapshot(database, true);
+    return database;
+  }
+
+  private static final class PocDatabaseHolder {
+    private static final WorkerDatabase INSTANCE = startPocDatabase();
+  }
+
+  private static void loadSnapshot(WorkerDatabase database, boolean includePoc) {
+
     if (!resourceExists(SNAPSHOT)) {
       throw new IllegalStateException(
           "Missing fast test database snapshot "
               + SNAPSHOT
+          + ". Run bash scripts/update-test-db-snapshot.sh and commit the result.");
+    }
+    if (includePoc && !resourceExists(POC_SNAPSHOT)) {
+      throw new IllegalStateException(
+          "Missing fast test database POC snapshot "
+              + POC_SNAPSHOT
               + ". Run bash scripts/update-test-db-snapshot.sh and commit the result.");
     }
-    if (!snapshotLoaded(database)) executeResource(database, SNAPSHOT, "/tmp/investory-schema.sql");
-
-    return database;
+    if (!snapshotLoaded(database)) {
+      executeResource(database, SNAPSHOT, "/tmp/investory-schema.sql");
+      if (includePoc) executeResource(database, POC_SNAPSHOT, "/tmp/investory-poc.sql");
+    }
   }
 
   private static boolean resourceExists(String resource) {

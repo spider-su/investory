@@ -7,7 +7,7 @@ import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.testsupport.FastDatabaseTest;
+import com.smartbox.investory.testsupport.PocDatabaseTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -16,7 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class AccountingGoldenIT extends FastDatabaseTest {
+class AccountingGoldenIT extends PocDatabaseTest {
 
   private static final LocalDate JANUARY = LocalDate.of(2026, 1, 1);
   private static final LocalDate FEBRUARY = LocalDate.of(2026, 2, 1);
