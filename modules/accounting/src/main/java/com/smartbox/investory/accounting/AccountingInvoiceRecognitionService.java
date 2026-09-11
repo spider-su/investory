@@ -1,4 +1,4 @@
-package com.smartbox.investory.poc.accounting;
+package com.smartbox.investory.accounting;
 
 import com.smartbox.investory.integrations.ai.openai.OpenAiIntegrationPlugin;
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
@@ -86,7 +86,7 @@ public class AccountingInvoiceRecognitionService {
       Map<String, Object> request = new LinkedHashMap<>();
       request.put("model", config.value("model").orElse("gpt-5-mini"));
       request.put("input", List.of(Map.of("role", "user", "content", content)));
-      request.put("max_output_tokens", 1200);
+      request.put("max_output_tokens", 1400);
       request.put("store", false);
 
       JsonNode response =
@@ -161,10 +161,16 @@ public class AccountingInvoiceRecognitionService {
     try {
       String json = stripCodeFence(output.trim());
       JsonNode node = objectMapper.readTree(json);
+      LocalDate issueDate = localDate(node, "issueDate");
+      if (issueDate == null) issueDate = localDate(node, "invoiceDate");
       return new RecognizedInvoice(
-          localDate(node, "invoiceDate"),
+          normalizedDocumentType(text(node, "documentType")),
+          issueDate,
+          localDate(node, "saleDate"),
+          localDate(node, "dueDate"),
           text(node, "reference"),
-          text(node, "supplier"),
+          text(node, "seller"),
+          text(node, "buyer"),
           normalizedCategory(text(node, "category")),
           defaultText(text(node, "currency"), "PLN").toUpperCase(Locale.ROOT),
           decimal(node, "netAmount"),
@@ -179,26 +185,35 @@ public class AccountingInvoiceRecognitionService {
 
   private String extractionPrompt() {
     return """
-        Read this supplier invoice or receipt and return ONLY one JSON object, without markdown.
+        Read this invoice or receipt and return ONLY one JSON object, without markdown.
         Do not invent missing values. Use null when a value is not visible or cannot be established.
-        Preserve decimal amounts exactly as printed, but return numeric strings WITHOUT thousands/grouping separators.
-        Example: return "7636.00", not "7,636.00" or "7 636,00".
+        Preserve monetary values exactly, but return decimal strings WITHOUT thousands separators,
+        for example 7636.00 rather than 7,636.00 or 7 636,00.
+
+        Extract seller/issuer and buyer/customer separately. Do not assume that the first company name
+        is the supplier. Determine documentType from the document roles when possible; use UNKNOWN if
+        direction cannot be established confidently. SALES_INVOICE means an outgoing/customer invoice;
+        PURCHASE_INVOICE means a supplier/expense invoice. A correction/credit document is CREDIT_NOTE.
 
         JSON fields:
         {
-          "invoiceDate": "yyyy-MM-dd or null",
+          "documentType": "SALES_INVOICE | PURCHASE_INVOICE | CREDIT_NOTE | RECEIPT | UNKNOWN",
+          "issueDate": "yyyy-MM-dd or null",
+          "saleDate": "yyyy-MM-dd or null",
+          "dueDate": "yyyy-MM-dd or null",
           "reference": "invoice/document number or null",
-          "supplier": "supplier name or null",
+          "seller": "seller/issuer name or null",
+          "buyer": "buyer/customer name or null",
           "category": "VEHICLE_FUEL | ACCOUNTING_SERVICE | BUSINESS_SERVICE | EQUIPMENT | OTHER",
           "currency": "ISO currency code, usually PLN",
           "netAmount": "decimal string or null",
           "vatAmount": "decimal string or null",
           "grossAmount": "decimal string or null",
-          "note": "short extraction note, including uncertainty or multiple VAT rates"
+          "note": "short extraction note, including uncertainty, service description or VAT-rate details"
         }
 
         Category guidance: fuel station fuel -> VEHICLE_FUEL; bookkeeping/accounting -> ACCOUNTING_SERVICE;
-        general business service -> BUSINESS_SERVICE; computer/electronics/equipment -> EQUIPMENT;
+        general software/consulting/business service -> BUSINESS_SERVICE; computer/electronics/equipment -> EQUIPMENT;
         anything else -> OTHER. Extraction is pre-accounting assistance only; do not infer tax deductibility.
         """;
   }
@@ -254,6 +269,15 @@ public class AccountingInvoiceRecognitionService {
         : value;
   }
 
+  private String normalizedDocumentType(String value) {
+    if (value == null) return "UNKNOWN";
+    return switch (value.trim().toUpperCase(Locale.ROOT)) {
+      case "SALES_INVOICE", "PURCHASE_INVOICE", "CREDIT_NOTE", "RECEIPT" ->
+          value.trim().toUpperCase(Locale.ROOT);
+      default -> "UNKNOWN";
+    };
+  }
+
   private String normalizedCategory(String value) {
     if (value == null) return "OTHER";
     return switch (value.trim().toUpperCase(Locale.ROOT)) {
@@ -271,25 +295,18 @@ public class AccountingInvoiceRecognitionService {
   private BigDecimal decimal(JsonNode node, String field) {
     String value = text(node, field);
     if (value == null) return null;
-
-    String normalized = value.replace("\u00A0", "").replace(" ", "").trim();
+    String normalized = value.replace(" ", "").replace("\u00A0", "");
     int comma = normalized.lastIndexOf(',');
     int dot = normalized.lastIndexOf('.');
-
     if (comma >= 0 && dot >= 0) {
-      if (dot > comma) {
-        normalized = normalized.replace(",", "");
-      } else {
+      if (comma > dot) {
         normalized = normalized.replace(".", "").replace(',', '.');
+      } else {
+        normalized = normalized.replace(",", "");
       }
     } else if (comma >= 0) {
-      if (normalized.matches("[-+]?\\d{1,3}(,\\d{3})+")) {
-        normalized = normalized.replace(",", "");
-      } else {
-        normalized = normalized.replace(',', '.');
-      }
+      normalized = normalized.replace(',', '.');
     }
-
     return new BigDecimal(normalized);
   }
 
@@ -314,9 +331,13 @@ public class AccountingInvoiceRecognitionService {
   }
 
   public record RecognizedInvoice(
-      LocalDate invoiceDate,
+      String documentType,
+      LocalDate issueDate,
+      LocalDate saleDate,
+      LocalDate dueDate,
       String reference,
-      String supplier,
+      String seller,
+      String buyer,
       String category,
       String currency,
       BigDecimal netAmount,

@@ -1,4 +1,4 @@
-package com.smartbox.investory.poc.accounting;
+package com.smartbox.investory.accounting;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;

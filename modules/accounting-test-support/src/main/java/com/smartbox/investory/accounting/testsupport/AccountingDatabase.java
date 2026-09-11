@@ -1,4 +1,4 @@
-package com.smartbox.investory.testsupport;
+package com.smartbox.investory.accounting.testsupport;
 
 import java.io.IOException;
 import java.net.URL;
@@ -7,15 +7,17 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.MountableFile;
 
 /** Shared PostgreSQL instance for integration tests that do not need Flyway validation. */
-public final class FastDatabase {
+public final class AccountingDatabase {
 
   private static final String SNAPSHOT = "db/snapshot/schema.sql";
-  private static final WorkerDatabase DATABASE = startDatabase();
+  private static final String POC_SNAPSHOT = "db/snapshot/poc.sql";
 
-  private FastDatabase() {}
+  private static final com.smartbox.investory.testsupport.WorkerDatabase DATABASE = startDatabase();
+
+  private AccountingDatabase() {}
 
   public static PostgreSQLContainer<?> container() {
-    return SharedPostgres.container();
+    return com.smartbox.investory.testsupport.SharedPostgres.container();
   }
 
   public static String jdbcUrl() {
@@ -30,26 +32,53 @@ public final class FastDatabase {
     return DATABASE.password();
   }
 
+  public static String pocJdbcUrl() {
+    return PocDatabaseHolder.INSTANCE.jdbcUrl();
+  }
+
+  public static String pocUsername() {
+    return PocDatabaseHolder.INSTANCE.username();
+  }
+
+  public static String pocPassword() {
+    return PocDatabaseHolder.INSTANCE.password();
+  }
+
   /** Returns a separately initialized snapshot-backed database for a stateful test scope. */
-  public static WorkerDatabase scopedDatabase(String scope) {
+  public static com.smartbox.investory.testsupport.WorkerDatabase scopedDatabase(String scope) {
     if (scope == null || scope.isBlank()) {
       throw new IllegalArgumentException("A non-blank database scope is required");
     }
     return startDatabase(scope);
   }
 
-  private static WorkerDatabase startDatabase() {
+  private static com.smartbox.investory.testsupport.WorkerDatabase startDatabase() {
     return startDatabase(null);
   }
 
-  private static WorkerDatabase startDatabase(String scope) {
-    WorkerDatabase database = SharedPostgres.database(scope);
+  private static com.smartbox.investory.testsupport.WorkerDatabase startDatabase(String scope) {
+    com.smartbox.investory.testsupport.WorkerDatabase database =
+        com.smartbox.investory.testsupport.SharedPostgres.database(scope);
 
-    loadSnapshot(database);
+    loadSnapshot(database, false);
     return database;
   }
 
-  private static void loadSnapshot(WorkerDatabase database) {
+  private static com.smartbox.investory.testsupport.WorkerDatabase startPocDatabase() {
+    com.smartbox.investory.testsupport.WorkerDatabase database =
+        com.smartbox.investory.testsupport.SharedPostgres.database("accounting_poc");
+
+    loadSnapshot(database, true);
+    return database;
+  }
+
+  private static final class PocDatabaseHolder {
+    private static final com.smartbox.investory.testsupport.WorkerDatabase INSTANCE =
+        startPocDatabase();
+  }
+
+  private static void loadSnapshot(
+      com.smartbox.investory.testsupport.WorkerDatabase database, boolean includePoc) {
 
     if (!resourceExists(SNAPSHOT)) {
       throw new IllegalStateException(
@@ -57,20 +86,30 @@ public final class FastDatabase {
               + SNAPSHOT
               + ". Run bash scripts/update-test-db-snapshot.sh and commit the result.");
     }
+    if (includePoc && !resourceExists(POC_SNAPSHOT)) {
+      throw new IllegalStateException(
+          "Missing fast test database POC snapshot "
+              + POC_SNAPSHOT
+              + ". Run bash scripts/update-test-db-snapshot.sh and commit the result.");
+    }
     if (!snapshotLoaded(database)) {
       executeResource(database, SNAPSHOT, "/tmp/investory-schema.sql");
+      if (includePoc) executeResource(database, POC_SNAPSHOT, "/tmp/investory-poc.sql");
     }
   }
 
   private static boolean resourceExists(String resource) {
-    URL url = FastDatabase.class.getClassLoader().getResource(resource);
+    URL url = AccountingDatabase.class.getClassLoader().getResource(resource);
     return url != null;
   }
 
   private static void executeResource(
-      WorkerDatabase database, String resource, String containerPath) {
+      com.smartbox.investory.testsupport.WorkerDatabase database,
+      String resource,
+      String containerPath) {
     try {
-      PostgreSQLContainer<?> postgres = SharedPostgres.container();
+      PostgreSQLContainer<?> postgres =
+          com.smartbox.investory.testsupport.SharedPostgres.container();
       postgres.copyFileToContainer(MountableFile.forClasspathResource(resource), containerPath);
       Container.ExecResult result =
           postgres.execInContainer(
@@ -103,7 +142,8 @@ public final class FastDatabase {
     }
   }
 
-  private static boolean snapshotLoaded(WorkerDatabase database) {
+  private static boolean snapshotLoaded(
+      com.smartbox.investory.testsupport.WorkerDatabase database) {
     try (var connection = database.openConnection();
         var statement = connection.createStatement();
         var result =

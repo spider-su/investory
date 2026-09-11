@@ -1,4 +1,4 @@
-package com.smartbox.investory.poc.accounting;
+package com.smartbox.investory.accounting;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

@@ -1,9 +1,9 @@
-package com.smartbox.investory.poc.accounting;
+package com.smartbox.investory.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.smartbox.investory.poc.accounting.AccountingExpenseNormalizer.ExpenseImportCandidate;
+import com.smartbox.investory.accounting.AccountingExpenseNormalizer.ExpenseImportCandidate;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 

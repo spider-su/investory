@@ -1,15 +1,18 @@
-package com.smartbox.investory.poc.accounting;
+package com.smartbox.investory.accounting;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import lombok.Data;
 
 @Data
-public class AccountingExpenseForm {
+public class AccountingInvoiceForm {
   private String month;
-  private LocalDate invoiceDate;
+  private String documentType = "PURCHASE_INVOICE";
+  private LocalDate issueDate;
+  private LocalDate saleDate;
+  private LocalDate dueDate;
   private String reference;
-  private String supplierAlias;
+  private String counterpartyAlias;
   private String category;
   private String currency = "PLN";
   private BigDecimal netAmount;

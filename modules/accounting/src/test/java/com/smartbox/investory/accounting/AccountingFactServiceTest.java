@@ -1,15 +1,15 @@
-package com.smartbox.investory.poc.accounting;
+package com.smartbox.investory.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.BankRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ExpenseRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ObligationRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.TaxInputRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.BankRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ComparisonRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ExpenseRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

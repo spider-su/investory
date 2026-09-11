@@ -1,15 +1,15 @@
-package com.smartbox.investory.poc.accounting;
+package com.smartbox.investory.accounting;
 
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.BankRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ExpenseRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.FxCalculation;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ObligationRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ReconciliationRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.RyczałtCalculation;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.TaxInputRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.VatCalculation;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.BankRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ComparisonRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ExpenseRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.FxCalculation;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ReconciliationRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.RyczałtCalculation;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.VatCalculation;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableException;
 import com.smartbox.investory.shared.currency.CurrencyType;

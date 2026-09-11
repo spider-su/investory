@@ -1,13 +1,13 @@
-package com.smartbox.investory.poc.accounting;
+package com.smartbox.investory.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ComparisonRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
+import com.smartbox.investory.accounting.testsupport.AccountingDatabaseTest;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
-import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.testsupport.PocDatabaseTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -16,7 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class AccountingGoldenIT extends PocDatabaseTest {
+class AccountingGoldenIT extends AccountingDatabaseTest {
 
   private static final LocalDate JANUARY = LocalDate.of(2026, 1, 1);
   private static final LocalDate FEBRUARY = LocalDate.of(2026, 2, 1);
