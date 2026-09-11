@@ -3,51 +3,189 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Accounting POC facts</title>
+  <title>Accounting POC</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 2rem; color: #1f2937; }
-    h1 { margin-bottom: .25rem; }
+    h1, h2 { margin-bottom: .35rem; }
     p { color: #4b5563; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin: 1.5rem 0 2rem; }
+    .card { border: 1px solid #e5e7eb; border-radius: .65rem; padding: 1rem; }
+    .label { font-size: .75rem; text-transform: uppercase; color: #6b7280; }
+    .value { margin-top: .35rem; font-size: 1.35rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+    table { width: 100%; border-collapse: collapse; margin: .8rem 0 2rem; }
     th, td { border-bottom: 1px solid #e5e7eb; padding: .65rem .5rem; text-align: left; vertical-align: top; }
-    th { font-size: .8rem; text-transform: uppercase; color: #6b7280; }
+    th { font-size: .75rem; text-transform: uppercase; color: #6b7280; }
     .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .muted { color: #9ca3af; }
+    .matched { font-weight: 650; }
+    .excluded, .muted { color: #9ca3af; }
+    .note { max-width: 42rem; color: #4b5563; }
+    details { margin-top: 2rem; }
   </style>
 </head>
 <body>
-<h1>Accounting POC facts</h1>
-<p>Read-only anonymized historical fixtures. No tax calculation is performed on this page.</p>
+<h1>Accounting POC — July 2026</h1>
+<p>
+  Read-only deterministic reconciliation over anonymized historical fixtures. Foreign revenue uses the observed booked PLN value;
+  FX calculation remains delegated to Investory and is not duplicated here.
+</p>
 
+<div class="grid">
+  <div class="card">
+    <div class="label">Domestic revenue net</div>
+    <div class="value"><span th:text="${snapshot.domesticRevenueNetPln()}">16250.0000</span> PLN</div>
+  </div>
+  <div class="card">
+    <div class="label">Foreign source revenue</div>
+    <div class="value"><span th:text="${snapshot.foreignSourceRevenueEur()}">7636.0000</span> EUR</div>
+  </div>
+  <div class="card">
+    <div class="label">Foreign booked revenue</div>
+    <div class="value"><span th:text="${snapshot.foreignBookedRevenuePln()}">32908.8700</span> PLN</div>
+  </div>
+  <div class="card">
+    <div class="label">Total booked revenue</div>
+    <div class="value"><span th:text="${snapshot.totalBookedRevenuePln()}">49158.8700</span> PLN</div>
+  </div>
+</div>
+
+<h2>Reconciliation</h2>
 <table>
   <thead>
   <tr>
-    <th>Date</th>
-    <th>Type</th>
     <th>Reference</th>
-    <th>Counterparty</th>
-    <th class="amount">Amount</th>
-    <th>Tax rate</th>
+    <th>Kind</th>
+    <th class="amount">Expected</th>
+    <th class="amount">Matched / paid</th>
+    <th>Payment date</th>
+    <th>Status</th>
+    <th>Explanation</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr th:each="row : ${snapshot.reconciliations()}">
+    <td th:text="${row.reference()}">FV 5/2026</td>
+    <td th:text="${row.kind()}">INVOICE_PAYMENT</td>
+    <td class="amount"><span th:text="${row.expectedAmount()}">19987.5000</span> <span th:text="${row.currency()}">PLN</span></td>
+    <td class="amount"><span th:text="${row.matchedAmount()}">19987.5000</span> <span th:text="${row.currency()}">PLN</span></td>
+    <td th:text="${row.paymentDate() != null ? row.paymentDate() : '—'}">2026-08-13</td>
+    <td th:classappend="${row.status() == 'MATCHED' ? 'matched' : ''}" th:text="${row.status()}">MATCHED</td>
+    <td class="note" th:text="${row.explanation()}">Exact expected receivable matched.</td>
+  </tr>
+  </tbody>
+</table>
+
+<h2>July tax-period invoices</h2>
+<p class="muted">The table also includes an invoice from the June tax period when its cash receipt occurred during July.</p>
+<table>
+  <thead>
+  <tr>
+    <th>Tax period</th>
+    <th>Reference</th>
+    <th>Kind</th>
+    <th>Customer</th>
+    <th class="amount">Net</th>
+    <th class="amount">VAT</th>
+    <th class="amount">Gross</th>
+    <th class="amount">Correction</th>
+    <th class="amount">Expected receivable</th>
+    <th class="amount">Booked net PLN</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr th:each="invoice : ${snapshot.invoices()}">
+    <td th:text="${invoice.taxPeriod()}">2026-07-01</td>
+    <td th:text="${invoice.reference()}">FV 5/2026</td>
+    <td th:text="${invoice.invoiceKind()}">DOMESTIC_SERVICE</td>
+    <td th:text="${invoice.customerAlias()}">CUSTOMER_PL_002</td>
+    <td class="amount"><span th:text="${invoice.netAmount()}">16250.0000</span> <span th:text="${invoice.currency()}">PLN</span></td>
+    <td class="amount" th:text="${invoice.vatAmount()}">3737.5000</td>
+    <td class="amount" th:text="${invoice.grossAmount()}">19987.5000</td>
+    <td class="amount" th:text="${invoice.correctionGrossAmount()}">0.0000</td>
+    <td class="amount" th:text="${invoice.expectedReceivable()}">19987.5000</td>
+    <td class="amount" th:text="${invoice.bookedNetPln() != null ? invoice.bookedNetPln() : '—'}">16250.0000</td>
+  </tr>
+  </tbody>
+</table>
+
+<h2>Obligations / golden outputs</h2>
+<p class="muted">These are observed wFirma/bank truth values. Detailed ryczałt and JPK/VAT formulas are intentionally not claimed as calculated yet.</p>
+<table>
+  <thead>
+  <tr>
+    <th>Type</th>
+    <th class="amount">Expected</th>
+    <th class="amount">Paid</th>
+    <th>Due</th>
+    <th>Payment</th>
+    <th>Status</th>
     <th>Note</th>
   </tr>
   </thead>
   <tbody>
-  <tr th:each="fact : ${facts}">
-    <td th:text="${fact.factDate() != null ? fact.factDate() : '—'}">2026-07-16</td>
-    <td th:text="${fact.factType()}">BANK_RECEIPT</td>
-    <td th:text="${fact.reference() != null ? fact.reference() : '—'}">FV 4/2026</td>
-    <td th:text="${fact.counterpartyAlias() != null ? fact.counterpartyAlias() : '—'}">CUSTOMER_PL_001</td>
-    <td class="amount">
-      <span th:text="${fact.amount()}">39864.3000</span>
-      <span th:text="${fact.currency()}">PLN</span>
-    </td>
-    <td th:text="${fact.taxRate() != null ? fact.taxRate() : '—'}">0.1200</td>
-    <td th:text="${fact.note() != null ? fact.note() : '—'}">Historical fact.</td>
-  </tr>
-  <tr th:if="${#lists.isEmpty(facts)}">
-    <td colspan="7" class="muted">No POC facts available.</td>
+  <tr th:each="obligation : ${snapshot.obligations()}">
+    <td th:text="${obligation.obligationType()}">RYCZALT</td>
+    <td class="amount"><span th:text="${obligation.expectedAmount()}">5791.0000</span> PLN</td>
+    <td class="amount"><span th:text="${obligation.paidAmount()}">5791.0000</span> PLN</td>
+    <td th:text="${obligation.dueDate() != null ? obligation.dueDate() : '—'}">2026-08-20</td>
+    <td th:text="${obligation.paymentDate() != null ? obligation.paymentDate() : '—'}">2026-08-18</td>
+    <td th:text="${obligation.status()}">MATCHED</td>
+    <td class="note" th:text="${obligation.note()}">Golden value.</td>
   </tr>
   </tbody>
 </table>
+
+<h2>Bank transactions in scope</h2>
+<table>
+  <thead>
+  <tr>
+    <th>Date</th>
+    <th>Related period</th>
+    <th>Type</th>
+    <th>Scope</th>
+    <th>Reference</th>
+    <th>Counterparty</th>
+    <th class="amount">Amount</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr th:each="transaction : ${snapshot.bankTransactions()}" th:classappend="${transaction.scope() != 'BUSINESS' ? 'excluded' : ''}">
+    <td th:text="${transaction.bookingDate()}">2026-07-03</td>
+    <td th:text="${transaction.relatedPeriod() != null ? transaction.relatedPeriod() : '—'}">2026-07-01</td>
+    <td th:text="${transaction.transactionType()}">CUSTOMER_RECEIPT</td>
+    <td th:text="${transaction.scope()}">BUSINESS</td>
+    <td th:text="${transaction.reference() != null ? transaction.reference() : '—'}">Service Agreements</td>
+    <td th:text="${transaction.counterpartyAlias() != null ? transaction.counterpartyAlias() : '—'}">CUSTOMER_EU_001</td>
+    <td class="amount"><span th:text="${transaction.amount()}">7636.0000</span> <span th:text="${transaction.currency()}">EUR</span></td>
+  </tr>
+  </tbody>
+</table>
+
+<details>
+  <summary>Raw source facts</summary>
+  <table>
+    <thead>
+    <tr>
+      <th>Date</th>
+      <th>Type</th>
+      <th>Reference</th>
+      <th>Counterparty</th>
+      <th class="amount">Amount</th>
+      <th>Tax rate</th>
+      <th>Note</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="fact : ${facts}">
+      <td th:text="${fact.factDate() != null ? fact.factDate() : '—'}">2026-07-16</td>
+      <td th:text="${fact.factType()}">BANK_RECEIPT</td>
+      <td th:text="${fact.reference() != null ? fact.reference() : '—'}">FV 4/2026</td>
+      <td th:text="${fact.counterpartyAlias() != null ? fact.counterpartyAlias() : '—'}">CUSTOMER_PL_001</td>
+      <td class="amount"><span th:text="${fact.amount()}">39864.3000</span> <span th:text="${fact.currency()}">PLN</span></td>
+      <td th:text="${fact.taxRate() != null ? fact.taxRate() : '—'}">0.1200</td>
+      <td class="note" th:text="${fact.note() != null ? fact.note() : '—'}">Historical fact.</td>
+    </tr>
+    </tbody>
+  </table>
+</details>
 </body>
 </html>
