@@ -3,6 +3,7 @@ package com.smartbox.investory.poc.accounting;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.BankRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ObligationRow;
+import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.TaxInputRow;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,9 +18,10 @@ public class AccountingPocRepository {
   public List<InvoiceRow> invoicesForPeriod(LocalDate period) {
     return jdbcTemplate.query(
         """
-        SELECT id, tax_period, issue_date, sale_date, reference, customer_alias, invoice_kind,
-               currency, net_amount, vat_amount, gross_amount, correction_gross_amount,
-               expected_receivable, booked_net_pln, ryczalt_rate, note
+        SELECT id, tax_period, issue_date, sale_date, fx_rate_date, reference, customer_alias, invoice_kind,
+               currency, net_amount, vat_amount, gross_amount, correction_net_amount,
+               correction_vat_amount, correction_gross_amount, expected_receivable,
+               booked_net_pln, ryczalt_rate, note
           FROM investory.accounting_poc_invoice i
          WHERE i.tax_period = ?
             OR i.reference IN (
@@ -38,6 +40,7 @@ public class AccountingPocRepository {
                 rs.getObject("tax_period", LocalDate.class),
                 rs.getObject("issue_date", LocalDate.class),
                 rs.getObject("sale_date", LocalDate.class),
+                rs.getObject("fx_rate_date", LocalDate.class),
                 rs.getString("reference"),
                 rs.getString("customer_alias"),
                 rs.getString("invoice_kind"),
@@ -45,6 +48,8 @@ public class AccountingPocRepository {
                 rs.getBigDecimal("net_amount"),
                 rs.getBigDecimal("vat_amount"),
                 rs.getBigDecimal("gross_amount"),
+                rs.getBigDecimal("correction_net_amount"),
+                rs.getBigDecimal("correction_vat_amount"),
                 rs.getBigDecimal("correction_gross_amount"),
                 rs.getBigDecimal("expected_receivable"),
                 rs.getBigDecimal("booked_net_pln"),
@@ -99,6 +104,20 @@ public class AccountingPocRepository {
                 rs.getObject("payment_date", LocalDate.class),
                 rs.getString("status"),
                 rs.getString("note")),
+        period);
+  }
+
+  public List<TaxInputRow> taxInputsForPeriod(LocalDate period) {
+    return jdbcTemplate.query(
+        """
+        SELECT input_type, amount, note
+          FROM investory.accounting_poc_tax_input
+         WHERE tax_period = ?
+         ORDER BY input_type
+        """,
+        (rs, rowNum) ->
+            new TaxInputRow(
+                rs.getString("input_type"), rs.getBigDecimal("amount"), rs.getString("note")),
         period);
   }
 }
