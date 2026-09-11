@@ -46,5 +46,5 @@ INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, 
 VALUES
     ('2026-07-01', 'HEALTH_CONTRIBUTION_PAID', 1495.0400,
      'Visible wFirma health contribution amount. Ryczałt deducts 50% of paid health contribution.'),
-    ('2026-07-01', 'DEDUCTIBLE_INPUT_VAT', 146.0000,
-     'July deductible input VAT required to reconcile JPK/VAT output to the observed 3,557 PLN payment; document-level split is pending fixture expansion.');
+    ('2026-07-01', 'JULY_ONLY_VAT_CORRECTION_ADJUSTMENT', 146.0000,
+     'July-only historical invoice-correction adjustment needed to reconcile VAT to the observed 3,557 PLN result. Generic correction handling is explicitly parked for a later POC stage.');
