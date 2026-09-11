@@ -67,7 +67,8 @@ public class AccountingFactService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     FxCalculation fx = calculateFx(periodInvoices, foreignBookedRevenue, foreignSourceEur);
-    RyczałtCalculation ryczalt = calculateRyczalt(invoices, domesticRevenue, fx, obligations, taxInputs);
+    RyczałtCalculation ryczalt =
+        calculateRyczalt(period, invoices, domesticRevenue, fx, obligations, taxInputs);
     VatCalculation vat = calculateVat(invoices, periodInvoices, obligations, taxInputs);
 
     List<ReconciliationRow> reconciliations =
@@ -93,9 +94,13 @@ public class AccountingFactService {
       BigDecimal expectedForeignPln,
       BigDecimal foreignSourceEur) {
     InvoiceRow eurInvoice =
-        periodInvoices.stream().filter(invoice -> "EUR".equals(invoice.currency())).findFirst().orElse(null);
+        periodInvoices.stream()
+            .filter(invoice -> "EUR".equals(invoice.currency()))
+            .findFirst()
+            .orElse(null);
     if (eurInvoice == null) {
-      return new FxCalculation(null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "NO_FX");
+      return new FxCalculation(
+          null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "NO_FX");
     }
 
     BigDecimal calculated;
@@ -104,9 +109,15 @@ public class AccountingFactService {
       calculated =
           currencyConversion
               .convertToBaseCurrency(
-                  eurInvoice.netAmount(), CurrencyType.PLN, CurrencyType.EUR, eurInvoice.fxRateDate())
+                  eurInvoice.netAmount(),
+                  CurrencyType.PLN,
+                  CurrencyType.EUR,
+                  eurInvoice.fxRateDate())
               .setScale(2, RoundingMode.HALF_UP);
-      status = calculated.compareTo(expectedForeignPln.setScale(2, RoundingMode.HALF_UP)) == 0 ? "MATCH" : "DIFF";
+      status =
+          calculated.compareTo(expectedForeignPln.setScale(2, RoundingMode.HALF_UP)) == 0
+              ? "MATCH"
+              : "DIFF";
     } catch (CurrencyConversionUnavailableException ex) {
       calculated = expectedForeignPln.setScale(2, RoundingMode.HALF_UP);
       status = "FX_UNAVAILABLE_USING_GOLDEN";
@@ -123,6 +134,7 @@ public class AccountingFactService {
   }
 
   private RyczałtCalculation calculateRyczalt(
+      LocalDate period,
       List<InvoiceRow> invoices,
       BigDecimal domesticRevenue,
       FxCalculation fx,
@@ -137,11 +149,12 @@ public class AccountingFactService {
 
     BigDecimal healthPaid = taxInput(taxInputs, "HEALTH_CONTRIBUTION_PAID");
     BigDecimal healthDeduction = healthPaid.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
-    BigDecimal taxableBase = revenueBeforeDeductions.subtract(healthDeduction).setScale(2, RoundingMode.HALF_UP);
+    BigDecimal taxableBase =
+        revenueBeforeDeductions.subtract(healthDeduction).setScale(2, RoundingMode.HALF_UP);
 
     BigDecimal rate =
         invoices.stream()
-            .filter(invoice -> invoice.taxPeriod().equals(JULY_2026))
+            .filter(invoice -> invoice.taxPeriod().equals(period))
             .map(InvoiceRow::ryczaltRate)
             .filter(value -> value != null)
             .findFirst()
@@ -180,7 +193,8 @@ public class AccountingFactService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal outputVat = outputBeforeCorrections.add(correctionVat);
     BigDecimal deductibleInputVat = taxInput(taxInputs, "DEDUCTIBLE_INPUT_VAT");
-    BigDecimal calculatedVat = outputVat.subtract(deductibleInputVat).setScale(0, RoundingMode.HALF_UP);
+    BigDecimal calculatedVat =
+        outputVat.subtract(deductibleInputVat).setScale(0, RoundingMode.HALF_UP);
     BigDecimal expectedVat = obligationAmount(obligations, "VAT");
     BigDecimal difference = calculatedVat.subtract(expectedVat);
 
