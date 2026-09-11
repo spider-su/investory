@@ -74,6 +74,44 @@ public class AccountingPocRepository {
         period);
   }
 
+  public void insertSalesInvoice(
+      LocalDate taxPeriod,
+      LocalDate issueDate,
+      LocalDate saleDate,
+      String reference,
+      String customerAlias,
+      String invoiceKind,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      BigDecimal bookedNetPln,
+      BigDecimal ryczaltRate,
+      String note) {
+    jdbcTemplate.update(
+        """
+        INSERT INTO investory.accounting_poc_invoice
+            (tax_period, issue_date, sale_date, reference, customer_alias, invoice_kind, currency,
+             net_amount, vat_amount, gross_amount, expected_receivable, booked_net_pln,
+             ryczalt_rate, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        taxPeriod,
+        issueDate,
+        saleDate,
+        reference,
+        customerAlias,
+        invoiceKind,
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        grossAmount,
+        bookedNetPln,
+        ryczaltRate,
+        note);
+  }
+
   public List<ExpenseRow> expensesForPeriod(LocalDate period) {
     return jdbcTemplate.query(
         """
