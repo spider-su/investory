@@ -13,11 +13,21 @@ public record AccountingMonthSnapshot(
     FxCalculation fx,
     RyczałtCalculation ryczalt,
     VatCalculation vat,
+    List<ComparisonRow> comparisons,
     List<InvoiceRow> invoices,
     List<ExpenseRow> expenses,
     List<ReconciliationRow> reconciliations,
     List<ObligationRow> obligations,
     List<BankRow> bankTransactions) {
+
+  public record ComparisonRow(
+      String area,
+      BigDecimal calculated,
+      BigDecimal expected,
+      BigDecimal difference,
+      String currency,
+      String status,
+      String note) {}
 
   public record InvoiceRow(
       long id,
