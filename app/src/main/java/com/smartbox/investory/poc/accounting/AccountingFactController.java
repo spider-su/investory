@@ -17,9 +17,17 @@ public class AccountingFactController {
   public String facts(@RequestParam(required = false) String month, Model model) {
     List<LocalDate> periods = service.availablePeriods();
     LocalDate selected = resolveSelectedPeriod(month, periods);
+    int selectedIndex = periods.indexOf(selected);
 
     model.addAttribute("periods", periods);
     model.addAttribute("selectedPeriod", selected);
+    model.addAttribute(
+        "previousPeriod", selectedIndex > 0 ? periods.get(selectedIndex - 1) : null);
+    model.addAttribute(
+        "nextPeriod",
+        selectedIndex >= 0 && selectedIndex < periods.size() - 1
+            ? periods.get(selectedIndex + 1)
+            : null);
     model.addAttribute("snapshot", service.snapshot(selected));
     model.addAttribute("facts", service.facts());
     return "poc/accounting-facts";
