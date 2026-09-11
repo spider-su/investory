@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accounting POC facts</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; color: #1f2937; }
+    h1 { margin-bottom: .25rem; }
+    p { color: #4b5563; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    th, td { border-bottom: 1px solid #e5e7eb; padding: .65rem .5rem; text-align: left; vertical-align: top; }
+    th { font-size: .8rem; text-transform: uppercase; color: #6b7280; }
+    .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .muted { color: #9ca3af; }
+  </style>
+</head>
+<body>
+<h1>Accounting POC facts</h1>
+<p>Read-only anonymized historical fixtures. No tax calculation is performed on this page.</p>
+
+<table>
+  <thead>
+  <tr>
+    <th>Date</th>
+    <th>Type</th>
+    <th>Reference</th>
+    <th>Counterparty</th>
+    <th class="amount">Amount</th>
+    <th>Tax rate</th>
+    <th>Note</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr th:each="fact : ${facts}">
+    <td th:text="${fact.factDate() != null ? fact.factDate() : '—'}">2026-07-16</td>
+    <td th:text="${fact.factType()}">BANK_RECEIPT</td>
+    <td th:text="${fact.reference() != null ? fact.reference() : '—'}">FV 4/2026</td>
+    <td th:text="${fact.counterpartyAlias() != null ? fact.counterpartyAlias() : '—'}">CUSTOMER_PL_001</td>
+    <td class="amount">
+      <span th:text="${fact.amount()}">39864.3000</span>
+      <span th:text="${fact.currency()}">PLN</span>
+    </td>
+    <td th:text="${fact.taxRate() != null ? fact.taxRate() : '—'}">0.1200</td>
+    <td th:text="${fact.note() != null ? fact.note() : '—'}">Historical fact.</td>
+  </tr>
+  <tr th:if="${#lists.isEmpty(facts)}">
+    <td colspan="7" class="muted">No POC facts available.</td>
+  </tr>
+  </tbody>
+</table>
+</body>
+</html>
