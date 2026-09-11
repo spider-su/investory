@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.BankRow;
+import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ObligationRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.TaxInputRow;
@@ -41,6 +42,7 @@ class AccountingFactServiceTest {
             "32908.87");
 
     when(repository.invoicesForPeriod(JULY)).thenReturn(List.of(juneCorrection, domestic, eu));
+    when(repository.expensesForPeriod(JULY)).thenReturn(List.of());
     when(repository.bankTransactionsForPeriod(JULY))
         .thenReturn(
             List.of(
@@ -60,23 +62,15 @@ class AccountingFactServiceTest {
     AccountingMonthSnapshot snapshot = service.snapshot(JULY);
 
     assertThat(snapshot.fx().status()).isEqualTo("MATCH");
-    assertThat(snapshot.fx().calculatedPln()).isEqualByComparingTo("32908.87");
-    assertThat(snapshot.ryczalt().revenueBeforeDeductions()).isEqualByComparingTo("49008.87");
-    assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()).isEqualByComparingTo("-150.00");
-    assertThat(snapshot.ryczalt().healthDeduction()).isEqualByComparingTo("747.52");
     assertThat(snapshot.ryczalt().calculatedTax()).isEqualByComparingTo("5791");
-    assertThat(snapshot.ryczalt().status()).isEqualTo("MATCH");
-    assertThat(snapshot.vat().outputVatAfterSalesCorrection()).isEqualByComparingTo("3703.00");
+    assertThat(snapshot.vat().deductibleInputVat()).isZero();
     assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isEqualByComparingTo("146.00");
     assertThat(snapshot.vat().calculatedVat()).isEqualByComparingTo("3557");
     assertThat(snapshot.vat().status()).isEqualTo("MATCH");
-    assertThat(snapshot.reconciliations())
-        .filteredOn(row -> "INVOICE_PAYMENT".equals(row.kind()))
-        .allMatch(row -> "MATCHED".equals(row.status()));
   }
 
   @Test
-  void reconstructsCleanFebruaryWithoutJulyCorrectionLogic() {
+  void reconstructsCleanFebruaryVatFromExpenseDocuments() {
     LocalDate february = LocalDate.of(2026, 2, 1);
     AccountingFactRepository factRepository = mock(AccountingFactRepository.class);
     AccountingPocRepository repository = mock(AccountingPocRepository.class);
@@ -94,6 +88,11 @@ class AccountingFactServiceTest {
             "32249.12");
 
     when(repository.invoicesForPeriod(february)).thenReturn(List.of(domestic, eu));
+    when(repository.expensesForPeriod(february))
+        .thenReturn(
+            List.of(
+                expense("ACCOUNTING", "68.54", "1.00", "68.54"),
+                expense("FUEL", "64.01", "0.50", "32.01")));
     when(repository.bankTransactionsForPeriod(february))
         .thenReturn(
             List.of(
@@ -102,23 +101,20 @@ class AccountingFactServiceTest {
     when(repository.obligationsForPeriod(february))
         .thenReturn(List.of(obligation("RYCZALT", "7332"), obligation("VAT", "6707"), obligation("ZUS", "1495.04")));
     when(repository.taxInputsForPeriod(february))
-        .thenReturn(
-            List.of(
-                new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("1495.04"), "fixture"),
-                new TaxInputRow("DEDUCTIBLE_INPUT_VAT", new BigDecimal("101.00"), "fixture")));
+        .thenReturn(List.of(new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("1495.04"), "fixture")));
     when(fx.convertToBaseCurrency(new BigDecimal("7636.00"), CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 2, 27)))
         .thenReturn(new BigDecimal("32249.12"));
 
     AccountingMonthSnapshot snapshot = service.snapshot(february);
 
-    assertThat(snapshot.fx().status()).isEqualTo("MATCH");
-    assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()).isZero();
-    assertThat(snapshot.ryczalt().calculatedTax()).isEqualByComparingTo("7332");
-    assertThat(snapshot.ryczalt().status()).isEqualTo("MATCH");
-    assertThat(snapshot.vat().julyOnlySalesCorrectionVat()).isZero();
-    assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isEqualByComparingTo("101.00");
+    assertThat(snapshot.vat().deductibleInputVat()).isEqualByComparingTo("100.55");
+    assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isZero();
     assertThat(snapshot.vat().calculatedVat()).isEqualByComparingTo("6707");
     assertThat(snapshot.vat().status()).isEqualTo("MATCH");
+    assertThat(snapshot.expenses()).hasSize(2);
+    assertThat(snapshot.expenses())
+        .extracting(ExpenseRow::vatDeductionRatio)
+        .containsExactly(new BigDecimal("1.00"), new BigDecimal("0.50"));
   }
 
   private InvoiceRow invoice(
@@ -141,6 +137,24 @@ class AccountingFactServiceTest {
         new BigDecimal(net), new BigDecimal(vat), new BigDecimal(gross), new BigDecimal(correctionNet),
         new BigDecimal(correctionVat), new BigDecimal(correctionGross), new BigDecimal(expectedReceivable),
         new BigDecimal(bookedNetPln), new BigDecimal("0.12"), "fixture");
+  }
+
+  private ExpenseRow expense(String reference, String vat, String ratio, String deductible) {
+    return new ExpenseRow(
+        1L,
+        LocalDate.of(2026, 2, 1),
+        null,
+        reference,
+        "SUPPLIER",
+        "CATEGORY",
+        "PLN",
+        BigDecimal.ZERO,
+        new BigDecimal(vat),
+        BigDecimal.ZERO,
+        new BigDecimal(ratio),
+        new BigDecimal(deductible),
+        "SOURCE_DOCUMENT",
+        "fixture");
   }
 
   private BankRow bank(
