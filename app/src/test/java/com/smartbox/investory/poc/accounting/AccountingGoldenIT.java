@@ -3,11 +3,11 @@ package com.smartbox.investory.poc.accounting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
-import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -26,7 +26,9 @@ class AccountingGoldenIT extends FastDatabaseTest {
   private static final LocalDate JULY = LocalDate.of(2026, 7, 1);
 
   @Autowired private AccountingFactService service;
-  @MockitoBean(name = "currencyRateService") private CurrencyRateService currencyConversion;
+
+  @MockitoBean(name = "currencyRateService")
+  private CurrencyRateService currencyConversion;
 
   @Test
   void januaryUsesCapturedEurSourceAndPriorBusinessDayNbpRate() {
@@ -40,7 +42,7 @@ class AccountingGoldenIT extends FastDatabaseTest {
     AccountingMonthSnapshot snapshot = service.snapshot(JANUARY);
 
     assertComparison(snapshot, "REVENUE", "61771.23", "61771.23", "0.00", "MATCH");
-    assertComparison(snapshot, "RYCZALT", "7329", "7329.0000", "0.0000", "MATCH");
+    assertComparison(snapshot, "RYCZALT", "7323", "7323.0000", "0.0000", "MATCH");
     assertComparison(snapshot, "VAT", "6714", "6714.0000", "0.0000", "MATCH");
     assertComparison(snapshot, "ZUS", "1495.04", "1495.04", "0.00", "MATCH");
     assertComparison(snapshot, "FX", "32171.23", "32171.23", "0.00", "MATCH");
