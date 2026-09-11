@@ -68,8 +68,11 @@ public class RetirementSimulationService implements RetirementSimulation {
     ScenarioEffectiveAssumptions effective =
         ScenarioEffectiveAssumptions.forScenario(profile, assumptions, scenario, baselineYear);
     PlanningBuckets buckets =
-        PlanningBuckets.fromProfileWithBondYield(
-            profile, effective.equityReturnRate(), effective.capitalBondReturnRate());
+        (firstYearOnly
+            ? PlanningBuckets.fromLiveProfileWithBondYield(
+                profile, effective.equityReturnRate(), effective.capitalBondReturnRate())
+            : PlanningBuckets.fromReviewedProfileWithBondYield(
+                profile, effective.equityReturnRate(), effective.capitalBondReturnRate()));
     var engine = new RetirementBucketEngine();
     var years = new java.util.ArrayList<SimulationYear>();
     Integer failureAge = null;

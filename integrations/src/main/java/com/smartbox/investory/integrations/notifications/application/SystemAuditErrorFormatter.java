@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.notifications.application;
 
+import com.smartbox.investory.integrations.notifications.formatting.TelegramText;
 import com.smartbox.investory.integrations.notifications.persistence.NotificationEventEntity;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
 import java.util.Map;
@@ -21,19 +22,19 @@ public class SystemAuditErrorFormatter implements NotificationMessageFormatter {
   @Override
   public String format(NotificationEventEntity event) {
     Map<String, String> p = NotificationPayload.read(objectMapper, event);
-    return "🚨 "
-        + event.getTitle()
-        + "\nAudit: "
+    return TelegramText.heading("🚨", event.getTitle())
+        + "\n\n<b>Audit:</b> "
         + p.get("auditId")
-        + " · trigger: "
+        + " · <b>trigger:</b> "
         + p.get("triggerSource")
-        + "\nErrors/warnings: "
+        + "\n<b>Errors/warnings: "
         + p.get("errorCount")
         + "/"
         + p.get("warningCount")
-        + "\nChecks: "
+        + "</b>\n<b>Checks: "
         + p.getOrDefault("checkCodes", "Unavailable")
-        + "\n"
-        + links.link("/dashboard/reconciliation");
+        + "</b>"
+        + "\n\n"
+        + TelegramText.link("Open reconciliation", links.link("/dashboard/reconciliation"));
   }
 }

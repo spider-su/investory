@@ -66,7 +66,7 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
       assertThat(response.status()).isEqualTo(200);
       assertThat(page.title()).contains("Investory");
       assertThat(page.locator("#dashboard-page-data").textContent())
-          .contains("\"portfolioId\": 1", "\"selectedDashboardPeriod\": \"MAX\"");
+          .contains("\"portfolioId\": 2", "\"selectedDashboardPeriod\": \"MAX\"");
       assertThat(page.locator("#investment-overview").isVisible()).isTrue();
       assertThat(page.locator(".iv-portfolio-structure").textContent())
           .contains("Cash", "Largest holding", "Asset allocation", "Account currencies");

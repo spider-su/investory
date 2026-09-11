@@ -14,7 +14,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.importing.ImportBroker;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileEntity;
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
@@ -22,6 +21,7 @@ import com.smartbox.investory.investment.port.importing.BrokerImportParser;
 import com.smartbox.investory.investment.port.importing.BrokerImportResult;
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
+import com.smartbox.investory.investment.projection.StatisticsRefreshService;
 import com.smartbox.investory.investment.reconciliation.ReconciliationRefreshService;
 import com.smartbox.investory.investment.valuation.price.AssetPriceFallbackService;
 import com.smartbox.investory.investment.valuation.price.PriceHistoryCoverageService;
@@ -30,6 +30,7 @@ import com.smartbox.investory.testsupport.portfolio.PortfolioTestContext;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,7 +52,7 @@ class ImportHistoryOrchestratorServiceTest {
   @Mock private ReconciliationRefreshService reconciliationRefreshService;
   @Mock private PriceHistoryCoverageService priceHistoryCoverageService;
   @Mock private InvestmentCalculationCache calculationCache;
-  @Mock private AccountRepository accountRepository;
+  @Mock private StatisticsRefreshService statisticsRefreshService;
   private ImportOrchestratorService importOrchestratorService;
 
   @BeforeEach
@@ -73,7 +74,7 @@ class ImportHistoryOrchestratorServiceTest {
             reconciliationRefreshService,
             priceHistoryCoverageService,
             calculationCache,
-            accountRepository);
+            statisticsRefreshService);
   }
 
   @DisplayName("constructor rejects Duplicate Parsers For Same Broker")
@@ -95,7 +96,7 @@ class ImportHistoryOrchestratorServiceTest {
                 reconciliationRefreshService,
                 priceHistoryCoverageService,
                 calculationCache,
-                accountRepository));
+                statisticsRefreshService));
   }
 
   @DisplayName("import File reprocesses Duplicate Ibkr File When Open Positions Are Missing")
@@ -114,7 +115,7 @@ class ImportHistoryOrchestratorServiceTest {
             reconciliationRefreshService,
             priceHistoryCoverageService,
             calculationCache,
-            accountRepository);
+            statisticsRefreshService);
     PortfolioTestContext duplicateScenario = PortfolioScenarios.createDuplicateImportScenario();
     ImportHistoryEntity existing = duplicateScenario.imports().firstImport();
     ImportHistoryEntity reprocess = batch(88L, ImportBatchStatus.STARTED, null, 0, 0, 0);
@@ -122,10 +123,11 @@ class ImportHistoryOrchestratorServiceTest {
         .thenReturn(Optional.of(existing));
     when(auditWriter.startReprocessBatch(existing)).thenReturn(reprocess);
     ImportHistoryEntity applied = batch(88L, ImportBatchStatus.COMPLETED, "repaired", 1, 1, 0);
-    when(auditWriter.finalizeApplied(88L, new ImportExecutionResult(1, 1, 0, "repaired")))
-        .thenReturn(applied);
+    ImportExecutionResult repairedResult =
+        new ImportExecutionResult(1, 1, 0, "repaired", Set.of(101L));
+    when(auditWriter.finalizeApplied(88L, repairedResult)).thenReturn(applied);
     when(ibkrParser.importFile(any(), eq("ibkr.csv")))
-        .thenReturn(new BrokerImportResult(1, 1, 0, "repaired"));
+        .thenReturn(new BrokerImportResult(1, 1, 0, "repaired", Set.of(101L)));
 
     ImportBatchResponse response =
         importOrchestratorService.importFile(
@@ -140,7 +142,7 @@ class ImportHistoryOrchestratorServiceTest {
     assertEquals(88L, response.batchId());
     verify(ibkrParser).importFile(any(), eq("ibkr.csv"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions(1L);
-    verify(portfolioProjectionService).recalculateAccounts(any());
+    verify(statisticsRefreshService).refreshAffectedAccounts(eq(1L), any());
     verify(reconciliationRefreshService).refreshAfterImport(88L);
     verify(auditWriter, never()).startBatch(eq(1L), any(), any(), any(), anyString(), anyString());
   }
@@ -155,7 +157,7 @@ class ImportHistoryOrchestratorServiceTest {
         .thenReturn(Optional.of(existing))
         .thenReturn(Optional.of(existing));
     when(auditWriter.startReprocessBatch(existing)).thenReturn(reprocess);
-    ImportExecutionResult result = new ImportExecutionResult(12, 12, 0, "refreshed");
+    ImportExecutionResult result = new ImportExecutionResult(12, 12, 0, "refreshed", Set.of(1L));
     when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(portResult(result));
     when(auditWriter.finalizeApplied(78L, result)).thenReturn(refreshed);
 
@@ -194,7 +196,7 @@ class ImportHistoryOrchestratorServiceTest {
     when(auditWriter.findExistingAppliedBatch(eq(1L), eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.of(completed));
     when(auditWriter.startReprocessBatch(completed)).thenReturn(reprocess);
-    ImportExecutionResult result = new ImportExecutionResult(12, 12, 0, "ok");
+    ImportExecutionResult result = new ImportExecutionResult(12, 12, 0, "ok", Set.of(1L));
     when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(portResult(result));
     when(auditWriter.finalizeApplied(79L, result)).thenReturn(applied);
 
@@ -224,7 +226,7 @@ class ImportHistoryOrchestratorServiceTest {
     when(auditWriter.findExistingAppliedBatch(eq(1L), eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.of(existing));
     when(auditWriter.startReprocessBatch(existing)).thenReturn(reprocess);
-    ImportExecutionResult result = new ImportExecutionResult(12, 12, 0, "ok");
+    ImportExecutionResult result = new ImportExecutionResult(12, 12, 0, "ok", Set.of(1L));
     when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(portResult(result));
     when(auditWriter.finalizeApplied(78L, result))
         .thenReturn(batch(78L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0));
@@ -245,7 +247,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(auditWriter).finalizeApplied(78L, result);
     verify(xtbParser).importFile(any(), eq("file.xlsx"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions(1L);
-    verify(portfolioProjectionService).recalculateAccounts(any());
+    verify(statisticsRefreshService).refreshAffectedAccounts(eq(1L), any());
     verify(reconciliationRefreshService).refreshAfterImport(78L);
     assertEquals("ok", existing.getErrorMessage(), "existing batch must not be mutated");
   }
@@ -264,7 +266,7 @@ class ImportHistoryOrchestratorServiceTest {
             eq("file.xlsx"),
             anyString()))
         .thenReturn(received);
-    ImportExecutionResult parserResult = new ImportExecutionResult(10, 9, 1, "ok");
+    ImportExecutionResult parserResult = new ImportExecutionResult(10, 9, 1, "ok", Set.of(1L));
     when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(portResult(parserResult));
     ImportHistoryEntity applied = batch(1L, ImportBatchStatus.COMPLETED, "ok", 10, 9, 1);
     when(auditWriter.finalizeApplied(1L, parserResult)).thenReturn(applied);
@@ -286,15 +288,17 @@ class ImportHistoryOrchestratorServiceTest {
     assertEquals("ok", response.message());
     verify(xtbParser, times(1)).importFile(any(), eq("file.xlsx"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions(1L);
-    verify(portfolioProjectionService).recalculateAccounts(any());
+    ArgumentCaptor<Set<Long>> affectedAccounts = ArgumentCaptor.forClass(Set.class);
+    verify(statisticsRefreshService).refreshAffectedAccounts(eq(1L), affectedAccounts.capture());
+    assertEquals(Set.of(1L), affectedAccounts.getValue());
     verify(reconciliationRefreshService).refreshAfterImport(1L);
     org.mockito.InOrder refreshOrder =
-        org.mockito.Mockito.inOrder(projectionRefreshService, portfolioProjectionService);
+        org.mockito.Mockito.inOrder(projectionRefreshService, statisticsRefreshService);
     refreshOrder
         .verify(projectionRefreshService)
         .refreshApplicationViews(
             PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
-    refreshOrder.verify(portfolioProjectionService).recalculateAccounts(any());
+    refreshOrder.verify(statisticsRefreshService).refreshAffectedAccounts(eq(1L), any());
   }
 
   @DisplayName("import File changed Window Starts New Batch And Keeps Prior Import")
@@ -303,7 +307,7 @@ class ImportHistoryOrchestratorServiceTest {
     when(auditWriter.findExistingAppliedBatch(eq(1L), eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
     ImportHistoryEntity started = batch(2L, ImportBatchStatus.STARTED, null, 0, 0, 0);
-    ImportExecutionResult result = new ImportExecutionResult(3, 3, 0, "changed window");
+    ImportExecutionResult result = new ImportExecutionResult(3, 3, 0, "changed window", Set.of(1L));
     ImportHistoryEntity applied = batch(2L, ImportBatchStatus.COMPLETED, "changed window", 3, 3, 0);
     when(auditWriter.startBatch(
             eq(1L),
@@ -367,7 +371,7 @@ class ImportHistoryOrchestratorServiceTest {
 
     assertTrue(exception.getMessage().contains("rejected"));
     verify(assetPriceFallbackService, never()).populateMissingPricesFromOpenPositions(1L);
-    verify(portfolioProjectionService, never()).recalculateAccounts(any());
+    verify(statisticsRefreshService, never()).refreshAffectedAccounts(any(), any());
     verify(reconciliationRefreshService, never()).refreshAfterImport(any());
   }
 
@@ -385,7 +389,8 @@ class ImportHistoryOrchestratorServiceTest {
             eq("file.xlsx"),
             anyString()))
         .thenReturn(recycled);
-    ImportExecutionResult parserResult = new ImportExecutionResult(4, 4, 0, "retried ok");
+    ImportExecutionResult parserResult =
+        new ImportExecutionResult(4, 4, 0, "retried ok", Set.of(1L));
     when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(portResult(parserResult));
     ImportHistoryEntity applied = batch(7L, ImportBatchStatus.COMPLETED, "retried ok", 4, 4, 0);
     when(auditWriter.finalizeApplied(7L, parserResult)).thenReturn(applied);
@@ -420,7 +425,7 @@ class ImportHistoryOrchestratorServiceTest {
     when(auditWriter.findExistingAppliedBatch(eq(1L), eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
     ImportHistoryEntity started = batch(90L, ImportBatchStatus.STARTED, null, 0, 0, 0);
-    ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "imported");
+    ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "imported", Set.of(1L));
     ImportHistoryEntity applied = batch(90L, ImportBatchStatus.COMPLETED, "imported", 1, 1, 0);
     ImportHistoryEntity notReady =
         batch(90L, ImportBatchStatus.NOT_READY, "projection failed", 1, 1, 0);
@@ -430,8 +435,8 @@ class ImportHistoryOrchestratorServiceTest {
     when(auditWriter.finalizeApplied(90L, result)).thenReturn(applied);
     when(auditWriter.finalizeNotReady(eq(90L), eq(result), anyString())).thenReturn(notReady);
     org.mockito.Mockito.doThrow(new IllegalStateException("projection failed"))
-        .when(portfolioProjectionService)
-        .recalculateAccounts(any());
+        .when(statisticsRefreshService)
+        .refreshAffectedAccounts(any(), any());
 
     ImportFailedException failure =
         assertThrows(
@@ -455,7 +460,7 @@ class ImportHistoryOrchestratorServiceTest {
     when(auditWriter.findExistingAppliedBatch(eq(1L), eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
     ImportHistoryEntity started = batch(91L, ImportBatchStatus.STARTED, null, 0, 0, 0);
-    ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "imported");
+    ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "imported", Set.of(1L));
     when(auditWriter.startBatch(eq(1L), any(), any(), any(), anyString(), anyString()))
         .thenReturn(started);
     when(xtbParser.importFile(any(), anyString())).thenReturn(portResult(result));
@@ -480,7 +485,7 @@ class ImportHistoryOrchestratorServiceTest {
   void duplicateReprocessAlsoBecomesNotReadyWhenDerivedRefreshFails() throws Exception {
     ImportHistoryEntity existing = batch(92L, ImportBatchStatus.COMPLETED, "old", 1, 1, 0);
     ImportHistoryEntity started = batch(93L, ImportBatchStatus.STARTED, null, 0, 0, 0);
-    ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "reprocessed");
+    ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "reprocessed", Set.of(1L));
     when(auditWriter.findExistingAppliedBatch(eq(1L), eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.of(existing));
     when(auditWriter.startReprocessBatch(existing)).thenReturn(started);
@@ -490,8 +495,8 @@ class ImportHistoryOrchestratorServiceTest {
     when(auditWriter.finalizeNotReady(eq(93L), eq(result), anyString()))
         .thenReturn(batch(93L, ImportBatchStatus.NOT_READY, "projection failed", 1, 1, 0));
     org.mockito.Mockito.doThrow(new IllegalStateException("projection failed"))
-        .when(portfolioProjectionService)
-        .recalculateAccounts(any());
+        .when(statisticsRefreshService)
+        .refreshAffectedAccounts(any(), any());
 
     assertThrows(
         ImportFailedException.class,
@@ -565,6 +570,10 @@ class ImportHistoryOrchestratorServiceTest {
 
   private static BrokerImportResult portResult(ImportExecutionResult result) {
     return new BrokerImportResult(
-        result.rowsTotal(), result.rowsApplied(), result.rowsFailed(), result.details());
+        result.rowsTotal(),
+        result.rowsApplied(),
+        result.rowsFailed(),
+        result.details(),
+        result.affectedAccountIds());
   }
 }

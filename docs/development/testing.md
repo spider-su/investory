@@ -80,12 +80,23 @@ snapshot. It uses one canonical persisted HappyInvestor story and independent ex
 `ProfilePersistedFactsIT` also covers empty, brokerage-only, Long-Term-only, and mixed portfolio
 shapes, plus repeated-read source immutability.
 
+Financial expectations are owned by the canonical HappyInvestor story and existing domain/reporting
+contracts. Keep Income Base, investment result, TWR, XIRR, deposits, withdrawals, net worth, income,
+allocation, cash, and invested capital semantics in those contracts rather than repeating simplified
+definitions in test documentation. External deposits and withdrawals must be handled according to
+the reporting/domain contract. Deterministic story facts and contract-derived values are separate
+from live market-price and FX observations; reconcile a discrepancy against both the story fact and
+authoritative contract before calling it a product defect.
+
 - Feature-owned REST controller tests verify stable API fields without recreating a generic
   cross-module response contract. `ProfilePersistedFactsIT` verifies the complete Profile
   composition against persisted HappyInvestor facts.
 - `HappyInvestorReadOnlyUiIT` starts the same application and snapshot with Chromium. Its tests are
   grouped by page/module and verify the financial values users see. It performs navigation only;
   writes, refreshes, imports, exports, and form submissions belong to action integration tests.
+  Dashboard and portfolio monetary summaries use the shared compact display contract: values show
+  stable `K`/`M` suffixes with the same precision as Long-Term Assets; prices, rates, percentages,
+  and form inputs keep their own exact display rules.
 - `HappyInvestorOverlayIdempotencyIT` proves that reapplying the canonical overlay restores all
   mutable columns and is idempotent.
 
@@ -114,7 +125,8 @@ Long-Term type.
 
 `InvestmentDashboardGoldenUiIT` rebuilds the investment portfolio from the committed IBKR, XTB,
 and FX golden-path fixtures in an isolated PostgreSQL database. It checks every rendered dashboard
-amount against the application view models and the current-position database view. It then drives
+amount against the canonical golden-story checkpoints and existing reporting contracts (with view
+models/database state used as reconciliation evidence). It then drives
 the market and currency refresh controls with deterministic mocks: `VWRA.UK` becomes `150.00`, and
 USD/PLN becomes `4.00` with reciprocal PLN/USD `0.25`. After each refresh it verifies the persisted
 price/rates, recalculated balances and positions, and all visible overview, performance, income,
@@ -145,8 +157,8 @@ incompatible module interfaces, and configuration failures fail early.
 
 Backend integration tests run as independent matrix legs with `fail-fast: false`:
 
-- `contracts`: valuation, system-audit, reporting, baseline-readiness, HappyInvestor read-only REST,
-  overlay idempotency, and benchmark contracts;
+- `contracts`: valuation input and stale-valuation refresh, system-audit, reporting,
+  baseline-readiness, HappyInvestor read-only REST, overlay idempotency, and benchmark contracts;
 - `imports`: PostgreSQL FX update plus IBKR/XTB import contracts;
 - `reconciliation-notifications-longterm`: remaining app-owned database contracts;
 - `investment-rest`: Investment REST boundary integration tests;
@@ -169,6 +181,11 @@ The migration layer stays deliberately small:
 - `MigrationDataRepairIT` checks the repaired reference-data semantics from the final migration.
 - `LongTermHardeningMigrationIT` proves annual rental-tax-base facts remain unchanged and verifies
   database chronology and lifecycle-provenance constraints.
+
+Before the production freeze, existing versioned migrations may be cleaned up or consolidated while
+establishing the production baseline. After that baseline is applied to persistent production
+databases, versioned migrations are immutable; every later schema change must use a new additive
+migration.
 
 Financially critical calculation packages have additional JaCoCo thresholds in
 `docs/quality/coverage-baseline.json`. The existing aggregate 70% line / 50% branch gate remains;

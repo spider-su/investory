@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
+import com.smartbox.investory.investment.imports.ImportPortfolioContext;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
@@ -21,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.TimeZone;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -57,9 +59,12 @@ class XtbImportIT extends FastDatabaseTest {
     ImportExecutionResult result;
     try {
       TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
-      result =
-          xtbImportService.importWorkbook(
-              new ByteArrayInputStream(workbookBytes()), "IKE_51729109_2025-12-31_2026-07-31.xlsx");
+      try (ImportPortfolioContext.Scope ignored = ImportPortfolioContext.open(1L)) {
+        result =
+            xtbImportService.importWorkbook(
+                new ByteArrayInputStream(workbookBytes()),
+                "IKE_51729109_2025-12-31_2026-07-31.xlsx");
+      }
     } finally {
       TimeZone.setDefault(originalTimeZone);
     }
@@ -67,6 +72,7 @@ class XtbImportIT extends FastDatabaseTest {
     assertEquals(3, result.rowsTotal());
     assertEquals(3, result.rowsApplied());
     assertEquals(0, result.rowsFailed());
+    assertEquals(Set.of(ACCOUNT_ID), result.affectedAccountIds());
     assertTrue(result.details().contains("cash=2 closed=1 open=2"));
 
     List<CashOperationEntity> cash = cashOperationRepository.findAllByAccount(ACCOUNT_ID);
@@ -125,10 +131,13 @@ class XtbImportIT extends FastDatabaseTest {
   @DisplayName("treats Xtb Three Placeholder As Missing Ticker On Cash Only Rows")
   @Test
   void treatsXtbThreePlaceholderAsMissingTickerOnCashOnlyRows() throws Exception {
-    ImportExecutionResult result =
-        xtbImportService.importWorkbook(
-            new ByteArrayInputStream(cashOnlyPlaceholderWorkbookBytes()),
-            "PLN_50290466_2025-12-31_2026-07-31.xlsx");
+    ImportExecutionResult result;
+    try (ImportPortfolioContext.Scope ignored = ImportPortfolioContext.open(1L)) {
+      result =
+          xtbImportService.importWorkbook(
+              new ByteArrayInputStream(cashOnlyPlaceholderWorkbookBytes()),
+              "PLN_50290466_2025-12-31_2026-07-31.xlsx");
+    }
 
     assertEquals(1, result.rowsTotal());
     assertEquals(1, result.rowsApplied());

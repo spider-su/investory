@@ -13,7 +13,7 @@ class TelegramApiClient {
     client
         .post()
         .uri("/bot" + token + "/sendMessage")
-        .body(Map.of("chat_id", chatId, "text", message))
+        .body(Map.of("chat_id", chatId, "text", message, "parse_mode", "HTML"))
         .retrieve()
         .toBodilessEntity();
   }

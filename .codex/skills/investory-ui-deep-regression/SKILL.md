@@ -8,15 +8,18 @@ metadata:
 # Investory deep UI regression
 
 Use this skill before merge, for release confidence, or when route smoke and interaction checks expose a functional risk.
+For page-specific behavior, route through the canonical `qa/ui/` smoke, active, and facts scenarios;
+do not copy their assertions into this skill.
 
 ## Test layers
 
 Run the narrowest relevant layer first, then expand:
 
 1. `UiPageSmokeIT` for all route rendering and browser-error checks.
-2. `LongTermAssetCrudUiIT` for browser-to-database asset lifecycle coverage.
-3. `PlanSimulationCrudUiIT` for plan creation, revision persistence, navigation, and validation.
-4. `InvestmentDashboardGoldenUiIT` for dashboard values against view models and database state.
+2. `HappyInvestorReadOnlyUiIT` for canonical read-only financial values and presentation rules.
+3. `LongTermAssetCrudUiIT` for browser-to-database asset lifecycle coverage.
+4. `PlanSimulationCrudUiIT` for plan creation, revision persistence, navigation, and validation.
+5. `InvestmentDashboardGoldenUiIT` for dashboard values against view models and database state.
 
 Read `docs/development/testing.md` before changing scope. Use `-pl app -am`, the repo-local Maven cache, quoted PowerShell properties, and the configured Docker host from the repository instructions.
 
@@ -25,7 +28,9 @@ Read `docs/development/testing.md` before changing scope. Use `-pl app -am`, the
 - Use disposable fixtures or an explicitly approved test database.
 - Treat JDBC/API readiness as supporting evidence only; UI behavior requires a browser assertion.
 - Do not submit mutations to a user's live portfolio during regression unless the user explicitly requests it and the flow is reversible.
-- Reconcile displayed financial values with the same fixture database and document rounding/formatting rules.
+- Reconcile displayed financial values with independent HappyInvestor facts and document exact-value
+  versus presentation-rounding rules. Do not convert a documented display rounding boundary into a
+  product failure.
 
 ## Timeouts and parallelism
 
@@ -37,8 +42,15 @@ Read `docs/development/testing.md` before changing scope. Use `-pl app -am`, the
 
 ## Diagnostics
 
-Keep build/classpath failures separate from UI failures. When a `NoClassDefFoundError` or stale API type appears, compare source, module target output, and repo-local dependency JAR timestamps; rebuild/install the reactor before rerunning. Preserve failure artifacts and do not claim a green suite when any layer is blocked.
+Keep build/classpath failures separate from UI failures. When a `NoClassDefFoundError`, missing
+class file, or stale API type appears, compare source, module target output, and repo-local
+dependency JAR timestamps; run a clean reactor rebuild before rerunning. If the clean build still
+fails, preserve the exact blocker and do not claim a green suite or infer a route defect.
 
 ## Report
 
-Return a concise summary by layer with passed, failed, skipped, and blocked counts. For each issue include exact test/page/control, expected versus actual behavior, root-cause category, command, and artifact path. State whether live data changed and list unrelated dirty files preserved.
+Use the repository's documented Failsafe command for the Java browser suite; use Playwright MCP for
+deployed exploratory missions. Return a concise summary by layer with passed, failed, skipped, and
+blocked counts. For each issue include exact test/page/control, expected versus actual behavior,
+root-cause category, command, and artifact path. State whether live data changed and list unrelated
+dirty files preserved.

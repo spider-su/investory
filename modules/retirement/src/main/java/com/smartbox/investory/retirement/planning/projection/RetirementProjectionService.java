@@ -66,9 +66,12 @@ public class RetirementProjectionService implements RetirementProjectionApi {
   @Override
   public RetirementProjection project(
       InvestmentProfile profile, SimulationAssumptions assumptions, PlanningBaseline baseline) {
-    InvestmentProfile projectionProfile =
+    InvestmentProfile reviewedProfile =
         baseline == null ? profile : PlanningProfileBaseline.apply(profile, baseline);
-    ForwardSimulationInput forward = forwardInputs.prepare(projectionProfile, assumptions);
+    ForwardSimulationInput forward =
+        baseline == null
+            ? forwardInputs.prepare(profile, assumptions)
+            : forwardInputs.prepare(profile, reviewedProfile, assumptions);
     SimulationAssumptions projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
     InvestmentProfile projectedProfile = forward.bridgedProfile();
     Map<SimulationScenario, SimulationResult> results =

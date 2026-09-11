@@ -191,7 +191,10 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
                 AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("Save property").setExact(true)));
         assertThat(page.url())
-            .matches(".*/portfolios/1/long-term-assets/[0-9]+/real-estate(?:\\?[^#]*)?$");
+            .matches(
+                ".*/portfolios/"
+                    + PORTFOLIO_ID
+                    + "/long-term-assets/[0-9]+/real-estate(?:\\?[^#]*)?$");
         assertThat(page.locator(".iv-property-hero h1"))
             .hasText(HappyInvestorTestData.APARTMENT_A_NAME + " copy");
         assertThat(page.locator("body").textContent())
@@ -208,7 +211,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
             page,
             page.getByRole(
                 AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Save cash reserve")));
-        assertThat(page.url().split("\\?", 2)[0]).endsWith("/portfolios/1/long-term-assets");
+        assertThat(page.url().split("\\?", 2)[0])
+            .endsWith("/portfolios/" + PORTFOLIO_ID + "/long-term-assets");
         page.locator("#cash-reserves .iv-planning-section__header").click();
         long cashId =
             jdbc.queryForObject(

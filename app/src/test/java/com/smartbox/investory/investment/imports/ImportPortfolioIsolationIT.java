@@ -55,8 +55,14 @@ class ImportPortfolioIsolationIT extends FastDatabaseTest {
   void keepsSameBrokerFileAndDerivedRowsScopedToEachPortfolio() {
     createSecondPortfolioAndAccount();
 
+    jdbc.update(
+        "INSERT INTO investory.account_daily (account_id, snapshot_date, valuation_currency) "
+            + "VALUES (?, DATE '2026-07-31', 'USD')",
+        SECOND_ACCOUNT_ID);
+
     long secondPortfolioOperationsBefore = countCashOperationsForPortfolio(SECOND_PORTFOLIO_ID);
     long secondPortfolioSnapshotsBefore = countAccountDailyForPortfolio(SECOND_PORTFOLIO_ID);
+    String secondPortfolioUpdatedAtBefore = maxAccountDailyUpdatedAt(SECOND_PORTFOLIO_ID);
 
     InvestmentImportApi.ImportResult first = importFile(EXISTING_PORTFOLIO_ID, "first");
 
@@ -68,6 +74,8 @@ class ImportPortfolioIsolationIT extends FastDatabaseTest {
         .isEqualTo(secondPortfolioOperationsBefore);
     assertThat(countAccountDailyForPortfolio(SECOND_PORTFOLIO_ID))
         .isEqualTo(secondPortfolioSnapshotsBefore);
+    assertThat(maxAccountDailyUpdatedAt(SECOND_PORTFOLIO_ID))
+        .isEqualTo(secondPortfolioUpdatedAtBefore);
 
     InvestmentImportApi.ImportResult second = importFile(SECOND_PORTFOLIO_ID, "second");
 
@@ -146,6 +154,15 @@ class ImportPortfolioIsolationIT extends FastDatabaseTest {
             + "JOIN investory.accounts a ON a.id = ad.account_id "
             + "WHERE a.portfolio_id = ?",
         Long.class,
+        portfolioId);
+  }
+
+  private String maxAccountDailyUpdatedAt(long portfolioId) {
+    return jdbc.queryForObject(
+        "SELECT max(ad.updated_at)::text FROM investory.account_daily ad "
+            + "JOIN investory.accounts a ON a.id = ad.account_id "
+            + "WHERE a.portfolio_id = ?",
+        String.class,
         portfolioId);
   }
 

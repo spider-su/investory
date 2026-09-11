@@ -14,7 +14,11 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "import_source_rows")
 public class ImportSourceRowEntity {
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @SequenceGenerator(
+      name = "importSourceRowsId",
+      sequenceName = "import_source_rows_id_seq",
+      allocationSize = 50)
+  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "importSourceRowsId")
   private Long id;
 
   @Column(name = "import_history_id", nullable = false)

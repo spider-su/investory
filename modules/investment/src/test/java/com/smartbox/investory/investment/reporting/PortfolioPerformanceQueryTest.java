@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.reporting;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -26,6 +27,95 @@ class PortfolioPerformanceQueryTest {
   private final AccountDailyRepository dailyRepository = mock();
   private final PortfolioPerformanceQuery query =
       new PortfolioPerformanceQuery(repository, dailyRepository);
+
+  @Test
+  void emptyPeriodReturnsUnavailableMetricsAndRequestedBoundaries() {
+    when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
+        .thenReturn(List.of());
+
+    PerformanceResult result =
+        query.forPortfolioMonths(1L, YearMonth.of(2026, 1), YearMonth.of(2026, 3));
+
+    assertThat(result.period().startDate()).isEqualTo(LocalDate.of(2026, 1, 1));
+    assertThat(result.period().endDate()).isEqualTo(LocalDate.of(2026, 3, 31));
+    assertThat(result.baseCurrency()).isNull();
+    assertThat(result.investmentResult()).isZero();
+    assertThat(result.timeWeightedReturn().status())
+        .isEqualTo(ReturnMetric.Status.INSUFFICIENT_DATA);
+    assertThat(result.attribution().reconcilesWithinTolerance()).isTrue();
+  }
+
+  @Test
+  void nullBoundsUseUnboundedPortfolioRepositoryQueries() {
+    when(repository.findByPortfolioIdAndMonthLessThanEqualOrderByMonthAsc(
+            1L, LocalDate.of(2026, 3, 31)))
+        .thenReturn(List.of());
+
+    assertThat(query.forPortfolioMonths(1L, null, YearMonth.of(2026, 3)).investmentResult())
+        .isZero();
+    verify(repository)
+        .findByPortfolioIdAndMonthLessThanEqualOrderByMonthAsc(1L, LocalDate.of(2026, 3, 31));
+  }
+
+  @Test
+  void sharedQueryAggregatesPortfoliosButLeavesReturnUndefined() {
+    PortfolioMonthlyPerformanceEntity first = row("2026-01-01", "2026-01-31");
+    first.setPortfolioId(1L);
+    first.setStartEquity(new BigDecimal("100"));
+    first.setEndEquity(new BigDecimal("110"));
+    first.setDepositFlow(new BigDecimal("20"));
+    first.setProfit(new BigDecimal("10"));
+    PortfolioMonthlyPerformanceEntity second = row("2026-01-01", "2026-01-31");
+    second.setPortfolioId(2L);
+    second.setStartEquity(new BigDecimal("200"));
+    second.setEndEquity(new BigDecimal("190"));
+    second.setWithdrawalFlow(new BigDecimal("5"));
+    second.setProfit(new BigDecimal("-10"));
+    when(repository.findByMonthBetweenOrderByMonthAscPortfolioIdAsc(any(), any()))
+        .thenReturn(List.of(first, second));
+
+    PerformanceResult result = query.forMonths(YearMonth.of(2026, 1), YearMonth.of(2026, 1));
+
+    assertThat(result.startValue()).isEqualByComparingTo("300");
+    assertThat(result.endValue()).isEqualByComparingTo("300");
+    assertThat(result.contributions()).isEqualByComparingTo("20");
+    assertThat(result.withdrawals()).isEqualByComparingTo("5");
+    assertThat(result.netExternalFlows()).isEqualByComparingTo("15");
+    assertThat(result.investmentResult()).isEqualByComparingTo("0");
+    assertThat(result.timeWeightedReturn().status())
+        .isEqualTo(ReturnMetric.Status.INSUFFICIENT_DATA);
+  }
+
+  @Test
+  void sharedQueryRejectsMixedBaseCurrenciesInsteadOfSilentlyAddingThem() {
+    PortfolioMonthlyPerformanceEntity usd = row("2026-01-01", "2026-01-31");
+    PortfolioMonthlyPerformanceEntity pln = row("2026-01-01", "2026-01-31");
+    pln.setPortfolioId(2L);
+    pln.setBaseCurrency(CurrencyType.PLN);
+    when(repository.findByMonthBetweenOrderByMonthAscPortfolioIdAsc(any(), any()))
+        .thenReturn(List.of(usd, pln));
+
+    assertThatThrownBy(() -> query.forMonths(YearMonth.of(2026, 1), YearMonth.of(2026, 1)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("one base currency");
+  }
+
+  @Test
+  void portfolioQueryCanReturnAttributionWithoutDailyReturnRepository() {
+    PortfolioPerformanceQuery withoutDaily = new PortfolioPerformanceQuery(repository, null);
+    PortfolioMonthlyPerformanceEntity row = row("2026-08-01", "2026-08-31");
+    row.setProfit(new BigDecimal("12"));
+    when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
+        .thenReturn(List.of(row));
+
+    PerformanceResult result =
+        withoutDaily.forPortfolioMonths(1L, YearMonth.of(2026, 8), YearMonth.of(2026, 8));
+
+    assertThat(result.investmentResult()).isEqualByComparingTo("12");
+    assertThat(result.timeWeightedReturn().status())
+        .isEqualTo(ReturnMetric.Status.INSUFFICIENT_DATA);
+    assertThat(result.attribution()).isNotNull();
+  }
 
   @DisplayName("no Flow Period Preserves Exact Values")
   @Test

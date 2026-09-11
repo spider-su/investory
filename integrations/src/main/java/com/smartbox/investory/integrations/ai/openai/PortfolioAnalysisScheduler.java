@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.ai.openai;
 
+import com.smartbox.investory.integrations.notifications.formatting.TelegramText;
 import com.smartbox.investory.integrations.telegram.PortfolioBot;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -46,7 +47,8 @@ public class PortfolioAnalysisScheduler {
 
   private void send(String title, String body) {
     try {
-      portfolioBot.sendMessage(title + "\n\n" + body);
+      portfolioBot.sendMessage(
+          TelegramText.heading("📄", title) + "\n\n" + TelegramText.escape(body));
     } catch (RuntimeException e) {
       log.warn("Could not send scheduled report: {}", title, e);
     }

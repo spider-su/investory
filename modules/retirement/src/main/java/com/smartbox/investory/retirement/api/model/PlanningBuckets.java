@@ -107,29 +107,58 @@ public record PlanningBuckets(
         BigDecimal.ZERO);
   }
 
-  /** Compatibility mapper; derives the BASE Bond yield from the reviewed source snapshot. */
-  public static PlanningBuckets fromProfile(
+  /** Maps factual CURRENT profile state and derives the BASE Bond yield from that state. */
+  public static PlanningBuckets fromLiveProfile(
       InvestmentProfile profile,
       BigDecimal equityYield,
       BigDecimal fallbackBondYield,
       int baselineYear) {
-    return fromProfileWithBondYield(
+    return fromLiveProfileWithBondYield(
         profile, equityYield, baseBondYield(profile, fallbackBondYield, baselineYear));
   }
 
-  /** Maps the reviewed source snapshot once, with an explicit normalized future Bond yield. */
-  public static PlanningBuckets fromProfileWithBondYield(
+  /** Maps factual CURRENT profile state with an explicit normalized Bond yield. */
+  public static PlanningBuckets fromLiveProfileWithBondYield(
       InvestmentProfile profile, BigDecimal equityYield, BigDecimal bondYield) {
-    // The normalized Long-Term snapshot is the source of reviewed allocation exposure. Live
-    // profile allocations are deliberately ignored here so a reviewed revision is reproducible.
-    boolean hasFrozenAssets = !profile.longTermPlanningState().assets().isEmpty();
+    return fromProfile(profile, equityYield, bondYield);
+  }
+
+  /** Maps reviewed forward profile state with an explicit normalized Bond yield. */
+  public static PlanningBuckets fromReviewedProfileWithBondYield(
+      InvestmentProfile profile, BigDecimal equityYield, BigDecimal bondYield) {
     BigDecimal bonds =
-        hasFrozenAssets
+        hasFrozenAsset(profile, EconomicBucket.FIXED_INCOME)
             ? frozenAssetValue(profile, EconomicBucket.FIXED_INCOME)
             : allocation(profile, EconomicBucket.FIXED_INCOME);
     BigDecimal equities = zeroIfNull(profile.investmentCapital());
     BigDecimal realEstate =
-        hasFrozenAssets
+        hasFrozenAsset(profile, EconomicBucket.REAL_ESTATE)
+            ? frozenAssetValue(profile, EconomicBucket.REAL_ESTATE)
+            : allocation(profile, EconomicBucket.REAL_ESTATE);
+    return of(
+        zeroIfNull(profile.retirementReserve()),
+        bonds,
+        equities,
+        realEstate,
+        zeroIfNull(bondYield),
+        zeroIfNull(equityYield),
+        bonds,
+        profile.currentRentalIncome());
+  }
+
+  private static PlanningBuckets fromProfile(
+      InvestmentProfile profile, BigDecimal equityYield, BigDecimal bondYield) {
+    // Long-Term owns the normalized reviewed facts for the assets it supplies. The profile
+    // allocation still supplies a bucket when that bucket has no reviewed Long-Term asset (for
+    // example, a market-held bond alongside a reviewed real-estate asset). Resolve each bucket
+    // independently; one source bucket must not erase another source domain's exposure.
+    BigDecimal bonds =
+        hasFrozenAsset(profile, EconomicBucket.FIXED_INCOME)
+            ? frozenAssetValue(profile, EconomicBucket.FIXED_INCOME)
+            : allocation(profile, EconomicBucket.FIXED_INCOME);
+    BigDecimal equities = zeroIfNull(profile.investmentCapital());
+    BigDecimal realEstate =
+        hasFrozenAsset(profile, EconomicBucket.REAL_ESTATE)
             ? frozenAssetValue(profile, EconomicBucket.REAL_ESTATE)
             : allocation(profile, EconomicBucket.REAL_ESTATE);
     return of(
@@ -173,7 +202,8 @@ public record PlanningBuckets(
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
-  private static boolean hasAllocation(InvestmentProfile profile, EconomicBucket bucket) {
-    return profile.allocations().stream().anyMatch(a -> a.bucket() == bucket);
+  private static boolean hasFrozenAsset(InvestmentProfile profile, EconomicBucket bucket) {
+    return profile.longTermPlanningState().assets().stream()
+        .anyMatch(asset -> asset.bucket() == bucket);
   }
 }

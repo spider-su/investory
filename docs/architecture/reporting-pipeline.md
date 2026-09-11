@@ -80,6 +80,12 @@ negative investor cash flows, withdrawals as positive cash flows, and includes t
 an initial negative flow and ending value as the terminal positive flow. Missing/invalid boundaries
 produce an unavailable metric, not zero.
 
+Income Base is the reporting input for projected market income. Its meaning and month-weighted
+external-flow treatment are owned by `InvestmentIncomeSummaryService` and the tested
+`InvestmentIncomeCalculator` contract. UI and AI tests must reference that contract and the
+canonical HappyInvestor source facts, including applicable external deposits and withdrawals;
+they must not replace it with a January-1-only balance or infer it from a label.
+
 Dashboard TWR and XIRR read base-currency, non-cash-only daily boundaries from
 `app_v_portfolio_performance_daily`; application code must not rebuild them by summing raw
 account-currency `account_daily` rows. Selected-period and fixed KPI-start returns therefore share

@@ -28,9 +28,9 @@ class ValuationInputContractIT {
     DATABASE.close();
   }
 
-  @DisplayName("fx Resolver Uses Latest Available Rate On Or Before Valuation Date")
+  @DisplayName("valuation Resolver Does Not Fall Back To Execution Observations")
   @Test
-  void fxResolverUsesLatestAvailableRateOnOrBeforeValuationDate() throws SQLException {
+  void fxResolverDoesNotFallBackToExchangeRates() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       statement.execute(
@@ -39,19 +39,17 @@ class ValuationInputContractIT {
               + "AND ((base = 'EUR' AND to_currency = 'USD') "
               + "OR (base = 'USD' AND to_currency = 'EUR'))");
       statement.execute(
-          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2098-01-01', 'EUR', 'USD', 1.10, 'TEST', 'MARKET_DAILY'), "
-              + "(DATE '2098-02-01', 'EUR', 'USD', 1.20, 'TEST', 'MARKET_DAILY')");
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, purpose, source, method, observed_at, source_reference) VALUES "
+              + "(DATE '2098-01-15', 'EUR', 'USD', 1.10, 'EXECUTION', 'XTB', 'XTB_EXECUTION', now(), 'valuation-isolation-xtb'), "
+              + "(DATE '2098-01-15', 'EUR', 'USD', 1.20, 'EXECUTION', 'IBKR', 'IBKR_EXECUTION', now(), 'valuation-isolation-ibkr')");
 
       try (ResultSet result =
           statement.executeQuery(
               "SELECT fx_rate_to_target, source_rate_date, conversion_status "
                   + "FROM investory.resolve_fx_rate(DATE '2098-01-15', 'EUR', 'USD')")) {
         assertTrue(result.next());
-        assertEquals(
-            0, result.getBigDecimal("fx_rate_to_target").compareTo(new BigDecimal("1.10000000")));
-        assertEquals("2098-01-01", result.getDate("source_rate_date").toString());
-        assertEquals("CARRY_FORWARD", result.getString("conversion_status"));
+        assertEquals(null, result.getBigDecimal("fx_rate_to_target"));
+        assertEquals("MISSING_RATE", result.getString("conversion_status"));
       }
     }
   }
@@ -103,11 +101,9 @@ class ValuationInputContractIT {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       statement.execute(
-          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2099-01-05', 'EUR', 'USD', 1.10, 'TEST', 'MARKET_DAILY'), "
-              + "(DATE '2099-01-10', 'EUR', 'USD', 1.20, 'TEST', 'IBKR_DAILY_REFERENCE'), "
-              + "(DATE '2099-01-10', 'EUR', 'USD', 1.30, 'TEST', 'MARKET_DAILY'), "
-              + "(DATE '2099-01-10', 'USD', 'PLN', 4.00, 'TEST', 'IBKR_EXECUTION')");
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
+              + "(DATE '2099-01-05', 'EUR', 'USD', 1.10, 'TEST', 'OBSERVED', DATE '2099-01-05'), "
+              + "(DATE '2099-01-10', 'EUR', 'USD', 1.30, 'TEST', 'OBSERVED', DATE '2099-01-10')");
 
       try (ResultSet result =
           statement.executeQuery(
@@ -115,7 +111,7 @@ class ValuationInputContractIT {
         assertTrue(result.next());
         assertEquals(
             0, result.getBigDecimal("fx_rate_to_target").compareTo(new BigDecimal("1.30")));
-        assertEquals("MARKET_DAILY", result.getString("rate_method"));
+        assertEquals("OBSERVED", result.getString("rate_method"));
         assertEquals("OK", result.getString("conversion_status"));
       }
 
@@ -127,10 +123,9 @@ class ValuationInputContractIT {
       }
 
       statement.execute(
-          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2099-01-12', 'EUR', 'USD', 1.15, 'TEST', 'MARKET_DAILY'), "
-              + "(DATE '2099-01-05', 'EUR', 'PLN', 4.10, 'NBP', 'HISTORICAL_MONTHLY'), "
-              + "(DATE '2099-02-01', 'EUR', 'PLN', 4.20, 'NBP', 'HISTORICAL_MONTHLY')");
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
+              + "(DATE '2099-01-12', 'EUR', 'USD', 1.15, 'TEST', 'OBSERVED', DATE '2099-01-12'), "
+              + "(DATE '2099-01-05', 'EUR', 'PLN', 4.10, 'NBP', 'OBSERVED', DATE '2099-01-05')");
       try (ResultSet result =
           statement.executeQuery(
               "SELECT rate_method, conversion_status FROM investory.resolve_fx_rate(DATE '2099-01-14', 'EUR', 'USD')")) {
@@ -153,15 +148,14 @@ class ValuationInputContractIT {
     }
   }
 
-  @DisplayName("historical cross currency FX carries forward the latest daily value")
+  @DisplayName("canonical daily cross currency FX carries forward the latest value")
   @Test
   void historicalCrossCurrencyFxRemainsEstimatedWhenLegsUseDifferentSources() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       statement.execute(
-          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2199-01-01', 'EUR', 'USD', 1.20, 'STATIC_BOOTSTRAP', 'HISTORICAL_MONTHLY'), "
-              + "(DATE '2199-01-01', 'USD', 'PLN', 4.00, 'NBP', 'HISTORICAL_MONTHLY')");
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
+              + "(DATE '2199-01-01', 'PLN', 'EUR', 0.20833333, 'TEST', 'OBSERVED', DATE '2199-01-01')");
 
       try (ResultSet result =
           statement.executeQuery(
@@ -201,12 +195,13 @@ class ValuationInputContractIT {
         Statement statement = connection.createStatement();
         ResultSet result =
             statement.executeQuery(
-                "SELECT net_deposits FROM investory.app_v_portfolio_kpi_summary WHERE portfolio_id = 1")) {
+                "SELECT net_deposits FROM investory.app_v_portfolio_kpi_summary WHERE portfolio_id = 2")) {
       assertTrue(result.next());
       BigDecimal netDeposits = result.getBigDecimal(1);
       assertEquals(
           0,
-          netDeposits.compareTo(HappyInvestorDashboardFacts.NET_DEPOSITS),
+          netDeposits.compareTo(
+              HappyInvestorDashboardFacts.NET_DEPOSITS.setScale(2, java.math.RoundingMode.HALF_UP)),
           () -> "net_deposits=" + netDeposits);
     }
   }

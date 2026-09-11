@@ -62,7 +62,7 @@ jobs:
         uses: ./.github/actions/setup-java-maven
 
       - name: Compile, run unit tests, and package reactor
-        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -DskipITs install
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" clean -DskipITs install
 
       - name: Upload packaged reactor outputs
         uses: actions/upload-artifact@v7
@@ -133,7 +133,7 @@ jobs:
         suite:
           - name: contracts
             project: app
-            tests: ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT
+            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT
           - name: imports
             project: app
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT

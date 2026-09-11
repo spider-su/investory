@@ -1,6 +1,7 @@
 package com.smartbox.investory.integrations.telegram;
 
 import com.smartbox.investory.integrations.ai.AiChat;
+import com.smartbox.investory.integrations.notifications.formatting.TelegramText;
 import com.smartbox.investory.investment.api.importing.ImportBroker;
 import com.smartbox.investory.investment.api.importing.ImportSource;
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
@@ -136,7 +137,7 @@ public class PortfolioBot extends TelegramLongPollingBot {
       sendTo(
           replyChatId,
           "File is too large for Telegram bot download: "
-              + fileName
+              + TelegramText.escape(fileName)
               + ". Maximum supported size is 20 MB.");
       return;
     }
@@ -146,7 +147,7 @@ public class PortfolioBot extends TelegramLongPollingBot {
       sendTo(
           replyChatId,
           "Could not detect broker from file name: "
-              + fileName
+              + TelegramText.escape(fileName)
               + ". Use an XTB *.xlsx or IBKR activity CSV export.");
       return;
     }
@@ -169,8 +170,10 @@ public class PortfolioBot extends TelegramLongPollingBot {
       String messageText = e.getMessage();
       sendTo(
           replyChatId,
-          "Import failed"
-              + (messageText == null || messageText.isBlank() ? "." : ": " + messageText));
+          "🚨 <b>Import failed</b>"
+              + (messageText == null || messageText.isBlank()
+                  ? "."
+                  : ": " + TelegramText.escape(messageText)));
     }
   }
 
@@ -212,18 +215,19 @@ public class PortfolioBot extends TelegramLongPollingBot {
   }
 
   private String formatImportSummary(ImportResult r) {
-    StringBuilder sb = new StringBuilder();
-    sb.append(r.duplicate() ? "Already imported." : "Import complete.").append('\n');
-    sb.append("Broker: ").append(r.broker()).append('\n');
-    sb.append("Status: ").append(r.status()).append('\n');
-    sb.append("Rows total/applied/failed: ")
+    StringBuilder sb =
+        new StringBuilder(r.duplicate() ? "ℹ️ <b>Already imported</b>" : "✅ <b>Import complete</b>")
+            .append("\n\n");
+    sb.append("<b>Broker:</b> ").append(r.broker()).append('\n');
+    sb.append("<b>Status:</b> ").append(r.status()).append('\n');
+    sb.append("<b>Rows total/applied/failed:</b> ")
         .append(r.rowsTotal())
         .append('/')
         .append(r.rowsApplied())
         .append('/')
         .append(r.rowsFailed());
     if (r.message() != null && !r.message().isBlank()) {
-      sb.append('\n').append(r.message());
+      sb.append("\n\n").append(TelegramText.escape(r.message()));
     }
     return sb.toString();
   }
@@ -235,7 +239,9 @@ public class PortfolioBot extends TelegramLongPollingBot {
     for (int start = 0; start < text.length(); start += MAX_MESSAGE_LENGTH) {
       int end = Math.min(start + MAX_MESSAGE_LENGTH, text.length());
       try {
-        execute(new SendMessage(targetChatId, text.substring(start, end)));
+        SendMessage request = new SendMessage(targetChatId, text.substring(start, end));
+        request.setParseMode("HTML");
+        execute(request);
       } catch (TelegramApiException e) {
         log.warn("Failed to send Telegram message", e);
         return;
@@ -259,7 +265,9 @@ public class PortfolioBot extends TelegramLongPollingBot {
     for (int start = 0; start < data.length(); start += MAX_MESSAGE_LENGTH) {
       int end = Math.min(start + MAX_MESSAGE_LENGTH, data.length());
       try {
-        execute(new SendMessage(chatId.trim(), data.substring(start, end)));
+        SendMessage request = new SendMessage(chatId.trim(), data.substring(start, end));
+        request.setParseMode("HTML");
+        execute(request);
       } catch (TelegramApiException exception) {
         throw new IllegalStateException("Telegram rejected notification delivery", exception);
       }

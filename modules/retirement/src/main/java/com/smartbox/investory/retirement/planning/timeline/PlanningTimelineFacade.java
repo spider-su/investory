@@ -381,7 +381,7 @@ public class PlanningTimelineFacade {
                 null,
                 null,
                 projectedYear));
-    return new PlanningTimeline(result);
+    return new PlanningTimeline(profile.currency(), result);
   }
 
   /**

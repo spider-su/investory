@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.notifications.application;
 
+import com.smartbox.investory.integrations.notifications.formatting.TelegramText;
 import com.smartbox.investory.integrations.notifications.persistence.NotificationEventEntity;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
 import java.util.Map;
@@ -21,26 +22,28 @@ public class PlanBecameUnsustainableFormatter implements NotificationMessageForm
   @Override
   public String format(NotificationEventEntity event) {
     Map<String, String> p = NotificationPayload.read(objectMapper, event);
-    return "🚨 "
-        + event.getTitle()
-        + "\nPortfolio/plan: "
+    return TelegramText.heading("🚨", event.getTitle())
+        + "\n\n<b>Portfolio/plan:</b> "
         + p.get("portfolioId")
         + "/"
         + p.get("planId")
-        + " · revision "
+        + " · <b>revision</b> "
         + p.get("revisionNumber")
-        + "\nFirst failure: "
+        + "\n<b>First failure:</b> "
         + p.get("firstFailureYear")
         + " (age "
         + p.get("firstFailureAge")
         + ")"
-        + "\nUnfunded: "
+        + "\n<b>Unfunded:</b> "
         + p.get("totalUnfundedAmount")
-        + " · minimum liquid assets: "
+        + " · <b>minimum liquid assets:</b> "
         + p.get("minimumLiquidAssets")
-        + "\nLimit: "
+        + "\n<b>Limit:</b> "
         + p.get("limitingCondition")
-        + "\n"
-        + links.link("/portfolios/" + p.get("portfolioId") + "/analysis?planId=" + p.get("planId"));
+        + "\n\n"
+        + TelegramText.link(
+            "Open analysis",
+            links.link(
+                "/portfolios/" + p.get("portfolioId") + "/analysis?planId=" + p.get("planId")));
   }
 }

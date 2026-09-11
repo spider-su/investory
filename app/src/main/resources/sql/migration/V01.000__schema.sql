@@ -354,27 +354,36 @@ CREATE TABLE IF NOT EXISTS investory.exchange_rates (
     base            varchar(3) NOT NULL REFERENCES investory.currencies(id),
     to_currency     varchar(3) NOT NULL REFERENCES investory.currencies(id),
     rate            numeric(20,8) NOT NULL,
+    purpose         varchar(16) NOT NULL DEFAULT 'VALUATION',
     source          varchar(32) NOT NULL DEFAULT 'STATIC_BOOTSTRAP',
-    method          varchar(32) NOT NULL DEFAULT 'HISTORICAL_MONTHLY',
+    method          varchar(32) NOT NULL DEFAULT 'OBSERVED',
+    source_rate_date date,
     observed_at     timestamptz,
     source_reference varchar(256),
     imported_at     timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT chk_exchange_rates_rate_positive CHECK (rate > 0),
     CONSTRAINT chk_exchange_rates_base_differs_from_to_currency CHECK (base <> to_currency),
-    CONSTRAINT chk_exchange_rates_source CHECK (source IN ('NBP','ECB','EXCHANGERATE_HOST','IBKR','XTB','STATIC_BOOTSTRAP','MANUAL','TEST')),
-    CONSTRAINT chk_exchange_rates_method CHECK (method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE','IBKR_EXECUTION','XTB_EXECUTION','HISTORICAL_MONTHLY','INTERPOLATED','CARRY_FORWARD'))
+    CONSTRAINT chk_exchange_rates_purpose CHECK (purpose IN ('VALUATION','EXECUTION')),
+    CONSTRAINT chk_exchange_rates_method CHECK (method IN ('OBSERVED','INTERPOLATED','XTB_EXECUTION','IBKR_EXECUTION')),
+    CONSTRAINT chk_exchange_rates_purpose_method CHECK (
+        (purpose = 'VALUATION' AND method IN ('OBSERVED','INTERPOLATED'))
+        OR (purpose = 'EXECUTION' AND method IN ('XTB_EXECUTION','IBKR_EXECUTION')))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS ux_exchange_rates_observation
-    ON investory.exchange_rates (rate_date, base, to_currency, source, method, COALESCE(source_reference, ''));
-COMMENT ON TABLE investory.exchange_rates IS 'Historical exchange rates for USD/EUR/PLN currencies, used for reporting and analysis';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_exchange_rates_valuation
+    ON investory.exchange_rates (rate_date, base, to_currency)
+    WHERE purpose = 'VALUATION';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_exchange_rates_execution_observation
+    ON investory.exchange_rates (rate_date, base, to_currency, source, method, COALESCE(source_reference, ''))
+    WHERE purpose = 'EXECUTION';
+COMMENT ON TABLE investory.exchange_rates IS
+    'Canonical FX observations. VALUATION rows are neutral market observations; EXECUTION rows are broker transaction observations.';
 
 CREATE TABLE IF NOT EXISTS investory.fx_configuration (
     config_key varchar(64) PRIMARY KEY,
     config_value varchar(64) NOT NULL
 );
 INSERT INTO investory.fx_configuration(config_key, config_value) VALUES
-    ('daily_history_start', '9999-12-31'),
-    ('max_age_days', '4');
+    ('daily_history_start', '9999-12-31');
 
 CREATE TYPE investory.cash_operation_type AS ENUM (
     -- Cash movements
@@ -912,3 +921,5 @@ CREATE INDEX IF NOT EXISTS ix_notification_event_processing_lease
 
 COMMENT ON TABLE investory.notification_event IS
     'Channel-neutral durable notification outbox. Fingerprints enforce producer idempotency; delivery is retryable and at-least-once.';
+
+ALTER SEQUENCE investory.import_source_rows_id_seq INCREMENT BY 50;

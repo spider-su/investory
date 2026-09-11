@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.notifications.application;
 
+import com.smartbox.investory.integrations.notifications.formatting.TelegramText;
 import com.smartbox.investory.integrations.notifications.persistence.NotificationEventEntity;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,8 @@ public class DailyDigestFormatter implements NotificationMessageFormatter {
 
   @Override
   public String format(NotificationEventEntity event) {
-    return NotificationPayload.read(objectMapper, event).getOrDefault("message", event.getTitle());
+    String message =
+        NotificationPayload.read(objectMapper, event).getOrDefault("message", event.getTitle());
+    return TelegramText.heading("📊", "Daily digest") + "\n\n" + TelegramText.escape(message);
   }
 }

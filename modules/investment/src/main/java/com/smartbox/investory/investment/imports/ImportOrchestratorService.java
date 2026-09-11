@@ -1,12 +1,11 @@
 package com.smartbox.investory.investment.imports;
 
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
 import com.smartbox.investory.investment.port.importing.BrokerImportParser;
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
+import com.smartbox.investory.investment.projection.StatisticsRefreshService;
 import com.smartbox.investory.investment.reconciliation.ReconciliationRefreshService;
 import com.smartbox.investory.investment.valuation.price.AssetPriceFallbackService;
 import com.smartbox.investory.investment.valuation.price.PriceHistoryCoverageService;
@@ -18,7 +17,9 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Service;
@@ -43,8 +44,34 @@ public class ImportOrchestratorService {
   private final ReconciliationRefreshService reconciliationRefreshService;
   private final PriceHistoryCoverageService priceHistoryCoverageService;
   private final InvestmentCalculationCache calculationCache;
-  private final AccountRepository accountRepository;
+  private final StatisticsRefreshService statisticsRefreshService;
 
+  /** Compatibility constructor for focused tests and callers that predate scoped statistics. */
+  public ImportOrchestratorService(
+      List<BrokerImportParser> parsers,
+      ImportBatchAuditWriter auditWriter,
+      ImportSourceEvidenceService sourceEvidenceService,
+      AssetPriceFallbackService assetPriceFallbackService,
+      PortfolioProjectionService portfolioProjectionService,
+      PortfolioProjectionRefreshService projectionRefreshService,
+      ReconciliationRefreshService reconciliationRefreshService,
+      PriceHistoryCoverageService priceHistoryCoverageService,
+      InvestmentCalculationCache calculationCache) {
+    this(
+        parsers,
+        auditWriter,
+        sourceEvidenceService,
+        assetPriceFallbackService,
+        portfolioProjectionService,
+        projectionRefreshService,
+        reconciliationRefreshService,
+        priceHistoryCoverageService,
+        calculationCache,
+        new StatisticsRefreshService(
+            portfolioProjectionService, projectionRefreshService, calculationCache));
+  }
+
+  @Autowired
   public ImportOrchestratorService(
       List<BrokerImportParser> parsers,
       ImportBatchAuditWriter auditWriter,
@@ -55,7 +82,7 @@ public class ImportOrchestratorService {
       ReconciliationRefreshService reconciliationRefreshService,
       PriceHistoryCoverageService priceHistoryCoverageService,
       InvestmentCalculationCache calculationCache,
-      AccountRepository accountRepository) {
+      StatisticsRefreshService statisticsRefreshService) {
     this.parserByBroker = new EnumMap<>(BrokerType.class);
     for (BrokerImportParser parser : parsers) {
       BrokerType brokerType = BrokerType.fromApi(parser.brokerType());
@@ -78,7 +105,7 @@ public class ImportOrchestratorService {
     this.reconciliationRefreshService = reconciliationRefreshService;
     this.priceHistoryCoverageService = priceHistoryCoverageService;
     this.calculationCache = calculationCache;
-    this.accountRepository = accountRepository;
+    this.statisticsRefreshService = statisticsRefreshService;
   }
 
   public ImportBatchResponse importFile(
@@ -156,7 +183,7 @@ public class ImportOrchestratorService {
           ImportExecutionResult result = runParser(parser, batch, sourceFile, fileBytes, fileName);
           reloaded = finalizeAppliedTimed(batch.getId(), result);
           throwIfFailed(reloaded);
-          String refreshFailure = refreshAfterImport ? refreshDerivedData(reloaded) : null;
+          String refreshFailure = refreshAfterImport ? refreshDerivedData(reloaded, result) : null;
           if (refreshFailure != null) {
             reloaded = auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
             throw new ImportFailedException(
@@ -238,7 +265,7 @@ public class ImportOrchestratorService {
         result.rowsFailed());
     throwIfFailed(finalized);
 
-    String refreshFailure = refreshAfterImport ? refreshDerivedData(finalized) : null;
+    String refreshFailure = refreshAfterImport ? refreshDerivedData(finalized, result) : null;
     if (refreshFailure != null) {
       ImportHistoryEntity notReady =
           auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
@@ -300,7 +327,11 @@ public class ImportOrchestratorService {
             result.rowsApplied(),
             result.rowsFailed());
         return new ImportExecutionResult(
-            result.rowsTotal(), result.rowsApplied(), result.rowsFailed(), result.details());
+            result.rowsTotal(),
+            result.rowsApplied(),
+            result.rowsFailed(),
+            result.details(),
+            result.affectedAccountIds());
       }
     } finally {
       // Includes the proxied transaction completion when the parser is a Spring bean.
@@ -330,7 +361,7 @@ public class ImportOrchestratorService {
     return e.getClass().getSimpleName();
   }
 
-  private String refreshDerivedData(ImportHistoryEntity batch) {
+  private String refreshDerivedData(ImportHistoryEntity batch, ImportExecutionResult result) {
     StringBuilder failures = new StringBuilder();
     boolean projectionSucceeded = false;
     long fallbackStarted = System.nanoTime();
@@ -348,7 +379,7 @@ public class ImportOrchestratorService {
 
     long projectionStarted = System.nanoTime();
     try {
-      runProjectionRecalculationWithRetry(batch);
+      runProjectionRecalculationWithRetry(batch, result);
       projectionSucceeded = true;
     } catch (Exception e) {
       log.warn(
@@ -382,11 +413,12 @@ public class ImportOrchestratorService {
    * (account_daily rows are deleted and re-derived), so a retry with a healthy connection recovers
    * cleanly instead of failing the whole import.
    */
-  private void runProjectionRecalculationWithRetry(ImportHistoryEntity batch) {
+  private void runProjectionRecalculationWithRetry(
+      ImportHistoryEntity batch, ImportExecutionResult result) {
     int maxAttempts = 2;
     for (int attempt = 1; ; attempt++) {
       try {
-        runProjectionRecalculation(batch);
+        runProjectionRecalculation(batch, result);
         return;
       } catch (RuntimeException e) {
         if (attempt >= maxAttempts || !isTransientConnectivityFailure(e)) {
@@ -404,13 +436,16 @@ public class ImportOrchestratorService {
     }
   }
 
-  private void runProjectionRecalculation(ImportHistoryEntity batch) {
-    if (batch.getPortfolioId() == null) {
-      portfolioProjectionService.recalculateAll();
-      // account_daily supplies the valuation dates used by the application price and reporting
-      // materialized views, so refresh them after rebuilding the projection.
-      projectionRefreshService.refreshApplicationViews(
-          PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
+  private void runProjectionRecalculation(ImportHistoryEntity batch, ImportExecutionResult result) {
+    Set<Long> affectedAccountIds = result.affectedAccountIds();
+    log.info(
+        "IMPORT STAGE projection-scope portfolioId={} affectedAccounts={}",
+        batch.getPortfolioId(),
+        affectedAccountIds);
+    if (affectedAccountIds.isEmpty()) {
+      log.info(
+          "IMPORT STAGE projection-skipped portfolioId={} reason=no-affected-accounts",
+          batch.getPortfolioId());
       return;
     }
     // Projection reads app_v_normalized_cash_operations. Refresh it after the parser commit and
@@ -418,14 +453,7 @@ public class ImportOrchestratorService {
     // calculations until a later import or manual refresh.
     projectionRefreshService.refreshApplicationViews(
         PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
-    portfolioProjectionService.recalculateAccounts(
-        accountRepository.findAllByPortfolioId(batch.getPortfolioId()).stream()
-            .map(AccountEntity::getId)
-            .collect(java.util.stream.Collectors.toSet()));
-    // account_daily supplies the valuation dates used by the application price and reporting
-    // materialized views, so refresh them again after rebuilding the account projection.
-    projectionRefreshService.refreshApplicationViews(
-        PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
+    statisticsRefreshService.refreshAffectedAccounts(batch.getPortfolioId(), affectedAccountIds);
   }
 
   private static boolean isTransientConnectivityFailure(Throwable throwable) {

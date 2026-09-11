@@ -137,9 +137,12 @@ public class PortfolioMetricsService {
       portfolio.setOpenPositionValuesTotal(
           openPositionValuesTotal(openPositionValues, portfolio.getBaseCurrency()));
       portfolio.setDividendGainers(calculateDividendGainers(portfolio.getBaseCurrency()));
+      // The dashboard always renders the valuation-quality disclosure. Load its cheap summary
+      // independently of the optional enrichment (fallback details and risk exposure), otherwise
+      // the default unknown value is rendered as "Critical" with misleading 0/0 counts.
+      applyDataQuality(portfolio);
       if (properties.isDashboardEnrichmentEnabled()) {
         applyFallbackReconciliationStatus(portfolio);
-        applyDataQuality(portfolio);
         riskExposureCalculator.applyTo(portfolio, portfolioId);
       }
       if (!kpiApplied && !applyPortfolioCurrencyTotals(portfolio)) {

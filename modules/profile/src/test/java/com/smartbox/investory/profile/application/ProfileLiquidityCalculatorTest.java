@@ -2,6 +2,7 @@ package com.smartbox.investory.profile.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.profile.api.model.AssetHorizon;
@@ -63,7 +64,7 @@ class ProfileLiquidityCalculatorTest {
 
     assertThat(result.liquid()).isEqualByComparingTo("950");
     assertThat(result.illiquid()).isEqualByComparingTo("1200");
-    assertThat(result.reserve()).isEqualByComparingTo("450");
+    assertThat(result.reserve()).isEqualByComparingTo("350");
     // investmentCapital means invested brokerage market value, excluding brokerage cash.
     assertThat(result.investmentCapital()).isEqualByComparingTo("500");
   }
@@ -87,6 +88,22 @@ class ProfileLiquidityCalculatorTest {
     assertThat(result.liquid()).isZero();
     assertThat(result.illiquid()).isEqualByComparingTo("1000");
     assertThat(result.reserve()).isZero();
+  }
+
+  @Test
+  void keepsPlnLongTermCashReserveInPln() {
+    var rates = mock(com.smartbox.investory.shared.currency.CurrencyConversion.class);
+    var calculator = new ProfileLiquidityCalculator(new ProfileCurrencyNormalizer(rates));
+    var reserve =
+        new LongTermAssetProfileAssetModel(
+            AssetEconomicCategory.LIQUID_CASH, CurrencyType.PLN, new BigDecimal("320100"), true);
+
+    var result =
+        calculator.calculate(
+            Map.of(), List.of(reserve), BigDecimal.ZERO, BigDecimal.ZERO, CurrencyType.PLN, AS_OF);
+
+    assertThat(result.reserve()).isEqualByComparingTo("320100");
+    verifyNoInteractions(rates);
   }
 
   @Test

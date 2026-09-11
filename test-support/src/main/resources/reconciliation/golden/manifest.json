@@ -3,13 +3,13 @@
   "files": [
     {
       "path": "README.md",
-      "sha256": "c7195ece795bd13316a1f7bef1341cabb8bbd2e00214232051956f4960c39f12",
-      "size_bytes": 2002
+      "sha256": "efd26a5aad2058267e2b4f31ba4f78fd52cd8065472f28edba5a9d72fe20b834",
+      "size_bytes": 2478
     },
     {
       "path": "expected/checkpoints.json",
-      "sha256": "02572da54a1b0b2d71b0759b4f4ac904c01c18af1833cb03b190b497d8d7b83b",
-      "size_bytes": 3467
+      "sha256": "bfa2fe562865461348543efe93d020495a32192f8c28a7586ad72d918b984a92",
+      "size_bytes": 3489
     },
     {
       "path": "expected/provenance.json",
@@ -23,8 +23,8 @@
     },
     {
       "path": "reference/exchange_rates.csv",
-      "sha256": "23fef3d1c26c83e99b8fa01bec5141862693a51e9e9642293576139b95b1eb78",
-      "size_bytes": 2082
+      "sha256": "114a2823cc667f6cecdef5f4c14e68404bda862e4ef29d58a1fcc6ee9ab718ec",
+      "size_bytes": 2560
     },
     {
       "path": "xtb/investory_xtb_golden.zip",

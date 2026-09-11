@@ -78,6 +78,23 @@ class BenchmarkAccountValueService {
     if (CollectionUtils.isEmpty(dailyRows)
         || CollectionUtils.isEmpty(availableAccounts)
         || CollectionUtils.isEmpty(accountsById)) return List.of();
+    LocalDate firstDate =
+        dailyRows.stream()
+            .map(AccountDailyEntity::getDate)
+            .filter(Objects::nonNull)
+            .min(LocalDate::compareTo)
+            .orElse(null);
+    LocalDate lastDate =
+        dailyRows.stream()
+            .map(AccountDailyEntity::getDate)
+            .filter(Objects::nonNull)
+            .max(LocalDate::compareTo)
+            .orElse(null);
+    if (firstDate != null && lastDate != null) {
+      // Daily profit conversion below can touch many distinct dates. Load the matrix once so
+      // benchmark rendering does not issue one resolve_fx_rate query per date.
+      currencyRateService.warmValuationMatrices(firstDate, lastDate);
+    }
     NavigableMap<Integer, List<AccountDailyEntity>> rowsByYear =
         dailyRows.stream()
             .filter(row -> row.getDate() != null)

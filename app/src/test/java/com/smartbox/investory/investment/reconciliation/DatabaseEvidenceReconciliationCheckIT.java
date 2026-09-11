@@ -52,6 +52,8 @@ class DatabaseEvidenceReconciliationCheckIT {
             ReconciliationCheckpoint.C0,
             ReconciliationCheckpoint.C1,
             ReconciliationCheckpoint.C2,
+            ReconciliationCheckpoint.C3,
+            ReconciliationCheckpoint.C4,
             ReconciliationCheckpoint.C5,
             ReconciliationCheckpoint.C6)) {
       assertDoesNotThrow(

@@ -157,7 +157,14 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("Income breakdown"));
     assertTrue(html.contains("Cash interest"));
     assertTrue(html.contains("iv-position-popover__row--total"));
+    assertTrue(html.contains("format.compactMoney(stats.netDeposits)"));
+    assertTrue(html.contains("format.compactMoney(stats.totalProfit)"));
+    assertTrue(html.contains("format.compactMoney(stats.balance)"));
+    assertFalse(html.contains("format.wholeNumber(stats.netDeposits)"));
+    assertFalse(html.contains("format.wholeNumber(stats.totalProfit)"));
+    assertFalse(html.contains("format.wholeNumber(stats.balance)"));
     assertTrue(html.contains("stats.formatBase(stats.incomeTotal)"));
+    assertTrue(html.contains("format.compactMoney(symbol.total)"));
     assertTrue(html.contains("Top dividend payers"));
     assertTrue(html.contains("Dividends"));
     assertTrue(html.contains("\"baseCurrency\": /*[[${stats.baseCurrency}]]*/ \"USD\""));

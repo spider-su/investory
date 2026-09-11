@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 class LongTermAssetsReadOnlyStress {
   private static final String DEFAULT_BASE_URL =
       "https://investory-61359240267.europe-central2.run.app";
-  private static final String PATH = "/portfolios/1/long-term-assets";
+  private static final String PATH = "/portfolios/2/long-term-assets";
   private static final int MAX_USERS = 20;
   private static final Path RESULTS = Path.of("target", "ui-test-results", "stress");
 

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
+import com.smartbox.investory.investment.imports.ImportPortfolioContext;
 import com.smartbox.investory.investment.imports.ibkr.IbkrImportService;
 import com.smartbox.investory.investment.imports.xtb.XtbImportService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -65,14 +67,14 @@ class GoldenRebuildIT {
       Set.of(
           HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
           HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
-          51993106L,
+          2051993106L,
           HappyInvestorTestData.XTB_PLN_ACCOUNT_ID,
-          50290466L);
+          2050290466L);
 
   // The two additional XTB accounts belong to the reduced reconciliation corpus, not the
   // four-account canonical Happy Investor profile.
   private static final String CORE_RECON_ACCOUNTS =
-      "%d,%d,51993106,%d,50290466"
+      "%d,%d,2051993106,%d,2050290466"
           .formatted(
               HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
               HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
@@ -148,6 +150,7 @@ class GoldenRebuildIT {
       try (InputStream input = resource(matcher.group(1))) {
         content = input.readAllBytes();
       }
+      content = canonicalManifestBytes(matcher.group(1), content);
       byte[] digest = MessageDigest.getInstance("SHA-256").digest(content);
       StringBuilder actualHash = new StringBuilder();
       for (byte value : digest) actualHash.append(String.format("%02x", value));
@@ -158,14 +161,28 @@ class GoldenRebuildIT {
     assertEquals(EXPECTED_MANIFEST_PATHS, manifestPaths(manifest));
   }
 
+  private static byte[] canonicalManifestBytes(String relativePath, byte[] content) {
+    if (!(relativePath.endsWith(".csv")
+        || relativePath.endsWith(".json")
+        || relativePath.endsWith(".md"))) {
+      return content;
+    }
+    return new String(content, StandardCharsets.UTF_8)
+        .replace("\r\n", "\n")
+        .getBytes(StandardCharsets.UTF_8);
+  }
+
   @DisplayName("rebuilds Reduced Real Corpus And Passes Golden Contracts")
   @Test
   void rebuildsReducedRealCorpusAndPassesGoldenContracts() throws Exception {
     runCheck("checkpoint-contract", "expected/checkpoints.json", this::loadCheckpointContract);
     runCheck("local-fx-fixture", "reference/exchange_rates.csv", this::loadDeterministicFxFixture);
+    runCheck(
+        "canonical-initial-data", "HappyInvestor portfolio 2", this::assertCanonicalImportScope);
     runCheck("ibkr-import", "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv", this::importIbkrFixture);
     runCheck("xtb-import", "xtb/investory_xtb_golden.zip", this::importXtbFixture);
     runCheck("source-statistics", "imported fixture tables", this::analyzeImportedSources);
+    runCheck("complete-fx-coverage", "all fixture valuation dates", this::completeGoldenFxCoverage);
 
     // Projection reads normalized cash operations. Refresh only that prerequisite before
     // projection; the full reporting refresh belongs after account_daily has been rebuilt.
@@ -176,6 +193,7 @@ class GoldenRebuildIT {
             portfolioProjectionRefreshService.refreshApplicationViews(
                 PortfolioProjectionRefreshService.ApplicationRefreshScope
                     .PROJECTION_PREREQUISITES));
+    runCheck("cash-fx-readiness", "normalized cash operations", this::assertNormalizedCashFxReady);
 
     // Importers may add deterministic execution-rate observations. Rebuild the local cache after
     // all
@@ -198,25 +216,34 @@ class GoldenRebuildIT {
     runCheck("duplicate-lots", "positions", this::assertNoDuplicateLots);
     runCheck(
         "classified-cash", "normalized_cash_operations", this::assertNoUnclassifiedFixtureCash);
-    runCheck("ibkr-treasury-lifecycle", "IBKR account 17959259", this::assertTreasuryLifecycle);
-    runCheck("ibkr-business-date", "IBKR account 17959259", this::assertIbkrBusinessDate);
+    runCheck(
+        "ibkr-treasury-lifecycle",
+        "IBKR account " + HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
+        this::assertTreasuryLifecycle);
+    runCheck(
+        "ibkr-business-date",
+        "IBKR account " + HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
+        this::assertIbkrBusinessDate);
     runCheck(
         "ibkr-c1-source-to-ledger",
-        "IBKR account 17959259: operation/currency/date",
+        "IBKR account " + HappyInvestorTestData.IBKR_USD_ACCOUNT_ID + ": operation/currency/date",
         this::assertIbkrSourceToLedger);
     runCheck(
         "xtb-vhyd-rebooking",
-        "XTB account 51993106",
+        "XTB account 2051993106",
         this::assertSubaccountRebookingIsPerformanceNeutral);
     runCheck(
         "xtb-interaccount-transfer",
-        "XTB accounts 51993106/51499241",
+        "XTB accounts 2051993106/" + HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
         this::assertTrackedAccountTransferIsPerformanceFlowButPortfolioNeutral);
     runCheck(
         "xtb-cash-only-funding",
-        "XTB accounts 50290466/51551301",
+        "XTB accounts 2050290466/" + HappyInvestorTestData.XTB_PLN_ACCOUNT_ID,
         this::assertCashOnlyFundingAndIkeAllocation);
-    runCheck("xtb-result-only-cfd", "XTB account 51499241", this::assertResultOnlyCfd);
+    runCheck(
+        "xtb-result-only-cfd",
+        "XTB account " + HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
+        this::assertResultOnlyCfd);
     runCheck(
         "derived-data-ready",
         "reporting materialized views",
@@ -279,7 +306,9 @@ class GoldenRebuildIT {
   }
 
   private void importIbkrFixture() throws Exception {
-    try (InputStream input = resource("ibkr/U17959259.TRANSACTIONS.GOLDEN.csv")) {
+    try (ImportPortfolioContext.Scope ignored =
+            ImportPortfolioContext.open(HappyInvestorTestData.PORTFOLIO_ID);
+        InputStream input = resource("ibkr/U17959259.TRANSACTIONS.GOLDEN.csv")) {
       ImportExecutionResult result =
           ibkrImportService.importStatement(input, "U17959259.TRANSACTIONS.GOLDEN.csv");
       assertEquals(19, result.rowsTotal(), result.details());
@@ -288,8 +317,40 @@ class GoldenRebuildIT {
     }
   }
 
+  private void assertCanonicalImportScope() {
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "select count(*) from investory.app_users where id = 2 and username = 'happy.investor'",
+            Integer.class));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            """
+            select count(*) from investory.portfolios
+            where id = 2 and user_id = 2 and base_currency = 'PLN' and local_currency = 'PLN'
+            """,
+            Integer.class));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            """
+            select count(*) from investory.accounts
+            where id = 2017959259 and portfolio_id = 2 and provider = 'IBKR'
+              and external_account_id = '17959259'
+            """,
+            Integer.class));
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "select count(*) from investory.accounts where portfolio_id = 2 and provider = 'IBKR' and external_account_id = '17959259'",
+            Integer.class));
+  }
+
   private void importXtbFixture() throws Exception {
-    try (InputStream input = resource("xtb/investory_xtb_golden.zip")) {
+    try (ImportPortfolioContext.Scope ignored =
+            ImportPortfolioContext.open(HappyInvestorTestData.PORTFOLIO_ID);
+        InputStream input = resource("xtb/investory_xtb_golden.zip")) {
       ImportExecutionResult result = xtbImportService.importZip(input, "investory_xtb_golden.zip");
       assertEquals(0, result.rowsFailed(), result.details());
       assertTrue(result.rowsApplied() > 0, result.details());
@@ -303,8 +364,6 @@ class GoldenRebuildIT {
   }
 
   private void loadDeterministicFxFixture() throws IOException {
-    jdbc.update("delete from investory.exchange_rates where source = 'TEST'");
-
     try (BufferedReader reader =
         new BufferedReader(
             new InputStreamReader(
@@ -324,59 +383,97 @@ class GoldenRebuildIT {
         String base = column[1];
         String target = column[2];
         BigDecimal rate = new BigDecimal(column[3]);
-        String reference = "GOLDEN:" + date + ":" + base + ":" + target;
-
-        jdbc.update(
-            """
-                insert into investory.exchange_rates(
-                    rate_date, base, to_currency, rate,
-                    source, method, source_reference
-                )
-                select day::date, ?, ?, ?, 'TEST', 'MARKET_DAILY', ? || ':' || day::date
-                from generate_series(
-                    ?,
-                    (date_trunc('month', ?::date + interval '1 month') - interval '1 day')::date,
-                    interval '1 day'
-                ) day
-                on conflict do nothing
+        BigDecimal actual =
+            jdbc.queryForObject(
+                """
+                select rate from investory.exchange_rates
+                where rate_date = ? and base = ? and to_currency = ?
                 """,
-            base,
-            target,
-            rate,
-            reference,
-            date,
-            date);
+                BigDecimal.class,
+                date,
+                base,
+                target);
+        assertNotNull(actual, "missing initial FX " + date + " " + base + "->" + target);
+        assertEquals(
+            0,
+            rate.setScale(8, RoundingMode.HALF_UP).compareTo(actual),
+            "initial FX " + date + " " + base + "->" + target);
       }
     }
-    extendDeterministicFxThroughCurrentDate();
     currencyRateService.clearValuationResolutionCache();
   }
 
-  private void extendDeterministicFxThroughCurrentDate() {
+  private void completeGoldenFxCoverage() {
     jdbc.update(
         """
-        with latest as (
-            select distinct on (base, to_currency)
-                   rate_date, base, to_currency, rate
-            from investory.exchange_rates
-            where source = 'TEST'
-            order by base, to_currency, rate_date desc, id desc
-        )
-        insert into investory.exchange_rates(
-            rate_date, base, to_currency, rate,
-            source, method, source_reference
-        )
-        select day::date, latest.base, latest.to_currency, latest.rate,
-               'TEST', 'MARKET_DAILY',
-               'GOLDEN:current-coverage:' || latest.base || ':' || latest.to_currency || ':' || day::date
-        from latest
-        cross join lateral generate_series(
-            latest.rate_date + 1,
-            current_date,
-            interval '1 day'
-        ) day
-        on conflict do nothing
+        INSERT INTO investory.exchange_rates(
+            rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
+        SELECT DATE '2026-04-15', base, to_currency, rate, 'TEST', 'OBSERVED', DATE '2026-04-15',
+               'GOLDEN:2026-04-15:' || base || ':' || to_currency
+        FROM investory.exchange_rates
+        WHERE rate_date = DATE '2026-04-01' AND source = 'DB60_INITIAL'
+          AND base IN ('USD', 'EUR', 'PLN') AND to_currency IN ('USD', 'EUR', 'PLN')
+          AND base <> to_currency
+        ON CONFLICT (rate_date, base, to_currency) WHERE purpose = 'VALUATION' DO UPDATE SET
+            rate = EXCLUDED.rate, source = EXCLUDED.source, method = EXCLUDED.method,
+            source_rate_date = EXCLUDED.source_rate_date, source_reference = EXCLUDED.source_reference
         """);
+    currencyRateService.clearValuationResolutionCache();
+
+    LocalDate knownRequiredDate = LocalDate.of(2026, 4, 15);
+    Integer dailyRows =
+        jdbc.queryForObject(
+            """
+            select count(*) from investory.exchange_rates
+            where rate_date = ? and base = 'USD' and to_currency = 'PLN'
+            """,
+            Integer.class,
+            knownRequiredDate);
+    assertEquals(1, dailyRows);
+    String conversionStatus =
+        jdbc.queryForObject(
+            """
+            select conversion_status
+            from investory.resolve_fx_rate(?, 'USD', 'PLN')
+            """,
+            String.class,
+            knownRequiredDate);
+    assertTrue(
+        "OK".equals(conversionStatus) || "CARRY_FORWARD".equals(conversionStatus),
+        "initial USD->PLN resolver status: " + conversionStatus);
+    String portfolioConversionStatus =
+        jdbc.queryForObject(
+            """
+            select conversion_status
+            from investory.resolve_portfolio_fx_rate(2, ?, 'USD')
+            """,
+            String.class,
+            knownRequiredDate);
+    assertTrue(
+        "OK".equals(portfolioConversionStatus) || "CARRY_FORWARD".equals(portfolioConversionStatus),
+        "initial portfolio USD->PLN resolver status: " + portfolioConversionStatus);
+  }
+
+  private void assertNormalizedCashFxReady() {
+    List<Map<String, Object>> missing =
+        jdbc.queryForList(
+            """
+            select nco.operation_id, nco.date, nco.currency, nco.base_currency,
+                   nco.portfolio_fx_source, nco.portfolio_source_rate_date,
+                   nco.portfolio_conversion_status, nco.account_conversion_status,
+                   direct.source as direct_portfolio_fx_source,
+                   direct.source_rate_date as direct_portfolio_source_rate_date,
+                   direct.conversion_status as direct_portfolio_conversion_status
+            from investory.app_v_normalized_cash_operations nco
+            cross join lateral investory.resolve_portfolio_fx_rate(
+                nco.portfolio_id,
+                (nco.date at time zone 'Europe/Warsaw')::date,
+                nco.currency) direct
+            where not investory.fx_status_usable(portfolio_conversion_status)
+               or not investory.fx_status_usable(account_conversion_status)
+            order by date, operation_id
+            """);
+    assertTrue(missing.isEmpty(), "normalized cash operations missing FX: " + missing);
   }
 
   private void assertTreasuryLifecycle() {
@@ -410,7 +507,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(volume), 0)::double precision
                     from investory.positions
-                    where account_id = 17959259
+                    where account_id = 2017959259
                       and asset_id = ?
                       and close_time is null
                     """,
@@ -427,7 +524,7 @@ class GoldenRebuildIT {
                         reconstructed_market_value_base::double precision as market_value,
                         fx_rate_to_base::double precision as fx_rate_to_base
                     from investory.app_v_reconstructed_position_daily
-                    where account_id = 17959259
+                    where account_id = 2017959259
                       and asset_id = ?
                       and valuation_date = date '2026-02-26'
                     """,
@@ -450,7 +547,7 @@ class GoldenRebuildIT {
                         amount::double precision as amount,
                         date::date as business_date
                     from investory.app_v_normalized_cash_operation_flows
-                    where account_id = 17959259
+                    where account_id = 2017959259
                       and normalized_category = 'BOND_REDEMPTION'
                     """);
     assertEquals("BOND_REDEMPTION", redemption.get("normalized_category"));
@@ -467,7 +564,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(amount), 0)::double precision
                     from investory.cash_operations
-                    where account_id = 17959259
+                    where account_id = 2017959259
                       and operation = 'FREE_FUNDS_INTEREST'
                       and comment ilike '%Bond Coupon Payment%'
                       and amount > 0
@@ -482,7 +579,7 @@ class GoldenRebuildIT {
             """
                     select date::date
                     from investory.cash_operations
-                    where account_id = 17959259
+                    where account_id = 2017959259
                       and amount = 8793
                     """,
             LocalDate.class);
@@ -493,7 +590,7 @@ class GoldenRebuildIT {
             """
                     select count(*)
                     from investory.cash_operations
-                    where account_id = 17959259
+                    where account_id = 2017959259
                       and amount = 8793
                       and date::date = date '2026-05-06'
                     """,
@@ -554,7 +651,7 @@ class GoldenRebuildIT {
                     select co.operation::text as operation, co.currency, cast(co.date as date) as operation_date,
                            count(*) as row_count, coalesce(sum(co.amount), 0) as amount
             from investory.cash_operations co
-            where co.account_id = 17959259
+            where co.account_id = 2017959259
                     group by co.operation, co.currency, co.date::date
                     """,
         rs -> {
@@ -646,7 +743,7 @@ class GoldenRebuildIT {
                         sum(performance_flow_amount)::double precision as performance_flow,
                         sum(portfolio_flow_amount)::double precision as portfolio_flow
                     from investory.app_v_normalized_cash_operation_flows
-                    where account_id = 51993106
+                    where account_id = 2051993106
                       and raw_operation = 'SUBACCOUNT_TRANSFER'
                       and abs(amount) = 6044.12
                     """);
@@ -670,8 +767,8 @@ class GoldenRebuildIT {
                     """);
     assertEquals(2, rows.size(), rows.toString());
 
-    Map<String, Object> target = rowForAccount(rows, 51499241L);
-    Map<String, Object> source = rowForAccount(rows, 51993106L);
+    Map<String, Object> target = rowForAccount(rows, HappyInvestorTestData.XTB_USD_ACCOUNT_ID);
+    Map<String, Object> source = rowForAccount(rows, 2051993106L);
     assertClose(325.0, number(target.get("performance_flow")), 0.000001, "target performance flow");
     assertClose(
         -325.0, number(source.get("performance_flow")), 0.000001, "source performance flow");
@@ -682,7 +779,7 @@ class GoldenRebuildIT {
   private void assertCashOnlyFundingAndIkeAllocation() {
     Boolean cashOnly =
         jdbc.queryForObject(
-            "select cash_only from investory.accounts where id = 50290466", Boolean.class);
+            "select cash_only from investory.accounts where id = 2050290466", Boolean.class);
     assertEquals(Boolean.TRUE, cashOnly);
 
     Double externalFunding =
@@ -690,7 +787,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(portfolio_flow_amount), 0)::double precision
                     from investory.app_v_normalized_cash_operation_flows
-                    where account_id = 50290466
+                    where account_id = 2050290466
                       and normalized_category = 'EXTERNAL_DEPOSIT'
                       and amount = 14200
                     """,
@@ -702,7 +799,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(portfolio_flow_amount), 0)::double precision
                     from investory.app_v_normalized_cash_operation_flows
-                    where account_id in (50290466, 51551301)
+                    where account_id in (2050290466, 2051551301)
                       and normalized_category in ('INTERNAL_TRANSFER_IN', 'INTERNAL_TRANSFER_OUT')
                       and abs(amount) = 14200
                     """,
@@ -719,7 +816,7 @@ class GoldenRebuildIT {
                         profit::double precision as profit,
                         swap::double precision as swap
                     from investory.positions
-                    where account_id = 51499241
+                    where account_id = 2051499241
                       and source_position_id = '2040572606'
                       and close_time is not null
                     """);
@@ -738,7 +835,7 @@ class GoldenRebuildIT {
                         coalesce(sum(amount) filter (where operation = 'SWAP'), 0)::double precision
                             as cash_swap
                     from investory.cash_operations
-                    where account_id = 51499241
+                    where account_id = 2051499241
                       and comment like '%2040572606%'
                     """);
     assertClose(
@@ -751,7 +848,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(profit), 0)::double precision
                     from investory.positions
-                    where account_id = 51499241
+                    where account_id = 2051499241
                       and source_position_id = '2040572606'
                       and close_time::date = date '2025-09-26'
                     """,
@@ -875,7 +972,7 @@ class GoldenRebuildIT {
         """
             select account_id, operation_id, raw_operation, amount, comment, date
             from investory.app_v_normalized_cash_operations
-            where account_id in (17959259,51499241,51993106,51551301,50290466)
+            where account_id in (2017959259,2051499241,2051993106,2051551301,2050290466)
               and normalized_category = 'UNCLASSIFIED'
             order by account_id, date, operation_id
             limit 20

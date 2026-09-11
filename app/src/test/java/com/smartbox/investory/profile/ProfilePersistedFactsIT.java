@@ -62,6 +62,28 @@ class ProfilePersistedFactsIT {
           connection, new ClassPathResource("db/snapshot/happyinvestor-common.sql"));
       ScriptUtils.executeSqlScript(
           connection, new ClassPathResource("db/snapshot/happyinvestor-broker.sql"));
+      try (var statement =
+          connection.prepareStatement(
+              "DELETE FROM investory.positions WHERE open_time::date > ?")) {
+        statement.setObject(1, HappyInvestorTestData.REFERENCE_DATE);
+        statement.executeUpdate();
+      }
+      try (var statement =
+          connection.prepareStatement(
+              "UPDATE investory.positions SET close_time = NULL WHERE close_time::date > ?")) {
+        statement.setObject(1, HappyInvestorTestData.REFERENCE_DATE);
+        statement.executeUpdate();
+      }
+      try (var statement =
+          connection.prepareStatement(
+              "DELETE FROM investory.cash_operations WHERE date::date > ?")) {
+        statement.setObject(1, HappyInvestorTestData.REFERENCE_DATE);
+        statement.executeUpdate();
+      }
+      try (var statement = connection.createStatement()) {
+        statement.execute("REFRESH MATERIALIZED VIEW investory.app_v_normalized_cash_operations");
+      }
+      seedCurrentValuationFx(connection);
     }
     projections.recalculateAccounts(
         Set.of(
@@ -71,6 +93,41 @@ class ProfilePersistedFactsIT {
             HappyInvestorTestData.XTB_EUR_ACCOUNT_ID));
     projectionRefresh.refreshApplicationViews(
         PortfolioProjectionRefreshService.ApplicationRefreshScope.DASHBOARD);
+  }
+
+  private static void seedCurrentValuationFx(Connection connection) throws Exception {
+    try (var statement =
+        connection.prepareStatement(
+            """
+            INSERT INTO investory.exchange_rates(
+                rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
+            WITH anchors AS (
+              SELECT
+                (SELECT rate FROM investory.exchange_rates WHERE rate_date = ? AND base = 'USD' AND to_currency = 'PLN' ORDER BY id DESC LIMIT 1) AS usd_pln,
+                (SELECT rate FROM investory.exchange_rates WHERE rate_date = ? AND base = 'EUR' AND to_currency = 'USD' ORDER BY id DESC LIMIT 1) AS eur_usd
+            ), matrix(source_currency, target_currency, rate) AS (
+              SELECT 'USD', 'PLN', usd_pln FROM anchors
+              UNION ALL SELECT 'PLN', 'USD', 1 / usd_pln FROM anchors
+              UNION ALL SELECT 'EUR', 'USD', eur_usd FROM anchors
+              UNION ALL SELECT 'USD', 'EUR', 1 / eur_usd FROM anchors
+              UNION ALL SELECT 'EUR', 'PLN', eur_usd * usd_pln FROM anchors
+              UNION ALL SELECT 'PLN', 'EUR', 1 / (eur_usd * usd_pln) FROM anchors
+            )
+            SELECT CURRENT_DATE, source_currency, target_currency, rate,
+                   'TEST', 'OBSERVED', ?, 'HAPPYINVESTOR_REFERENCE'
+            FROM matrix
+            ON CONFLICT (rate_date, base, to_currency) WHERE purpose = 'VALUATION' DO UPDATE
+              SET rate = EXCLUDED.rate,
+                  source = EXCLUDED.source,
+                  method = EXCLUDED.method,
+                  source_rate_date = EXCLUDED.source_rate_date,
+                  source_reference = EXCLUDED.source_reference
+            """)) {
+      statement.setObject(1, HappyInvestorTestData.REFERENCE_DATE);
+      statement.setObject(2, HappyInvestorTestData.REFERENCE_DATE);
+      statement.setObject(3, HappyInvestorTestData.REFERENCE_DATE);
+      statement.executeUpdate();
+    }
   }
 
   @AfterAll
@@ -263,10 +320,18 @@ class ProfilePersistedFactsIT {
   }
 
   private void archiveCanonicalLongTermAssets() {
-    jdbc.update("update real_estate set archived_at = DATE '2025-12-31' where portfolio_id = 1");
-    jdbc.update("update bond set archived_at = DATE '2025-12-31' where portfolio_id = 1");
-    jdbc.update("update cash_reserve set archived_at = DATE '2025-12-31' where portfolio_id = 1");
-    jdbc.update("update personal_asset set archived_at = DATE '2025-12-31' where portfolio_id = 1");
+    jdbc.update(
+        "update real_estate set archived_at = DATE '2025-12-31' where portfolio_id = ?",
+        HappyInvestorTestData.PORTFOLIO_ID);
+    jdbc.update(
+        "update bond set archived_at = DATE '2025-12-31' where portfolio_id = ?",
+        HappyInvestorTestData.PORTFOLIO_ID);
+    jdbc.update(
+        "update cash_reserve set archived_at = DATE '2025-12-31' where portfolio_id = ?",
+        HappyInvestorTestData.PORTFOLIO_ID);
+    jdbc.update(
+        "update personal_asset set archived_at = DATE '2025-12-31' where portfolio_id = ?",
+        HappyInvestorTestData.PORTFOLIO_ID);
   }
 
   private Map<String, String> sourceState() {

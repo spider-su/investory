@@ -400,6 +400,11 @@ public class PlanningCurrencyPresentationService {
       PlanningTimeline timeline, CurrencyType currency, SimulationAssumptions assumptions) {
     Map<Integer, PlanningTimelineMoney> result = new LinkedHashMap<>();
     for (PlanningTimelineYear row : timeline.years()) {
+      CurrencyType sourceCurrency =
+          row.state() == PlanningTimelineState.LIVE
+                  || row.state() == PlanningTimelineState.PROJECTED
+              ? timeline.currency()
+              : com.smartbox.investory.shared.policy.FinancialPolicyDefaults.CANONICAL_CURRENCY;
       BigDecimal annualCosts = null,
           totalIncome = null,
           rentalIncome = null,
@@ -580,40 +585,40 @@ public class PlanningCurrencyPresentationService {
       result.put(
           row.year(),
           new PlanningTimelineMoney(
-              toDisplay(annualCosts, currency),
-              toDisplay(totalIncome, currency),
-              toDisplay(rentalIncome, currency),
-              toDisplay(bondIncome, currency),
-              toDisplay(fundingGap, currency),
-              toDisplay(reserveWithdrawal, currency),
-              toDisplay(longTermFunding, currency),
-              toDisplay(investmentWithdrawal, currency),
-              toDisplay(unfunded, currency),
-              toDisplay(reserveEnd, currency),
-              toDisplay(longTermCapitalEnd, currency),
-              toDisplay(investmentEnd, currency),
-              toDisplay(cashStart, currency),
-              toDisplay(cashEnd, currency),
-              toDisplay(bondsStart, currency),
-              toDisplay(bondsEnd, currency),
-              toDisplay(equitiesStart, currency),
-              toDisplay(equitiesEnd, currency),
-              toDisplay(realEstateStart, currency),
-              toDisplay(realEstateEnd, currency),
-              toDisplay(cashWithdrawal, currency),
-              toDisplay(bondWithdrawal, currency),
-              toDisplay(equityWithdrawal, currency),
-              toDisplay(realEstateWithdrawal, currency),
-              toDisplay(bondReturn, currency),
-              toDisplay(equityReturn, currency),
-              toDisplay(equityRefill, currency),
-              toDisplay(employmentIncome, currency),
-              toDisplay(pensionIncome, currency),
-              toDisplay(eventIncome, currency),
-              toDisplay(funded, currency),
-              toDisplay(fundingSurplus, currency),
-              toDisplay(incomeUsed, currency),
-              toDisplay(capitalFunding, currency)));
+              toDisplay(annualCosts, sourceCurrency, currency),
+              toDisplay(totalIncome, sourceCurrency, currency),
+              toDisplay(rentalIncome, sourceCurrency, currency),
+              toDisplay(bondIncome, sourceCurrency, currency),
+              toDisplay(fundingGap, sourceCurrency, currency),
+              toDisplay(reserveWithdrawal, sourceCurrency, currency),
+              toDisplay(longTermFunding, sourceCurrency, currency),
+              toDisplay(investmentWithdrawal, sourceCurrency, currency),
+              toDisplay(unfunded, sourceCurrency, currency),
+              toDisplay(reserveEnd, sourceCurrency, currency),
+              toDisplay(longTermCapitalEnd, sourceCurrency, currency),
+              toDisplay(investmentEnd, sourceCurrency, currency),
+              toDisplay(cashStart, sourceCurrency, currency),
+              toDisplay(cashEnd, sourceCurrency, currency),
+              toDisplay(bondsStart, sourceCurrency, currency),
+              toDisplay(bondsEnd, sourceCurrency, currency),
+              toDisplay(equitiesStart, sourceCurrency, currency),
+              toDisplay(equitiesEnd, sourceCurrency, currency),
+              toDisplay(realEstateStart, sourceCurrency, currency),
+              toDisplay(realEstateEnd, sourceCurrency, currency),
+              toDisplay(cashWithdrawal, sourceCurrency, currency),
+              toDisplay(bondWithdrawal, sourceCurrency, currency),
+              toDisplay(equityWithdrawal, sourceCurrency, currency),
+              toDisplay(realEstateWithdrawal, sourceCurrency, currency),
+              toDisplay(bondReturn, sourceCurrency, currency),
+              toDisplay(equityReturn, sourceCurrency, currency),
+              toDisplay(equityRefill, sourceCurrency, currency),
+              toDisplay(employmentIncome, sourceCurrency, currency),
+              toDisplay(pensionIncome, sourceCurrency, currency),
+              toDisplay(eventIncome, sourceCurrency, currency),
+              toDisplay(funded, sourceCurrency, currency),
+              toDisplay(fundingSurplus, sourceCurrency, currency),
+              toDisplay(incomeUsed, sourceCurrency, currency),
+              toDisplay(capitalFunding, sourceCurrency, currency)));
     }
     return result;
   }

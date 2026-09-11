@@ -21,6 +21,7 @@ public class YahooExportPlugin implements ExportPlugin, TestableIntegrationPlugi
   public static final String ID = "yahoo-finance";
   private static final String DEFAULT_BASE_URL =
       "https://query1.finance.yahoo.com/v8/finance/chart/";
+  private static final String DEFAULT_SCHEDULED_PATH = "/tmp/yahoo-portfolio.csv";
   private final YahooExportService service;
   private final YahooFinanceService marketDataService;
 
@@ -62,8 +63,19 @@ public class YahooExportPlugin implements ExportPlugin, TestableIntegrationPlugi
                 "Chart endpoint used for connection testing",
                 null,
                 null,
+                null),
+            new PluginFieldDescriptor(
+                "scheduledPath",
+                PluginFieldType.STRING,
+                false,
+                DEFAULT_SCHEDULED_PATH,
+                List.of(),
+                "Scheduled export path",
+                "CSV file written by automatic refresh",
+                null,
+                null,
                 null)),
-        List.of());
+        List.of("export-portfolio"));
   }
 
   @Override
@@ -78,6 +90,10 @@ public class YahooExportPlugin implements ExportPlugin, TestableIntegrationPlugi
     Long portfolioId =
         config.value("portfolioId").flatMap(YahooExportPlugin::positiveLong).orElseThrow();
     service.exportToYahooCsv(portfolioId, target);
+  }
+
+  public void exportScheduled(PluginConfig config) throws IOException {
+    export(config.value("scheduledPath").orElse(DEFAULT_SCHEDULED_PATH), config);
   }
 
   @Override

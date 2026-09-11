@@ -186,7 +186,7 @@ WITH portfolio_dates AS (
     SELECT DISTINCT a.portfolio_id, ad.snapshot_date AS valuation_date
     FROM investory.account_daily ad JOIN investory.accounts a ON a.id = ad.account_id
     UNION
-    SELECT DISTINCT a.portfolio_id, co.date::date
+    SELECT DISTINCT a.portfolio_id, (co.date AT TIME ZONE 'Europe/Warsaw')::date
     FROM investory.cash_operations co JOIN investory.accounts a ON a.id = co.account_id
     UNION
     SELECT id, CURRENT_DATE FROM investory.portfolios
@@ -584,7 +584,8 @@ WITH classified AS (
     SELECT DISTINCT
         portfolio_id,
         (date AT TIME ZONE 'Europe/Warsaw')::date AS vdate,
-        currency
+        currency,
+        base_currency
     FROM classified
 ), port_resolved AS (
     SELECT
@@ -597,15 +598,13 @@ WITH classified AS (
         r.age_days,
         r.conversion_status
     FROM port_needed n
-    CROSS JOIN LATERAL investory.resolve_portfolio_fx_rate(
-        n.portfolio_id,
+    CROSS JOIN LATERAL investory.resolve_fx_rate(
         n.vdate,
-        n.currency
+        n.currency,
+        n.base_currency
     ) AS r(
-        portfolio_id,
-        valuation_date,
         source_currency,
-        base_currency,
+        target_currency,
         fx_rate_to_base,
         source,
         rate_method,
@@ -943,6 +942,9 @@ SELECT
         AS portfolio_flow_amount_in_portfolio_base_currency
 FROM effects;
 
+COMMENT ON VIEW investory.app_v_normalized_cash_operation_flows IS
+    'Canonical cash-flow currency contract: amount is in the operation currency; account_flow_amount_in_account_currency is the local account-funding amount; account_flow_amount_in_portfolio_base_currency is the same funding flow converted once to portfolio base on the operation date; portfolio_flow_amount_in_portfolio_base_currency contains external contributions only.';
+
 CREATE OR REPLACE VIEW investory.app_v_portfolio_daily AS
 WITH account_rows_with_fx AS (
     SELECT
@@ -1273,6 +1275,7 @@ closed_position_totals AS (
                  SELECT 1
                  FROM investory.accounts counterparty
                  WHERE counterparty.id = substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint
+                   AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)
              ) THEN nco.amount_in_portfolio_base_currency
             WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING'
              AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+'
@@ -1282,6 +1285,7 @@ closed_position_totals AS (
                  SELECT 1
                  FROM investory.accounts counterparty
                  WHERE counterparty.id = substring(nco.comment from '(?i)to ([0-9]+)')::bigint
+                   AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)
              ) THEN nco.amount_in_portfolio_base_currency
             ELSE 0::numeric
         END AS scoped_portfolio_flow_amount_in_portfolio_base_currency
@@ -2328,6 +2332,7 @@ WITH contribution_rows AS (
                  FROM investory.accounts counterparty
                  WHERE counterparty.id = substring(
                      nco.comment from '(?i)transfer from ([0-9]+)')::bigint
+                   AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)
              ) THEN 'BOUNDARY_TRANSFER'
             WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING'
              AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+'
@@ -2338,6 +2343,7 @@ WITH contribution_rows AS (
                  FROM investory.accounts counterparty
                  WHERE counterparty.id = substring(
                      nco.comment from '(?i)to ([0-9]+)')::bigint
+                   AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)
              ) THEN 'BOUNDARY_TRANSFER'
             ELSE NULL
         END AS contribution_kind,
@@ -2931,116 +2937,6 @@ WITH DATA;
 
 CREATE UNIQUE INDEX ux_mv_portfolio_currency_breakdown_key
     ON investory.app_v_portfolio_currency_breakdown(portfolio_id, metric_type, currency);
-
-
--- Consolidated from post-baseline normalized-cash FX reuse work.
-SET search_path TO investory, public;
-
--- Normalized cash is a shared source for application and reconciliation read models.
--- Capture the complete dependent closure so the source MV can be rebuilt without CASCADE.
-CREATE TEMP TABLE _nco_defs AS
-WITH RECURSIVE deps(oid) AS (
-    VALUES ('investory.app_v_normalized_cash_operations'::regclass)
-    UNION
-    SELECT w.ev_class
-    FROM deps d
-    JOIN pg_depend x ON x.refobjid = d.oid
-    JOIN pg_rewrite w ON w.oid = x.objid
-)
-SELECT c.oid, c.relname AS object_name, c.relkind,
-       pg_get_viewdef(c.oid, true) AS object_definition,
-       obj_description(c.oid, 'pg_class') AS object_comment,
-       false AS dropped
-FROM deps d
-JOIN pg_class c ON c.oid = d.oid
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = 'investory'
-  AND c.relkind IN ('v', 'm')
-  AND c.oid <> 'investory.app_v_normalized_cash_operations'::regclass;
-
-CREATE TEMP TABLE _nco_indexes AS
-SELECT DISTINCT i.tablename, i.indexname, i.indexdef
-FROM pg_indexes i JOIN _nco_defs d ON d.object_name = i.tablename
-WHERE i.schemaname = 'investory' AND d.relkind = 'm';
-
-CREATE TEMP TABLE _nco_source AS
-SELECT pg_get_viewdef('investory.app_v_normalized_cash_operations'::regclass, true) AS definition,
-       obj_description('investory.app_v_normalized_cash_operations'::regclass, 'pg_class') AS view_comment;
-
--- Remove only captured dependents, one object at a time. A failed drop means another
--- captured object still depends on it; the next pass removes that blocker first.
-DO $$
-DECLARE v record; progress boolean;
-BEGIN
-    LOOP
-        progress := false;
-        FOR v IN SELECT * FROM _nco_defs WHERE NOT dropped ORDER BY relkind, object_name LOOP
-            BEGIN
-                IF v.relkind = 'm' THEN
-                    EXECUTE 'DROP MATERIALIZED VIEW investory.' || quote_ident(v.object_name);
-                ELSE
-                    EXECUTE 'DROP VIEW investory.' || quote_ident(v.object_name);
-                END IF;
-                UPDATE _nco_defs SET dropped = true WHERE oid = v.oid;
-                progress := true;
-            EXCEPTION WHEN dependent_objects_still_exist THEN
-                NULL;
-            END;
-        END LOOP;
-        EXIT WHEN NOT EXISTS (SELECT 1 FROM _nco_defs WHERE NOT dropped);
-        IF NOT progress THEN RAISE EXCEPTION 'Could not remove normalized-cash dependent objects'; END IF;
-    END LOOP;
-END
-$$;
-
-DROP MATERIALIZED VIEW investory.app_v_normalized_cash_operations;
-
-DO $$
-DECLARE d text; r text; p integer; q integer; c text;
-BEGIN
-    SELECT definition, view_comment INTO d, c FROM _nco_source;
-    d := regexp_replace(d, ';[[:space:]]*$', '');
-    p := strpos(d, 'port_resolved AS (');
-    q := p + strpos(substr(d, p), '), acct_needed AS (') - 1;
-    r := 'port_resolved AS ( SELECT n.portfolio_id AS k_portfolio_id, n.vdate AS k_vdate, n.currency AS k_currency, fx.fx_rate_to_base, fx.source, fx.source_rate_date, fx.age_days, fx.conversion_status FROM port_needed n CROSS JOIN LATERAL investory.resolve_portfolio_fx_rate(n.portfolio_id, n.vdate, n.currency) fx(portfolio_id, valuation_date, source_currency, base_currency, fx_rate_to_base, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) )';
-    d := left(d, p - 1) || r || substr(d, q + 1);
-    EXECUTE 'CREATE MATERIALIZED VIEW investory.app_v_normalized_cash_operations AS ' || d || ' WITH DATA';
-    CREATE UNIQUE INDEX ux_normalized_cash_operations ON investory.app_v_normalized_cash_operations(operation_id);
-    IF c IS NOT NULL THEN EXECUTE 'COMMENT ON MATERIALIZED VIEW investory.app_v_normalized_cash_operations IS ' || quote_literal(c); END IF;
-END
-$$;
-
-DO $$
-DECLARE v record;
-BEGIN
-    LOOP
-        FOR v IN SELECT * FROM _nco_defs WHERE dropped ORDER BY relkind, object_name LOOP
-            BEGIN
-                IF v.relkind = 'm' THEN
-                    EXECUTE 'CREATE MATERIALIZED VIEW investory.' || quote_ident(v.object_name) || ' AS ' || regexp_replace(v.object_definition, ';[[:space:]]*$', '') || ' WITH DATA';
-                    UPDATE _nco_defs SET dropped = false WHERE oid = v.oid;
-                ELSE
-                    EXECUTE 'CREATE VIEW investory.' || quote_ident(v.object_name) || ' AS ' || regexp_replace(v.object_definition, ';[[:space:]]*$', '');
-                    UPDATE _nco_defs SET dropped = false WHERE oid = v.oid;
-                END IF;
-                IF v.object_comment IS NOT NULL THEN
-                    EXECUTE CASE WHEN v.relkind = 'm' THEN 'COMMENT ON MATERIALIZED VIEW investory.' ELSE 'COMMENT ON VIEW investory.' END || quote_ident(v.object_name) || ' IS ' || quote_literal(v.object_comment);
-                END IF;
-            EXCEPTION WHEN undefined_table OR undefined_object OR dependent_objects_still_exist THEN
-                NULL;
-            END;
-        END LOOP;
-        EXIT WHEN NOT EXISTS (SELECT 1 FROM _nco_defs WHERE dropped);
-    END LOOP;
-END
-$$;
-
-DO $$
-DECLARE v record;
-BEGIN
-    FOR v IN SELECT * FROM _nco_indexes LOOP EXECUTE v.indexdef; END LOOP;
-END
-$$;
 
 
 -- Consolidated from post-baseline two-stage normalized-price lookup work.

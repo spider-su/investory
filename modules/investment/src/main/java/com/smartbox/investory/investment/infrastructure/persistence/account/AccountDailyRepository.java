@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.infrastructure.persistence.account;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -21,6 +22,9 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
 
   List<AccountDailyEntity> findByDateGreaterThanEqualAndAccountIdInOrderByDateAscAccountIdAsc(
       LocalDate from, java.util.Collection<Long> accountIds);
+
+  @Query("select min(row.date) from AccountDailyEntity row where row.accountId in :accountIds")
+  LocalDate findEarliestDateByAccountIdIn(@Param("accountIds") Collection<Long> accountIds);
 
   @Query(
       value =

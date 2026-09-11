@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.telegram;
 
+import com.smartbox.investory.integrations.notifications.formatting.TelegramText;
 import com.smartbox.investory.integrations.portfolio.PortfolioContextService;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +57,7 @@ public class PortfolioCommandService {
     String balance = findValue(context, "Balance");
     String cash = findValue(context, "Cash");
     if (balance != null && cash != null) {
-      lines.add("Invested: " + balance + " minus " + cash);
+      lines.add(TelegramText.metric("Invested", subtractMoney(balance, cash)));
     }
     return result("Portfolio", lines);
   }
@@ -84,10 +85,10 @@ public class PortfolioCommandService {
     String realized =
         sectionValue(context, "Realized by Currency", List.of("Current positions"), 900);
     if (unrealized != null) {
-      lines.add("Unrealized by currency: " + unrealized);
+      lines.add(TelegramText.metric("Unrealized by currency", unrealized));
     }
     if (realized != null) {
-      lines.add("Realized by currency: " + realized);
+      lines.add(TelegramText.metric("Realized by currency", realized));
     }
     if (lines.isEmpty()) {
       lines.add(
@@ -102,7 +103,7 @@ public class PortfolioCommandService {
         sectionValue(
             context, "Current positions", List.of("Realized P/L", "Realized by Currency"), 1200);
     if (positions != null) {
-      lines.add("Current positions: " + positions);
+      lines.add(TelegramText.metric("Current positions", positions));
     }
     lines.add(
         "Deterministic concentration, drawdown, volatility and allocation-limit metrics are not yet calculated by Investory.");
@@ -113,7 +114,7 @@ public class PortfolioCommandService {
     List<String> lines = new ArrayList<>();
     String alerts = sectionValue(context, "Alerts", List.of("Current positions", "Balance"), 1200);
     if (alerts != null) {
-      lines.add(alerts);
+      lines.add(TelegramText.escape(alerts));
     } else {
       lines.add("No alert section was found in the current dashboard data.");
     }
@@ -125,7 +126,7 @@ public class PortfolioCommandService {
     for (String label : labels) {
       String value = findValue(context, label);
       if (value != null) {
-        lines.add(title + ": " + value);
+        lines.add(TelegramText.metric(title, value));
         break;
       }
     }
@@ -135,15 +136,18 @@ public class PortfolioCommandService {
   private String section(String context, String start, List<String> ends, int maxLength) {
     String value = sectionValue(context, start, ends, maxLength);
     return value == null
-        ? "No " + start.toLowerCase(Locale.ROOT) + " data was found."
-        : start + ":\n" + value;
+        ? TelegramText.heading("ℹ️", start)
+            + "\n\nNo "
+            + start.toLowerCase(Locale.ROOT)
+            + " data was found."
+        : TelegramText.heading("📋", start) + "\n\n" + TelegramText.escape(value);
   }
 
   private static void addMetric(
       List<String> lines, String context, String outputLabel, String sourceLabel) {
     String value = findValue(context, sourceLabel);
     if (value != null) {
-      lines.add(outputLabel + ": " + value);
+      lines.add(TelegramText.metric(outputLabel, value));
     }
   }
 
@@ -186,34 +190,50 @@ public class PortfolioCommandService {
     return cleaned.length() <= maxLength ? cleaned : cleaned.substring(0, maxLength) + "...";
   }
 
+  private static String subtractMoney(String balance, String cash) {
+    Matcher balanceMatcher = Pattern.compile("[-\\d.,]+\\s*(.*)").matcher(balance);
+    Matcher cashMatcher = Pattern.compile("[-\\d.,]+\\s*(.*)").matcher(cash);
+    if (!balanceMatcher.matches() || !cashMatcher.matches()) {
+      return balance + " minus " + cash;
+    }
+    try {
+      double value =
+          Double.parseDouble(balance.replaceAll("[^\\d.-]", ""))
+              - Double.parseDouble(cash.replaceAll("[^\\d.-]", ""));
+      return String.format(Locale.US, "%,.0f %s", value, balanceMatcher.group(1).trim());
+    } catch (NumberFormatException ignored) {
+      return balance + " minus " + cash;
+    }
+  }
+
   private static String result(String title, List<String> lines) {
     if (lines.isEmpty()) {
-      return title + ": data not found in the current dashboard.";
+      return TelegramText.heading("ℹ️", title) + "\n\nData not found in the current dashboard.";
     }
-    return title + "\n" + String.join("\n", lines);
+    return TelegramText.heading("📊", title) + "\n\n" + String.join("\n", lines);
   }
 
   private String help() {
     return """
-                Investory commands
+                <b>💼 Investory</b>
 
                 Portfolio
-                /balance - portfolio value and cash
-                /performance - ROI, profit and after-tax profit
-                /pnl - realized, unrealized and dividend results
-                /cash - current cash
-                /positions - current positions
-                /dividends - net dividends
-                /allocation - available currency allocation data
+                /balance — value and cash
+                /performance — ROI and profit
+                /pnl — realized, unrealized and dividend results
+                /cash — current cash
+                /positions — current holdings
+                /dividends — net dividends
+                /allocation — currency allocation data
 
                 Monitoring
-                /risk - available deterministic risk information
-                /alerts - active dashboard alerts
-                /report - latest stored analysis report
+                /risk — available risk information
+                /alerts — active alerts
+                /report — latest analysis report
 
                 AI
-                Ask an open-ended portfolio or investing question
-                /reset - clear AI conversation context
+                Ask any portfolio or investing question
+                /reset — clear AI conversation context
                 """
         .trim();
   }

@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 /** Offline broker-source subset used by the F1 boundary of the Happy Investor path. */
 public final class HappyInvestorImportFacts {
   public static final String FILE_NAME = "U17959259.TRANSACTIONS.HAPPY-INVESTOR.csv";
-  public static final long PORTFOLIO_ID = 1L;
+  public static final long PORTFOLIO_ID = HappyInvestorTestData.PORTFOLIO_ID;
   public static final long ACCOUNT_ID = HappyInvestorTestData.IBKR_USD_ACCOUNT_ID;
   public static final String STATEMENT =
       String.join(

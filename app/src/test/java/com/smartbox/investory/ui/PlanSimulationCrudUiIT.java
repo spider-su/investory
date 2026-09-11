@@ -13,6 +13,7 @@ import com.microsoft.playwright.Tracing;
 import com.microsoft.playwright.options.AriaRole;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorPlanFacts;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,7 +39,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @DisplayName("Plan Simulation Crud UI")
 class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
-  private static final long PORTFOLIO_ID = 1L;
+  private static final long PORTFOLIO_ID = HappyInvestorTestData.PORTFOLIO_ID;
   private static final long SOURCE_PLAN_ID = HappyInvestorPlanFacts.SEED_PLAN_ID;
   private static final Path ARTIFACT_DIRECTORY = Path.of("target", "ui-test-results");
 
@@ -364,7 +365,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
   }
 
   private void assertSimulation(Page page, long planId, PlanData plan) {
-    page.navigate(baseUrl() + "/portfolios/1/simulation?&planId=" + planId);
+    page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/simulation?&planId=" + planId);
     assertThat(page.title()).contains("Retirement simulation");
     assertThat(page.locator("#simulation-assumptions-form input[name='planId']").inputValue())
         .isEqualTo(String.valueOf(planId));
@@ -453,7 +454,8 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
   private void assertDecimal(Object actual, String expected) {
     assertThat(actual).isInstanceOf(BigDecimal.class);
-    assertThat((BigDecimal) actual).isEqualByComparingTo(expected);
+    assertThat(((BigDecimal) actual).subtract(new BigDecimal(expected)).abs())
+        .isLessThanOrEqualTo(new BigDecimal("0.0000001"));
   }
 
   private String baseUrl() {

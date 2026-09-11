@@ -45,6 +45,16 @@ public final class HappyInvestorScenario {
 
   private HappyInvestorScenario() {}
 
+  /** Returns only investor-facing deposits and withdrawals from the canonical scenario ledger. */
+  public static List<CashOperationEntity> externalCashOperations() {
+    return create().ledger().stream()
+        .filter(
+            operation ->
+                operation.getType() == CashOperationType.DEPOSIT
+                    || operation.getType() == CashOperationType.WITHDRAWAL)
+        .toList();
+  }
+
   public static HappyInvestorContext create() {
     var ibkr = account(IBKR).build();
     var xtbUsd = account(XTB_USD).build();
@@ -133,59 +143,61 @@ public final class HappyInvestorScenario {
         CurrencyType.PLN,
         "USD-PLN-2025-03");
     addCanonicalIncome(ledger);
+    addTreasuryReinvestment(ledger);
 
     List<PositionEntity> open =
-        List.of(
-            openPosition(definition("AAPL.US", "AAPL", CurrencyType.USD))
-                .forAccount(IBKR.id())
-                .quantity(100)
-                .price(180)
-                .commission(-1)
-                .on(LocalDate.of(2024, 8, 8))
-                .build(),
-            openPosition(definition("AAPL.US", "AAPL", CurrencyType.USD))
-                .forAccount(IBKR.id())
-                .quantity(50)
-                .price(200)
-                .commission(-1)
-                .on(LocalDate.of(2025, 2, 12))
-                .build(),
-            openPosition(definition("VWRA.UK", "VWRA", CurrencyType.USD))
-                .forAccount(IBKR.id())
-                .quantity(20)
-                .price(120)
-                .commission(-1)
-                .build(),
-            openPosition(definition("VWRA.UK", "VWRA", CurrencyType.USD))
-                .forAccount(XTB_PLN.id())
-                .quantity(10)
-                .price(130)
-                .commission(0)
-                .build(),
-            openPosition(definition("NVDA.US", "NVDA", CurrencyType.USD))
-                .forAccount(XTB_USD.id())
-                .quantity(10)
-                .price(100)
-                .commission(0)
-                .build(),
-            openPosition(definition("TSLA.US", "TSLA", CurrencyType.USD))
-                .forAccount(XTB_USD.id())
-                .quantity(1)
-                .price(200)
-                .commission(0)
-                .build(),
-            openPosition(definition("GOOGL.US", "GOOGL", CurrencyType.USD))
-                .forAccount(XTB_PLN.id())
-                .quantity(5)
-                .price(150)
-                .commission(0)
-                .build(),
-            openPosition(definition("MSFT.US", "MSFT", CurrencyType.USD))
-                .forAccount(IBKR.id())
-                .quantity(10)
-                .price(100)
-                .commission(-1)
-                .build());
+        new ArrayList<>(
+            List.of(
+                openPosition(definition("AAPL.US", "AAPL", CurrencyType.USD))
+                    .forAccount(IBKR.id())
+                    .quantity(100)
+                    .price(180)
+                    .commission(-1)
+                    .on(LocalDate.of(2024, 8, 8))
+                    .build(),
+                openPosition(definition("AAPL.US", "AAPL", CurrencyType.USD))
+                    .forAccount(IBKR.id())
+                    .quantity(50)
+                    .price(200)
+                    .commission(-1)
+                    .on(LocalDate.of(2025, 2, 12))
+                    .build(),
+                openPosition(definition("VWRA.UK", "VWRA", CurrencyType.USD))
+                    .forAccount(IBKR.id())
+                    .quantity(20)
+                    .price(120)
+                    .commission(-1)
+                    .build(),
+                openPosition(definition("VWRA.UK", "VWRA", CurrencyType.USD))
+                    .forAccount(XTB_PLN.id())
+                    .quantity(10)
+                    .price(130)
+                    .commission(0)
+                    .build(),
+                openPosition(definition("NVDA.US", "NVDA", CurrencyType.USD))
+                    .forAccount(XTB_USD.id())
+                    .quantity(10)
+                    .price(100)
+                    .commission(0)
+                    .build(),
+                openPosition(definition("TSLA.US", "TSLA", CurrencyType.USD))
+                    .forAccount(XTB_USD.id())
+                    .quantity(1)
+                    .price(200)
+                    .commission(0)
+                    .build(),
+                openPosition(definition("GOOGL.US", "GOOGL", CurrencyType.USD))
+                    .forAccount(XTB_PLN.id())
+                    .quantity(5)
+                    .price(150)
+                    .commission(0)
+                    .build(),
+                openPosition(definition("MSFT.US", "MSFT", CurrencyType.USD))
+                    .forAccount(IBKR.id())
+                    .quantity(10)
+                    .price(100)
+                    .commission(-1)
+                    .build()));
 
     // NATGAS is a closed RESULT_ONLY CFD: the net result and swap live on the position, the
     // realized
@@ -204,6 +216,23 @@ public final class HappyInvestorScenario {
             .closeOn(HappyInvestorTestData.NATGAS_CLOSE_DATE)
             .build();
     addNatgasSettlement(ledger);
+
+    var treasuryRedemption =
+        openPosition(HappyInvestorTestData.TREASURY_2026)
+            .forAccount(IBKR.id())
+            .quantity(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.doubleValue())
+            .price(1)
+            .on(HappyInvestorLongTermFacts.TREASURY_ACQUISITION_DATE)
+            .closeOn(HappyInvestorLongTermFacts.TREASURY_MATURITY_DATE)
+            .build();
+    var treasuryReinvestment =
+        openPosition(HappyInvestorTestData.TREASURY_2033)
+            .forAccount(IBKR.id())
+            .quantity(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.doubleValue())
+            .price(1)
+            .on(HappyInvestorLongTermFacts.REINVESTMENT_DATE)
+            .build();
+    open.add(treasuryReinvestment);
 
     return new HappyInvestorContext(
         ibkr,
@@ -226,7 +255,7 @@ public final class HappyInvestorScenario {
         treasury2033,
         natgas,
         open,
-        List.of(natgasCfd),
+        List.of(treasuryRedemption, natgasCfd),
         ledger,
         HappyInvestorSimulationSpec.defaults());
   }
@@ -330,6 +359,27 @@ public final class HappyInvestorScenario {
             .type(CashOperationType.FREE_FUNDS_INTEREST_TAX)
             .comment("Canonical Treasury interest tax 19%")
             .on(LocalDate.of(2025, 2, 28))
+            .build());
+  }
+
+  private static void addTreasuryReinvestment(List<CashOperationEntity> ledger) {
+    ledger.add(
+        cashOperation()
+            .forAccount(IBKR)
+            .type(CashOperationType.TRANSFER)
+            .amount(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.doubleValue(), CurrencyType.USD)
+            .symbol(HappyInvestorTestData.TREASURY_2026.symbol())
+            .comment("Full call redemption principal returned")
+            .on(HappyInvestorLongTermFacts.TREASURY_MATURITY_DATE)
+            .build());
+    ledger.add(
+        cashOperation()
+            .forAccount(IBKR)
+            .type(CashOperationType.STOCK_PURCHASE)
+            .amount(-HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.doubleValue(), CurrencyType.USD)
+            .symbol(HappyInvestorTestData.TREASURY_2033.symbol())
+            .comment("Next-day Treasury principal reinvestment")
+            .on(HappyInvestorLongTermFacts.REINVESTMENT_DATE)
             .build());
   }
 

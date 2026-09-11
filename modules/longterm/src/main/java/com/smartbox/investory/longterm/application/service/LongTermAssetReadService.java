@@ -116,7 +116,7 @@ public class LongTermAssetReadService {
 
   public LongTermAssetProfileSnapshotModel snapshot(Long portfolioId, LocalDate date) {
     CurrencyType currency = localCurrency(portfolioId);
-    var data = load(portfolioId, false);
+    var data = load(portfolioId, false, date);
     var rows = summaries(data, date, currency);
     var profileAssets =
         rows.stream()
@@ -149,7 +149,7 @@ public class LongTermAssetReadService {
       List<PersonalAssetEntity> personal,
       Map<Long, List<LongTermAssetRentalContractEntity>> contracts) {}
 
-  private ReadSet load(Long portfolioId, boolean archived) {
+  private ReadSet load(Long portfolioId, boolean archived, LocalDate date) {
     var bonds =
         archived
             ? bondRepository.findAllByPortfolioIdAndArchivedAtIsNotNullOrderByName(portfolioId)
@@ -170,7 +170,20 @@ public class LongTermAssetReadService {
                 portfolioId)
             : personalAssetRepository.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(
                 portfolioId);
+    bonds =
+        bonds.stream().filter(row -> acquiredOnOrBefore(row.getAcquisitionDate(), date)).toList();
+    estates =
+        estates.stream().filter(row -> acquiredOnOrBefore(row.getAcquisitionDate(), date)).toList();
+    cash = cash.stream().filter(row -> acquiredOnOrBefore(row.getAcquisitionDate(), date)).toList();
+    personal =
+        personal.stream()
+            .filter(row -> acquiredOnOrBefore(row.getAcquisitionDate(), date))
+            .toList();
     return new ReadSet(bonds, estates, cash, personal, contracts(estates));
+  }
+
+  private static boolean acquiredOnOrBefore(LocalDate acquisitionDate, LocalDate date) {
+    return acquisitionDate == null || date == null || !acquisitionDate.isAfter(date);
   }
 
   private Map<Long, List<LongTermAssetRentalContractEntity>> contracts(
@@ -184,7 +197,7 @@ public class LongTermAssetReadService {
 
   private List<AssetSummaryView> summaries(
       Long portfolioId, LocalDate date, CurrencyType currency, boolean archived) {
-    return summaries(load(portfolioId, archived), date, currency);
+    return summaries(load(portfolioId, archived, date), date, currency);
   }
 
   private List<AssetSummaryView> summaries(ReadSet data, LocalDate date, CurrencyType currency) {

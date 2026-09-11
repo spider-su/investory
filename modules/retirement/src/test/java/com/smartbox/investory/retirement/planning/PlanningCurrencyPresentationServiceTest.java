@@ -359,6 +359,36 @@ class PlanningCurrencyPresentationServiceTest {
     assertEquals(new BigDecimal("135849"), displayed.reserveEnd());
   }
 
+  @Test
+  void keepsPlnLongTermCashReserveInPlnWithoutTreatingItAsUsd() {
+    CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
+    CurrentPlanningYear current =
+        new CurrentPlanningYear(
+            2026,
+            4L,
+            Instant.now(),
+            Map.of(
+                PlanningMetric.CASH_RESERVE_VALUE,
+                value(PlanningMetric.CASH_RESERVE_VALUE, "320100")),
+            Map.of());
+    PlanningTimeline timeline =
+        new PlanningTimeline(
+            CurrencyType.PLN,
+            List.of(
+                new PlanningTimelineYear(
+                    2026, 41, PlanningTimelineState.LIVE, null, current, null)));
+
+    PlanningTimelineMoney displayed =
+        new PlanningCurrencyPresentationService(
+                rates, Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
+            .displayTimelineMoney(timeline, CurrencyType.PLN, liveAssumptions())
+            .get(2026);
+
+    assertEquals(new BigDecimal("320100"), displayed.cashStart());
+    assertEquals(new BigDecimal("320100"), displayed.reserveEnd());
+    Mockito.verifyNoInteractions(rates);
+  }
+
   @DisplayName("projected Timeline Uses Canonical Funding Components")
   @Test
   void projectedTimelineUsesCanonicalFundingComponents() {

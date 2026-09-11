@@ -27,7 +27,7 @@ class AssetDetailReadModelIT extends FastDatabaseTest {
   @Test
   void readsTheSameCanonicalAssetThroughServiceAndRestAndFailsClosedForMissingAsset()
       throws Exception {
-    AssetDetailView view = assets.detail(1L, "TSLA.US", DashboardPeriod.MAX);
+    AssetDetailView view = assets.detail(2L, "TSLA.US", DashboardPeriod.MAX);
     assertThat(view.id()).isEqualTo(1001L);
     assertThat(view.symbol()).isEqualTo("TSLA.US");
     assertThat(view.name()).isEqualTo("Tesla, Inc.");
@@ -52,21 +52,21 @@ class AssetDetailReadModelIT extends FastDatabaseTest {
 
     mvc.perform(
             get("/api/v1/investment/assets/TSLA.US")
-                .param("portfolioId", "1")
+                .param("portfolioId", "2")
                 .param("period", "MAX")
                 .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
         .andExpect(status().isOk());
     mvc.perform(
             get("/api/v1/investment/assets/NOT-A-REAL-ASSET")
-                .param("portfolioId", "1")
+                .param("portfolioId", "2")
                 .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
         .andExpect(status().isNotFound());
   }
 
   @Test
   void priceHistoryHonorsPeriodAndPortfolioBoundary() {
-    var all = assets.priceHistory(1L, "TSLA.US", DashboardPeriod.MAX);
-    var ytd = assets.priceHistory(1L, "TSLA.US", DashboardPeriod.YEAR_TO_DATE);
+    var all = assets.priceHistory(2L, "TSLA.US", DashboardPeriod.MAX);
+    var ytd = assets.priceHistory(2L, "TSLA.US", DashboardPeriod.YEAR_TO_DATE);
     assertThat(all).isNotEmpty();
     assertThat(all)
         .anyMatch(

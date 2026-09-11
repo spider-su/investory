@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.projection;
 
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +40,27 @@ public class StatisticsRefreshService {
     projectionRefreshService.refreshApplicationViews(
         PortfolioProjectionRefreshService.ApplicationRefreshScope.CURRENT_MARKET_PRICE);
     calculationCache.invalidate();
+  }
+
+  /** Rebuilds only the affected accounts and invalidates only their portfolio cache. */
+  public void refreshAffectedAccounts(Long portfolioId, Set<Long> accountIds) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
+    if (accountIds == null || accountIds.isEmpty()) {
+      return;
+    }
+    log.info(
+        "Refreshing scoped portfolio projections portfolioId={} accounts={}",
+        portfolioId,
+        accountIds);
+    try {
+      portfolioProjectionService.recalculateAccountsScoped(portfolioId, accountIds);
+      projectionRefreshService.refreshApplicationViews(
+          PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
+    } finally {
+      calculationCache.invalidatePortfolio(portfolioId);
+    }
   }
 
   private void refresh(Runnable recalculate) {

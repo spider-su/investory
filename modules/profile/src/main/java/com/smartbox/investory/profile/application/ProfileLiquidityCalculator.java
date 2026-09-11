@@ -24,7 +24,9 @@ final class ProfileLiquidityCalculator {
       LocalDate date) {
     BigDecimal liquid = total(values, Liquidity.LIQUID);
     BigDecimal illiquid = total(values, Liquidity.ILLIQUID);
-    BigDecimal reserve = marketCash.max(BigDecimal.ZERO);
+    // Retirement reserve is only Long-Term cash explicitly marked as available for funding.
+    // Brokerage cash remains part of the investment portfolio, not this funding bucket.
+    BigDecimal reserve = BigDecimal.ZERO;
     for (LongTermAssetProfileAssetModel asset : longTermAssets) {
       if (asset.category() == com.smartbox.investory.shared.assets.AssetEconomicCategory.LIQUID_CASH
           && asset.fundingAvailable()) {

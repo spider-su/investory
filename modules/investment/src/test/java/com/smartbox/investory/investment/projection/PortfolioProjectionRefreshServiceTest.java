@@ -56,8 +56,8 @@ class PortfolioProjectionRefreshServiceTest {
   }
 
   @Test
-  @DisplayName("projection prerequisites refresh price chain and normalized cash")
-  void projectionPrerequisitesRefreshOnlyNormalizedCashOperations() {
+  @DisplayName("projection prerequisites refresh price and FX chains before normalized cash")
+  void projectionPrerequisitesRefreshPriceAndFxChainsBeforeNormalizedCash() {
     when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
     doNothing().when(jdbcTemplate).execute(any(String.class));
 
@@ -67,9 +67,9 @@ class PortfolioProjectionRefreshServiceTest {
     service.refreshApplicationViews(
         PortfolioProjectionRefreshService.ApplicationRefreshScope.PROJECTION_PREREQUISITES);
 
-    verify(transactionManager, times(4)).getTransaction(any());
-    verify(transactionManager, times(4)).commit(transactionStatus);
-    verify(jdbcTemplate, times(4)).execute("SET LOCAL jit=off");
+    verify(transactionManager, times(5)).getTransaction(any());
+    verify(transactionManager, times(5)).commit(transactionStatus);
+    verify(jdbcTemplate, times(5)).execute("SET LOCAL jit=off");
     InOrder ordered = inOrder(jdbcTemplate);
     ordered
         .verify(jdbcTemplate)
@@ -83,6 +83,10 @@ class PortfolioProjectionRefreshServiceTest {
         .verify(jdbcTemplate)
         .execute(
             "REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_normalized_daily_price_mv");
+    ordered
+        .verify(jdbcTemplate)
+        .execute(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_portfolio_daily_fx_rate_mv");
     ordered
         .verify(jdbcTemplate)
         .execute(

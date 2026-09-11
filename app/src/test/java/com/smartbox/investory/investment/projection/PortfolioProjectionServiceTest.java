@@ -40,6 +40,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -240,6 +241,17 @@ class PortfolioProjectionServiceTest {
                                   : null))
                   .toList();
             });
+  }
+
+  @Test
+  @DisplayName("scoped Rebuild Rejects Accounts From Another Portfolio")
+  void scopedRebuildRejectsAccountsFromAnotherPortfolio() {
+    when(accountRepository.findIdsByPortfolioId(1L)).thenReturn(List.of(7L));
+
+    assertThrows(
+        IllegalStateException.class, () -> service.recalculateAccountsScoped(1L, Set.of(8L)));
+
+    verify(accountDailyRepository, never()).deleteByAccountIdAndDateGreaterThanEqual(any(), any());
   }
 
   @DisplayName("recalculate All builds And Persists All Projection Tables")

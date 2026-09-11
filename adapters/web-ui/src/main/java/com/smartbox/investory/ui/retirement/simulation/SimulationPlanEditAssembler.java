@@ -53,7 +53,7 @@ final class SimulationPlanEditAssembler {
     model.addAttribute("assumptions", assumptions);
     model.addAttribute(
         "planningBuckets",
-        PlanningBuckets.fromProfileWithBondYield(
+        PlanningBuckets.fromReviewedProfileWithBondYield(
             profile,
             assumptions.equityReturnRate(),
             PlanningBuckets.baseBondYield(

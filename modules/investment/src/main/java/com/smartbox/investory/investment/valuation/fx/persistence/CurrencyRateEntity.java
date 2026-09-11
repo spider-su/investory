@@ -41,11 +41,17 @@ public class CurrencyRateEntity {
   @Column(nullable = false, precision = 20, scale = 8)
   private BigDecimal rate;
 
+  @Column(name = "purpose", nullable = false, length = 16)
+  private String purpose;
+
   @Column(name = "source", nullable = false, length = 32)
   private String source;
 
   @Column(name = "method", nullable = false, length = 32)
   private String method;
+
+  @Column(name = "source_rate_date")
+  private LocalDate sourceRateDate;
 
   @Column(name = "observed_at")
   private ZonedDateTime observedAt;
@@ -59,9 +65,11 @@ public class CurrencyRateEntity {
   @PrePersist
   @PreUpdate
   void applyDefaults() {
+    if (purpose == null) purpose = "VALUATION";
     if (source == null) source = "MANUAL";
-    if (method == null) method = "HISTORICAL_MONTHLY";
+    if (method == null) method = "OBSERVED";
     if (rateDate == null) throw new IllegalStateException("rateDate is required");
+    if (sourceRateDate == null && "VALUATION".equals(purpose)) sourceRateDate = rateDate;
   }
 
   public BigDecimal getRate() {

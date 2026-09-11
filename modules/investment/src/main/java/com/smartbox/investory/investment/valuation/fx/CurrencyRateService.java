@@ -128,33 +128,6 @@ public class CurrencyRateService implements CurrencyConversion {
         .setScale(FX_SCALE, RoundingMode.HALF_UP);
   }
 
-  public void updateRates(CurrencyType base, Map<CurrencyType, Double> rates, LocalDate date) {
-    rates.forEach(
-        (toCurrency, rate) -> {
-          CurrencyRateEntity currencyRate =
-              currencyRateRepository
-                  .findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
-                      date, base, toCurrency, "NBP", "MARKET_DAILY")
-                  .orElseGet(
-                      () -> {
-                        CurrencyRateEntity newRate = new CurrencyRateEntity();
-                        newRate.setRateDate(date);
-                        newRate.setBase(base);
-                        newRate.setToCurrency(toCurrency);
-                        newRate.setSource("NBP");
-                        newRate.setMethod("MARKET_DAILY");
-                        return newRate;
-                      });
-
-          currencyRate.setRateDate(date);
-          currencyRate.setSource("NBP");
-          currencyRate.setMethod("MARKET_DAILY");
-          currencyRate.setRate(rate == null ? null : BigDecimal.valueOf(rate));
-          currencyRateRepository.save(currencyRate);
-        });
-    clearValuationResolutionCache();
-  }
-
   public void activateDailyHistoryAt(LocalDate firstSupportedDate) {
     currencyRateRepository.flush();
     if (currencyRateRepository.setDailyHistoryStartIfSupported(firstSupportedDate) != 1) {
@@ -278,18 +251,6 @@ public class CurrencyRateService implements CurrencyConversion {
     }
   }
 
-  public void harvestIbkrDailyReference(
-      ZonedDateTime observedAt,
-      CurrencyType base,
-      CurrencyType target,
-      BigDecimal rate,
-      String sourceReference) {
-    if (observedAt == null || base == null || target == null || rate == null || rate.signum() <= 0)
-      return;
-    saveObservation(
-        observedAt, base, target, rate, "IBKR", "IBKR_DAILY_REFERENCE", sourceReference);
-  }
-
   private void saveObservation(
       ZonedDateTime observedAt,
       CurrencyType base,
@@ -312,6 +273,7 @@ public class CurrencyRateService implements CurrencyConversion {
     observation.setBase(base);
     observation.setToCurrency(target);
     observation.setRate(rate);
+    observation.setPurpose("EXECUTION");
     observation.setSource(source);
     observation.setMethod(method);
     observation.setObservedAt(observedAt);
@@ -342,7 +304,10 @@ public class CurrencyRateService implements CurrencyConversion {
             sourceCurrency.name(),
             targetCurrency.name());
     if (observation.isEmpty()) {
-      return missingTransactionRate(transactionTime);
+      return resolveRate(
+          sourceCurrency,
+          targetCurrency,
+          transactionTime.withZoneSameInstant(TRANSACTION_ZONE).toLocalDate());
     }
     CurrencyRateEntity rate = observation.get();
     boolean direct = rate.getBase() == sourceCurrency && rate.getToCurrency() == targetCurrency;

@@ -2441,7 +2441,7 @@ COMMENT ON VIEW investory.recon_v_portfolio_data_quality_issue IS
 CREATE OR REPLACE VIEW investory.recon_v_portfolio_data_quality_refresh AS
 SELECT (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS broker_imported_at,
        (SELECT MAX(price_updated_at) FROM investory.assets) AS prices_updated_at,
-       (SELECT MAX(imported_at) FROM investory.exchange_rates) AS fx_updated_at,
+       (SELECT MAX(imported_at) FROM investory.exchange_rates WHERE purpose = 'VALUATION') AS fx_updated_at,
        (SELECT MAX(updated_at) FROM investory.account_daily) AS projections_rebuilt_at,
        (SELECT MAX(updated_at) FROM investory.account_daily) AS reporting_refreshed_at;
 
@@ -2932,6 +2932,7 @@ WITH pairs AS (
         er.method,
         er.rate
     FROM investory.exchange_rates er
+    WHERE er.purpose = 'VALUATION'
     ORDER BY er.base, er.to_currency, er.rate_date DESC, er.imported_at DESC
 ), resolved AS (
     SELECT p.source_currency, p.target_currency,
@@ -2954,7 +2955,7 @@ SELECT r.source_currency,
        l.source AS latest_stored_source,
        l.method AS latest_stored_method,
        (SELECT count(*) FROM investory.exchange_rates e
-        WHERE e.method = 'INTERPOLATED'
+        WHERE e.purpose = 'VALUATION' AND e.method = 'INTERPOLATED'
           AND e.base::varchar(3) = r.source_currency
           AND e.to_currency::varchar(3) = r.target_currency) AS interpolated_observation_count,
        (SELECT count(*) FROM investory.exchange_rates e
@@ -2974,12 +2975,12 @@ WITH jumps AS (
     SELECT base, to_currency, rate_date, rate,
            lag(rate) OVER (PARTITION BY base, to_currency ORDER BY rate_date) AS previous_rate
     FROM investory.exchange_rates
-    WHERE method IN ('MARKET_DAILY', 'IBKR_DAILY_REFERENCE')
+    WHERE purpose = 'VALUATION'
 )
 SELECT 'INVALID_RATE'::varchar(32) AS issue_code, base::varchar(3), to_currency::varchar(3), rate_date,
        rate::numeric, 'Rate must be positive'::text AS details
 FROM investory.exchange_rates
-WHERE rate <= 0
+WHERE purpose = 'VALUATION' AND rate <= 0
 UNION ALL
 SELECT 'FX_SPIKE', base::varchar(3), to_currency::varchar(3), rate_date, rate,
        'Daily/reference move exceeds 5%'::text
@@ -2992,9 +2993,9 @@ FROM (VALUES ('USD'::varchar(3), 'EUR'::varchar(3)), ('USD', 'PLN'), ('EUR', 'US
 WHERE CURRENT_DATE >= (SELECT config_value::date FROM investory.fx_configuration WHERE config_key = 'daily_history_start')
   AND NOT EXISTS (
       SELECT 1 FROM investory.exchange_rates er
-      WHERE er.base = pairs.base AND er.to_currency = pairs.to_currency
-        AND er.method IN ('MARKET_DAILY', 'IBKR_DAILY_REFERENCE')
-        AND er.rate_date >= CURRENT_DATE - (SELECT config_value::integer FROM investory.fx_configuration WHERE config_key = 'max_age_days'));
+      WHERE er.purpose = 'VALUATION'
+        AND er.base = pairs.base AND er.to_currency = pairs.to_currency
+        AND er.rate_date <= CURRENT_DATE);
 
 CREATE OR REPLACE VIEW investory.recon_v_fx_consistency AS
 SELECT 'RECIPROCAL_MISMATCH'::varchar(32) AS issue_code,
@@ -3010,7 +3011,9 @@ JOIN investory.exchange_rates inverse_rate
  AND inverse_rate.to_currency = er.base
  AND inverse_rate.source = er.source
  AND inverse_rate.method = er.method
-WHERE abs(er.rate * inverse_rate.rate - 1) > 0.0001
+WHERE er.purpose = 'VALUATION'
+  AND inverse_rate.purpose = 'VALUATION'
+  AND abs(er.rate * inverse_rate.rate - 1) > 0.0001
 UNION ALL
 SELECT 'CROSS_RATE_MISMATCH', eur_usd.base, eur_usd.to_currency, eur_usd.rate_date,
        abs(eur_usd.rate * usd_pln.rate - eur_pln.rate),
@@ -3027,6 +3030,9 @@ JOIN investory.exchange_rates eur_pln
  AND eur_pln.method = eur_usd.method
  AND eur_pln.base = 'EUR' AND eur_pln.to_currency = 'PLN'
 WHERE eur_usd.base = 'EUR' AND eur_usd.to_currency = 'USD'
+  AND eur_usd.purpose = 'VALUATION'
+  AND usd_pln.purpose = 'VALUATION'
+  AND eur_pln.purpose = 'VALUATION'
   AND abs(eur_usd.rate * usd_pln.rate - eur_pln.rate) > 0.01;
 
 COMMENT ON VIEW investory.recon_v_fx_consistency IS
@@ -3302,7 +3308,7 @@ states AS (
            cashq.unclassified_cash_operation_count,
            (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS latest_broker_reconciliation_at,
            (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS latest_import_at,
-           pq.latest_price_date, (SELECT MAX(rate_date) FROM investory.exchange_rates) AS latest_fx_date,
+           pq.latest_price_date, (SELECT MAX(rate_date) FROM investory.exchange_rates WHERE purpose = 'VALUATION') AS latest_fx_date,
            (SELECT MAX(updated_at) FROM investory.account_daily) AS latest_reporting_refresh_at,
            s.review_accounts
     FROM active_accounts aa CROSS JOIN states s CROSS JOIN pq CROSS JOIN cq CROSS JOIN cashq
@@ -4212,8 +4218,8 @@ WITH latest_daily AS (
     SELECT nco.*,
         CASE
             WHEN nco.normalized_category IN ('EXTERNAL_DEPOSIT', 'EXTERNAL_WITHDRAWAL') THEN nco.amount_in_portfolio_base_currency
-            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING' AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+' AND substring(nco.comment from '(?i)to ([0-9]+)')::bigint = nco.account_id AND nco.amount > 0 AND NOT EXISTS (SELECT 1 FROM investory.accounts counterparty WHERE counterparty.id = substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint) THEN nco.amount_in_portfolio_base_currency
-            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING' AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+' AND substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint = nco.account_id AND nco.amount < 0 AND NOT EXISTS (SELECT 1 FROM investory.accounts counterparty WHERE counterparty.id = substring(nco.comment from '(?i)to ([0-9]+)')::bigint) THEN nco.amount_in_portfolio_base_currency
+            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING' AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+' AND substring(nco.comment from '(?i)to ([0-9]+)')::bigint = nco.account_id AND nco.amount > 0 AND NOT EXISTS (SELECT 1 FROM investory.accounts counterparty WHERE counterparty.id = substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)) THEN nco.amount_in_portfolio_base_currency
+            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING' AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+' AND substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint = nco.account_id AND nco.amount < 0 AND NOT EXISTS (SELECT 1 FROM investory.accounts counterparty WHERE counterparty.id = substring(nco.comment from '(?i)to ([0-9]+)')::bigint AND counterparty.portfolio_id = (SELECT source.portfolio_id FROM investory.accounts source WHERE source.id = nco.account_id)) THEN nco.amount_in_portfolio_base_currency
             ELSE 0::numeric
         END AS scoped_portfolio_flow_amount_in_portfolio_base_currency
     FROM investory.app_v_normalized_cash_operations nco
@@ -4314,6 +4320,9 @@ SELECT p.id AS portfolio_id, p.name AS portfolio_name, p.base_currency::varchar(
     las.total_interest AS total_interest,
     las.total_fees AS total_fees,
     las.total_taxes AS total_taxes,
+    CASE WHEN COALESCE(las.net_deposits, 0) > 0
+         THEN (las.total_equity - las.net_deposits) / las.net_deposits * 100
+         ELSE 0::numeric END AS roi_pct,
     COALESCE(las.converted_cash_subtotal, 0) AS converted_cash_subtotal, COALESCE(lpd.converted_equity_subtotal, 0) AS converted_equity_subtotal,
     COALESCE(las.missing_fx_count, 0) AS missing_fx_count, COALESCE(las.missing_fx_count, 0) = 0 AS is_complete,
     COALESCE(las.activity_count, 0) AS activity_count, las.first_activity_at, las.last_activity_at,
@@ -4347,5 +4356,500 @@ BEGIN
     FOR v IN SELECT * FROM _account_stats_dependent_indexes LOOP
         EXECUTE v.indexdef;
     END LOOP;
+END
+$$;
+CREATE OR REPLACE VIEW investory.recon_v_fx AS
+WITH pairs AS (
+    SELECT c1.id::varchar(3) AS source_currency, c2.id::varchar(3) AS target_currency
+    FROM investory.currencies c1 CROSS JOIN investory.currencies c2
+    WHERE c1.id <> c2.id
+), latest AS (
+    SELECT DISTINCT ON (fx.base, fx.to_currency)
+        fx.base::varchar(3) AS source_currency, fx.to_currency::varchar(3) AS target_currency,
+        fx.rate_date, fx.source, fx.method, fx.rate
+    FROM investory.exchange_rates fx
+    WHERE fx.purpose = 'VALUATION'
+    ORDER BY fx.base, fx.to_currency, fx.rate_date DESC, fx.source_reference DESC NULLS LAST
+), resolved AS (
+    SELECT p.source_currency, p.target_currency,
+           r.fx_rate_to_target, r.source_rate_date, r.rate_source,
+           r.rate_method, r.age_days, r.conversion_status
+    FROM pairs p
+    CROSS JOIN LATERAL investory.resolve_fx_rate(
+        CURRENT_DATE, p.source_currency, p.target_currency) r
+)
+SELECT r.source_currency, r.target_currency, r.fx_rate_to_target, r.source_rate_date,
+       r.rate_source, r.rate_method, r.age_days, r.conversion_status,
+       l.rate AS latest_stored_rate, l.rate_date AS latest_stored_date,
+       l.source AS latest_stored_source, l.method AS latest_stored_method,
+       0::bigint AS interpolated_observation_count,
+       (SELECT count(*) FROM investory.exchange_rates e WHERE e.method = 'XTB_EXECUTION') AS xtb_execution_observation_count,
+       (SELECT count(*) FROM investory.exchange_rates e WHERE e.method = 'IBKR_EXECUTION') AS ibkr_execution_observation_count
+FROM resolved r
+LEFT JOIN latest l
+  ON l.source_currency = r.source_currency
+ AND l.target_currency = r.target_currency;
+
+CREATE OR REPLACE VIEW investory.recon_v_fx_data_quality AS
+WITH jumps AS (
+    SELECT base, to_currency, rate_date, rate,
+       lag(rate) OVER (PARTITION BY base, to_currency ORDER BY rate_date) AS previous_rate
+    FROM investory.exchange_rates
+    WHERE purpose = 'VALUATION'
+)
+SELECT 'FX_SPIKE'::varchar AS issue_code, base::varchar(3), to_currency::varchar(3),
+       rate_date, rate, 'Daily neutral move exceeds 5%'::text AS details
+FROM jumps
+WHERE previous_rate IS NOT NULL AND abs(rate / previous_rate - 1) > 0.05
+UNION ALL
+SELECT 'DAILY_COVERAGE_GAP'::varchar, pairs.base::varchar(3), pairs.to_currency::varchar(3), CURRENT_DATE, NULL,
+       'No canonical neutral FX observation available on or before today'::text
+FROM (VALUES ('USD'::varchar(3), 'EUR'::varchar(3)), ('USD','PLN'), ('EUR','USD'),
+             ('EUR','PLN'), ('PLN','USD'), ('PLN','EUR')) pairs(base, to_currency)
+WHERE CURRENT_DATE >= (SELECT config_value::date FROM investory.fx_configuration
+                        WHERE config_key = 'daily_history_start')
+  AND NOT EXISTS (SELECT 1 FROM investory.exchange_rates fx
+                  WHERE fx.rate_date <= CURRENT_DATE
+                    AND fx.purpose = 'VALUATION'
+                    AND fx.base = pairs.base AND fx.to_currency = pairs.to_currency);
+
+CREATE OR REPLACE VIEW investory.recon_v_fx_consistency AS
+SELECT 'RECIPROCAL_MISMATCH'::varchar AS issue_code,
+       fx.base::varchar(3) AS base, fx.to_currency::varchar(3), fx.rate_date,
+       abs(fx.rate * inverse_fx.rate - 1) AS deviation,
+       'Direct and reciprocal observations differ'::text AS details
+FROM investory.exchange_rates fx
+JOIN investory.exchange_rates inverse_fx
+  ON inverse_fx.rate_date = fx.rate_date AND inverse_fx.base = fx.to_currency
+ AND inverse_fx.to_currency = fx.base
+WHERE fx.purpose = 'VALUATION'
+  AND inverse_fx.purpose = 'VALUATION'
+  AND abs(fx.rate * inverse_fx.rate - 1) > 0.0001;
+
+CREATE OR REPLACE VIEW investory.recon_v_portfolio_data_quality_refresh AS
+SELECT (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS broker_imported_at,
+       (SELECT MAX(price_updated_at) FROM investory.assets) AS prices_updated_at,
+       (SELECT MAX(rate_date)::timestamp AT TIME ZONE 'UTC'
+        FROM investory.exchange_rates WHERE purpose = 'VALUATION') AS fx_updated_at,
+       (SELECT MAX(updated_at) FROM investory.account_daily) AS projections_rebuilt_at,
+       (SELECT MAX(updated_at) FROM investory.account_daily) AS reporting_refreshed_at;
+SET search_path TO investory, public;
+
+INSERT INTO investory.reconciliation_parameters(parameter_name, numeric_value, description)
+VALUES
+    ('reconciliation_temporal_short_gap_days', 3,
+     'Maximum elapsed observation gap considered a short-period temporal anomaly.'),
+    ('reconciliation_fx_extreme_move_ratio', 0.10,
+     'Absolute canonical daily FX move that creates a review issue.'),
+    ('reconciliation_fx_isolated_spike_ratio', 0.25,
+     'FX absolute current/neighbor move for an isolated spike candidate.'),
+    ('reconciliation_fx_reciprocal_tolerance', 0.0001,
+     'Allowed absolute deviation of a same-date reciprocal FX product from one.'),
+    ('reconciliation_price_extreme_move_ratio', 0.20,
+     'Absolute observed short-gap asset-price move that creates a review issue.'),
+    ('reconciliation_price_isolated_spike_ratio', 1.50,
+     'Asset current/neighbor ratio for an isolated spike candidate.'),
+    ('reconciliation_temporal_neighbor_recovery_ratio', 0.10,
+     'Allowed relative difference between the observations surrounding an isolated spike.'),
+    ('reconciliation_account_unexplained_move_ratio', 0.20,
+     'Unexplained short-gap account movement that creates a review issue.'),
+    ('reconciliation_price_scale_upper_ratio', 100,
+     'Upper ratio treated as a possible price scale discontinuity.'),
+    ('reconciliation_price_scale_lower_ratio', 0.01,
+     'Lower ratio treated as a possible price scale discontinuity.'),
+    ('reconciliation_price_scale_ten_upper_ratio', 10.5,
+     'Upper boundary for a possible tenfold price scale discontinuity.'),
+    ('reconciliation_price_scale_ten_lower_ratio', 9.5,
+     'Lower boundary for a possible tenfold price scale discontinuity.')
+ON CONFLICT (parameter_name) DO NOTHING;
+
+CREATE OR REPLACE VIEW investory.recon_v_fx_temporal_anomaly (
+    severity, issue_code, entity_type, entity_id, entity_key, base_currency, quote_currency,
+    event_date, previous_date, next_date, gap_days, previous_value, current_value, next_value,
+    change_pct, ratio, explanation, source, source_symbol, observation_currency, scale_factor,
+    is_proxy
+) AS
+WITH observations AS (
+    SELECT fx.base, fx.to_currency, fx.rate_date, fx.rate, fx.source, fx.method,
+           LAG(fx.rate) OVER w AS previous_rate,
+           LAG(fx.rate_date) OVER w AS previous_date,
+           LEAD(fx.rate) OVER w AS next_rate,
+           LEAD(fx.rate_date) OVER w AS next_date
+    FROM investory.exchange_rates fx
+    WHERE fx.purpose = 'VALUATION'
+    WINDOW w AS (PARTITION BY fx.base, fx.to_currency ORDER BY fx.rate_date)
+), params AS (
+    SELECT investory.reconciliation_parameter('reconciliation_temporal_short_gap_days')::integer AS short_gap,
+           investory.reconciliation_parameter('reconciliation_fx_extreme_move_ratio') AS extreme_move,
+           investory.reconciliation_parameter('reconciliation_fx_isolated_spike_ratio') AS spike_ratio,
+           investory.reconciliation_parameter('reconciliation_temporal_neighbor_recovery_ratio') AS recovery,
+           investory.reconciliation_parameter('reconciliation_fx_reciprocal_tolerance') AS reciprocal_tolerance
+)
+SELECT CASE
+           WHEN ABS(o.rate / NULLIF(o.previous_rate, 0) - 1) >= p.spike_ratio
+                AND ABS(o.next_rate / NULLIF(o.previous_rate, 0) - 1) <= p.recovery
+                THEN 'ERROR'
+           ELSE 'WARN'
+       END::varchar(16) AS severity,
+       CASE
+           WHEN ABS(o.rate / NULLIF(o.previous_rate, 0) - 1) >= p.spike_ratio
+                AND ABS(o.next_rate / NULLIF(o.previous_rate, 0) - 1) <= p.recovery
+                THEN 'FX_ISOLATED_SPIKE'
+           ELSE 'FX_EXTREME_MOVE'
+       END::varchar(64) AS issue_code,
+       'FX'::varchar(16) AS entity_type,
+       NULL::bigint AS entity_id,
+       (o.base || '/' || o.to_currency)::varchar(64) AS entity_key,
+       o.base::varchar(3) AS base_currency,
+       o.to_currency::varchar(3) AS quote_currency,
+       o.rate_date AS event_date,
+       o.previous_date,
+       o.next_date,
+       (o.rate_date - o.previous_date)::integer AS gap_days,
+       o.previous_rate AS previous_value,
+       o.rate AS current_value,
+       o.next_rate AS next_value,
+       o.rate / NULLIF(o.previous_rate, 0) - 1 AS change_pct,
+       o.rate / NULLIF(o.previous_rate, 0) AS ratio,
+       ('canonical neutral FX ' || o.base || '/' || o.to_currency || ' moved from '
+        || o.previous_rate || ' to ' || o.rate || ' over '
+        || (o.rate_date - o.previous_date) || ' day(s); source=' || o.source
+        || ', method=' || o.method)::text AS explanation,
+       o.source AS source,
+       o.method AS source_symbol,
+       NULL::varchar(3) AS observation_currency,
+       NULL::numeric AS scale_factor,
+       NULL::boolean AS is_proxy
+FROM observations o CROSS JOIN params p
+WHERE o.previous_rate > 0
+  AND o.rate_date - o.previous_date <= p.short_gap
+  AND ABS(o.rate / o.previous_rate - 1) >= p.extreme_move
+  AND NOT (
+      ABS(o.rate / NULLIF(o.previous_rate, 0) - 1) >= p.spike_ratio
+      AND o.next_rate > 0
+      AND o.next_date - o.rate_date <= p.short_gap
+      AND ABS(o.next_rate / NULLIF(o.previous_rate, 0) - 1) <= p.recovery
+  )
+UNION ALL
+SELECT 'ERROR', 'FX_ISOLATED_SPIKE', 'FX', NULL,
+       (o.base || '/' || o.to_currency), o.base, o.to_currency, o.rate_date,
+       o.previous_date, o.next_date, (o.rate_date - o.previous_date)::integer,
+       o.previous_rate, o.rate, o.next_rate,
+       o.rate / NULLIF(o.previous_rate, 0) - 1,
+       o.rate / NULLIF(o.previous_rate, 0),
+       ('isolated canonical FX spike: neighbors recover from ' || o.previous_rate || ' to '
+        || o.next_rate || ', current=' || o.rate)::text,
+       o.source AS source, o.method AS source_symbol, NULL, NULL, NULL
+FROM observations o CROSS JOIN params p
+WHERE o.previous_rate > 0 AND o.next_rate > 0
+  AND o.rate_date - o.previous_date <= p.short_gap
+  AND o.next_date - o.rate_date <= p.short_gap
+  AND ABS(o.rate / o.previous_rate - 1) >= p.spike_ratio
+  AND ABS(o.next_rate / o.previous_rate - 1) <= p.recovery
+UNION ALL
+SELECT 'ERROR', 'FX_RECIPROCAL_INCONSISTENCY', 'FX', NULL,
+       (fx.base || '/' || fx.to_currency), fx.base, fx.to_currency, fx.rate_date,
+       NULL, NULL, NULL, NULL, fx.rate, inverse.rate,
+       ABS(fx.rate * inverse.rate - 1), fx.rate * inverse.rate,
+       ('reciprocal product=' || (fx.rate * inverse.rate)
+        || ', tolerance=' || p.reciprocal_tolerance)::text,
+       fx.source AS source, fx.method AS source_symbol, NULL, NULL, NULL
+FROM investory.exchange_rates fx
+JOIN investory.exchange_rates inverse
+  ON inverse.rate_date = fx.rate_date
+ AND inverse.base = fx.to_currency
+ AND inverse.to_currency = fx.base
+CROSS JOIN params p
+WHERE fx.purpose = 'VALUATION'
+  AND inverse.purpose = 'VALUATION'
+  AND ABS(fx.rate * inverse.rate - 1) > p.reciprocal_tolerance;
+
+CREATE OR REPLACE VIEW investory.recon_v_price_temporal_anomaly (
+    severity, issue_code, entity_type, entity_id, entity_key, event_date, previous_date,
+    next_date, gap_days, previous_value, current_value, next_value, change_pct, ratio,
+    explanation, source, source_symbol, observation_currency, mapping_currency, scale_factor,
+    mapping_scale_factor, price_origin, quality_class, is_proxy, requires_fx_conversion,
+    is_exact_listing, is_alternate_listing
+) AS
+WITH observations AS (
+    SELECT aph.asset_id, a.symbol AS asset_symbol, aph.source, aph.source_symbol,
+           aph.price_date, aph.price_currency, aph.price_origin, aph.quality_class,
+           aph.is_proxy, aph.price_scale_factor, aph.source_mapping_id,
+           ass.price_currency AS mapping_currency,
+           ass.price_scale_factor AS mapping_scale_factor,
+           ass.requires_fx_conversion, ass.is_exact_listing, ass.is_alternate_listing,
+           aph.close_price * aph.price_scale_factor AS normalized_price,
+           LAG(aph.close_price * aph.price_scale_factor) OVER w AS previous_price,
+           LAG(aph.price_date) OVER w AS previous_date,
+           LAG(aph.price_currency) OVER w AS previous_currency,
+           LEAD(aph.close_price * aph.price_scale_factor) OVER w AS next_price,
+           LEAD(aph.price_date) OVER w AS next_date
+    FROM investory.asset_price_history aph
+    JOIN investory.assets a ON a.id = aph.asset_id AND NOT a.exclude_from_import
+    LEFT JOIN investory.asset_source_symbols ass ON ass.id = aph.source_mapping_id
+    WHERE aph.is_observed AND NOT aph.estimated AND aph.close_price > 0
+    WINDOW w AS (PARTITION BY aph.asset_id, aph.source, aph.source_symbol ORDER BY aph.price_date)
+), p AS (
+    SELECT investory.reconciliation_parameter('reconciliation_temporal_short_gap_days')::integer AS short_gap,
+           investory.reconciliation_parameter('reconciliation_price_extreme_move_ratio') AS extreme_move,
+           investory.reconciliation_parameter('reconciliation_price_isolated_spike_ratio') AS spike_ratio,
+           investory.reconciliation_parameter('reconciliation_temporal_neighbor_recovery_ratio') AS recovery,
+           investory.reconciliation_parameter('reconciliation_price_scale_upper_ratio') AS scale_upper,
+           investory.reconciliation_parameter('reconciliation_price_scale_lower_ratio') AS scale_lower,
+           investory.reconciliation_parameter('reconciliation_price_scale_ten_upper_ratio') AS ten_upper,
+           investory.reconciliation_parameter('reconciliation_price_scale_ten_lower_ratio') AS ten_lower
+), short_moves AS (
+    SELECT o.*, o.normalized_price / NULLIF(o.previous_price, 0) AS price_ratio,
+           o.normalized_price / NULLIF(o.previous_price, 0) - 1 AS change_pct
+    FROM observations o CROSS JOIN p
+    WHERE o.previous_price > 0 AND o.price_date - o.previous_date <= p.short_gap
+), isolated AS (
+    SELECT s.* FROM short_moves s CROSS JOIN p
+    WHERE s.next_price > 0 AND s.next_date - s.price_date <= p.short_gap
+      AND ABS(s.price_ratio - 1) >= p.spike_ratio
+      AND ABS(s.next_price / s.previous_price - 1) <= p.recovery
+)
+SELECT 'WARN'::varchar(16) AS severity, 'PRICE_EXTREME_MOVE'::varchar(64) AS issue_code,
+       'ASSET'::varchar(16) AS entity_type, asset_id, asset_symbol::varchar(64) AS entity_key,
+       price_date AS event_date, previous_date, next_date,
+       (price_date - previous_date)::integer AS gap_days, previous_price AS previous_value,
+       normalized_price AS current_value, next_price AS next_value, change_pct, price_ratio AS ratio,
+       ('observed ' || asset_symbol || ' ' || source || '/' || source_symbol || ' moved from '
+        || previous_price || ' to ' || normalized_price || '; origin=' || price_origin
+        || ', quality=' || COALESCE(quality_class, 'n/a'))::text AS explanation,
+       source, source_symbol, price_currency AS observation_currency,
+       mapping_currency, price_scale_factor AS scale_factor, mapping_scale_factor,
+       price_origin, quality_class, is_proxy, requires_fx_conversion,
+       is_exact_listing, is_alternate_listing
+FROM short_moves s CROSS JOIN p
+WHERE ABS(s.change_pct) >= p.extreme_move
+  AND NOT EXISTS (SELECT 1 FROM isolated i WHERE i.asset_id=s.asset_id AND i.source=s.source
+                  AND i.source_symbol=s.source_symbol AND i.price_date=s.price_date)
+UNION ALL
+SELECT 'ERROR', 'PRICE_ISOLATED_SPIKE', 'ASSET', asset_id, asset_symbol, price_date,
+       previous_date, next_date, (price_date - previous_date)::integer, previous_price,
+       normalized_price, next_price, change_pct, price_ratio,
+       ('isolated observed price spike; neighbors recover from ' || previous_price || ' to '
+        || next_price || ', current=' || normalized_price)::text,
+       source, source_symbol, price_currency, mapping_currency, price_scale_factor,
+       mapping_scale_factor, price_origin, quality_class, is_proxy, requires_fx_conversion,
+       is_exact_listing, is_alternate_listing
+FROM isolated
+UNION ALL
+SELECT 'ERROR', 'PRICE_CURRENCY_MISMATCH', 'ASSET', asset_id, asset_symbol, price_date,
+       previous_date, next_date, NULL, previous_price, normalized_price, next_price,
+       NULL, NULL, ('observed currency ' || price_currency || ' differs from applicable '
+        || 'provider/listing mapping currency ' || mapping_currency)::text,
+       source, source_symbol, price_currency, mapping_currency, price_scale_factor,
+       mapping_scale_factor, price_origin, quality_class, is_proxy, requires_fx_conversion,
+       is_exact_listing, is_alternate_listing
+FROM observations
+WHERE mapping_currency IS NOT NULL AND price_currency IS DISTINCT FROM mapping_currency
+UNION ALL
+SELECT 'WARN', 'PRICE_CURRENCY_SWITCH', 'ASSET', asset_id, asset_symbol, price_date,
+       previous_date, next_date, (price_date - previous_date)::integer, previous_price,
+       normalized_price, next_price, NULL, normalized_price / NULLIF(previous_price, 0),
+       ('provider/listing observation currency switched from ' || previous_currency || ' to '
+        || price_currency)::text, source, source_symbol, price_currency, mapping_currency,
+       price_scale_factor, mapping_scale_factor, price_origin, quality_class, is_proxy,
+       requires_fx_conversion, is_exact_listing, is_alternate_listing
+FROM observations
+WHERE previous_currency IS NOT NULL AND price_currency IS DISTINCT FROM previous_currency
+UNION ALL
+SELECT 'ERROR', 'PRICE_SCALE_MISMATCH', 'ASSET', asset_id, asset_symbol, price_date,
+       previous_date, next_date, NULL, previous_price, normalized_price, next_price, NULL, NULL,
+       ('history scale ' || price_scale_factor || ' differs from mapping scale '
+        || mapping_scale_factor)::text, source, source_symbol, price_currency, mapping_currency,
+       price_scale_factor, mapping_scale_factor, price_origin, quality_class, is_proxy,
+       requires_fx_conversion, is_exact_listing, is_alternate_listing
+FROM observations
+WHERE mapping_scale_factor IS NOT NULL AND price_scale_factor IS DISTINCT FROM mapping_scale_factor
+UNION ALL
+SELECT 'WARN', 'PRICE_SCALE_DISCONTINUITY', 'ASSET', asset_id, asset_symbol, price_date,
+       previous_date, next_date, (price_date - previous_date)::integer, previous_price,
+       normalized_price, next_price, normalized_price / NULLIF(previous_price, 0) - 1,
+       normalized_price / NULLIF(previous_price, 0),
+       ('observed normalized price ratio suggests a unit boundary; ratio='
+        || (normalized_price / NULLIF(previous_price, 0)))::text,
+       source, source_symbol, price_currency, mapping_currency, price_scale_factor,
+       mapping_scale_factor, price_origin, quality_class, is_proxy, requires_fx_conversion,
+       is_exact_listing, is_alternate_listing
+FROM short_moves s CROSS JOIN p
+WHERE s.price_ratio >= p.scale_upper OR s.price_ratio <= p.scale_lower
+   OR (s.price_ratio BETWEEN p.ten_lower AND p.ten_upper)
+   OR (1 / NULLIF(s.price_ratio, 0) BETWEEN p.ten_lower AND p.ten_upper);
+
+CREATE OR REPLACE VIEW investory.recon_v_account_temporal_anomaly (
+    severity, issue_code, entity_type, entity_id, entity_key, event_date, previous_date,
+    next_date, gap_days, previous_value, current_value, next_value, change_pct, ratio,
+    explanation, source, source_symbol, observation_currency, mapping_currency, scale_factor,
+    mapping_scale_factor, price_origin, quality_class, is_proxy
+) AS
+WITH days AS (
+    SELECT ad.*, LAG(ad.snapshot_date) OVER w AS previous_date,
+           LAG(ad.equity) OVER w AS previous_equity,
+           LAG(ad.market_value) OVER w AS previous_market_value
+    FROM investory.account_daily ad
+    WINDOW w AS (PARTITION BY ad.account_id ORDER BY ad.snapshot_date)
+), movements AS (
+    SELECT d.*,
+           d.deposits - d.withdrawals + d.dividends + d.interest
+             - d.fees - d.taxes + d.realized_profit AS known_change,
+           d.equity - d.previous_equity
+             - (d.deposits - d.withdrawals + d.dividends + d.interest
+                - d.fees - d.taxes + d.realized_profit) AS unexplained_equity_change,
+           d.market_value - d.previous_market_value AS unexplained_market_change
+    FROM days d
+), p AS (
+    SELECT investory.reconciliation_parameter('reconciliation_temporal_short_gap_days')::integer AS short_gap,
+           investory.reconciliation_parameter('reconciliation_account_unexplained_move_ratio') AS move_ratio
+)
+SELECT 'WARN'::varchar(16) AS severity,
+       CASE WHEN ABS(m.unexplained_market_change) / GREATEST(ABS(m.previous_market_value), ABS(m.market_value), 1)
+                  >= p.move_ratio THEN 'ACCOUNT_MARKET_VALUE_SPIKE'
+            ELSE 'ACCOUNT_EQUITY_SPIKE' END::varchar(64) AS issue_code,
+       'ACCOUNT'::varchar(16) AS entity_type, m.account_id AS entity_id,
+       a.name::varchar(64) AS entity_key, m.snapshot_date AS event_date, m.previous_date,
+       NULL::date AS next_date, (m.snapshot_date - m.previous_date)::integer AS gap_days,
+       m.previous_equity AS previous_value, m.equity AS current_value, NULL::numeric AS next_value,
+       m.unexplained_equity_change / GREATEST(ABS(m.previous_equity), ABS(m.equity), 1) AS change_pct,
+       m.unexplained_equity_change / NULLIF(m.previous_equity, 0) AS ratio,
+       ('unexplained equity change=' || m.unexplained_equity_change
+        || ', unexplained market change=' || m.unexplained_market_change
+        || ', known change=' || m.known_change || ', valuation currency=' || m.valuation_currency)::text,
+       NULL::varchar(32) AS source, NULL::varchar(64) AS source_symbol,
+       m.valuation_currency AS observation_currency, NULL::varchar(3) AS mapping_currency,
+       NULL::numeric AS scale_factor, NULL::numeric AS mapping_scale_factor,
+       NULL::varchar(32) AS price_origin, NULL::varchar(64) AS quality_class,
+       NULL::boolean AS is_proxy, NULL::boolean AS is_exact_listing,
+       NULL::boolean AS is_alternate_listing
+FROM movements m JOIN investory.accounts a ON a.id = m.account_id CROSS JOIN p
+WHERE m.previous_date IS NOT NULL AND m.snapshot_date - m.previous_date <= p.short_gap
+  AND (ABS(m.unexplained_market_change) / GREATEST(ABS(m.previous_market_value), ABS(m.market_value), 1) >= p.move_ratio
+    OR ABS(m.unexplained_equity_change) / GREATEST(ABS(m.previous_equity), ABS(m.equity), 1) >= p.move_ratio);
+
+CREATE OR REPLACE VIEW investory.recon_v_temporal_anomaly (
+    severity, issue_code, entity_type, entity_id, entity_key, event_date, previous_date,
+    next_date, gap_days, previous_value, current_value, next_value, change_pct, ratio,
+    explanation, source, source_symbol, observation_currency, mapping_currency, scale_factor,
+    mapping_scale_factor, price_origin, quality_class, is_proxy
+) AS
+SELECT severity, issue_code, entity_type, entity_id, entity_key, event_date, previous_date,
+       next_date, gap_days, previous_value, current_value, next_value, change_pct, ratio,
+       explanation, source, source_symbol, observation_currency, NULL::varchar(3) AS mapping_currency,
+       scale_factor, NULL::numeric AS mapping_scale_factor, NULL::varchar(32) AS price_origin,
+       NULL::varchar(64) AS quality_class, is_proxy
+FROM investory.recon_v_fx_temporal_anomaly
+UNION ALL
+SELECT severity, issue_code, entity_type, entity_id, entity_key, event_date, previous_date,
+       next_date, gap_days, previous_value, current_value, next_value, change_pct, ratio,
+       explanation, source, source_symbol, observation_currency, mapping_currency, scale_factor,
+       mapping_scale_factor, price_origin, quality_class, is_proxy
+FROM investory.recon_v_price_temporal_anomaly
+UNION ALL
+SELECT severity, issue_code, entity_type, entity_id, entity_key, event_date, previous_date,
+       next_date, gap_days, previous_value, current_value, next_value, change_pct, ratio,
+       explanation, source, source_symbol, observation_currency, mapping_currency, scale_factor,
+       mapping_scale_factor, price_origin, quality_class, is_proxy
+FROM investory.recon_v_account_temporal_anomaly;
+
+COMMENT ON VIEW investory.recon_v_temporal_anomaly IS
+    'Common non-destructive temporal anomaly contract. FX, observed asset prices, and account movements retain layer-specific context; WARN/ERROR means review evidence, not proof of corruption.';
+SET search_path TO investory, public;
+
+-- V01.005 created this materialized view before daily FX became canonical. Recreate its
+-- dependent closure so its stored expression binds to the daily-resolver OID introduced in
+-- V01.010; preserve the definitions, indexes and comments of every dependent read model.
+CREATE TEMP TABLE _nco_fx_defs AS
+WITH RECURSIVE deps(oid) AS (
+    VALUES ('investory.app_v_normalized_cash_operations'::regclass)
+    UNION
+    SELECT w.ev_class
+    FROM deps d
+    JOIN pg_depend x ON x.refobjid = d.oid
+    JOIN pg_rewrite w ON w.oid = x.objid
+)
+SELECT c.oid, c.relname AS object_name, c.relkind,
+       pg_get_viewdef(c.oid, true) AS object_definition,
+       obj_description(c.oid, 'pg_class') AS object_comment,
+       false AS dropped
+FROM deps d
+JOIN pg_class c ON c.oid = d.oid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'investory'
+  AND c.relkind IN ('v', 'm')
+  AND c.oid <> 'investory.app_v_normalized_cash_operations'::regclass;
+
+CREATE TEMP TABLE _nco_fx_indexes AS
+SELECT DISTINCT i.tablename, i.indexname, i.indexdef
+FROM pg_indexes i JOIN _nco_fx_defs d ON d.object_name = i.tablename
+WHERE i.schemaname = 'investory' AND d.relkind = 'm';
+
+CREATE TEMP TABLE _nco_fx_source AS
+SELECT pg_get_viewdef('investory.app_v_normalized_cash_operations'::regclass, true) AS definition,
+       obj_description('investory.app_v_normalized_cash_operations'::regclass, 'pg_class') AS view_comment;
+
+DO $$
+DECLARE v record; progress boolean;
+BEGIN
+    LOOP
+        progress := false;
+        FOR v IN SELECT * FROM _nco_fx_defs WHERE NOT dropped ORDER BY relkind, object_name LOOP
+            BEGIN
+                EXECUTE CASE WHEN v.relkind = 'm' THEN 'DROP MATERIALIZED VIEW investory.' ELSE 'DROP VIEW investory.' END || quote_ident(v.object_name);
+                UPDATE _nco_fx_defs SET dropped = true WHERE oid = v.oid;
+                progress := true;
+            EXCEPTION WHEN dependent_objects_still_exist THEN NULL;
+            END;
+        END LOOP;
+        EXIT WHEN NOT EXISTS (SELECT 1 FROM _nco_fx_defs WHERE NOT dropped);
+        IF NOT progress THEN RAISE EXCEPTION 'Could not remove normalized-cash dependent objects'; END IF;
+    END LOOP;
+END
+$$;
+
+DROP MATERIALIZED VIEW investory.app_v_normalized_cash_operations;
+
+DO $$
+DECLARE d text; r text; p integer; q integer; c text;
+BEGIN
+    SELECT definition, view_comment INTO d, c FROM _nco_fx_source;
+    d := regexp_replace(d, ';[[:space:]]*$', '');
+    p := strpos(d, 'port_resolved AS (');
+    q := p + strpos(substr(d, p), '), acct_needed AS (') - 1;
+    r := 'port_resolved AS ( SELECT n.portfolio_id AS k_portfolio_id, n.vdate AS k_vdate, n.currency AS k_currency, fx.fx_rate_to_target AS fx_rate_to_base, fx.source, fx.source_rate_date, fx.age_days, fx.conversion_status FROM port_needed n JOIN investory.portfolios p ON p.id = n.portfolio_id CROSS JOIN LATERAL investory.resolve_fx_rate(n.vdate, n.currency, p.base_currency::varchar(3)) fx(source_currency, target_currency, fx_rate_to_target, source, rate_method, rate_source, source_rate_date, age_days, conversion_status) )';
+    d := left(d, p - 1) || r || substr(d, q + 1);
+    EXECUTE 'CREATE MATERIALIZED VIEW investory.app_v_normalized_cash_operations AS ' || d || ' WITH DATA';
+    CREATE UNIQUE INDEX ux_normalized_cash_operations ON investory.app_v_normalized_cash_operations(operation_id);
+    IF c IS NOT NULL THEN EXECUTE 'COMMENT ON MATERIALIZED VIEW investory.app_v_normalized_cash_operations IS ' || quote_literal(c); END IF;
+END
+$$;
+
+DO $$
+DECLARE v record;
+BEGIN
+    LOOP
+        FOR v IN SELECT * FROM _nco_fx_defs WHERE dropped ORDER BY relkind, object_name LOOP
+            BEGIN
+                EXECUTE CASE WHEN v.relkind = 'm' THEN 'CREATE MATERIALIZED VIEW investory.' ELSE 'CREATE VIEW investory.' END
+                    || quote_ident(v.object_name) || ' AS ' || regexp_replace(v.object_definition, ';[[:space:]]*$', '')
+                    || CASE WHEN v.relkind = 'm' THEN ' WITH DATA' ELSE '' END;
+                UPDATE _nco_fx_defs SET dropped = false WHERE oid = v.oid;
+                IF v.object_comment IS NOT NULL THEN
+                    EXECUTE CASE WHEN v.relkind = 'm' THEN 'COMMENT ON MATERIALIZED VIEW investory.' ELSE 'COMMENT ON VIEW investory.' END
+                        || quote_ident(v.object_name) || ' IS ' || quote_literal(v.object_comment);
+                END IF;
+            EXCEPTION WHEN undefined_table OR undefined_object OR dependent_objects_still_exist THEN NULL;
+            END;
+        END LOOP;
+        EXIT WHEN NOT EXISTS (SELECT 1 FROM _nco_fx_defs WHERE dropped);
+    END LOOP;
+END
+$$;
+
+DO $$
+DECLARE v record;
+BEGIN
+    FOR v IN SELECT * FROM _nco_fx_indexes LOOP EXECUTE v.indexdef; END LOOP;
 END
 $$;
