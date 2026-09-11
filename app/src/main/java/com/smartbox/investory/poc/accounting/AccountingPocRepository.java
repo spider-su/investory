@@ -5,6 +5,7 @@ import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ObligationRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.TaxInputRow;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -101,6 +102,40 @@ public class AccountingPocRepository {
                 rs.getString("source_quality"),
                 rs.getString("note")),
         period);
+  }
+
+  public void insertExpense(
+      LocalDate taxPeriod,
+      LocalDate invoiceDate,
+      String reference,
+      String supplierAlias,
+      String category,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      BigDecimal vatDeductionRatio,
+      String sourceQuality,
+      String note) {
+    jdbcTemplate.update(
+        """
+        INSERT INTO investory.accounting_poc_expense_invoice
+            (tax_period, invoice_date, reference, supplier_alias, category, currency,
+             net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        taxPeriod,
+        invoiceDate,
+        reference,
+        supplierAlias,
+        category,
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        vatDeductionRatio,
+        sourceQuality,
+        note);
   }
 
   public List<BankRow> bankTransactionsForPeriod(LocalDate period) {
