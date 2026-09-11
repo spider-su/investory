@@ -33,9 +33,7 @@ public class AccountingFactController {
 
   @PostMapping("/poc/accounting/invoice/recognize")
   public String recognizeInvoice(
-      @RequestParam String month,
-      @RequestParam("invoice") MultipartFile invoice,
-      Model model) {
+      @RequestParam String month, @RequestParam("invoice") MultipartFile invoice, Model model) {
     LocalDate selected = populateModel(month, model);
     AccountingExpenseForm form = new AccountingExpenseForm();
     form.setMonth(formatMonth(selected));
@@ -102,8 +100,7 @@ public class AccountingFactController {
 
     model.addAttribute("periods", periods);
     model.addAttribute("selectedPeriod", selected);
-    model.addAttribute(
-        "previousPeriod", selectedIndex > 0 ? periods.get(selectedIndex - 1) : null);
+    model.addAttribute("previousPeriod", selectedIndex > 0 ? periods.get(selectedIndex - 1) : null);
     model.addAttribute(
         "nextPeriod",
         selectedIndex >= 0 && selectedIndex < periods.size() - 1
@@ -140,7 +137,9 @@ public class AccountingFactController {
     if (form.getCurrency() == null || form.getCurrency().isBlank()) {
       throw new IllegalArgumentException("Currency is required");
     }
-    if (form.getNetAmount() == null || form.getVatAmount() == null || form.getGrossAmount() == null) {
+    if (form.getNetAmount() == null
+        || form.getVatAmount() == null
+        || form.getGrossAmount() == null) {
       throw new IllegalArgumentException("Net, VAT and gross amounts are required before saving");
     }
   }
@@ -150,9 +149,9 @@ public class AccountingFactController {
   }
 
   private String buildReviewedNote(String note) {
-    String base =
-        note == null || note.isBlank() ? "" : note.trim() + " ";
-    return base + "Uploaded invoice recognized by AI and reviewed in the accounting form before persistence.";
+    String base = note == null || note.isBlank() ? "" : note.trim() + " ";
+    return base
+        + "Uploaded invoice recognized by AI and reviewed in the accounting form before persistence.";
   }
 
   private LocalDate parseMonth(String month) {

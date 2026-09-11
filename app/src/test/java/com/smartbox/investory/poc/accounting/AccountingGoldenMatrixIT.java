@@ -46,7 +46,9 @@ class AccountingGoldenMatrixIT extends FastDatabaseTest {
     expected.put("2026-05", new ExpectedMonth("MATCH", "MATCH", "MATCH", "MATCH", "MATCH"));
     expected.put("2026-06", new ExpectedMonth("MATCH", "MATCH", "MATCH", "MATCH", "MATCH"));
     expected.put("2026-07", new ExpectedMonth("MATCH", "MATCH", "MATCH", "MATCH", "MATCH"));
-    expected.put("2026-08", new ExpectedMonth("MATCH", "NO_GOLDEN", "NO_GOLDEN", "NO_GOLDEN", "NO_FX_SOURCE"));
+    expected.put(
+        "2026-08",
+        new ExpectedMonth("MATCH", "NO_GOLDEN", "NO_GOLDEN", "NO_GOLDEN", "NO_FX_SOURCE"));
 
     expected.forEach(
         (month, monthExpected) -> {

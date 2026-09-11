@@ -15,8 +15,7 @@ class AccountingExpenseNormalizerTest {
   void derivesEightPercentFuelVatAndFiftyPercentDeduction() {
     var normalized =
         normalizer.normalize(
-            new ExpenseImportCandidate(
-                "VEHICLE_FUEL", new BigDecimal("385.08"), null, null, null));
+            new ExpenseImportCandidate("VEHICLE_FUEL", new BigDecimal("385.08"), null, null, null));
 
     assertThat(normalized.netAmount()).isEqualByComparingTo("356.56");
     assertThat(normalized.vatAmount()).isEqualByComparingTo("28.52");
