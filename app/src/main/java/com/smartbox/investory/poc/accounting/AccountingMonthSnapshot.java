@@ -10,6 +10,9 @@ public record AccountingMonthSnapshot(
     BigDecimal foreignBookedRevenuePln,
     BigDecimal foreignSourceRevenueEur,
     BigDecimal totalBookedRevenuePln,
+    FxCalculation fx,
+    RyczałtCalculation ryczalt,
+    VatCalculation vat,
     List<InvoiceRow> invoices,
     List<ReconciliationRow> reconciliations,
     List<ObligationRow> obligations,
@@ -20,6 +23,7 @@ public record AccountingMonthSnapshot(
       LocalDate taxPeriod,
       LocalDate issueDate,
       LocalDate saleDate,
+      LocalDate fxRateDate,
       String reference,
       String customerAlias,
       String invoiceKind,
@@ -27,6 +31,8 @@ public record AccountingMonthSnapshot(
       BigDecimal netAmount,
       BigDecimal vatAmount,
       BigDecimal grossAmount,
+      BigDecimal correctionNetAmount,
+      BigDecimal correctionVatAmount,
       BigDecimal correctionGrossAmount,
       BigDecimal expectedReceivable,
       BigDecimal bookedNetPln,
@@ -54,6 +60,8 @@ public record AccountingMonthSnapshot(
       String status,
       String note) {}
 
+  public record TaxInputRow(String inputType, BigDecimal amount, String note) {}
+
   public record ReconciliationRow(
       String reference,
       String kind,
@@ -63,4 +71,34 @@ public record AccountingMonthSnapshot(
       LocalDate paymentDate,
       String status,
       String explanation) {}
+
+  public record FxCalculation(
+      LocalDate rateDate,
+      BigDecimal sourceEur,
+      BigDecimal calculatedPln,
+      BigDecimal expectedPln,
+      BigDecimal difference,
+      String status) {}
+
+  public record RyczałtCalculation(
+      BigDecimal revenueBeforeDeductions,
+      BigDecimal correctionNet,
+      BigDecimal healthContributionPaid,
+      BigDecimal healthDeduction,
+      BigDecimal taxableBase,
+      BigDecimal rate,
+      BigDecimal calculatedTax,
+      BigDecimal expectedTax,
+      BigDecimal difference,
+      String status) {}
+
+  public record VatCalculation(
+      BigDecimal outputVatBeforeCorrections,
+      BigDecimal correctionVat,
+      BigDecimal outputVat,
+      BigDecimal deductibleInputVat,
+      BigDecimal calculatedVat,
+      BigDecimal expectedVat,
+      BigDecimal difference,
+      String status) {}
 }
