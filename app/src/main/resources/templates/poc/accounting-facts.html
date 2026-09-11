@@ -8,50 +8,53 @@
     body { font-family: system-ui, sans-serif; margin: 2rem; color: #1f2937; }
     h1, h2 { margin-bottom: .35rem; }
     p { color: #4b5563; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin: 1.5rem 0 2rem; }
-    .card { border: 1px solid #e5e7eb; border-radius: .65rem; padding: 1rem; }
-    .label { font-size: .75rem; text-transform: uppercase; color: #6b7280; }
-    .value { margin-top: .35rem; font-size: 1.25rem; font-weight: 650; font-variant-numeric: tabular-nums; }
-    table { width: 100%; border-collapse: collapse; margin: .8rem 0 2rem; }
-    th, td { border-bottom: 1px solid #e5e7eb; padding: .65rem .5rem; text-align: left; vertical-align: top; }
-    th { font-size: .75rem; text-transform: uppercase; color: #6b7280; }
-    .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .matched { font-weight: 700; }
-    .excluded, .muted { color: #9ca3af; }
-    .warning { color: #92400e; }
-    .note { max-width: 42rem; color: #4b5563; }
-    details { margin-top: 2rem; }
+    .toolbar { display:flex; align-items:center; gap:.75rem; margin:1rem 0 1.5rem; }
+    select { padding:.45rem .65rem; border:1px solid #d1d5db; border-radius:.4rem; background:white; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:1rem; margin:1.5rem 0 2rem; }
+    .card { border:1px solid #e5e7eb; border-radius:.65rem; padding:1rem; }
+    .label { font-size:.75rem; text-transform:uppercase; color:#6b7280; }
+    .value { margin-top:.35rem; font-size:1.25rem; font-weight:650; font-variant-numeric:tabular-nums; }
+    table { width:100%; border-collapse:collapse; margin:.8rem 0 2rem; }
+    th,td { border-bottom:1px solid #e5e7eb; padding:.65rem .5rem; text-align:left; vertical-align:top; }
+    th { font-size:.75rem; text-transform:uppercase; color:#6b7280; }
+    .amount { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .matched { font-weight:700; }
+    .excluded,.muted { color:#9ca3af; }
+    .warning { color:#92400e; font-weight:600; }
+    .note { max-width:42rem; color:#4b5563; }
+    .banner { border:1px solid #f59e0b; background:#fffbeb; padding:.75rem 1rem; border-radius:.5rem; margin:1rem 0; }
+    details { margin-top:2rem; }
   </style>
 </head>
 <body>
-<h1>Accounting POC — July 2026</h1>
-<p>Deterministic July reconstruction. Calculated values are compared directly with the captured wFirma/bank golden outputs.</p>
-<p class="muted">July contains an unusual invoice correction. It is intentionally kept as a July-only fixture; generic correction processing is parked for a later POC stage.</p>
+<h1>Accounting POC — <span th:text="${#temporals.format(selectedPeriod, 'MMMM yyyy')}">July 2026</span></h1>
+<p>Deterministic reconstruction over anonymized 2026 historical fixtures. Calculated values are compared with captured wFirma/bank golden outputs where available.</p>
+
+<form class="toolbar" method="get" action="/poc/accounting">
+  <label for="month"><strong>Month</strong></label>
+  <select id="month" name="month" onchange="this.form.submit()">
+    <option th:each="period : ${periods}"
+            th:value="${#temporals.format(period, 'yyyy-MM')}"
+            th:text="${#temporals.format(period, 'MMMM yyyy')}"
+            th:selected="${period.equals(selectedPeriod)}">July 2026</option>
+  </select>
+  <noscript><button type="submit">Show</button></noscript>
+</form>
+
+<div class="banner" th:if="${snapshot.ryczalt().status() == 'INPUTS_INCOMPLETE'}">
+  This month is only partially reconstructable from the captured source set. Known golden outputs are preserved, but at least one source input is missing.
+</div>
+<div class="banner" th:if="${snapshot.ryczalt().status() == 'NO_GOLDEN' || snapshot.vat().status() == 'NO_GOLDEN'}">
+  This month contains captured accounting facts, but complete tax golden outputs were not captured yet.
+</div>
+<p class="muted" th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}">July contains an unusual invoice correction. It remains a July-only fixture; generic correction processing is parked.</p>
 
 <div class="grid">
-  <div class="card">
-    <div class="label">Domestic revenue net</div>
-    <div class="value"><span th:text="${snapshot.domesticRevenueNetPln()}">16250.00</span> PLN</div>
-  </div>
-  <div class="card">
-    <div class="label">Foreign source</div>
-    <div class="value"><span th:text="${snapshot.foreignSourceRevenueEur()}">7636.00</span> EUR</div>
-  </div>
-  <div class="card">
-    <div class="label">FX calculated</div>
-    <div class="value"><span th:text="${snapshot.fx().calculatedPln()}">32908.87</span> PLN</div>
-    <div th:text="${snapshot.fx().status()}" th:classappend="${snapshot.fx().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</div>
-  </div>
-  <div class="card">
-    <div class="label">Ryczałt calculated</div>
-    <div class="value"><span th:text="${snapshot.ryczalt().calculatedTax()}">5791</span> PLN</div>
-    <div th:text="${snapshot.ryczalt().status()}" th:classappend="${snapshot.ryczalt().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</div>
-  </div>
-  <div class="card">
-    <div class="label">VAT calculated</div>
-    <div class="value"><span th:text="${snapshot.vat().calculatedVat()}">3557</span> PLN</div>
-    <div th:text="${snapshot.vat().status()}" th:classappend="${snapshot.vat().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</div>
-  </div>
+  <div class="card"><div class="label">Domestic revenue net</div><div class="value"><span th:text="${snapshot.domesticRevenueNetPln()}">16250.00</span> PLN</div></div>
+  <div class="card"><div class="label">Foreign source</div><div class="value"><span th:text="${snapshot.foreignSourceRevenueEur()}">7636.00</span> EUR</div></div>
+  <div class="card"><div class="label">FX calculated</div><div class="value"><span th:text="${snapshot.fx().calculatedPln()}">32908.87</span> PLN</div><div th:text="${snapshot.fx().status()}" th:classappend="${snapshot.fx().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</div></div>
+  <div class="card"><div class="label">Ryczałt calculated</div><div class="value"><span th:text="${snapshot.ryczalt().calculatedTax()}">5791</span> PLN</div><div th:text="${snapshot.ryczalt().status()}" th:classappend="${snapshot.ryczalt().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</div></div>
+  <div class="card"><div class="label">VAT calculated</div><div class="value"><span th:text="${snapshot.vat().calculatedVat()}">3557</span> PLN</div><div th:text="${snapshot.vat().status()}" th:classappend="${snapshot.vat().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</div></div>
 </div>
 
 <h2>Calculated vs expected</h2>
@@ -64,7 +67,7 @@
     <td class="amount"><span th:text="${snapshot.fx().expectedPln()}">32908.87</span> PLN</td>
     <td class="amount" th:text="${snapshot.fx().difference()}">0.00</td>
     <td th:text="${snapshot.fx().status()}" th:classappend="${snapshot.fx().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</td>
-    <td>7,636 EUR; Investory FX; rate date <span th:text="${snapshot.fx().rateDate()}">2026-07-30</span></td>
+    <td><span th:text="${snapshot.foreignSourceRevenueEur()}">7636</span> EUR; Investory FX; rate date <span th:text="${snapshot.fx().rateDate() != null ? snapshot.fx().rateDate() : '—'}">2026-07-30</span></td>
   </tr>
   <tr>
     <td>12% ryczałt</td>
@@ -72,11 +75,7 @@
     <td class="amount"><span th:text="${snapshot.ryczalt().expectedTax()}">5791</span> PLN</td>
     <td class="amount" th:text="${snapshot.ryczalt().difference()}">0</td>
     <td th:text="${snapshot.ryczalt().status()}" th:classappend="${snapshot.ryczalt().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</td>
-    <td>
-      revenue <span th:text="${snapshot.ryczalt().revenueBeforeDeductions()}">49008.87</span>,
-      health deduction <span th:text="${snapshot.ryczalt().healthDeduction()}">747.52</span>,
-      base <span th:text="${snapshot.ryczalt().taxableBase()}">48261.35</span>
-    </td>
+    <td>revenue <span th:text="${snapshot.ryczalt().revenueBeforeDeductions()}">49008.87</span>, health deduction <span th:text="${snapshot.ryczalt().healthDeduction()}">747.52</span>, base <span th:text="${snapshot.ryczalt().taxableBase()}">48261.35</span></td>
   </tr>
   <tr>
     <td>VAT</td>
@@ -84,71 +83,59 @@
     <td class="amount"><span th:text="${snapshot.vat().expectedVat()}">3557</span> PLN</td>
     <td class="amount" th:text="${snapshot.vat().difference()}">0</td>
     <td th:text="${snapshot.vat().status()}" th:classappend="${snapshot.vat().status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</td>
-    <td>
-      output after July sales correction <span th:text="${snapshot.vat().outputVatAfterSalesCorrection()}">3703.00</span>,
-      July-only correction adjustment <span th:text="${snapshot.vat().julyOnlyVatCorrectionAdjustment()}">146.00</span>
-    </td>
+    <td>output <span th:text="${snapshot.vat().outputVatAfterSalesCorrection()}">3703.00</span>, deduction/adjustment <span th:text="${snapshot.vat().julyOnlyVatCorrectionAdjustment()}">146.00</span></td>
   </tr>
   </tbody>
 </table>
 
 <h2>Ryczałt trace</h2>
-<table>
-  <tbody>
-  <tr><th>Domestic July revenue</th><td class="amount" th:text="${snapshot.domesticRevenueNetPln()}">16250.00</td></tr>
-  <tr><th>Foreign revenue via FX</th><td class="amount" th:text="${snapshot.fx().calculatedPln()}">32908.87</td></tr>
-  <tr><th>July-only correction net</th><td class="amount" th:text="${snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()}">-150.00</td></tr>
-  <tr><th>Revenue before deductions</th><td class="amount" th:text="${snapshot.ryczalt().revenueBeforeDeductions()}">49008.87</td></tr>
-  <tr><th>Health contribution paid</th><td class="amount" th:text="${snapshot.ryczalt().healthContributionPaid()}">1495.04</td></tr>
-  <tr><th>50% health deduction</th><td class="amount" th:text="${snapshot.ryczalt().healthDeduction()}">747.52</td></tr>
-  <tr><th>Taxable base</th><td class="amount" th:text="${snapshot.ryczalt().taxableBase()}">48261.35</td></tr>
-  <tr><th>Rate</th><td class="amount" th:text="${snapshot.ryczalt().rate()}">0.12</td></tr>
-  <tr><th>Rounded tax</th><td class="amount" th:text="${snapshot.ryczalt().calculatedTax()}">5791</td></tr>
-  </tbody>
-</table>
+<table><tbody>
+<tr><th>Domestic revenue</th><td class="amount" th:text="${snapshot.domesticRevenueNetPln()}">16250.00</td></tr>
+<tr><th>Foreign revenue via FX</th><td class="amount" th:text="${snapshot.fx().calculatedPln()}">32908.87</td></tr>
+<tr th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}"><th>July-only correction net</th><td class="amount" th:text="${snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()}">-150.00</td></tr>
+<tr><th>Revenue before deductions</th><td class="amount" th:text="${snapshot.ryczalt().revenueBeforeDeductions()}">49008.87</td></tr>
+<tr><th>Health contribution paid</th><td class="amount" th:text="${snapshot.ryczalt().healthContributionPaid()}">1495.04</td></tr>
+<tr><th>50% health deduction</th><td class="amount" th:text="${snapshot.ryczalt().healthDeduction()}">747.52</td></tr>
+<tr><th>Taxable base</th><td class="amount" th:text="${snapshot.ryczalt().taxableBase()}">48261.35</td></tr>
+<tr><th>Rate</th><td class="amount" th:text="${snapshot.ryczalt().rate()}">0.12</td></tr>
+<tr><th>Rounded tax</th><td class="amount" th:text="${snapshot.ryczalt().calculatedTax()}">5791</td></tr>
+</tbody></table>
 
 <h2>VAT trace</h2>
-<table>
-  <tbody>
-  <tr><th>July domestic output VAT</th><td class="amount" th:text="${snapshot.vat().outputVatBeforeJulyCorrection()}">3737.50</td></tr>
-  <tr><th>July-only sales correction VAT</th><td class="amount" th:text="${snapshot.vat().julyOnlySalesCorrectionVat()}">-34.50</td></tr>
-  <tr><th>Output VAT after sales correction</th><td class="amount" th:text="${snapshot.vat().outputVatAfterSalesCorrection()}">3703.00</td></tr>
-  <tr><th>July-only VAT correction adjustment</th><td class="amount" th:text="${snapshot.vat().julyOnlyVatCorrectionAdjustment()}">146.00</td></tr>
-  <tr><th>VAT payable</th><td class="amount" th:text="${snapshot.vat().calculatedVat()}">3557</td></tr>
-  </tbody>
-</table>
-<p class="muted">The 146 PLN value is treated only as a historical July correction adjustment. It is not modeled as normal deductible input VAT, and no reusable correction engine is claimed yet.</p>
+<table><tbody>
+<tr><th>Domestic output VAT</th><td class="amount" th:text="${snapshot.vat().outputVatBeforeJulyCorrection()}">3737.50</td></tr>
+<tr th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}"><th>July-only sales correction VAT</th><td class="amount" th:text="${snapshot.vat().julyOnlySalesCorrectionVat()}">-34.50</td></tr>
+<tr><th>Output VAT after adjustment</th><td class="amount" th:text="${snapshot.vat().outputVatAfterSalesCorrection()}">3703.00</td></tr>
+<tr><th th:text="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1)) ? 'July-only VAT correction adjustment' : 'Deductible input VAT'}">Deductible input VAT</th><td class="amount" th:text="${snapshot.vat().julyOnlyVatCorrectionAdjustment()}">146.00</td></tr>
+<tr><th>VAT payable</th><td class="amount" th:text="${snapshot.vat().calculatedVat()}">3557</td></tr>
+</tbody></table>
+<p class="muted" th:if="${!selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}">Input VAT is currently stored as a transparent monthly summarized fixture. Document-level expense reconstruction remains a later hardening step.</p>
+<p class="muted" th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}">July uses the captured one-off invoice-correction fixture. Generic correction processing remains parked.</p>
 
 <h2>Reconciliation</h2>
 <table>
   <thead><tr><th>Reference</th><th>Kind</th><th class="amount">Expected</th><th class="amount">Matched / paid</th><th>Payment date</th><th>Status</th><th>Explanation</th></tr></thead>
   <tbody>
   <tr th:each="row : ${snapshot.reconciliations()}">
-    <td th:text="${row.reference()}">FV 5/2026</td>
-    <td th:text="${row.kind()}">INVOICE_PAYMENT</td>
+    <td th:text="${row.reference()}">FV 5/2026</td><td th:text="${row.kind()}">INVOICE_PAYMENT</td>
     <td class="amount"><span th:text="${row.expectedAmount()}">19987.50</span> <span th:text="${row.currency()}">PLN</span></td>
     <td class="amount"><span th:text="${row.matchedAmount()}">19987.50</span> <span th:text="${row.currency()}">PLN</span></td>
     <td th:text="${row.paymentDate() != null ? row.paymentDate() : '—'}">2026-08-13</td>
-    <td th:text="${row.status()}" th:classappend="${row.status() == 'MATCHED' ? 'matched' : ''}">MATCHED</td>
+    <td th:text="${row.status()}" th:classappend="${row.status() == 'MATCHED' || row.status() == 'MATCH' ? 'matched' : ''}">MATCHED</td>
     <td class="note" th:text="${row.explanation()}">Exact match.</td>
   </tr>
   </tbody>
 </table>
 
-<h2>Invoices / July correction fixture</h2>
+<h2>Invoices / corrections</h2>
 <table>
   <thead><tr><th>Period</th><th>Reference</th><th>Currency</th><th class="amount">Net</th><th class="amount">VAT</th><th class="amount">Correction net</th><th class="amount">Correction VAT</th><th class="amount">Receivable</th><th>FX date</th></tr></thead>
   <tbody>
   <tr th:each="invoice : ${snapshot.invoices()}">
-    <td th:text="${invoice.taxPeriod()}">2026-07-01</td>
-    <td th:text="${invoice.reference()}">FV 5/2026</td>
-    <td th:text="${invoice.currency()}">PLN</td>
-    <td class="amount" th:text="${invoice.netAmount()}">16250.00</td>
-    <td class="amount" th:text="${invoice.vatAmount()}">3737.50</td>
-    <td class="amount" th:text="${invoice.correctionNetAmount()}">0</td>
-    <td class="amount" th:text="${invoice.correctionVatAmount()}">0</td>
-    <td class="amount" th:text="${invoice.expectedReceivable()}">19987.50</td>
-    <td th:text="${invoice.fxRateDate() != null ? invoice.fxRateDate() : '—'}">—</td>
+    <td th:text="${invoice.taxPeriod()}">2026-07-01</td><td th:text="${invoice.reference()}">FV 5/2026</td><td th:text="${invoice.currency()}">PLN</td>
+    <td class="amount" th:text="${invoice.netAmount()}">16250.00</td><td class="amount" th:text="${invoice.vatAmount()}">3737.50</td>
+    <td class="amount" th:text="${invoice.correctionNetAmount()}">0</td><td class="amount" th:text="${invoice.correctionVatAmount()}">0</td>
+    <td class="amount" th:text="${invoice.expectedReceivable()}">19987.50</td><td th:text="${invoice.fxRateDate() != null ? invoice.fxRateDate() : '—'}">—</td>
   </tr>
   </tbody>
 </table>
@@ -158,12 +145,9 @@
   <thead><tr><th>Date</th><th>Related period</th><th>Type</th><th>Scope</th><th>Reference</th><th>Counterparty</th><th class="amount">Amount</th></tr></thead>
   <tbody>
   <tr th:each="transaction : ${snapshot.bankTransactions()}" th:classappend="${transaction.scope() != 'BUSINESS' ? 'excluded' : ''}">
-    <td th:text="${transaction.bookingDate()}">2026-08-05</td>
-    <td th:text="${transaction.relatedPeriod() != null ? transaction.relatedPeriod() : '—'}">2026-07-01</td>
-    <td th:text="${transaction.transactionType()}">CUSTOMER_RECEIPT</td>
-    <td th:text="${transaction.scope()}">BUSINESS</td>
-    <td th:text="${transaction.reference() != null ? transaction.reference() : '—'}">Service Agreements</td>
-    <td th:text="${transaction.counterpartyAlias() != null ? transaction.counterpartyAlias() : '—'}">CUSTOMER_EU_001</td>
+    <td th:text="${transaction.bookingDate()}">2026-08-05</td><td th:text="${transaction.relatedPeriod() != null ? transaction.relatedPeriod() : '—'}">2026-07-01</td>
+    <td th:text="${transaction.transactionType()}">CUSTOMER_RECEIPT</td><td th:text="${transaction.scope()}">BUSINESS</td>
+    <td th:text="${transaction.reference() != null ? transaction.reference() : '—'}">Service Agreements</td><td th:text="${transaction.counterpartyAlias() != null ? transaction.counterpartyAlias() : '—'}">CUSTOMER_EU_001</td>
     <td class="amount"><span th:text="${transaction.amount()}">7636.00</span> <span th:text="${transaction.currency()}">EUR</span></td>
   </tr>
   </tbody>
@@ -171,20 +155,9 @@
 
 <details>
   <summary>Raw source facts</summary>
-  <table>
-    <thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Counterparty</th><th class="amount">Amount</th><th>Tax rate</th><th>Note</th></tr></thead>
-    <tbody>
-    <tr th:each="fact : ${facts}">
-      <td th:text="${fact.factDate() != null ? fact.factDate() : '—'}">2026-07-16</td>
-      <td th:text="${fact.factType()}">BANK_RECEIPT</td>
-      <td th:text="${fact.reference() != null ? fact.reference() : '—'}">FV 4/2026</td>
-      <td th:text="${fact.counterpartyAlias() != null ? fact.counterpartyAlias() : '—'}">CUSTOMER_PL_001</td>
-      <td class="amount"><span th:text="${fact.amount()}">39864.30</span> <span th:text="${fact.currency()}">PLN</span></td>
-      <td th:text="${fact.taxRate() != null ? fact.taxRate() : '—'}">0.12</td>
-      <td class="note" th:text="${fact.note() != null ? fact.note() : '—'}">Historical fact.</td>
-    </tr>
-    </tbody>
-  </table>
+  <table><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Counterparty</th><th class="amount">Amount</th><th>Tax rate</th><th>Note</th></tr></thead><tbody>
+  <tr th:each="fact : ${facts}"><td th:text="${fact.factDate() != null ? fact.factDate() : '—'}">2026-07-16</td><td th:text="${fact.factType()}">BANK_RECEIPT</td><td th:text="${fact.reference() != null ? fact.reference() : '—'}">FV 4/2026</td><td th:text="${fact.counterpartyAlias() != null ? fact.counterpartyAlias() : '—'}">CUSTOMER_PL_001</td><td class="amount"><span th:text="${fact.amount()}">39864.30</span> <span th:text="${fact.currency()}">PLN</span></td><td th:text="${fact.taxRate() != null ? fact.taxRate() : '—'}">0.12</td><td class="note" th:text="${fact.note() != null ? fact.note() : '—'}">Historical fact.</td></tr>
+  </tbody></table>
 </details>
 </body>
 </html>
