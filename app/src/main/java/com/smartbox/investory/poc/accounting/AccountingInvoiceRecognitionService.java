@@ -67,7 +67,7 @@ public class AccountingInvoiceRecognitionService {
       Map<String, Object> file = new LinkedHashMap<>();
       file.put("type", "input_file");
       file.put("filename", safeFilename(filename, "invoice.pdf"));
-      file.put("file_data", "data:application/pdf;base64," + data);
+      file.put("file_data", data);
       content.add(file);
     } else {
       content.add(
