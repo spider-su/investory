@@ -30,6 +30,9 @@
     .excluded,.muted { color:var(--tblr-secondary-color); }
     .note { min-width:18rem; color:var(--tblr-secondary-color); }
     .month-nav-disabled { pointer-events:none; opacity:.45; }
+    .invoice-import-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:1rem; }
+    .invoice-import-grid .wide { grid-column:span 2; }
+    @media (max-width: 767px) { .invoice-import-grid .wide { grid-column:span 1; } }
   </style>
 </head>
 <body>
@@ -66,6 +69,96 @@
         <span class="btn btn-outline-secondary month-nav-disabled" th:if="${nextPeriod == null}">Next →</span>
         <noscript><button class="btn btn-primary" type="submit">Show</button></noscript>
       </form>
+
+      <div class="alert alert-success" role="alert" th:if="${expenseSaved}" th:text="${expenseSaved}"></div>
+      <div class="alert alert-danger" role="alert" th:if="${expenseSaveError}" th:text="${expenseSaveError}"></div>
+
+      <section class="card section-card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Import expense invoice</h2>
+            <div class="text-secondary mt-1">Upload a PDF or invoice photo, extract the fields, review them, then save.</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data" th:action="@{/poc/accounting/invoice/recognize}">
+            <input type="hidden" name="month" th:value="${#temporals.format(selectedPeriod, 'yyyy-MM')}">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-8">
+                <label for="invoice-file" class="form-label">Invoice PDF or image</label>
+                <input id="invoice-file" class="form-control" type="file" name="invoice"
+                       accept="application/pdf,image/jpeg,image/png,image/webp" required>
+              </div>
+              <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">Recognize &amp; autofill</button>
+              </div>
+            </div>
+            <div class="form-hint mt-2">The uploaded document is sent to the configured OpenAI integration for document extraction. Nothing is persisted until you review and save the form.</div>
+          </form>
+
+          <div class="alert alert-danger mt-3 mb-0" role="alert" th:if="${recognitionError}" th:text="${recognitionError}"></div>
+          <div class="alert alert-info mt-3 mb-0" role="alert" th:if="${recognitionMessage}" th:text="${recognitionMessage}"></div>
+
+          <form class="mt-4" method="post" th:action="@{/poc/accounting/expense}" th:object="${expenseDraft}" th:if="${expenseDraft != null}">
+            <input type="hidden" th:field="*{month}">
+            <div class="invoice-import-grid">
+              <div>
+                <label class="form-label">Invoice date</label>
+                <input class="form-control" type="date" th:field="*{invoiceDate}">
+              </div>
+              <div>
+                <label class="form-label">Reference</label>
+                <input class="form-control" type="text" th:field="*{reference}" required>
+              </div>
+              <div class="wide">
+                <label class="form-label">Supplier</label>
+                <input class="form-control" type="text" th:field="*{supplierAlias}" required>
+              </div>
+              <div>
+                <label class="form-label">Category</label>
+                <select class="form-select" th:field="*{category}" required>
+                  <option value="VEHICLE_FUEL">Vehicle fuel</option>
+                  <option value="ACCOUNTING_SERVICE">Accounting service</option>
+                  <option value="BUSINESS_SERVICE">Business service</option>
+                  <option value="EQUIPMENT">Equipment</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Currency</label>
+                <input class="form-control" type="text" maxlength="3" th:field="*{currency}" required>
+              </div>
+              <div>
+                <label class="form-label">Net</label>
+                <input class="form-control" type="number" step="0.01" th:field="*{netAmount}" required>
+              </div>
+              <div>
+                <label class="form-label">VAT</label>
+                <input class="form-control" type="number" step="0.01" th:field="*{vatAmount}" required>
+              </div>
+              <div>
+                <label class="form-label">Gross</label>
+                <input class="form-control" type="number" step="0.01" th:field="*{grossAmount}" required>
+              </div>
+              <div>
+                <label class="form-label">VAT deduction</label>
+                <select class="form-select" th:field="*{vatDeductionRatio}" required>
+                  <option value="0.00">0%</option>
+                  <option value="0.50">50%</option>
+                  <option value="1.00">100%</option>
+                </select>
+              </div>
+              <div class="wide">
+                <label class="form-label">Recognition note</label>
+                <textarea class="form-control" rows="2" th:field="*{note}"></textarea>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+              <button class="btn btn-success" type="submit">Save reviewed expense</button>
+            </div>
+          </form>
+        </div>
+      </section>
 
       <div class="alert alert-warning" role="alert"
            th:if="${snapshot.ryczalt().status() == 'INPUTS_INCOMPLETE' || snapshot.vat().status() == 'EXPENSES_MISSING'}">
