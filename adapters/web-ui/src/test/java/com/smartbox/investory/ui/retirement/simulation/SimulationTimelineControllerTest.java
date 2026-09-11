@@ -37,17 +37,6 @@ class SimulationTimelineControllerTest {
   }
 
   @Test
-  void rolloverPreservesSimulationContext() {
-    String redirect =
-        controller().rollover(1L, CurrencyType.EUR, 7L, SimulationScenario.CONSERVATIVE);
-
-    verify(timeline).rollover(1L);
-    assertEquals(
-        "redirect:/portfolios/1/simulation?planId=7&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
-        redirect);
-  }
-
-  @Test
   void pastManualValueConvertsAndPreservesDetailContext() {
     when(presentation.fromDisplay(new BigDecimal("45000"), CurrencyType.PLN, BigDecimal.ZERO))
         .thenReturn(new BigDecimal("11250"));

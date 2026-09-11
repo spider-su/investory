@@ -168,9 +168,9 @@ function setBenchmarkValue(id, value, suffix, signed) {
 async function updateBenchmarkSelection() {
     if (!benchmarkChart) return;
     const ids = [...selectedBenchmarkAccountIds()].join(',');
-    const params = new URLSearchParams({ accountIds: ids, aggregation: 'monthly', metric: 'return', style: 'line', portfolioId });
+    const params = new URLSearchParams({ accountIds: ids, aggregation: 'monthly', metric: 'return', style: 'line' });
     try {
-        const response = await fetch('/api/v1/investment/performance/board?' + params.toString(), { headers: { Accept: 'application/json' } });
+        const response = await fetch('/api/v1/portfolios/' + encodeURIComponent(portfolioId) + '/investment/performance/board?' + params.toString(), { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error('HTTP ' + response.status);
         const view = await response.json();
         const available = Boolean(view.available);
@@ -245,7 +245,7 @@ function updateAccountValueChart(selectedIds) {
     if (!requestedAccountsLoaded) {
         const requestId = ++accountValueRequest;
         const ids = [...selectedIds].join(',');
-            fetch('/api/v1/investment/performance/account-values?accountIds=' + encodeURIComponent(ids) + '&portfolioId=' + encodeURIComponent(portfolioId))
+            fetch('/api/v1/portfolios/' + encodeURIComponent(portfolioId) + '/investment/performance/account-values?accountIds=' + encodeURIComponent(ids))
             .then(response => { if (!response.ok) throw new Error('HTTP ' + response.status); return response.json(); })
             .then(view => {
                 if (requestId !== accountValueRequest) return;
@@ -305,7 +305,7 @@ function updateAccountValueChart(selectedIds) {
         panel.textContent = 'Loading daily attribution…';
         document.getElementById('daily-attribution-details').open = true;
         try {
-            const response = await fetch('/api/v1/investment/performance/daily-attribution?date=' + encodeURIComponent(date) + '&accountIds=' + encodeURIComponent(ids) + '&portfolioId=' + encodeURIComponent(portfolioId));
+            const response = await fetch('/api/v1/portfolios/' + encodeURIComponent(portfolioId) + '/investment/performance/daily-attribution?date=' + encodeURIComponent(date) + '&accountIds=' + encodeURIComponent(ids));
             if (!response.ok) throw new Error('HTTP ' + response.status);
             const a = await response.json();
             const money = value => signedBaseFormatter.format(Math.round(Number(value || 0))) + ' ' + baseCurrency;
@@ -373,7 +373,6 @@ enableKeyboardChart(accountValueChart, 'account-value-chart', index => accountVa
 
     return {benchmarkChart, accountValueChart, updateAccountValueChart};
 }
-
 
 
 

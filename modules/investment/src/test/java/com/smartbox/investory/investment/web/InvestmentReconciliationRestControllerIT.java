@@ -44,7 +44,7 @@ class InvestmentReconciliationRestControllerIT {
                 Instant.parse("2026-08-29T10:00:00Z"),
                 LocalDate.of(2026, 8, 29)));
 
-    mvc.perform(get("/api/v1/investment/reconciliation").param("portfolioId", "7"))
+    mvc.perform(get("/api/v1/portfolios/7/investment/reconciliation"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.overallState").value("REVIEW"))
         .andExpect(jsonPath("$.checkpoints").isArray())
@@ -56,7 +56,8 @@ class InvestmentReconciliationRestControllerIT {
 
   @Test
   void reportRequiresPortfolioId() throws Exception {
-    mvc.perform(get("/api/v1/investment/reconciliation")).andExpect(status().isBadRequest());
+    mvc.perform(get("/api/v1/portfolios/0/investment/reconciliation"))
+        .andExpect(status().isBadRequest());
     verifyNoInteractions(reconciliation);
   }
 }

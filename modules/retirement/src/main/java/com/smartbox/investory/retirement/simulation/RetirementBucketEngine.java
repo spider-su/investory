@@ -31,9 +31,27 @@ public final class RetirementBucketEngine {
       RetirementFundingPolicy policy,
       BigDecimal bondReturnRate,
       BigDecimal equityReturnRate) {
+    policy = policy == null ? RetirementFundingPolicy.defaults() : policy;
+    BigDecimal reserveTarget =
+        nz(policy.reserveTargetYears())
+            .multiply(nz(annualCosts).subtract(nz(cashIncome)).max(ZERO));
+    return simulate(
+        start, annualCosts, cashIncome, policy, bondReturnRate, equityReturnRate, reserveTarget);
+  }
+
+  /** Simulates one year using the caller's canonical, year-specific Bond reserve floor. */
+  public Result simulate(
+      PlanningBuckets start,
+      BigDecimal annualCosts,
+      BigDecimal cashIncome,
+      RetirementFundingPolicy policy,
+      BigDecimal bondReturnRate,
+      BigDecimal equityReturnRate,
+      BigDecimal safeReserveTargetAmount) {
     annualCosts = nz(annualCosts);
     cashIncome = nz(cashIncome);
     policy = policy == null ? RetirementFundingPolicy.defaults() : policy;
+    safeReserveTargetAmount = nz(safeReserveTargetAmount).max(ZERO);
     BigDecimal cash = start.cash().startValue();
     BigDecimal bondsStart = start.bonds().startValue(),
         equitiesStart = start.equities().startValue(),
@@ -48,13 +66,16 @@ public final class RetirementBucketEngine {
     BigDecimal cashWithdrawal = gap.min(cash);
     cash = cash.subtract(cashWithdrawal);
     gap = gap.subtract(cashWithdrawal);
-    BigDecimal bondWithdrawal = gap.min(bonds);
-    bonds = bonds.subtract(bondWithdrawal);
-    gap = gap.subtract(bondWithdrawal);
+    BigDecimal bondNormalWithdrawal = gap.min(bonds.subtract(safeReserveTargetAmount).max(ZERO));
+    bonds = bonds.subtract(bondNormalWithdrawal);
+    gap = gap.subtract(bondNormalWithdrawal);
     BigDecimal equityWithdrawal =
         policy.allowEmergencyEquityWithdrawal() ? gap.min(equities) : ZERO;
     equities = equities.subtract(equityWithdrawal);
     gap = gap.subtract(equityWithdrawal);
+    BigDecimal bondEmergencyWithdrawal = gap.min(bonds);
+    bonds = bonds.subtract(bondEmergencyWithdrawal);
+    gap = gap.subtract(bondEmergencyWithdrawal);
     BigDecimal realEstateWithdrawal = gap.min(realEstate);
     realEstate = realEstate.subtract(realEstateWithdrawal);
     gap = gap.subtract(realEstateWithdrawal);
@@ -62,7 +83,7 @@ public final class RetirementBucketEngine {
     if (equityReturn.signum() > 0
         && nz(equityReturnRate).compareTo(policy.equityHarvestThresholdRate()) >= 0) {
       BigDecimal eligible = equityReturn.multiply(policy.equityHarvestShare());
-      BigDecimal targetGap = start.bonds().targetValue().subtract(bonds).max(ZERO);
+      BigDecimal targetGap = safeReserveTargetAmount.subtract(bonds).max(ZERO);
       harvest = eligible.min(targetGap).min(equities).max(ZERO);
       equities = equities.subtract(harvest);
       bonds = bonds.add(harvest);
@@ -84,7 +105,7 @@ public final class RetirementBucketEngine {
             bondsStart,
             bondReturn,
             harvest,
-            bondWithdrawal,
+            bondNormalWithdrawal.add(bondEmergencyWithdrawal),
             bonds.max(ZERO)));
     rows.put(
         EconomicBucket.EQUITY,
@@ -104,17 +125,32 @@ public final class RetirementBucketEngine {
             ZERO,
             realEstateWithdrawal,
             realEstate.max(ZERO)));
-    return new Result(Map.copyOf(rows), gap, cashIncome, harvest);
+    return new Result(
+        Map.copyOf(rows),
+        gap,
+        cashIncome,
+        harvest,
+        safeReserveTargetAmount,
+        bondNormalWithdrawal,
+        bondEmergencyWithdrawal);
   }
 
   public record Result(
       Map<EconomicBucket, BucketResult> buckets,
       BigDecimal unfunded,
       BigDecimal cashIncome,
-      BigDecimal equityHarvestToBonds) {
+      BigDecimal equityHarvestToBonds,
+      BigDecimal safeReserveTargetAmount,
+      BigDecimal normalBondWithdrawal,
+      BigDecimal emergencyBondWithdrawal) {
     public Result {
       buckets = Map.copyOf(buckets);
       unfunded = nz(unfunded);
+      cashIncome = nz(cashIncome);
+      equityHarvestToBonds = nz(equityHarvestToBonds);
+      safeReserveTargetAmount = nz(safeReserveTargetAmount).max(ZERO);
+      normalBondWithdrawal = nz(normalBondWithdrawal);
+      emergencyBondWithdrawal = nz(emergencyBondWithdrawal);
     }
   }
 

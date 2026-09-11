@@ -6,7 +6,7 @@
   <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}">Validation error.</div>
   <form class="card iv-long-term-form" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/bond(portfolioId=${portfolioId})}">
     <div class="iv-card-section-header"><span class="iv-card-section-header__title">Bond details</span></div>
-    <div class="card-body iv-long-term-form__body"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><input type="hidden" name="id" th:value="${asset?.id}"><div class="row g-3">
+    <div class="card-body iv-long-term-form__body"><input type="hidden" name="id" th:value="${asset?.id}"><div class="row g-3">
       <div class="col-md-6"><label class="form-label" for="bond-name">Name</label><input id="bond-name" class="form-control" name="name" th:value="${asset?.name}" required></div>
       <div class="col-md-3"><label class="form-label" for="bond-currency">Currency</label><select id="bond-currency" class="form-select" name="currency" required><option th:each="currency : ${T(com.smartbox.investory.shared.currency.CurrencyType).values()}" th:value="${currency}" th:text="${currency}" th:selected="${currency == asset?.currency}"></option></select></div>
       <div class="col-md-3"><label class="form-label" for="bond-value">Value</label><input id="bond-value" class="form-control" name="value" type="number" step="0.01" min="0" th:value="${asset?.value == null ? '' : T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.value)}" required></div>

@@ -797,21 +797,16 @@ public class PortfolioProjectionService {
         BigDecimal costBase = acc.costBase.compareTo(EPSILON) > 0 ? acc.costBase : ZERO;
         BigDecimal unrealizedProfit = marketValue.subtract(costBase);
         /*
-         * Canonical daily profit must reconcile to the same boundary formula used by
-         * account_monthly_mv:
-         *
-         *   daily profit = closing equity - opening equity - performance flow
-         *
-         * Performance flow includes external funding and genuine tracked-account transfers.
-         * Internal bookkeeping, FX conversion, trade settlement, dividends, interest, fees, taxes,
-         * and realized trade rows already affect equity through the canonical cash ledger and/or
-         * market valuation, so they must not be added again here.
+         * Canonical account profit is the equity bridge after the account boundary flows stored
+         * on this row. This keeps the persisted fact provable from account_daily alone; provider
+         * P/L and the detailed cash-operation classifications remain diagnostics/components.
          */
+        BigDecimal accountBoundaryFlow = acc.deposits.subtract(acc.withdrawals);
         BigDecimal dailyProfit =
-            ModifiedDietzCalculator.profit(previousEquity, equity, acc.performanceFlow);
+            ModifiedDietzCalculator.profit(previousEquity, equity, accountBoundaryFlow);
         BigDecimal dailyReturn =
             ModifiedDietzCalculator.returnRate(
-                previousEquity, equity, List.of(acc.performanceFlow));
+                previousEquity, equity, List.of(accountBoundaryFlow));
 
         rows.add(
             AccountDailyEntity.builder()

@@ -114,6 +114,8 @@ public class RetirementSimulationService implements RetirementSimulation {
           bondCashFlows.cashIncome(profile, assumptions, year).multiply(recurringFraction);
       BigDecimal cashIncome =
           recurringIncome(employment, pension, eventIncome, periodRental, bondIncome);
+      BigDecimal reliableRecurringIncome =
+          recurringIncome(employment, pension, ZERO, periodRental, bondIncome);
       BigDecimal annualBondReturn = effective.capitalBondReturnRate().multiply(recurringFraction);
       BigDecimal annualEquityReturn = effective.equityReturnRate().multiply(recurringFraction);
       PlanningBuckets annualBuckets = annualBuckets(current, annualBondReturn, annualEquityReturn);
@@ -124,7 +126,9 @@ public class RetirementSimulationService implements RetirementSimulation {
               cashIncome,
               assumptions.fundingPolicy(),
               annualBondReturn,
-              annualEquityReturn);
+              annualEquityReturn,
+              safeReserveTargetAmount(assumptions.fundingPolicy(), costs, reliableRecurringIncome));
+      BigDecimal safeReserveTarget = result.safeReserveTargetAmount();
       var c = result.buckets().get(EconomicBucket.LIQUID_CASH);
       var b = result.buckets().get(EconomicBucket.FIXED_INCOME);
       var rawEquities = result.buckets().get(EconomicBucket.EQUITY);
@@ -158,7 +162,8 @@ public class RetirementSimulationService implements RetirementSimulation {
               e,
               re,
               result.unfunded(),
-              contribution));
+              contribution,
+              safeReserveTarget));
       BigDecimal nextEquities = e.expectedEndValue();
       current = nextBuckets(current, c, b, nextEquities, re, rental);
       rental = rental.multiply(BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()));
@@ -202,6 +207,12 @@ public class RetirementSimulationService implements RetirementSimulation {
       BigDecimal periodRental,
       BigDecimal bondIncome) {
     return employment.add(pension).add(eventIncome).add(periodRental).add(bondIncome);
+  }
+
+  private static BigDecimal safeReserveTargetAmount(
+      RetirementFundingPolicy policy, BigDecimal spending, BigDecimal reliableRecurringIncome) {
+    BigDecimal fundingNeed = spending.subtract(reliableRecurringIncome).max(ZERO);
+    return policy.reserveTargetYears().multiply(fundingNeed);
   }
 
   private static PlanningBuckets annualBuckets(

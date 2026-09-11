@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Stable HTTP adapter for retirement plan resources. */
 @RestController
 @Validated
-@RequestMapping("/api/v1/retirement/portfolios/{portfolioId}/plans")
+@RequestMapping("/api/v1/portfolios/{portfolioId}/retirement/plans")
 public class RetirementPlanRestController {
   private final RetirementPlanApi plans;
 
@@ -68,7 +68,7 @@ public class RetirementPlanRestController {
                 request.assumptions().toDomain(),
                 request.baseline() == null ? null : request.baseline().toDomain()));
     return ResponseEntity.created(
-            URI.create("/api/v1/retirement/portfolios/" + portfolioId + "/plans/" + id))
+            URI.create("/api/v1/portfolios/" + portfolioId + "/retirement/plans/" + id))
         .body(new PlanMutationResponse(id));
   }
 

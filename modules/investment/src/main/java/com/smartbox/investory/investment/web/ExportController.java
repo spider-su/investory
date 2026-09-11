@@ -13,13 +13,13 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Validated
-@RequestMapping("/api/v1/investment/export")
+@RequestMapping("/api/v1/portfolios/{portfolioId}/investment/export")
 @RequiredArgsConstructor
 public class ExportController {
 
@@ -31,7 +31,7 @@ public class ExportController {
    * download. No file upload required.
    */
   @GetMapping("/generate")
-  public ResponseEntity<byte[]> generatePortfolioCsv(@RequestParam @Positive Long portfolioId) {
+  public ResponseEntity<byte[]> generatePortfolioCsv(@PathVariable @Positive Long portfolioId) {
     try {
       Path tempFile = Files.createTempFile("yahoo-export-", ".csv");
       try {

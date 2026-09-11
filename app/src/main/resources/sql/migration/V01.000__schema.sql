@@ -684,14 +684,14 @@ COMMENT ON COLUMN investory.account_daily.market_value IS 'End-of-day market val
 COMMENT ON COLUMN investory.account_daily.equity IS 'End-of-day total account equity in valuation currency. Expected to equal cash_balance + market_value.';
 COMMENT ON COLUMN investory.account_daily.cost_base IS 'End-of-day cost basis of open positions in valuation currency.';
 COMMENT ON COLUMN investory.account_daily.unrealized_profit IS 'End-of-day unrealized profit of open positions in valuation currency.';
-COMMENT ON COLUMN investory.account_daily.deposits IS 'Positive external funding deposited on snapshot_date in valuation currency.';
-COMMENT ON COLUMN investory.account_daily.withdrawals IS 'Positive external funding withdrawn on snapshot_date in valuation currency.';
+COMMENT ON COLUMN investory.account_daily.deposits IS 'Positive account-boundary inflow on snapshot_date in valuation currency; portfolio reporting retains external flows only.';
+COMMENT ON COLUMN investory.account_daily.withdrawals IS 'Positive account-boundary outflow on snapshot_date in valuation currency; portfolio reporting retains external flows only.';
 COMMENT ON COLUMN investory.account_daily.dividends IS 'Dividend income booked on snapshot_date in valuation currency.';
 COMMENT ON COLUMN investory.account_daily.interest IS 'Interest income booked on snapshot_date in valuation currency.';
 COMMENT ON COLUMN investory.account_daily.fees IS 'Positive fee amount booked on snapshot_date in valuation currency.';
 COMMENT ON COLUMN investory.account_daily.taxes IS 'Positive tax amount booked on snapshot_date in valuation currency.';
 COMMENT ON COLUMN investory.account_daily.realized_profit IS 'Realized trading profit booked on snapshot_date in valuation currency.';
-COMMENT ON COLUMN investory.account_daily.daily_profit_amount IS 'Daily total profit contribution in valuation currency after flows, realized P/L and mark-to-market effects.';
+COMMENT ON COLUMN investory.account_daily.daily_profit_amount IS 'Canonical daily account profit: ending equity - previous equity - deposits + withdrawals. Provider P/L and component facts are not mixed into this value.';
 COMMENT ON COLUMN investory.account_daily.daily_return_pct IS 'Daily return ratio for the account snapshot. Stored as decimal ratio, not percent points.';
 COMMENT ON COLUMN investory.account_daily.portfolio_weight IS 'Share of account equity within its portfolio on snapshot_date, stored as decimal ratio.';
 ALTER SEQUENCE IF EXISTS investory.account_daily_id_seq INCREMENT BY 50;

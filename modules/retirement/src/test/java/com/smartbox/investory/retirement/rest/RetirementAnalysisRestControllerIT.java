@@ -40,7 +40,7 @@ class RetirementAnalysisRestControllerIT {
   @Test
   void analyzeBindsProjectionBody() throws Exception {
     mvc.perform(
-            post("/api/v1/retirement/portfolios/7/analysis")
+            post("/api/v1/portfolios/7/retirement/analysis")
                 .contentType("application/json")
                 .content("{\"defaultCurrentAge\":40,\"defaultEndAge\":95}"))
         .andExpect(status().isOk());

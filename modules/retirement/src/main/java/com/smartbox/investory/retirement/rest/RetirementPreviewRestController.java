@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Stable HTTP adapter for plan-editor previews. */
 @RestController
 @Validated
-@RequestMapping("/api/v1/retirement/portfolios/{portfolioId}/preview")
+@RequestMapping("/api/v1/portfolios/{portfolioId}/retirement/preview")
 public class RetirementPreviewRestController {
   private final RetirementPreviewApi previews;
   private final PortfolioContextReader portfolios;

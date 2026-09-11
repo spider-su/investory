@@ -20,9 +20,8 @@ public class IntegrationSettingsController {
   }
 
   @GetMapping("/settings/integrations")
-  public String page(Model model, @RequestParam(required = false) Long portfolioId) {
+  public String page(Model model) {
     var integrations = settings.list();
-    model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("integrations", integrations);
     model.addAttribute(
         "activeCount", integrations.stream().filter(IntegrationSettingsView::enabled).count());

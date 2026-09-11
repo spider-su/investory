@@ -902,7 +902,8 @@ WITH parsed AS (
         CASE
             WHEN normalized_category IN (
                 'EXTERNAL_DEPOSIT', 'EXTERNAL_WITHDRAWAL',
-                'INTERNAL_TRANSFER_IN', 'INTERNAL_TRANSFER_OUT'
+                'INTERNAL_TRANSFER_IN', 'INTERNAL_TRANSFER_OUT',
+                'FX_CONVERSION'
             ) THEN amount
             WHEN normalized_category = 'INTERNAL_BOOKKEEPING'
              AND transfer_source_account = account_id
@@ -985,10 +986,10 @@ WITH account_rows_with_fx AS (
     SELECT
         account_id,
         date::date AS snapshot_date,
-        SUM(performance_flow_amount_in_portfolio_base_currency)
-            FILTER (WHERE performance_flow_amount_in_portfolio_base_currency > 0) AS deposits,
-        SUM(-performance_flow_amount_in_portfolio_base_currency)
-            FILTER (WHERE performance_flow_amount_in_portfolio_base_currency < 0) AS withdrawals,
+        SUM(portfolio_flow_amount_in_portfolio_base_currency)
+            FILTER (WHERE portfolio_flow_amount_in_portfolio_base_currency > 0) AS deposits,
+        SUM(-portfolio_flow_amount_in_portfolio_base_currency)
+            FILTER (WHERE portfolio_flow_amount_in_portfolio_base_currency < 0) AS withdrawals,
         COUNT(*) FILTER (
             WHERE NOT investory.fx_status_usable(portfolio_conversion_status)
         ) AS missing_flow_fx_count
@@ -1067,27 +1068,59 @@ WITH account_rows AS (
         CASE WHEN investory.fx_status_usable(conversion_status) THEN daily_profit_amount * valuation_to_base_rate END AS total_profit,
         conversion_status
     FROM account_rows
+), performance_flows AS (
+    SELECT
+        a.portfolio_id,
+        nco.date::date AS snapshot_date,
+        CASE WHEN COUNT(*) FILTER (
+            WHERE NOT investory.fx_status_usable(nco.portfolio_conversion_status)
+        ) > 0 THEN NULL::numeric ELSE
+            SUM(nco.account_flow_amount_in_portfolio_base_currency)
+                FILTER (WHERE nco.account_flow_amount_in_portfolio_base_currency > 0)
+        END AS deposits,
+        CASE WHEN COUNT(*) FILTER (
+            WHERE NOT investory.fx_status_usable(nco.portfolio_conversion_status)
+        ) > 0 THEN NULL::numeric ELSE
+            SUM(-nco.account_flow_amount_in_portfolio_base_currency)
+                FILTER (WHERE nco.account_flow_amount_in_portfolio_base_currency < 0)
+        END AS withdrawals,
+        COUNT(*) FILTER (
+            WHERE NOT investory.fx_status_usable(nco.portfolio_conversion_status)
+        ) AS missing_flow_fx_count
+    FROM investory.app_v_normalized_cash_operation_flows nco
+    JOIN investory.accounts a ON a.id = nco.account_id AND NOT a.cash_only
+    GROUP BY a.portfolio_id, nco.date::date
 )
 SELECT
-    portfolio_id, snapshot_date, base_currency,
+    converted.portfolio_id, converted.snapshot_date, converted.base_currency,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(equity) END AS equity,
-    CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(deposits) END AS deposits,
-    CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(withdrawals) END AS withdrawals,
+    CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0
+              OR MAX(COALESCE(ef.missing_flow_fx_count, 0)) > 0 THEN NULL
+         ELSE COALESCE(MAX(ef.deposits), 0) END AS deposits,
+    CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0
+              OR MAX(COALESCE(ef.missing_flow_fx_count, 0)) > 0 THEN NULL
+         ELSE COALESCE(MAX(ef.withdrawals), 0) END AS withdrawals,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(dividends) END AS dividends,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(interest) END AS interest,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(fees) END AS fees,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(taxes) END AS taxes,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(realized_profit) END AS realized_profit,
-    CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(total_profit) END AS total_profit,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL
-         WHEN LAG(SUM(equity)) OVER (PARTITION BY portfolio_id ORDER BY snapshot_date) IS NULL THEN NULL
-         ELSE SUM(total_profit) / NULLIF(LAG(SUM(equity)) OVER (PARTITION BY portfolio_id ORDER BY snapshot_date)
-             + SUM(deposits) - SUM(withdrawals), 0) END AS daily_return_pct
+         ELSE SUM(total_profit) END AS total_profit,
+    CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0
+              OR MAX(COALESCE(ef.missing_flow_fx_count, 0)) > 0 THEN NULL
+         WHEN LAG(SUM(equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date) IS NULL THEN NULL
+         ELSE SUM(total_profit)
+             / NULLIF(LAG(SUM(equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date)
+             + COALESCE(MAX(ef.deposits), 0) - COALESCE(MAX(ef.withdrawals), 0), 0) END AS daily_return_pct
 FROM converted
-GROUP BY portfolio_id, snapshot_date, base_currency;
+LEFT JOIN performance_flows ef
+  ON ef.portfolio_id = converted.portfolio_id
+ AND ef.snapshot_date = converted.snapshot_date
+GROUP BY converted.portfolio_id, converted.snapshot_date, converted.base_currency;
 
 COMMENT ON VIEW investory.app_v_portfolio_performance_daily IS
-    'Investment-performance projection for non-cash-only accounts. Balance and cash fields in app_v_portfolio_daily remain whole-portfolio values.';
+    'Investment-performance projection for non-cash-only accounts. Total profit comes from account_daily daily_profit_amount; account flows scope return denominators to tracked accounts.';
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS investory.app_v_portfolio_monthly AS
 WITH month_rows AS (
@@ -2459,7 +2492,7 @@ SELECT
     m.withdrawals,
     m.deposits - m.withdrawals AS net_external_flow,
     m.total_profit,
-    m.total_profit - m.realized_profit - m.dividends - m.interest - m.fees - m.taxes AS market_fx,
+    m.total_profit - m.realized_profit - m.dividends - m.interest + m.fees + m.taxes AS market_fx,
     m.realized_profit AS realized,
     m.dividends,
     m.interest,

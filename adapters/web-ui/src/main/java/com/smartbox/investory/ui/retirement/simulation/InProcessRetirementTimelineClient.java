@@ -18,8 +18,8 @@ public class InProcessRetirementTimelineClient implements RetirementTimelineClie
     this.api = api;
   }
 
-  public void rollover(Long portfolioId) {
-    api.rollover(portfolioId);
+  public void ensurePlanningTimeline(Long portfolioId) {
+    api.ensurePlanningTimeline(portfolioId);
   }
 
   public PastPlanningYear createHistoricalDraft(Long portfolioId, int year) {

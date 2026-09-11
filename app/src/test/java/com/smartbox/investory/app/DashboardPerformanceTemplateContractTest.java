@@ -176,13 +176,16 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(actions.contains("Preparing export…"));
     assertTrue(actions.contains("Portfolio exported"));
     assertTrue(actions.contains("Couldn’t create the export. Try again."));
-    assertTrue(html.contains("name=\"portfolioId\""));
+    assertFalse(html.contains("name=\"portfolioId\""));
     assertTrue(html.contains("data-portfolio-id=${portfolioId}"));
     assertTrue(html.contains("\"portfolioId\": /*[[${portfolioId}]]*/ null"));
     assertTrue(actions.contains("new FormData(uploadForm)"));
-    assertTrue(actions.contains("exportUrl.searchParams.set('portfolioId', exportPortfolioId)"));
+    assertTrue(actions.contains("/api/v1/portfolios/' + encodeURIComponent(exportPortfolioId)"));
+    assertFalse(actions.contains("new URLSearchParams(window.location.search).get('portfolioId')"));
     assertTrue(accountValueActions.contains("daily-attribution?date="));
-    assertTrue(accountValueActions.contains("&portfolioId=' + encodeURIComponent(portfolioId)"));
+    assertTrue(
+        accountValueActions.contains(
+            "/api/v1/portfolios/' + encodeURIComponent(portfolioId) + '/investment/performance/"));
     assertTrue(actions.contains("Market data updated"));
     assertTrue(actions.contains("Couldn’t update market data."));
     assertTrue(actions.contains("Updating exchange rates…"));

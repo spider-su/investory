@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /** Application facade keeping web adapters behind the public retirement planning contract. */
 @Service("retirementPlanningApplicationService")
@@ -35,7 +36,8 @@ public class RetirementPlanningApplicationService
   private final PlanEditorInputNormalizer editorInputNormalizer;
 
   @Override
-  public void rollover(Long portfolioId) {
+  @Transactional
+  public void ensurePlanningTimeline(Long portfolioId) {
     rollover.rollover(portfolioId);
   }
 
@@ -126,13 +128,19 @@ public class RetirementPlanningApplicationService
   }
 
   @Override
+  @Transactional
   public PastPlanningYear closeCurrentYear(Long portfolioId, int year, InvestmentProfile profile) {
-    return timeline.closeCurrentYear(portfolioId, year, profile);
+    PastPlanningYear closed = timeline.closeCurrentYear(portfolioId, year, profile);
+    rollover.rollover(portfolioId);
+    return closed;
   }
 
   @Override
+  @Transactional
   public PastPlanningYear closeHistoricalDraft(Long portfolioId, int year) {
-    return timeline.closeHistoricalDraft(portfolioId, year);
+    PastPlanningYear closed = timeline.closeHistoricalDraft(portfolioId, year);
+    rollover.rollover(portfolioId);
+    return closed;
   }
 
   @Override

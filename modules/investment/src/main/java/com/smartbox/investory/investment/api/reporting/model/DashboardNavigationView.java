@@ -21,10 +21,10 @@ public record DashboardNavigationView(Long portfolioId, List<Long> accountIds) {
 
   public String periodUrl(DashboardPeriod period) {
     StringBuilder url =
-        new StringBuilder("/dashboard?period=")
-            .append(period.urlValue())
-            .append("&portfolioId=")
-            .append(portfolioId);
+        new StringBuilder("/portfolios/")
+            .append(portfolioId)
+            .append("/dashboard?period=")
+            .append(period.urlValue());
     if (accountIds.isEmpty()) {
       return url.toString();
     }

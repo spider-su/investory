@@ -33,7 +33,7 @@ class RetirementProjectionRestControllerIT {
   @Test
   void rejectsIncompleteProjectionRequest() throws Exception {
     mvc.perform(
-            post("/api/v1/retirement/portfolios/7/projections")
+            post("/api/v1/portfolios/7/retirement/projections")
                 .contentType("application/json")
                 .content("{\"defaultCurrentAge\":-1}"))
         .andExpect(status().isBadRequest());

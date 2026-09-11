@@ -34,7 +34,7 @@ class ExportControllerTest {
   @Autowired private MockMvc mockMvc;
   @MockitoBean private YahooPortfolioExportApi exportService;
 
-  // ── GET /api/v1/investment/export/generate ─────────────────────────────
+  // ── GET /api/v1/portfolios/1/investment/export/generate ─────────────────────────────
 
   @DisplayName("generate returns Portfolio Csv Download")
   @Test
@@ -50,7 +50,7 @@ class ExportControllerTest {
         .exportToYahooCsv(eq(1L), anyString());
 
     mockMvc
-        .perform(get("/api/v1/investment/export/generate").param("portfolioId", "1"))
+        .perform(get("/api/v1/portfolios/1/investment/export/generate"))
         .andExpect(status().isOk())
         .andExpect(content().contentType("text/csv"))
         .andExpect(header().string("Content-Disposition", containsString("attachment")))
@@ -70,7 +70,9 @@ class ExportControllerTest {
         .when(exportService)
         .exportToYahooCsv(eq(1L), anyString());
 
-    mockMvc.perform(get("/api/v1/investment/export/generate")).andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(get("/api/v1/portfolios/1/investment/export/generate"))
+        .andExpect(status().isUnauthorized());
   }
 
   @DisplayName("generate Uses Standard Error Contract")
@@ -82,7 +84,7 @@ class ExportControllerTest {
         .exportToYahooCsv(eq(1L), anyString());
 
     mockMvc
-        .perform(get("/api/v1/investment/export/generate").param("portfolioId", "1"))
+        .perform(get("/api/v1/portfolios/1/investment/export/generate"))
         .andExpect(status().isInternalServerError())
         .andExpect(content().contentType("application/json"))
         .andExpect(
@@ -93,6 +95,6 @@ class ExportControllerTest {
                 .value("Internal server error"))
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.path")
-                .value("/api/v1/investment/export/generate"));
+                .value("/api/v1/portfolios/1/investment/export/generate"));
   }
 }

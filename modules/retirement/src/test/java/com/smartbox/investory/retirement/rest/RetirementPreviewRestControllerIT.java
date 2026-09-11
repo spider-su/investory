@@ -34,7 +34,7 @@ class RetirementPreviewRestControllerIT {
   @Test
   void rejectsIncompleteEditorRequest() throws Exception {
     mvc.perform(
-            post("/api/v1/retirement/portfolios/7/preview")
+            post("/api/v1/portfolios/7/retirement/preview")
                 .contentType("application/json")
                 .content("{}"))
         .andExpect(status().isBadRequest());
@@ -48,7 +48,7 @@ class RetirementPreviewRestControllerIT {
         .thenReturn(new EditorPreviewResponse(true, java.util.List.of(), null, null));
 
     mvc.perform(
-            post("/api/v1/retirement/portfolios/7/preview")
+            post("/api/v1/portfolios/7/retirement/preview")
                 .contentType("application/json")
                 .content(
                     "{\"ageAtPlanStart\":40,\"startYear\":2026,"

@@ -65,9 +65,8 @@ class ImportControllerTest {
 
     mockMvc
         .perform(
-            multipart("/api/v1/investment/imports/broker/XTB")
+            multipart("/api/v1/portfolios/1/investment/imports/broker/XTB")
                 .file(multipart)
-                .param("portfolioId", "1")
                 .with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.batchId").value(99))
@@ -107,9 +106,8 @@ class ImportControllerTest {
 
     mockMvc
         .perform(
-            multipart("/api/v1/investment/imports/broker/ibkr")
+            multipart("/api/v1/portfolios/1/investment/imports/broker/ibkr")
                 .file(multipart)
-                .param("portfolioId", "1")
                 .param("source", "TELEGRAM")
                 .param("sourceRef", "telegram-file-123")
                 .with(csrf()))
@@ -137,9 +135,8 @@ class ImportControllerTest {
 
     mockMvc
         .perform(
-            multipart("/api/v1/investment/imports/broker/etoro")
+            multipart("/api/v1/portfolios/1/investment/imports/broker/etoro")
                 .file(multipart)
-                .param("portfolioId", "1")
                 .with(csrf()))
         .andExpect(status().isBadRequest());
   }
@@ -166,9 +163,8 @@ class ImportControllerTest {
 
     mockMvc
         .perform(
-            multipart("/api/v1/investment/imports/broker/XTB")
+            multipart("/api/v1/portfolios/1/investment/imports/broker/XTB")
                 .file(multipart)
-                .param("portfolioId", "1")
                 .with(csrf()))
         .andExpect(status().isBadRequest());
   }
@@ -181,7 +177,10 @@ class ImportControllerTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(multipart).with(csrf()))
+        .perform(
+            multipart("/api/v1/portfolios/1/investment/imports/broker/XTB")
+                .file(multipart)
+                .with(csrf()))
         .andExpect(status().isUnauthorized());
   }
 
@@ -196,18 +195,12 @@ class ImportControllerTest {
 
     mockMvc
         .perform(
-            multipart("/api/v1/investment/imports/broker/XTB")
-                .file(file)
-                .param("portfolioId", "1")
-                .with(csrf()))
+            multipart("/api/v1/portfolios/1/investment/imports/broker/XTB").file(file).with(csrf()))
         .andExpect(status().isOk());
 
     mockMvc
         .perform(
-            multipart("/api/v1/investment/imports/broker/XTB")
-                .file(file)
-                .param("portfolioId", "2")
-                .with(csrf()))
+            multipart("/api/v1/portfolios/2/investment/imports/broker/XTB").file(file).with(csrf()))
         .andExpect(status().isForbidden());
   }
 

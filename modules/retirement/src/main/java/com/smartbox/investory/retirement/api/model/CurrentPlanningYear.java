@@ -13,7 +13,17 @@ public record CurrentPlanningYear(
     Long baselinePlanId,
     Instant baselineCreatedAt,
     Map<PlanningMetric, PlanningMetricValue> actualValues,
-    Map<PlanningMetric, PlanningMetricValue> expectedValues) {
+    Map<PlanningMetric, PlanningMetricValue> expectedValues,
+    BigDecimal annualizedSpending) {
+  public CurrentPlanningYear(
+      int year,
+      Long baselinePlanId,
+      Instant baselineCreatedAt,
+      Map<PlanningMetric, PlanningMetricValue> actualValues,
+      Map<PlanningMetric, PlanningMetricValue> expectedValues) {
+    this(year, baselinePlanId, baselineCreatedAt, actualValues, expectedValues, null);
+  }
+
   public BigDecimal variance(PlanningMetric metric) {
     PlanningMetricValue actual = actualValues.get(metric), expected = expectedValues.get(metric);
     return actual == null || expected == null || !actual.available() || !expected.available()

@@ -287,7 +287,12 @@ class UiPageSmokeIT extends FastDatabaseTest {
       String marketCard = sourceCards.nth(0).textContent();
       String longTermCard = sourceCards.nth(1).textContent();
       assertThat(marketCard)
-          .contains("Investment result YTD", "Annualized performance", "Investment performance")
+          .contains(
+              "Investment result YTD",
+              "Projected annual income (net)",
+              "Forward-looking estimate",
+              "Historical annualized return",
+              "Benchmark estimate")
           .doesNotContain("p.a.");
       assertThat(
               sourceCards
@@ -575,7 +580,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
                 "/portfolios/2/simulation/sandbox",
                 200,
                 "Retirement sandbox",
-                "Sustainable"),
+                "NOK — spending is not fully funded"),
             new PageCase(
                 "plan editor",
                 "/portfolios/2/simulation/plan/edit?&planId=9201",

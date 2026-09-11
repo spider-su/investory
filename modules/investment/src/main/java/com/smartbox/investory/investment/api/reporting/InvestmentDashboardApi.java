@@ -31,7 +31,13 @@ public interface InvestmentDashboardApi {
       BigDecimal annualizedReturn,
       String annualizedReturnDisplay,
       String kpiStartDate,
-      BigDecimal ytdReturn) {
+      BigDecimal ytdReturn,
+      BigDecimal historicalAnnualizedReturn,
+      String historicalAnnualizedReturnDisplay,
+      BigDecimal expectedAnnualReturn,
+      String expectedAnnualReturnDisplay,
+      BigDecimal historyYears,
+      String historyContext) {
     public PerformanceKpiView(
         boolean available,
         BigDecimal annualizedReturn,
@@ -43,6 +49,26 @@ public interface InvestmentDashboardApi {
     public PerformanceKpiView(
         boolean available, String annualizedReturnDisplay, String kpiStartDate) {
       this(available, null, annualizedReturnDisplay, kpiStartDate, null);
+    }
+
+    public PerformanceKpiView(
+        boolean available,
+        BigDecimal annualizedReturn,
+        String annualizedReturnDisplay,
+        String kpiStartDate,
+        BigDecimal ytdReturn) {
+      this(
+          available,
+          annualizedReturn,
+          annualizedReturnDisplay,
+          kpiStartDate,
+          ytdReturn,
+          annualizedReturn,
+          annualizedReturnDisplay,
+          annualizedReturn,
+          annualizedReturnDisplay,
+          null,
+          null);
     }
 
     public PerformanceKpiView {

@@ -4,7 +4,6 @@
     <summary class="card-header iv-property-disclosure"><span class="card-title mb-0">Property settings</span></summary>
     <div class="card-body">
       <form method="post" data-turbo="false" th:action="@{/portfolios/{portfolioId}/long-term-assets/real-estate(portfolioId=${portfolioId})}">
-        <input type="hidden" name="portfolioId" th:value="${portfolioId}">
         <input type="hidden" name="id" th:value="${asset.id}">
         <div class="row g-3">
           <div class="col-lg-6"><label class="form-label" for="property-name">Name</label><input id="property-name" class="form-control" name="name" th:value="${asset.name}" required></div>

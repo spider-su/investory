@@ -12,7 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
 public class LongTermAssetsApplicationService
-    implements LongTermAssetsApi, LongTermAssetProfileReader, LongTermAssetAnnualSnapshotReader {
+    implements LongTermAssetsApi,
+        LongTermAssetProfileReader,
+        LongTermAssetAnnualSnapshotReader,
+        BondReturnObservationReader {
   private final BondCommandService bonds;
   private final RealEstateCommandService realEstates;
   private final CashReserveCommandService cashReserves;
@@ -232,6 +235,12 @@ public class LongTermAssetsApplicationService
   @Transactional(readOnly = true)
   public LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(Long portfolioId, int year) {
     return historicalSnapshots.snapshot(portfolioId, year);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public java.math.BigDecimal currentWeightedEffectiveReturn(Long portfolioId, LocalDate date) {
+    return reads.currentWeightedEffectiveReturn(portfolioId, date);
   }
 
   private RentalContractView rental(RentalContractModel contract, LocalDate date) {

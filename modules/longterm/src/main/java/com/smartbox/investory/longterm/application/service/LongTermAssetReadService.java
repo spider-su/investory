@@ -142,6 +142,24 @@ public class LongTermAssetReadService {
         annual(rows, currency));
   }
 
+  public BigDecimal currentWeightedEffectiveReturn(Long portfolioId, LocalDate date) {
+    CurrencyType currency = localCurrency(portfolioId);
+    var bonds =
+        summaries(load(portfolioId, false, date), date, currency).stream()
+            .filter(row -> row.type() == LongTermAssetType.BOND)
+            .filter(row -> row.maturityDate() == null || date.isBefore(row.maturityDate()))
+            .filter(row -> row.currentValue() != null && row.currentValue().signum() > 0)
+            .filter(row -> row.currentAnnualRate() != null)
+            .toList();
+    BigDecimal capital =
+        bonds.stream().map(AssetSummaryView::currentValue).reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (capital.signum() == 0) return null;
+    return bonds.stream()
+        .map(row -> row.currentValue().multiply(row.currentAnnualRate()))
+        .reduce(BigDecimal.ZERO, BigDecimal::add)
+        .divide(capital, 20, RoundingMode.HALF_UP);
+  }
+
   private record ReadSet(
       List<BondEntity> bonds,
       List<RealEstateEntity> estates,

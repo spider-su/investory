@@ -13,7 +13,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-/** Owns simulation timeline, year-review, rollover, and rebaseline routes. */
+/** Owns simulation timeline, year-review, and rebaseline routes. */
 @Controller
 public class SimulationTimelineController {
   private final ProfileClient profiles;
@@ -41,18 +41,6 @@ public class SimulationTimelineController {
     this.clock = clock;
     this.pageAssembler =
         new SimulationTimelinePageAssembler(profiles, plans, timeline, presentation, projections);
-  }
-
-  @PostMapping("/portfolios/{portfolioId}/simulation/rollover")
-  public String rollover(
-      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
-      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
-      @RequestParam(required = false) Long planId,
-      @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
-    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
-    timeline.rollover(portfolioId);
-    return SimulationRedirects.simulation(
-        portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
   @PostMapping("/portfolios/{portfolioId}/simulation/timeline/past/{year}")

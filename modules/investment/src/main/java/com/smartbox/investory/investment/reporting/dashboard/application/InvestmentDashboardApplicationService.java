@@ -44,7 +44,18 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
         available ? annualized.value() : null,
         display,
         performanceKpi.startDate(),
-        ytdReturn.status() == ReturnMetric.Status.AVAILABLE ? ytdReturn.value() : null);
+        ytdReturn.status() == ReturnMetric.Status.AVAILABLE ? ytdReturn.value() : null,
+        performanceKpi.historicalAnnualizedReturn().status() == ReturnMetric.Status.AVAILABLE
+            ? performanceKpi.historicalAnnualizedReturn().value()
+            : null,
+        performanceKpi.historicalAnnualizedReturn().status() == ReturnMetric.Status.AVAILABLE
+            ? DashboardPercentageFormatter.signedPercent(
+                performanceKpi.historicalAnnualizedReturn().value().doubleValue() * 100)
+            : "Unavailable",
+        performanceKpi.expectedAnnualReturn(),
+        display,
+        performanceKpi.historyYears(),
+        performanceKpi.historyContext());
   }
 
   @Override

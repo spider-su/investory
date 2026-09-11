@@ -32,7 +32,7 @@ class RetirementPlanRestControllerIT {
   @Test
   void rejectsEmptyPlanWrite() throws Exception {
     mvc.perform(
-            post("/api/v1/retirement/portfolios/7/plans")
+            post("/api/v1/portfolios/7/retirement/plans")
                 .contentType("application/json")
                 .content("{}"))
         .andExpect(status().isBadRequest());
@@ -42,7 +42,7 @@ class RetirementPlanRestControllerIT {
   @Test
   void rejectsEmptyPlanUpdate() throws Exception {
     mvc.perform(
-            put("/api/v1/retirement/portfolios/7/plans/9")
+            put("/api/v1/portfolios/7/retirement/plans/9")
                 .contentType("application/json")
                 .content("{}"))
         .andExpect(status().isBadRequest());
@@ -52,7 +52,7 @@ class RetirementPlanRestControllerIT {
   @Test
   void rejectsEmptyEventWrite() throws Exception {
     mvc.perform(
-            put("/api/v1/retirement/portfolios/7/plans/9/events/3")
+            put("/api/v1/portfolios/7/retirement/plans/9/events/3")
                 .contentType("application/json")
                 .content("{}"))
         .andExpect(status().isBadRequest());

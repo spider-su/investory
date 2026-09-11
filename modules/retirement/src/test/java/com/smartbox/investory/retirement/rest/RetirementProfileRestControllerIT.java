@@ -27,8 +27,7 @@ class RetirementProfileRestControllerIT {
   @Test
   void annualCostBindsPortfolioAndCurrency() throws Exception {
     mvc.perform(
-            get("/api/v1/retirement/profile/annual-cost")
-                .param("portfolioId", "7")
+            get("/api/v1/portfolios/7/retirement/profile/annual-cost")
                 .param("reportingCurrency", "EUR"))
         .andExpect(status().isOk());
     verify(profile)

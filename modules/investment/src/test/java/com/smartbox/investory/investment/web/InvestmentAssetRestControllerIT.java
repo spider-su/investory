@@ -33,13 +33,10 @@ class InvestmentAssetRestControllerIT {
   @Test
   void assetReadEndpointsBindPathAndOptionalPeriod() throws Exception {
     mvc.perform(get("/api/v1/investment/assets/periods")).andExpect(status().isOk());
-    mvc.perform(
-            get("/api/v1/investment/assets/AAPL").param("period", "YTD").param("portfolioId", "7"))
+    mvc.perform(get("/api/v1/portfolios/7/investment/assets/AAPL").param("period", "YTD"))
         .andExpect(status().isOk());
     mvc.perform(
-            get("/api/v1/investment/assets/AAPL/price-history")
-                .param("period", "YTD")
-                .param("portfolioId", "7"))
+            get("/api/v1/portfolios/7/investment/assets/AAPL/price-history").param("period", "YTD"))
         .andExpect(status().isOk());
     verify(assets).periods();
     verify(assets).detail(7L, "AAPL", DashboardPeriod.YEAR_TO_DATE);
@@ -48,8 +45,7 @@ class InvestmentAssetRestControllerIT {
 
   @Test
   void assetReadEndpointsRejectMissingOrInvalidPortfolio() throws Exception {
-    mvc.perform(get("/api/v1/investment/assets/AAPL")).andExpect(status().isBadRequest());
-    mvc.perform(get("/api/v1/investment/assets/AAPL").param("portfolioId", "0"))
+    mvc.perform(get("/api/v1/portfolios/0/investment/assets/AAPL"))
         .andExpect(status().isBadRequest());
     verifyNoInteractions(assets);
   }

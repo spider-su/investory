@@ -82,7 +82,7 @@ function renderMonthlyChart(mode, remoteView = null) {
     const selectedMonthlyIds = effectiveAccountIds(selectedMonthlyAccountIds(), allMonthlyIds);
     const partial = selectedMonthlyIds.size !== allMonthlyIds.length;
     if (partial && !remoteView) {
-            fetch('/api/v1/investment/performance/monthly?accountIds=' + encodeURIComponent([...selectedMonthlyIds].join(',')) + '&aggregation=' + encodeURIComponent(mode) + '&portfolioId=' + encodeURIComponent(portfolioId))
+            fetch('/api/v1/portfolios/' + encodeURIComponent(portfolioId) + '/investment/performance/monthly?accountIds=' + encodeURIComponent([...selectedMonthlyIds].join(',')) + '&aggregation=' + encodeURIComponent(mode))
             .then(response => { if (!response.ok) throw new Error('HTTP ' + response.status); return response.json(); })
             .then(view => renderMonthlyChart(mode, view))
             .catch(() => showChartErrorNear(
@@ -237,5 +237,4 @@ document.getElementById('monthly-uncheck-all')?.addEventListener('click', () => 
 
     return {monthlyChart};
 }
-
 

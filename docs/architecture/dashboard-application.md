@@ -69,7 +69,26 @@ history is missing. A database failure while reading portfolio projections or SP
 operational reporting failure: the application logs and propagates it. It must not be represented as
 an empty benchmark, which would make a broken data path look like valid missing history.
 
-The performance board scopes its plotted series and headline KPIs to the configured KPI start. Both
-are rebased from the immediately preceding monthly observation, so the displayed endpoint and KPI
-describe the same period.
+The performance board scopes its plotted series to the configured KPI start. The long-term return KPI
+uses the separate historical/expected model below, so a current-year chart window cannot masquerade
+as a long-term annualized assumption.
+
+## Historical and expected investment returns
+
+The investment income KPI has two separate meanings. Historical annualized return is backward-looking
+and uses only the portfolio's actual cash-flow-neutral TWR. It is annualized over the observed portfolio
+dates; history shorter than one year is not presented as a reliable long-term annualized return. Deposits,
+withdrawals, mixed currencies, and valuation boundaries are handled by the existing normalized daily
+valuation/TWR pipeline. Benchmark history is never inserted into this portfolio result.
+
+Expected annual return is a forward-looking projection assumption. Its default horizon is five years.
+When at least one year of portfolio history is usable, the expected value linearly weights the portfolio
+historical annualized return by observed years / five (capped at one) and fills the remaining weight with
+the configurable `app.portfolio.expected-return.benchmark` assumption. With no usable history, the
+benchmark assumption supplies the estimate. The default assumption is 7% and is configurable through
+`PORTFOLIO_EXPECTED_RETURN_BENCHMARK`; it is not the latest SPY trailing return and is not historical
+portfolio performance.
+
+Forward projections and expected annual investment income use expected annual return. Historical
+annualized return is displayed as context only and does not drive those projections.
 

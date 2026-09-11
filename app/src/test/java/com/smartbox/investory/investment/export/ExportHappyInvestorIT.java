@@ -8,7 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.opencsv.CSVReader;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
-import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
 import java.io.StringReader;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -40,8 +39,7 @@ class ExportHappyInvestorIT extends FastDatabaseTest {
     String csv =
         mockMvc
             .perform(
-                get("/api/v1/investment/export/generate")
-                    .param("portfolioId", String.valueOf(HappyInvestorTestData.PORTFOLIO_ID))
+                get("/api/v1/portfolios/2/investment/export/generate")
                     .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
             .andExpect(status().isOk())
             .andExpect(content().contentType("text/csv"))

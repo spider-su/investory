@@ -40,11 +40,10 @@ async function performanceBoardView(selectedIds) {
         aggregation: document.getElementById('performance-board-aggregation')?.value || 'monthly',
         metric: performanceBoardState.metric === 'pl' ? 'profit' : performanceBoardState.metric,
         style: performanceBoardState.style,
-        period: selectedDashboardPeriod,
-        portfolioId
+        period: selectedDashboardPeriod
     });
     if (selectedIds.length > 0) params.set('accountIds', selectedIds.join(','));
-    const response = await fetch('/api/v1/investment/performance/board?' + params.toString(), { headers: { Accept: 'application/json' } });
+    const response = await fetch('/api/v1/portfolios/' + encodeURIComponent(portfolioId) + '/investment/performance/board?' + params.toString(), { headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error('Performance board request failed');
     return response.json();
 }
@@ -108,7 +107,6 @@ renderPerformanceBoard();
 
     return {getPerformanceBoardChart: () => performanceBoardChart};
 }
-
 
 
 

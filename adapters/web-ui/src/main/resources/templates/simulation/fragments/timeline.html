@@ -1,6 +1,6 @@
 <!-- Simulation assumptions and plan timeline. -->
 <th:block xmlns:th="http://www.thymeleaf.org" th:fragment="timeline">
-  <form id="simulation-assumptions-form" method="get" th:action="@{/portfolios/{portfolioId}/simulation(portfolioId=${simulationPage.profile.portfolioId})}" action="/simulation"><input type="hidden" name="portfolioId" th:value="${simulationPage.profile.portfolioId}"><input type="hidden" name="planId" th:value="${simulationPage.selectedPlanId}"><input type="hidden" name="selectedScenario" th:value="${simulationPage.selectedScenario}"></form>
+  <form id="simulation-assumptions-form" method="get" th:action="@{/portfolios/{portfolioId}/simulation(portfolioId=${simulationPage.profile.portfolioId})}" action="/simulation"><input type="hidden" name="planId" th:value="${simulationPage.selectedPlanId}"><input type="hidden" name="selectedScenario" th:value="${simulationPage.selectedScenario}"></form>
   <section class="card iv-simulation-section iv-plan-timeline" aria-labelledby="plan-title">
     <div class="iv-card-section-header"><span id="plan-title" class="iv-card-section-header__title">Plan timeline</span></div>
     <div class="card-body">

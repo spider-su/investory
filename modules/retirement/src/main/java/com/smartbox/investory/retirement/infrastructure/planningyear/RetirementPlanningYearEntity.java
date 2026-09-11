@@ -20,6 +20,8 @@ import java.util.EnumMap;
 import java.util.Map;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** One persisted planning-year aggregate. Values live in its versioned JSON state. */
 @Entity
@@ -41,6 +43,7 @@ public class RetirementPlanningYearEntity {
   @Column(nullable = false, length = 16)
   private PlanningYearStatus status;
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(nullable = false, columnDefinition = "jsonb")
   private String state = "{}";
 

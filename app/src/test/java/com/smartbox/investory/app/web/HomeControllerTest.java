@@ -56,7 +56,7 @@ class HomeControllerTest {
     when(investmentDashboard.loadDashboard(any())).thenReturn(dashboard);
 
     mockMvc
-        .perform(get("/dashboard").param("portfolioId", "1"))
+        .perform(get("/portfolios/1/dashboard"))
         .andExpect(status().isOk())
         .andExpect(view().name("dashboard"))
         .andExpect(model().attribute("dashboard", dashboard))
@@ -68,7 +68,7 @@ class HomeControllerTest {
   void dashboardRequestWithoutAnAccountSelectionUsesAllAccounts() throws Exception {
     stubDashboard();
 
-    mockMvc.perform(get("/dashboard").param("portfolioId", "1"));
+    mockMvc.perform(get("/portfolios/1/dashboard"));
 
     assertQuery(false, List.of(), DashboardPeriod.YEAR_TO_DATE);
   }
@@ -78,7 +78,7 @@ class HomeControllerTest {
   void periodOnlyRequestUsesAllAccounts() throws Exception {
     stubDashboard();
 
-    mockMvc.perform(get("/dashboard").param("portfolioId", "1").param("period", "YTD"));
+    mockMvc.perform(get("/portfolios/1/dashboard").param("period", "YTD"));
 
     assertQuery(false, List.of(), DashboardPeriod.YEAR_TO_DATE);
   }
@@ -89,8 +89,7 @@ class HomeControllerTest {
     stubDashboard();
 
     mockMvc.perform(
-        get("/dashboard")
-            .param("portfolioId", "1")
+        get("/portfolios/1/dashboard")
             .param("period", "YTD")
             .param("benchmarkAccountsSubmitted", "true"));
 
@@ -103,8 +102,7 @@ class HomeControllerTest {
     stubDashboard();
 
     mockMvc.perform(
-        get("/dashboard")
-            .param("portfolioId", "1")
+        get("/portfolios/1/dashboard")
             .param("period", "YTD")
             .param("benchmarkAccountsSubmitted", "true")
             .param("accountIds", "1", "3"));
@@ -117,7 +115,7 @@ class HomeControllerTest {
   void activePortfolioIdIsPassedToDashboard() throws Exception {
     stubDashboard();
 
-    mockMvc.perform(get("/dashboard").param("portfolioId", "42"));
+    mockMvc.perform(get("/portfolios/42/dashboard"));
 
     ArgumentCaptor<DashboardQuery> query = ArgumentCaptor.forClass(DashboardQuery.class);
     verify(investmentDashboard).loadDashboard(query.capture());

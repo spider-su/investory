@@ -78,6 +78,22 @@ class AnnualPlanningRolloverServiceTest {
     verify(timeline, never()).closeHistoricalDraft(anyLong(), anyInt());
   }
 
+  @DisplayName("repeated rollover keeps the same planning state")
+  @Test
+  void repeatedRolloverKeepsTheSamePlanningState() {
+    when(timeline.historicalYears(1L)).thenReturn(List.of(2026));
+    when(timeline.pastYear(1L, 2026))
+        .thenReturn(new PastPlanningYear(2026, PlanningYearStatus.DRAFT, null, null, null));
+    when(timeline.ensureCurrentYear(1L)).thenReturn(false);
+
+    AnnualPlanningRolloverResult first = service().rollover(1L);
+    AnnualPlanningRolloverResult second = service().rollover(1L);
+
+    assertEquals(first, second);
+    verify(timeline, times(2)).createHistoricalDraft(1L, 2026);
+    verify(timeline, never()).closeHistoricalDraft(anyLong(), anyInt());
+  }
+
   private AnnualPlanningRolloverService service() {
     return new AnnualPlanningRolloverService(
         timeline, Clock.fixed(Instant.parse("2027-01-15T00:00:00Z"), ZoneOffset.UTC));

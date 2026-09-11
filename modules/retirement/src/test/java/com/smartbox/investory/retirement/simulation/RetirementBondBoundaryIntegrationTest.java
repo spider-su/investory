@@ -98,6 +98,127 @@ class RetirementBondBoundaryIntegrationTest {
         .isEqualByComparingTo(firstProjected.fixedIncomeStart());
   }
 
+  @Test
+  void safeReserveYearsChangesTheAssetConsumptionOrder() {
+    var cashFlows = mock(FrozenBondCashFlowProjection.class);
+    when(cashFlows.cashIncome(any(), any(), anyInt())).thenReturn(ZERO);
+    var simulation = new RetirementSimulationService(cashFlows);
+    var base =
+        SimulationAssumptions.defaults(60, 60, 2026)
+            .withRetirementAge(60)
+            .withRecurringSpending(bd("500000"))
+            .withInflationRate(ZERO)
+            .withSpendingGrowthSpread(ZERO)
+            .withRentalIncomeGrowthSpread(ZERO)
+            .withFixedIncomeReturnRate(ZERO)
+            .withEquityReturnRate(ZERO);
+
+    var profile = profileWithRealEstateButMissingFrozenBonds();
+    var noReserve =
+        simulation
+            .simulate(
+                profile, base.toBuilder().safeReserveYears(ZERO).build(), SimulationScenario.BASE)
+            .years()
+            .getFirst();
+    var protectedReserve =
+        simulation
+            .simulate(
+                profile,
+                base.toBuilder().safeReserveYears(bd("5")).build(),
+                SimulationScenario.BASE)
+            .years()
+            .getFirst();
+
+    assertThat(noReserve.fixedIncomeEnd()).isEqualByComparingTo("310000");
+    assertThat(noReserve.equityEnd()).isEqualByComparingTo("1200000");
+    assertThat(noReserve.safeReserveTarget()).isZero();
+    assertThat(protectedReserve.fixedIncomeEnd()).isEqualByComparingTo("800000");
+    assertThat(protectedReserve.equityEnd()).isEqualByComparingTo("710000");
+    assertThat(protectedReserve.safeReserveTarget()).isEqualByComparingTo("2500000");
+  }
+
+  @Test
+  void oneOffExpenseRaisesFundingGapButNotReserveTarget() {
+    var cashFlows = mock(FrozenBondCashFlowProjection.class);
+    when(cashFlows.cashIncome(any(), any(), anyInt())).thenReturn(bd("170000"));
+    var assumptions =
+        SimulationAssumptions.defaults(60, 60, 2026)
+            .withRetirementAge(60)
+            .withRecurringSpending(bd("250000"))
+            .withInflationRate(ZERO)
+            .withSpendingGrowthSpread(ZERO)
+            .withRentalIncomeGrowthSpread(ZERO)
+            .withFixedIncomeReturnRate(ZERO)
+            .withEquityReturnRate(ZERO)
+            .toBuilder()
+            .safeReserveYears(bd("5"))
+            .futureEvents(
+                List.of(
+                    new SimulationEvent(
+                        1L,
+                        2026,
+                        "One-off",
+                        bd("120000"),
+                        SimulationEventType.ONE_OFF_EXPENSE,
+                        null)))
+            .build();
+
+    var year =
+        new RetirementSimulationService(cashFlows)
+            .simulate(
+                profileWithRealEstateButMissingFrozenBonds(), assumptions, SimulationScenario.BASE)
+            .years()
+            .getFirst();
+
+    assertThat(year.safeReserveTarget()).isEqualByComparingTo("400000");
+    assertThat(year.requiredPortfolioFunding()).isEqualByComparingTo("200000");
+    assertThat(year.actualPortfolioWithdrawal()).isEqualByComparingTo("200000");
+  }
+
+  @Test
+  void liveOneOffExpenseDoesNotRaisePartialYearReserveFloor() {
+    var cashFlows = mock(FrozenBondCashFlowProjection.class);
+    when(cashFlows.cashIncome(any(), any(), anyInt())).thenReturn(bd("170000"));
+    var clock = Clock.fixed(Instant.parse("2026-07-01T00:00:00Z"), ZoneOffset.UTC);
+    var simulation = new RetirementSimulationService(cashFlows);
+    var assumptions =
+        SimulationAssumptions.defaults(60, 61, 2026)
+            .withRetirementAge(60)
+            .withRecurringSpending(bd("250000"))
+            .withInflationRate(ZERO)
+            .withSpendingGrowthSpread(ZERO)
+            .withRentalIncomeGrowthSpread(ZERO)
+            .withFixedIncomeReturnRate(ZERO)
+            .withEquityReturnRate(ZERO)
+            .toBuilder()
+            .safeReserveYears(bd("5"))
+            .futureEvents(
+                List.of(
+                    new SimulationEvent(
+                        1L,
+                        2026,
+                        "One-off",
+                        bd("120000"),
+                        SimulationEventType.ONE_OFF_EXPENSE,
+                        null)))
+            .build();
+
+    var context =
+        new ForwardSimulationContextFactory(clock)
+            .create(profileWithRealEstateButMissingFrozenBonds(), assumptions);
+    var current =
+        new CurrentYearProjectionBridge(
+                clock, simulation, new ForwardSimulationContextFactory(clock))
+            .projectCurrentYearEnd(context);
+    BigDecimal fraction =
+        SimulationPeriod.fraction(
+            java.time.LocalDate.of(2026, 7, 2), java.time.LocalDate.of(2026, 12, 31));
+
+    assertThat(current.expectedEnd(EconomicBucket.FIXED_INCOME))
+        .isEqualByComparingTo(bd("690000").subtract(bd("80000").multiply(fraction)));
+    assertThat(current.expectedEnd(EconomicBucket.FIXED_INCOME)).isLessThan(bd("800000"));
+  }
+
   private static InvestmentProfile profileWithHiddenReviewedBond(InvestmentProfile live) {
     var hiddenBond =
         new ProjectedLongTermAsset(

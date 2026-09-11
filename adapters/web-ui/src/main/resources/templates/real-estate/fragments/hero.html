@@ -13,7 +13,7 @@
     </dl>
     <div class="iv-asset-page__actions">
       <a class="btn btn-outline-secondary" href="#property-settings">Property settings</a>
-      <form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/archive(id=${asset.id},portfolioId=${portfolioId})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-danger" th:if="${asset.active}">Archive</button></form>
+        <form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/archive(id=${asset.id},portfolioId=${portfolioId})}"><button class="btn btn-outline-danger" th:if="${asset.active}">Archive</button></form>
     </div>
   </header>
 
