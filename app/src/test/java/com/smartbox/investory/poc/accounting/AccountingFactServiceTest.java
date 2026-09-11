@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.BankRow;
+import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ObligationRow;
@@ -50,7 +51,7 @@ class AccountingFactServiceTest {
                 bank(LocalDate.of(2026, 8, 5), JULY, "Service Agreements", "CUSTOMER_EU_001", "EUR", "7636.00"),
                 bank(LocalDate.of(2026, 8, 13), JULY, "FV 5/2026", "CUSTOMER_PL_002", "PLN", "19987.50")));
     when(repository.obligationsForPeriod(JULY))
-        .thenReturn(List.of(obligation("RYCZALT", "5791"), obligation("VAT", "3557"), obligation("ZUS", "1495")));
+        .thenReturn(List.of(obligation("RYCZALT", "5791"), obligation("VAT", "3557"), obligation("ZUS", "1495.04")));
     when(repository.taxInputsForPeriod(JULY))
         .thenReturn(
             List.of(
@@ -67,6 +68,11 @@ class AccountingFactServiceTest {
     assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isEqualByComparingTo("146.00");
     assertThat(snapshot.vat().calculatedVat()).isEqualByComparingTo("3557");
     assertThat(snapshot.vat().status()).isEqualTo("MATCH");
+    assertThat(snapshot.comparisons()).extracting(ComparisonRow::area)
+        .containsExactly("REVENUE", "RYCZALT", "VAT", "ZUS", "FX");
+    assertThat(snapshot.comparisons()).allMatch(row -> "MATCH".equals(row.status()));
+    assertThat(comparison(snapshot, "REVENUE").calculated()).isEqualByComparingTo("49008.87");
+    assertThat(comparison(snapshot, "REVENUE").expected()).isEqualByComparingTo("49008.87");
   }
 
   @Test
@@ -115,6 +121,15 @@ class AccountingFactServiceTest {
     assertThat(snapshot.expenses())
         .extracting(ExpenseRow::vatDeductionRatio)
         .containsExactly(new BigDecimal("1.00"), new BigDecimal("0.50"));
+    assertThat(snapshot.comparisons()).allMatch(row -> "MATCH".equals(row.status()));
+    assertThat(comparison(snapshot, "ZUS").difference()).isEqualByComparingTo("0.00");
+  }
+
+  private ComparisonRow comparison(AccountingMonthSnapshot snapshot, String area) {
+    return snapshot.comparisons().stream()
+        .filter(row -> area.equals(row.area()))
+        .findFirst()
+        .orElseThrow();
   }
 
   private InvoiceRow invoice(
