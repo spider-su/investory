@@ -45,17 +45,9 @@ public class AccountingPocRepository {
                currency, net_amount, vat_amount, gross_amount, correction_net_amount,
                correction_vat_amount, correction_gross_amount, expected_receivable,
                booked_net_pln, ryczalt_rate, note
-          FROM investory.accounting_poc_invoice i
-         WHERE i.tax_period = ?
-            OR i.reference IN (
-                 SELECT b.reference
-                   FROM investory.accounting_poc_bank_transaction b
-                  WHERE b.booking_date >= ?
-                    AND b.booking_date < ?
-                    AND b.transaction_type = 'CUSTOMER_RECEIPT'
-                    AND b.scope = 'BUSINESS'
-               )
-         ORDER BY i.tax_period, i.id
+          FROM investory.accounting_poc_invoice
+         WHERE tax_period = ?
+         ORDER BY id
         """,
         (rs, rowNum) ->
             new InvoiceRow(
@@ -78,9 +70,7 @@ public class AccountingPocRepository {
                 rs.getBigDecimal("booked_net_pln"),
                 rs.getBigDecimal("ryczalt_rate"),
                 rs.getString("note")),
-        period,
-        period,
-        period.plusMonths(1));
+        period);
   }
 
   public List<ExpenseRow> expensesForPeriod(LocalDate period) {

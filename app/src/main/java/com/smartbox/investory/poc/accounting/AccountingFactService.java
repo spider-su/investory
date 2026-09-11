@@ -41,49 +41,40 @@ public class AccountingFactService {
 
   public AccountingMonthSnapshot snapshot(LocalDate period) {
     List<InvoiceRow> invoices = pocRepository.invoicesForPeriod(period);
+    List<InvoiceRow> correctionSources =
+        JULY_2026.equals(period) ? pocRepository.invoicesForPeriod(period.minusMonths(1)) : List.of();
     List<ExpenseRow> expenses = pocRepository.expensesForPeriod(period);
     List<BankRow> bankTransactions = pocRepository.bankTransactionsForPeriod(period);
     List<ObligationRow> obligations = pocRepository.obligationsForPeriod(period);
     List<TaxInputRow> taxInputs = pocRepository.taxInputsForPeriod(period);
 
-    List<InvoiceRow> periodInvoices =
-        invoices.stream().filter(invoice -> invoice.taxPeriod().equals(period)).toList();
-
     BigDecimal domesticRevenue =
-        periodInvoices.stream()
+        invoices.stream()
             .filter(invoice -> "PLN".equals(invoice.currency()))
             .map(InvoiceRow::bookedNetPln)
             .filter(value -> value != null)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     BigDecimal foreignBookedRevenue =
-        periodInvoices.stream()
+        invoices.stream()
             .filter(invoice -> !"PLN".equals(invoice.currency()))
             .map(InvoiceRow::bookedNetPln)
             .filter(value -> value != null)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     BigDecimal foreignSourceEur =
-        periodInvoices.stream()
+        invoices.stream()
             .filter(invoice -> "EUR".equals(invoice.currency()))
             .map(InvoiceRow::netAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-    FxCalculation fx = calculateFx(periodInvoices, foreignBookedRevenue, foreignSourceEur);
+    FxCalculation fx = calculateFx(invoices, foreignBookedRevenue, foreignSourceEur);
     RyczałtCalculation ryczalt =
-        calculateRyczalt(period, invoices, domesticRevenue, fx, obligations, taxInputs);
+        calculateRyczalt(period, invoices, correctionSources, domesticRevenue, fx, obligations, taxInputs);
     VatCalculation vat =
-        calculateVat(period, invoices, periodInvoices, expenses, obligations, taxInputs);
+        calculateVat(period, invoices, correctionSources, expenses, obligations);
     List<ComparisonRow> comparisons =
-        buildComparisons(
-            period,
-            domesticRevenue,
-            foreignBookedRevenue,
-            fx,
-            ryczalt,
-            vat,
-            obligations,
-            taxInputs);
+        buildComparisons(period, domesticRevenue, foreignBookedRevenue, fx, ryczalt, vat, obligations, taxInputs);
 
     List<ReconciliationRow> reconciliations = reconcile(invoices, bankTransactions, obligations);
 
@@ -113,21 +104,24 @@ public class AccountingFactService {
       VatCalculation vat,
       List<ObligationRow> obligations,
       List<TaxInputRow> taxInputs) {
-    BigDecimal expectedRevenue =
+    BigDecimal sourceDerivedExpectedRevenue =
         domesticRevenue
             .add(foreignBookedRevenue)
             .add(ryczalt.julyOnlyCorrectionNetAdjustment())
             .setScale(2, RoundingMode.HALF_UP);
+    BigDecimal explicitRevenueGolden = taxInput(taxInputs, "EXPECTED_REVENUE_PLN");
+    BigDecimal expectedRevenue =
+        explicitRevenueGolden.signum() == 0
+            ? sourceDerivedExpectedRevenue
+            : explicitRevenueGolden.setScale(2, RoundingMode.HALF_UP);
     BigDecimal calculatedRevenue =
         ryczalt.revenueBeforeDeductions().setScale(2, RoundingMode.HALF_UP);
     BigDecimal revenueDifference =
         calculatedRevenue.subtract(expectedRevenue).setScale(2, RoundingMode.HALF_UP);
     String revenueStatus =
-        "NO_FX_SOURCE".equals(fx.status())
-                && period.getYear() == 2026
-                && period.getMonthValue() <= 8
-            ? "INPUTS_INCOMPLETE"
-            : revenueDifference.signum() == 0 ? "MATCH" : "DIFF";
+        revenueDifference.signum() == 0
+            ? "MATCH"
+            : "NO_FX_SOURCE".equals(fx.status()) ? "INPUTS_INCOMPLETE" : "DIFF";
 
     BigDecimal zusCalculated =
         taxInput(taxInputs, "HEALTH_CONTRIBUTION_PAID").setScale(2, RoundingMode.HALF_UP);
@@ -149,7 +143,7 @@ public class AccountingFactService {
             revenueDifference,
             "PLN",
             revenueStatus,
-            "Calculated domestic revenue plus Investory FX; July includes its explicit one-off correction fixture."),
+            "Calculated from accounting-period sales and Investory FX; expected value comes from wFirma monthly revenue when captured."),
         new ComparisonRow(
             "RYCZALT",
             ryczalt.calculatedTax(),
@@ -165,7 +159,7 @@ public class AccountingFactService {
             vat.difference(),
             "PLN",
             vat.status(),
-            "Output VAT minus document-level deductible input VAT; July uses its parked special adjustment."),
+            "Sales VAT minus document-level deductible purchase VAT; July sales correction is represented separately."),
         new ComparisonRow(
             "ZUS",
             zusCalculated,
@@ -173,7 +167,7 @@ public class AccountingFactService {
             zusDifference,
             "PLN",
             zusStatus,
-            "Current POC compares the captured health-contribution source fact with the ZUS obligation; contribution formula is not modeled yet."),
+            "Accounting comparison uses the captured health-contribution source fact; cash reconciliation is checked separately."),
         new ComparisonRow(
             "FX",
             fx.calculatedPln(),
@@ -185,12 +179,11 @@ public class AccountingFactService {
   }
 
   private FxCalculation calculateFx(
-      List<InvoiceRow> periodInvoices, BigDecimal expectedForeignPln, BigDecimal foreignSourceEur) {
+      List<InvoiceRow> invoices,
+      BigDecimal expectedForeignPln,
+      BigDecimal foreignSourceEur) {
     InvoiceRow eurInvoice =
-        periodInvoices.stream()
-            .filter(invoice -> "EUR".equals(invoice.currency()))
-            .findFirst()
-            .orElse(null);
+        invoices.stream().filter(invoice -> "EUR".equals(invoice.currency())).findFirst().orElse(null);
     if (eurInvoice == null) {
       return new FxCalculation(
           null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "NO_FX_SOURCE");
@@ -229,13 +222,14 @@ public class AccountingFactService {
   private RyczałtCalculation calculateRyczalt(
       LocalDate period,
       List<InvoiceRow> invoices,
+      List<InvoiceRow> correctionSources,
       BigDecimal domesticRevenue,
       FxCalculation fx,
       List<ObligationRow> obligations,
       List<TaxInputRow> taxInputs) {
     BigDecimal julyOnlyCorrectionNet =
         JULY_2026.equals(period)
-            ? invoices.stream()
+            ? correctionSources.stream()
                 .map(InvoiceRow::correctionNetAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
             : BigDecimal.ZERO;
@@ -249,7 +243,6 @@ public class AccountingFactService {
 
     BigDecimal rate =
         invoices.stream()
-            .filter(invoice -> invoice.taxPeriod().equals(period))
             .map(InvoiceRow::ryczaltRate)
             .filter(value -> value != null)
             .findFirst()
@@ -259,8 +252,11 @@ public class AccountingFactService {
     BigDecimal expectedTax = obligationAmount(obligations, "RYCZALT");
     BigDecimal difference = calculatedTax.subtract(expectedTax);
     boolean hasGolden = hasObligation(obligations, "RYCZALT");
+    BigDecimal revenueGolden = taxInput(taxInputs, "EXPECTED_REVENUE_PLN");
     boolean missingForeignSource =
-        fx.status().equals("NO_FX_SOURCE") && period.getMonthValue() <= 7;
+        fx.status().equals("NO_FX_SOURCE")
+            && revenueGolden.signum() != 0
+            && revenueGolden.compareTo(domesticRevenue) != 0;
     String status =
         !hasGolden
             ? "NO_GOLDEN"
@@ -284,45 +280,35 @@ public class AccountingFactService {
   private VatCalculation calculateVat(
       LocalDate period,
       List<InvoiceRow> invoices,
-      List<InvoiceRow> periodInvoices,
+      List<InvoiceRow> correctionSources,
       List<ExpenseRow> expenses,
-      List<ObligationRow> obligations,
-      List<TaxInputRow> taxInputs) {
+      List<ObligationRow> obligations) {
     BigDecimal outputBeforeCorrection =
-        periodInvoices.stream()
+        invoices.stream()
             .filter(invoice -> "PLN".equals(invoice.currency()))
             .map(InvoiceRow::vatAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     BigDecimal julyOnlySalesCorrectionVat =
         JULY_2026.equals(period)
-            ? invoices.stream()
+            ? correctionSources.stream()
                 .map(InvoiceRow::correctionVatAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
             : BigDecimal.ZERO;
     BigDecimal outputVat = outputBeforeCorrection.add(julyOnlySalesCorrectionVat);
 
     BigDecimal deductibleInputVat =
-        JULY_2026.equals(period)
-            ? BigDecimal.ZERO
-            : expenses.stream()
-                .map(ExpenseRow::deductibleVat)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .setScale(2, RoundingMode.HALF_UP);
-    BigDecimal julyOnlyAdjustment =
-        JULY_2026.equals(period)
-            ? taxInput(taxInputs, "JULY_ONLY_VAT_CORRECTION_ADJUSTMENT")
-            : BigDecimal.ZERO;
+        expenses.stream()
+            .map(ExpenseRow::deductibleVat)
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .setScale(2, RoundingMode.HALF_UP);
 
     BigDecimal calculatedVat =
-        outputVat
-            .subtract(deductibleInputVat)
-            .subtract(julyOnlyAdjustment)
-            .setScale(0, RoundingMode.HALF_UP);
+        outputVat.subtract(deductibleInputVat).setScale(0, RoundingMode.HALF_UP);
     BigDecimal expectedVat = obligationAmount(obligations, "VAT");
     BigDecimal difference = calculatedVat.subtract(expectedVat);
     boolean hasGolden = hasObligation(obligations, "VAT");
-    boolean expenseDocumentsMissing = !JULY_2026.equals(period) && expenses.isEmpty() && hasGolden;
+    boolean expenseDocumentsMissing = expenses.isEmpty() && hasGolden;
     String status =
         !hasGolden
             ? "NO_GOLDEN"
@@ -335,7 +321,7 @@ public class AccountingFactService {
         julyOnlySalesCorrectionVat,
         outputVat,
         deductibleInputVat,
-        julyOnlyAdjustment,
+        BigDecimal.ZERO,
         calculatedVat,
         expectedVat,
         difference,
@@ -363,7 +349,9 @@ public class AccountingFactService {
   }
 
   private List<ReconciliationRow> reconcile(
-      List<InvoiceRow> invoices, List<BankRow> bankTransactions, List<ObligationRow> obligations) {
+      List<InvoiceRow> invoices,
+      List<BankRow> bankTransactions,
+      List<ObligationRow> obligations) {
     List<ReconciliationRow> result = new ArrayList<>();
 
     for (InvoiceRow invoice : invoices) {
@@ -387,7 +375,7 @@ public class AccountingFactService {
       String explanation =
           invoice.correctionGrossAmount().signum() == 0
               ? "Exact expected receivable matched to a business customer receipt."
-              : "July historical correction fixture matched; generic correction processing is parked.";
+              : "Corrected receivable matched; the correction remains a July-specific historical fixture.";
 
       result.add(
           new ReconciliationRow(
@@ -402,6 +390,15 @@ public class AccountingFactService {
     }
 
     for (ObligationRow obligation : obligations) {
+      String status = obligation.status();
+      String explanation = obligation.note();
+      if (!"REPORTING_ONLY".equals(status)
+          && obligation.expectedAmount().compareTo(obligation.paidAmount()) != 0) {
+        status = "DIFF";
+        BigDecimal cashDifference =
+            obligation.paidAmount().subtract(obligation.expectedAmount()).setScale(2, RoundingMode.HALF_UP);
+        explanation = obligation.note() + " Cash difference: " + cashDifference.toPlainString() + " PLN.";
+      }
       result.add(
           new ReconciliationRow(
               obligation.obligationType(),
@@ -410,8 +407,8 @@ public class AccountingFactService {
               "PLN",
               obligation.paidAmount(),
               obligation.paymentDate(),
-              obligation.status(),
-              obligation.note()));
+              status,
+              explanation));
     }
 
     return List.copyOf(result);

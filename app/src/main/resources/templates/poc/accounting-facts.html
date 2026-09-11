@@ -45,7 +45,7 @@
 <div class="banner" th:if="${snapshot.ryczalt().status() == 'NO_GOLDEN' || snapshot.vat().status() == 'NO_GOLDEN'}">
   This month contains source facts but complete expected golden outputs were not captured.
 </div>
-<p class="muted" th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}">July contains an unusual invoice correction. It remains a July-only fixture; generic correction processing is parked.</p>
+<p class="muted" th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}">July contains an unusual sales-invoice correction. The correction remains July-specific; purchase VAT is reconstructed from expense documents like normal months.</p>
 
 <div class="grid">
   <div class="card"><div class="label">Domestic revenue</div><div class="value"><span th:text="${snapshot.domesticRevenueNetPln()}">16250.00</span> PLN</div></div>
@@ -88,8 +88,7 @@
 <tr><th>Domestic output VAT</th><td class="amount" th:text="${snapshot.vat().outputVatBeforeJulyCorrection()}">3737.50</td></tr>
 <tr th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}"><th>July-only sales correction VAT</th><td class="amount" th:text="${snapshot.vat().julyOnlySalesCorrectionVat()}">-34.50</td></tr>
 <tr><th>Output VAT after sales adjustment</th><td class="amount" th:text="${snapshot.vat().outputVatAfterSalesCorrection()}">3703.00</td></tr>
-<tr th:if="${!selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}"><th>Document-level deductible input VAT</th><td class="amount" th:text="${snapshot.vat().deductibleInputVat()}">100.55</td></tr>
-<tr th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}"><th>July-only correction adjustment</th><td class="amount" th:text="${snapshot.vat().julyOnlyVatCorrectionAdjustment()}">146.00</td></tr>
+<tr><th>Document-level deductible input VAT</th><td class="amount" th:text="${snapshot.vat().deductibleInputVat()}">145.99</td></tr>
 <tr><th>VAT payable</th><td class="amount" th:text="${snapshot.vat().calculatedVat()}">3557</td></tr>
 </tbody></table>
 
@@ -98,7 +97,7 @@
   <thead><tr><th>Date</th><th>Reference</th><th>Supplier</th><th>Category</th><th class="amount">VAT</th><th class="amount">Ratio</th><th class="amount">Deductible VAT</th><th>Source</th></tr></thead>
   <tbody>
   <tr th:each="expense : ${snapshot.expenses()}">
-    <td th:text="${expense.invoiceDate()}">2026-02-28</td><td th:text="${expense.reference()}">EXP-001</td><td th:text="${expense.supplierAlias()}">SUPPLIER_001</td>
+    <td th:text="${expense.invoiceDate() != null ? expense.invoiceDate() : '—'}">2026-02-28</td><td th:text="${expense.reference()}">EXP-001</td><td th:text="${expense.supplierAlias()}">SUPPLIER_001</td>
     <td th:text="${expense.category()}">ACCOUNTING</td><td class="amount" th:text="${expense.vatAmount()}">68.54</td>
     <td class="amount" th:text="${expense.vatDeductionRatio()}">1.00</td><td class="amount" th:text="${expense.deductibleVat()}">68.54</td><td th:text="${expense.sourceQuality()}">DOCUMENT</td>
   </tr>
