@@ -35,17 +35,14 @@ class InvestmentPerformanceControllerIT {
   @Test
   void performanceEndpointsNormalizeAccountIdsAndDefaults() throws Exception {
     mvc.perform(
-            get("/api/v1/investment/performance/board")
+            get("/api/v1/portfolios/1/investment/performance/board")
                 .param("accountIds", "1, 2")
                 .param("aggregation", "annual")
                 .param("metric", "profit")
-                .param("style", "bars")
-                .param("portfolioId", "1"))
+                .param("style", "bars"))
         .andExpect(status().isOk());
     mvc.perform(
-            get("/api/v1/investment/performance/monthly")
-                .param("accountIds", "3,4")
-                .param("portfolioId", "1"))
+            get("/api/v1/portfolios/1/investment/performance/monthly").param("accountIds", "3,4"))
         .andExpect(status().isOk());
     verify(performance)
         .load(
@@ -70,10 +67,7 @@ class InvestmentPerformanceControllerIT {
   @DisplayName("performance Endpoint Rejects Unknown Options")
   @Test
   void performanceEndpointRejectsUnknownOptions() throws Exception {
-    mvc.perform(
-            get("/api/v1/investment/performance/board")
-                .param("metric", "yield")
-                .param("portfolioId", "1"))
+    mvc.perform(get("/api/v1/portfolios/1/investment/performance/board").param("metric", "yield"))
         .andExpect(status().isBadRequest());
   }
 }

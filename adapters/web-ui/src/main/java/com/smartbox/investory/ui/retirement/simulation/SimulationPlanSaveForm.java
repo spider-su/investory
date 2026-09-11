@@ -6,7 +6,6 @@ import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,7 +14,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public final class SimulationPlanSaveForm {
-  @NotNull @Positive private Long portfolioId;
   private Long planId;
   @NotBlank private String name;
   private int currentAge = 40;

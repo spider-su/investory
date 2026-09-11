@@ -145,7 +145,7 @@ class SimulationTemplateContractTest {
         () -> assertTrue(javascript.contains("turbo:load")),
         () -> assertTrue(javascript.contains("sandboxChart?.destroy()")),
         () -> assertTrue(javascript.contains("label: 'Unfunded'")),
-        () -> assertTrue(html.contains("name=\"portfolioId\"")),
+        () -> assertFalse(html.contains("name=\"portfolioId\"")),
         () -> assertFalse(html.contains("name=\"planId\"")));
   }
 
@@ -167,6 +167,8 @@ class SimulationTemplateContractTest {
     String css = CssTestSupport.readComposedStylesheet();
     int actionsStart = header.indexOf("iv-planning-actions--simulation");
     int secondaryStart = header.indexOf("iv-planning-topbar__secondary");
+    int contextStart = header.indexOf("iv-planning-context-slot");
+    int contextEnd = header.indexOf("</div>", contextStart);
     assertAll(
         () -> assertTrue(html.contains("planningHeader('simulation'")),
         () -> assertFalse(html.contains("iv-simulation-scenario-tabs")),
@@ -174,7 +176,7 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("iv-plan-timeline__assumptions")),
         () -> assertFalse(html.contains("iv-card-section-header__action")),
         () -> assertFalse(html.contains(">Sync years</button>")),
-        () -> assertTrue(header.contains(">Sync years</button>")),
+        () -> assertFalse(header.contains(">Sync years</button>")),
         () -> assertFalse(html.contains("Sync planning years")),
         () ->
             assertFalse(
@@ -201,12 +203,12 @@ class SimulationTemplateContractTest {
         () ->
             assertTrue(
                 header
-                    .substring(actionsStart, secondaryStart)
+                    .substring(contextStart, contextEnd)
                     .contains("iv-planning-scenario-selector")),
         () -> assertTrue(header.substring(actionsStart, secondaryStart).contains(">Edit plan</a>")),
         () ->
             assertTrue(
-                header.substring(actionsStart, secondaryStart).contains(">Sync years</button>")),
+                !header.substring(actionsStart, secondaryStart).contains(">Sync years</button>")),
         () -> assertFalse(header.contains("role=\"button\">Base</a>")),
         () ->
             assertFalse(
@@ -300,11 +302,11 @@ class SimulationTemplateContractTest {
 
     assertAll(
         () -> assertTrue(simulationActions.contains(">Edit plan</a>")),
-        () -> assertTrue(simulationActions.contains(">Sync years</button>")),
-        () -> assertTrue(simulationActions.contains("iv-planning-scenario-selector")),
+        () -> assertFalse(simulationActions.contains(">Sync years</button>")),
+        () -> assertFalse(simulationActions.contains("iv-planning-scenario-selector")),
         () -> assertFalse(simulationActions.contains("iv-planning-base")),
         () -> assertTrue(planningContext.contains("Reporting currency")),
-        () -> assertFalse(planningContext.contains("iv-planning-scenario-selector")));
+        () -> assertTrue(planningContext.contains("iv-planning-scenario-selector")));
   }
 
   @DisplayName("assumptions And Capital Use Shared Structural Grids")

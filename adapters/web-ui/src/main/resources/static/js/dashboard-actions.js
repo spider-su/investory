@@ -115,10 +115,8 @@ if (fileInput) {
          yahooGenerateBtn.setAttribute('aria-busy', 'true');
          yahooGenerateBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Preparing export…';
 
-         const exportUrl = new URL('/api/v1/investment/export/generate', window.location.origin);
-         const exportPortfolioId = yahooGenerateBtn.dataset.portfolioId
-             || new URLSearchParams(window.location.search).get('portfolioId');
-         if (exportPortfolioId) exportUrl.searchParams.set('portfolioId', exportPortfolioId);
+         const exportPortfolioId = yahooGenerateBtn.dataset.portfolioId;
+         const exportUrl = new URL('/api/v1/portfolios/' + encodeURIComponent(exportPortfolioId) + '/investment/export/generate', window.location.origin);
 
          fetch(exportUrl.toString(), {
              method: 'GET',

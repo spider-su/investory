@@ -26,13 +26,12 @@ class InvestmentDashboardRestControllerIT {
   @Test
   void queryAndKpiEndpointsBindRequests() throws Exception {
     mvc.perform(
-            post("/api/v1/investment/dashboard/query")
-                .param("portfolioId", "1")
+            post("/api/v1/portfolios/1/investment/dashboard/query")
                 .contentType("application/json")
                 .content(
-                    "{\"accountIds\":[],\"benchmarkAccountsSubmitted\":false,\"period\":\"YTD\",\"portfolioId\":1}"))
+                    "{\"accountIds\":[],\"benchmarkAccountsSubmitted\":false,\"period\":\"YTD\"}"))
         .andExpect(status().isOk());
-    mvc.perform(get("/api/v1/investment/dashboard/performance-kpi").param("portfolioId", "1"))
+    mvc.perform(get("/api/v1/portfolios/1/investment/dashboard/performance-kpi"))
         .andExpect(status().isOk());
     verify(dashboard).loadDashboard(any());
     verify(dashboard).loadPerformanceKpi(1L);

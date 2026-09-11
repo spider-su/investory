@@ -45,7 +45,7 @@ condition exists for Profile (`Income sources`), Simulation (`Plan timeline`), S
 
 ## Active result
 
-- Shared dashboard YTD navigation: PASS; URL became `/dashboard?period=YTD&portfolioId=2...`.
+- Shared dashboard YTD navigation: PASS; URL became `/portfolios/2/dashboard?period=YTD...`.
 - Long-Term Assets: six disclosures expanded, annual-income tooltip opened, all seven seeded asset
   routes inspected, and all four create-form routes opened and exited with Cancel.
 - Apartment A/B real-estate detail routes exited with their `Long-Term Assets` Back link.

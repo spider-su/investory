@@ -597,6 +597,11 @@ public class PlanningTimelineFacade {
               bridge.requiredPortfolioFunding(),
               PlanningValueSource.SIMULATION_BASELINE));
     }
+    BigDecimal annualizedSpending =
+        assumptions
+            .annualLivingExpenses()
+            .add(assumptions.annualDiscretionaryExpenses())
+            .add(eventAmount(assumptions, year, SimulationEventType.ONE_OFF_EXPENSE));
     Map<PlanningMetric, PlanningMetricValue> expected = new EnumMap<>(PlanningMetric.class);
     expected.putAll(current.expectedValues());
     if (bridge != null) {
@@ -617,7 +622,20 @@ public class PlanningTimelineFacade {
           expected, PlanningMetric.NET_WORTH, bridge.bridgedProfile().totalNetWorth());
     }
     return new CurrentPlanningYear(
-        current.year(), current.baselinePlanId(), current.baselineCreatedAt(), live, expected);
+        current.year(),
+        current.baselinePlanId(),
+        current.baselineCreatedAt(),
+        live,
+        expected,
+        annualizedSpending);
+  }
+
+  private static BigDecimal eventAmount(
+      SimulationAssumptions assumptions, int year, SimulationEventType type) {
+    return assumptions.futureEvents().stream()
+        .filter(event -> event.year() == year && event.type() == type)
+        .map(SimulationEvent::amount)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
   private static void putExpectedBucket(

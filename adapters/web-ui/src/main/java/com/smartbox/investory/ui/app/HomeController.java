@@ -38,16 +38,6 @@ public class HomeController {
     return "home";
   }
 
-  @GetMapping("/dashboard")
-  public String getDashboard(
-      Model model,
-      @RequestParam(required = false) List<Long> accountIds,
-      @RequestParam(defaultValue = "false") boolean benchmarkAccountsSubmitted,
-      @RequestParam(defaultValue = "YTD") String period,
-      @RequestParam Long portfolioId) {
-    return renderDashboard(model, accountIds, benchmarkAccountsSubmitted, period, portfolioId);
-  }
-
   @GetMapping("/portfolios/{portfolioId}/dashboard")
   public String getPortfolioDashboard(
       Model model,

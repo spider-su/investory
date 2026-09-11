@@ -18,7 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @Validated
-@RequestMapping("/api/v1/investment/imports")
+@RequestMapping("/api/v1/portfolios/{portfolioId}/investment/imports")
 @RequiredArgsConstructor
 public class ImportController {
 
@@ -26,7 +26,7 @@ public class ImportController {
 
   @PostMapping
   public InvestmentImportApi.ImportResult importAuto(
-      @RequestParam @Positive Long portfolioId,
+      @PathVariable @Positive Long portfolioId,
       @RequestParam("file") MultipartFile file,
       @RequestParam(value = "source", defaultValue = "MANUAL") ImportSource source,
       @RequestParam(value = "sourceRef", required = false) String sourceRef,
@@ -40,7 +40,7 @@ public class ImportController {
   @PostMapping("/broker/{broker}")
   public InvestmentImportApi.ImportResult importByBroker(
       @PathVariable("broker") ImportBroker broker,
-      @RequestParam @Positive Long portfolioId,
+      @PathVariable @Positive Long portfolioId,
       @RequestParam("file") MultipartFile file,
       @RequestParam(value = "source", defaultValue = "MANUAL") ImportSource source,
       @RequestParam(value = "sourceRef", required = false) String sourceRef,

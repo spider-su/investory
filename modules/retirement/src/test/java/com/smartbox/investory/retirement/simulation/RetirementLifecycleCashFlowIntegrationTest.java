@@ -50,6 +50,8 @@ class RetirementLifecycleCashFlowIntegrationTest {
     assertThat(lastWorking.age()).isEqualTo(61);
     assertThat(lastWorking.employmentIncome()).isEqualByComparingTo("1000");
     assertThat(lastWorking.preRetirementContribution()).isEqualByComparingTo("100");
+    assertThat(lastWorking.cashStart()).isEqualByComparingTo("10000");
+    assertThat(lastWorking.cashEnd()).isEqualByComparingTo("10000");
     assertThat(lastWorking.equityEnd()).isEqualByComparingTo("1200");
 
     var retirement = year(result, 2028);

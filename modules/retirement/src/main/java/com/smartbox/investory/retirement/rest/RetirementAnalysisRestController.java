@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** REST and in-process Java facade for retirement projection analysis. */
 @RestController
 @Validated
-@RequestMapping("/api/v1/retirement/portfolios/{portfolioId}/analysis")
+@RequestMapping("/api/v1/portfolios/{portfolioId}/retirement/analysis")
 public class RetirementAnalysisRestController {
   private final RetirementAnalysisApi analyses;
   private final RetirementProjectionApi projections;

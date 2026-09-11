@@ -12,5 +12,5 @@ stable route.
 | `ui-baselines/profile-mobile.png` | 390 × 844 |
 
 Refresh these files only after reviewing an intentional layout change. Use the same local portfolio,
-dark theme, browser engine, and `/investment-profile?portfolioId=1` route. The baseline contract test
+dark theme, browser engine, and `/portfolios/1/investment-profile` route. The baseline contract test
 guards the viewport matrix and prevents missing or empty reference files.

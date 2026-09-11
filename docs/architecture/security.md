@@ -16,7 +16,7 @@ The scope is stored in `investory.profile_memberships` (`user_id`, `profile_id`,
 
 Backend authorization is authoritative: profile reads require membership or `ADMIN`; profile writes, imports, refresh/rebuild operations, and other state-changing requests require `OWNER` or `ADMIN`. Integration configuration and `/api/v1/admin/**` operations require `ADMIN`. Authenticated denials return `403`; missing authentication returns `401`.
 
-The global investment maintenance endpoints (`/api/v1/investment/maintenance/**`) are `ADMIN`-only because they do not carry a profile ID and can rebuild shared reporting state. Profile-scoped operations carry the profile ID in the path or `portfolioId` parameter. The dashboard query requires `portfolioId` both as a parameter and in its JSON body, and rejects mismatches.
+The global investment maintenance endpoints (`/api/v1/investment/maintenance/**`) are `ADMIN`-only because they do not carry a profile ID and can rebuild shared reporting state. Profile-scoped REST operations carry the profile ID in `/api/v1/portfolios/{portfolioId}/...`; it is not accepted as a query parameter. The dashboard query keeps its internal dashboard query model, but the HTTP path is the authority for the portfolio scope.
 
 The landing/error/static assets and `/actuator/health` are public. Exact matcher behavior should be read from `SecurityConfig` when changing routes.
 
@@ -34,7 +34,7 @@ Production must supply explicit admin/user credentials through configuration and
 
 ## Data isolation
 
-Profile isolation is enforced at the MVC boundary before profile handlers run. Controllers identify the profile from `/portfolios/{portfolioId}/...` or the `portfolioId` request parameter; the membership query is against that exact ID. The frontend receives capability flags (`canEdit`, `canImport`, `canManageProfile`, `canManageIntegrations`) for UX only and cannot replace backend checks.
+Profile isolation is enforced at the MVC boundary before profile handlers run. Controllers identify the profile from `/portfolios/{portfolioId}/...`; the membership query is against that exact ID. The frontend receives capability flags (`canEdit`, `canImport`, `canManageProfile`, `canManageIntegrations`) for UX only and cannot replace backend checks.
 
 Internal service calls must still pass the intended profile ID; HTTP callers cannot bypass the boundary by changing only a URL ID.
 

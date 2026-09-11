@@ -7,11 +7,22 @@ Real Estate**. Investment and Long-Term provide the reviewed/frozen starting sta
 does not simulate individual holdings, bond ladders, rental contracts, maturities, or tax lots.
 
 Each projected year executes cash income, aggregate returns, costs, Cash withdrawal, Bonds
-withdrawal, Equities withdrawal when enabled, Real Estate withdrawal only after all liquid buckets
-reach zero, then positive equity-gain transfer to Bonds up to the frozen initial Bond target.
+withdrawal, Equities withdrawal when enabled, emergency Bond withdrawal below the reserve floor,
+Real Estate withdrawal only after all liquid buckets reach zero, then positive equity-gain transfer
+to Bonds up to the calculated safe-reserve floor.
 Cash has zero yield and is never auto-refilled. Bond return stays in Bonds; equity return stays in
 Equities unless the harvest policy moves an eligible share to Bonds. Remaining balances carry into
 the next year. `UNFUNDED` is recalculated per year and is not sticky.
+
+The safe-reserve target uses recurring funding need only:
+
+```text
+reserveFundingNeed = max(0, recurringSpending - reliableRecurringIncome)
+safeReserveTarget = safeReserveYears × reserveFundingNeed
+```
+
+One-off events affect the current year's funding gap, but one-off expenses do not inflate the
+multi-year reserve floor.
 
 Current and historical review keeps Plan and Actual separate. Actual bucket values may include
 manual activity or external cash and may become the next reviewed baseline; they are not forced to
@@ -218,7 +229,9 @@ bondsExpectedEnd = bondsAfterSpending + bondTransfer
 
 Unused Bond capital is considered reinvested automatically and becomes the next year's Bond start.
 Future Retirement does not maintain an individual bond ladder. Long-Term detail is used only to
-derive the reviewed starting capital and planning yield.
+derive the reviewed starting capital and planning yield. The legacy `targetValue` carried on
+aggregate bucket records is not a reserve policy; reserve protection uses the year-specific
+calculated floor above.
 
 ### Equities
 
@@ -229,25 +242,36 @@ equityReturn = equitiesStart * equityReturnRate
 equitiesBeforeRefill = equitiesStart + equityReturn
 ```
 
-Positive eligible Equity gain may transfer value to Bonds toward the configured Bond target. The
-transfer is internal capital movement, not cash income:
+Positive eligible Equity gain may transfer value to Bonds toward the calculated safe-reserve floor.
+The transfer is internal capital movement, not cash income:
 
 ```text
 eligibleGain = max(0, equityReturn)
 harvest = eligibleGain * equityGainHarvestRate
-bondTransfer = min(harvest, max(0, bondTarget - bondsAfterSpending))
+safeReserveTargetAmount = safeReserveYears * max(0, annualSpending - reliableRecurringIncome)
+bondTransfer = min(harvest, max(0, safeReserveTargetAmount - bondsAfterSpending))
 equityTransfer = -bondTransfer
 ```
 
 The existing minimum-return threshold gates whether harvesting is permitted. Any unharvested gain
 remains invested in Equities. Equity principal is consumed for spending only after Cash and Bonds,
-subject to the configured emergency/withdrawal policy.
+subject to the configured emergency/withdrawal policy. `allowEmergencyEquityWithdrawal` controls
+whether Equities may be consumed before the soft reserve floor is breached; when disabled, the
+engine skips Equity withdrawal and uses emergency Bonds, then Real Estate.
+
+The safe reserve is a soft Bond floor, recalculated for every simulation year. Reliable recurring
+income is rental income, spendable Bond cash income, pension, and applicable employment income.
+One-off income, investment returns, internal transfers, and asset appreciation are not recurring
+cash income. If recurring income covers spending, the funding need and reserve target are zero.
+
+`annualPreRetirementContribution` is external annual investment capital. Before retirement it is
+prorated for a partial year and added directly to Equities. It is not sourced from Cash or
+Employment income and is counted once.
 
 ### Real Estate
 
 Real Estate is the final capital source. Rental income participates in ordinary cash income, while
-property capital is preserved until the liquid buckets are exhausted. The initial critical threshold
-is zero:
+property capital is preserved until the liquid buckets are exhausted:
 
 ```text
 sell Real Estate only when Cash == 0 and Bonds == 0 and Equities == 0
@@ -327,24 +351,25 @@ Each projected year is evaluated from scratch from the previous year's end state
 3. apply Bond return and Equity return to their own buckets;
 4. calculate the remaining funding gap;
 5. withdraw Cash;
-6. withdraw Bonds;
+6. withdraw Bonds only down to the safe-reserve floor;
 7. withdraw Equities when policy allows and a gap remains;
-8. withdraw Real Estate only after Cash, Bonds, and Equities are exhausted;
-9. if eligible positive Equity gain remains, transfer value to Bonds toward the Bond target;
-10. calculate end values for all four buckets;
-11. record any amount still unfunded;
-12. carry the end values into the next year.
+8. withdraw emergency Bonds below the floor when Equities are exhausted or unavailable;
+9. withdraw Real Estate only after Cash, Equities, and all Bonds are exhausted;
+10. if eligible positive Equity gain remains, transfer value to Bonds toward the safe-reserve floor;
+11. calculate end values for all four buckets;
+12. record any amount still unfunded;
+13. carry the end values into the next year.
 
 The canonical spending priority is therefore:
 
 ```text
-cash income -> Cash -> Bonds -> Equities -> Real Estate -> unfunded
+cash income -> Cash -> Bonds above floor -> Equities -> Bonds below floor -> Real Estate -> unfunded
 ```
 
 Bond transfer is the reverse capital-maintenance path:
 
 ```text
-eligible Equity gain -> Bonds (up to target)
+eligible Equity gain -> Bonds (up to safe-reserve floor)
 ```
 
 The developer table shows this as a signed `Transfer`: Bonds receive `+X` and Equities show
@@ -479,7 +504,7 @@ property capital                             -> Real Estate
 ```
 
 The reviewed baseline also carries the planning assumptions needed to project those balances, such as
-Bond yield, Equity return, rental income/growth, Bond target, harvest threshold/share, and
+Bond yield, Equity return, rental income/growth, safe-reserve years, harvest threshold/share, and
 whether Equity principal may be used for spending.
 
 Current/live source changes affect CURRENT immediately. Future changes only after an explicit

@@ -48,6 +48,9 @@ final class SimulationPageAssembler {
     CurrencyType currency = query.getPlanningDisplayCurrency();
     SimulationScenario requestedScenario = query.getSelectedScenario();
     SimulationScenario scenario = requestedScenario;
+    // Calendar progression is planning-state maintenance only. It must happen before the
+    // timeline query so the page never presents a stale current/historical boundary.
+    planningTimeline.ensurePlanningTimeline(portfolioId);
     Long planId = plans.resolvePlanId(portfolioId, query.getPlanId()).orElse(null);
     PlanDetails plan = planId == null ? null : plans.details(portfolioId, planId);
     var input = projections.load(portfolioId, planId, currentAge, endAge);

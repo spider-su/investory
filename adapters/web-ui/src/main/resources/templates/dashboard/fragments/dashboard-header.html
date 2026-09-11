@@ -71,7 +71,7 @@
                     <strong th:text="${selectedPeriod.label() + ' investment result'}">YTD investment result</strong>
                     <span>Cash-flow-neutral profit and return for the selected period, after portfolio adjustments.</span>
                     <div class="iv-brand__summary-row"><span>Return since KPI start</span><span th:if="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.kpiReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
-                    <div class="iv-brand__summary-row"><span>Annualized return</span><span th:if="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.annualizedReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
+                    <div class="iv-brand__summary-row"><span>Annualized return</span><span th:if="${dashboard.performance.summary.expectedAnnualReturn != null and dashboard.performance.summary.expectedAnnualReturn.status.name() == 'AVAILABLE' and dashboard.performance.summary.expectedAnnualReturn.value != null}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.expectedAnnualReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.expectedAnnualReturn != null and dashboard.performance.summary.expectedAnnualReturn.status.name() == 'AVAILABLE' and dashboard.performance.summary.expectedAnnualReturn.value != null}">Unavailable</span></div>
                     <small th:if="${dashboard.performance.summary.kpiStartDate != null}" th:text="${'KPI start · ' + dashboard.performance.summary.kpiStartDate}">KPI start · 2026-01-01</small>
                 </div>
             </div>
@@ -120,8 +120,7 @@
                 </details>
             </div>
                 <div class="iv-topbar-actions" aria-label="Portfolio actions">
-                <form id="xtb-upload-form" action="/api/v1/investment/imports" method="POST" enctype="multipart/form-data" data-turbo="false" style="margin:0;">
-                    <input type="hidden" name="portfolioId" th:value="${portfolioId}" />
+                <form id="xtb-upload-form" th:action="@{/api/v1/portfolios/{portfolioId}/investment/imports(portfolioId=${portfolioId})}" action="/api/v1/portfolios/1/investment/imports" method="POST" enctype="multipart/form-data" data-turbo="false" style="margin:0;">
                     <div class="iv-hover-context">
                         <button type="button"
                                 id="import-statement-btn"

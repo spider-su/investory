@@ -95,8 +95,8 @@ the next calendar year starts from that bridged state, not from a mid-year portf
 1 January.
 
 The bridge uses the remaining calendar-day fraction for recurring spending, funding, contributions,
-passive income, pension, and continuously modelled returns. Working-year contributions go to liquid cash
-and use that same fraction; employment income remains informational. Retired years apply spending and
+passive income, pension, and continuously modelled returns. Working-year external investment
+contributions go directly to Equities and use that same fraction; employment income remains informational. Retired years apply spending and
 the configured funding strategy. Contractual income facts are netted for tax and become bridge cash;
 contractual return facts affect the asset balance and are not passive income. A remaining maturity
 moves the contractual balance to `LIQUID_CASH`, and leaves
@@ -104,6 +104,11 @@ a zero-valued asset identity. Current-year events and redemptions are applied on
 events and unmatured assets remain in the next full-year assumptions. Contractual effects use the remaining
 calendar fraction; exact in-year maturity uses the bridge clock date. This is deterministic annual
 bridging, not monthly cash-flow simulation.
+
+LIVE spending growth uses the explicit annualized current-year spending outlook provided by the
+planning boundary, compared with the latest reliable completed-year actual. A partial-year actual
+alone is insufficient history. The safe-reserve floor uses recurring spending need only; current-year
+one-off expenses affect that year's funding gap, not the reserve floor.
 
 ## Forward simulation boundary
 
@@ -162,13 +167,15 @@ Base, Conservative, and Optimistic scenarios share the same bridged profile and 
 only scenario settings diverge in projected years. Sustainable Spending, Sensitivity, and Retirement
 Timing use the same rebased assumptions. None replays past contributions, events, returns, or funding.
 
-## Annual rollover
+## Automatic annual timeline progression
 
-`AnnualPlanningRolloverService` advances reporting state from the application calendar. For each
-existing year before the calendar-current year it creates missing historical accounting-derived
-values and exposes the year for review. It never closes a year automatically, even when the normal
-historical completeness rules are satisfied. The calendar-current planning year is created when
-absent; this does not depend on whether the previous year has been reconciled.
+`AnnualPlanningRolloverService` advances reporting state from the application calendar. Calendar
+progression is synchronized automatically when the Simulation page is opened and after a planning
+year is closed. For each existing year before the calendar-current year it creates missing
+historical accounting-derived values and exposes the year for review. It never closes a year
+automatically, even when the normal historical completeness rules are satisfied. The
+calendar-current planning year is created when absent; this does not depend on whether the previous
+year has been reconciled. Users do not manually synchronize planning years.
 
 Calendar progression changes the forward simulation boundary. Closing a planning year changes
 historical reporting state. Neither operation replays prior simulation years. Closed actuals are
@@ -186,9 +193,10 @@ future years      -> canonical annual simulation from that plan
 ```
 
 The Simulation Plan vs Reality section presents an unclosed past year as **Needs review**, with a
-link to its planning-year detail. A closed year is shown as **Actual**. Review and close remain
-explicit user actions; normal calendar advancement and creation of the new current-year row are
-quiet when no historical work is waiting. Multiple existing past drafts are listed for review.
+link to its planning-year detail. A closed year is shown as **Actual**. Historical year closure
+remains an explicit review action; calendar progression only creates review eligibility. Normal
+calendar advancement and creation of the new current-year row are automatic and invisible to the
+user. Multiple existing past drafts are listed for review.
 
 ## Accounting comparison
 

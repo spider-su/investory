@@ -643,7 +643,7 @@ class RetirementSimulationControllerTest {
         0, new BigDecimal("11250.12345678").compareTo(page.assumptions().annualLivingExpenses()));
     assertEquals(0, new BigDecimal("0.045").compareTo(page.assumptions().fixedIncomeReturnRate()));
     assertEquals(0, new BigDecimal("0.075").compareTo(page.assumptions().equityReturnRate()));
-    verify(timeline, never()).rollover(anyLong());
+    verify(timeline).ensurePlanningTimeline(1L);
     verify(presentation, never())
         .fromDisplay(eq(new BigDecimal("45000.00")), eq(CurrencyType.PLN), any(BigDecimal.class));
   }

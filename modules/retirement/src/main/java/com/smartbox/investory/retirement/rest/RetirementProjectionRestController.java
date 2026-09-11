@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Stable HTTP adapter for prepared retirement projections. */
 @RestController
 @Validated
-@RequestMapping("/api/v1/retirement/portfolios/{portfolioId}/projections")
+@RequestMapping("/api/v1/portfolios/{portfolioId}/retirement/projections")
 public class RetirementProjectionRestController {
   private final RetirementProjectionApi projections;
   private final RetirementPlanApi plans;

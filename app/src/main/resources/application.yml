@@ -100,6 +100,9 @@ app:
     allow-private-base-urls: ${INTEGRATIONS_ALLOW_PRIVATE_BASE_URLS:false}
   portfolio:
     performance-kpi-start: ${PORTFOLIO_PERFORMANCE_KPI_START:2026-01-01}
+    expected-return:
+      # Stable nominal assumption used only for the unobserved part of the five-year estimate.
+      benchmark: ${PORTFOLIO_EXPECTED_RETURN_BENCHMARK:0.07}
     # Detailed issue provenance scans reconstructed history and is slow on large datasets.
     data-quality-issues-enabled: ${PORTFOLIO_DATA_QUALITY_ISSUES_ENABLED:false}
     # Optional dashboard enrichment: fallback reconciliation, data-quality details, and risk exposure.

@@ -186,9 +186,8 @@ class BrokerImportAccountingBoundaryIT extends FastDatabaseTest {
   private org.springframework.test.web.servlet.ResultActions importFile(byte[] bytes)
       throws Exception {
     return mockMvc.perform(
-        multipart("/api/v1/investment/imports/broker/IBKR")
+        multipart("/api/v1/portfolios/2/investment/imports/broker/IBKR")
             .file(new MockMultipartFile("file", FILE_NAME, MediaType.TEXT_PLAIN_VALUE, bytes))
-            .param("portfolioId", String.valueOf(PORTFOLIO_ID))
             .param("deferRefresh", "true")
             .with(user("admin").roles("ADMIN"))
             .with(csrf()));

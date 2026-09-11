@@ -51,14 +51,12 @@ class AssetDetailReadModelIT extends FastDatabaseTest {
     assertThat(view.dividends()).isEmpty();
 
     mvc.perform(
-            get("/api/v1/investment/assets/TSLA.US")
-                .param("portfolioId", "2")
+            get("/api/v1/portfolios/2/investment/assets/TSLA.US")
                 .param("period", "MAX")
                 .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
         .andExpect(status().isOk());
     mvc.perform(
-            get("/api/v1/investment/assets/NOT-A-REAL-ASSET")
-                .param("portfolioId", "2")
+            get("/api/v1/portfolios/2/investment/assets/NOT-A-REAL-ASSET")
                 .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
         .andExpect(status().isNotFound());
   }

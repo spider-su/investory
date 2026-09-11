@@ -35,7 +35,8 @@ class SecurityConfigTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(file).with(csrf()))
+        .perform(
+            multipart("/api/v1/portfolios/1/investment/imports/broker/XTB").file(file).with(csrf()))
         .andExpect(status().isUnauthorized());
   }
 
@@ -49,7 +50,8 @@ class SecurityConfigTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(file).with(csrf()))
+        .perform(
+            multipart("/api/v1/portfolios/1/investment/imports/broker/XTB").file(file).with(csrf()))
         .andExpect(status().isForbidden());
   }
 
@@ -64,10 +66,7 @@ class SecurityConfigTest {
 
     mockMvc
         .perform(
-            multipart("/api/v1/investment/imports/broker/XTB")
-                .file(file)
-                .param("portfolioId", "1")
-                .with(csrf()))
+            multipart("/api/v1/portfolios/1/investment/imports/broker/XTB").file(file).with(csrf()))
         .andExpect(status().isOk());
   }
 

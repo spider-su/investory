@@ -85,13 +85,11 @@
               <button class="btn btn-outline-primary" type="button" data-edit-contract>Edit</button>
               <button class="btn btn-outline-warning" type="button" data-terminate-contract th:if="${contract.status.name() == 'CURRENT'}">Terminate early</button>
               <form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/rental-contracts/{contractId}/delete(id=${asset.id},contractId=${contract.id},portfolioId=${portfolioId})}" data-delete-contract>
-                <input type="hidden" name="portfolioId" th:value="${portfolioId}">
                 <button class="btn btn-outline-danger" type="submit">Delete</button>
               </form>
             </div>
 
             <form class="iv-contract-confirm" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/rental-contracts/{contractId}/terminate(id=${asset.id},contractId=${contract.id},portfolioId=${portfolioId})}" data-terminate-panel hidden>
-              <input type="hidden" name="portfolioId" th:value="${portfolioId}">
               <div><label class="form-label" th:for="${'termination-date-' + contract.id}">Termination date</label><input class="form-control" th:id="${'termination-date-' + contract.id}" name="terminationDate" type="date" th:min="${contract.startDate}" th:max="${contract.endDate == null or today.isBefore(contract.endDate) ? today : contract.endDate}" required></div>
               <p class="text-secondary mb-0">This records an actual early termination, not a planned contract end.</p>
               <div class="iv-contract-confirm__actions"><button class="btn btn-warning" type="submit">Confirm early termination</button><button class="btn btn-link" type="button" data-cancel-terminate>Cancel</button></div>
@@ -99,7 +97,6 @@
           </div>
 
           <form class="iv-rental-contract__edit" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/rental-contracts/{contractId}(id=${asset.id},contractId=${contract.id},portfolioId=${portfolioId})}" data-contract-edit th:attr="data-edit-initial=${editContractId == contract.id}" hidden>
-            <input type="hidden" name="portfolioId" th:value="${portfolioId}">
             <div th:replace="~{real-estate/fragments/contract-form :: fields(prefix=${'edit-' + contract.id}, form=${contractForms[contract.id]}, includeRollover=${false})}"></div>
             <div class="iv-contract-form-actions"><button class="btn btn-primary" type="submit">Save changes</button><button class="btn btn-link" type="button" data-cancel-edit>Cancel</button></div>
           </form>
@@ -110,7 +107,6 @@
 
     <form class="iv-add-contract" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/rental-contracts(id=${asset.id},portfolioId=${portfolioId})}" data-add-contract th:attr="data-suggested-start=${suggestedNextContractStart}" th:hidden="${showAddContract == null}">
       <div class="iv-add-contract__heading"><div><h3 class="h3 mb-1">Add contract</h3><p class="text-secondary mb-0">Nothing is saved until you create the contract.</p></div><button class="btn btn-outline-secondary" type="button" data-copy-latest th:if="${!#lists.isEmpty(contracts)}">Copy latest contract</button></div>
-      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
       <div th:replace="~{real-estate/fragments/contract-form :: fields(prefix='add', form=${rentalContract}, includeRollover=${true})}"></div>
       <div class="iv-contract-form-actions"><button class="btn btn-primary" type="submit">Create contract</button><button class="btn btn-link" type="button" data-cancel-add-contract>Cancel</button></div>
     </form>

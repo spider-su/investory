@@ -1119,7 +1119,7 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
 }
 
 @media (max-width: 1400px) and (min-width: 601px) {
-    .iv-planning-topbar--retirement .iv-planning-actions--simulation > .iv-planning-scenario-selector {
+    .iv-planning-topbar--retirement .iv-planning-context-slot .iv-planning-scenario-selector {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         row-gap: 3px;
     }
@@ -1153,7 +1153,7 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
         grid-template-columns: minmax(180px, .75fr) minmax(360px, 1.45fr) minmax(260px, 1fr);
     }
 
-    .iv-planning-actions--simulation > .iv-planning-scenario-selector {
+    .iv-planning-context-slot .iv-planning-scenario-selector {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         row-gap: 3px;
     }
@@ -1188,4 +1188,3 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
     .iv-planning-topbar--retirement .iv-planning-local-nav-slot { grid-area: local; }
     .iv-planning-topbar--retirement .iv-planning-context-slot { grid-area: context; }
 }
-

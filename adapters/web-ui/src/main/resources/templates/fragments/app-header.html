@@ -75,16 +75,8 @@
             <div class="iv-planning-actions__row">
                 <a th:if="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Edit plan</a>
                 <a th:unless="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Edit plan</a>
-                <form th:if="${simulationPage != null}" method="post" th:action="@{/portfolios/{portfolioId}/simulation/rollover(portfolioId=${header.portfolioId})}" action="/simulation/rollover"><input type="hidden" name="portfolioId" th:value="${header.portfolioId}"><input type="hidden" name="planId" th:value="${header.contextPlanId}"><input type="hidden" name="planningDisplayCurrency" th:value="${header.currency}"><input type="hidden" name="selectedScenario" th:value="${header.contextScenario}"><button class="iv-topbar-action-button iv-badge iv-badge--muted" type="submit">Sync years</button></form>
                 <a class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/sandbox(portfolioId=${header.portfolioId})}">Sandbox</a>
             </div>
-            <nav class="iv-page-nav iv-planning-scenario-selector" th:if="${simulationPage != null}" aria-label="Simulation scenario">
-                <a th:each="availableScenario : ${simulationPage.availableScenarios}"
-                   th:href="@{/portfolios/{portfolioId}/simulation(portfolioId=${header.portfolioId},planId=${simulationPage.selectedPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${availableScenario})}"
-                   th:text="${availableScenario.name().substring(0, 1) + availableScenario.name().substring(1).toLowerCase()}"
-                   th:classappend="${availableScenario == simulationPage.selectedScenario} ? ' is-active' : ''"
-                   th:attr="aria-current=${availableScenario == simulationPage.selectedScenario ? 'page' : null}">Base</a>
-            </nav>
         </div>
         <div th:unless="${header.actionMode == 'assets' or header.actionMode == 'simulation'}"></div>
     </div>
@@ -100,6 +92,13 @@
         <div th:unless="${header.actionMode == 'simulation' or header.actionMode == 'analysis'}"></div>
         <div class="iv-page-nav-slot"><div th:replace="~{fragments/app-header :: appNavigation(${header.activePage}, ${header.portfolioId})}"></div></div>
         <div class="iv-planning-context-slot">
+            <nav class="iv-page-nav iv-planning-scenario-selector" th:if="${simulationPage != null}" aria-label="Simulation scenario">
+                <a th:each="availableScenario : ${simulationPage.availableScenarios}"
+                   th:href="@{/portfolios/{portfolioId}/simulation(portfolioId=${header.portfolioId},planId=${simulationPage.selectedPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${availableScenario})}"
+                   th:text="${availableScenario.name().substring(0, 1) + availableScenario.name().substring(1).toLowerCase()}"
+                   th:classappend="${availableScenario == simulationPage.selectedScenario} ? ' is-active' : ''"
+                   th:attr="aria-current=${availableScenario == simulationPage.selectedScenario ? 'page' : null}">Base</a>
+            </nav>
             <div class="iv-planning-topbar__currency" th:if="${header.currency != null}" aria-label="Reporting currency"><span>Reporting currency</span><strong th:text="${header.currency}">PLN</strong></div>
         </div>
     </div>
@@ -132,7 +131,7 @@
        href="/portfolios/1/dashboard/reconciliation"
        th:href="@{/portfolios/{portfolioId}/dashboard/reconciliation(portfolioId=${portfolioId})}">Reconciliation</a>
     <a href="/settings/integrations"
-       th:href="@{/settings/integrations(portfolioId=${portfolioId})}">Settings</a>
+       th:href="@{/settings/integrations}">Settings</a>
 </nav>
 </body>
 </html>

@@ -31,8 +31,7 @@ export function initDashboardCharts() {
     const signedBaseFormatter = new Intl.NumberFormat('en-US', {maximumFractionDigits: 0, signDisplay: 'always'});
     const baseCurrency = data.baseCurrency;
     const portfolioId = data.portfolioId
-        ?? window.location.pathname.match(/^\/portfolios\/([^/]+)/)?.[1]
-        ?? new URLSearchParams(window.location.search).get('portfolioId');
+        ?? window.location.pathname.match(/^\/portfolios\/([^/]+)/)?.[1];
     const signedValue = value => (Number(value) >= 0 ? '+' : '') + amountFormatter.format(Number(value || 0));
     const signedPercentValue = value => (Number(value) >= 0 ? '+' : '') + percentFormatter.format(Number(value || 0)) + '%';
     const percentValue = value => percentFormatter.format(Number(value || 0)) + '%';

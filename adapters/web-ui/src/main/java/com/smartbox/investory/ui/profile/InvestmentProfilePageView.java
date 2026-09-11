@@ -26,6 +26,8 @@ record InvestmentProfilePageView(
     String longTermAssetsPercentageDisplay,
     String marketAnnualizedReturnDisplay,
     String marketKpiMeta,
+    String marketHistoricalAnnualizedReturnDisplay,
+    String marketHistoricalReturnMeta,
     String marketInvestmentResultYtdDisplay,
     String marketYtdReturnDisplay,
     String longTermPlannedIncomeYtdDisplay,
@@ -60,14 +62,18 @@ record InvestmentProfilePageView(
         UiPresentation.percentage(profile.longTermAssetPercentage()),
         hasInvestmentIncome
             ? UiPresentation.percentage(income.investmentAnnualizedYield())
-            : performance.available() && performance.annualizedReturn() != null
-                ? UiPresentation.percentage(performance.annualizedReturn())
+            : performance.expectedAnnualReturn() != null
+                ? UiPresentation.percentage(performance.expectedAnnualReturn())
                 : "Unavailable",
         hasInvestmentIncome
             ? "Investment performance"
             : performance.kpiStartDate() == null
                 ? "Total return"
                 : "Since " + performance.kpiStartDate(),
+        performance.historicalAnnualizedReturn() == null
+            ? "Unavailable"
+            : UiPresentation.percentage(performance.historicalAnnualizedReturn()),
+        performance.historyContext() == null ? "Portfolio history" : performance.historyContext(),
         money(
             hasInvestmentIncome
                 ? income.investmentResultYtd()

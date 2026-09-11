@@ -32,7 +32,7 @@ public class InvestmentIncomeSummaryService implements InvestmentIncomeSummaryRe
       return new InvestmentIncomeSummary(false, null, null, null, null, null, null, null);
     }
     var kpi = dashboard.loadPerformanceKpi(portfolioId);
-    if (kpi.annualizedReturn() == null || kpi.annualizedReturn().value() == null) {
+    if (kpi.expectedAnnualReturn() == null) {
       return new InvestmentIncomeSummary(
           false, rows.getFirst().getBaseCurrency(), null, null, null, null, null, null);
     }
@@ -48,7 +48,7 @@ public class InvestmentIncomeSummaryService implements InvestmentIncomeSummaryRe
         InvestmentIncomeCalculator.weightedIncomeBase(
             rows.getFirst().getStartEquityDecimal(), flows);
     var projected =
-        InvestmentIncomeCalculator.projectedAnnualIncome(base, kpi.annualizedReturn().value());
+        InvestmentIncomeCalculator.projectedAnnualIncome(base, kpi.expectedAnnualReturn());
     var expected = InvestmentIncomeCalculator.expectedIncomeYtd(projected, current.getMonthValue());
     var ytd =
         performance
@@ -59,7 +59,7 @@ public class InvestmentIncomeSummaryService implements InvestmentIncomeSummaryRe
         rows.getFirst().getBaseCurrency(),
         base,
         projected,
-        kpi.annualizedReturn().value(),
+        kpi.expectedAnnualReturn(),
         ytd,
         expected,
         InvestmentIncomeCalculator.expectationProgress(ytd, expected));

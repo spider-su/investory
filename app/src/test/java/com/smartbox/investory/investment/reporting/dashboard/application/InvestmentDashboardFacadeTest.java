@@ -247,7 +247,7 @@ class InvestmentDashboardFacadeTest {
 
     verify(benchmarkService).calculate(1L, accountIds);
     assertEquals(
-        "/dashboard?period=YTD&portfolioId=1&benchmarkAccountsSubmitted=true&accountIds=11&accountIds=12",
+        "/portfolios/1/dashboard?period=YTD&benchmarkAccountsSubmitted=true&accountIds=11&accountIds=12",
         result.navigation().periodUrl(DashboardPeriod.YEAR_TO_DATE));
   }
 
@@ -275,7 +275,7 @@ class InvestmentDashboardFacadeTest {
         result.performance().benchmark().accountOptions().stream()
             .allMatch(Benchmark.AccountOption::selected));
     assertEquals(
-        "/dashboard?period=YTD&portfolioId=1",
+        "/portfolios/1/dashboard?period=YTD",
         result.navigation().periodUrl(DashboardPeriod.YEAR_TO_DATE));
   }
 
@@ -298,7 +298,7 @@ class InvestmentDashboardFacadeTest {
             .loadDashboard(new DashboardQuery(accountIds, true, DashboardPeriod.YEAR_TO_DATE, 1L));
 
     assertEquals(
-        "/dashboard?period=YTD&portfolioId=1",
+        "/portfolios/1/dashboard?period=YTD",
         result.navigation().periodUrl(DashboardPeriod.YEAR_TO_DATE));
   }
 

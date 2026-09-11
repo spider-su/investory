@@ -139,9 +139,10 @@ public class RetirementSimulationController {
   }
 
   @PostMapping("/portfolios/{portfolioId}/simulation/plans")
-  public String savePlan(@Valid @ModelAttribute SimulationPlanSaveForm form) {
+  public String savePlan(
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
+      @Valid @ModelAttribute SimulationPlanSaveForm form) {
     int currentYear = Year.now(clock).getValue();
-    Long portfolioId = form.getPortfolioId();
     CurrencyType planningDisplayCurrency =
         resolveCurrency(portfolioId, form.getPlanningDisplayCurrency());
     Long planId = form.getPlanId();

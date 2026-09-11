@@ -2692,6 +2692,8 @@ WITH account_days AS (
             ORDER BY ad.snapshot_date
         ) AS previous_equity,
         ad.equity,
+        ad.deposits,
+        ad.withdrawals,
         ad.daily_profit_amount
     FROM investory.account_daily ad
 ), flows AS (
@@ -2729,10 +2731,12 @@ SELECT
     f.performance_flow,
     f.portfolio_flow,
     ad.daily_profit_amount AS reported_daily_profit,
-    ad.equity - ad.previous_equity - COALESCE(f.performance_flow, 0)
+    ad.equity - ad.previous_equity - COALESCE(ad.deposits, 0)
+        + COALESCE(ad.withdrawals, 0)
         AS derived_daily_profit,
     ad.daily_profit_amount
-        - (ad.equity - ad.previous_equity - COALESCE(f.performance_flow, 0))
+        - (ad.equity - ad.previous_equity - COALESCE(ad.deposits, 0)
+           + COALESCE(ad.withdrawals, 0))
         AS daily_profit_difference
 FROM account_days ad
 LEFT JOIN flows f

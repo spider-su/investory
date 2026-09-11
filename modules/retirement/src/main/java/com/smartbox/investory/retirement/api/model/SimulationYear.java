@@ -92,7 +92,48 @@ public record SimulationYear(
         equities,
         realEstate,
         unfunded,
-        contribution);
+        contribution,
+        BigDecimal.ZERO);
+  }
+
+  /** Compatibility overload for callers without an explicit reserve floor. */
+  public static SimulationYear bucket(
+      int age,
+      int year,
+      boolean retired,
+      BigDecimal expenses,
+      BigDecimal eventExpenses,
+      BigDecimal employment,
+      BigDecimal pension,
+      BigDecimal eventIncome,
+      BigDecimal rental,
+      BigDecimal cashIncome,
+      BigDecimal bondIncome,
+      BucketResult cash,
+      BucketResult bonds,
+      BucketResult equities,
+      BucketResult realEstate,
+      BigDecimal unfunded,
+      BigDecimal contribution) {
+    return bucket(
+        age,
+        year,
+        retired,
+        expenses,
+        eventExpenses,
+        employment,
+        pension,
+        eventIncome,
+        rental,
+        cashIncome,
+        bondIncome,
+        cash,
+        bonds,
+        equities,
+        realEstate,
+        unfunded,
+        contribution,
+        BigDecimal.ZERO);
   }
 
   /** Canonical bucket row with separate bond cash income. */
@@ -113,7 +154,8 @@ public record SimulationYear(
       BucketResult equities,
       BucketResult realEstate,
       BigDecimal unfunded,
-      BigDecimal contribution) {
+      BigDecimal contribution,
+      BigDecimal safeReserveTarget) {
     BigDecimal totalExpenses = expenses.add(eventExpenses);
     BigDecimal withdrawals =
         cash.withdrawal()
@@ -124,6 +166,10 @@ public record SimulationYear(
         cash.expectedEndValue().add(bonds.expectedEndValue()).add(equities.expectedEndValue());
     BigDecimal endNetWorth = endLiquid.add(realEstate.expectedEndValue());
     BigDecimal gap = totalExpenses.subtract(cashIncome).max(BigDecimal.ZERO);
+    BigDecimal reserveCoverageYears =
+        gap.signum() == 0
+            ? BigDecimal.ZERO
+            : bonds.expectedEndValue().divide(gap, 8, java.math.RoundingMode.HALF_UP);
     return new SimulationYear(
         age,
         year,
@@ -148,10 +194,10 @@ public record SimulationYear(
         withdrawals,
         cash.withdrawal(),
         gap,
-        cash.startValue(),
-        BigDecimal.ZERO,
-        cash.expectedEndValue(),
-        BigDecimal.ZERO,
+        bonds.startValue(),
+        safeReserveTarget,
+        bonds.expectedEndValue(),
+        reserveCoverageYears,
         equities.startValue().signum() == 0
             ? BigDecimal.ZERO
             : equities

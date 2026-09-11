@@ -28,7 +28,7 @@ import com.smartbox.investory.investment.performance.model.RiskExposureSummary;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
-import com.smartbox.investory.investment.reporting.PortfolioReturnCalculator;
+import com.smartbox.investory.investment.reporting.ReturnEstimateCalculator;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardOperationalContextService;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
 import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
@@ -55,6 +55,7 @@ public class InvestmentDashboardFacade {
   private final PortfolioPerformanceQuery performanceQuery;
   private final DashboardOperationalContextService operationalContextService;
   private final PortfolioStructureQuery portfolioStructureQuery;
+  private final BigDecimal benchmarkExpectedReturn;
 
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
@@ -68,7 +69,8 @@ public class InvestmentDashboardFacade {
         "2026-01-01",
         null,
         null,
-        new PortfolioStructureQuery(null));
+        new PortfolioStructureQuery(null),
+        ReturnEstimateCalculator.DEFAULT_BENCHMARK_EXPECTATION);
   }
 
   public InvestmentDashboardFacade(
@@ -85,7 +87,29 @@ public class InvestmentDashboardFacade {
         performanceKpiStart,
         null,
         null,
-        new PortfolioStructureQuery(null));
+        new PortfolioStructureQuery(null),
+        ReturnEstimateCalculator.DEFAULT_BENCHMARK_EXPECTATION);
+  }
+
+  public InvestmentDashboardFacade(
+      PortfolioMetricsService portfolioMetricsService,
+      BenchmarkService benchmarkService,
+      DashboardPeriodFilterService periodFilterService,
+      PortfolioPeriodMetricsService periodMetricsService,
+      String performanceKpiStart,
+      PortfolioPerformanceQuery performanceQuery,
+      DashboardOperationalContextService operationalContextService,
+      PortfolioStructureQuery portfolioStructureQuery) {
+    this(
+        portfolioMetricsService,
+        benchmarkService,
+        periodFilterService,
+        periodMetricsService,
+        performanceKpiStart,
+        performanceQuery,
+        operationalContextService,
+        portfolioStructureQuery,
+        ReturnEstimateCalculator.DEFAULT_BENCHMARK_EXPECTATION);
   }
 
   @Autowired
@@ -97,7 +121,9 @@ public class InvestmentDashboardFacade {
       @Value("${app.portfolio.performance-kpi-start}") String performanceKpiStart,
       PortfolioPerformanceQuery performanceQuery,
       DashboardOperationalContextService operationalContextService,
-      PortfolioStructureQuery portfolioStructureQuery) {
+      PortfolioStructureQuery portfolioStructureQuery,
+      @Value("${app.portfolio.expected-return.benchmark:0.07}")
+          BigDecimal benchmarkExpectedReturn) {
     this.portfolioMetricsService = portfolioMetricsService;
     this.benchmarkService = benchmarkService;
     this.periodFilterService = periodFilterService;
@@ -106,6 +132,7 @@ public class InvestmentDashboardFacade {
     this.performanceQuery = performanceQuery;
     this.operationalContextService = operationalContextService;
     this.portfolioStructureQuery = portfolioStructureQuery;
+    this.benchmarkExpectedReturn = benchmarkExpectedReturn;
   }
 
   public DashboardPageView loadDashboard(DashboardQuery query) {
@@ -162,7 +189,25 @@ public class InvestmentDashboardFacade {
   }
 
   public record PerformanceKpi(
-      ReturnMetric totalReturn, ReturnMetric annualizedReturn, String startDate) {}
+      ReturnMetric totalReturn,
+      ReturnMetric annualizedReturn,
+      String startDate,
+      ReturnMetric historicalAnnualizedReturn,
+      BigDecimal expectedAnnualReturn,
+      BigDecimal historyYears,
+      String historyContext) {
+    public PerformanceKpi(
+        ReturnMetric totalReturn, ReturnMetric annualizedReturn, String startDate) {
+      this(
+          totalReturn,
+          annualizedReturn,
+          startDate,
+          annualizedReturn,
+          annualizedReturn == null ? null : annualizedReturn.value(),
+          null,
+          null);
+    }
+  }
 
   private static String yearMonth(String value) {
     if (value == null || value.isBlank()) {
@@ -232,7 +277,10 @@ public class InvestmentDashboardFacade {
         canonical == null ? null : canonical.attribution(),
         performanceKpi.totalReturn(),
         performanceKpi.annualizedReturn(),
-        performanceKpi.startDate());
+        performanceKpi.startDate(),
+        ReturnMetric.available(performanceKpi.expectedAnnualReturn()),
+        performanceKpi.historicalAnnualizedReturn(),
+        performanceKpi.historyContext());
   }
 
   private PerformanceKpi performanceKpi(PerformanceResult result) {
@@ -241,13 +289,31 @@ public class InvestmentDashboardFacade {
       return new PerformanceKpi(
           totalReturn,
           ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No KPI history"),
-          null);
+          null,
+          ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No portfolio history"),
+          null,
+          BigDecimal.ZERO,
+          "Benchmark estimate");
     }
+    var estimate =
+        ReturnEstimateCalculator.calculate(
+            totalReturn,
+            result.period().startDate(),
+            result.period().endDate(),
+            benchmarkExpectedReturn);
     return new PerformanceKpi(
         totalReturn,
-        PortfolioReturnCalculator.annualized(
-            totalReturn, result.period().startDate(), result.period().endDate()),
-        result.period().startDate().toString());
+        ReturnMetric.available(estimate.expected()),
+        result.period().startDate().toString(),
+        estimate.historical(),
+        estimate.expected(),
+        estimate.historyYears(),
+        estimate.portfolioWeight().signum() == 0
+            ? "Benchmark estimate"
+            : estimate.portfolioWeight().compareTo(BigDecimal.ONE) >= 0
+                ? "5Y portfolio history"
+                : estimate.historyYears().stripTrailingZeros().toPlainString()
+                    + "Y portfolio history + benchmark estimate");
   }
 
   private PeriodPerformance periodPerformance(
@@ -342,18 +408,19 @@ public class InvestmentDashboardFacade {
         || performance.getCalculateMonthlyPerformance().isEmpty()) {
       return null;
     }
-    YearMonth configured = YearMonth.parse(performanceKpiStart);
-    YearMonth first =
-        performance.getCalculateMonthlyPerformance().keySet().stream()
-            .map(YearMonth::parse)
-            .filter(month -> !month.isBefore(configured))
-            .min(YearMonth::compareTo)
-            .orElse(null);
     YearMonth last =
         performance.getCalculateMonthlyPerformance().keySet().stream()
             .map(YearMonth::parse)
             .max(YearMonth::compareTo)
             .orElse(null);
+    YearMonth first =
+        last == null
+            ? null
+            : performance.getCalculateMonthlyPerformance().keySet().stream()
+                .map(YearMonth::parse)
+                .filter(month -> !month.isBefore(last.minusYears(5)))
+                .min(YearMonth::compareTo)
+                .orElse(null);
     return first == null || last == null || first.isAfter(last)
         ? null
         : performanceQuery.forPortfolioMonths(portfolioId, first, last);

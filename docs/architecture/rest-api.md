@@ -14,8 +14,9 @@ pragmatic and versioned, but they do not promise an external-client compatibilit
 - Unexpected failures return `500` with a generic message. Server details stay in server logs.
 - Errors use the JSON shape `{status, message, path, timestamp}`.
 - Resource identifiers for updates come from the URL. Update request bodies contain mutable fields.
-- `portfolioId` remains a query/body value where the existing application contract uses it, unless a
-  resource-specific contract declares a portfolio-scoped path.
+- Portfolio-scoped resources use `/api/v1/portfolios/{portfolioId}/...`; portfolio identity is not
+  accepted as a query parameter or form field. Query parameters remain for filters and presentation
+  state only. Global maintenance and metadata endpoints remain outside that prefix.
 
 The application-level contract is implemented by `RestApiExceptionHandler`. Controller-specific
 handlers should not introduce new status codes or error shapes.
@@ -63,7 +64,7 @@ profile endpoints; the profile endpoint returns the canonical complete applicati
 
 ### Reconciliation report
 
-`GET /api/v1/investment/reconciliation?portfolioId={portfolioId}` returns a portfolio-scoped current-state/current-valuation
+`GET /api/v1/portfolios/{portfolioId}/investment/reconciliation` returns a portfolio-scoped current-state/current-valuation
 diagnostic report and accepts no reconciliation control parameters. Historical reports, golden
 rebuilds, and private-archive verification are release tooling, not REST modes. The server-rendered
 page may retain a `portfolioId` only as navigation context; it does not scope this report.
@@ -71,7 +72,7 @@ page may retain a `portfolioId` only as navigation context; it does not scope th
 ### Retirement simulation freeze contract
 
 Retirement plans and projections use portfolio-scoped resources below
-`/api/v1/retirement/portfolios/{portfolioId}`. Plan creation and update have separate request
+`/api/v1/portfolios/{portfolioId}/retirement`. Plan creation and update have separate request
 contracts: only creation accepts an optional baseline; updates preserve the reviewed baseline.
 Plan events are created with `POST .../plans/{planId}/events` and updated or deleted with the event
 identifier in the URL. Events belong directly to the saved plan.

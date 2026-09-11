@@ -7,7 +7,8 @@ import java.util.List;
 
 /** Public boundary for planning timeline commands and queries. */
 public interface RetirementTimelineApi {
-  void rollover(Long portfolioId);
+  /** Materializes calendar-driven planning state without changing financial source data. */
+  void ensurePlanningTimeline(Long portfolioId);
 
   PastPlanningYear createHistoricalDraft(Long portfolioId, int year);
 

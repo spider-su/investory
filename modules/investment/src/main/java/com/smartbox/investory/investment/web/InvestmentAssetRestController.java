@@ -18,31 +18,31 @@ import org.springframework.web.server.ResponseStatusException;
 
 /** REST and in-process Java facade for Investment asset details. */
 @RestController
-@RequestMapping("/api/v1/investment/assets")
+@RequestMapping("/api/v1")
 @Validated
 @RequiredArgsConstructor
 public class InvestmentAssetRestController {
   private final InvestmentAssetApi assets;
 
-  @GetMapping("/{symbol}")
+  @GetMapping("/portfolios/{portfolioId}/investment/assets/{symbol}")
   public AssetDetailView detail(
+      @PathVariable @Positive Long portfolioId,
       @PathVariable String symbol,
-      @RequestParam(defaultValue = "YTD") DashboardPeriod period,
-      @RequestParam @Positive Long portfolioId) {
+      @RequestParam(defaultValue = "YTD") DashboardPeriod period) {
     requirePositivePortfolio(portfolioId);
     return assets.detail(portfolioId, symbol, period);
   }
 
-  @GetMapping("/{symbol}/price-history")
+  @GetMapping("/portfolios/{portfolioId}/investment/assets/{symbol}/price-history")
   public List<AssetPricePointView> priceHistory(
+      @PathVariable @Positive Long portfolioId,
       @PathVariable String symbol,
-      @RequestParam(defaultValue = "YTD") DashboardPeriod period,
-      @RequestParam @Positive Long portfolioId) {
+      @RequestParam(defaultValue = "YTD") DashboardPeriod period) {
     requirePositivePortfolio(portfolioId);
     return assets.priceHistory(portfolioId, symbol, period);
   }
 
-  @GetMapping("/periods")
+  @GetMapping("/investment/assets/periods")
   public List<DashboardPeriod> periods() {
     return assets.periods();
   }
