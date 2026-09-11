@@ -14,7 +14,9 @@ import java.util.Locale;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -25,6 +27,7 @@ import tools.jackson.databind.ObjectMapper;
 public class AccountingInvoiceRecognitionService {
   private static final long MAX_BYTES = 12L * 1024L * 1024L;
   private static final String RESPONSES_PATH = "/v1/responses";
+  private static final String FILES_PATH = "/v1/files";
 
   private final IntegrationConfigurationService configurationService;
   private final ObjectMapper objectMapper;
@@ -59,50 +62,99 @@ public class AccountingInvoiceRecognitionService {
           "OpenAI integration is not enabled. Configure it before invoice recognition.");
     }
 
-    List<Map<String, Object>> content = new ArrayList<>();
-    content.add(Map.of("type", "input_text", "text", extractionPrompt()));
+    String baseUrl = config.value("baseUrl").orElse("https://api.openai.com");
+    RestClient client = RestClient.builder().baseUrl(baseUrl).build();
     String mime = normalizedContentType(filename, contentType);
-    String data = Base64.getEncoder().encodeToString(bytes);
-    if ("application/pdf".equals(mime)) {
-      Map<String, Object> file = new LinkedHashMap<>();
-      file.put("type", "input_file");
-      file.put("filename", safeFilename(filename, "invoice.pdf"));
-      file.put("file_data", data);
-      content.add(file);
-    } else {
-      content.add(
-          Map.of(
-              "type", "input_image",
-              "image_url", "data:" + mime + ";base64," + data,
-              "detail", "high"));
+    String uploadedFileId = null;
+
+    try {
+      List<Map<String, Object>> content = new ArrayList<>();
+      content.add(Map.of("type", "input_text", "text", extractionPrompt()));
+
+      if ("application/pdf".equals(mime)) {
+        uploadedFileId = uploadPdf(client, apiKey, filename, bytes);
+        content.add(Map.of("type", "input_file", "file_id", uploadedFileId));
+      } else {
+        String data = Base64.getEncoder().encodeToString(bytes);
+        content.add(
+            Map.of(
+                "type", "input_image",
+                "image_url", "data:" + mime + ";base64," + data,
+                "detail", "high"));
+      }
+
+      Map<String, Object> request = new LinkedHashMap<>();
+      request.put("model", config.value("model").orElse("gpt-5-mini"));
+      request.put("input", List.of(Map.of("role", "user", "content", content)));
+      request.put("max_output_tokens", 1200);
+      request.put("store", false);
+
+      JsonNode response =
+          client
+              .post()
+              .uri(RESPONSES_PATH)
+              .contentType(MediaType.APPLICATION_JSON)
+              .header("Authorization", "Bearer " + apiKey)
+              .body(request)
+              .retrieve()
+              .body(JsonNode.class);
+
+      if (response == null) {
+        throw new IllegalStateException("Invoice recognition returned an empty response");
+      }
+      String output = extractOutputText(response);
+      if (output.isBlank()) {
+        throw new IllegalStateException("Invoice recognition returned no structured result");
+      }
+      return parseRecognizedInvoice(output);
+    } finally {
+      if (uploadedFileId != null) {
+        deleteUploadedFile(client, apiKey, uploadedFileId);
+      }
     }
+  }
 
-    Map<String, Object> request = new LinkedHashMap<>();
-    request.put("model", config.value("model").orElse("gpt-5-mini"));
-    request.put("input", List.of(Map.of("role", "user", "content", content)));
-    request.put("max_output_tokens", 1200);
-    request.put("store", false);
+  private String uploadPdf(RestClient client, String apiKey, String filename, byte[] bytes) {
+    MultipartBodyBuilder body = new MultipartBodyBuilder();
+    body.part("purpose", "user_data");
+    body.part(
+            "file",
+            new ByteArrayResource(bytes) {
+              @Override
+              public String getFilename() {
+                return safeFilename(filename, "invoice.pdf");
+              }
+            })
+        .contentType(MediaType.APPLICATION_PDF);
 
-    JsonNode response =
-        RestClient.builder()
-            .baseUrl(config.value("baseUrl").orElse("https://api.openai.com"))
-            .build()
+    JsonNode uploaded =
+        client
             .post()
-            .uri(RESPONSES_PATH)
-            .contentType(MediaType.APPLICATION_JSON)
+            .uri(FILES_PATH)
             .header("Authorization", "Bearer " + apiKey)
-            .body(request)
+            .contentType(MediaType.MULTIPART_FORM_DATA)
+            .body(body.build())
             .retrieve()
             .body(JsonNode.class);
 
-    if (response == null) {
-      throw new IllegalStateException("Invoice recognition returned an empty response");
+    String fileId = uploaded == null ? null : uploaded.path("id").asString(null);
+    if (fileId == null || fileId.isBlank()) {
+      throw new IllegalStateException("OpenAI file upload returned no file id");
     }
-    String output = extractOutputText(response);
-    if (output.isBlank()) {
-      throw new IllegalStateException("Invoice recognition returned no structured result");
+    return fileId;
+  }
+
+  private void deleteUploadedFile(RestClient client, String apiKey, String fileId) {
+    try {
+      client
+          .delete()
+          .uri(FILES_PATH + "/{fileId}", fileId)
+          .header("Authorization", "Bearer " + apiKey)
+          .retrieve()
+          .toBodilessEntity();
+    } catch (RuntimeException exception) {
+      log.warn("Could not delete temporary OpenAI invoice file {}", fileId, exception);
     }
-    return parseRecognizedInvoice(output);
   }
 
   private RecognizedInvoice parseRecognizedInvoice(String output) {
