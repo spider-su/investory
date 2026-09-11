@@ -19,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class AccountingGoldenIT extends FastDatabaseTest {
 
   private static final LocalDate FEBRUARY = LocalDate.of(2026, 2, 1);
+  private static final LocalDate APRIL = LocalDate.of(2026, 4, 1);
   private static final LocalDate MAY = LocalDate.of(2026, 5, 1);
   private static final LocalDate JUNE = LocalDate.of(2026, 6, 1);
   private static final LocalDate JULY = LocalDate.of(2026, 7, 1);
@@ -40,6 +41,21 @@ class AccountingGoldenIT extends FastDatabaseTest {
     assertComparison(snapshot, "ZUS", "1495.04", "1495.04", "0.00", "MATCH");
     assertComparison(snapshot, "FX", "32249.12", "32249.12", "0.00", "MATCH");
     assertThat(snapshot.vat().deductibleInputVat()).isEqualByComparingTo("100.55");
+  }
+
+  @Test
+  void aprilUsesEightPercentBpFuelVatAndMatchesWfirmaPurchaseVat() {
+    when(currencyConversion.convertToBaseCurrency(
+            new BigDecimal("7636.0000"), CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 4, 29)))
+        .thenReturn(new BigDecimal("32481.2500"));
+
+    AccountingMonthSnapshot snapshot = service.snapshot(APRIL);
+
+    assertComparison(snapshot, "REVENUE", "63561.25", "63561.25", "0.00", "MATCH");
+    assertComparison(snapshot, "RYCZALT", "7538", "7538.0000", "0.0000", "MATCH");
+    assertComparison(snapshot, "VAT", "7028", "7028.0000", "0.0000", "MATCH");
+    assertComparison(snapshot, "FX", "32481.25", "32481.25", "0.00", "MATCH");
+    assertThat(snapshot.vat().deductibleInputVat()).isEqualByComparingTo("120.20");
   }
 
   @Test
