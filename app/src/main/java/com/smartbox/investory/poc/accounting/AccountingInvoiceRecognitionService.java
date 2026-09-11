@@ -181,7 +181,8 @@ public class AccountingInvoiceRecognitionService {
     return """
         Read this supplier invoice or receipt and return ONLY one JSON object, without markdown.
         Do not invent missing values. Use null when a value is not visible or cannot be established.
-        Preserve decimal amounts exactly as printed.
+        Preserve decimal amounts exactly as printed, but return numeric strings WITHOUT thousands/grouping separators.
+        Example: return "7636.00", not "7,636.00" or "7 636,00".
 
         JSON fields:
         {
@@ -269,7 +270,27 @@ public class AccountingInvoiceRecognitionService {
 
   private BigDecimal decimal(JsonNode node, String field) {
     String value = text(node, field);
-    return value == null ? null : new BigDecimal(value.replace(',', '.'));
+    if (value == null) return null;
+
+    String normalized = value.replace("\u00A0", "").replace(" ", "").trim();
+    int comma = normalized.lastIndexOf(',');
+    int dot = normalized.lastIndexOf('.');
+
+    if (comma >= 0 && dot >= 0) {
+      if (dot > comma) {
+        normalized = normalized.replace(",", "");
+      } else {
+        normalized = normalized.replace(".", "").replace(',', '.');
+      }
+    } else if (comma >= 0) {
+      if (normalized.matches("[-+]?\\d{1,3}(,\\d{3})+")) {
+        normalized = normalized.replace(",", "");
+      } else {
+        normalized = normalized.replace(',', '.');
+      }
+    }
+
+    return new BigDecimal(normalized);
   }
 
   private String text(JsonNode node, String field) {
