@@ -50,34 +50,25 @@
       </div>
 
       <form class="month-toolbar" method="get" action="/poc/accounting">
-        <a class="btn btn-outline-secondary"
-           th:if="${previousPeriod != null}"
-           th:href="@{/poc/accounting(month=${#temporals.format(previousPeriod, 'yyyy-MM')})}">← Previous</a>
+        <a class="btn btn-outline-secondary" th:if="${previousPeriod != null}" th:href="@{/poc/accounting(month=${#temporals.format(previousPeriod, 'yyyy-MM')})}">← Previous</a>
         <span class="btn btn-outline-secondary month-nav-disabled" th:if="${previousPeriod == null}">← Previous</span>
-
         <label for="month" class="form-label mb-0 ms-1"><strong>Month</strong></label>
         <select id="month" name="month" class="form-select" onchange="this.form.submit()">
-          <option th:each="period : ${periods}"
-                  th:value="${#temporals.format(period, 'yyyy-MM')}"
-                  th:text="${#temporals.format(period, 'MMMM yyyy')}"
-                  th:selected="${period.equals(selectedPeriod)}">July 2026</option>
+          <option th:each="period : ${periods}" th:value="${#temporals.format(period, 'yyyy-MM')}" th:text="${#temporals.format(period, 'MMMM yyyy')}" th:selected="${period.equals(selectedPeriod)}">July 2026</option>
         </select>
-
-        <a class="btn btn-outline-secondary"
-           th:if="${nextPeriod != null}"
-           th:href="@{/poc/accounting(month=${#temporals.format(nextPeriod, 'yyyy-MM')})}">Next →</a>
+        <a class="btn btn-outline-secondary" th:if="${nextPeriod != null}" th:href="@{/poc/accounting(month=${#temporals.format(nextPeriod, 'yyyy-MM')})}">Next →</a>
         <span class="btn btn-outline-secondary month-nav-disabled" th:if="${nextPeriod == null}">Next →</span>
         <noscript><button class="btn btn-primary" type="submit">Show</button></noscript>
       </form>
 
-      <div class="alert alert-success" role="alert" th:if="${expenseSaved}" th:text="${expenseSaved}"></div>
-      <div class="alert alert-danger" role="alert" th:if="${expenseSaveError}" th:text="${expenseSaveError}"></div>
+      <div class="alert alert-success" role="alert" th:if="${invoiceSaved}" th:text="${invoiceSaved}"></div>
+      <div class="alert alert-danger" role="alert" th:if="${invoiceSaveError}" th:text="${invoiceSaveError}"></div>
 
       <section class="card section-card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Import expense invoice</h2>
-            <div class="text-secondary mt-1">Upload a PDF or invoice photo, extract the fields, review them, then save.</div>
+            <h2 class="card-title">Import invoice</h2>
+            <div class="text-secondary mt-1">Upload a sales or purchase invoice, review the recognized direction and fields, then save.</div>
           </div>
         </div>
         <div class="card-body">
@@ -86,33 +77,51 @@
             <div class="row g-2 align-items-end">
               <div class="col-md-8">
                 <label for="invoice-file" class="form-label">Invoice PDF or image</label>
-                <input id="invoice-file" class="form-control" type="file" name="invoice"
-                       accept="application/pdf,image/jpeg,image/png,image/webp" required>
+                <input id="invoice-file" class="form-control" type="file" name="invoice" accept="application/pdf,image/jpeg,image/png,image/webp" required>
               </div>
               <div class="col-md-4">
                 <button type="submit" class="btn btn-primary w-100">Recognize &amp; autofill</button>
               </div>
             </div>
-            <div class="form-hint mt-2">The uploaded document is sent to the configured OpenAI integration for document extraction. Nothing is persisted until you review and save the form.</div>
+            <div class="form-hint mt-2">Recognition is pre-accounting assistance. Nothing is persisted until you review the document type, counterparty and values.</div>
           </form>
 
           <div class="alert alert-danger mt-3 mb-0" role="alert" th:if="${recognitionError}" th:text="${recognitionError}"></div>
           <div class="alert alert-info mt-3 mb-0" role="alert" th:if="${recognitionMessage}" th:text="${recognitionMessage}"></div>
 
-          <form class="mt-4" method="post" th:action="@{/poc/accounting/expense}" th:object="${expenseDraft}" th:if="${expenseDraft != null}">
+          <form class="mt-4" method="post" th:action="@{/poc/accounting/invoice}" th:object="${invoiceDraft}" th:if="${invoiceDraft != null}">
             <input type="hidden" th:field="*{month}">
             <div class="invoice-import-grid">
               <div>
-                <label class="form-label">Invoice date</label>
-                <input class="form-control" type="date" th:field="*{invoiceDate}">
+                <label class="form-label">Document type</label>
+                <select class="form-select" th:field="*{documentType}" required>
+                  <option value="UNKNOWN">Needs review</option>
+                  <option value="SALES_INVOICE">Sales invoice</option>
+                  <option value="PURCHASE_INVOICE">Purchase invoice</option>
+                  <option value="RECEIPT">Receipt / purchase</option>
+                  <option value="CREDIT_NOTE">Credit note / correction</option>
+                </select>
               </div>
               <div>
                 <label class="form-label">Reference</label>
                 <input class="form-control" type="text" th:field="*{reference}" required>
               </div>
               <div class="wide">
-                <label class="form-label">Supplier</label>
-                <input class="form-control" type="text" th:field="*{supplierAlias}" required>
+                <label class="form-label">Counterparty</label>
+                <input class="form-control" type="text" th:field="*{counterpartyAlias}" required>
+                <div class="form-hint">Customer for sales invoices; supplier for purchase invoices.</div>
+              </div>
+              <div>
+                <label class="form-label">Issue date</label>
+                <input class="form-control" type="date" th:field="*{issueDate}">
+              </div>
+              <div>
+                <label class="form-label">Sale date</label>
+                <input class="form-control" type="date" th:field="*{saleDate}">
+              </div>
+              <div>
+                <label class="form-label">Due date</label>
+                <input class="form-control" type="date" th:field="*{dueDate}">
               </div>
               <div>
                 <label class="form-label">Category</label>
@@ -141,8 +150,8 @@
                 <input class="form-control" type="number" step="0.01" th:field="*{grossAmount}" required>
               </div>
               <div>
-                <label class="form-label">VAT deduction</label>
-                <select class="form-select" th:field="*{vatDeductionRatio}" required>
+                <label class="form-label">VAT deduction <span class="text-secondary">(purchase only)</span></label>
+                <select class="form-select" th:field="*{vatDeductionRatio}">
                   <option value="0.00">0%</option>
                   <option value="0.50">50%</option>
                   <option value="1.00">100%</option>
@@ -154,18 +163,16 @@
               </div>
             </div>
             <div class="d-flex justify-content-end mt-3">
-              <button class="btn btn-success" type="submit">Save reviewed expense</button>
+              <button class="btn btn-success" type="submit">Save reviewed invoice</button>
             </div>
           </form>
         </div>
       </section>
 
-      <div class="alert alert-warning" role="alert"
-           th:if="${snapshot.ryczalt().status() == 'INPUTS_INCOMPLETE' || snapshot.vat().status() == 'EXPENSES_MISSING'}">
+      <div class="alert alert-warning" role="alert" th:if="${snapshot.ryczalt().status() == 'INPUTS_INCOMPLETE' || snapshot.vat().status() == 'EXPENSES_MISSING'}">
         This month is only partially reconstructable from the captured source set. Missing inputs are shown explicitly below.
       </div>
-      <div class="alert alert-info" role="alert"
-           th:if="${snapshot.ryczalt().status() == 'NO_GOLDEN' || snapshot.vat().status() == 'NO_GOLDEN'}">
+      <div class="alert alert-info" role="alert" th:if="${snapshot.ryczalt().status() == 'NO_GOLDEN' || snapshot.vat().status() == 'NO_GOLDEN'}">
         This month contains source facts but complete expected golden outputs were not captured.
       </div>
       <div class="text-secondary mb-3" th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}">
@@ -183,21 +190,17 @@
       <section class="card section-card">
         <div class="card-header"><h2 class="card-title">Monthly comparison</h2></div>
         <div class="card-body py-2 text-secondary">Canonical comparison for revenue, ryczałt, VAT, ZUS and FX.</div>
-        <div class="table-responsive">
-          <table class="table table-vcenter card-table">
-            <thead><tr><th>Area</th><th class="amount">Calculated</th><th class="amount">Expected</th><th class="amount">Difference</th><th>Status</th><th>Basis</th></tr></thead>
-            <tbody>
-            <tr th:each="row : ${snapshot.comparisons()}">
-              <td><strong th:text="${row.area()}">VAT</strong></td>
-              <td class="amount"><span th:text="${row.calculated()}">3557</span> <span th:text="${row.currency()}">PLN</span></td>
-              <td class="amount"><span th:text="${row.expected()}">3557</span> <span th:text="${row.currency()}">PLN</span></td>
-              <td class="amount" th:text="${row.difference()}">0</td>
-              <td th:text="${row.status()}" th:classappend="${row.status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</td>
-              <td class="note" th:text="${row.note()}">Comparison basis.</td>
-            </tr>
-            </tbody>
-          </table>
-        </div>
+        <div class="table-responsive"><table class="table table-vcenter card-table">
+          <thead><tr><th>Area</th><th class="amount">Calculated</th><th class="amount">Expected</th><th class="amount">Difference</th><th>Status</th><th>Basis</th></tr></thead>
+          <tbody><tr th:each="row : ${snapshot.comparisons()}">
+            <td><strong th:text="${row.area()}">VAT</strong></td>
+            <td class="amount"><span th:text="${row.calculated()}">3557</span> <span th:text="${row.currency()}">PLN</span></td>
+            <td class="amount"><span th:text="${row.expected()}">3557</span> <span th:text="${row.currency()}">PLN</span></td>
+            <td class="amount" th:text="${row.difference()}">0</td>
+            <td th:text="${row.status()}" th:classappend="${row.status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</td>
+            <td class="note" th:text="${row.note()}">Comparison basis.</td>
+          </tr></tbody>
+        </table></div>
       </section>
 
       <section class="card section-card">
@@ -244,16 +247,14 @@
         <div class="card-header"><h2 class="card-title">Reconciliation</h2></div>
         <div class="table-responsive"><table class="table table-vcenter card-table">
           <thead><tr><th>Reference</th><th>Kind</th><th class="amount">Expected</th><th class="amount">Matched / paid</th><th>Payment date</th><th>Status</th><th>Explanation</th></tr></thead>
-          <tbody>
-          <tr th:each="row : ${snapshot.reconciliations()}">
+          <tbody><tr th:each="row : ${snapshot.reconciliations()}">
             <td th:text="${row.reference()}">FV 5/2026</td><td th:text="${row.kind()}">INVOICE_PAYMENT</td>
             <td class="amount"><span th:text="${row.expectedAmount()}">19987.50</span> <span th:text="${row.currency()}">PLN</span></td>
             <td class="amount"><span th:text="${row.matchedAmount()}">19987.50</span> <span th:text="${row.currency()}">PLN</span></td>
             <td th:text="${row.paymentDate() != null ? row.paymentDate() : '—'}">2026-08-13</td>
             <td th:text="${row.status()}" th:classappend="${row.status() == 'MATCHED' || row.status() == 'MATCH' ? 'matched' : ''}">MATCHED</td>
             <td class="note" th:text="${row.explanation()}">Exact match.</td>
-          </tr>
-          </tbody>
+          </tr></tbody>
         </table></div>
       </section>
 
