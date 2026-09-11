@@ -69,7 +69,7 @@ public class AccountingFactService {
     FxCalculation fx = calculateFx(periodInvoices, foreignBookedRevenue, foreignSourceEur);
     RyczałtCalculation ryczalt =
         calculateRyczalt(period, invoices, domesticRevenue, fx, obligations, taxInputs);
-    VatCalculation vat = calculateVat(invoices, periodInvoices, obligations, taxInputs);
+    VatCalculation vat = calculateVat(period, invoices, periodInvoices, obligations, taxInputs);
 
     List<ReconciliationRow> reconciliations =
         reconcile(invoices, bankTransactions, obligations);
@@ -140,12 +140,14 @@ public class AccountingFactService {
       FxCalculation fx,
       List<ObligationRow> obligations,
       List<TaxInputRow> taxInputs) {
-    BigDecimal correctionNet =
-        invoices.stream()
-            .map(InvoiceRow::correctionNetAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal julyOnlyCorrectionNet =
+        JULY_2026.equals(period)
+            ? invoices.stream()
+                .map(InvoiceRow::correctionNetAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+            : BigDecimal.ZERO;
     BigDecimal revenueBeforeDeductions =
-        domesticRevenue.add(fx.calculatedPln()).add(correctionNet);
+        domesticRevenue.add(fx.calculatedPln()).add(julyOnlyCorrectionNet);
 
     BigDecimal healthPaid = taxInput(taxInputs, "HEALTH_CONTRIBUTION_PAID");
     BigDecimal healthDeduction = healthPaid.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
@@ -166,7 +168,7 @@ public class AccountingFactService {
 
     return new RyczałtCalculation(
         revenueBeforeDeductions,
-        correctionNet,
+        julyOnlyCorrectionNet,
         healthPaid,
         healthDeduction,
         taxableBase,
@@ -178,31 +180,42 @@ public class AccountingFactService {
   }
 
   private VatCalculation calculateVat(
+      LocalDate period,
       List<InvoiceRow> invoices,
       List<InvoiceRow> periodInvoices,
       List<ObligationRow> obligations,
       List<TaxInputRow> taxInputs) {
-    BigDecimal outputBeforeCorrections =
+    BigDecimal outputBeforeJulyCorrection =
         periodInvoices.stream()
             .filter(invoice -> "PLN".equals(invoice.currency()))
             .map(InvoiceRow::vatAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal correctionVat =
-        invoices.stream()
-            .map(InvoiceRow::correctionVatAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal outputVat = outputBeforeCorrections.add(correctionVat);
-    BigDecimal deductibleInputVat = taxInput(taxInputs, "DEDUCTIBLE_INPUT_VAT");
+
+    BigDecimal julyOnlySalesCorrectionVat =
+        JULY_2026.equals(period)
+            ? invoices.stream()
+                .map(InvoiceRow::correctionVatAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+            : BigDecimal.ZERO;
+    BigDecimal outputAfterSalesCorrection =
+        outputBeforeJulyCorrection.add(julyOnlySalesCorrectionVat);
+
+    BigDecimal julyOnlyVatCorrectionAdjustment =
+        JULY_2026.equals(period)
+            ? taxInput(taxInputs, "JULY_ONLY_VAT_CORRECTION_ADJUSTMENT")
+            : BigDecimal.ZERO;
     BigDecimal calculatedVat =
-        outputVat.subtract(deductibleInputVat).setScale(0, RoundingMode.HALF_UP);
+        outputAfterSalesCorrection
+            .subtract(julyOnlyVatCorrectionAdjustment)
+            .setScale(0, RoundingMode.HALF_UP);
     BigDecimal expectedVat = obligationAmount(obligations, "VAT");
     BigDecimal difference = calculatedVat.subtract(expectedVat);
 
     return new VatCalculation(
-        outputBeforeCorrections,
-        correctionVat,
-        outputVat,
-        deductibleInputVat,
+        outputBeforeJulyCorrection,
+        julyOnlySalesCorrectionVat,
+        outputAfterSalesCorrection,
+        julyOnlyVatCorrectionAdjustment,
         calculatedVat,
         expectedVat,
         difference,
@@ -238,8 +251,7 @@ public class AccountingFactService {
               .filter(row -> "CUSTOMER_RECEIPT".equals(row.transactionType()))
               .filter(row -> invoice.currency().equals(row.currency()))
               .filter(row -> invoice.expectedReceivable().compareTo(row.amount()) == 0)
-              .filter(
-                  row -> row.relatedPeriod() == null || invoice.taxPeriod().equals(row.relatedPeriod()))
+              .filter(row -> row.relatedPeriod() == null || invoice.taxPeriod().equals(row.relatedPeriod()))
               .filter(
                   row ->
                       invoice.reference().equalsIgnoreCase(row.reference())
@@ -250,7 +262,7 @@ public class AccountingFactService {
       String explanation =
           invoice.correctionGrossAmount().signum() == 0
               ? "Exact expected receivable matched to a business customer receipt."
-              : "Exact corrected receivable matched; original invoice remains preserved.";
+              : "July historical correction fixture matched; generic correction processing is parked.";
 
       result.add(
           new ReconciliationRow(
