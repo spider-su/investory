@@ -4,136 +4,284 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Accounting POC</title>
+  <link rel="stylesheet" href="/css/tabler.min.css">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
   <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; color:#1f2937; }
-    h1,h2 { margin-bottom:.35rem; }
-    p { color:#4b5563; }
-    .toolbar { display:flex; align-items:center; gap:.75rem; margin:1rem 0 1.5rem; }
-    select { padding:.45rem .65rem; border:1px solid #d1d5db; border-radius:.4rem; background:white; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:1rem; margin:1.5rem 0 2rem; }
-    .card { border:1px solid #e5e7eb; border-radius:.65rem; padding:1rem; }
-    .label { font-size:.75rem; text-transform:uppercase; color:#6b7280; }
-    .value { margin-top:.35rem; font-size:1.25rem; font-weight:650; font-variant-numeric:tabular-nums; }
-    table { width:100%; border-collapse:collapse; margin:.8rem 0 2rem; }
-    th,td { border-bottom:1px solid #e5e7eb; padding:.65rem .5rem; text-align:left; vertical-align:top; }
-    th { font-size:.75rem; text-transform:uppercase; color:#6b7280; }
+    .accounting-page { padding: 1.5rem 0 3rem; }
+    .accounting-page .page-header { margin-bottom: 1rem; }
+    .accounting-page .page-title { margin-bottom: .25rem; }
+    .month-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; margin:1rem 0 1.5rem; }
+    .month-toolbar .form-select { width:auto; min-width:180px; }
+    .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin:1.25rem 0 1.75rem; }
+    .summary-card .card-body { padding:1rem 1.125rem; }
+    .summary-card .text-secondary { font-size:.75rem; text-transform:uppercase; letter-spacing:.03em; }
+    .summary-card .h2 { margin:.25rem 0 0; font-variant-numeric:tabular-nums; }
+    .section-card { margin-bottom:1.5rem; }
+    .section-card .card-header { min-height:auto; padding:.9rem 1rem; }
+    .section-card .card-title { margin:0; }
+    .table-responsive { margin:0; }
+    .accounting-page table { margin:0; }
+    .accounting-page th { white-space:nowrap; }
     .amount { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
-    .matched { font-weight:700; }
-    .excluded,.muted { color:#9ca3af; }
-    .warning { color:#92400e; font-weight:600; }
-    .note { max-width:42rem; color:#4b5563; }
-    .banner { border:1px solid #f59e0b; background:#fffbeb; padding:.75rem 1rem; border-radius:.5rem; margin:1rem 0; }
-    details { margin-top:2rem; }
+    .matched { color:var(--tblr-success); font-weight:700; }
+    .warning { color:var(--tblr-warning); font-weight:700; }
+    .excluded,.muted { color:var(--tblr-secondary-color); }
+    .note { min-width:18rem; color:var(--tblr-secondary-color); }
+    .month-nav-disabled { pointer-events:none; opacity:.45; }
+    .invoice-import-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:1rem; }
+    .invoice-import-grid .wide { grid-column:span 2; }
+    @media (max-width: 767px) { .invoice-import-grid .wide { grid-column:span 1; } }
   </style>
 </head>
 <body>
-<h1>Accounting POC — <span th:text="${#temporals.format(selectedPeriod, 'MMMM yyyy')}">July 2026</span></h1>
-<p>Deterministic reconstruction over anonymized 2026 historical fixtures.</p>
+<div class="page">
+  <div class="page-wrapper">
+    <main class="container-xl accounting-page">
+      <div class="page-header">
+        <div class="row align-items-center">
+          <div class="col">
+            <div class="page-pretitle">POC</div>
+            <h1 class="page-title">Accounting — <span th:text="${#temporals.format(selectedPeriod, 'MMMM yyyy')}">July 2026</span></h1>
+            <div class="text-secondary mt-1">Deterministic reconstruction over anonymized 2026 historical fixtures.</div>
+          </div>
+        </div>
+      </div>
 
-<form class="toolbar" method="get" action="/poc/accounting">
-  <label for="month"><strong>Month</strong></label>
-  <select id="month" name="month" onchange="this.form.submit()">
-    <option th:each="period : ${periods}" th:value="${#temporals.format(period, 'yyyy-MM')}"
-            th:text="${#temporals.format(period, 'MMMM yyyy')}" th:selected="${period.equals(selectedPeriod)}">July 2026</option>
-  </select>
-  <noscript><button type="submit">Show</button></noscript>
-</form>
+      <form class="month-toolbar" method="get" action="/poc/accounting">
+        <a class="btn btn-outline-secondary"
+           th:if="${previousPeriod != null}"
+           th:href="@{/poc/accounting(month=${#temporals.format(previousPeriod, 'yyyy-MM')})}">← Previous</a>
+        <span class="btn btn-outline-secondary month-nav-disabled" th:if="${previousPeriod == null}">← Previous</span>
 
-<div class="banner" th:if="${snapshot.ryczalt().status() == 'INPUTS_INCOMPLETE' || snapshot.vat().status() == 'EXPENSES_MISSING'}">
-  This month is only partially reconstructable from the captured source set. Missing inputs are shown explicitly below.
+        <label for="month" class="form-label mb-0 ms-1"><strong>Month</strong></label>
+        <select id="month" name="month" class="form-select" onchange="this.form.submit()">
+          <option th:each="period : ${periods}"
+                  th:value="${#temporals.format(period, 'yyyy-MM')}"
+                  th:text="${#temporals.format(period, 'MMMM yyyy')}"
+                  th:selected="${period.equals(selectedPeriod)}">July 2026</option>
+        </select>
+
+        <a class="btn btn-outline-secondary"
+           th:if="${nextPeriod != null}"
+           th:href="@{/poc/accounting(month=${#temporals.format(nextPeriod, 'yyyy-MM')})}">Next →</a>
+        <span class="btn btn-outline-secondary month-nav-disabled" th:if="${nextPeriod == null}">Next →</span>
+        <noscript><button class="btn btn-primary" type="submit">Show</button></noscript>
+      </form>
+
+      <div class="alert alert-success" role="alert" th:if="${expenseSaved}" th:text="${expenseSaved}"></div>
+      <div class="alert alert-danger" role="alert" th:if="${expenseSaveError}" th:text="${expenseSaveError}"></div>
+
+      <section class="card section-card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Import expense invoice</h2>
+            <div class="text-secondary mt-1">Upload a PDF or invoice photo, extract the fields, review them, then save.</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data" th:action="@{/poc/accounting/invoice/recognize}">
+            <input type="hidden" name="month" th:value="${#temporals.format(selectedPeriod, 'yyyy-MM')}">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-8">
+                <label for="invoice-file" class="form-label">Invoice PDF or image</label>
+                <input id="invoice-file" class="form-control" type="file" name="invoice"
+                       accept="application/pdf,image/jpeg,image/png,image/webp" required>
+              </div>
+              <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">Recognize &amp; autofill</button>
+              </div>
+            </div>
+            <div class="form-hint mt-2">The uploaded document is sent to the configured OpenAI integration for document extraction. Nothing is persisted until you review and save the form.</div>
+          </form>
+
+          <div class="alert alert-danger mt-3 mb-0" role="alert" th:if="${recognitionError}" th:text="${recognitionError}"></div>
+          <div class="alert alert-info mt-3 mb-0" role="alert" th:if="${recognitionMessage}" th:text="${recognitionMessage}"></div>
+
+          <form class="mt-4" method="post" th:action="@{/poc/accounting/expense}" th:object="${expenseDraft}" th:if="${expenseDraft != null}">
+            <input type="hidden" th:field="*{month}">
+            <div class="invoice-import-grid">
+              <div>
+                <label class="form-label">Invoice date</label>
+                <input class="form-control" type="date" th:field="*{invoiceDate}">
+              </div>
+              <div>
+                <label class="form-label">Reference</label>
+                <input class="form-control" type="text" th:field="*{reference}" required>
+              </div>
+              <div class="wide">
+                <label class="form-label">Supplier</label>
+                <input class="form-control" type="text" th:field="*{supplierAlias}" required>
+              </div>
+              <div>
+                <label class="form-label">Category</label>
+                <select class="form-select" th:field="*{category}" required>
+                  <option value="VEHICLE_FUEL">Vehicle fuel</option>
+                  <option value="ACCOUNTING_SERVICE">Accounting service</option>
+                  <option value="BUSINESS_SERVICE">Business service</option>
+                  <option value="EQUIPMENT">Equipment</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Currency</label>
+                <input class="form-control" type="text" maxlength="3" th:field="*{currency}" required>
+              </div>
+              <div>
+                <label class="form-label">Net</label>
+                <input class="form-control" type="number" step="0.01" th:field="*{netAmount}" required>
+              </div>
+              <div>
+                <label class="form-label">VAT</label>
+                <input class="form-control" type="number" step="0.01" th:field="*{vatAmount}" required>
+              </div>
+              <div>
+                <label class="form-label">Gross</label>
+                <input class="form-control" type="number" step="0.01" th:field="*{grossAmount}" required>
+              </div>
+              <div>
+                <label class="form-label">VAT deduction</label>
+                <select class="form-select" th:field="*{vatDeductionRatio}" required>
+                  <option value="0.00">0%</option>
+                  <option value="0.50">50%</option>
+                  <option value="1.00">100%</option>
+                </select>
+              </div>
+              <div class="wide">
+                <label class="form-label">Recognition note</label>
+                <textarea class="form-control" rows="2" th:field="*{note}"></textarea>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+              <button class="btn btn-success" type="submit">Save reviewed expense</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <div class="alert alert-warning" role="alert"
+           th:if="${snapshot.ryczalt().status() == 'INPUTS_INCOMPLETE' || snapshot.vat().status() == 'EXPENSES_MISSING'}">
+        This month is only partially reconstructable from the captured source set. Missing inputs are shown explicitly below.
+      </div>
+      <div class="alert alert-info" role="alert"
+           th:if="${snapshot.ryczalt().status() == 'NO_GOLDEN' || snapshot.vat().status() == 'NO_GOLDEN'}">
+        This month contains source facts but complete expected golden outputs were not captured.
+      </div>
+      <div class="text-secondary mb-3" th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}">
+        July contains an unusual sales-invoice correction. The correction remains July-specific; purchase VAT is reconstructed from expense documents like normal months.
+      </div>
+
+      <div class="summary-grid">
+        <div class="card summary-card"><div class="card-body"><div class="text-secondary">Domestic revenue</div><div class="h2"><span th:text="${snapshot.domesticRevenueNetPln()}">16250.00</span> PLN</div></div></div>
+        <div class="card summary-card"><div class="card-body"><div class="text-secondary">Foreign source</div><div class="h2"><span th:text="${snapshot.foreignSourceRevenueEur()}">7636.00</span> EUR</div></div></div>
+        <div class="card summary-card"><div class="card-body"><div class="text-secondary">FX calculated</div><div class="h2"><span th:text="${snapshot.fx().calculatedPln()}">32908.87</span> PLN</div></div></div>
+        <div class="card summary-card"><div class="card-body"><div class="text-secondary">Ryczałt</div><div class="h2"><span th:text="${snapshot.ryczalt().calculatedTax()}">5791</span> PLN</div></div></div>
+        <div class="card summary-card"><div class="card-body"><div class="text-secondary">VAT</div><div class="h2"><span th:text="${snapshot.vat().calculatedVat()}">3557</span> PLN</div></div></div>
+      </div>
+
+      <section class="card section-card">
+        <div class="card-header"><h2 class="card-title">Monthly comparison</h2></div>
+        <div class="card-body py-2 text-secondary">Canonical comparison for revenue, ryczałt, VAT, ZUS and FX.</div>
+        <div class="table-responsive">
+          <table class="table table-vcenter card-table">
+            <thead><tr><th>Area</th><th class="amount">Calculated</th><th class="amount">Expected</th><th class="amount">Difference</th><th>Status</th><th>Basis</th></tr></thead>
+            <tbody>
+            <tr th:each="row : ${snapshot.comparisons()}">
+              <td><strong th:text="${row.area()}">VAT</strong></td>
+              <td class="amount"><span th:text="${row.calculated()}">3557</span> <span th:text="${row.currency()}">PLN</span></td>
+              <td class="amount"><span th:text="${row.expected()}">3557</span> <span th:text="${row.currency()}">PLN</span></td>
+              <td class="amount" th:text="${row.difference()}">0</td>
+              <td th:text="${row.status()}" th:classappend="${row.status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</td>
+              <td class="note" th:text="${row.note()}">Comparison basis.</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card section-card">
+        <div class="card-header"><h2 class="card-title">Ryczałt trace</h2></div>
+        <div class="table-responsive"><table class="table table-vcenter card-table"><tbody>
+        <tr><th>Domestic revenue</th><td class="amount" th:text="${snapshot.domesticRevenueNetPln()}">16250.00</td></tr>
+        <tr><th>Foreign revenue via FX</th><td class="amount" th:text="${snapshot.fx().calculatedPln()}">32908.87</td></tr>
+        <tr th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}"><th>July-only correction net</th><td class="amount" th:text="${snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()}">-150.00</td></tr>
+        <tr><th>Revenue before deductions</th><td class="amount" th:text="${snapshot.ryczalt().revenueBeforeDeductions()}">49008.87</td></tr>
+        <tr><th>Health contribution paid</th><td class="amount" th:text="${snapshot.ryczalt().healthContributionPaid()}">1495.04</td></tr>
+        <tr><th>50% health deduction</th><td class="amount" th:text="${snapshot.ryczalt().healthDeduction()}">747.52</td></tr>
+        <tr><th>Taxable base</th><td class="amount" th:text="${snapshot.ryczalt().taxableBase()}">48261.35</td></tr>
+        <tr><th>Rounded tax</th><td class="amount" th:text="${snapshot.ryczalt().calculatedTax()}">5791</td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section class="card section-card">
+        <div class="card-header"><h2 class="card-title">VAT trace</h2></div>
+        <div class="table-responsive"><table class="table table-vcenter card-table"><tbody>
+        <tr><th>Domestic output VAT</th><td class="amount" th:text="${snapshot.vat().outputVatBeforeJulyCorrection()}">3737.50</td></tr>
+        <tr th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}"><th>July-only sales correction VAT</th><td class="amount" th:text="${snapshot.vat().julyOnlySalesCorrectionVat()}">-34.50</td></tr>
+        <tr><th>Output VAT after sales adjustment</th><td class="amount" th:text="${snapshot.vat().outputVatAfterSalesCorrection()}">3703.00</td></tr>
+        <tr><th>Document-level deductible input VAT</th><td class="amount" th:text="${snapshot.vat().deductibleInputVat()}">145.99</td></tr>
+        <tr><th>VAT payable</th><td class="amount" th:text="${snapshot.vat().calculatedVat()}">3557</td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section class="card section-card">
+        <div class="card-header"><h2 class="card-title">Expense invoices / input VAT</h2></div>
+        <div class="table-responsive"><table class="table table-vcenter card-table">
+          <thead><tr><th>Date</th><th>Reference</th><th>Supplier</th><th>Category</th><th class="amount">VAT</th><th class="amount">Ratio</th><th class="amount">Deductible VAT</th><th>Source</th></tr></thead>
+          <tbody>
+          <tr th:each="expense : ${snapshot.expenses()}">
+            <td th:text="${expense.invoiceDate() != null ? expense.invoiceDate() : '—'}">2026-02-28</td><td th:text="${expense.reference()}">EXP-001</td><td th:text="${expense.supplierAlias()}">SUPPLIER_001</td>
+            <td th:text="${expense.category()}">ACCOUNTING</td><td class="amount" th:text="${expense.vatAmount()}">68.54</td>
+            <td class="amount" th:text="${expense.vatDeductionRatio()}">1.00</td><td class="amount" th:text="${expense.deductibleVat()}">68.54</td><td th:text="${expense.sourceQuality()}">DOCUMENT</td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(snapshot.expenses())}"><td colspan="8" class="text-secondary">No expense documents captured for this month.</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="card section-card">
+        <div class="card-header"><h2 class="card-title">Reconciliation</h2></div>
+        <div class="table-responsive"><table class="table table-vcenter card-table">
+          <thead><tr><th>Reference</th><th>Kind</th><th class="amount">Expected</th><th class="amount">Matched / paid</th><th>Payment date</th><th>Status</th><th>Explanation</th></tr></thead>
+          <tbody>
+          <tr th:each="row : ${snapshot.reconciliations()}">
+            <td th:text="${row.reference()}">FV 5/2026</td><td th:text="${row.kind()}">INVOICE_PAYMENT</td>
+            <td class="amount"><span th:text="${row.expectedAmount()}">19987.50</span> <span th:text="${row.currency()}">PLN</span></td>
+            <td class="amount"><span th:text="${row.matchedAmount()}">19987.50</span> <span th:text="${row.currency()}">PLN</span></td>
+            <td th:text="${row.paymentDate() != null ? row.paymentDate() : '—'}">2026-08-13</td>
+            <td th:text="${row.status()}" th:classappend="${row.status() == 'MATCHED' || row.status() == 'MATCH' ? 'matched' : ''}">MATCHED</td>
+            <td class="note" th:text="${row.explanation()}">Exact match.</td>
+          </tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="card section-card">
+        <div class="card-header"><h2 class="card-title">Sales invoices</h2></div>
+        <div class="table-responsive"><table class="table table-vcenter card-table">
+          <thead><tr><th>Period</th><th>Reference</th><th>Currency</th><th class="amount">Net</th><th class="amount">VAT</th><th class="amount">Receivable</th><th>FX date</th></tr></thead>
+          <tbody><tr th:each="invoice : ${snapshot.invoices()}">
+          <td th:text="${invoice.taxPeriod()}">2026-07-01</td><td th:text="${invoice.reference()}">FV 5/2026</td><td th:text="${invoice.currency()}">PLN</td>
+          <td class="amount" th:text="${invoice.netAmount()}">16250.00</td><td class="amount" th:text="${invoice.vatAmount()}">3737.50</td>
+          <td class="amount" th:text="${invoice.expectedReceivable()}">19987.50</td><td th:text="${invoice.fxRateDate() != null ? invoice.fxRateDate() : '—'}">—</td>
+          </tr></tbody>
+        </table></div>
+      </section>
+
+      <section class="card section-card">
+        <div class="card-header"><h2 class="card-title">Bank transactions</h2></div>
+        <div class="table-responsive"><table class="table table-vcenter card-table">
+          <thead><tr><th>Date</th><th>Related period</th><th>Type</th><th>Scope</th><th>Reference</th><th class="amount">Amount</th></tr></thead>
+          <tbody><tr th:each="transaction : ${snapshot.bankTransactions()}" th:classappend="${transaction.scope() != 'BUSINESS' ? 'excluded' : ''}">
+          <td th:text="${transaction.bookingDate()}">2026-08-05</td><td th:text="${transaction.relatedPeriod() != null ? transaction.relatedPeriod() : '—'}">2026-07-01</td>
+          <td th:text="${transaction.transactionType()}">CUSTOMER_RECEIPT</td><td th:text="${transaction.scope()}">BUSINESS</td><td th:text="${transaction.reference() != null ? transaction.reference() : '—'}">Service Agreements</td>
+          <td class="amount"><span th:text="${transaction.amount()}">7636.00</span> <span th:text="${transaction.currency()}">EUR</span></td>
+          </tr></tbody>
+        </table></div>
+      </section>
+    </main>
+  </div>
 </div>
-<div class="banner" th:if="${snapshot.ryczalt().status() == 'NO_GOLDEN' || snapshot.vat().status() == 'NO_GOLDEN'}">
-  This month contains source facts but complete expected golden outputs were not captured.
-</div>
-<p class="muted" th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}">July contains an unusual sales-invoice correction. The correction remains July-specific; purchase VAT is reconstructed from expense documents like normal months.</p>
-
-<div class="grid">
-  <div class="card"><div class="label">Domestic revenue</div><div class="value"><span th:text="${snapshot.domesticRevenueNetPln()}">16250.00</span> PLN</div></div>
-  <div class="card"><div class="label">Foreign source</div><div class="value"><span th:text="${snapshot.foreignSourceRevenueEur()}">7636.00</span> EUR</div></div>
-  <div class="card"><div class="label">FX calculated</div><div class="value"><span th:text="${snapshot.fx().calculatedPln()}">32908.87</span> PLN</div></div>
-  <div class="card"><div class="label">Ryczałt</div><div class="value"><span th:text="${snapshot.ryczalt().calculatedTax()}">5791</span> PLN</div></div>
-  <div class="card"><div class="label">VAT</div><div class="value"><span th:text="${snapshot.vat().calculatedVat()}">3557</span> PLN</div></div>
-</div>
-
-<h2>Monthly comparison</h2>
-<p class="muted">Canonical comparison for revenue, ryczałt, VAT, ZUS and FX.</p>
-<table>
-  <thead><tr><th>Area</th><th class="amount">Calculated</th><th class="amount">Expected</th><th class="amount">Difference</th><th>Status</th><th>Basis</th></tr></thead>
-  <tbody>
-  <tr th:each="row : ${snapshot.comparisons()}">
-    <td><strong th:text="${row.area()}">VAT</strong></td>
-    <td class="amount"><span th:text="${row.calculated()}">3557</span> <span th:text="${row.currency()}">PLN</span></td>
-    <td class="amount"><span th:text="${row.expected()}">3557</span> <span th:text="${row.currency()}">PLN</span></td>
-    <td class="amount" th:text="${row.difference()}">0</td>
-    <td th:text="${row.status()}" th:classappend="${row.status() == 'MATCH' ? 'matched' : 'warning'}">MATCH</td>
-    <td class="note" th:text="${row.note()}">Comparison basis.</td>
-  </tr>
-  </tbody>
-</table>
-
-<h2>Ryczałt trace</h2>
-<table><tbody>
-<tr><th>Domestic revenue</th><td class="amount" th:text="${snapshot.domesticRevenueNetPln()}">16250.00</td></tr>
-<tr><th>Foreign revenue via FX</th><td class="amount" th:text="${snapshot.fx().calculatedPln()}">32908.87</td></tr>
-<tr th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}"><th>July-only correction net</th><td class="amount" th:text="${snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()}">-150.00</td></tr>
-<tr><th>Revenue before deductions</th><td class="amount" th:text="${snapshot.ryczalt().revenueBeforeDeductions()}">49008.87</td></tr>
-<tr><th>Health contribution paid</th><td class="amount" th:text="${snapshot.ryczalt().healthContributionPaid()}">1495.04</td></tr>
-<tr><th>50% health deduction</th><td class="amount" th:text="${snapshot.ryczalt().healthDeduction()}">747.52</td></tr>
-<tr><th>Taxable base</th><td class="amount" th:text="${snapshot.ryczalt().taxableBase()}">48261.35</td></tr>
-<tr><th>Rounded tax</th><td class="amount" th:text="${snapshot.ryczalt().calculatedTax()}">5791</td></tr>
-</tbody></table>
-
-<h2>VAT trace</h2>
-<table><tbody>
-<tr><th>Domestic output VAT</th><td class="amount" th:text="${snapshot.vat().outputVatBeforeJulyCorrection()}">3737.50</td></tr>
-<tr th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}"><th>July-only sales correction VAT</th><td class="amount" th:text="${snapshot.vat().julyOnlySalesCorrectionVat()}">-34.50</td></tr>
-<tr><th>Output VAT after sales adjustment</th><td class="amount" th:text="${snapshot.vat().outputVatAfterSalesCorrection()}">3703.00</td></tr>
-<tr><th>Document-level deductible input VAT</th><td class="amount" th:text="${snapshot.vat().deductibleInputVat()}">145.99</td></tr>
-<tr><th>VAT payable</th><td class="amount" th:text="${snapshot.vat().calculatedVat()}">3557</td></tr>
-</tbody></table>
-
-<h2>Expense invoices / input VAT</h2>
-<table>
-  <thead><tr><th>Date</th><th>Reference</th><th>Supplier</th><th>Category</th><th class="amount">VAT</th><th class="amount">Ratio</th><th class="amount">Deductible VAT</th><th>Source</th></tr></thead>
-  <tbody>
-  <tr th:each="expense : ${snapshot.expenses()}">
-    <td th:text="${expense.invoiceDate() != null ? expense.invoiceDate() : '—'}">2026-02-28</td><td th:text="${expense.reference()}">EXP-001</td><td th:text="${expense.supplierAlias()}">SUPPLIER_001</td>
-    <td th:text="${expense.category()}">ACCOUNTING</td><td class="amount" th:text="${expense.vatAmount()}">68.54</td>
-    <td class="amount" th:text="${expense.vatDeductionRatio()}">1.00</td><td class="amount" th:text="${expense.deductibleVat()}">68.54</td><td th:text="${expense.sourceQuality()}">DOCUMENT</td>
-  </tr>
-  <tr th:if="${#lists.isEmpty(snapshot.expenses())}"><td colspan="8" class="muted">No expense documents captured for this month.</td></tr>
-  </tbody>
-</table>
-
-<h2>Reconciliation</h2>
-<table>
-  <thead><tr><th>Reference</th><th>Kind</th><th class="amount">Expected</th><th class="amount">Matched / paid</th><th>Payment date</th><th>Status</th><th>Explanation</th></tr></thead>
-  <tbody>
-  <tr th:each="row : ${snapshot.reconciliations()}">
-    <td th:text="${row.reference()}">FV 5/2026</td><td th:text="${row.kind()}">INVOICE_PAYMENT</td>
-    <td class="amount"><span th:text="${row.expectedAmount()}">19987.50</span> <span th:text="${row.currency()}">PLN</span></td>
-    <td class="amount"><span th:text="${row.matchedAmount()}">19987.50</span> <span th:text="${row.currency()}">PLN</span></td>
-    <td th:text="${row.paymentDate() != null ? row.paymentDate() : '—'}">2026-08-13</td>
-    <td th:text="${row.status()}" th:classappend="${row.status() == 'MATCHED' || row.status() == 'MATCH' ? 'matched' : ''}">MATCHED</td>
-    <td class="note" th:text="${row.explanation()}">Exact match.</td>
-  </tr>
-  </tbody>
-</table>
-
-<h2>Sales invoices</h2>
-<table><thead><tr><th>Period</th><th>Reference</th><th>Currency</th><th class="amount">Net</th><th class="amount">VAT</th><th class="amount">Receivable</th><th>FX date</th></tr></thead>
-<tbody><tr th:each="invoice : ${snapshot.invoices()}">
-<td th:text="${invoice.taxPeriod()}">2026-07-01</td><td th:text="${invoice.reference()}">FV 5/2026</td><td th:text="${invoice.currency()}">PLN</td>
-<td class="amount" th:text="${invoice.netAmount()}">16250.00</td><td class="amount" th:text="${invoice.vatAmount()}">3737.50</td>
-<td class="amount" th:text="${invoice.expectedReceivable()}">19987.50</td><td th:text="${invoice.fxRateDate() != null ? invoice.fxRateDate() : '—'}">—</td>
-</tr></tbody></table>
-
-<h2>Bank transactions</h2>
-<table><thead><tr><th>Date</th><th>Related period</th><th>Type</th><th>Scope</th><th>Reference</th><th class="amount">Amount</th></tr></thead>
-<tbody><tr th:each="transaction : ${snapshot.bankTransactions()}" th:classappend="${transaction.scope() != 'BUSINESS' ? 'excluded' : ''}">
-<td th:text="${transaction.bookingDate()}">2026-08-05</td><td th:text="${transaction.relatedPeriod() != null ? transaction.relatedPeriod() : '—'}">2026-07-01</td>
-<td th:text="${transaction.transactionType()}">CUSTOMER_RECEIPT</td><td th:text="${transaction.scope()}">BUSINESS</td><td th:text="${transaction.reference() != null ? transaction.reference() : '—'}">Service Agreements</td>
-<td class="amount"><span th:text="${transaction.amount()}">7636.00</span> <span th:text="${transaction.currency()}">EUR</span></td>
-</tr></tbody></table>
 </body>
 </html>
