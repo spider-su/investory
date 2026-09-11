@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Accounting POC</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; color: #1f2937; }
-    h1, h2 { margin-bottom: .35rem; }
-    p { color: #4b5563; }
+    body { font-family: system-ui, sans-serif; margin: 2rem; color:#1f2937; }
+    h1,h2 { margin-bottom:.35rem; }
+    p { color:#4b5563; }
     .toolbar { display:flex; align-items:center; gap:.75rem; margin:1rem 0 1.5rem; }
     select { padding:.45rem .65rem; border:1px solid #d1d5db; border-radius:.4rem; background:white; }
     .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:1rem; margin:1.5rem 0 2rem; }
@@ -33,19 +33,17 @@
 <form class="toolbar" method="get" action="/poc/accounting">
   <label for="month"><strong>Month</strong></label>
   <select id="month" name="month" onchange="this.form.submit()">
-    <option th:each="period : ${periods}"
-            th:value="${#temporals.format(period, 'yyyy-MM')}"
-            th:text="${#temporals.format(period, 'MMMM yyyy')}"
-            th:selected="${period.equals(selectedPeriod)}">July 2026</option>
+    <option th:each="period : ${periods}" th:value="${#temporals.format(period, 'yyyy-MM')}"
+            th:text="${#temporals.format(period, 'MMMM yyyy')}" th:selected="${period.equals(selectedPeriod)}">July 2026</option>
   </select>
   <noscript><button type="submit">Show</button></noscript>
 </form>
 
-<div class="banner" th:if="${snapshot.comparisons().stream().anyMatch(r -> r.status() == 'INPUTS_INCOMPLETE' || r.status() == 'EXPENSES_MISSING')}">
+<div class="banner" th:if="${snapshot.ryczalt().status() == 'INPUTS_INCOMPLETE' || snapshot.vat().status() == 'EXPENSES_MISSING'}">
   This month is only partially reconstructable from the captured source set. Missing inputs are shown explicitly below.
 </div>
-<div class="banner" th:if="${snapshot.comparisons().stream().anyMatch(r -> r.status() == 'NO_GOLDEN')}">
-  This month contains source facts but at least one expected golden output was not captured.
+<div class="banner" th:if="${snapshot.ryczalt().status() == 'NO_GOLDEN' || snapshot.vat().status() == 'NO_GOLDEN'}">
+  This month contains source facts but complete expected golden outputs were not captured.
 </div>
 <p class="muted" th:if="${selectedPeriod.equals(T(java.time.LocalDate).of(2026,7,1))}">July contains an unusual invoice correction. It remains a July-only fixture; generic correction processing is parked.</p>
 
@@ -58,18 +56,9 @@
 </div>
 
 <h2>Monthly comparison</h2>
-<p class="muted">One canonical comparison view for revenue, ryczałt, VAT, ZUS and FX.</p>
+<p class="muted">Canonical comparison for revenue, ryczałt, VAT, ZUS and FX.</p>
 <table>
-  <thead>
-  <tr>
-    <th>Area</th>
-    <th class="amount">Calculated</th>
-    <th class="amount">Expected</th>
-    <th class="amount">Difference</th>
-    <th>Status</th>
-    <th>Basis</th>
-  </tr>
-  </thead>
+  <thead><tr><th>Area</th><th class="amount">Calculated</th><th class="amount">Expected</th><th class="amount">Difference</th><th>Status</th><th>Basis</th></tr></thead>
   <tbody>
   <tr th:each="row : ${snapshot.comparisons()}">
     <td><strong th:text="${row.area()}">VAT</strong></td>
@@ -91,7 +80,6 @@
 <tr><th>Health contribution paid</th><td class="amount" th:text="${snapshot.ryczalt().healthContributionPaid()}">1495.04</td></tr>
 <tr><th>50% health deduction</th><td class="amount" th:text="${snapshot.ryczalt().healthDeduction()}">747.52</td></tr>
 <tr><th>Taxable base</th><td class="amount" th:text="${snapshot.ryczalt().taxableBase()}">48261.35</td></tr>
-<tr><th>Rate</th><td class="amount" th:text="${snapshot.ryczalt().rate()}">0.12</td></tr>
 <tr><th>Rounded tax</th><td class="amount" th:text="${snapshot.ryczalt().calculatedTax()}">5791</td></tr>
 </tbody></table>
 
@@ -107,21 +95,14 @@
 
 <h2>Expense invoices / input VAT</h2>
 <table>
-  <thead><tr><th>Date</th><th>Reference</th><th>Supplier</th><th>Category</th><th class="amount">Net</th><th class="amount">VAT</th><th class="amount">Gross</th><th class="amount">Deduction</th><th class="amount">Deductible VAT</th><th>Source</th></tr></thead>
+  <thead><tr><th>Date</th><th>Reference</th><th>Supplier</th><th>Category</th><th class="amount">VAT</th><th class="amount">Ratio</th><th class="amount">Deductible VAT</th><th>Source</th></tr></thead>
   <tbody>
   <tr th:each="expense : ${snapshot.expenses()}">
-    <td th:text="${expense.invoiceDate()}">2026-02-28</td>
-    <td th:text="${expense.reference()}">EXP-001</td>
-    <td th:text="${expense.supplierAlias()}">SUPPLIER_001</td>
-    <td th:text="${expense.category()}">ACCOUNTING</td>
-    <td class="amount" th:text="${expense.netAmount()}">298.00</td>
-    <td class="amount" th:text="${expense.vatAmount()}">68.54</td>
-    <td class="amount" th:text="${expense.grossAmount()}">366.54</td>
-    <td class="amount" th:text="${expense.vatDeductionRatio()}">1.00</td>
-    <td class="amount" th:text="${expense.deductibleVat()}">68.54</td>
-    <td th:text="${expense.sourceQuality()}">DOCUMENT</td>
+    <td th:text="${expense.invoiceDate()}">2026-02-28</td><td th:text="${expense.reference()}">EXP-001</td><td th:text="${expense.supplierAlias()}">SUPPLIER_001</td>
+    <td th:text="${expense.category()}">ACCOUNTING</td><td class="amount" th:text="${expense.vatAmount()}">68.54</td>
+    <td class="amount" th:text="${expense.vatDeductionRatio()}">1.00</td><td class="amount" th:text="${expense.deductibleVat()}">68.54</td><td th:text="${expense.sourceQuality()}">DOCUMENT</td>
   </tr>
-  <tr th:if="${#lists.isEmpty(snapshot.expenses())}"><td colspan="10" class="muted">No expense documents captured for this month.</td></tr>
+  <tr th:if="${#lists.isEmpty(snapshot.expenses())}"><td colspan="8" class="muted">No expense documents captured for this month.</td></tr>
   </tbody>
 </table>
 
@@ -141,46 +122,19 @@
 </table>
 
 <h2>Sales invoices</h2>
-<table>
-  <thead><tr><th>Period</th><th>Reference</th><th>Currency</th><th class="amount">Net</th><th class="amount">VAT</th><th class="amount">Receivable</th><th>FX date</th></tr></thead>
-  <tbody>
-  <tr th:each="invoice : ${snapshot.invoices()}">
-    <td th:text="${invoice.taxPeriod()}">2026-07-01</td><td th:text="${invoice.reference()}">FV 5/2026</td><td th:text="${invoice.currency()}">PLN</td>
-    <td class="amount" th:text="${invoice.netAmount()}">16250.00</td><td class="amount" th:text="${invoice.vatAmount()}">3737.50</td>
-    <td class="amount" th:text="${invoice.expectedReceivable()}">19987.50</td><td th:text="${invoice.fxRateDate() != null ? invoice.fxRateDate() : '—'}">—</td>
-  </tr>
-  </tbody>
-</table>
+<table><thead><tr><th>Period</th><th>Reference</th><th>Currency</th><th class="amount">Net</th><th class="amount">VAT</th><th class="amount">Receivable</th><th>FX date</th></tr></thead>
+<tbody><tr th:each="invoice : ${snapshot.invoices()}">
+<td th:text="${invoice.taxPeriod()}">2026-07-01</td><td th:text="${invoice.reference()}">FV 5/2026</td><td th:text="${invoice.currency()}">PLN</td>
+<td class="amount" th:text="${invoice.netAmount()}">16250.00</td><td class="amount" th:text="${invoice.vatAmount()}">3737.50</td>
+<td class="amount" th:text="${invoice.expectedReceivable()}">19987.50</td><td th:text="${invoice.fxRateDate() != null ? invoice.fxRateDate() : '—'}">—</td>
+</tr></tbody></table>
 
 <h2>Bank transactions</h2>
-<table>
-  <thead><tr><th>Date</th><th>Related period</th><th>Type</th><th>Scope</th><th>Reference</th><th>Counterparty</th><th class="amount">Amount</th></tr></thead>
-  <tbody>
-  <tr th:each="transaction : ${snapshot.bankTransactions()}" th:classappend="${transaction.scope() != 'BUSINESS' ? 'excluded' : ''}">
-    <td th:text="${transaction.bookingDate()}">2026-08-05</td><td th:text="${transaction.relatedPeriod() != null ? transaction.relatedPeriod() : '—'}">2026-07-01</td>
-    <td th:text="${transaction.transactionType()}">CUSTOMER_RECEIPT</td><td th:text="${transaction.scope()}">BUSINESS</td>
-    <td th:text="${transaction.reference() != null ? transaction.reference() : '—'}">Service Agreements</td><td th:text="${transaction.counterpartyAlias() != null ? transaction.counterpartyAlias() : '—'}">CUSTOMER_EU_001</td>
-    <td class="amount"><span th:text="${transaction.amount()}">7636.00</span> <span th:text="${transaction.currency()}">EUR</span></td>
-  </tr>
-  </tbody>
-</table>
-
-<details>
-  <summary>Raw source facts</summary>
-  <table>
-    <thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Counterparty</th><th class="amount">Amount</th><th>Tax rate</th><th>Note</th></tr></thead>
-    <tbody>
-    <tr th:each="fact : ${facts}">
-      <td th:text="${fact.factDate() != null ? fact.factDate() : '—'}">2026-07-16</td>
-      <td th:text="${fact.factType()}">BANK_RECEIPT</td>
-      <td th:text="${fact.reference() != null ? fact.reference() : '—'}">FV 4/2026</td>
-      <td th:text="${fact.counterpartyAlias() != null ? fact.counterpartyAlias() : '—'}">CUSTOMER_PL_001</td>
-      <td class="amount"><span th:text="${fact.amount()}">39864.30</span> <span th:text="${fact.currency()}">PLN</span></td>
-      <td th:text="${fact.taxRate() != null ? fact.taxRate() : '—'}">0.12</td>
-      <td class="note" th:text="${fact.note() != null ? fact.note() : '—'}">Historical fact.</td>
-    </tr>
-    </tbody>
-  </table>
-</details>
+<table><thead><tr><th>Date</th><th>Related period</th><th>Type</th><th>Scope</th><th>Reference</th><th class="amount">Amount</th></tr></thead>
+<tbody><tr th:each="transaction : ${snapshot.bankTransactions()}" th:classappend="${transaction.scope() != 'BUSINESS' ? 'excluded' : ''}">
+<td th:text="${transaction.bookingDate()}">2026-08-05</td><td th:text="${transaction.relatedPeriod() != null ? transaction.relatedPeriod() : '—'}">2026-07-01</td>
+<td th:text="${transaction.transactionType()}">CUSTOMER_RECEIPT</td><td th:text="${transaction.scope()}">BUSINESS</td><td th:text="${transaction.reference() != null ? transaction.reference() : '—'}">Service Agreements</td>
+<td class="amount"><span th:text="${transaction.amount()}">7636.00</span> <span th:text="${transaction.currency()}">EUR</span></td>
+</tr></tbody></table>
 </body>
 </html>
