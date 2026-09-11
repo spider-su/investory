@@ -14,6 +14,7 @@ public record AccountingMonthSnapshot(
     RyczałtCalculation ryczalt,
     VatCalculation vat,
     List<InvoiceRow> invoices,
+    List<ExpenseRow> expenses,
     List<ReconciliationRow> reconciliations,
     List<ObligationRow> obligations,
     List<BankRow> bankTransactions) {
@@ -37,6 +38,22 @@ public record AccountingMonthSnapshot(
       BigDecimal expectedReceivable,
       BigDecimal bookedNetPln,
       BigDecimal ryczaltRate,
+      String note) {}
+
+  public record ExpenseRow(
+      long id,
+      LocalDate taxPeriod,
+      LocalDate invoiceDate,
+      String reference,
+      String supplierAlias,
+      String category,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      BigDecimal vatDeductionRatio,
+      BigDecimal deductibleVat,
+      String sourceQuality,
       String note) {}
 
   public record BankRow(
@@ -96,6 +113,7 @@ public record AccountingMonthSnapshot(
       BigDecimal outputVatBeforeJulyCorrection,
       BigDecimal julyOnlySalesCorrectionVat,
       BigDecimal outputVatAfterSalesCorrection,
+      BigDecimal deductibleInputVat,
       BigDecimal julyOnlyVatCorrectionAdjustment,
       BigDecimal calculatedVat,
       BigDecimal expectedVat,
