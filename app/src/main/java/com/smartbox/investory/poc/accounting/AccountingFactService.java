@@ -1,6 +1,7 @@
 package com.smartbox.investory.poc.accounting;
 
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.BankRow;
+import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ComparisonRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.FxCalculation;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
@@ -73,6 +74,8 @@ public class AccountingFactService {
         calculateRyczalt(period, invoices, domesticRevenue, fx, obligations, taxInputs);
     VatCalculation vat =
         calculateVat(period, invoices, periodInvoices, expenses, obligations, taxInputs);
+    List<ComparisonRow> comparisons =
+        buildComparisons(period, domesticRevenue, foreignBookedRevenue, fx, ryczalt, vat, obligations, taxInputs);
 
     List<ReconciliationRow> reconciliations =
         reconcile(invoices, bankTransactions, obligations);
@@ -86,11 +89,86 @@ public class AccountingFactService {
         fx,
         ryczalt,
         vat,
+        comparisons,
         invoices,
         expenses,
         reconciliations,
         obligations,
         bankTransactions);
+  }
+
+  private List<ComparisonRow> buildComparisons(
+      LocalDate period,
+      BigDecimal domesticRevenue,
+      BigDecimal foreignBookedRevenue,
+      FxCalculation fx,
+      RyczałtCalculation ryczalt,
+      VatCalculation vat,
+      List<ObligationRow> obligations,
+      List<TaxInputRow> taxInputs) {
+    BigDecimal expectedRevenue =
+        domesticRevenue
+            .add(foreignBookedRevenue)
+            .add(ryczalt.julyOnlyCorrectionNetAdjustment())
+            .setScale(2, RoundingMode.HALF_UP);
+    BigDecimal calculatedRevenue = ryczalt.revenueBeforeDeductions().setScale(2, RoundingMode.HALF_UP);
+    BigDecimal revenueDifference = calculatedRevenue.subtract(expectedRevenue).setScale(2, RoundingMode.HALF_UP);
+    String revenueStatus =
+        "NO_FX_SOURCE".equals(fx.status()) && period.getYear() == 2026 && period.getMonthValue() <= 8
+            ? "INPUTS_INCOMPLETE"
+            : revenueDifference.signum() == 0 ? "MATCH" : "DIFF";
+
+    BigDecimal zusCalculated = taxInput(taxInputs, "HEALTH_CONTRIBUTION_PAID").setScale(2, RoundingMode.HALF_UP);
+    BigDecimal zusExpected = obligationAmount(obligations, "ZUS").setScale(2, RoundingMode.HALF_UP);
+    BigDecimal zusDifference = zusCalculated.subtract(zusExpected).setScale(2, RoundingMode.HALF_UP);
+    String zusStatus =
+        !hasObligation(obligations, "ZUS")
+            ? "NO_GOLDEN"
+            : zusCalculated.signum() == 0
+                ? "INPUTS_INCOMPLETE"
+                : zusDifference.signum() == 0 ? "MATCH" : "DIFF";
+
+    return List.of(
+        new ComparisonRow(
+            "REVENUE",
+            calculatedRevenue,
+            expectedRevenue,
+            revenueDifference,
+            "PLN",
+            revenueStatus,
+            "Calculated domestic revenue plus Investory FX; July includes its explicit one-off correction fixture."),
+        new ComparisonRow(
+            "RYCZALT",
+            ryczalt.calculatedTax(),
+            ryczalt.expectedTax(),
+            ryczalt.difference(),
+            "PLN",
+            ryczalt.status(),
+            "12% ryczałt compared with captured wFirma/bank golden output."),
+        new ComparisonRow(
+            "VAT",
+            vat.calculatedVat(),
+            vat.expectedVat(),
+            vat.difference(),
+            "PLN",
+            vat.status(),
+            "Output VAT minus document-level deductible input VAT; July uses its parked special adjustment."),
+        new ComparisonRow(
+            "ZUS",
+            zusCalculated,
+            zusExpected,
+            zusDifference,
+            "PLN",
+            zusStatus,
+            "Current POC compares the captured health-contribution source fact with the ZUS obligation; contribution formula is not modeled yet."),
+        new ComparisonRow(
+            "FX",
+            fx.calculatedPln(),
+            fx.expectedPln(),
+            fx.difference(),
+            "PLN",
+            fx.status(),
+            "Foreign revenue converted through Investory CurrencyConversion and compared with the booked PLN value."));
   }
 
   private FxCalculation calculateFx(
