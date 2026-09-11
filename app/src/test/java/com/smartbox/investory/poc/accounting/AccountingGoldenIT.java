@@ -19,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class AccountingGoldenIT extends FastDatabaseTest {
 
   private static final LocalDate FEBRUARY = LocalDate.of(2026, 2, 1);
+  private static final LocalDate MAY = LocalDate.of(2026, 5, 1);
   private static final LocalDate JUNE = LocalDate.of(2026, 6, 1);
   private static final LocalDate JULY = LocalDate.of(2026, 7, 1);
 
@@ -42,7 +43,22 @@ class AccountingGoldenIT extends FastDatabaseTest {
   }
 
   @Test
-  void juneUsesOriginalFv4RevenueAndDoesNotApplyJulyCorrectionEarly() {
+  void mayUsesSourceFuelVatAndMatchesWfirmaPurchaseVat() {
+    when(currencyConversion.convertToBaseCurrency(
+            new BigDecimal("7636.0000"), CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 5, 29)))
+        .thenReturn(new BigDecimal("32317.0800"));
+
+    AccountingMonthSnapshot snapshot = service.snapshot(MAY);
+
+    assertComparison(snapshot, "REVENUE", "61917.08", "61917.08", "0.00", "MATCH");
+    assertComparison(snapshot, "RYCZALT", "7340", "7340.0000", "0.0000", "MATCH");
+    assertComparison(snapshot, "VAT", "6601", "6601.0000", "0.0000", "MATCH");
+    assertComparison(snapshot, "FX", "32317.08", "32317.08", "0.00", "MATCH");
+    assertThat(snapshot.vat().deductibleInputVat()).isEqualByComparingTo("207.42");
+  }
+
+  @Test
+  void juneUsesOriginalFv4RevenueAndEightPercentFuelVat() {
     when(currencyConversion.convertToBaseCurrency(
             new BigDecimal("7636.0000"), CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 6, 29)))
         .thenReturn(new BigDecimal("32750.8000"));
@@ -51,6 +67,8 @@ class AccountingGoldenIT extends FastDatabaseTest {
 
     assertComparison(snapshot, "REVENUE", "65310.80", "65310.80", "0.00", "MATCH");
     assertComparison(snapshot, "RYCZALT", "7748", "7748.0000", "0.0000", "MATCH");
+    assertComparison(snapshot, "VAT", "7293", "7293.0000", "0.0000", "MATCH");
+    assertThat(snapshot.vat().deductibleInputVat()).isEqualByComparingTo("196.10");
     assertThat(snapshot.domesticRevenueNetPln()).isEqualByComparingTo("32560.0000");
     assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()).isZero();
     assertThat(snapshot.invoices()).extracting(InvoiceRow::reference)
