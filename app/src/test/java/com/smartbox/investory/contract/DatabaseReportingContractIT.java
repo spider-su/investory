@@ -127,7 +127,7 @@ class DatabaseReportingContractIT {
         Statement statement = connection.createStatement()) {
       deleteCurrencySemanticsFixtures(statement);
       statement.execute(
-          "DELETE FROM investory.fx_daily_rates WHERE rate_date BETWEEN DATE '2026-01-15' AND DATE '2026-01-18' "
+          "DELETE FROM investory.exchange_rates WHERE rate_date BETWEEN DATE '2026-01-15' AND DATE '2026-01-18' "
               + "AND ((base = 'USD' AND to_currency = 'PLN') OR (base = 'EUR' AND to_currency = 'PLN'))");
       statement.execute(
           "INSERT INTO investory.portfolios (id, name, base_currency, owner, user_id) VALUES "
@@ -141,7 +141,7 @@ class DatabaseReportingContractIT {
         LocalDate valuationDate = firstDate.plusDays(day);
         try (PreparedStatement fx =
             connection.prepareStatement(
-                "INSERT INTO investory.fx_daily_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) "
+                "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) "
                     + "VALUES (?, 'USD', 'PLN', 4.00, 'TEST', 'OBSERVED', ?), "
                     + "(?, 'EUR', 'PLN', 4.00, 'TEST', 'OBSERVED', ?)")) {
           fx.setObject(1, valuationDate);
@@ -384,7 +384,7 @@ class DatabaseReportingContractIT {
 
         try (Statement statement = connection.createStatement()) {
           statement.execute(
-              "INSERT INTO investory.fx_daily_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) "
+              "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) "
                   + "VALUES (DATE '2099-01-31', 'GBP', 'PLN', 5, 'TEST', 'OBSERVED', DATE '2099-01-31')");
         }
         refreshDashboardViews(connection);

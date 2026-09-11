@@ -61,7 +61,7 @@ class AccountDailyProjectionBoundaryIT {
     jdbc.update("DELETE FROM investory.account_daily WHERE account_id = ?", ACCOUNT_ID);
     jdbc.update("DELETE FROM investory.asset_price_history WHERE source = 'BOUNDARY_TEST'");
     jdbc.update(
-        "DELETE FROM investory.fx_daily_rates WHERE source = 'TEST' AND source_reference = 'projection-boundary'");
+        "DELETE FROM investory.exchange_rates WHERE source = 'TEST' AND source_reference = 'projection-boundary'");
     jdbc.update("DELETE FROM investory.positions WHERE id = ?", POSITION_ID);
     jdbc.update(
         "DELETE FROM investory.cash_operations WHERE id IN (?, ?, ?)",
@@ -124,12 +124,12 @@ class AccountDailyProjectionBoundaryIT {
     List<Map<String, Object>> removedRates =
         jdbc.queryForList(
             "SELECT rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference "
-                + "FROM investory.fx_daily_rates "
+                + "FROM investory.exchange_rates "
                 + "WHERE ((base = 'USD' AND to_currency = 'EUR') "
                 + "OR (base = 'EUR' AND to_currency = 'USD'))");
     try {
       jdbc.update(
-          "DELETE FROM investory.fx_daily_rates WHERE ((base = 'USD' AND to_currency = 'EUR') OR (base = 'EUR' AND to_currency = 'USD'))");
+          "DELETE FROM investory.exchange_rates WHERE ((base = 'USD' AND to_currency = 'EUR') OR (base = 'EUR' AND to_currency = 'USD'))");
       refresh.refreshApplicationViews(
           PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
       currencyRateService.clearValuationResolutionCache();
@@ -139,7 +139,7 @@ class AccountDailyProjectionBoundaryIT {
     } finally {
       for (Map<String, Object> row : removedRates) {
         jdbc.update(
-            "INSERT INTO investory.fx_daily_rates "
+            "INSERT INTO investory.exchange_rates "
                 + "(rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             row.get("rate_date"),
@@ -157,7 +157,7 @@ class AccountDailyProjectionBoundaryIT {
 
   private void seedFixture() {
     jdbc.update(
-        "DELETE FROM investory.fx_daily_rates WHERE rate_date BETWEEN DATE '2026-08-01' AND DATE '2026-09-10' "
+        "DELETE FROM investory.exchange_rates WHERE rate_date BETWEEN DATE '2026-08-01' AND DATE '2026-09-10' "
             + "AND ((base = 'USD' AND to_currency = 'EUR') OR (base = 'EUR' AND to_currency = 'USD'))");
     jdbc.update(
         "INSERT INTO investory.portfolios(id, name, base_currency, local_currency, owner, user_id) VALUES (?, 'Projection Boundary', 'EUR', 'PLN', 'test', 1)",
@@ -186,9 +186,9 @@ class AccountDailyProjectionBoundaryIT {
         "INSERT INTO investory.asset_price_history(asset_id, price_date, source, source_symbol, price_origin, price_currency, close_price, source_date, quality_score, quality_class) VALUES (?, DATE '2026-08-10', 'BOUNDARY_TEST', 'VWRA.UK', 'MARKET_CLOSE', 'USD', 120, DATE '2026-08-10', 100, 'EXACT_LISTING_MARKET_CLOSE')",
         assetId);
     jdbc.update(
-        "INSERT INTO investory.fx_daily_rates(rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference) SELECT day::date, 'USD', 'EUR', .9, 'TEST', 'OBSERVED', day::date, 'projection-boundary' FROM generate_series(DATE '2026-08-01', DATE '2026-09-10', interval '1 day') day");
+        "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference) SELECT day::date, 'USD', 'EUR', .9, 'TEST', 'OBSERVED', day::date, 'projection-boundary' FROM generate_series(DATE '2026-08-01', DATE '2026-09-10', interval '1 day') day");
     jdbc.update(
-        "INSERT INTO investory.fx_daily_rates(rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference) SELECT day::date, 'EUR', 'USD', 1.11111111, 'TEST', 'OBSERVED', day::date, 'projection-boundary' FROM generate_series(DATE '2026-08-01', DATE '2026-09-10', interval '1 day') day");
+        "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference) SELECT day::date, 'EUR', 'USD', 1.11111111, 'TEST', 'OBSERVED', day::date, 'projection-boundary' FROM generate_series(DATE '2026-08-01', DATE '2026-09-10', interval '1 day') day");
     currencyRateService.clearValuationResolutionCache();
   }
 

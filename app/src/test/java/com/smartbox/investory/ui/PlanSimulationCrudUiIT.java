@@ -446,7 +446,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
   private BigDecimal usdPln() {
     return jdbc.queryForObject(
-        "SELECT rate FROM investory.fx_daily_rates "
+        "SELECT rate FROM investory.exchange_rates "
             + "WHERE base = 'USD' AND to_currency = 'PLN' AND rate_date <= current_date "
             + "ORDER BY rate_date DESC LIMIT 1",
         BigDecimal.class);

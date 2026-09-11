@@ -105,14 +105,10 @@ class CurrencyRateServiceTest {
   void convertToBaseCurrency_usesHistoricalRateForRequestedDate() {
     when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 6, 15)))
         .thenReturn(
-            List.of(
-                resolution(
-                    "EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED")));
+            List.of(resolution("EUR", "USD", "1.1", "OBSERVED", "NBP", "2026-06-01", "ESTIMATED")));
     when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 7, 5)))
         .thenReturn(
-            List.of(
-                resolution(
-                    "EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED")));
+            List.of(resolution("EUR", "USD", "1.1", "OBSERVED", "NBP", "2026-06-01", "ESTIMATED")));
     // Direct EUR->USD rate exists for 2026-06-01, so direct wins over inverse USD->EUR.
     assertEquals(
         99.0,
@@ -133,9 +129,7 @@ class CurrencyRateServiceTest {
     LocalDate date = LocalDate.of(2026, 6, 15);
     when(currencyRateRepository.resolveFxRatesForDate(date))
         .thenReturn(
-            List.of(
-                resolution(
-                    "EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED")));
+            List.of(resolution("EUR", "USD", "1.1", "OBSERVED", "NBP", "2026-06-01", "ESTIMATED")));
 
     CurrencyConversion conversion = service;
 
@@ -149,9 +143,9 @@ class CurrencyRateServiceTest {
   @Test
   void firstMissLoadsAllCurrencyPairsForDateInOneBatch() {
     FxRateResolutionRow eurToUsd =
-        resolution("EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED");
+        resolution("EUR", "USD", "1.1", "OBSERVED", "NBP", "2026-06-01", "ESTIMATED");
     FxRateResolutionRow usdToPln =
-        resolution("USD", "PLN", "4.0", "MARKET_DAILY", "FX", "2026-06-15", "OK");
+        resolution("USD", "PLN", "4.0", "OBSERVED", "FX", "2026-06-15", "OK");
     when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 6, 15)))
         .thenReturn(List.of(eurToUsd, usdToPln));
 
@@ -302,21 +296,31 @@ class CurrencyRateServiceTest {
     assertEquals("XTB:OPERATION:101", second.getExecutionFxReference());
   }
 
-  @DisplayName("transaction Resolver Does Not Borrow Unbound Execution Rate")
+  @DisplayName("transaction Resolver Falls Back To The Latest Valuation Rate")
   @Test
-  void transactionResolverDoesNotBorrowUnboundExecutionRate() {
-    CurrencyRateEntity execution =
-        rate(CurrencyType.USD, CurrencyType.PLN, LocalDate.of(2026, 1, 2), 3.573631);
-    execution.setMethod("XTB_EXECUTION");
-    execution.setSource("XTB");
-    execution.setObservedAt(ZonedDateTime.of(2026, 1, 2, 19, 54, 12, 0, ZoneOffset.UTC));
+  void transactionResolverFallsBackToLatestValuationRate() {
+    LocalDate transactionDate = LocalDate.of(2026, 1, 2);
+    when(currencyRateRepository.resolveFxRatesForDate(transactionDate))
+        .thenReturn(
+            List.of(
+                resolution(
+                    "USD",
+                    "PLN",
+                    "3.573631",
+                    "CARRY_FORWARD",
+                    "NBP",
+                    "2025-12-31",
+                    "CARRY_FORWARD")));
+
     CurrencyRateService.FxRateResolution result =
         service.resolveTransactionRate(
             ZonedDateTime.of(2026, 1, 2, 20, 0, 0, 0, ZoneOffset.UTC),
             CurrencyType.USD,
             CurrencyType.PLN);
 
-    assertEquals("MISSING_RATE", result.conversionStatus());
+    assertEquals("CARRY_FORWARD", result.conversionStatus());
+    assertEquals(0, new BigDecimal("3.573631").compareTo(result.fxRateToTarget()));
+    assertEquals(LocalDate.of(2025, 12, 31), result.sourceRateDate());
   }
 
   @Test
@@ -324,6 +328,8 @@ class CurrencyRateServiceTest {
     when(currencyRateRepository.findExecutionRateAtOrBefore(
             any(), eq(LocalDate.of(2026, 1, 2)), eq("USD"), eq("PLN")))
         .thenReturn(Optional.empty());
+    when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 1, 2)))
+        .thenReturn(List.of());
 
     service.resolveTransactionRate(
         ZonedDateTime.of(2026, 1, 1, 23, 30, 0, 0, ZoneOffset.UTC),
@@ -340,7 +346,7 @@ class CurrencyRateServiceTest {
     LocalDate date = LocalDate.of(2026, 8, 10);
     when(currencyRateRepository.resolveFxRatesForDate(date))
         .thenReturn(
-            List.of(resolution("PLN", "USD", "0.25", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
+            List.of(resolution("PLN", "USD", "0.25", "OBSERVED", "NBP", "2026-08-10", "OK")));
 
     for (int index = 0; index < 100; index++) {
       assertEquals(
@@ -357,17 +363,10 @@ class CurrencyRateServiceTest {
     when(currencyRateRepository.resolveFxRatesForDate(date))
         .thenReturn(
             List.of(
-                resolution("USD", "PLN", "4.0", "MARKET_DAILY", "NBP", "2026-08-10", "OK"),
-                resolution("EUR", "PLN", "4.3", "MARKET_DAILY", "NBP", "2026-08-10", "OK"),
-                resolution("PLN", "EUR", "0.23", "MARKET_DAILY", "NBP", "2026-08-10", "OK"),
-                resolution(
-                    "EUR",
-                    "USD",
-                    "1",
-                    "HISTORICAL_MONTHLY",
-                    "NBP",
-                    "2026-07-31",
-                    "CARRY_FORWARD")));
+                resolution("USD", "PLN", "4.0", "OBSERVED", "NBP", "2026-08-10", "OK"),
+                resolution("EUR", "PLN", "4.3", "OBSERVED", "NBP", "2026-08-10", "OK"),
+                resolution("PLN", "EUR", "0.23", "OBSERVED", "NBP", "2026-08-10", "OK"),
+                resolution("EUR", "USD", "1", "OBSERVED", "NBP", "2026-07-31", "CARRY_FORWARD")));
 
     assertTrue(service.resolveRate(CurrencyType.USD, CurrencyType.PLN, date).isUsable());
     assertTrue(service.resolveRate(CurrencyType.EUR, CurrencyType.PLN, date).isUsable());
@@ -387,10 +386,10 @@ class CurrencyRateServiceTest {
     LocalDate second = first.plusDays(1);
     when(currencyRateRepository.resolveFxRatesForDate(first))
         .thenReturn(
-            List.of(resolution("PLN", "USD", "0.25", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
+            List.of(resolution("PLN", "USD", "0.25", "OBSERVED", "NBP", "2026-08-10", "OK")));
     when(currencyRateRepository.resolveFxRatesForDate(second))
         .thenReturn(
-            List.of(resolution("PLN", "USD", "0.24", "MARKET_DAILY", "NBP", "2026-08-11", "OK")));
+            List.of(resolution("PLN", "USD", "0.24", "OBSERVED", "NBP", "2026-08-11", "OK")));
 
     service.resolveRate(CurrencyType.PLN, CurrencyType.USD, first);
     service.resolveRate(CurrencyType.PLN, CurrencyType.USD, second);
@@ -413,7 +412,7 @@ class CurrencyRateServiceTest {
     r.setToCurrency(to);
     r.setRate(java.math.BigDecimal.valueOf(value));
     r.setSource("STATIC_BOOTSTRAP");
-    r.setMethod("HISTORICAL_MONTHLY");
+    r.setMethod("OBSERVED");
     return r;
   }
 
@@ -425,10 +424,9 @@ class CurrencyRateServiceTest {
     when(currencyRateRepository.resolveFxRatesForDateRange(start, end))
         .thenReturn(
             List.of(
+                resolution("USD", "PLN", "4.0", "OBSERVED", "FX", "2026-06-15", "OK", "2026-06-15"),
                 resolution(
-                    "USD", "PLN", "4.0", "MARKET_DAILY", "FX", "2026-06-15", "OK", "2026-06-15"),
-                resolution(
-                    "USD", "PLN", "4.1", "MARKET_DAILY", "FX", "2026-06-16", "OK", "2026-06-16")));
+                    "USD", "PLN", "4.1", "OBSERVED", "FX", "2026-06-16", "OK", "2026-06-16")));
 
     service.warmValuationMatrices(start, end);
 

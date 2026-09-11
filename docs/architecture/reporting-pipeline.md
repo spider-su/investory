@@ -8,7 +8,7 @@ Exact view definitions and column lists live in Flyway migrations.
 ```text
 broker imports
   -> immutable import_source_files / import_source_rows
-  -> positions / cash_operations / accounts / assets / fx_daily_rates
+  -> positions / cash_operations / accounts / assets / exchange_rates
   -> normalized cash ledger and position valuation
   -> account_daily
   -> portfolio/account reporting views and materialized views

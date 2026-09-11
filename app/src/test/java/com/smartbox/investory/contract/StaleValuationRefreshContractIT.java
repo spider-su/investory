@@ -129,10 +129,10 @@ class StaleValuationRefreshContractIT {
         """);
     statement.execute(
         """
-        INSERT INTO investory.fx_daily_rates(
+        INSERT INTO investory.exchange_rates(
             rate_date, base, to_currency, rate, source, method, source_rate_date)
         VALUES (DATE '2025-11-03', 'USD', 'PLN', 4, 'TEST', 'OBSERVED', DATE '2025-11-03')
-        ON CONFLICT (rate_date, base, to_currency) DO UPDATE
+        ON CONFLICT (rate_date, base, to_currency) WHERE purpose = 'VALUATION' DO UPDATE
         SET rate = EXCLUDED.rate, source = EXCLUDED.source, method = EXCLUDED.method,
             source_rate_date = EXCLUDED.source_rate_date
         """);

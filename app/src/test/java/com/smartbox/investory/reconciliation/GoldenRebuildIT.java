@@ -150,6 +150,7 @@ class GoldenRebuildIT {
       try (InputStream input = resource(matcher.group(1))) {
         content = input.readAllBytes();
       }
+      content = canonicalManifestBytes(matcher.group(1), content);
       byte[] digest = MessageDigest.getInstance("SHA-256").digest(content);
       StringBuilder actualHash = new StringBuilder();
       for (byte value : digest) actualHash.append(String.format("%02x", value));
@@ -158,6 +159,17 @@ class GoldenRebuildIT {
     }
     assertEquals(EXPECTED_MANIFEST_PATHS.size(), entries);
     assertEquals(EXPECTED_MANIFEST_PATHS, manifestPaths(manifest));
+  }
+
+  private static byte[] canonicalManifestBytes(String relativePath, byte[] content) {
+    if (!(relativePath.endsWith(".csv")
+        || relativePath.endsWith(".json")
+        || relativePath.endsWith(".md"))) {
+      return content;
+    }
+    return new String(content, StandardCharsets.UTF_8)
+        .replace("\r\n", "\n")
+        .getBytes(StandardCharsets.UTF_8);
   }
 
   @DisplayName("rebuilds Reduced Real Corpus And Passes Golden Contracts")
@@ -374,7 +386,7 @@ class GoldenRebuildIT {
         BigDecimal actual =
             jdbc.queryForObject(
                 """
-                select rate from investory.fx_daily_rates
+                select rate from investory.exchange_rates
                 where rate_date = ? and base = ? and to_currency = ?
                 """,
                 BigDecimal.class,
@@ -391,93 +403,18 @@ class GoldenRebuildIT {
     currencyRateService.clearValuationResolutionCache();
   }
 
-  private void extendDeterministicFxThroughCurrentDate() {
-    jdbc.update(
-        """
-        with latest as (
-            select distinct on (base, to_currency)
-                   rate_date, base, to_currency, rate
-            from investory.fx_daily_rates
-            where source = 'TEST'
-            order by base, to_currency, rate_date desc, id desc
-        )
-        insert into investory.fx_daily_rates(
-            rate_date, base, to_currency, rate,
-            source, method, source_rate_date, source_reference
-        )
-        select day::date, latest.base, latest.to_currency, latest.rate,
-               'TEST', 'CARRY_FORWARD', latest.rate_date,
-               'GOLDEN:current-coverage:' || latest.base || ':' || latest.to_currency || ':' || day::date
-        from latest
-        cross join lateral generate_series(
-            latest.rate_date + 1,
-            current_date,
-            interval '1 day'
-        ) day
-        on conflict do nothing
-        """);
-  }
-
-  private void deriveMissingGoldenFxDirections() {
-    jdbc.update(
-        """
-        insert into investory.fx_daily_rates(
-            rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
-        select rate_date, 'USD', 'EUR', 1 / rate, 'TEST', 'OBSERVED', source_rate_date,
-               source_reference || ':RECIPROCAL'
-        from investory.fx_daily_rates
-        where source = 'TEST' and base = 'EUR' and to_currency = 'USD'
-        on conflict do nothing
-        """);
-    jdbc.update(
-        """
-        insert into investory.fx_daily_rates(
-            rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
-        select rate_date, 'PLN', 'EUR', 1 / rate, 'TEST', 'OBSERVED', source_rate_date,
-               source_reference || ':RECIPROCAL'
-        from investory.fx_daily_rates
-        where source = 'TEST' and base = 'EUR' and to_currency = 'PLN'
-        on conflict do nothing
-        """);
-    jdbc.update(
-        """
-        insert into investory.fx_daily_rates(
-            rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
-        select day::date, pairs.base, pairs.to_currency, latest.rate, 'TEST', 'CARRY_FORWARD',
-               latest.source_rate_date,
-               'GOLDEN:complete-coverage:' || pairs.base || ':' || pairs.to_currency || ':' || day::date
-        from generate_series(
-                 (select min(rate_date) from investory.fx_daily_rates where source = 'TEST'),
-                 current_date, interval '1 day') day
-        cross join (values ('EUR'::varchar(3), 'USD'::varchar(3)),
-                           ('USD'::varchar(3), 'EUR'::varchar(3)),
-                           ('EUR'::varchar(3), 'PLN'::varchar(3)),
-                           ('PLN'::varchar(3), 'EUR'::varchar(3)),
-                           ('USD'::varchar(3), 'PLN'::varchar(3)),
-                           ('PLN'::varchar(3), 'USD'::varchar(3))) pairs(base, to_currency)
-        cross join lateral (
-            select rate, source_rate_date
-            from investory.fx_daily_rates fx
-            where fx.source = 'TEST' and fx.base = pairs.base and fx.to_currency = pairs.to_currency
-              and fx.rate_date <= day::date
-            order by fx.rate_date desc
-            limit 1) latest
-        on conflict do nothing
-        """);
-  }
-
   private void completeGoldenFxCoverage() {
     jdbc.update(
         """
-        INSERT INTO investory.fx_daily_rates(
+        INSERT INTO investory.exchange_rates(
             rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
         SELECT DATE '2026-04-15', base, to_currency, rate, 'TEST', 'OBSERVED', DATE '2026-04-15',
                'GOLDEN:2026-04-15:' || base || ':' || to_currency
-        FROM investory.fx_daily_rates
+        FROM investory.exchange_rates
         WHERE rate_date = DATE '2026-04-01' AND source = 'DB60_INITIAL'
           AND base IN ('USD', 'EUR', 'PLN') AND to_currency IN ('USD', 'EUR', 'PLN')
           AND base <> to_currency
-        ON CONFLICT (rate_date, base, to_currency) DO UPDATE SET
+        ON CONFLICT (rate_date, base, to_currency) WHERE purpose = 'VALUATION' DO UPDATE SET
             rate = EXCLUDED.rate, source = EXCLUDED.source, method = EXCLUDED.method,
             source_rate_date = EXCLUDED.source_rate_date, source_reference = EXCLUDED.source_reference
         """);
@@ -487,7 +424,7 @@ class GoldenRebuildIT {
     Integer dailyRows =
         jdbc.queryForObject(
             """
-            select count(*) from investory.fx_daily_rates
+            select count(*) from investory.exchange_rates
             where rate_date = ? and base = 'USD' and to_currency = 'PLN'
             """,
             Integer.class,

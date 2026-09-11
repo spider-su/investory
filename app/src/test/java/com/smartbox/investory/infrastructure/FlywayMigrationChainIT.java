@@ -82,10 +82,10 @@ class FlywayMigrationChainIT {
               + "(DATE '2025-01-12','USD',102::numeric),(DATE '2025-01-30','USD',204::numeric)) v(d,currency,price) "
               + "WHERE m.asset_id=88000001");
       statement.execute(
-          "DELETE FROM investory.fx_daily_rates WHERE rate_date BETWEEN DATE '2025-01-01' AND DATE '2025-01-04' "
+          "DELETE FROM investory.exchange_rates WHERE rate_date BETWEEN DATE '2025-01-01' AND DATE '2025-01-04' "
               + "AND ((base = 'USD' AND to_currency = 'PLN') OR (base = 'PLN' AND to_currency = 'USD'))");
       statement.execute(
-          "INSERT INTO investory.fx_daily_rates(rate_date,base,to_currency,rate,source,method,source_rate_date) VALUES "
+          "INSERT INTO investory.exchange_rates(rate_date,base,to_currency,rate,source,method,source_rate_date) VALUES "
               + "('2025-01-01','USD','PLN',1,'TEST','OBSERVED','2025-01-01'),"
               + "('2025-01-02','USD','PLN',1.04,'TEST','OBSERVED','2025-01-02'),"
               + "('2025-01-03','USD','PLN',1.50,'TEST','OBSERVED','2025-01-03'),"

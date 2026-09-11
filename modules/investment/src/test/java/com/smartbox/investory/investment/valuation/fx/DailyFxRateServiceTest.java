@@ -6,8 +6,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxHistoryQuote;
-import com.smartbox.investory.investment.valuation.fx.persistence.DailyFxRateEntity;
-import com.smartbox.investory.investment.valuation.fx.persistence.DailyFxRateRepository;
+import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateEntity;
+import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -21,14 +21,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class DailyFxRateServiceTest {
-  @Mock private DailyFxRateRepository repository;
+  @Mock private CurrencyRateRepository repository;
 
   @Test
-  void materializesAllDirectedPairsAndCarriesForwardMissingCalendarDays() {
+  void storesOnlyObservedDatesAndAllDirectedPairs() {
     LocalDate observed = LocalDate.of(2024, 9, 2);
     LocalDate preceding = observed.minusDays(1);
     LocalDate following = observed.plusDays(1);
-    when(repository.findByRateDateAndBaseAndToCurrency(any(), any(), any()))
+    when(repository.findByRateDateAndBaseAndToCurrencyAndPurpose(any(), any(), any(), any()))
         .thenReturn(Optional.empty());
 
     new DailyFxRateService(repository)
@@ -41,35 +41,23 @@ class DailyFxRateServiceTest {
             preceding,
             following);
 
-    ArgumentCaptor<DailyFxRateEntity> captor = ArgumentCaptor.forClass(DailyFxRateEntity.class);
-    verify(repository, org.mockito.Mockito.times(18)).save(captor.capture());
-    assertEquals(
-        6, captor.getAllValues().stream().filter(r -> r.getRateDate().equals(preceding)).count());
+    ArgumentCaptor<CurrencyRateEntity> captor = ArgumentCaptor.forClass(CurrencyRateEntity.class);
+    verify(repository, org.mockito.Mockito.times(6)).save(captor.capture());
     assertEquals(
         6, captor.getAllValues().stream().filter(r -> r.getRateDate().equals(observed)).count());
     assertEquals(
-        6, captor.getAllValues().stream().filter(r -> r.getRateDate().equals(following)).count());
+        0, captor.getAllValues().stream().filter(r -> r.getRateDate().equals(preceding)).count());
     assertEquals(
-        "CARRY_FORWARD",
-        captor.getAllValues().stream()
-            .filter(r -> r.getRateDate().equals(preceding))
-            .findFirst()
-            .orElseThrow()
-            .getMethod());
-    assertEquals(
-        "CARRY_FORWARD",
-        captor.getAllValues().stream()
-            .filter(r -> r.getRateDate().equals(following))
-            .findFirst()
-            .orElseThrow()
-            .getMethod());
+        0, captor.getAllValues().stream().filter(r -> r.getRateDate().equals(following)).count());
+    assertEquals("VALUATION", captor.getAllValues().getFirst().getPurpose());
+    assertEquals("OBSERVED", captor.getAllValues().getFirst().getMethod());
   }
 
   @Test
   void startsInitialLoadAtSeptemberFirstAndUsesShortOverlapAfterwards() {
     DailyFxRateService service = new DailyFxRateService(repository);
     assertEquals(LocalDate.of(2024, 9, 1), service.defaultStart());
-    when(repository.count()).thenReturn(0L, 18L);
+    when(repository.countByPurpose("VALUATION")).thenReturn(0L, 18L);
     assertEquals(LocalDate.of(2024, 9, 1), service.refreshStart(LocalDate.of(2024, 9, 3)));
     assertEquals(LocalDate.of(2026, 9, 1), service.refreshStart(LocalDate.of(2026, 9, 8)));
   }

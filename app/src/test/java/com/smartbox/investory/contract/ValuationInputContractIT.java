@@ -28,7 +28,7 @@ class ValuationInputContractIT {
     DATABASE.close();
   }
 
-  @DisplayName("fx Resolver Does Not Fall Back To Exchange Rates")
+  @DisplayName("valuation Resolver Does Not Fall Back To Execution Observations")
   @Test
   void fxResolverDoesNotFallBackToExchangeRates() throws SQLException {
     try (Connection connection = connection();
@@ -39,9 +39,9 @@ class ValuationInputContractIT {
               + "AND ((base = 'EUR' AND to_currency = 'USD') "
               + "OR (base = 'USD' AND to_currency = 'EUR'))");
       statement.execute(
-          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) VALUES "
-              + "(DATE '2098-01-15', 'EUR', 'USD', 1.10, 'TEST', 'MARKET_DAILY'), "
-              + "(DATE '2098-01-15', 'EUR', 'USD', 1.20, 'TEST', 'HISTORICAL_MONTHLY')");
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, purpose, source, method, observed_at, source_reference) VALUES "
+              + "(DATE '2098-01-15', 'EUR', 'USD', 1.10, 'EXECUTION', 'XTB', 'XTB_EXECUTION', now(), 'valuation-isolation-xtb'), "
+              + "(DATE '2098-01-15', 'EUR', 'USD', 1.20, 'EXECUTION', 'IBKR', 'IBKR_EXECUTION', now(), 'valuation-isolation-ibkr')");
 
       try (ResultSet result =
           statement.executeQuery(
@@ -101,7 +101,7 @@ class ValuationInputContractIT {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       statement.execute(
-          "INSERT INTO investory.fx_daily_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
               + "(DATE '2099-01-05', 'EUR', 'USD', 1.10, 'TEST', 'OBSERVED', DATE '2099-01-05'), "
               + "(DATE '2099-01-10', 'EUR', 'USD', 1.30, 'TEST', 'OBSERVED', DATE '2099-01-10')");
 
@@ -123,9 +123,9 @@ class ValuationInputContractIT {
       }
 
       statement.execute(
-          "INSERT INTO investory.fx_daily_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
               + "(DATE '2099-01-12', 'EUR', 'USD', 1.15, 'TEST', 'OBSERVED', DATE '2099-01-12'), "
-              + "(DATE '2099-01-10', 'EUR', 'PLN', 4.10, 'NBP', 'CARRY_FORWARD', DATE '2099-01-05')");
+              + "(DATE '2099-01-05', 'EUR', 'PLN', 4.10, 'NBP', 'OBSERVED', DATE '2099-01-05')");
       try (ResultSet result =
           statement.executeQuery(
               "SELECT rate_method, conversion_status FROM investory.resolve_fx_rate(DATE '2099-01-14', 'EUR', 'USD')")) {
@@ -154,8 +154,8 @@ class ValuationInputContractIT {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       statement.execute(
-          "INSERT INTO investory.fx_daily_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
-              + "(DATE '2199-01-01', 'PLN', 'EUR', 0.20833333, 'TEST', 'CARRY_FORWARD', DATE '2199-01-01')");
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
+              + "(DATE '2199-01-01', 'PLN', 'EUR', 0.20833333, 'TEST', 'OBSERVED', DATE '2199-01-01')");
 
       try (ResultSet result =
           statement.executeQuery(
@@ -167,7 +167,7 @@ class ValuationInputContractIT {
         assertEquals("CARRY_FORWARD", result.getString("conversion_status"));
       } finally {
         statement.execute(
-            "DELETE FROM investory.fx_daily_rates WHERE rate_date = DATE '2199-01-01'");
+            "DELETE FROM investory.exchange_rates WHERE rate_date = DATE '2199-01-01'");
       }
     }
   }

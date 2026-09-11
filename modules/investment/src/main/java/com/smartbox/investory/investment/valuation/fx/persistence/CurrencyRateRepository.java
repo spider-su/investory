@@ -74,6 +74,11 @@ public interface CurrencyRateRepository extends JpaRepository<CurrencyRateEntity
   Optional<CurrencyRateEntity> findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
       LocalDate rateDate, CurrencyType base, CurrencyType toCurrency, String source, String method);
 
+  long countByPurpose(String purpose);
+
+  Optional<CurrencyRateEntity> findByRateDateAndBaseAndToCurrencyAndPurpose(
+      LocalDate rateDate, CurrencyType base, CurrencyType toCurrency, String purpose);
+
   Optional<CurrencyRateEntity>
       findByRateDateAndBaseAndToCurrencyAndSourceAndMethodAndSourceReference(
           LocalDate rateDate,
@@ -88,7 +93,8 @@ public interface CurrencyRateRepository extends JpaRepository<CurrencyRateEntity
           """
           SELECT *
           FROM investory.exchange_rates
-          WHERE method IN ('XTB_EXECUTION', 'IBKR_EXECUTION')
+          WHERE purpose = 'EXECUTION'
+            AND method IN ('XTB_EXECUTION', 'IBKR_EXECUTION')
             AND rate_date = :transactionDate
             AND observed_at <= :transactionTime
             AND ((base = :sourceCurrency AND to_currency = :targetCurrency)

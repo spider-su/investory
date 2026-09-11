@@ -149,6 +149,7 @@ class BaselineReadinessContractIT {
             "materialized_view_refresh_history",
             "reporting_materialized_view_dependencies",
             "reporting_materialized_view_refresh_status",
+            "fx_daily_rates",
             "portfolio_daily_mv",
             "account_monthly",
             "portfolio_monthly",
@@ -201,13 +202,13 @@ class BaselineReadinessContractIT {
         Statement statement = connection.createStatement()) {
       statement.execute("DELETE FROM investory.exchange_rates");
       statement.execute(
-          "DELETE FROM investory.fx_daily_rates WHERE rate_date >= DATE '2025-01-01'");
+          "DELETE FROM investory.exchange_rates WHERE rate_date >= DATE '2025-01-01'");
       statement.execute(
-          "INSERT INTO investory.fx_daily_rates "
+          "INSERT INTO investory.exchange_rates "
               + "(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
               + "(DATE '2025-01-15', 'USD', 'EUR', 1.25, 'TEST', 'OBSERVED', DATE '2025-01-15'), "
               + "(DATE '2025-01-15', 'EUR', 'USD', 0.80, 'TEST', 'INTERPOLATED', DATE '2025-01-14'), "
-              + "(DATE '2025-01-15', 'USD', 'PLN', 4.00, 'TEST', 'CARRY_FORWARD', DATE '2025-01-14')");
+              + "(DATE '2025-01-14', 'USD', 'PLN', 4.00, 'TEST', 'OBSERVED', DATE '2025-01-14')");
 
       assertEquals(
           "1.00000000|SAME_CURRENCY", resolverValue(statement, "2025-01-15", "USD", "USD"));
@@ -215,25 +216,34 @@ class BaselineReadinessContractIT {
       assertEquals("0.80000000|ESTIMATED", resolverValue(statement, "2025-01-15", "EUR", "USD"));
       assertEquals(
           "4.00000000|CARRY_FORWARD", resolverValue(statement, "2025-01-15", "USD", "PLN"));
+      assertEquals(
+          "4.00000000|CARRY_FORWARD", resolverValue(statement, "2030-01-15", "USD", "PLN"));
 
       statement.execute(
           "INSERT INTO investory.exchange_rates "
-              + "(rate_date, base, to_currency, rate, source, method, observed_at) VALUES "
-              + "(DATE '2025-01-15', 'EUR', 'PLN', 99, 'TEST', 'XTB_EXECUTION', now())");
+              + "(rate_date, base, to_currency, rate, purpose, source, method, observed_at) VALUES "
+              + "(DATE '2025-01-15', 'EUR', 'PLN', 99, 'EXECUTION', 'TEST', 'XTB_EXECUTION', now())");
       assertEquals("null|MISSING_RATE", resolverValue(statement, "2025-01-15", "EUR", "PLN"));
       assertEquals("null|MISSING_RATE", resolverValue(statement, "2025-01-16", "EUR", "PLN"));
 
       statement.execute(
-          "INSERT INTO investory.fx_daily_rates "
+          "INSERT INTO investory.exchange_rates "
               + "(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
               + "(DATE '2025-01-16', 'EUR', 'PLN', 4.50, 'DAILY', 'OBSERVED', DATE '2025-01-16')");
       assertEquals("4.50000000|OK", resolverValue(statement, "2025-01-16", "EUR", "PLN"));
       assertEquals("0.22222222|OK", resolverValue(statement, "2025-01-16", "PLN", "EUR"));
+      assertEquals(
+          "4.50000000|CARRY_FORWARD",
+          singleString(
+              statement,
+              "SELECT round(fx_rate_to_target, 8) || '|' || conversion_status "
+                  + "FROM investory.resolve_transaction_fx_rate("
+                  + "TIMESTAMPTZ '2025-01-17 12:00:00+01', 'EUR', 'PLN', 'TRANSACTION')"));
       statement.execute(
           "INSERT INTO investory.exchange_rates "
-              + "(rate_date, base, to_currency, rate, source, method, observed_at) VALUES "
-              + "(CURRENT_DATE, 'USD', 'EUR', 0.90, 'XTB', 'XTB_EXECUTION', now()), "
-              + "(CURRENT_DATE, 'PLN', 'EUR', 4.50, 'IBKR', 'IBKR_EXECUTION', now())");
+              + "(rate_date, base, to_currency, rate, purpose, source, method, observed_at) VALUES "
+              + "(CURRENT_DATE, 'USD', 'EUR', 0.90, 'EXECUTION', 'XTB', 'XTB_EXECUTION', now()), "
+              + "(CURRENT_DATE, 'PLN', 'EUR', 4.50, 'EXECUTION', 'IBKR', 'IBKR_EXECUTION', now())");
       assertEquals(
           "0.90000000|OK",
           singleString(
@@ -250,6 +260,10 @@ class BaselineReadinessContractIT {
           singleBoolean(
               statement,
               "SELECT to_regprocedure('investory.resolve_fx_rate_legacy(date,character varying,character varying)') IS NULL"));
+      assertTrue(
+          singleBoolean(
+              statement,
+              "SELECT to_regprocedure('investory.resolve_fx_rate_compat_oid(date,character varying,character varying)') IS NULL"));
     }
   }
 
@@ -310,10 +324,10 @@ class BaselineReadinessContractIT {
               + "(id, external_account_id, currency, provider, name, owner, portfolio_id) "
               + "VALUES (-800002, 'estimated-fx-account', 'EUR', 'XTB', 'Estimated FX Test', 'Test', -800002)");
       statement.execute(
-          "INSERT INTO investory.fx_daily_rates "
+          "INSERT INTO investory.exchange_rates "
               + "(rate_date, base, to_currency, rate, source, method, source_rate_date) VALUES "
               + "(DATE '2025-01-15', 'EUR', 'USD', 3, 'TEST', 'INTERPOLATED', DATE '2025-01-15') "
-              + "ON CONFLICT (rate_date, base, to_currency) DO UPDATE SET "
+              + "ON CONFLICT (rate_date, base, to_currency) WHERE purpose = 'VALUATION' DO UPDATE SET "
               + "rate = EXCLUDED.rate, source = EXCLUDED.source, method = EXCLUDED.method, "
               + "source_rate_date = EXCLUDED.source_rate_date");
       statement.execute(

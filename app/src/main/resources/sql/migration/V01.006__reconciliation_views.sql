@@ -2441,7 +2441,7 @@ COMMENT ON VIEW investory.recon_v_portfolio_data_quality_issue IS
 CREATE OR REPLACE VIEW investory.recon_v_portfolio_data_quality_refresh AS
 SELECT (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS broker_imported_at,
        (SELECT MAX(price_updated_at) FROM investory.assets) AS prices_updated_at,
-       (SELECT MAX(imported_at) FROM investory.exchange_rates) AS fx_updated_at,
+       (SELECT MAX(imported_at) FROM investory.exchange_rates WHERE purpose = 'VALUATION') AS fx_updated_at,
        (SELECT MAX(updated_at) FROM investory.account_daily) AS projections_rebuilt_at,
        (SELECT MAX(updated_at) FROM investory.account_daily) AS reporting_refreshed_at;
 
@@ -2932,6 +2932,7 @@ WITH pairs AS (
         er.method,
         er.rate
     FROM investory.exchange_rates er
+    WHERE er.purpose = 'VALUATION'
     ORDER BY er.base, er.to_currency, er.rate_date DESC, er.imported_at DESC
 ), resolved AS (
     SELECT p.source_currency, p.target_currency,
@@ -2954,7 +2955,7 @@ SELECT r.source_currency,
        l.source AS latest_stored_source,
        l.method AS latest_stored_method,
        (SELECT count(*) FROM investory.exchange_rates e
-        WHERE e.method = 'INTERPOLATED'
+        WHERE e.purpose = 'VALUATION' AND e.method = 'INTERPOLATED'
           AND e.base::varchar(3) = r.source_currency
           AND e.to_currency::varchar(3) = r.target_currency) AS interpolated_observation_count,
        (SELECT count(*) FROM investory.exchange_rates e
@@ -2974,12 +2975,12 @@ WITH jumps AS (
     SELECT base, to_currency, rate_date, rate,
            lag(rate) OVER (PARTITION BY base, to_currency ORDER BY rate_date) AS previous_rate
     FROM investory.exchange_rates
-    WHERE method IN ('MARKET_DAILY', 'IBKR_DAILY_REFERENCE')
+    WHERE purpose = 'VALUATION'
 )
 SELECT 'INVALID_RATE'::varchar(32) AS issue_code, base::varchar(3), to_currency::varchar(3), rate_date,
        rate::numeric, 'Rate must be positive'::text AS details
 FROM investory.exchange_rates
-WHERE rate <= 0
+WHERE purpose = 'VALUATION' AND rate <= 0
 UNION ALL
 SELECT 'FX_SPIKE', base::varchar(3), to_currency::varchar(3), rate_date, rate,
        'Daily/reference move exceeds 5%'::text
@@ -2992,9 +2993,9 @@ FROM (VALUES ('USD'::varchar(3), 'EUR'::varchar(3)), ('USD', 'PLN'), ('EUR', 'US
 WHERE CURRENT_DATE >= (SELECT config_value::date FROM investory.fx_configuration WHERE config_key = 'daily_history_start')
   AND NOT EXISTS (
       SELECT 1 FROM investory.exchange_rates er
-      WHERE er.base = pairs.base AND er.to_currency = pairs.to_currency
-        AND er.method IN ('MARKET_DAILY', 'IBKR_DAILY_REFERENCE')
-        AND er.rate_date >= CURRENT_DATE - (SELECT config_value::integer FROM investory.fx_configuration WHERE config_key = 'max_age_days'));
+      WHERE er.purpose = 'VALUATION'
+        AND er.base = pairs.base AND er.to_currency = pairs.to_currency
+        AND er.rate_date <= CURRENT_DATE);
 
 CREATE OR REPLACE VIEW investory.recon_v_fx_consistency AS
 SELECT 'RECIPROCAL_MISMATCH'::varchar(32) AS issue_code,
@@ -3010,7 +3011,9 @@ JOIN investory.exchange_rates inverse_rate
  AND inverse_rate.to_currency = er.base
  AND inverse_rate.source = er.source
  AND inverse_rate.method = er.method
-WHERE abs(er.rate * inverse_rate.rate - 1) > 0.0001
+WHERE er.purpose = 'VALUATION'
+  AND inverse_rate.purpose = 'VALUATION'
+  AND abs(er.rate * inverse_rate.rate - 1) > 0.0001
 UNION ALL
 SELECT 'CROSS_RATE_MISMATCH', eur_usd.base, eur_usd.to_currency, eur_usd.rate_date,
        abs(eur_usd.rate * usd_pln.rate - eur_pln.rate),
@@ -3027,6 +3030,9 @@ JOIN investory.exchange_rates eur_pln
  AND eur_pln.method = eur_usd.method
  AND eur_pln.base = 'EUR' AND eur_pln.to_currency = 'PLN'
 WHERE eur_usd.base = 'EUR' AND eur_usd.to_currency = 'USD'
+  AND eur_usd.purpose = 'VALUATION'
+  AND usd_pln.purpose = 'VALUATION'
+  AND eur_pln.purpose = 'VALUATION'
   AND abs(eur_usd.rate * usd_pln.rate - eur_pln.rate) > 0.01;
 
 COMMENT ON VIEW investory.recon_v_fx_consistency IS
@@ -3302,7 +3308,7 @@ states AS (
            cashq.unclassified_cash_operation_count,
            (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS latest_broker_reconciliation_at,
            (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS latest_import_at,
-           pq.latest_price_date, (SELECT MAX(rate_date) FROM investory.exchange_rates) AS latest_fx_date,
+           pq.latest_price_date, (SELECT MAX(rate_date) FROM investory.exchange_rates WHERE purpose = 'VALUATION') AS latest_fx_date,
            (SELECT MAX(updated_at) FROM investory.account_daily) AS latest_reporting_refresh_at,
            s.review_accounts
     FROM active_accounts aa CROSS JOIN states s CROSS JOIN pq CROSS JOIN cq CROSS JOIN cashq
@@ -4352,115 +4358,6 @@ BEGIN
     END LOOP;
 END
 $$;
--- FX valuation is now backed exclusively by the canonical daily table.
--- The earlier migration created two function OIDs: older views depend on the
--- first one, while newer views depend on the second one. Rename both before
--- replacing their bodies so deployed view dependencies remain valid.
-ALTER FUNCTION investory.resolve_fx_rate(date, varchar, varchar)
-    RENAME TO resolve_fx_rate_compat_oid;
-
-ALTER FUNCTION investory.resolve_fx_rate_legacy(date, varchar, varchar)
-    RENAME TO resolve_fx_rate;
-
-CREATE OR REPLACE FUNCTION investory.resolve_fx_rate(
-    p_valuation_date date,
-    p_source_currency varchar(3),
-    p_target_currency varchar(3)
-) RETURNS TABLE (
-    source_currency varchar(3), target_currency varchar(3), fx_rate_to_target numeric,
-    source varchar(64), rate_method varchar(32), rate_source varchar(32),
-    source_rate_date date, age_days integer, conversion_status varchar(32)
-) LANGUAGE sql STABLE AS $$
-SELECT p_source_currency,
-       p_target_currency,
-       CASE WHEN p_source_currency = p_target_currency THEN 1 ELSE d.rate END,
-       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE d.source END,
-       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE d.method END,
-       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE d.source END,
-       CASE WHEN p_source_currency = p_target_currency THEN p_valuation_date ELSE d.source_rate_date END,
-       CASE WHEN p_source_currency = p_target_currency THEN 0
-            WHEN d.source_rate_date IS NULL THEN NULL
-            ELSE (p_valuation_date - d.source_rate_date)::integer END,
-       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
-            WHEN d.rate IS NULL THEN 'MISSING_RATE'
-            WHEN d.method = 'OBSERVED' THEN 'OK'
-            WHEN d.method = 'INTERPOLATED' THEN 'ESTIMATED'
-            ELSE d.method END
-FROM (SELECT 1) sentinel
-LEFT JOIN LATERAL (
-    SELECT rate, source, method, source_rate_date
-    FROM investory.fx_daily_rates
-    WHERE rate_date <= p_valuation_date
-      AND base = p_source_currency
-      AND to_currency = p_target_currency
-    ORDER BY rate_date DESC
-    LIMIT 1
-) d ON true;
-$$;
-
--- Views created after the original rename retain the other function OID.
--- Keep that dependency, but make it the same canonical implementation.
-CREATE OR REPLACE FUNCTION investory.resolve_fx_rate_compat_oid(
-    p_valuation_date date,
-    p_source_currency varchar(3),
-    p_target_currency varchar(3)
-) RETURNS TABLE (
-    source_currency varchar(3), target_currency varchar(3), fx_rate_to_target numeric,
-    source varchar(64), rate_method varchar(32), rate_source varchar(32),
-    source_rate_date date, age_days integer, conversion_status varchar(32)
-) LANGUAGE sql STABLE AS $$
-    SELECT * FROM investory.resolve_fx_rate(
-        p_valuation_date, p_source_currency, p_target_currency)
-$$;
-
-COMMENT ON FUNCTION investory.resolve_fx_rate(date, varchar, varchar) IS
-    'Canonical valuation FX resolver. Uses the latest valid daily row at or before the valuation date and reports carry-forward age.';
-
--- Rebind the portfolio wrapper after the resolver OID swap above. Its earlier SQL body kept the
--- pre-daily resolver OID on databases migrated through the legacy chain.
-CREATE OR REPLACE FUNCTION investory.resolve_portfolio_fx_rate(
-    p_portfolio_id bigint,
-    p_valuation_date date,
-    p_source_currency varchar(3)
-) RETURNS TABLE (
-    portfolio_id bigint, valuation_date date, source_currency varchar(3), base_currency varchar(3),
-    fx_rate_to_base numeric, source varchar(64), rate_method varchar(32), rate_source varchar(32),
-    source_rate_date date, age_days integer, conversion_status varchar(32)
-) LANGUAGE sql STABLE AS $$
-SELECT p.id, p_valuation_date, resolved.source_currency, p.base_currency::varchar(3),
-       resolved.fx_rate_to_target, resolved.source, resolved.rate_method, resolved.rate_source,
-       resolved.source_rate_date, resolved.age_days, resolved.conversion_status
-FROM investory.portfolios p
-CROSS JOIN LATERAL investory.resolve_fx_rate(
-    p_valuation_date, p_source_currency, p.base_currency::varchar(3)) resolved
-WHERE p.id = p_portfolio_id
-$$;
-
-CREATE OR REPLACE FUNCTION investory.fx_daily_coverage_supported(p_start_date date)
-RETURNS boolean LANGUAGE sql STABLE AS $$
-    SELECT NOT EXISTS (
-        SELECT 1
-        FROM investory.currencies c
-        WHERE NOT EXISTS (
-            SELECT 1
-            FROM investory.fx_daily_rates fx
-            WHERE fx.rate_date = p_start_date
-              AND fx.rate > 0
-              AND (fx.base = c.id OR fx.to_currency = c.id)
-        )
-    )
-$$;
-
--- Only execution observations remain in exchange_rates. These are the
--- supported methods proven by CurrencyRateService and its repository query.
-DELETE FROM investory.exchange_rates
-WHERE method IN (
-    'MARKET_DAILY', 'IBKR_DAILY_REFERENCE', 'HISTORICAL_MONTHLY',
-    'INTERPOLATED', 'CARRY_FORWARD');
-
-COMMENT ON TABLE investory.exchange_rates IS
-    'Execution FX observations only. Neutral historical valuation FX is stored in fx_daily_rates.';
-
 CREATE OR REPLACE VIEW investory.recon_v_fx AS
 WITH pairs AS (
     SELECT c1.id::varchar(3) AS source_currency, c2.id::varchar(3) AS target_currency
@@ -4470,7 +4367,8 @@ WITH pairs AS (
     SELECT DISTINCT ON (fx.base, fx.to_currency)
         fx.base::varchar(3) AS source_currency, fx.to_currency::varchar(3) AS target_currency,
         fx.rate_date, fx.source, fx.method, fx.rate
-    FROM investory.fx_daily_rates fx
+    FROM investory.exchange_rates fx
+    WHERE fx.purpose = 'VALUATION'
     ORDER BY fx.base, fx.to_currency, fx.rate_date DESC, fx.source_reference DESC NULLS LAST
 ), resolved AS (
     SELECT p.source_currency, p.target_currency,
@@ -4496,7 +4394,8 @@ CREATE OR REPLACE VIEW investory.recon_v_fx_data_quality AS
 WITH jumps AS (
     SELECT base, to_currency, rate_date, rate,
        lag(rate) OVER (PARTITION BY base, to_currency ORDER BY rate_date) AS previous_rate
-    FROM investory.fx_daily_rates
+    FROM investory.exchange_rates
+    WHERE purpose = 'VALUATION'
 )
 SELECT 'FX_SPIKE'::varchar AS issue_code, base::varchar(3), to_currency::varchar(3),
        rate_date, rate, 'Daily neutral move exceeds 5%'::text AS details
@@ -4504,13 +4403,14 @@ FROM jumps
 WHERE previous_rate IS NOT NULL AND abs(rate / previous_rate - 1) > 0.05
 UNION ALL
 SELECT 'DAILY_COVERAGE_GAP'::varchar, pairs.base::varchar(3), pairs.to_currency::varchar(3), CURRENT_DATE, NULL,
-       'Missing canonical daily neutral FX row'::text
+       'No canonical neutral FX observation available on or before today'::text
 FROM (VALUES ('USD'::varchar(3), 'EUR'::varchar(3)), ('USD','PLN'), ('EUR','USD'),
              ('EUR','PLN'), ('PLN','USD'), ('PLN','EUR')) pairs(base, to_currency)
 WHERE CURRENT_DATE >= (SELECT config_value::date FROM investory.fx_configuration
                         WHERE config_key = 'daily_history_start')
-  AND NOT EXISTS (SELECT 1 FROM investory.fx_daily_rates fx
-                  WHERE fx.rate_date = CURRENT_DATE
+  AND NOT EXISTS (SELECT 1 FROM investory.exchange_rates fx
+                  WHERE fx.rate_date <= CURRENT_DATE
+                    AND fx.purpose = 'VALUATION'
                     AND fx.base = pairs.base AND fx.to_currency = pairs.to_currency);
 
 CREATE OR REPLACE VIEW investory.recon_v_fx_consistency AS
@@ -4518,17 +4418,19 @@ SELECT 'RECIPROCAL_MISMATCH'::varchar AS issue_code,
        fx.base::varchar(3) AS base, fx.to_currency::varchar(3), fx.rate_date,
        abs(fx.rate * inverse_fx.rate - 1) AS deviation,
        'Direct and reciprocal observations differ'::text AS details
-FROM investory.fx_daily_rates fx
-JOIN investory.fx_daily_rates inverse_fx
+FROM investory.exchange_rates fx
+JOIN investory.exchange_rates inverse_fx
   ON inverse_fx.rate_date = fx.rate_date AND inverse_fx.base = fx.to_currency
  AND inverse_fx.to_currency = fx.base
-WHERE abs(fx.rate * inverse_fx.rate - 1) > 0.0001;
+WHERE fx.purpose = 'VALUATION'
+  AND inverse_fx.purpose = 'VALUATION'
+  AND abs(fx.rate * inverse_fx.rate - 1) > 0.0001;
 
 CREATE OR REPLACE VIEW investory.recon_v_portfolio_data_quality_refresh AS
 SELECT (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS broker_imported_at,
        (SELECT MAX(price_updated_at) FROM investory.assets) AS prices_updated_at,
        (SELECT MAX(rate_date)::timestamp AT TIME ZONE 'UTC'
-        FROM investory.fx_daily_rates) AS fx_updated_at,
+        FROM investory.exchange_rates WHERE purpose = 'VALUATION') AS fx_updated_at,
        (SELECT MAX(updated_at) FROM investory.account_daily) AS projections_rebuilt_at,
        (SELECT MAX(updated_at) FROM investory.account_daily) AS reporting_refreshed_at;
 SET search_path TO investory, public;
@@ -4573,7 +4475,8 @@ WITH observations AS (
            LAG(fx.rate_date) OVER w AS previous_date,
            LEAD(fx.rate) OVER w AS next_rate,
            LEAD(fx.rate_date) OVER w AS next_date
-    FROM investory.fx_daily_rates fx
+    FROM investory.exchange_rates fx
+    WHERE fx.purpose = 'VALUATION'
     WINDOW w AS (PARTITION BY fx.base, fx.to_currency ORDER BY fx.rate_date)
 ), params AS (
     SELECT investory.reconciliation_parameter('reconciliation_temporal_short_gap_days')::integer AS short_gap,
@@ -4651,13 +4554,15 @@ SELECT 'ERROR', 'FX_RECIPROCAL_INCONSISTENCY', 'FX', NULL,
        ('reciprocal product=' || (fx.rate * inverse.rate)
         || ', tolerance=' || p.reciprocal_tolerance)::text,
        fx.source AS source, fx.method AS source_symbol, NULL, NULL, NULL
-FROM investory.fx_daily_rates fx
-JOIN investory.fx_daily_rates inverse
+FROM investory.exchange_rates fx
+JOIN investory.exchange_rates inverse
   ON inverse.rate_date = fx.rate_date
  AND inverse.base = fx.to_currency
  AND inverse.to_currency = fx.base
 CROSS JOIN params p
-WHERE ABS(fx.rate * inverse.rate - 1) > p.reciprocal_tolerance;
+WHERE fx.purpose = 'VALUATION'
+  AND inverse.purpose = 'VALUATION'
+  AND ABS(fx.rate * inverse.rate - 1) > p.reciprocal_tolerance;
 
 CREATE OR REPLACE VIEW investory.recon_v_price_temporal_anomaly (
     severity, issue_code, entity_type, entity_id, entity_key, event_date, previous_date,

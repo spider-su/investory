@@ -273,6 +273,7 @@ public class CurrencyRateService implements CurrencyConversion {
     observation.setBase(base);
     observation.setToCurrency(target);
     observation.setRate(rate);
+    observation.setPurpose("EXECUTION");
     observation.setSource(source);
     observation.setMethod(method);
     observation.setObservedAt(observedAt);
@@ -303,7 +304,10 @@ public class CurrencyRateService implements CurrencyConversion {
             sourceCurrency.name(),
             targetCurrency.name());
     if (observation.isEmpty()) {
-      return missingTransactionRate(transactionTime);
+      return resolveRate(
+          sourceCurrency,
+          targetCurrency,
+          transactionTime.withZoneSameInstant(TRANSACTION_ZONE).toLocalDate());
     }
     CurrencyRateEntity rate = observation.get();
     boolean direct = rate.getBase() == sourceCurrency && rate.getToCurrency() == targetCurrency;

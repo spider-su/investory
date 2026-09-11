@@ -10,25 +10,29 @@ Canonical conversion direction used by SQL and Java:
 Resolution order:
 
 1. same-currency (`rate = 1`),
-2. exact `(rate_date, base, to_currency)` row in `fx_daily_rates`.
+2. latest `VALUATION` observation in `exchange_rates` on or before the requested date,
+3. inverse of the latest such observation when only the reverse direction is stored.
 
-There is no valuation fallback outside `fx_daily_rates`. An absent row returns `MISSING_RATE` with
-a null rate; execution FX cannot rescue valuation.
+An exact-date observation returns `OK` or `ESTIMATED`. An earlier observation returns
+`CARRY_FORWARD`, retaining `source_rate_date` and `age_days`. There is no age cutoff. If no earlier
+valuation observation exists, resolution returns `MISSING_RATE`; execution FX cannot rescue
+valuation.
 
 `VALUATION` and `TRANSACTION` are separate resolver purposes. Valuation uses neutral
 market/reference rates. Transaction accounting uses an exact `XTB_EXECUTION` or
-`IBKR_EXECUTION` observation when the broker supplied one; execution spreads are not
-used as neutral portfolio valuation rates.
+`IBKR_EXECUTION` observation when the broker supplied one, then falls back to the same latest
+valuation observation and `CARRY_FORWARD` policy. Execution spreads are not used as neutral
+portfolio valuation rates.
 
 ## FX data sources and refresh
 
-Neutral daily FX data is fetched through the configured NBP integration and stored only in
-`fx_daily_rates`. The updater requests USD -> EUR and USD -> PLN, validates the complete response,
-and derives the other directed pairs through USD. The provider's date is stored as `rate_date`.
+All FX observations are stored in `exchange_rates` with one `rate` and an explicit `purpose`:
 
-`exchange_rates` is execution-only: it stores `XTB_EXECUTION` and `IBKR_EXECUTION` observations.
-Those rows retain broker timing and spread semantics for transaction accounting and are never used
-for neutral portfolio valuation.
+- `VALUATION` contains neutral market observations. The updater requests USD -> EUR and USD -> PLN,
+  validates the complete response, and derives the other directed pairs through USD. Only actual
+  provider dates are stored; carry-forward is resolved, never materialized as copied rows.
+- `EXECUTION` contains `XTB_EXECUTION` and `IBKR_EXECUTION` observations. These rows retain broker
+  timing and spread semantics for transaction accounting and are never used for portfolio valuation.
 
 Before persistence, a neutral provider response must be non-empty and contain all
 required quotes. Each quote must have a USD base, a non-USD target, positive finite
@@ -50,26 +54,25 @@ Ownership and execution:
 - Java `CurrencyRateService` explicitly loads the resolved valuation matrix through
   `CurrencyRateRepository` once per valuation date, caches it, converts with
   `BigDecimal`, and throws `FxRateUnavailableException` when the result is not usable.
-  Transaction execution rates are resolved separately from execution observations.
-- FX observation refresh is application-driven. The updater persists neutral observations through
-  `DailyFxRateRepository`; execution observations use `CurrencyRateRepository`.
+  Transaction rates prefer execution observations and fall back to the valuation resolver.
+- FX observation refresh is application-driven. Both purposes use `CurrencyRateRepository`; the
+  service writes the purpose explicitly.
 
 Statuses:
 
 - `OK`, `ESTIMATED`, `SAME_CURRENCY`, and `CARRY_FORWARD` are usable, with estimated or
   carried-forward provenance visible,
-- when the requested date has no canonical daily row, the result is `MISSING_RATE`,
+- when the requested date has no valuation observation on or before it, the result is `MISSING_RATE`,
 - `MISSING_RATE` is not silently accepted.
 
-`investory.fx_configuration.daily_history_start` remains the refresh coverage boundary, but it no longer
-changes resolver source selection. Missing exact daily coverage is always `MISSING_RATE`; it is never
-hidden by an old monthly checkpoint.
+`investory.fx_configuration.daily_history_start` remains the refresh coverage boundary, but it does
+not limit resolver carry-forward or source selection.
 
 The database value `investory.fx_configuration.daily_history_start` is the authoritative
 runtime value for this boundary; application code must update it through the repository
 contract, after the database coverage check succeeds. The database function
 `fx_status_usable(status)` is defined in `V01.001__functions.sql` and is the SQL-side
-status contract; Java mirrors the same three usable statuses in
+status contract; Java mirrors the same usable statuses in
 `CurrencyRateService.isUsableStatus(...)`.
 Execution observations are transaction-only. Their `rate_date` must equal the
 transaction's Europe/Warsaw local date, and `observed_at` must be no later than the

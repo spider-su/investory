@@ -107,12 +107,12 @@ class RetirementGoldenScenarioIntegrationTest {
     try (var statement =
         connection.prepareStatement(
             """
-            INSERT INTO investory.fx_daily_rates(
+            INSERT INTO investory.exchange_rates(
                 rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
             WITH anchors AS (
               SELECT
-                (SELECT rate FROM investory.fx_daily_rates WHERE rate_date = ? AND base = 'USD' AND to_currency = 'PLN' ORDER BY id DESC LIMIT 1) AS usd_pln,
-                (SELECT rate FROM investory.fx_daily_rates WHERE rate_date = ? AND base = 'EUR' AND to_currency = 'USD' ORDER BY id DESC LIMIT 1) AS eur_usd
+                (SELECT rate FROM investory.exchange_rates WHERE rate_date = ? AND base = 'USD' AND to_currency = 'PLN' ORDER BY id DESC LIMIT 1) AS usd_pln,
+                (SELECT rate FROM investory.exchange_rates WHERE rate_date = ? AND base = 'EUR' AND to_currency = 'USD' ORDER BY id DESC LIMIT 1) AS eur_usd
             ), matrix(source_currency, target_currency, rate) AS (
               SELECT 'USD', 'PLN', usd_pln FROM anchors
               UNION ALL SELECT 'PLN', 'USD', 1 / usd_pln FROM anchors
@@ -124,7 +124,7 @@ class RetirementGoldenScenarioIntegrationTest {
             SELECT CURRENT_DATE, source_currency, target_currency, rate,
                    'TEST', 'OBSERVED', ?, 'HAPPYINVESTOR_REFERENCE'
             FROM matrix
-            ON CONFLICT (rate_date, base, to_currency) DO UPDATE
+            ON CONFLICT (rate_date, base, to_currency) WHERE purpose = 'VALUATION' DO UPDATE
               SET rate = EXCLUDED.rate,
                   source = EXCLUDED.source,
                   method = EXCLUDED.method,

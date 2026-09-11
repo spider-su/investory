@@ -59,67 +59,8 @@ INSERT INTO accounts (id, external_account_id, currency, provider, name, owner, 
     ('2051707603', '51707603', 'PLN', 'XTB', 'XTB PLN reserve account', 'Happy Investor', 2, true),
     ('2017959259', '17959259', 'USD', 'IBKR', 'IBKR USD investment account', 'Happy Investor', 2, false);
 
-INSERT INTO investory.exchange_rates (rate_date, base, to_currency, rate) VALUES
-    ('2024-07-31', 'EUR', 'USD', 1.082239),
-    ('2024-08-30', 'EUR', 'USD', 1.107494),
-    ('2024-09-30', 'EUR', 'USD', 1.120389),
-    ('2024-10-31', 'EUR', 'USD', 1.086647),
-    ('2024-11-29', 'EUR', 'USD', 1.055752),
-
-    ('2024-12-31', 'EUR', 'USD', 1.041890),
-    ('2025-01-31', 'EUR', 'USD', 1.038299),
-    ('2025-02-28', 'EUR', 'USD', 1.039557),
-    ('2025-03-31', 'EUR', 'USD', 1.082706),
-    ('2025-04-30', 'EUR', 'USD', 1.137199),
-    ('2025-05-30', 'EUR', 'USD', 1.132403),
-    ('2025-06-30', 'EUR', 'USD', 1.172962),
-    ('2025-07-31', 'EUR', 'USD', 1.145047),
-    ('2025-08-29', 'EUR', 'USD', 1.167537),
-    ('2025-09-30', 'EUR', 'USD', 1.175602),
-    ('2025-10-31', 'EUR', 'USD', 1.157601),
-    ('2025-11-28', 'EUR', 'USD', 1.156864),
-
-    ('2025-12-31', 'EUR', 'USD', 1.173562),
-    ('2026-01-30', 'EUR', 'USD', 1.190848),
-    ('2026-02-27', 'EUR', 'USD', 1.179561),
-    ('2026-03-31', 'EUR', 'USD', 1.146653),
-    ('2026-04-30', 'EUR', 'USD', 1.168102),
-    ('2026-05-29', 'EUR', 'USD', 1.162852),
-    ('2026-06-30', 'EUR', 'USD', 1.139360),
-    ('2026-07-31', 'EUR', 'USD', 1.152385);
-
-INSERT INTO investory.exchange_rates (rate_date, base, to_currency, rate, source, method) VALUES
-    ('2024-07-31', 'USD', 'PLN', 3.9689, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2024-08-30', 'USD', 'PLN', 3.8644, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2024-09-30', 'USD', 'PLN', 3.8193, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2024-10-31', 'USD', 'PLN', 4.0059, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2024-11-29', 'USD', 'PLN', 4.0770, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2024-12-31', 'USD', 'PLN', 4.1012, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-01-31', 'USD', 'PLN', 4.0576, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-02-28', 'USD', 'PLN', 3.9993, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-03-31', 'USD', 'PLN', 3.8643, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-04-30', 'USD', 'PLN', 3.7617, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-05-30', 'USD', 'PLN', 3.7537, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-06-30', 'USD', 'PLN', 3.6164, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-07-31', 'USD', 'PLN', 3.7257, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-08-29', 'USD', 'PLN', 3.6559, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-09-30', 'USD', 'PLN', 3.6315, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-10-31', 'USD', 'PLN', 3.6751, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-11-28', 'USD', 'PLN', 3.6624, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2025-12-31', 'USD', 'PLN', 3.6016, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2026-01-30', 'USD', 'PLN', 3.5379, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2026-02-27', 'USD', 'PLN', 3.5804, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2026-03-31', 'USD', 'PLN', 3.7408, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2026-04-30', 'USD', 'PLN', 3.6460, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2026-05-29', 'USD', 'PLN', 3.6395, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2026-06-30', 'USD', 'PLN', 3.7708, 'NBP', 'HISTORICAL_MONTHLY'),
-    ('2026-07-31', 'USD', 'PLN', 3.7425, 'NBP', 'HISTORICAL_MONTHLY')
-ON CONFLICT (rate_date, base, to_currency, source, method, COALESCE(source_reference, ''))
-    DO UPDATE SET rate = EXCLUDED.rate;
-
--- Canonical valuation FX for the reduced Happy Investor fixture. These monthly DB60
--- observations are expanded deterministically, so fresh databases have a daily rate for every
--- fixture valuation date before imports/projections run.
+-- Canonical valuation observations for the reduced Happy Investor fixture. Missing calendar
+-- dates are resolved from the latest earlier observation and reported as CARRY_FORWARD.
 WITH fixture_anchors(rate_date, base, to_currency, rate) AS (
     VALUES
         (DATE '2024-07-31', 'EUR', 'USD', 1.08223900), (DATE '2024-07-31', 'EUR', 'PLN', 4.2952983671), (DATE '2024-07-31', 'USD', 'PLN', 3.96890000), (DATE '2024-07-31', 'PLN', 'USD', 0.25195898),
@@ -142,30 +83,21 @@ WITH fixture_anchors(rate_date, base, to_currency, rate) AS (
         (DATE '2026-06-01', 'EUR', 'USD', 1.16285200), (DATE '2026-06-01', 'EUR', 'PLN', 4.25313400), (DATE '2026-06-01', 'USD', 'PLN', 3.63950000), (DATE '2026-06-01', 'PLN', 'USD', 0.26849000),
         (DATE '2026-07-01', 'EUR', 'USD', 1.13936000), (DATE '2026-07-01', 'EUR', 'PLN', 4.25313400), (DATE '2026-07-01', 'USD', 'PLN', 3.77080000), (DATE '2026-07-01', 'PLN', 'USD', 0.26849000),
         (DATE '2026-08-01', 'EUR', 'USD', 1.15238500), (DATE '2026-08-01', 'EUR', 'PLN', 4.25313400), (DATE '2026-08-01', 'USD', 'PLN', 3.74250000), (DATE '2026-08-01', 'PLN', 'USD', 0.26849000)
-), bounded_anchors AS (
-    SELECT rate_date, base, to_currency, rate,
-           COALESCE(lead(rate_date) OVER (PARTITION BY base, to_currency ORDER BY rate_date), DATE '2026-10-01') AS next_rate_date
-    FROM fixture_anchors
-), direct_rates AS (
-    SELECT day::date AS rate_date, base, to_currency, rate, rate_date AS source_rate_date
-    FROM bounded_anchors
-    CROSS JOIN LATERAL generate_series(rate_date, next_rate_date - 1, INTERVAL '1 day') day
 ), all_rates AS (
-    SELECT rate_date, base, to_currency, rate, source_rate_date FROM direct_rates
+    SELECT rate_date, base, to_currency, rate FROM fixture_anchors
     UNION ALL
-    SELECT rate_date, 'USD', 'EUR', 1 / rate, source_rate_date
-    FROM direct_rates WHERE base = 'EUR' AND to_currency = 'USD'
+    SELECT rate_date, 'USD', 'EUR', 1 / rate
+    FROM fixture_anchors WHERE base = 'EUR' AND to_currency = 'USD'
     UNION ALL
-    SELECT rate_date, 'PLN', 'EUR', 1 / rate, source_rate_date
-    FROM direct_rates WHERE base = 'EUR' AND to_currency = 'PLN'
+    SELECT rate_date, 'PLN', 'EUR', 1 / rate
+    FROM fixture_anchors WHERE base = 'EUR' AND to_currency = 'PLN'
 )
-INSERT INTO investory.fx_daily_rates(
-    rate_date, base, to_currency, rate, source, method, source_rate_date, source_reference)
-SELECT rate_date, base, to_currency, rate, 'DB60_INITIAL',
-       CASE WHEN rate_date = source_rate_date THEN 'OBSERVED' ELSE 'CARRY_FORWARD' END,
-       source_rate_date, 'V01.003:DB60:' || base || ':' || to_currency
+INSERT INTO investory.exchange_rates(
+    rate_date, base, to_currency, rate, purpose, source, method, source_rate_date, source_reference)
+SELECT rate_date, base, to_currency, rate, 'VALUATION', 'DB60_INITIAL', 'OBSERVED',
+       rate_date, 'V01.003:DB60:' || base || ':' || to_currency
 FROM all_rates
-ON CONFLICT (rate_date, base, to_currency) DO NOTHING;
+ON CONFLICT (rate_date, base, to_currency) WHERE purpose = 'VALUATION' DO NOTHING;
 
 
 INSERT INTO investory.assets (name, symbol, ticker, ibkr, yahoo, country, currency, asset_type, active, isin, exclude_from_import)
