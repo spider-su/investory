@@ -82,7 +82,7 @@ public record AccountingMonthSnapshot(
 
   public record RyczałtCalculation(
       BigDecimal revenueBeforeDeductions,
-      BigDecimal correctionNet,
+      BigDecimal julyOnlyCorrectionNetAdjustment,
       BigDecimal healthContributionPaid,
       BigDecimal healthDeduction,
       BigDecimal taxableBase,
@@ -93,10 +93,10 @@ public record AccountingMonthSnapshot(
       String status) {}
 
   public record VatCalculation(
-      BigDecimal outputVatBeforeCorrections,
-      BigDecimal correctionVat,
-      BigDecimal outputVat,
-      BigDecimal deductibleInputVat,
+      BigDecimal outputVatBeforeJulyCorrection,
+      BigDecimal julyOnlySalesCorrectionVat,
+      BigDecimal outputVatAfterSalesCorrection,
+      BigDecimal julyOnlyVatCorrectionAdjustment,
       BigDecimal calculatedVat,
       BigDecimal expectedVat,
       BigDecimal difference,
