@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.ksef;
 
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -13,6 +14,7 @@ import java.security.spec.MGF1ParameterSpec;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -33,17 +35,20 @@ public class KsefClient {
 
   private final HttpClient httpClient;
   private final ObjectMapper objectMapper;
+  private final ApplicationTime applicationTime;
 
   @Autowired
-  public KsefClient(ObjectMapper objectMapper) {
+  public KsefClient(ObjectMapper objectMapper, ApplicationTime applicationTime) {
     this(
         HttpClient.newBuilder().connectTimeout(TIMEOUT).build(),
-        objectMapper.rebuild().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build());
+        objectMapper.rebuild().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build(),
+        applicationTime);
   }
 
-  KsefClient(HttpClient httpClient, ObjectMapper objectMapper) {
+  KsefClient(HttpClient httpClient, ObjectMapper objectMapper, ApplicationTime applicationTime) {
     this.httpClient = httpClient;
     this.objectMapper = objectMapper;
+    this.applicationTime = applicationTime;
   }
 
   public KsefAccess authenticateWithToken(KsefEnvironment environment, String nip, String ksefToken) {
@@ -129,8 +134,10 @@ public class KsefClient {
 
   PublicKeyCertificate currentTokenEncryptionKey(String baseUrl) {
     PublicKeyCertificate[] certificates =
-        readJson(get(baseUrl + "/security/public-key-certificates", null, "application/json"), PublicKeyCertificate[].class);
-    OffsetDateTime now = OffsetDateTime.now();
+        readJson(
+            get(baseUrl + "/security/public-key-certificates", null, "application/json"),
+            PublicKeyCertificate[].class);
+    OffsetDateTime now = OffsetDateTime.ofInstant(applicationTime.now(), ZoneOffset.UTC);
     return Arrays.stream(certificates)
         .filter(c -> c.usage() != null && c.usage().contains(KSEF_TOKEN_ENCRYPTION))
         .filter(c -> c.validFrom() == null || !now.isBefore(c.validFrom()))
