@@ -1105,15 +1105,12 @@ SELECT
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(fees) END AS fees,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(taxes) END AS taxes,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(realized_profit) END AS realized_profit,
-    CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0
-              OR MAX(COALESCE(ef.missing_flow_fx_count, 0)) > 0 THEN NULL
-         ELSE SUM(equity) - LAG(SUM(equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date)
-              - COALESCE(MAX(ef.deposits), 0) + COALESCE(MAX(ef.withdrawals), 0) END AS total_profit,
+    CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL
+         ELSE SUM(total_profit) END AS total_profit,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0
               OR MAX(COALESCE(ef.missing_flow_fx_count, 0)) > 0 THEN NULL
          WHEN LAG(SUM(equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date) IS NULL THEN NULL
-         ELSE (SUM(equity) - LAG(SUM(equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date)
-             - COALESCE(MAX(ef.deposits), 0) + COALESCE(MAX(ef.withdrawals), 0))
+         ELSE SUM(total_profit)
              / NULLIF(LAG(SUM(equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date)
              + COALESCE(MAX(ef.deposits), 0) - COALESCE(MAX(ef.withdrawals), 0), 0) END AS daily_return_pct
 FROM converted
@@ -1123,7 +1120,7 @@ LEFT JOIN performance_flows ef
 GROUP BY converted.portfolio_id, converted.snapshot_date, converted.base_currency;
 
 COMMENT ON VIEW investory.app_v_portfolio_performance_daily IS
-    'Investment-performance projection for non-cash-only accounts. Total profit is the portfolio equity bridge after account flows; transfers between tracked accounts cancel and transfers to or from cash-only accounts are not portfolio profit.';
+    'Investment-performance projection for non-cash-only accounts. Total profit comes from account_daily daily_profit_amount; account flows scope return denominators to tracked accounts.';
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS investory.app_v_portfolio_monthly AS
 WITH month_rows AS (

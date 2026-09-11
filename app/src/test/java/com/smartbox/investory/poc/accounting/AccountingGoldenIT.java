@@ -63,7 +63,8 @@ class AccountingGoldenIT extends FastDatabaseTest {
     assertComparison(snapshot, "ZUS", "1495.04", "1495.04", "0.00", "MATCH");
     assertComparison(snapshot, "FX", "32908.87", "32908.87", "0.00", "MATCH");
 
-    assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment()).isEqualByComparingTo("-150.00");
+    assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment())
+        .isEqualByComparingTo("-150.00");
     assertThat(snapshot.vat().julyOnlySalesCorrectionVat()).isEqualByComparingTo("-34.50");
     assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isEqualByComparingTo("146.00");
 
