@@ -1,6 +1,7 @@
 package com.smartbox.investory.poc.accounting;
 
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.BankRow;
+import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.ObligationRow;
 import com.smartbox.investory.poc.accounting.AccountingMonthSnapshot.TaxInputRow;
@@ -26,6 +27,10 @@ public class AccountingPocRepository {
                 UNION
                 SELECT DISTINCT tax_period AS period
                   FROM investory.accounting_poc_obligation
+                 WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2027-01-01'
+                UNION
+                SELECT DISTINCT tax_period AS period
+                  FROM investory.accounting_poc_expense_invoice
                  WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2027-01-01'
                ) months
          ORDER BY period
@@ -76,6 +81,36 @@ public class AccountingPocRepository {
         period,
         period,
         period.plusMonths(1));
+  }
+
+  public List<ExpenseRow> expensesForPeriod(LocalDate period) {
+    return jdbcTemplate.query(
+        """
+        SELECT id, tax_period, invoice_date, reference, supplier_alias, category, currency,
+               net_amount, vat_amount, gross_amount, vat_deduction_ratio,
+               ROUND(vat_amount * vat_deduction_ratio, 2) AS deductible_vat,
+               source_quality, note
+          FROM investory.accounting_poc_expense_invoice
+         WHERE tax_period = ?
+         ORDER BY invoice_date NULLS LAST, id
+        """,
+        (rs, rowNum) ->
+            new ExpenseRow(
+                rs.getLong("id"),
+                rs.getObject("tax_period", LocalDate.class),
+                rs.getObject("invoice_date", LocalDate.class),
+                rs.getString("reference"),
+                rs.getString("supplier_alias"),
+                rs.getString("category"),
+                rs.getString("currency"),
+                rs.getBigDecimal("net_amount"),
+                rs.getBigDecimal("vat_amount"),
+                rs.getBigDecimal("gross_amount"),
+                rs.getBigDecimal("vat_deduction_ratio"),
+                rs.getBigDecimal("deductible_vat"),
+                rs.getString("source_quality"),
+                rs.getString("note")),
+        period);
   }
 
   public List<BankRow> bankTransactionsForPeriod(LocalDate period) {
