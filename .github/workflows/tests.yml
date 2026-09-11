@@ -179,6 +179,7 @@ jobs:
     name: UI browser setup
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: unit
 
     steps:
       - name: Check out repository
@@ -186,6 +187,12 @@ jobs:
 
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
+
+      - name: Download packaged reactor outputs
+        uses: actions/download-artifact@v8
+        with:
+          name: packaged-reactor
+          path: .
 
       - name: Restore Playwright browser cache
         id: playwright-cache
