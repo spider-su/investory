@@ -239,6 +239,8 @@ public class AccountingFactService {
               .filter(row -> invoice.currency().equals(row.currency()))
               .filter(row -> invoice.expectedReceivable().compareTo(row.amount()) == 0)
               .filter(
+                  row -> row.relatedPeriod() == null || invoice.taxPeriod().equals(row.relatedPeriod()))
+              .filter(
                   row ->
                       invoice.reference().equalsIgnoreCase(row.reference())
                           || invoice.customerAlias().equals(row.counterpartyAlias()))
