@@ -41,39 +41,38 @@ public class AccountingFactService {
 
   public AccountingMonthSnapshot snapshot(LocalDate period) {
     List<InvoiceRow> invoices = pocRepository.invoicesForPeriod(period);
+    List<InvoiceRow> correctionSources =
+        JULY_2026.equals(period) ? pocRepository.invoicesForPeriod(period.minusMonths(1)) : List.of();
     List<ExpenseRow> expenses = pocRepository.expensesForPeriod(period);
     List<BankRow> bankTransactions = pocRepository.bankTransactionsForPeriod(period);
     List<ObligationRow> obligations = pocRepository.obligationsForPeriod(period);
     List<TaxInputRow> taxInputs = pocRepository.taxInputsForPeriod(period);
 
-    List<InvoiceRow> periodInvoices =
-        invoices.stream().filter(invoice -> invoice.taxPeriod().equals(period)).toList();
-
     BigDecimal domesticRevenue =
-        periodInvoices.stream()
+        invoices.stream()
             .filter(invoice -> "PLN".equals(invoice.currency()))
             .map(InvoiceRow::bookedNetPln)
             .filter(value -> value != null)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     BigDecimal foreignBookedRevenue =
-        periodInvoices.stream()
+        invoices.stream()
             .filter(invoice -> !"PLN".equals(invoice.currency()))
             .map(InvoiceRow::bookedNetPln)
             .filter(value -> value != null)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     BigDecimal foreignSourceEur =
-        periodInvoices.stream()
+        invoices.stream()
             .filter(invoice -> "EUR".equals(invoice.currency()))
             .map(InvoiceRow::netAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-    FxCalculation fx = calculateFx(periodInvoices, foreignBookedRevenue, foreignSourceEur);
+    FxCalculation fx = calculateFx(invoices, foreignBookedRevenue, foreignSourceEur);
     RyczałtCalculation ryczalt =
-        calculateRyczalt(period, invoices, domesticRevenue, fx, obligations, taxInputs);
+        calculateRyczalt(period, invoices, correctionSources, domesticRevenue, fx, obligations, taxInputs);
     VatCalculation vat =
-        calculateVat(period, invoices, periodInvoices, expenses, obligations);
+        calculateVat(period, invoices, correctionSources, expenses, obligations);
     List<ComparisonRow> comparisons =
         buildComparisons(period, domesticRevenue, foreignBookedRevenue, fx, ryczalt, vat, obligations, taxInputs);
 
@@ -180,14 +179,11 @@ public class AccountingFactService {
   }
 
   private FxCalculation calculateFx(
-      List<InvoiceRow> periodInvoices,
+      List<InvoiceRow> invoices,
       BigDecimal expectedForeignPln,
       BigDecimal foreignSourceEur) {
     InvoiceRow eurInvoice =
-        periodInvoices.stream()
-            .filter(invoice -> "EUR".equals(invoice.currency()))
-            .findFirst()
-            .orElse(null);
+        invoices.stream().filter(invoice -> "EUR".equals(invoice.currency())).findFirst().orElse(null);
     if (eurInvoice == null) {
       return new FxCalculation(
           null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "NO_FX_SOURCE");
@@ -226,13 +222,14 @@ public class AccountingFactService {
   private RyczałtCalculation calculateRyczalt(
       LocalDate period,
       List<InvoiceRow> invoices,
+      List<InvoiceRow> correctionSources,
       BigDecimal domesticRevenue,
       FxCalculation fx,
       List<ObligationRow> obligations,
       List<TaxInputRow> taxInputs) {
     BigDecimal julyOnlyCorrectionNet =
         JULY_2026.equals(period)
-            ? invoices.stream()
+            ? correctionSources.stream()
                 .map(InvoiceRow::correctionNetAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
             : BigDecimal.ZERO;
@@ -246,7 +243,6 @@ public class AccountingFactService {
 
     BigDecimal rate =
         invoices.stream()
-            .filter(invoice -> invoice.taxPeriod().equals(period))
             .map(InvoiceRow::ryczaltRate)
             .filter(value -> value != null)
             .findFirst()
@@ -284,18 +280,18 @@ public class AccountingFactService {
   private VatCalculation calculateVat(
       LocalDate period,
       List<InvoiceRow> invoices,
-      List<InvoiceRow> periodInvoices,
+      List<InvoiceRow> correctionSources,
       List<ExpenseRow> expenses,
       List<ObligationRow> obligations) {
     BigDecimal outputBeforeCorrection =
-        periodInvoices.stream()
+        invoices.stream()
             .filter(invoice -> "PLN".equals(invoice.currency()))
             .map(InvoiceRow::vatAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     BigDecimal julyOnlySalesCorrectionVat =
         JULY_2026.equals(period)
-            ? invoices.stream()
+            ? correctionSources.stream()
                 .map(InvoiceRow::correctionVatAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
             : BigDecimal.ZERO;
