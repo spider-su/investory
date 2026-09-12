@@ -3,6 +3,7 @@ package com.smartbox.investory.accounting.web;
 import com.smartbox.investory.accounting.api.AccountingUserApi;
 import com.smartbox.investory.config.AuthorizationService;
 import java.time.YearMonth;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -15,7 +16,8 @@ public class AccountingRestController {
   private final AuthorizationService authorization;
 
   public AccountingRestController(
-      AccountingUserApi accounting, AuthorizationService authorization) {
+      @Qualifier("accountingUserFacade") AccountingUserApi accounting,
+      AuthorizationService authorization) {
     this.accounting = accounting;
     this.authorization = authorization;
   }
