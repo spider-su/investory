@@ -11,6 +11,7 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -135,6 +136,41 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .setScale(0, RoundingMode.HALF_UP);
     BigDecimal outputVat;
     BigDecimal deductible;
+    if (input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION) {
+      var requiredVatReferences = new HashSet<String>();
+      input.invoices().stream()
+          .map(InvoiceRow::reference)
+          .filter(reference -> reference != null && !reference.isBlank())
+          .forEach(requiredVatReferences::add);
+      input.expenses().stream()
+          .map(ExpenseRow::reference)
+          .filter(reference -> reference != null && !reference.isBlank())
+          .forEach(requiredVatReferences::add);
+      var classifiedReferences = new HashSet<String>();
+      var duplicateReferences = new HashSet<String>();
+      input.vatTransactions().stream()
+          .map(AccountingVatTransaction::reference)
+          .filter(reference -> reference != null && !reference.isBlank())
+          .forEach(
+              reference -> {
+                if (!classifiedReferences.add(reference)) duplicateReferences.add(reference);
+              });
+      requiredVatReferences.removeAll(classifiedReferences);
+      requiredVatReferences.forEach(
+          reference ->
+              issues.add(
+                  issue(
+                      "MISSING_VAT_CLASSIFICATION",
+                      reference,
+                      "Current calculation requires an explicit VAT treatment for this document.")));
+      duplicateReferences.forEach(
+          reference ->
+              issues.add(
+                  issue(
+                      "DUPLICATE_VAT_CLASSIFICATION",
+                      reference,
+                      "Only one VAT treatment may be recorded for a document.")));
+    }
     if (input.vatTransactions().isEmpty()
         && input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
         && (!input.invoices().isEmpty() || !input.expenses().isEmpty())) {
@@ -158,6 +194,14 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
               .map(ExpenseRow::deductibleVat)
               .filter(v -> v != null)
               .reduce(BigDecimal.ZERO, BigDecimal::add);
+    } else if (input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
+        && issues.stream()
+            .anyMatch(
+                issue ->
+                    issue.type().equals("MISSING_VAT_CLASSIFICATION")
+                        || issue.type().equals("DUPLICATE_VAT_CLASSIFICATION"))) {
+      outputVat = BigDecimal.ZERO;
+      deductible = BigDecimal.ZERO;
     } else {
       AccountingVatClassifier vatClassifier = new AccountingVatClassifier();
       input

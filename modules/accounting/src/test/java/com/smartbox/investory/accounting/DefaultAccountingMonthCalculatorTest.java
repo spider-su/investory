@@ -241,6 +241,52 @@ class DefaultAccountingMonthCalculatorTest {
         .contains("MISSING_VAT_CLASSIFICATION");
   }
 
+  @Test
+  void currentCalculationRequiresVatTreatmentForEveryDocument() {
+    CurrencyConversion conversion = mock(CurrencyConversion.class);
+    InvoiceRow first = invoice("PLN-1", "PLN", "100.00", "0.12");
+    InvoiceRow second = invoice("PLN-2", "PLN", "200.00", "0.12");
+    AccountingVatTransaction treatment =
+        new AccountingVatTransaction(
+            PERIOD,
+            "source",
+            first.reference(),
+            AccountingVatTransaction.Direction.SALE,
+            VatTreatment.DOMESTIC_VAT,
+            "PL",
+            "PL123",
+            "NIP",
+            null,
+            null,
+            null,
+            first.netAmount(),
+            first.vatAmount(),
+            BigDecimal.ZERO,
+            "reviewed");
+
+    AccountingCalculationInput base = input(List.of(first, second), List.of());
+    AccountingCalculationResult result =
+        calculator(conversion)
+            .calculate(
+                new AccountingCalculationInput(
+                    base.period(),
+                    base.invoices(),
+                    base.expenses(),
+                    base.taxInputs(),
+                    base.profile(),
+                    base.adjustments(),
+                    base.periodContext(),
+                    List.of(treatment),
+                    AccountingCalculationMode.CURRENT_CALCULATION));
+
+    assertThat(result.issues())
+        .anySatisfy(
+            issue -> {
+              assertThat(issue.type()).isEqualTo("MISSING_VAT_CLASSIFICATION");
+              assertThat(issue.sourceReference()).isEqualTo(second.reference());
+            });
+  }
+
   private DefaultAccountingMonthCalculator calculator(CurrencyConversion conversion) {
     return new DefaultAccountingMonthCalculator(conversion);
   }

@@ -166,7 +166,7 @@ public class AccountingPocRepository {
         SELECT COALESCE(SUM(COALESCE(booked_net_pln, net_amount)), 0)
           FROM investory.accounting_poc_invoice
          WHERE tax_period >= DATE '2026-01-01' AND tax_period < ?
-           AND correction_net_amount IS NULL
+           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
         """,
         BigDecimal.class,
         period);
@@ -500,13 +500,16 @@ public class AccountingPocRepository {
         period.plusMonths(1));
   }
 
-  /** Projects only exact, persisted ZUS payments; obligations are never inferred from payment rows. */
+  /**
+   * Projects only exact, persisted ZUS payments; obligations are never inferred from payment rows.
+   */
   public List<PaidContribution> paidContributionsUpTo(
       LocalDate period, BigDecimal socialObligation, BigDecimal healthObligation) {
     BigDecimal social = socialObligation == null ? BigDecimal.ZERO : socialObligation;
     BigDecimal health = healthObligation == null ? BigDecimal.ZERO : healthObligation;
     BigDecimal total = social.add(health).setScale(2);
-    List<List<PaidContribution>> rows = jdbcTemplate.query(
+    List<List<PaidContribution>> rows =
+        jdbcTemplate.query(
             """
             SELECT id, booking_date, related_period, amount, reference
               FROM investory.accounting_poc_bank_transaction
@@ -523,19 +526,23 @@ public class AccountingPocRepository {
               if (paid.compareTo(total) == 0 && total.signum() > 0) {
                 var result = new java.util.ArrayList<PaidContribution>();
                 if (social.signum() > 0)
-                  result.add(new PaidContribution("SOCIAL", contributionPeriod, paymentDate, social, social, id));
+                  result.add(
+                      new PaidContribution(
+                          "SOCIAL", contributionPeriod, paymentDate, social, social, id));
                 if (health.signum() > 0)
-                  result.add(new PaidContribution("HEALTH", contributionPeriod, paymentDate, health, health, id));
+                  result.add(
+                      new PaidContribution(
+                          "HEALTH", contributionPeriod, paymentDate, health, health, id));
                 return result;
               }
               if (social.signum() == 0 && paid.compareTo(health) == 0 && health.signum() > 0)
-                return List.of(new PaidContribution("HEALTH", contributionPeriod, paymentDate, health, health, id));
+                return List.of(
+                    new PaidContribution(
+                        "HEALTH", contributionPeriod, paymentDate, health, health, id));
               return List.of();
             },
             period.withDayOfMonth(period.lengthOfMonth()));
-    return rows.stream()
-        .flatMap(List::stream)
-        .toList();
+    return rows.stream().flatMap(List::stream).toList();
   }
 
   public boolean insertBankTransaction(

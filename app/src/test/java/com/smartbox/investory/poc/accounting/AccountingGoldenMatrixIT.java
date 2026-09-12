@@ -353,16 +353,10 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
                 Integer.class,
                 july))
         .isEqualTo(5);
-    filingService.transitionLifecycle(july, PeriodLifecycleStatus.FILED, false, true, false);
-    filingService.transitionLifecycle(july, PeriodLifecycleStatus.PAID, false, true, false);
-    filingService.transitionLifecycle(
-        july,
-        PeriodLifecycleStatus.SETTLED,
-        false,
-        true,
-        reconciliations.stream()
-            .allMatch(row -> row.status() == AccountingObligationReconciliation.Status.SETTLED));
-    filingService.transitionLifecycle(july, PeriodLifecycleStatus.LOCKED, false, true, true);
+    filingService.markFiled(july);
+    filingService.markPaid(july);
+    filingService.settle(july);
+    filingService.lock(july);
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT lifecycle_status FROM investory.accounting_poc_period_state WHERE tax_period = ?",

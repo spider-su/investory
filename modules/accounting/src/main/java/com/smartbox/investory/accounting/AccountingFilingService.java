@@ -133,17 +133,19 @@ public class AccountingFilingService {
       if (obligation.amount().signum() <= 0) continue;
       boolean paid =
           snapshot.bankTransactions().stream()
-              .filter(t -> (obligation.type() + "_PAYMENT").equals(t.transactionType()))
-              .map(t -> t.amount().abs())
-              .reduce(BigDecimal.ZERO, BigDecimal::add)
-              .compareTo(obligation.amount())
+                  .filter(t -> (obligation.type() + "_PAYMENT").equals(t.transactionType()))
+                  .map(t -> t.amount().abs())
+                  .reduce(BigDecimal.ZERO, BigDecimal::add)
+                  .compareTo(obligation.amount())
               >= 0;
       if (!paid) throw new IllegalStateException("Missing payment evidence: " + obligation.type());
     }
     repository.updateLifecycleStatus(period, PeriodLifecycleStatus.PAID);
   }
 
-  /** Evidence-derived settlement transition; authority evidence is required separately from cash. */
+  /**
+   * Evidence-derived settlement transition; authority evidence is required separately from cash.
+   */
   public void settle(LocalDate period) {
     AccountingMonthSnapshot snapshot = factService.snapshot(period);
     markFiled(period);
@@ -177,20 +179,6 @@ public class AccountingFilingService {
     if (state == null || state.lifecycleStatus() != PeriodLifecycleStatus.SETTLED)
       throw new IllegalStateException("Only a settled period can be locked");
     repository.updateLifecycleStatus(period, PeriodLifecycleStatus.LOCKED);
-  }
-
-  @Deprecated(forRemoval = false)
-  public void transitionLifecycle(
-      LocalDate period,
-      PeriodLifecycleStatus target,
-      boolean blockingIssues,
-      boolean hasFilingEvidence,
-      boolean amountsReconcile) {
-    var state = repository.periodState(period);
-    var current = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
-    new AccountingPeriodLifecycle()
-        .transition(current, target, blockingIssues, hasFilingEvidence, amountsReconcile);
-    repository.updateLifecycleStatus(period, target);
   }
 
   public byte[] jpk(LocalDate period) {
