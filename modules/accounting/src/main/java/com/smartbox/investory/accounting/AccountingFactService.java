@@ -289,7 +289,9 @@ public class AccountingFactService {
     var taxPeriods = pocRepository.taxProfilePeriods();
     var obligations = new java.util.LinkedHashMap<LocalDate, AccountingPocRepository.ZusAmounts>();
     for (LocalDate contributionPeriod : pocRepository.zusPaymentPeriodsUpTo(period)) {
-      var effective = profileResolver.resolve(contributionPeriod, activityPeriods, employmentPeriods, taxPeriods);
+      var effective =
+          profileResolver.resolve(
+              contributionPeriod, activityPeriods, employmentPeriods, taxPeriods);
       if (effective.zusRegime() == null) continue;
       var calculated =
           new ZusCalculator()

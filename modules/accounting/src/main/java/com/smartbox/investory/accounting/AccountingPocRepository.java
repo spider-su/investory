@@ -108,10 +108,7 @@ public class AccountingPocRepository {
   }
 
   public boolean hasAcceptedConfirmationForAmount(
-      LocalDate period,
-      String obligationType,
-      String confirmationType,
-      BigDecimal expectedAmount) {
+      LocalDate period, String obligationType, String confirmationType, BigDecimal expectedAmount) {
     return Boolean.TRUE.equals(
         jdbcTemplate.queryForObject(
             "SELECT EXISTS (SELECT 1 FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND obligation_or_artifact_type = ? AND confirmation_type = ? AND status IN ('ACCEPTED', 'POSTED') AND amount IS NOT NULL AND amount = ?)",
@@ -129,7 +126,7 @@ public class AccountingPocRepository {
 
   public AccountingProfile accountingProfile() {
     return jdbcTemplate.queryForObject(
-        "SELECT has_uop, nip, full_name, tax_office_code, email, vat_payment_account, ryczalt_payment_account, zus_payment_account, first_name, surname, date_of_birth FROM investory.accounting_poc_profile WHERE id = 1",
+        "SELECT legacy.has_uop, COALESCE(p.taxpayer_nip, legacy.nip) AS nip, COALESCE(p.taxpayer_full_name, legacy.full_name) AS full_name, COALESCE(p.taxpayer_tax_office_code, legacy.tax_office_code) AS tax_office_code, COALESCE(p.taxpayer_email, legacy.email) AS email, legacy.vat_payment_account, legacy.ryczalt_payment_account, COALESCE(p.zus_payment_account, legacy.zus_payment_account) AS zus_payment_account, COALESCE(p.taxpayer_first_name, legacy.first_name) AS first_name, COALESCE(p.taxpayer_surname, legacy.surname) AS surname, COALESCE(p.taxpayer_date_of_birth, legacy.date_of_birth) AS date_of_birth, COALESCE(p.tax_micro_account, legacy.vat_payment_account, legacy.ryczalt_payment_account) AS tax_micro_account FROM investory.accounting_poc_profile legacy LEFT JOIN investory.portfolios p ON p.id = 1 WHERE legacy.id = 1",
         (rs, rowNum) ->
             new AccountingProfile(
                 rs.getBoolean("has_uop"),
@@ -142,7 +139,8 @@ public class AccountingPocRepository {
                 rs.getString("zus_payment_account"),
                 rs.getString("first_name"),
                 rs.getString("surname"),
-                rs.getObject("date_of_birth", LocalDate.class)));
+                rs.getObject("date_of_birth", LocalDate.class),
+                rs.getString("tax_micro_account")));
   }
 
   public void updateHasUop(boolean hasUop) {
@@ -529,45 +527,70 @@ public class AccountingPocRepository {
     List<PaidContribution> contributions = new java.util.ArrayList<>();
     List<AccountingIssue> issues = new java.util.ArrayList<>();
     jdbcTemplate.query(
-            """
+        """
             SELECT id, booking_date, related_period, amount, reference
               FROM investory.accounting_poc_bank_transaction
              WHERE transaction_type = 'ZUS_PAYMENT'
                AND booking_date <= ?
              ORDER BY id
             """,
-            (rs, rowNum) -> {
-              BigDecimal paid = rs.getBigDecimal("amount").abs().setScale(2);
-              LocalDate paymentDate = rs.getObject("booking_date", LocalDate.class);
-              LocalDate contributionPeriod = rs.getObject("related_period", LocalDate.class);
-              long id = rs.getLong("id");
-              String reference = rs.getString("reference");
-              ZusAmounts obligation = obligationsByPeriod.get(contributionPeriod);
-              if (obligation == null) {
-                issues.add(reviewIssue(reference, "No calculated ZUS obligation for contribution period."));
-                return null;
-              }
-              BigDecimal total = obligation.social().add(obligation.health()).setScale(2);
-              if (paid.compareTo(total) == 0 && total.signum() > 0) {
-                if (obligation.social().signum() > 0)
-                  contributions.add(new PaidContribution("SOCIAL", contributionPeriod, paymentDate, obligation.social(), obligation.social(), id));
-                if (obligation.health().signum() > 0)
-                  contributions.add(new PaidContribution("HEALTH", contributionPeriod, paymentDate, obligation.health(), obligation.health(), id));
-              } else if (obligation.social().signum() == 0
-                  && paid.compareTo(obligation.health()) == 0
-                  && obligation.health().signum() > 0) {
-                contributions.add(new PaidContribution("HEALTH", contributionPeriod, paymentDate, obligation.health(), obligation.health(), id));
-              } else {
-                issues.add(reviewIssue(reference, "ZUS payment does not match its contribution-period obligation."));
-              }
-              return null;
-            },
-            period.withDayOfMonth(period.lengthOfMonth()));
+        (rs, rowNum) -> {
+          BigDecimal paid = rs.getBigDecimal("amount").abs().setScale(2);
+          LocalDate paymentDate = rs.getObject("booking_date", LocalDate.class);
+          LocalDate contributionPeriod = rs.getObject("related_period", LocalDate.class);
+          long id = rs.getLong("id");
+          String reference = rs.getString("reference");
+          ZusAmounts obligation = obligationsByPeriod.get(contributionPeriod);
+          if (obligation == null) {
+            issues.add(
+                reviewIssue(reference, "No calculated ZUS obligation for contribution period."));
+            return null;
+          }
+          BigDecimal total = obligation.social().add(obligation.health()).setScale(2);
+          if (paid.compareTo(total) == 0 && total.signum() > 0) {
+            if (obligation.social().signum() > 0)
+              contributions.add(
+                  new PaidContribution(
+                      "SOCIAL",
+                      contributionPeriod,
+                      paymentDate,
+                      obligation.social(),
+                      obligation.social(),
+                      id));
+            if (obligation.health().signum() > 0)
+              contributions.add(
+                  new PaidContribution(
+                      "HEALTH",
+                      contributionPeriod,
+                      paymentDate,
+                      obligation.health(),
+                      obligation.health(),
+                      id));
+          } else if (obligation.social().signum() == 0
+              && paid.compareTo(obligation.health()) == 0
+              && obligation.health().signum() > 0) {
+            contributions.add(
+                new PaidContribution(
+                    "HEALTH",
+                    contributionPeriod,
+                    paymentDate,
+                    obligation.health(),
+                    obligation.health(),
+                    id));
+          } else {
+            issues.add(
+                reviewIssue(
+                    reference, "ZUS payment does not match its contribution-period obligation."));
+          }
+          return null;
+        },
+        period.withDayOfMonth(period.lengthOfMonth()));
     return new PaidContributionProjection(List.copyOf(contributions), List.copyOf(issues));
   }
 
   private AccountingIssue reviewIssue(String reference, String message) {
-    return new AccountingIssue("PAID_CONTRIBUTION_REVIEW_REQUIRED", "REVIEW_REQUIRED", reference, message);
+    return new AccountingIssue(
+        "PAID_CONTRIBUTION_REVIEW_REQUIRED", "REVIEW_REQUIRED", reference, message);
   }
 
   public record ZusAmounts(BigDecimal social, BigDecimal health) {}

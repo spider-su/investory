@@ -136,6 +136,8 @@ public final class AccountingDatabase {
       statement.execute(
           "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS source_payload_hash VARCHAR(128)");
       statement.execute(
+          "ALTER TABLE investory.portfolios ADD COLUMN IF NOT EXISTS taxpayer_nip VARCHAR(10), ADD COLUMN IF NOT EXISTS taxpayer_full_name VARCHAR(240), ADD COLUMN IF NOT EXISTS taxpayer_first_name VARCHAR(120), ADD COLUMN IF NOT EXISTS taxpayer_surname VARCHAR(160), ADD COLUMN IF NOT EXISTS taxpayer_date_of_birth DATE, ADD COLUMN IF NOT EXISTS taxpayer_tax_office_code VARCHAR(4), ADD COLUMN IF NOT EXISTS taxpayer_email VARCHAR(255), ADD COLUMN IF NOT EXISTS tax_micro_account VARCHAR(34), ADD COLUMN IF NOT EXISTS zus_payment_account VARCHAR(34)");
+      statement.execute(
           "UPDATE investory.accounting_poc_bank_transaction SET provider = COALESCE(provider, 'CSV'), external_account_id = COALESCE(external_account_id, 'LEGACY_SOURCE'), external_transaction_id = COALESCE(external_transaction_id, COALESCE(source_row_identity, 'legacy-' || id::varchar)) WHERE provider IS NULL OR external_account_id IS NULL OR external_transaction_id IS NULL");
       statement.execute(
           "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_poc_bank_external_transaction ON investory.accounting_poc_bank_transaction (provider, external_account_id, external_transaction_id)");

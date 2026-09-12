@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accounting</title>
+  <link rel="stylesheet" th:href="@{/css/base.css}">
+</head>
+<body>
+<header class="app-header"><a href="/">Investory</a><span>Accounting</span></header>
+<main class="page-content" data-testid="accounting-page">
+  <div class="page-heading"><h1>Accounting</h1><span th:text="${overview.lifecycleLabel}">Open</span></div>
+  <form method="get" action="/accounting">
+    <input type="hidden" name="profileId" th:value="${profileId}">
+    <label>Month <select name="month" onchange="this.form.submit()"><option th:each="m : ${months}" th:value="${m.month}" th:text="${m.label}" th:selected="${m.month == selectedMonth}">September 2026</option></select></label>
+  </form>
+  <section class="card-grid" data-testid="accounting-summary">
+    <article class="card"><h2>Revenue</h2><p th:text="${overview.summary.revenue}">0</p></article>
+    <article class="card"><h2>VAT</h2><p th:text="${overview.summary.vat}">0</p></article>
+    <article class="card"><h2>Ryczałt</h2><p th:text="${overview.summary.ryczalt}">0</p></article>
+    <article class="card"><h2>ZUS</h2><p th:text="${overview.summary.zus}">0</p></article>
+  </section>
+  <section class="card" data-testid="accounting-next-action"><h2>Next action</h2><p th:text="${overview.nextActionLabel}">Review issues</p></section>
+  <section class="card" data-testid="accounting-sources"><h2>Sources</h2><p><span th:text="${overview.sources.imported}">0</span> imported · <span th:text="${overview.sources.reviewRequired}">0</span> review required · <span th:text="${overview.sources.failed}">0</span> failed</p></section>
+  <section class="card" data-testid="accounting-issues"><h2>Issues</h2><p th:if="${#lists.isEmpty(overview.issues)}">No issues.</p><ul><li th:each="issue : ${overview.issues}"><strong th:text="${issue.title}">Issue</strong>: <span th:text="${issue.message}">Details</span></li></ul></section>
+  <section class="card" data-testid="accounting-documents"><h2>Documents</h2><p th:text="${documents.size()}">0</p><table><tr th:each="document : ${documents}"><td th:text="${document.reference}">INV</td><td th:text="${document.direction}">PURCHASE</td><td th:text="${document.grossAmount + ' ' + document.currency}">0 PLN</td></tr></table></section>
+  <section class="card" data-testid="accounting-bank"><h2>Bank</h2><p th:text="${bankTransactions.size()}">0</p></section>
+  <section class="card" data-testid="accounting-payments"><h2>Taxes and payments</h2><table><tr th:each="payment : ${payments}"><td th:text="${payment.type}">VAT</td><td th:text="${payment.amount}">0</td><td th:text="${payment.status}">EXPECTED</td></tr></table></section>
+  <section class="card" data-testid="accounting-filings"><h2>Filings</h2><p th:text="${filings.lifecycleLabel}">Open</p><p th:each="issue : ${filings.issues}" th:text="${issue}">Issue</p></section>
+  <section class="card" data-testid="accounting-reconciliation"><h2>Reconciliation and closure</h2><p th:text="${reconciliation.size() + ' reconciliation rows'}">0 reconciliation rows</p></section>
+</main>
+</body>
+</html>

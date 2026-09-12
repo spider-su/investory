@@ -56,10 +56,10 @@ public class AccountingFilingService {
     }
     filingInput.sales().forEach(document -> validateDocument(document, issues));
     filingInput.purchases().forEach(document -> validateDocument(document, issues));
-    if (positive(snapshot.vat().calculatedVat()) && blank(profile.vatPaymentAccount())) {
+    if (positive(snapshot.vat().calculatedVat()) && blank(profile.taxMicroAccount())) {
       issues.add("MISSING_PAYMENT_CONFIGURATION: VAT");
     }
-    if (positive(snapshot.ryczalt().calculatedTax()) && blank(profile.ryczaltPaymentAccount())) {
+    if (positive(snapshot.ryczalt().calculatedTax()) && blank(profile.taxMicroAccount())) {
       issues.add("MISSING_PAYMENT_CONFIGURATION: RYCZALT");
     }
     if (positive(snapshot.zus().totalZus()) && blank(profile.zusPaymentAccount())) {
@@ -215,7 +215,7 @@ public class AccountingFilingService {
         period,
         "VAT",
         s.vat().calculatedVat(),
-        p.vatPaymentAccount(),
+        p.taxMicroAccount(),
         "VAT-7",
         s.obligations());
     add(
@@ -223,7 +223,7 @@ public class AccountingFilingService {
         period,
         "RYCZALT",
         s.ryczalt().calculatedTax(),
-        p.ryczaltPaymentAccount(),
+        p.taxMicroAccount(),
         "RYCZALT",
         s.obligations());
     add(output, period, "ZUS", s.zus().totalZus(), p.zusPaymentAccount(), "ZUS", s.obligations());

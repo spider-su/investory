@@ -1,8 +1,8 @@
 package com.smartbox.investory.accounting;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.math.BigDecimal;
 
 /** Imported or manually recorded authority evidence; it does not submit anything. */
 public record AuthorityConfirmation(
@@ -38,6 +38,7 @@ public record AuthorityConfirmation(
         note,
         null);
   }
+
   public enum ConfirmationType {
     JPK_UPO,
     VAT_UE_UPO,

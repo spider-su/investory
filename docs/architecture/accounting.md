@@ -288,3 +288,10 @@ engine.
 
 See [Accounting POC](../domain/accounting-poc.md) for supported JDG scope, UoP/ZUS semantics, VAT and
 FX rules, historical proof values, correction scope and domain non-goals.
+# Accounting application boundary
+
+The diagnostic `/poc/accounting` page remains a development and evidence view. The product page is `/accounting` and reads a stable profile-scoped API contract. Its flow is:
+
+`Browser -> AccountingPageController -> AccountingRestClient -> AccountingUserApi -> AccountingUserFacade -> accounting services`
+
+The MVC controller depends only on the typed client. The facade maps internal calculations to user DTOs and owns the user-facing lifecycle, next-action, issue, source, document, bank, payment, filing, and reconciliation projections. Production sources remain separate from normalized facts; unknown tax-relevant values remain reviewable.

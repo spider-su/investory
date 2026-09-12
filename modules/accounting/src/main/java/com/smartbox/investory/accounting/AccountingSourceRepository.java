@@ -54,7 +54,7 @@ public class AccountingSourceRepository {
         """
         SELECT external_reference, processing_status, processing_error
           FROM investory.accounting_source_evidence
-         WHERE document_date = ? OR document_date IS NULL
+         WHERE (document_date >= ? AND document_date < (? + INTERVAL '1 month')) OR document_date IS NULL
          ORDER BY id
         """,
         (rs, rowNum) ->
@@ -62,6 +62,7 @@ public class AccountingSourceRepository {
                 rs.getString("external_reference"),
                 rs.getString("processing_status"),
                 rs.getString("processing_error")),
+        period,
         period);
   }
 
@@ -71,7 +72,7 @@ public class AccountingSourceRepository {
         """
         SELECT external_reference, processing_status, processing_error
           FROM investory.accounting_source_evidence
-         WHERE source_type = 'BANK' AND (document_date = ? OR document_date IS NULL)
+         WHERE source_type = 'BANK' AND ((document_date >= ? AND document_date < (? + INTERVAL '1 month')) OR document_date IS NULL)
          ORDER BY id
         """,
         (rs, rowNum) ->
@@ -79,6 +80,7 @@ public class AccountingSourceRepository {
                 rs.getString("external_reference"),
                 rs.getString("processing_status"),
                 rs.getString("processing_error")),
+        period,
         period);
   }
 

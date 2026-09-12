@@ -17,7 +17,35 @@ public record AccountingProfile(
     String zusPaymentAccount,
     String firstName,
     String surname,
-    java.time.LocalDate dateOfBirth) {
+    java.time.LocalDate dateOfBirth,
+    String taxMicroAccount) {
+  public AccountingProfile(
+      boolean hasUop,
+      String nip,
+      String fullName,
+      String taxOfficeCode,
+      String email,
+      String vatPaymentAccount,
+      String ryczaltPaymentAccount,
+      String zusPaymentAccount,
+      String firstName,
+      String surname,
+      java.time.LocalDate dateOfBirth) {
+    this(
+        hasUop,
+        nip,
+        fullName,
+        taxOfficeCode,
+        email,
+        vatPaymentAccount,
+        ryczaltPaymentAccount,
+        zusPaymentAccount,
+        firstName,
+        surname,
+        dateOfBirth,
+        null);
+  }
+
   public AccountingProfile(
       boolean hasUop,
       String nip,
@@ -38,11 +66,12 @@ public record AccountingProfile(
         zusPaymentAccount,
         null,
         null,
+        null,
         null);
   }
 
   public AccountingProfile(boolean hasUop) {
-    this(hasUop, null, null, null, null, null, null, null, null, null, null);
+    this(hasUop, null, null, null, null, null, null, null, null, null, null, null);
   }
 
   public static AccountingProfile defaultProfile() {
