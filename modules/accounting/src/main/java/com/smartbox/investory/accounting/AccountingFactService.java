@@ -135,6 +135,9 @@ public class AccountingFactService {
                 resolved.qualifyingUop(),
                 resolved.zusRegime(),
                 resolved.voluntarySickness(),
+                resolved.ryczaltRate(),
+                resolved.vatRegistered(),
+                resolved.vatEuRegistered(),
                 AccountingYearToDateContext.empty(),
                 calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
                     ? ZusRules2026.input(resolved.qualifyingUop())

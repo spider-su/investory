@@ -83,11 +83,23 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .subtract(healthDeduction)
             .setScale(2, RoundingMode.HALF_UP);
     Map<BigDecimal, BigDecimal> buckets = new LinkedHashMap<>();
+    BigDecimal effectiveRate = input.periodContext().ryczaltRate();
+    if (input.periodContext().jdgActive() && effectiveRate == null) {
+      issues.add(
+          issue("MISSING_EFFECTIVE_TAX_PROFILE", null, "No tax profile is active for the period."));
+    }
     for (InvoiceRow invoice : input.invoices()) {
       if (invoice.ryczaltRate() == null) {
         issues.add(
             issue("UNSUPPORTED_RYCZALT_RATE", invoice.reference(), "Ryczalt rate is missing."));
       } else if (invoice.netAmount() != null) {
+        if (effectiveRate != null && invoice.ryczaltRate().compareTo(effectiveRate) != 0) {
+          issues.add(
+              issue(
+                  "RYCZALT_RATE_MISMATCH",
+                  invoice.reference(),
+                  "Invoice rate differs from the effective tax profile."));
+        }
         BigDecimal amount =
             "PLN".equals(invoice.currency())
                 ? invoice.netAmount()

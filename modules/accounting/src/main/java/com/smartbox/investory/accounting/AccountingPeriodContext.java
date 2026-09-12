@@ -9,6 +9,9 @@ public record AccountingPeriodContext(
     boolean qualifyingUop,
     String zusRegime,
     boolean voluntarySickness,
+    java.math.BigDecimal ryczaltRate,
+    boolean vatRegistered,
+    boolean vatEuRegistered,
     AccountingYearToDateContext yearToDate,
     ZusCalculationInput zusCalculationInput) {
   public AccountingPeriodContext(
@@ -18,7 +21,17 @@ public record AccountingPeriodContext(
       String zusRegime,
       boolean voluntarySickness,
       AccountingYearToDateContext yearToDate) {
-    this(period, jdgActive, qualifyingUop, zusRegime, voluntarySickness, yearToDate, null);
+    this(
+        period,
+        jdgActive,
+        qualifyingUop,
+        zusRegime,
+        voluntarySickness,
+        null,
+        false,
+        false,
+        yearToDate,
+        null);
   }
 
   public AccountingPeriodContext {
@@ -28,6 +41,15 @@ public record AccountingPeriodContext(
 
   public static AccountingPeriodContext compatibility(LocalDate period, AccountingProfile profile) {
     return new AccountingPeriodContext(
-        period, true, profile.hasUop(), "JDG", false, AccountingYearToDateContext.empty(), null);
+        period,
+        true,
+        profile.hasUop(),
+        "JDG",
+        false,
+        new java.math.BigDecimal("0.12"),
+        true,
+        true,
+        AccountingYearToDateContext.empty(),
+        null);
   }
 }

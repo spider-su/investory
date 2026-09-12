@@ -50,7 +50,8 @@ public class AccountingPocRepository {
   public void updateLifecycleStatus(LocalDate period, PeriodLifecycleStatus status) {
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_period_state (tax_period, lifecycle_status) VALUES (?, ?) ON CONFLICT (tax_period) DO UPDATE SET lifecycle_status = EXCLUDED.lifecycle_status",
-        period, status.name());
+        period,
+        status.name());
   }
 
   public void saveFilingArtifact(AccountingFilingArtifact artifact) {
@@ -80,7 +81,9 @@ public class AccountingPocRepository {
   }
 
   public record PeriodState(
-      Instant confirmedAt, String confirmedCalculationHash, PeriodLifecycleStatus lifecycleStatus) {}
+      Instant confirmedAt,
+      String confirmedCalculationHash,
+      PeriodLifecycleStatus lifecycleStatus) {}
 
   public AccountingProfile accountingProfile() {
     return jdbcTemplate.queryForObject(
