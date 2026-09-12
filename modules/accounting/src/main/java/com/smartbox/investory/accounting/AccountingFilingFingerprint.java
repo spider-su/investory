@@ -55,10 +55,12 @@ public final class AccountingFilingFingerprint {
                     .append(d.evidence() == null ? null : d.evidence().type())
                     .append('|')
                     .append(d.evidence() == null ? null : d.evidence().ksefNumber()));
+    return sha256(value.toString().getBytes(StandardCharsets.UTF_8));
+  }
+
+  public static String sha256(byte[] payload) {
     try {
-      byte[] digest =
-          MessageDigest.getInstance("SHA-256")
-              .digest(value.toString().getBytes(StandardCharsets.UTF_8));
+      byte[] digest = MessageDigest.getInstance("SHA-256").digest(payload);
       StringBuilder result = new StringBuilder();
       for (byte b : digest) result.append("%02x".formatted(b));
       return result.toString();
