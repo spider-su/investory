@@ -50,7 +50,13 @@ public interface AccountingUserApi {
       String nextActionLabel,
       Summary summary,
       List<IssueView> issues,
-      SourceSummary sources) {}
+      SourceSummary sources,
+      DocumentSummary documentSummary,
+      BankSummary bankSummary,
+      PaymentSummary paymentSummary,
+      FilingSummary filingSummary,
+      ReconciliationSummary reconciliationSummary,
+      List<String> allowedActions) {}
 
   record Summary(
       BigDecimal revenue,
@@ -61,6 +67,17 @@ public interface AccountingUserApi {
       int bankTransactions) {}
 
   record SourceSummary(int imported, int reviewRequired, int failed) {}
+
+  record DocumentSummary(int count, int reviewRequired, int failed) {}
+
+  record BankSummary(int transactionCount, int unmatchedCount, String importStatus) {}
+
+  record PaymentSummary(int expectedCount, int outstandingCount, BigDecimal totalOutstanding) {}
+
+  record FilingSummary(String lifecycle, String lifecycleLabel, boolean ready, List<String> issues) {}
+
+  record ReconciliationSummary(
+      int rowCount, int settledCount, int mismatchCount, int missingEvidenceCount) {}
 
   record IssueView(
       String code, String severity, String title, String message, String sourceReference) {}

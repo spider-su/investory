@@ -57,10 +57,14 @@ public class AccountingUserFacade implements AccountingUserApi {
     var state = repository.periodState(date(month));
     var lifecycle = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
     var outcomes = sources.outcomes(date(month));
+    var filingIssues = filing.filing(date(month)).issues();
     int imported = (int) outcomes.stream().filter(o -> "IMPORTED".equals(o.status())).count();
     int review = (int) outcomes.stream().filter(o -> "REVIEW_REQUIRED".equals(o.status())).count();
     int failed = (int) outcomes.stream().filter(o -> "FAILED".equals(o.status())).count();
-    var issues = issues(snapshot, outcomes);
+    var issues = issues(snapshot, outcomes, filingIssues);
+    var payments = paymentInstructions(date(month));
+    var filingResult = filing.filing(date(month));
+    var reconciliations = snapshot.reconciliations();
     return new MonthOverview(
         month,
         lifecycle.name(),
@@ -75,12 +79,58 @@ public class AccountingUserFacade implements AccountingUserApi {
             snapshot.invoices().size() + snapshot.expenses().size(),
             snapshot.bankTransactions().size()),
         issues,
-        new SourceSummary(imported, review, failed));
+        new SourceSummary(imported, review, failed),
+        new DocumentSummary(snapshot.invoices().size() + snapshot.expenses().size(), review, failed),
+        new BankSummary(
+            snapshot.bankTransactions().size(),
+            (int) snapshot.bankTransactions().stream()
+                .filter(row -> !"MATCHED".equalsIgnoreCase(row.status()))
+                .count(),
+            snapshot.bankTransactions().isEmpty() ? "NO_IMPORT" : "IMPORTED"),
+        new PaymentSummary(
+            payments.size(),
+            (int) payments.stream()
+                .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
+                .count(),
+            payments.stream()
+                .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
+                .map(com.smartbox.investory.accounting.AccountingPaymentInstruction::amount)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)),
+        new FilingSummary(
+            lifecycle.name(), label(lifecycle), filingResult.ready(), filingResult.issues()),
+        new ReconciliationSummary(
+            reconciliations.size(),
+            (int) reconciliations.stream().filter(row -> "SETTLED".equalsIgnoreCase(row.status())).count(),
+            (int) reconciliations.stream().filter(row -> "MISMATCH".equalsIgnoreCase(row.status())).count(),
+            (int) reconciliations.stream()
+                .filter(row -> row.explanation() != null && row.explanation().toLowerCase().contains("evidence"))
+                .count()),
+        allowedActions(lifecycle, issues));
+  }
+
+  private List<AccountingPaymentInstruction> paymentInstructions(java.time.LocalDate period) {
+    try {
+      return filing.paymentInstructions(period);
+    } catch (RuntimeException ignored) {
+      return List.of();
+    }
+  }
+
+  private static List<String> allowedActions(PeriodLifecycleStatus lifecycle, List<IssueView> issues) {
+    if (!issues.isEmpty()) return List.of();
+    return switch (lifecycle) {
+      case OPEN, SOURCES_INCOMPLETE, ISSUES, READY_FOR_REVIEW -> List.of("CONFIRM");
+      case CONFIRMED -> List.of("FILE");
+      case FILED, PAID -> List.of("SETTLE");
+      case SETTLED -> List.of("LOCK");
+      case LOCKED -> List.of("REOPEN");
+    };
   }
 
   private List<IssueView> issues(
       AccountingMonthSnapshot snapshot,
-      List<AccountingSourceEvidenceService.SourceOutcome> outcomes) {
+      List<AccountingSourceEvidenceService.SourceOutcome> outcomes,
+      List<String> filingIssues) {
     var result = new java.util.ArrayList<IssueView>();
     snapshot
         .issues()
@@ -104,6 +154,14 @@ public class AccountingUserFacade implements AccountingUserApi {
                         "Source requires attention",
                         o.error() == null ? "Source was not imported." : o.error(),
                         o.reference())));
+    filingIssues.stream()
+        .filter(issue -> !issue.startsWith("Month calculation is not confirmed"))
+        .filter(issue -> result.stream().noneMatch(existing -> existing.message().equals(issue)))
+        .forEach(
+            issue ->
+                result.add(
+                    new IssueView(
+                        "FILING_READINESS", "BLOCKING", "Filing readiness", issue, null)));
     return result;
   }
 
@@ -159,8 +217,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<PaymentView> payments(long p, YearMonth m) {
     profile(p);
-    try {
-      return filing.paymentInstructions(date(m)).stream()
+    return paymentInstructions(date(m)).stream()
           .map(
               x ->
                   new PaymentView(
@@ -171,9 +228,6 @@ public class AccountingUserFacade implements AccountingUserApi {
                       x.account(),
                       x.status()))
           .toList();
-    } catch (RuntimeException ignored) {
-      return List.of();
-    }
   }
 
   @Override

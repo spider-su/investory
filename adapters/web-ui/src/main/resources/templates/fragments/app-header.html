@@ -130,6 +130,8 @@
        th:if="${portfolioId != null}"
        href="/portfolios/1/dashboard/reconciliation"
        th:href="@{/portfolios/{portfolioId}/dashboard/reconciliation(portfolioId=${portfolioId})}">Reconciliation</a>
+    <span th:if="${activePage == 'accounting'}" class="is-active" aria-current="page">Accounting</span>
+    <a th:unless="${activePage == 'accounting'}" href="/accounting">Accounting</a>
     <a href="/settings/integrations"
        th:href="@{/settings/integrations}">Settings</a>
 </nav>
