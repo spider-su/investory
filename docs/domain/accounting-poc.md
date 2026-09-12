@@ -80,10 +80,13 @@ The golden matrix is enforced by `AccountingGoldenMatrixIT` and the focused scen
 
 Production source evidence is stored separately from normalized accounting facts. Each uploaded
 file and KSeF XML payload is preserved in the source-evidence table with an immutable content hash
-and processing status. The common path is source -> parse -> review/validation -> normalized facts;
-only reviewed or proven documents reach `AccountingInvoiceIngestionService`. Historical golden
-fixtures are regression evidence only. Unknown tax-relevant classification or VAT deduction must
-produce `REVIEW_REQUIRED`, never a guessed value.
+and processing status. Source identity is deliberately separate from accounting identity: KSeF
+number and upload hash identify the source, while invoice reference identifies the business fact.
+The statuses are `RECEIVED`, `PARSED`, `REVIEW_REQUIRED`, `IMPORTED` and `FAILED`. The common path
+is source -> parse -> review/validation -> normalized facts; only reviewed or proven documents
+reach `AccountingInvoiceIngestionService`. Historical golden fixtures are regression evidence only.
+Unknown tax-relevant classification or VAT deduction must produce `REVIEW_REQUIRED`, never a guessed
+value.
 
 ### Sales period vs cash period
 

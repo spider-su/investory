@@ -29,16 +29,14 @@ public class AccountingSourceRepository {
       LocalDate documentDate,
       byte[] contentHash,
       byte[] payload) {
-    return jdbcTemplate.queryForObject(
+    jdbcTemplate.update(
         """
         INSERT INTO investory.accounting_source_evidence
           (source_type, external_reference, original_filename, content_type, received_at,
            document_date, content_hash, payload, processing_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'RECEIVED')
-        ON CONFLICT (source_type, external_reference) DO UPDATE SET external_reference = EXCLUDED.external_reference
-        RETURNING id
+        ON CONFLICT (source_type, external_reference) DO NOTHING
         """,
-        Long.class,
         type.name(),
         externalReference,
         originalFilename,
@@ -47,6 +45,20 @@ public class AccountingSourceRepository {
         documentDate,
         contentHash,
         payload);
+    return findId(type, externalReference).orElseThrow();
+  }
+
+  public java.util.List<AccountingSourceEvidenceService.SourceOutcome> outcomes(LocalDate period) {
+    return jdbcTemplate.query(
+        """
+        SELECT external_reference, processing_status, processing_error
+          FROM investory.accounting_source_evidence
+         WHERE document_date = ? OR document_date IS NULL
+         ORDER BY id
+        """,
+        (rs, rowNum) -> new AccountingSourceEvidenceService.SourceOutcome(
+            rs.getString("external_reference"), rs.getString("processing_status"), rs.getString("processing_error")),
+        period);
   }
 
   public void updateStatus(long id, AccountingSourceStatus status, String error) {

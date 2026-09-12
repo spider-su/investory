@@ -45,6 +45,16 @@ public class AccountingSourceEvidenceService {
     return repository.status(id);
   }
 
+  public java.util.Optional<Long> findId(AccountingSourceType type, String externalReference) {
+    return repository.findId(type, externalReference);
+  }
+
+  public java.util.List<SourceOutcome> outcomes(LocalDate period) {
+    return repository.outcomes(period);
+  }
+
+  public record SourceOutcome(String reference, String status, String error) {}
+
   private byte[] sha256(byte[] payload) {
     try {
       return MessageDigest.getInstance("SHA-256").digest(payload == null ? new byte[0] : payload);

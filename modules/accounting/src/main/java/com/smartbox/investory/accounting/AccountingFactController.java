@@ -172,6 +172,9 @@ public class AccountingFactController {
     model.addAttribute("hasUop", snapshot.zus().hasUop());
     model.addAttribute("snapshot", snapshot);
     model.addAttribute("facts", service.facts());
+    if (sourceEvidenceService != null) {
+      model.addAttribute("sourceOutcomes", sourceEvidenceService.outcomes(selected));
+    }
     return selected;
   }
 

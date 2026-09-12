@@ -4,6 +4,7 @@ import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
 import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
+import com.smartbox.investory.accounting.AccountingSourceType;
 import com.smartbox.investory.integrations.ksef.KsefClient.KsefAccess;
 import com.smartbox.investory.integrations.ksef.KsefEnvironment;
 import java.nio.charset.StandardCharsets;
@@ -142,6 +143,14 @@ public class KsefConnectionController {
     for (String ksefNumber : ksefNumbers) {
       long sourceId = 0;
       try {
+        if (sourceEvidenceService != null) {
+          var existing = sourceEvidenceService.findId(AccountingSourceType.KSEF, ksefNumber);
+          if (existing != null && existing.isPresent()
+              && sourceEvidenceService.status(existing.get()) == AccountingSourceStatus.IMPORTED) {
+            skipped++;
+            continue;
+          }
+        }
         String xml = client.downloadInvoice(environment, accessToken, ksefNumber);
         sourceId =
             sourceEvidenceService == null
@@ -176,7 +185,7 @@ public class KsefConnectionController {
                     invoice.saleDate(),
                     invoice.reference(),
                     supplier,
-                    "OTHER",
+                    invoice.category(),
                     currency,
                     invoice.netAmount(),
                     invoice.vatAmount(),
@@ -189,6 +198,13 @@ public class KsefConnectionController {
         if (sourceId != 0)
           sourceEvidenceService.status(sourceId, AccountingSourceStatus.IMPORTED, null);
       } catch (RuntimeException exception) {
+        if (sourceId == 0 && sourceEvidenceService != null) {
+          try {
+            sourceId = sourceEvidenceService.receiveKsef(ksefNumber, null, new byte[0]);
+          } catch (RuntimeException ignored) {
+            // Preserve the original KSeF failure if the failure marker itself cannot be stored.
+          }
+        }
         if (sourceId != 0 && sourceEvidenceService != null) {
           sourceEvidenceService.status(
               sourceId, AccountingSourceStatus.FAILED, exception.getMessage());

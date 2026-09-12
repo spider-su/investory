@@ -91,6 +91,18 @@
         </div>
       </section>
 
+      <section class="card section-card" th:if="${sourceOutcomes != null}">
+        <div class="card-header"><h2 class="card-title">Sources</h2></div>
+        <div class="table-responsive"><table class="table table-vcenter card-table">
+          <thead><tr><th>Source reference</th><th>Status</th><th>Issue</th></tr></thead>
+          <tbody><tr th:each="source : ${sourceOutcomes}">
+            <td th:text="${source.reference()}">KSEF-1</td>
+            <td th:text="${source.status()}">IMPORTED</td>
+            <td class="note" th:text="${source.error() != null ? source.error() : '—'}">—</td>
+          </tr></tbody>
+        </table></div>
+      </section>
+
       <div class="alert alert-success" role="alert" th:if="${invoiceSaved}" th:text="${invoiceSaved}"></div>
       <div class="alert alert-danger" role="alert" th:if="${invoiceSaveError}" th:text="${invoiceSaveError}"></div>
       <div class="alert alert-success" role="alert" th:if="${accountingProfileMessage}" th:text="${accountingProfileMessage}"></div>
