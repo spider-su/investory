@@ -158,7 +158,17 @@ public class AccountingFactService {
                 resolved.ryczaltRate(),
                 resolved.vatRegistered(),
                 resolved.vatEuRegistered(),
-                yearToDate,
+                new AccountingYearToDateContext(
+                    yearToDate.taxableRyczaltRevenue(),
+                    null,
+                    null,
+                    null,
+                    calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+                        ? pocRepository.paidContributionsUpTo(
+                            period,
+                            zusCalculation == null ? null : zusCalculation.socialContribution(),
+                            zusCalculation == null ? null : zusCalculation.healthContribution())
+                        : List.of()),
                 zusCalculation == null
                     ? null
                     : new ZusCalculationInput(

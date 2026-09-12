@@ -103,6 +103,83 @@ public class AccountingFilingService {
     repository.reopen(period, reason, Instant.now());
   }
 
+  /** Evidence-derived filing transition. */
+  public void markFiled(LocalDate period) {
+    FilingResult result = filing(period);
+    if (!result.confirmed()) throw new IllegalStateException("Cannot file an unconfirmed period");
+    if (!repository.hasFilingArtifact(period, "JPK_V7M")
+        || !repository.hasAcceptedConfirmation(period, "JPK_UPO")) {
+      throw new IllegalStateException("Accepted JPK filing evidence is required");
+    }
+    boolean vatEuRequired =
+        repository.vatTransactionsForPeriod(period).stream()
+            .anyMatch(t -> t.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE);
+    if (vatEuRequired
+        && (!repository.hasFilingArtifact(period, "VAT_UE")
+            || !repository.hasAcceptedConfirmation(period, "VAT_UE_UPO"))) {
+      throw new IllegalStateException("Accepted VAT-UE filing evidence is required");
+    }
+    if (result.snapshot().zus().totalZus().signum() > 0
+        && !repository.hasAcceptedConfirmation(period, "ZUS_DRA_ACCEPTANCE")) {
+      throw new IllegalStateException("Accepted ZUS DRA evidence is required");
+    }
+    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.FILED);
+  }
+
+  /** Evidence-derived payment transition. */
+  public void markPaid(LocalDate period) {
+    AccountingMonthSnapshot snapshot = factService.snapshot(period);
+    for (var obligation : payableObligations(snapshot)) {
+      if (obligation.amount().signum() <= 0) continue;
+      boolean paid =
+          snapshot.bankTransactions().stream()
+              .filter(t -> (obligation.type() + "_PAYMENT").equals(t.transactionType()))
+              .map(t -> t.amount().abs())
+              .reduce(BigDecimal.ZERO, BigDecimal::add)
+              .compareTo(obligation.amount())
+              >= 0;
+      if (!paid) throw new IllegalStateException("Missing payment evidence: " + obligation.type());
+    }
+    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.PAID);
+  }
+
+  /** Evidence-derived settlement transition; authority evidence is required separately from cash. */
+  public void settle(LocalDate period) {
+    AccountingMonthSnapshot snapshot = factService.snapshot(period);
+    markFiled(period);
+    for (var obligation : payableObligations(snapshot)) {
+      if (obligation.amount().signum() <= 0) continue;
+      String confirmationType =
+          switch (obligation.type()) {
+            case "ZUS" -> "ZUS_ACCOUNT_POSTING";
+            default -> "TAX_ACCOUNT_POSTING";
+          };
+      if (!repository.hasAcceptedConfirmation(period, confirmationType))
+        throw new IllegalStateException("Missing authority posting: " + obligation.type());
+    }
+    markPaid(period);
+    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.SETTLED);
+  }
+
+  private List<AccountingCalculationResult.CalculatedObligation> payableObligations(
+      AccountingMonthSnapshot snapshot) {
+    return List.of(
+        new AccountingCalculationResult.CalculatedObligation(
+            "VAT", snapshot.vat().calculatedVat(), snapshot.period()),
+        new AccountingCalculationResult.CalculatedObligation(
+            "RYCZALT", snapshot.ryczalt().calculatedTax(), snapshot.period()),
+        new AccountingCalculationResult.CalculatedObligation(
+            "ZUS", snapshot.zus().totalZus(), snapshot.period()));
+  }
+
+  public void lock(LocalDate period) {
+    var state = repository.periodState(period);
+    if (state == null || state.lifecycleStatus() != PeriodLifecycleStatus.SETTLED)
+      throw new IllegalStateException("Only a settled period can be locked");
+    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.LOCKED);
+  }
+
+  @Deprecated(forRemoval = false)
   public void transitionLifecycle(
       LocalDate period,
       PeriodLifecycleStatus target,

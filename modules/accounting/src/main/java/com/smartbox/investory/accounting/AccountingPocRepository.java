@@ -88,6 +88,24 @@ public class AccountingPocRepository {
         confirmation.note());
   }
 
+  public boolean hasFilingArtifact(LocalDate period, String artifactType) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_filing_artifact WHERE tax_period = ? AND artifact_type = ? AND status IN ('VALID', 'SUBMITTED'))",
+            Boolean.class,
+            period,
+            artifactType));
+  }
+
+  public boolean hasAcceptedConfirmation(LocalDate period, String confirmationType) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND confirmation_type = ? AND status IN ('ACCEPTED', 'POSTED'))",
+            Boolean.class,
+            period,
+            confirmationType));
+  }
+
   public record PeriodState(
       Instant confirmedAt,
       String confirmedCalculationHash,
@@ -480,6 +498,44 @@ public class AccountingPocRepository {
         period,
         period,
         period.plusMonths(1));
+  }
+
+  /** Projects only exact, persisted ZUS payments; obligations are never inferred from payment rows. */
+  public List<PaidContribution> paidContributionsUpTo(
+      LocalDate period, BigDecimal socialObligation, BigDecimal healthObligation) {
+    BigDecimal social = socialObligation == null ? BigDecimal.ZERO : socialObligation;
+    BigDecimal health = healthObligation == null ? BigDecimal.ZERO : healthObligation;
+    BigDecimal total = social.add(health).setScale(2);
+    List<List<PaidContribution>> rows = jdbcTemplate.query(
+            """
+            SELECT id, booking_date, related_period, amount, reference
+              FROM investory.accounting_poc_bank_transaction
+             WHERE transaction_type = 'ZUS_PAYMENT'
+               AND booking_date <= ?
+             ORDER BY id
+            """,
+            (rs, rowNum) -> {
+              BigDecimal paid = rs.getBigDecimal("amount").abs().setScale(2);
+              LocalDate paymentDate = rs.getObject("booking_date", LocalDate.class);
+              LocalDate contributionPeriod = rs.getObject("related_period", LocalDate.class);
+              long id = rs.getLong("id");
+              String reference = rs.getString("reference");
+              if (paid.compareTo(total) == 0 && total.signum() > 0) {
+                var result = new java.util.ArrayList<PaidContribution>();
+                if (social.signum() > 0)
+                  result.add(new PaidContribution("SOCIAL", contributionPeriod, paymentDate, social, social, id));
+                if (health.signum() > 0)
+                  result.add(new PaidContribution("HEALTH", contributionPeriod, paymentDate, health, health, id));
+                return result;
+              }
+              if (social.signum() == 0 && paid.compareTo(health) == 0 && health.signum() > 0)
+                return List.of(new PaidContribution("HEALTH", contributionPeriod, paymentDate, health, health, id));
+              return List.of();
+            },
+            period.withDayOfMonth(period.lengthOfMonth()));
+    return rows.stream()
+        .flatMap(List::stream)
+        .toList();
   }
 
   public boolean insertBankTransaction(
