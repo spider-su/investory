@@ -20,6 +20,7 @@ public record AccountingPeriodContext(
       AccountingYearToDateContext yearToDate) {
     this(period, jdgActive, qualifyingUop, zusRegime, voluntarySickness, yearToDate, null);
   }
+
   public AccountingPeriodContext {
     if (period == null) throw new IllegalArgumentException("accounting period is required");
     yearToDate = yearToDate == null ? AccountingYearToDateContext.empty() : yearToDate;

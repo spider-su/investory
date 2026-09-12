@@ -129,6 +129,18 @@ public final class AccountingDatabase {
       statement.execute(
           "ALTER TABLE investory.accounting_poc_expense_invoice ADD COLUMN IF NOT EXISTS filing_evidence VARCHAR(8)");
       statement.execute(
+          """
+          CREATE TABLE IF NOT EXISTS investory.employment_period (
+              id BIGSERIAL PRIMARY KEY,
+              profile_id BIGINT NOT NULL,
+              employment_type VARCHAR(8) NOT NULL,
+              date_from DATE NOT NULL,
+              date_to DATE,
+              CONSTRAINT chk_accounting_employment_type CHECK (employment_type IN ('UOP', 'JDG')),
+              CONSTRAINT chk_accounting_employment_dates CHECK (date_to IS NULL OR date_to >= date_from)
+          )
+          """);
+      statement.execute(
           "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS nip VARCHAR(10)");
       statement.execute(
           "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS full_name VARCHAR(240)");

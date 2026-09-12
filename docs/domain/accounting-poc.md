@@ -100,7 +100,10 @@ accounting-result fixture or golden output. The existing VAT, ryczałt, ZUS, FX 
 calculations remain authoritative for those rows, and UoP keeps its documented health-only/social-ZUS
 semantics.
 
-Each operational snapshot exposes derived readiness: `READY`, `REVIEW_REQUIRED` or `INCOMPLETE`.
+Operational calculation resolves JDG activity, qualifying UoP, ryczałt/VAT applicability and ZUS
+settings for the requested period through effective-dated context. The compatibility `hasUop` flag
+is retained only for older profiles/snapshots where no effective periods exist; it is not the
+authoritative model when period data is present. Each operational snapshot exposes derived readiness: `READY`, `REVIEW_REQUIRED` or `INCOMPLETE`.
 Compact issues identify a type, severity, source reference and message. Missing normalized inputs,
 missing FX or missing tax/ZUS inputs make the month incomplete. A preserved source with an uncertain
 tax classification or deduction makes it review-required. The UI shows the mode, readiness and issues;
@@ -159,6 +162,16 @@ Current proven treatment:
 - captured BP/ANIWIM fuel invoices in the hardened months use 8% invoice VAT;
 - document/source VAT values take precedence over category defaults or gross-value reconstruction;
 - monthly wFirma purchase-VAT totals are comparison evidence only, never balancing calculation inputs.
+
+Operational VAT treatment is explicit. Domestic VAT, reviewed EU B2B reverse charge, reviewed
+non-EU B2B outside-Poland service, domestic purchase and import-of-services treatments are distinct
+from currency. Missing or ambiguous treatment remains review-required; currency alone never decides
+the VAT result. Accepted EU B2B rows feed a separate VAT-UE projection, which is `NOT_REQUIRED` when
+no qualifying rows exist.
+
+Ryczałt deductions use eligible contributions actually paid by the applicable payment-date rule.
+An unpaid ZUS obligation is not a PIT deduction. The operational calculator supports the guaranteed
+12% rate and reports unsupported rates instead of silently applying 12%.
 
 When only a gross list value is available, provenance must say that the split is derived (for example `WFIRMA_LIST_DERIVED_8` or `WFIRMA_LIST_DERIVED_23`). Source-backed rows use `SOURCE_DOCUMENT`.
 

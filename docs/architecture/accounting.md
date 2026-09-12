@@ -18,6 +18,20 @@ sources
 → filing and payment projections
 ```
 
+The operational lifecycle continues as:
+
+```text
+sources
+→ extraction
+→ normalized facts
+→ calculation
+→ filing representation
+→ payment instruction
+→ actual bank payment
+→ authority confirmation evidence
+→ SETTLED / LOCKED month
+```
+
 Runtime source data is separate from test-support and historical golden data. Uploaded documents,
 KSeF XML and bank files are immutable source evidence. The snapshots and fixtures under
 `test-support` are deterministic regression evidence and historical reconstruction inputs; they are
@@ -128,6 +142,8 @@ AccountingMonthSnapshot
 
 `AccountingFactService` currently orchestrates monthly calculation, historical comparison, bank
 reconciliation, readiness and snapshot assembly. The snapshot is the canonical POC monthly result.
+`AccountingCalculationResult` is the calculation-only result used by the current calculator path;
+the snapshot adds comparison, reconciliation, readiness and presentation concerns around it.
 
 ## TARGET: pure calculation architecture
 
@@ -179,6 +195,19 @@ bank transaction   = observed cash evidence
 
 No export layer independently recalculates tax.
 
+The current obligation matrix is:
+
+| Obligation | Calculated input | Operational projection | Confirmation evidence |
+| --- | --- | --- | --- |
+| PIT ryczałt | revenue and paid deductible ZUS | PPE payment instruction | imported/manual tax-account posting |
+| VAT | sales VAT and deductible purchase VAT | JPK projection and VAT payment | JPK UPO and imported/manual tax-account posting |
+| VAT-UE | accepted qualifying EU B2B facts | VAT-UE projection when required | VAT-UE UPO |
+| ZUS | effective insurance state and supported 2026 rules | DRA representation and NRS payment instruction | imported/manual eZUS acceptance or account evidence |
+| KSeF | invoice source evidence | issue/receive through the KSeF boundary | KSeF number/status |
+
+These are representations and evidence boundaries. Government submission APIs are not part of this
+POC.
+
 This is not yet fully filing-ready. Hardening areas include natural-person JDG taxpayer identity,
 KSeF/OFF/BFK/DI semantics, deductible purchase VAT projection, official XSD validation, typed filing
 issues, deterministic semantic confirmation fingerprints and business-day due dates.
@@ -215,6 +244,18 @@ golden → influence calculation
 The frozen 2026 matrix is regression evidence for the POC. A new operational month must be calculated
 from normalized rows persisted through the normal ingestion boundaries, without writing a month-
 specific golden or Flyway balancing fixture.
+
+## Status boundaries
+
+Calculation readiness, filing status, payment status, authority confirmation status and period
+lifecycle status are separate concepts. A bank transfer alone does not prove that an obligation was
+filed, posted by an authority or settled. A period can reach `SETTLED` only after calculated, filed
+and authority-posted amounts reconcile; `LOCKED` is an explicit lifecycle action that requires no
+blocking issues. New tax-relevant evidence for a locked period requires an explicit reopen.
+
+Rule/version metadata is intentionally lightweight. The supported calculation uses versioned 2026
+ZUS policy and the JPK_V7M(3) filing schema; this is reproducibility metadata, not a dynamic rules
+engine.
 
 ## Related domain contract
 
