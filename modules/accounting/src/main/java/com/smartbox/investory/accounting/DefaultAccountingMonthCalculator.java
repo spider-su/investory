@@ -41,10 +41,12 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         domestic.add(fx.convertedRevenuePln()).add(input.adjustments().revenueNetPln());
     var paidContributions = input.periodContext().yearToDate().paidContributions();
     var periodEnd = input.period().withDayOfMonth(input.period().lengthOfMonth());
+    var periodStart = input.period().withDayOfMonth(1);
     BigDecimal paidSocial =
         paidContributions.stream()
             .filter(p -> "SOCIAL".equals(p.contributionType()))
-            .filter(p -> !p.paymentDate().isAfter(periodEnd))
+            .filter(
+                p -> !p.paymentDate().isBefore(periodStart) && !p.paymentDate().isAfter(periodEnd))
             .map(PaidContribution::deductibleAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     ZusCalculationInput zusInput = input.periodContext().zusCalculationInput();
@@ -61,7 +63,10 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
                     ? BigDecimal.ZERO
                     : paidContributions.stream()
                         .filter(p -> "HEALTH".equals(p.contributionType()))
-                        .filter(p -> !p.paymentDate().isAfter(periodEnd))
+                        .filter(
+                            p ->
+                                !p.paymentDate().isBefore(periodStart)
+                                    && !p.paymentDate().isAfter(periodEnd))
                         .map(PaidContribution::deductibleAmount)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
     if (input.calculationMode() != AccountingCalculationMode.CURRENT_CALCULATION
@@ -72,7 +77,10 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
     BigDecimal healthDeduction =
         paidContributions.stream()
                     .filter(p -> "HEALTH".equals(p.contributionType()))
-                    .filter(p -> !p.paymentDate().isAfter(periodEnd))
+                    .filter(
+                        p ->
+                            !p.paymentDate().isBefore(periodStart)
+                                && !p.paymentDate().isAfter(periodEnd))
                     .map(PaidContribution::deductibleAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add)
                     .signum()
@@ -80,7 +88,10 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             ? BigDecimal.ZERO
             : paidContributions.stream()
                 .filter(p -> "HEALTH".equals(p.contributionType()))
-                .filter(p -> !p.paymentDate().isAfter(periodEnd))
+                .filter(
+                    p ->
+                        !p.paymentDate().isBefore(periodStart)
+                            && !p.paymentDate().isAfter(periodEnd))
                 .map(PaidContribution::deductibleAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .multiply(HALF)

@@ -245,7 +245,14 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
       } catch (RuntimeException exception) {
         if (sourceId == 0 && sourceEvidenceService != null) {
           try {
-            sourceId = sourceEvidenceService.receiveKsef(ksefNumber, null, new byte[0]);
+            // Keep failed retrieval evidence separate from the immutable successful KSeF
+            // identity. A zero-byte row under ksefNumber permanently blocked retry via the
+            // source uniqueness constraint.
+            sourceId =
+                sourceEvidenceService.receiveKsef(
+                    "FAILED:" + ksefNumber + ":" + java.util.UUID.randomUUID(),
+                    null,
+                    new byte[0]);
           } catch (RuntimeException ignored) {
             // Preserve the original KSeF failure if the failure marker itself cannot be stored.
           }

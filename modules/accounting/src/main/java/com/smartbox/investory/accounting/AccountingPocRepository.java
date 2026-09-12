@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
@@ -49,6 +50,17 @@ public class AccountingPocRepository {
   }
 
   public void updateLifecycleStatus(LocalDate period, PeriodLifecycleStatus status) {
+    PeriodLifecycleStatus current =
+        jdbcTemplate.query(
+            "SELECT lifecycle_status FROM investory.accounting_poc_period_state WHERE tax_period = ?",
+            rs ->
+                rs.next() && rs.getString(1) != null
+                    ? PeriodLifecycleStatus.valueOf(rs.getString(1))
+                    : PeriodLifecycleStatus.OPEN,
+            period);
+    if (current == PeriodLifecycleStatus.LOCKED && status != PeriodLifecycleStatus.LOCKED) {
+      throw new IllegalStateException("Locked accounting period cannot be changed");
+    }
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_period_state (tax_period, lifecycle_status) VALUES (?, ?) ON CONFLICT (tax_period) DO UPDATE SET lifecycle_status = EXCLUDED.lifecycle_status",
         period,
@@ -65,19 +77,20 @@ public class AccountingPocRepository {
 
   public void saveFilingArtifact(AccountingFilingArtifact artifact) {
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_filing_artifact (artifact_type, tax_period, schema_version, payload, payload_hash, generated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (artifact_type, tax_period, payload_hash) DO NOTHING",
+        "INSERT INTO investory.accounting_filing_artifact (artifact_type, tax_period, schema_version, payload, payload_hash, calculation_hash, generated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (artifact_type, tax_period, payload_hash) DO NOTHING",
         artifact.type().name(),
         artifact.period(),
         artifact.schemaVersion(),
         artifact.payload(),
         artifact.payloadHash(),
+        artifact.calculationHash(),
         java.sql.Timestamp.from(artifact.generatedAt()),
         artifact.status().name());
   }
 
   public void saveAuthorityConfirmation(AuthorityConfirmation confirmation) {
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_authority_confirmation (authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO investory.accounting_authority_confirmation (authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note, amount, calculation_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         confirmation.authority(),
         confirmation.obligationOrArtifactType(),
         confirmation.period(),
@@ -87,12 +100,13 @@ public class AccountingPocRepository {
         java.sql.Timestamp.from(confirmation.receivedAt()),
         confirmation.sourceDocumentId(),
         confirmation.note(),
-        confirmation.amount());
+        confirmation.amount(),
+        confirmation.calculationHash());
   }
 
   public Optional<AccountingFilingArtifact> filingArtifact(LocalDate period, String type) {
     return jdbcTemplate.query(
-        "SELECT artifact_type, tax_period, schema_version, payload, payload_hash, generated_at, status FROM investory.accounting_filing_artifact WHERE tax_period = ? AND artifact_type = ? ORDER BY generated_at DESC LIMIT 1",
+        "SELECT artifact_type, tax_period, schema_version, payload, payload_hash, calculation_hash, generated_at, status FROM investory.accounting_filing_artifact WHERE tax_period = ? AND artifact_type = ? ORDER BY generated_at DESC LIMIT 1",
         rs ->
             rs.next()
                 ? Optional.of(
@@ -102,8 +116,9 @@ public class AccountingPocRepository {
                         rs.getString(3),
                         rs.getBytes(4),
                         rs.getString(5),
-                        rs.getTimestamp(6).toInstant(),
-                        AccountingFilingArtifact.Status.valueOf(rs.getString(7))))
+                        rs.getString(6),
+                        rs.getTimestamp(7).toInstant(),
+                        AccountingFilingArtifact.Status.valueOf(rs.getString(8))))
                 : Optional.empty(),
         period,
         type);
@@ -112,7 +127,7 @@ public class AccountingPocRepository {
   public Optional<AuthorityConfirmation> authorityConfirmation(
       LocalDate period, String confirmationType) {
     return jdbcTemplate.query(
-        "SELECT authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND confirmation_type = ? ORDER BY received_at DESC LIMIT 1",
+        "SELECT authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note, amount, calculation_hash FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND confirmation_type = ? ORDER BY received_at DESC LIMIT 1",
         rs ->
             rs.next()
                 ? Optional.of(
@@ -126,7 +141,8 @@ public class AccountingPocRepository {
                         rs.getTimestamp(7).toInstant(),
                         rs.getObject(8, Long.class),
                         rs.getString(9),
-                        null))
+                        rs.getBigDecimal(10),
+                        rs.getString(11)))
                 : Optional.empty(),
         period,
         confirmationType);
@@ -141,6 +157,16 @@ public class AccountingPocRepository {
             artifactType));
   }
 
+  public boolean hasFilingArtifact(LocalDate period, String artifactType, String calculationHash) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_filing_artifact WHERE tax_period = ? AND artifact_type = ? AND calculation_hash = ? AND status IN ('VALID', 'SUBMITTED'))",
+            Boolean.class,
+            period,
+            artifactType,
+            calculationHash));
+  }
+
   public boolean hasAcceptedConfirmation(LocalDate period, String confirmationType) {
     return Boolean.TRUE.equals(
         jdbcTemplate.queryForObject(
@@ -148,6 +174,17 @@ public class AccountingPocRepository {
             Boolean.class,
             period,
             confirmationType));
+  }
+
+  public boolean hasAcceptedConfirmation(
+      LocalDate period, String confirmationType, String calculationHash) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND confirmation_type = ? AND calculation_hash = ? AND status IN ('ACCEPTED', 'POSTED'))",
+            Boolean.class,
+            period,
+            confirmationType,
+            calculationHash));
   }
 
   public boolean hasAcceptedConfirmationForAmount(
@@ -222,7 +259,7 @@ public class AccountingPocRepository {
         """
         SELECT COALESCE(SUM(COALESCE(booked_net_pln, net_amount)), 0)
           FROM investory.accounting_poc_invoice
-         WHERE tax_period >= DATE '2026-01-01' AND tax_period < ?
+         WHERE tax_period >= DATE '2026-01-01' AND tax_period <= ?
            AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
         """,
         BigDecimal.class,
@@ -685,6 +722,12 @@ public class AccountingPocRepository {
       String externalAccountId,
       String externalTransactionId,
       String sourcePayloadHash) {
+    String sourceRowIdentity =
+        String.join(
+            ":",
+            Objects.requireNonNullElse(provider, ""),
+            Objects.requireNonNullElse(externalAccountId, ""),
+            Objects.requireNonNullElse(externalTransactionId, ""));
     return jdbcTemplate.update(
             """
             INSERT INTO investory.accounting_poc_bank_transaction
@@ -704,7 +747,7 @@ public class AccountingPocRepository {
             scope,
             note,
             sourceId,
-            externalTransactionId,
+            sourceRowIdentity,
             provider,
             externalAccountId,
             externalTransactionId,
@@ -823,7 +866,7 @@ public class AccountingPocRepository {
         SELECT external_reference, processing_error
           FROM investory.accounting_source_evidence
          WHERE processing_status IN ('REVIEW_REQUIRED', 'FAILED')
-           AND (document_date = ? OR document_date IS NULL)
+           AND (document_date >= ? AND document_date < (? + INTERVAL '1 month'))
          ORDER BY id
         """,
         (rs, rowNum) ->
@@ -834,6 +877,7 @@ public class AccountingPocRepository {
                 rs.getString("processing_error") == null
                     ? "Source document requires review."
                     : rs.getString("processing_error")),
+        period,
         period);
   }
 }

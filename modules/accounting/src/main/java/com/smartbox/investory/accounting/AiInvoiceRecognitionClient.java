@@ -300,7 +300,12 @@ class AiInvoiceRecognitionClient {
 
   private LocalDate localDate(JsonNode node, String field) {
     String value = text(node, field);
-    return value == null ? null : LocalDate.parse(value);
+    if (value == null) return null;
+    try {
+      return LocalDate.parse(value);
+    } catch (RuntimeException exception) {
+      throw invalidField(field, value, exception);
+    }
   }
 
   private BigDecimal decimal(JsonNode node, String field) {
@@ -318,7 +323,16 @@ class AiInvoiceRecognitionClient {
     } else if (comma >= 0) {
       normalized = normalized.replace(',', '.');
     }
-    return new BigDecimal(normalized);
+    try {
+      return new BigDecimal(normalized);
+    } catch (RuntimeException exception) {
+      throw invalidField(field, value, exception);
+    }
+  }
+
+  private IllegalArgumentException invalidField(String field, String value, Exception cause) {
+    return new IllegalArgumentException(
+        "Invalid AI invoice field '" + field + "' value '" + abbreviate(value, 120) + "'", cause);
   }
 
   private String text(JsonNode node, String field) {

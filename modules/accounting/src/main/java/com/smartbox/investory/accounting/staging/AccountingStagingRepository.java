@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting.staging;
 
+import com.smartbox.investory.accounting.VatTreatment;
 import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.Timestamp;
@@ -212,6 +213,10 @@ public class AccountingStagingRepository {
   }
 
   public Long promoteInvoice(StagedInvoice row) {
+    if (row.vatTreatment() == null || row.vatTreatment().isBlank()) {
+      throw new IllegalStateException(
+          "Staged invoice requires explicit VAT treatment before promotion: " + row.reference());
+    }
     if (row.documentKind().equals("EXPENSE")) {
       jdbc.update(
           """
@@ -265,10 +270,34 @@ public class AccountingStagingRepository {
         row.documentKind().equals("EXPENSE")
             ? "accounting_poc_expense_invoice"
             : "accounting_poc_invoice";
-    return jdbc.queryForObject(
-        "SELECT id FROM investory." + canonicalTable + " WHERE reference = ?",
-        Long.class,
-        row.reference());
+    Long canonicalId =
+        jdbc.queryForObject(
+            "SELECT id FROM investory." + canonicalTable + " WHERE reference = ?",
+            Long.class,
+            row.reference());
+    jdbc.update(
+        """
+        INSERT INTO investory.accounting_vat_transaction
+          (tax_period,tax_date,source_document_id,reference,direction,treatment,counterparty_country,
+           counterparty_tax_identifier,net_amount,vat_amount,deductible_vat,evidence)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT DO NOTHING
+        """,
+        row.taxPeriod(),
+        row.documentDate() == null ? row.taxPeriod() : row.documentDate(),
+        Long.toString(row.sourceId()),
+        row.reference(),
+        row.documentKind().equals("EXPENSE") ? "PURCHASE" : "SALE",
+        VatTreatment.valueOf(row.vatTreatment()).name(),
+        row.counterpartyCountry(),
+        row.counterpartyTaxIdentifier(),
+        row.netAmount(),
+        row.vatAmount(),
+        row.documentKind().equals("EXPENSE")
+            ? Objects.requireNonNullElse(row.deductibleVat(), BigDecimal.ZERO)
+            : BigDecimal.ZERO,
+        "STAGED_SOURCE:" + row.sourceId());
+    return canonicalId;
   }
 
   public Long promoteBank(StagedBankTransaction row) {

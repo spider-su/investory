@@ -50,9 +50,7 @@ public class AccountingJpkGenerator {
     xml.append(
             "<Deklaracja><Naglowek><KodFormularzaDekl kodSystemowy=\"VAT-7 (23)\" kodPodatku=\"VAT\" rodzajZobowiazania=\"Z\" wersjaSchemy=\"1-0E\">VAT-7</KodFormularzaDekl><WariantFormularzaDekl>23</WariantFormularzaDekl></Naglowek><PozycjeSzczegolowe><P_38>")
         .append(declarationMoney(vat.outputVatAfterSalesCorrection()))
-        .append("</P_38><P_40>0</P_40><P_41>")
-        .append(declarationMoney(vat.deductibleInputVat()))
-        .append("</P_41><P_42>0</P_42><P_43>")
+        .append("</P_38><P_40>0</P_40><P_41>0</P_41><P_42>0</P_42><P_43>")
         .append(declarationMoney(vat.deductibleInputVat()))
         .append("</P_43><P_51>")
         .append(declarationMoney(vat.calculatedVat()))

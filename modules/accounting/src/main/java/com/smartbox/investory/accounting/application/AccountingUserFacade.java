@@ -245,7 +245,7 @@ public class AccountingUserFacade implements AccountingUserApi {
 
   private DocumentView document(ExpenseRow r) {
     return new DocumentView(
-        r.id(),
+        -r.id(),
         r.reference(),
         "PURCHASE",
         r.invoiceDate(),

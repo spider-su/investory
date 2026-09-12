@@ -142,8 +142,12 @@ public class AccountingStagingReconciliationService {
           row.id(),
           fallback.size() > 1
               ? StagingReconciliationStatus.AMBIGUOUS
-              : StagingReconciliationStatus.NEW,
-          fallback.size() > 1 ? List.of("MULTIPLE_CANONICAL_MATCHES") : List.of(),
+              : fallback.size() == 1
+                  ? StagingReconciliationStatus.MISMATCH
+                  : StagingReconciliationStatus.NEW,
+          fallback.size() > 1
+              ? List.of("MULTIPLE_CANONICAL_MATCHES")
+              : fallback.size() == 1 ? List.of("LEGACY_CANDIDATE_REQUIRES_REVIEW") : List.of(),
           fallback.isEmpty()
               ? "No canonical bank candidate"
               : "Legacy fallback candidate requires explicit review");

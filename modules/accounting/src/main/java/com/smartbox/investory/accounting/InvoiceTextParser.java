@@ -105,7 +105,7 @@ class InvoiceTextParser {
     }
     String currency = currency(text);
     String sellerNip = nip(seller, text);
-    String buyerNip = nip(buyer, buyer);
+    String buyerNip = nip(buyer, text);
     String direction = direction(sellerNip, buyerNip, ownNip, correction);
 
     addMissingWarnings(warnings, reference, issueDate, seller, text, net, vat, gross);

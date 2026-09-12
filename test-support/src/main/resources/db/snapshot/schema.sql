@@ -1045,7 +1045,8 @@ CREATE TABLE investory.accounting_authority_confirmation (
     source_document_id bigint,
     note character varying(1000),
     amount numeric(19,2),
-    profile_id bigint
+    profile_id bigint,
+    calculation_hash character varying(64)
 );
 
 
@@ -10725,7 +10726,7 @@ COPY investory.account_daily (id, account_id, snapshot_date, valuation_currency,
 -- Data for Name: accounting_authority_confirmation; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_authority_confirmation (id, authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note, amount, profile_id) FROM stdin;
+COPY investory.accounting_authority_confirmation (id, authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note, amount, profile_id, calculation_hash) FROM stdin;
 \.
 
 

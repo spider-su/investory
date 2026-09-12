@@ -284,6 +284,16 @@ Rule/version metadata is intentionally lightweight. The supported calculation us
 ZUS policy and the JPK_V7M(3) filing schema; this is reproducibility metadata, not a dynamic rules
 engine.
 
+Operational safeguards:
+
+- contribution deductions are limited to payments in the calculated month;
+- filing artifacts and authority confirmations carry the calculation fingerprint that produced them;
+- staging promotion requires explicit VAT treatment and writes the corresponding VAT transaction;
+- locked periods reject lifecycle changes and payment evidence is matched by period, currency and
+  business scope;
+- the fast accounting test database uses the canonical generated schema, including staging tables
+  and immutable source-evidence triggers.
+
 ## Related domain contract
 
 See [Accounting POC](../domain/accounting-poc.md) for supported JDG scope, UoP/ZUS semantics, VAT and

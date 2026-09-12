@@ -107,8 +107,8 @@ public class AccountingFilingService {
   public void markFiled(LocalDate period) {
     FilingResult result = filing(period);
     if (!result.confirmed()) throw new IllegalStateException("Cannot file an unconfirmed period");
-    if (!repository.hasFilingArtifact(period, "JPK_V7M")
-        || !repository.hasAcceptedConfirmation(period, "JPK_UPO")) {
+    if (!repository.hasFilingArtifact(period, "JPK_V7M", result.calculationHash())
+        || !repository.hasAcceptedConfirmation(period, "JPK_UPO", result.calculationHash())) {
       throw new IllegalStateException("Accepted JPK filing evidence is required");
     }
     boolean vatEuRequired =
@@ -116,11 +116,13 @@ public class AccountingFilingService {
             .anyMatch(t -> t.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE);
     if (vatEuRequired
         && (!repository.hasFilingArtifact(period, "VAT_UE")
-            || !repository.hasAcceptedConfirmation(period, "VAT_UE_UPO"))) {
+            || !repository.hasAcceptedConfirmation(
+                period, "VAT_UE_UPO", result.calculationHash()))) {
       throw new IllegalStateException("Accepted VAT-UE filing evidence is required");
     }
     if (result.snapshot().zus().totalZus().signum() > 0
-        && !repository.hasAcceptedConfirmation(period, "ZUS_DRA_ACCEPTANCE")) {
+        && !repository.hasAcceptedConfirmation(
+            period, "ZUS_DRA_ACCEPTANCE", result.calculationHash())) {
       throw new IllegalStateException("Accepted ZUS DRA evidence is required");
     }
     repository.updateLifecycleStatus(period, PeriodLifecycleStatus.FILED);
@@ -134,6 +136,9 @@ public class AccountingFilingService {
       boolean paid =
           snapshot.bankTransactions().stream()
                   .filter(t -> (obligation.type() + "_PAYMENT").equals(t.transactionType()))
+                  .filter(t -> "BUSINESS".equals(t.scope()))
+                  .filter(t -> "PLN".equals(t.currency()))
+                  .filter(t -> period.equals(t.relatedPeriod()))
                   .map(t -> t.amount().abs())
                   .reduce(BigDecimal.ZERO, BigDecimal::add)
                   .compareTo(obligation.amount())
@@ -194,6 +199,7 @@ public class AccountingFilingService {
             "JPK_V7M_3",
             payload,
             AccountingFilingFingerprint.sha256(payload),
+            result.calculationHash(),
             Instant.now(),
             AccountingFilingArtifact.Status.VALID));
     return payload;
@@ -201,7 +207,23 @@ public class AccountingFilingService {
 
   /** Records imported/manual authority evidence; no government submission is performed. */
   public void recordAuthorityConfirmation(AuthorityConfirmation confirmation) {
-    repository.saveAuthorityConfirmation(confirmation);
+    String hash =
+        confirmation.calculationHash() == null
+            ? filing(confirmation.period()).calculationHash()
+            : confirmation.calculationHash();
+    repository.saveAuthorityConfirmation(
+        new AuthorityConfirmation(
+            confirmation.authority(),
+            confirmation.obligationOrArtifactType(),
+            confirmation.period(),
+            confirmation.externalReference(),
+            confirmation.confirmationType(),
+            confirmation.status(),
+            confirmation.receivedAt(),
+            confirmation.sourceDocumentId(),
+            confirmation.note(),
+            confirmation.amount(),
+            hash));
   }
 
   public List<AccountingPaymentInstruction> paymentInstructions(LocalDate period) {
@@ -244,14 +266,7 @@ public class AccountingFilingService {
         obligations.stream().filter(o -> type.equals(o.obligationType())).findFirst().orElse(null);
     BigDecimal paid =
         existing == null || existing.paidAmount() == null ? BigDecimal.ZERO : existing.paidAmount();
-    String status =
-        paid.compareTo(amount) > 0
-            ? AccountingPaymentStatus.OVERPAID.name()
-            : paid.compareTo(amount) < 0 && paid.signum() > 0
-                ? AccountingPaymentStatus.PARTIAL.name()
-                : paid.compareTo(amount) == 0 && paid.signum() > 0
-                    ? AccountingPaymentStatus.PAID.name()
-                    : dueDatePolicy.paymentStatus(dueDatePolicy.dueDate(period, type), paid).name();
+    String status = dueDatePolicy.paymentStatus(amount, paid).name();
     out.add(
         new AccountingPaymentInstruction(
             type,

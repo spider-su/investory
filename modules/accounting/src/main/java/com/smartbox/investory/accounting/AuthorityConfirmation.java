@@ -15,7 +15,8 @@ public record AuthorityConfirmation(
     Instant receivedAt,
     Long sourceDocumentId,
     String note,
-    BigDecimal amount) {
+    BigDecimal amount,
+    String calculationHash) {
   public AuthorityConfirmation(
       String authority,
       String obligationOrArtifactType,
@@ -36,6 +37,32 @@ public record AuthorityConfirmation(
         receivedAt,
         sourceDocumentId,
         note,
+        null,
+        null);
+  }
+
+  public AuthorityConfirmation(
+      String authority,
+      String obligationOrArtifactType,
+      LocalDate period,
+      String externalReference,
+      ConfirmationType confirmationType,
+      ConfirmationStatus status,
+      Instant receivedAt,
+      Long sourceDocumentId,
+      String note,
+      BigDecimal amount) {
+    this(
+        authority,
+        obligationOrArtifactType,
+        period,
+        externalReference,
+        confirmationType,
+        status,
+        receivedAt,
+        sourceDocumentId,
+        note,
+        amount,
         null);
   }
 

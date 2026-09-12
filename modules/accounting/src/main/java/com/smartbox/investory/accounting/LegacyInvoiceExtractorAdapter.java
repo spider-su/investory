@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -43,7 +44,7 @@ class LegacyInvoiceExtractorAdapter implements AccountingDocumentExtractor {
             invoice.grossAmount(),
             List.of(),
             invoice.category(),
-            List.of(),
+            evidence(invoice.evidence(), ExtractorType.PDF_LAYOUT),
             "pdf-layout-v1");
     return new ExtractionResult(
         candidate,
@@ -52,5 +53,19 @@ class LegacyInvoiceExtractorAdapter implements AccountingDocumentExtractor {
             ? ExtractionOutcome.ACCEPTED
             : ExtractionOutcome.REVIEW_REQUIRED,
         result.warnings());
+  }
+
+  private List<FieldCandidate<?>> evidence(
+      List<AccountingInvoiceRecognitionService.FieldCandidate<?>> source, ExtractorType extractor) {
+    if (source == null) return List.of();
+    List<FieldCandidate<?>> result = new ArrayList<>();
+    for (var field : source) {
+      result.add(
+          new FieldCandidate<Object>(
+              field.value(),
+              new ExtractionEvidence(
+                  extractor, EvidenceType.valueOf(field.source().name()), field.evidence())));
+    }
+    return result;
   }
 }

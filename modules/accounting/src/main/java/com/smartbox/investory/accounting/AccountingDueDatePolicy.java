@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -51,6 +52,9 @@ public class AccountingDueDatePolicy {
 
   public AccountingPaymentStatus paymentStatus(LocalDate dueDate, java.math.BigDecimal paid) {
     java.math.BigDecimal amount = paid == null ? java.math.BigDecimal.ZERO : paid;
+    if (amount.signum() < 0) {
+      throw new IllegalArgumentException("Paid amount cannot be negative");
+    }
     if (amount.signum() == 0) {
       return LocalDate.now(clock).isAfter(dueDate)
           ? AccountingPaymentStatus.OVERDUE
@@ -59,5 +63,24 @@ public class AccountingDueDatePolicy {
               : AccountingPaymentStatus.NOT_DUE;
     }
     return amount.signum() < 0 ? AccountingPaymentStatus.PARTIAL : AccountingPaymentStatus.PAID;
+  }
+
+  /** Compares observed payment with the canonical obligation amount. */
+  public AccountingPaymentStatus paymentStatus(BigDecimal expected, BigDecimal paid) {
+    BigDecimal obligation = expected == null ? BigDecimal.ZERO : expected;
+    BigDecimal amount = paid == null ? BigDecimal.ZERO : paid;
+    if (amount.signum() < 0) throw new IllegalArgumentException("Paid amount cannot be negative");
+    if (obligation.signum() <= 0) return AccountingPaymentStatus.PAID;
+    if (amount.signum() == 0) return AccountingPaymentStatus.NOT_PAID;
+    if (amount.compareTo(obligation) < 0) return AccountingPaymentStatus.PARTIAL;
+    return AccountingPaymentStatus.PAID;
+  }
+
+  public BigDecimal remainingAmount(BigDecimal expected, BigDecimal paid) {
+    BigDecimal obligation = expected == null ? BigDecimal.ZERO : expected;
+    BigDecimal amount = paid == null ? BigDecimal.ZERO : paid;
+    if (amount.signum() < 0) throw new IllegalArgumentException("Paid amount cannot be negative");
+    if (obligation.signum() <= 0) return BigDecimal.ZERO;
+    return obligation.subtract(amount).max(BigDecimal.ZERO);
   }
 }

@@ -9,7 +9,10 @@ import org.testcontainers.utility.MountableFile;
 /** Shared PostgreSQL instance for integration tests that do not need Flyway validation. */
 public final class AccountingDatabase {
 
-  private static final String SNAPSHOT = "db/snapshot/accounting/schema.sql";
+  // Use the canonical generated schema. The old accounting-only snapshot predates staging
+  // tables and the immutable source-evidence trigger, so it allowed tests to pass against a
+  // materially different database than Flyway production.
+  private static final String SNAPSHOT = "db/snapshot/schema.sql";
   private static final String POC_SNAPSHOT = "db/snapshot/accounting/poc.sql";
 
   private static final com.smartbox.investory.testsupport.WorkerDatabase DATABASE = startDatabase();

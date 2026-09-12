@@ -15,6 +15,7 @@ public class AccountingJpkXmlValidator {
   public void validate(byte[] payload) {
     try {
       SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+      factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
       factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
       // Imports resolve only to the bundled sibling XSDs; network schemes remain blocked.
       factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "file");

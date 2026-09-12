@@ -30,22 +30,24 @@ public class AccountingStagingAcquisitionService {
                     invoice.vatAmount(),
                     invoice.vatDeductionRatio()))
             : null;
+    boolean creditNote = "CREDIT_NOTE".equals(invoice.documentType());
+    var sign = creditNote ? java.math.BigDecimal.ONE.negate() : java.math.BigDecimal.ONE;
     return repository.insertInvoice(
         profileId,
         invoice.taxPeriod(),
         sourceId,
         "UPLOAD",
         invoice.sourceIdentity(),
-        expense ? "EXPENSE" : "SALES",
+        expense ? "EXPENSE" : invoice.documentType(),
         expense ? first(invoice.issueDate(), invoice.saleDate()) : invoice.issueDate(),
         invoice.reference().trim(),
         invoice.counterpartyAlias().trim(),
         invoice.counterpartyTaxIdentifier(),
         invoice.counterpartyCountry(),
         invoice.currency().trim().toUpperCase(),
-        normalized == null ? invoice.netAmount() : normalized.netAmount(),
-        normalized == null ? invoice.vatAmount() : normalized.vatAmount(),
-        normalized == null ? invoice.grossAmount() : normalized.grossAmount(),
+        (normalized == null ? invoice.netAmount() : normalized.netAmount()).multiply(sign),
+        (normalized == null ? invoice.vatAmount() : normalized.vatAmount()).multiply(sign),
+        (normalized == null ? invoice.grossAmount() : normalized.grossAmount()).multiply(sign),
         normalized == null ? null : normalized.vatDeductionRatio(),
         normalized == null ? null : normalized.deductibleVat(),
         null,

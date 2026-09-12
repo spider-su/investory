@@ -10,8 +10,20 @@ public record AccountingFilingArtifact(
     String schemaVersion,
     byte[] payload,
     String payloadHash,
+    String calculationHash,
     Instant generatedAt,
     Status status) {
+  public AccountingFilingArtifact(
+      Type type,
+      LocalDate period,
+      String schemaVersion,
+      byte[] payload,
+      String payloadHash,
+      Instant generatedAt,
+      Status status) {
+    this(type, period, schemaVersion, payload, payloadHash, null, generatedAt, status);
+  }
+
   public enum Type {
     JPK_V7M,
     VAT_UE,

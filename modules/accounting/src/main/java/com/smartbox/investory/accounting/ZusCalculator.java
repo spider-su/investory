@@ -6,7 +6,7 @@ import java.math.RoundingMode;
 /** Pure 2026 ZUS policy for the supported JDG case. */
 public final class ZusCalculator {
   public ZusCalculation calculate(Input input) {
-    ZusRules2026.HealthBand band = ZusRules2026.healthBand(input.ytdRyczaltRevenue());
+    ZusRules2026.HealthBand band = input.explicitHealthBand();
     BigDecimal social =
         input.jdgActive() && !input.qualifyingUop() ? input.fullJdgSocial() : BigDecimal.ZERO;
     BigDecimal health = input.jdgActive() ? band.monthlyAmount() : BigDecimal.ZERO;
@@ -25,10 +25,32 @@ public final class ZusCalculator {
       String zusRegime,
       boolean voluntarySickness,
       BigDecimal ytdRyczaltRevenue,
-      BigDecimal fullJdgSocial) {
+      BigDecimal fullJdgSocial,
+      ZusRules2026.HealthBand explicitHealthBand) {
     public Input {
       ytdRyczaltRevenue = ytdRyczaltRevenue == null ? BigDecimal.ZERO : ytdRyczaltRevenue;
       fullJdgSocial = fullJdgSocial == null ? ZusRules2026.FULL_JDG_SOCIAL : fullJdgSocial;
+      explicitHealthBand =
+          explicitHealthBand == null
+              ? ZusRules2026.healthBand(ytdRyczaltRevenue)
+              : explicitHealthBand;
+    }
+
+    public Input(
+        boolean jdgActive,
+        boolean qualifyingUop,
+        String zusRegime,
+        boolean voluntarySickness,
+        BigDecimal ytdRyczaltRevenue,
+        BigDecimal fullJdgSocial) {
+      this(
+          jdgActive,
+          qualifyingUop,
+          zusRegime,
+          voluntarySickness,
+          ytdRyczaltRevenue,
+          fullJdgSocial,
+          null);
     }
   }
 

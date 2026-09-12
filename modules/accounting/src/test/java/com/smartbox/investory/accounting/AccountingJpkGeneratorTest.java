@@ -34,7 +34,7 @@ class AccountingJpkGeneratorTest {
     String xml = new String(new AccountingJpkGenerator().generate(result));
 
     assertThat(xml).contains("JPK_V7M (3)", "1-0E", AccountingJpkGenerator.NS);
-    assertThat(xml).contains("<P_38>230</P_38>", "<P_41>23</P_41>", "<P_51>207</P_51>");
+    assertThat(xml).contains("<P_38>230</P_38>", "<P_43>23</P_43>", "<P_51>207</P_51>");
     new AccountingJpkXmlValidator().validate(xml.getBytes());
   }
 
