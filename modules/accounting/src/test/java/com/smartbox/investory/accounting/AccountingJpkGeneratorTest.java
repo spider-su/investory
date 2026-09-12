@@ -15,7 +15,18 @@ class AccountingJpkGeneratorTest {
         new AccountingFilingService.FilingResult(
             snapshot.period(),
             snapshot,
-            new AccountingProfile(true, "1010000000", "POC", "1215", "a@b", null, null, null),
+            new AccountingProfile(
+                true,
+                "1010000000",
+                "POC",
+                "1215",
+                "a@b",
+                null,
+                null,
+                null,
+                "Jan",
+                "Kowalski",
+                LocalDate.of(1980, 1, 1)),
             "hash",
             true,
             List.of());
@@ -23,7 +34,8 @@ class AccountingJpkGeneratorTest {
     String xml = new String(new AccountingJpkGenerator().generate(result));
 
     assertThat(xml).contains("JPK_V7M (3)", "1-0E", AccountingJpkGenerator.NS);
-    assertThat(xml).contains("<P_38>230.00</P_38>", "<P_41>23.00</P_41>", "<P_51>207.00</P_51>");
+    assertThat(xml).contains("<P_38>230</P_38>", "<P_41>23</P_41>", "<P_51>207</P_51>");
+    new AccountingJpkXmlValidator().validate(xml.getBytes());
   }
 
   @Test

@@ -34,11 +34,7 @@ public class AccountingJpkGenerator {
         .append("</Miesiac></Naglowek>\n");
     xml.append("<Podmiot1 rola=\"Podatnik\"><OsobaFizyczna><etd:NIP>")
         .append(escape(p.nip()))
-        .append("</etd:NIP><PelnaNazwa>")
-        .append(escape(p.fullName()))
-        .append("</PelnaNazwa><Email>")
-        .append(escape(p.email()))
-        .append("</Email><etd:ImiePierwsze>")
+        .append("</etd:NIP><etd:ImiePierwsze>")
         .append(escape(p.firstName()))
         .append("</etd:ImiePierwsze><etd:Nazwisko>")
         .append(escape(p.surname()))
@@ -47,14 +43,19 @@ public class AccountingJpkGenerator {
             p.dateOfBirth() == null
                 ? ""
                 : "<etd:DataUrodzenia>" + p.dateOfBirth() + "</etd:DataUrodzenia>")
+        .append("<Email>")
+        .append(escape(p.email()))
+        .append("</Email>")
         .append("</OsobaFizyczna></Podmiot1>\n");
     xml.append(
             "<Deklaracja><Naglowek><KodFormularzaDekl kodSystemowy=\"VAT-7 (23)\" kodPodatku=\"VAT\" rodzajZobowiazania=\"Z\" wersjaSchemy=\"1-0E\">VAT-7</KodFormularzaDekl><WariantFormularzaDekl>23</WariantFormularzaDekl></Naglowek><PozycjeSzczegolowe><P_38>")
-        .append(money(vat.outputVatAfterSalesCorrection()))
-        .append("</P_38><P_41>")
-        .append(money(vat.deductibleInputVat()))
-        .append("</P_41><P_51>")
-        .append(money(vat.calculatedVat()))
+        .append(declarationMoney(vat.outputVatAfterSalesCorrection()))
+        .append("</P_38><P_40>0</P_40><P_41>")
+        .append(declarationMoney(vat.deductibleInputVat()))
+        .append("</P_41><P_42>0</P_42><P_43>")
+        .append(declarationMoney(vat.deductibleInputVat()))
+        .append("</P_43><P_51>")
+        .append(declarationMoney(vat.calculatedVat()))
         .append("</P_51></PozycjeSzczegolowe><Pouczenia>1</Pouczenia></Deklaracja>\n");
     xml.append("<Ewidencja>");
     int i = 1;
@@ -113,6 +114,10 @@ public class AccountingJpkGenerator {
 
   private String money(java.math.BigDecimal value) {
     return value == null ? "0" : value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+  }
+
+  private String declarationMoney(java.math.BigDecimal value) {
+    return value == null ? "0" : value.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString();
   }
 
   private String escape(String value) {
