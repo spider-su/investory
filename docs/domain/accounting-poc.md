@@ -186,36 +186,28 @@ Preferred evidence order:
 
 Derived fixtures are acceptable for the POC, but the UI and data must preserve provenance. Upgrade them only when source evidence becomes available.
 
-## Document recognition pipeline
+## Document recognition boundary
 
-Invoice uploads use a layered scanner. Text PDFs go through PDFBox text extraction and the small
-deterministic invoice text parser first. A complete result stays local and does not call AI. Empty or
-incomplete PDFs, images (OCR is not implemented yet), and unsupported files use the existing AI
-recognition client as fallback. Scanner routing and fallback stay outside accounting calculations and
-the controller.
+The stable extraction architecture is documented in [Accounting architecture](../architecture/accounting.md).
+In short, PDF, image, AI and KSeF-style sources feed source-specific adapters that return one common
+candidate/evidence model and pass through one validator before normalized ingestion.
 
-The deterministic draft recognizes invoice number, issue/sale/due dates, seller/buyer lines, currency,
-net/VAT/gross totals, and a small fuel/accounting-service category hint. Amount extraction accepts
-Polish and English labels, Polish/US number formats, flattened PDF table cells, reverse-charge (`NP`),
-VAT-exempt (`ZW`), and correction-invoice totals. It chooses totals only when labels or arithmetic
-consistency support them; otherwise it returns `PARTIAL` and the layered scanner may use AI. It is
-still intentionally not a universal invoice parser. The next extension point is OCR behind
-`ImageDocumentScanner`.
+Implemented on this branch: deterministic PDFBox extraction with layout-aware document text, field
+evidence, multi-rate VAT summary support, configured-NIP direction checks, and shared validation.
+AI is an extraction fallback and its output also passes shared validation. OCR is **not implemented**;
+the image compatibility path may fall through to AI, but it must not be treated as OCR.
 
-The parser contract is covered by sanitized fixtures for ordinary VAT invoices, flattened table
-totals, reverse-charge invoices, VAT-exempt documents, correction invoices, foreign-currency totals,
-and incomplete documents. Archive-wide checks are useful evidence, but they are not committed tests:
-personal archive files must not become CI fixtures. New parser rules should add a sanitized fixture and
-keep the arithmetic checks strict.
+The old scanner classes remain transitional compatibility plumbing. They are not the long-term
+architecture or a separate accounting fact boundary.
 
-Reviewed upload persistence is centralized in `AccountingInvoiceIngestionService`. It validates the
-reviewed document, preserves the selected VAT deduction ratio for purchases, applies the POC sales
+Reviewed upload persistence remains centralized in `AccountingInvoiceIngestionService`. It validates
+the reviewed document, preserves the selected VAT deduction ratio for purchases, applies the POC sales
 classification and ryczałt rate, and uses the invoice reference as the idempotency key. KSeF incoming
 invoices use the same service after structured XML parsing; their purchase rows retain
 `KSEF_SOURCE_DOCUMENT` and the KSeF number in the note. KSeF metadata is read page by page, and one
-bad source document is skipped while other documents continue. Reviewed credit notes persist as
-signed sales adjustments in the same normalized invoice table; the historical July correction remains
-the only special fixture treatment.
+bad source document skips while other documents continue. Reviewed credit notes persist as signed
+sales adjustments in the same normalized invoice table; the historical July correction remains the
+only special fixture treatment.
 
 The pipeline has simple application feature flags:
 
