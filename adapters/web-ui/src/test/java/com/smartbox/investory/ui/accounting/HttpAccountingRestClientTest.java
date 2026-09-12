@@ -36,24 +36,19 @@ class HttpAccountingRestClientTest {
   void readsDtoOverHttp() {
     server
         .expect(
-            requestTo(
-                "http://localhost:8080/api/profiles/1/accounting/months/2026-01/overview"))
+            requestTo("http://localhost:8080/api/profiles/1/accounting/months/2026-01/overview"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
             withSuccess(
-                "{\"month\":\"2026-01\",\"lifecycle\":\"OPEN\"}",
-                MediaType.APPLICATION_JSON));
+                "{\"month\":\"2026-01\",\"lifecycle\":\"OPEN\"}", MediaType.APPLICATION_JSON));
 
-    assertThat(client.overview(1, YearMonth.of(2026, 1)).month())
-        .isEqualTo(YearMonth.of(2026, 1));
+    assertThat(client.overview(1, YearMonth.of(2026, 1)).month()).isEqualTo(YearMonth.of(2026, 1));
   }
 
   @Test
   void sendsLifecycleActionAndForwardsAuthorization() {
     server
-        .expect(
-            requestTo(
-                "http://localhost:8080/api/profiles/1/accounting/months/2026-01/confirm"))
+        .expect(requestTo("http://localhost:8080/api/profiles/1/accounting/months/2026-01/confirm"))
         .andExpect(method(HttpMethod.POST))
         .andExpect(header(AUTHORIZATION, "Basic dXNlcjpwYXNz"))
         .andRespond(withSuccess());
