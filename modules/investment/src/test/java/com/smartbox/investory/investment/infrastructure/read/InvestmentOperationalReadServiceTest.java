@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.investment.imports.BrokerType;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import com.smartbox.investory.investment.ledger.position.PositionType;
@@ -22,36 +23,37 @@ import org.junit.jupiter.api.Test;
 class InvestmentOperationalReadServiceTest {
   private final PortfolioMetricsService portfolios = mock();
   private final ImportRepository imports = mock();
+  private final AccountRepository accounts = mock();
   private final PositionRepository positions = mock();
   private final CurrencyRateService currencyRates = mock();
   private final InvestmentOperationalReadService service =
-      new InvestmentOperationalReadService(portfolios, imports, positions, currencyRates);
+      new InvestmentOperationalReadService(portfolios, imports, accounts, positions, currencyRates);
 
   @Test
-  void portfolioUsesLegacyDefaultPortfolioId() {
+  void portfolioUsesRequestedPortfolioId() {
     var value = new Portfolio();
     value.setBalance(10.5);
     value.setTotalProfit(2.5);
-    when(portfolios.calculateTotalProfitLoss(1L)).thenReturn(value);
+    when(portfolios.calculateTotalProfitLoss(2L)).thenReturn(value);
 
-    var result = service.portfolio();
+    var result = service.portfolio(2L);
 
     assertEquals("USD", result.baseCurrency());
     assertEquals(10.5, result.balance().doubleValue());
-    verify(portfolios).calculateTotalProfitLoss(1L);
+    verify(portfolios).calculateTotalProfitLoss(2L);
   }
 
   @Test
-  void latestImportMapsBrokerState() {
+  void latestImportMapsBrokerStateForPortfolio() {
     var batch = new ImportHistoryEntity();
     batch.setId(7L);
     batch.setBroker(BrokerType.IBKR);
     batch.setStatus(com.smartbox.investory.investment.imports.ImportBatchStatus.COMPLETED);
     batch.setStartedAt(ZonedDateTime.parse("2026-09-08T10:00:00Z"));
     batch.setFinishedAt(ZonedDateTime.parse("2026-09-08T10:01:00Z"));
-    when(imports.findFirstByOrderByIdDesc()).thenReturn(Optional.of(batch));
+    when(imports.findFirstByPortfolioIdOrderByIdDesc(2L)).thenReturn(Optional.of(batch));
 
-    var result = service.latestImport().orElseThrow();
+    var result = service.latestImport(2L).orElseThrow();
 
     assertEquals(7L, result.batchId());
     assertEquals(
@@ -60,7 +62,7 @@ class InvestmentOperationalReadServiceTest {
   }
 
   @Test
-  void symbolExposuresUsesMarketPriceAndUsdCompatibilityOutput() {
+  void symbolExposuresUsesOnlyRequestedPortfolio() {
     PositionEntity position =
         PositionEntity.builder()
             .id(1L)
@@ -72,17 +74,22 @@ class InvestmentOperationalReadServiceTest {
             .priceCurrency(CurrencyType.EUR)
             .build();
     position.setMarketPrice(BigDecimal.valueOf(5));
-    when(positions.findOpen()).thenReturn(List.of(position));
-    when(currencyRates.convertToBaseCurrency(10.0, CurrencyType.USD, CurrencyType.EUR))
+    var portfolio = new Portfolio();
+    portfolio.setBaseCurrency(CurrencyType.PLN);
+    when(accounts.findIdsByPortfolioId(2L)).thenReturn(List.of(11L));
+    when(positions.findOpenByAccountIn(List.of(11L))).thenReturn(List.of(position));
+    when(portfolios.calculateTotalProfitLoss(2L)).thenReturn(portfolio);
+    when(currencyRates.convertToBaseCurrency(10.0, CurrencyType.PLN, CurrencyType.EUR))
         .thenReturn(11.0);
 
-    var result = service.symbolExposures();
+    var result = service.symbolExposures(2L);
 
     assertEquals(
         List.of(
             new com.smartbox.investory.investment.api.operations.PortfolioExposureReader
-                .SymbolExposure("ABC", BigDecimal.valueOf(11.0), "USD")),
+                .SymbolExposure("ABC", BigDecimal.valueOf(11.0), "PLN")),
         result);
-    verify(currencyRates).convertToBaseCurrency(10.0, CurrencyType.USD, CurrencyType.EUR);
+    verify(currencyRates).convertToBaseCurrency(10.0, CurrencyType.PLN, CurrencyType.EUR);
+    verify(positions).findOpenByAccountIn(List.of(11L));
   }
 }

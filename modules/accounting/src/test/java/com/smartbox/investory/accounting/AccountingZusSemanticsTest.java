@@ -1,0 +1,84 @@
+package com.smartbox.investory.accounting;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ComparisonRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ZusCalculation;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+class AccountingZusSemanticsTest {
+  private static final LocalDate JANUARY = LocalDate.of(2026, 1, 1);
+
+  @Test
+  void exposesStableUopReasonCodeAndMatchesHistoricalHealthOnlyGolden() {
+    AccountingMonthSnapshot snapshot = snapshot(new AccountingProfile(true));
+
+    assertThat(snapshot.zus().socialZusReasonCode())
+        .isEqualTo(ZusCalculation.UOP_PRIMARY_INSURANCE);
+    assertThat(snapshot.zus().socialZusReason()).contains("primary social-insurance title");
+    assertThat(zusComparison(snapshot).status()).isEqualTo("MATCH");
+    assertThat(zusComparison(snapshot).note()).contains("health-only");
+  }
+
+  @Test
+  void marksNonUopComparisonAsHistoricalProfileDifferenceInsteadOfGenericDiff() {
+    AccountingMonthSnapshot snapshot = snapshot(new AccountingProfile(false));
+
+    assertThat(snapshot.zus().socialZusReasonCode())
+        .isEqualTo(ZusCalculation.JDG_PRIMARY_INSURANCE);
+    assertThat(snapshot.zus().socialZus()).isEqualByComparingTo("1788.29");
+    assertThat(snapshot.zus().healthZus()).isEqualByComparingTo("1495.04");
+    assertThat(snapshot.zus().totalZus()).isEqualByComparingTo("3283.33");
+
+    ComparisonRow comparison = zusComparison(snapshot);
+    assertThat(comparison.status()).isEqualTo("HISTORICAL_PROFILE_DIFF");
+    assertThat(comparison.note())
+        .contains("historical qualifying-UoP profile")
+        .contains("not a reconstruction failure");
+  }
+
+  private AccountingMonthSnapshot snapshot(AccountingProfile profile) {
+    AccountingFactRepository factRepository = mock(AccountingFactRepository.class);
+    AccountingPocRepository repository = mock(AccountingPocRepository.class);
+    CurrencyConversion fx = mock(CurrencyConversion.class);
+
+    when(repository.accountingProfile()).thenReturn(profile);
+    when(repository.invoicesForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.expensesForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.bankTransactionsForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.obligationsForPeriod(JANUARY))
+        .thenReturn(
+            List.of(
+                new ObligationRow(
+                    "ZUS",
+                    LocalDate.of(2026, 2, 20),
+                    new BigDecimal("1495.04"),
+                    new BigDecimal("1495.04"),
+                    LocalDate.of(2026, 2, 18),
+                    "MATCHED",
+                    "Historical qualifying-UoP health-only golden.")));
+    when(repository.taxInputsForPeriod(JANUARY))
+        .thenReturn(
+            List.of(
+                new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("1495.04"), "fixture"),
+                new TaxInputRow(
+                    "JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("1788.29"), "fixture")));
+
+    return new AccountingFactService(factRepository, repository, fx).snapshot(JANUARY);
+  }
+
+  private ComparisonRow zusComparison(AccountingMonthSnapshot snapshot) {
+    return snapshot.comparisons().stream()
+        .filter(row -> "ZUS".equals(row.area()))
+        .findFirst()
+        .orElseThrow();
+  }
+}

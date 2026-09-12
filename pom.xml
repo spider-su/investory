@@ -17,6 +17,8 @@
         <module>modules/longterm</module>
         <module>modules/profile</module>
         <module>modules/retirement</module>
+        <module>modules/accounting-test-support</module>
+        <module>modules/accounting</module>
         <module>integrations</module>
         <module>test-support</module>
         <module>adapters/web-ui</module>
@@ -35,6 +37,7 @@
         <git-commit-id-maven-plugin.version>9.2.0</git-commit-id-maven-plugin.version>
         <springdoc-openapi.version>3.1.0</springdoc-openapi.version>
         <jacoco.version>0.8.15</jacoco.version>
+        <pdfbox.version>3.0.8</pdfbox.version>
         <jacocoArgLine></jacocoArgLine>
         <it.test.workers>1</it.test.workers>
     </properties>

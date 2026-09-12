@@ -6,7 +6,7 @@ import java.util.Optional;
 
 /** Latest broker-import state used by operational adapters. */
 public interface ImportOperationsReader {
-  Optional<ImportOperationsSnapshot> latestImport();
+  Optional<ImportOperationsSnapshot> latestImport(Long portfolioId);
 
   record ImportOperationsSnapshot(
       long batchId,

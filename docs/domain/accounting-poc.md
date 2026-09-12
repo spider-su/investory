@@ -6,6 +6,59 @@ The accounting POC proves that a month can be reconstructed deterministically fr
 
 Historical fixtures are anonymized. Source facts, derived facts and golden comparison values must remain distinguishable. The implementation must not introduce hidden balancing values merely to force a match.
 
+## Supported POC setup
+
+The current POC models a Polish JDG operating with:
+
+- ryczałt income tax;
+- VAT;
+- JDG health contribution;
+- JDG compulsory social ZUS when applicable;
+- optional employment alongside JDG (`hasUop`);
+- domestic PLN revenue and foreign EUR revenue converted through Investory FX;
+- sales invoices, purchase invoices, document-level deductible VAT and bank reconciliation.
+
+The accounting profile contains a single POC-wide `hasUop` flag. The flag applies to all represented accounting months; the POC does not maintain effective-dated employment history.
+
+### UoP and JDG ZUS semantics
+
+`hasUop=true` has one precise POC meaning: the owner has an active employment contract whose remuneration satisfies the statutory minimum-remuneration condition for the employment contract to be the primary social-insurance title.
+
+Under that assumption:
+
+- compulsory JDG social ZUS is `0`;
+- JDG health contribution remains applicable under the ryczałt regime;
+- total JDG ZUS equals the health contribution;
+- the stable social-ZUS reason code is `UOP_PRIMARY_INSURANCE`.
+
+When `hasUop=false`:
+
+- the normal JDG compulsory social component applies;
+- the JDG health contribution still applies;
+- total JDG ZUS is social plus health;
+- the stable social-ZUS reason code is `JDG_PRIMARY_INSURANCE`.
+
+The calculation layer stores the stable reason code. Human-readable explanation is derived separately for the UI, so display wording can change without changing accounting semantics or test contracts.
+
+The POC intentionally does not model employment salary, minimum-wage comparison, payroll, employment PIT, multiple employment titles, voluntary sickness insurance selection, benefit periods or a generic ZUS insurance-title resolution engine.
+
+### Historical ZUS golden values
+
+Captured 2026 `ZUS` historical obligations in the current fixtures are **health-only values captured under the historical qualifying-UoP assumption**. They are not a generic expected value for every possible `hasUop` configuration.
+
+With the historical profile (`hasUop=true`), calculated total JDG ZUS consists only of health contribution and can therefore match the captured historical golden.
+
+If the profile is changed to `hasUop=false`, calculated total JDG ZUS also includes compulsory JDG social ZUS. A difference against the historical health-only golden is expected and must not be reported as an ordinary reconstruction `DIFF`. The comparison uses status `HISTORICAL_PROFILE_DIFF` to show that the selected profile differs from the assumptions under which the golden was captured.
+
+`HISTORICAL_PROFILE_DIFF` means:
+
+- the historical source remains unchanged;
+- the current calculation is using a different employment/social-insurance assumption;
+- the difference is visible and intentional;
+- it is not evidence that the accounting reconstruction itself failed.
+
+Accounting obligations and observed bank payments are separate facts. A payment difference must remain visible, as in July: 1,495.04 PLN accounting obligation versus 1,495.00 PLN bank payment.
+
 ## Proven 2026 coverage
 
 January through July are historical reconstruction months. August is intentionally an open/partial trailing month.
@@ -14,7 +67,7 @@ The golden matrix is enforced by `AccountingGoldenMatrixIT` and the focused scen
 
 - January: recurring EUR service source restored; NBP rate date 2026-01-30; revenue/ryczalt/VAT/ZUS/FX reconstruct from source facts.
 - February: clean ordinary reference month.
-- March: document-level purchase VAT is 238.38 PLN; the captured VAT obligation differs by 1 PLN from the current whole-PLN calculation. Keep the difference explicit until the declaration/filing semantics are source-proven.
+- March: JPK confirms declaration rounding: sales VAT 7,488.80 becomes 7,489, deductible purchase VAT 238.38 becomes 238, and VAT payable is 7,251. The model rounds these two components independently before subtraction.
 - April: BP fuel reconstructed at 8% invoice VAT with 50% mixed-use vehicle deduction.
 - May: source invoices prove 8% fuel VAT; purchase VAT reconstructs to 207.42 PLN.
 - June: original FV4 revenue remains in June; the later correction does not rewrite June revenue. Purchase VAT reconstructs to 196.10 PLN.
@@ -67,6 +120,11 @@ The calculation goes through the shared `CurrencyConversion` boundary. Historica
 
 Do not silently replace a failed conversion with a fabricated rate. If the conversion provider is unavailable, the fallback golden must remain explicitly labelled.
 
+Each EUR invoice is converted independently using its stored `fx_rate_date`. If a rate is unavailable,
+the snapshot lists the affected invoice reference in `FxCalculation.unavailableInvoiceReferences`.
+Its stored booked PLN value may be used as an explicit `FX_UNAVAILABLE_USING_BOOKED_FALLBACK`; no
+monthly golden total is substituted for an unidentified invoice.
+
 ## Source quality
 
 Preferred evidence order:
@@ -77,6 +135,51 @@ Preferred evidence order:
 4. transparent derivation from a visible gross amount.
 
 Derived fixtures are acceptable for the POC, but the UI and data must preserve provenance. Upgrade them only when source evidence becomes available.
+
+## Document recognition pipeline
+
+Invoice uploads use a layered scanner. Text PDFs go through PDFBox text extraction and the small
+deterministic invoice text parser first. A complete result stays local and does not call AI. Empty or
+incomplete PDFs, images (OCR is not implemented yet), and unsupported files use the existing AI
+recognition client as fallback. Scanner routing and fallback stay outside accounting calculations and
+the controller.
+
+The deterministic draft recognizes invoice number, issue/sale/due dates, seller/buyer lines, currency,
+net/VAT/gross totals, and a small fuel/accounting-service category hint. Amount extraction accepts
+Polish and English labels, Polish/US number formats, flattened PDF table cells, reverse-charge (`NP`),
+VAT-exempt (`ZW`), and correction-invoice totals. It chooses totals only when labels or arithmetic
+consistency support them; otherwise it returns `PARTIAL` and the layered scanner may use AI. It is
+still intentionally not a universal invoice parser. The next extension point is OCR behind
+`ImageDocumentScanner`.
+
+The parser contract is covered by sanitized fixtures for ordinary VAT invoices, flattened table
+totals, reverse-charge invoices, VAT-exempt documents, correction invoices, foreign-currency totals,
+and incomplete documents. Archive-wide checks are useful evidence, but they are not committed tests:
+personal archive files must not become CI fixtures. New parser rules should add a sanitized fixture and
+keep the arithmetic checks strict.
+
+Reviewed upload persistence is centralized in `AccountingInvoiceIngestionService`. It validates the
+reviewed document, preserves the selected VAT deduction ratio for purchases, applies the POC sales
+classification and ryczałt rate, and uses the invoice reference as the idempotency key. KSeF incoming
+invoices use the same service after structured XML parsing; their purchase rows retain
+`KSEF_SOURCE_DOCUMENT` and the KSeF number in the note. KSeF metadata is read page by page, and one
+bad source document is skipped while other documents continue. Reviewed credit notes persist as
+signed sales adjustments in the same normalized invoice table; the historical July correction remains
+the only special fixture treatment.
+
+The pipeline has simple application feature flags:
+
+```yaml
+app:
+  accounting:
+    document-scanner:
+      pdf-enabled: true
+      image-enabled: true
+      ai-fallback-enabled: true
+```
+
+All flags default to `true`. Disable `pdf-enabled` or `image-enabled` to skip that deterministic layer.
+Disable `ai-fallback-enabled` to return an incomplete result instead of calling AI.
 
 ## Next milestone
 
@@ -94,7 +197,14 @@ That requires an ingestion boundary that produces normalized facts for:
 - deterministic invoice-payment matching;
 - monthly comparison and discrepancy reporting.
 
-The reusable workflow should produce `MATCH`, `DIFF`, `MISSING_SOURCE`/`INPUTS_INCOMPLETE`, and `NO_GOLDEN` states without hiding differences.
+The reusable workflow should produce `MATCH`, `DIFF`, `MISSING_SOURCE`/`INPUTS_INCOMPLETE`, `HISTORICAL_PROFILE_DIFF`, and `NO_GOLDEN` states without hiding differences.
+
+For a new month, persist normalized source rows first: reviewed invoices through
+`AccountingInvoiceIngestionService`, KSeF invoices through the KSeF controller and the same service,
+bank transactions and tax/ZUS obligations in the normalized POC tables, and the selected FX rate date
+on each foreign invoice. `AccountingPocRepository` then exposes the month to `AccountingFactService`
+for calculation, comparison and payment reconciliation. No month-specific Flyway fixture is needed;
+use a separate import/application command or operator flow to write these rows.
 
 ## Non-goals for the next step
 

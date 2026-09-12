@@ -37,6 +37,7 @@ public record IntegrationSettingsView(
       case AI -> "AI";
       case EXPORT -> "Export";
       case BROKER_IMPORT -> "Imports";
+      case E_INVOICING -> "E-invoicing";
     };
   }
 

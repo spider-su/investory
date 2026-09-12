@@ -52,6 +52,8 @@ public class SecurityConfig {
                         .requestMatchers(
                             HttpMethod.POST, "/api/v1/portfolios/*/investment/imports/**")
                         .hasAnyRole("ADMIN", "PROFILE_OWNER")
+                        .requestMatchers(HttpMethod.POST, "/poc/accounting/**")
+                        .hasAnyRole("ADMIN", "PROFILE_OWNER")
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/**")
                         .hasRole("ADMIN"));
 

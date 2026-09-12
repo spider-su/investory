@@ -37,7 +37,9 @@ services:
     ports:
       - "5432"
     volumes:
-      - postgres-data:/var/lib/postgresql
+      # PostgreSQL 18 uses a major-version subdirectory below this mount point.
+      # Keep the pre-upgrade volume intact for manual recovery.
+      - postgres-data-v18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U investory -d investory"]
       interval: 5s
@@ -47,3 +49,4 @@ services:
 volumes:
   maven-cache:
   postgres-data:
+  postgres-data-v18:

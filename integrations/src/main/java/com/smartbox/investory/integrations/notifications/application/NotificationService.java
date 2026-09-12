@@ -37,7 +37,7 @@ public class NotificationService {
       return;
     }
     try {
-      PortfolioOperationsSnapshot p = investment.portfolio();
+      PortfolioOperationsSnapshot p = investment.portfolio(properties.getPortfolioId());
       String message = buildDigest(p);
       LocalDate day = clock.instant().atZone(java.time.ZoneId.of("Europe/Warsaw")).toLocalDate();
       publisher.publish(

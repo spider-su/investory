@@ -35,6 +35,7 @@ class DrawdownAlertRuleTest {
   @BeforeEach
   void setUp() {
     properties = new NotificationProperties();
+    properties.setPortfolioId(1L);
     properties.setDrawdownThresholdPct(10.0);
     properties.setDrawdownCooldownHours(24);
     state = new DrawdownAlertStateEntity();
@@ -58,7 +59,7 @@ class DrawdownAlertRuleTest {
   @DisplayName("evaluate is Quiet Before Peak Is Established")
   @Test
   void evaluate_isQuietBeforePeakIsEstablished() {
-    when(investment.portfolio()).thenReturn(portfolioWithBalance(1000.0));
+    when(investment.portfolio(1L)).thenReturn(portfolioWithBalance(1000.0));
 
     Optional<String> result = rule.evaluate();
 
@@ -68,7 +69,7 @@ class DrawdownAlertRuleTest {
   @DisplayName("evaluate fires When Balance Drops Below Threshold")
   @Test
   void evaluate_firesWhenBalanceDropsBelowThreshold() {
-    when(investment.portfolio())
+    when(investment.portfolio(1L))
         .thenReturn(portfolioWithBalance(1000.0)) // peak
         .thenReturn(portfolioWithBalance(850.0)); // -15%
 
@@ -82,7 +83,7 @@ class DrawdownAlertRuleTest {
   @DisplayName("evaluate does Not Fire For Small Drop")
   @Test
   void evaluate_doesNotFireForSmallDrop() {
-    when(investment.portfolio())
+    when(investment.portfolio(1L))
         .thenReturn(portfolioWithBalance(1000.0))
         .thenReturn(portfolioWithBalance(950.0)); // -5%
 
@@ -95,7 +96,7 @@ class DrawdownAlertRuleTest {
   @DisplayName("evaluate updates Peak Upward")
   @Test
   void evaluate_updatesPeakUpward() {
-    when(investment.portfolio())
+    when(investment.portfolio(1L))
         .thenReturn(portfolioWithBalance(1000.0))
         .thenReturn(portfolioWithBalance(1200.0))
         .thenReturn(portfolioWithBalance(1080.0)); // -10% from new peak
@@ -111,7 +112,7 @@ class DrawdownAlertRuleTest {
   @Test
   void evaluate_usesPersistedPeakAfterRuleIsRecreated() {
     state.setPeakEquity(1000.0);
-    when(investment.portfolio()).thenReturn(portfolioWithBalance(850.0));
+    when(investment.portfolio(1L)).thenReturn(portfolioWithBalance(850.0));
 
     Optional<String> result = rule.evaluate();
 
@@ -123,7 +124,7 @@ class DrawdownAlertRuleTest {
   void evaluate_suppressesRepeatedAlertUntilCooldownExpires() {
     state.setPeakEquity(1000.0);
     state.setLastAlertAt(java.time.ZonedDateTime.parse("2026-08-13T13:00:00Z"));
-    when(investment.portfolio()).thenReturn(portfolioWithBalance(850.0));
+    when(investment.portfolio(1L)).thenReturn(portfolioWithBalance(850.0));
 
     assertFalse(rule.evaluate().isPresent());
 

@@ -133,7 +133,7 @@ jobs:
         suite:
           - name: contracts
             project: app
-            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT
+            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AccountingGoldenIT,AccountingGoldenMatrixIT,AccountingInvoiceFolderRecognitionIT,AccountingKsefImportIT,AccountingJdgExporterIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT
           - name: imports
             project: app
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT
@@ -179,6 +179,7 @@ jobs:
     name: UI browser setup
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: unit
 
     steps:
       - name: Check out repository
@@ -186,6 +187,12 @@ jobs:
 
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
+
+      - name: Download packaged reactor outputs
+        uses: actions/download-artifact@v8
+        with:
+          name: packaged-reactor
+          path: .
 
       - name: Restore Playwright browser cache
         id: playwright-cache
@@ -228,6 +235,8 @@ jobs:
             test: PlanSimulationCrudUiIT
           - name: investment-dashboard
             test: InvestmentDashboardGoldenUiIT
+          - name: accounting-poc
+            test: AccountingPocUiIT
 
     steps:
       - name: Check out repository

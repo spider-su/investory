@@ -39,6 +39,25 @@ class FlywayMigrationChainIT {
   }
 
   @Test
+  void installsAccountingPocProfileAndNormalJdgZusInputs() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          1,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM investory.accounting_poc_profile "
+                  + "WHERE id = 1 AND has_uop"));
+      assertEquals(
+          8,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM investory.accounting_poc_tax_input "
+                  + "WHERE input_type = 'JDG_COMPULSORY_SOCIAL_ZUS'"));
+    }
+  }
+
+  @Test
   void installsTemporalAnomalyContractAndParameters() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {

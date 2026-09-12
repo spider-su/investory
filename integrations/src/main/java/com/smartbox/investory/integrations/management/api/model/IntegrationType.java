@@ -6,5 +6,6 @@ public enum IntegrationType {
   FX_DATA,
   NOTIFICATION,
   AI,
-  EXPORT
+  EXPORT,
+  E_INVOICING
 }
