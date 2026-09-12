@@ -93,6 +93,25 @@ Unknown tax-relevant classification or VAT deduction must produce `REVIEW_REQUIR
 value. KSeF classification intentionally recognizes only explicit, proven rules (for example vehicle
 fuel); all other tax-relevant cases remain review-required until a user supplies the missing decision.
 
+The normal `/accounting` page is also the acquisition entry point. Upload document, bank CSV import,
+and KSeF sync go through `AccountingRestClient`, the REST controller, and `AccountingUserFacade`;
+the facade delegates to source acquisition before extraction and normalized facts. Bank is currently
+CSV-only. KSeF status is shown explicitly as connected or not configured. Source-evidence counts are
+separate from normalized document counts, so preloaded normalized documents may coexist with zero
+source evidence.
+
+### Manual JPK filing verification
+
+1. Confirm the accounting month in Investory.
+2. Generate `JPK_V7M(3)` from the month filing section.
+3. Investory validates the XML against the bundled official MF XSD.
+4. Download `JPK_V7M_YYYY-MM.xml` and inspect it with the official JPK viewer/editor.
+5. Submit manually with Klient JPK WEB when appropriate and obtain the UPO.
+6. Record the accepted `JPK_UPO` reference in Investory.
+7. Progress the filing through the normal lifecycle.
+
+Automatic MF submission, signing, encryption, status polling and UPO retrieval are not implemented.
+
 ### Operational monthly calculation
 
 Historical reconstruction and current calculation are separate modes. January through August 2026
@@ -296,3 +315,13 @@ use a separate import/application command or operator flow to write these rows.
 - AI deciding accounting values;
 - private rental PPE accounting;
 - forcing historical outputs to match via summary balancing inputs.
+## Independent HappyInvestor Accounting story
+
+Accounting has two separate test modes:
+
+- Historical reconstruction verifies captured 2026 history against historical comparison data.
+- The HappyInvestor Accounting 2026 POC verifies operational behavior from an independent source-fact fixture.
+
+The operational fixture is owned by `test-support/.../happyinvestor/accounting` and does not depend
+on investment HappyInvestor fixtures or historical Accounting golden-result fixtures. Neither mode
+represents runtime production data.

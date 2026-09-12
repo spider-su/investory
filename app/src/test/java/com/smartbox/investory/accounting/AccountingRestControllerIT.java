@@ -2,6 +2,7 @@ package com.smartbox.investory.accounting;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Crosses security, REST routing, the user facade and the isolated accounting database. */
@@ -57,6 +59,26 @@ class AccountingRestControllerIT extends AccountingDatabaseTest {
     mvc.perform(
             post("/api/profiles/1/accounting/months/2026-01/confirm")
                 .with(user("user").roles("USER")))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @DisplayName("a profile user cannot acquire accounting sources")
+  void profileUserCannotAcquireSources() throws Exception {
+    var user = user("user").roles("USER");
+    var document = new MockMultipartFile("file", "invoice.pdf", "application/pdf", new byte[] {1});
+    var bank = new MockMultipartFile("file", "bank.csv", "text/csv", new byte[] {1});
+
+    mvc.perform(
+            multipart("/api/profiles/1/accounting/documents/recognize").file(document).with(user))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            multipart("/api/profiles/1/accounting/bank/import")
+                .file(bank)
+                .param("month", "2026-01")
+                .with(user))
+        .andExpect(status().isForbidden());
+    mvc.perform(post("/api/profiles/1/accounting/ksef/sync").param("month", "2026-01").with(user))
         .andExpect(status().isForbidden());
   }
 

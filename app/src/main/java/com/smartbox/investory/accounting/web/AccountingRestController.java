@@ -87,6 +87,57 @@ public class AccountingRestController {
     return accounting.filings(profileId, month);
   }
 
+  @PostMapping("/months/{month}/filings/jpk/generate")
+  public AccountingUserApi.FilingArtifactView generateJpk(
+      @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
+    write(profileId, a);
+    return accounting.generateJpk(profileId, month);
+  }
+
+  @GetMapping(value = "/months/{month}/filings/jpk", produces = MediaType.APPLICATION_XML_VALUE)
+  public org.springframework.http.ResponseEntity<byte[]> downloadJpk(
+      @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
+    read(profileId, a);
+    var artifact =
+        accounting
+            .filingArtifact(profileId, month)
+            .orElseThrow(
+                () ->
+                    new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND));
+    return org.springframework.http.ResponseEntity.ok()
+        .contentType(MediaType.APPLICATION_XML)
+        .header(
+            org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+            "attachment; filename=\"" + artifact.filename() + "\"")
+        .body(artifact.content());
+  }
+
+  @GetMapping("/months/{month}/filings/jpk/metadata")
+  public AccountingUserApi.FilingArtifactView filingArtifact(
+      @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
+    read(profileId, a);
+    return accounting
+        .filingArtifact(profileId, month)
+        .orElseThrow(
+            () ->
+                new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.NOT_FOUND));
+  }
+
+  @PostMapping("/months/{month}/filings/confirmations")
+  public void recordConfirmation(
+      @PathVariable long profileId,
+      @PathVariable YearMonth month,
+      @RequestBody AccountingUserApi.ConfirmationInput input,
+      Authentication a) {
+    write(profileId, a);
+    if (input == null || !month.equals(input.taxPeriod()))
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.BAD_REQUEST, "Confirmation period does not match");
+    accounting.recordConfirmation(profileId, input);
+  }
+
   @GetMapping("/months/{month}/reconciliation")
   public java.util.List<AccountingUserApi.ReconciliationView> reconciliation(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
@@ -122,6 +173,13 @@ public class AccountingRestController {
     write(profileId, a);
     accounting.importBank(
         profileId, file.getOriginalFilename(), file.getContentType(), file.getBytes(), month);
+  }
+
+  @PostMapping("/ksef/sync")
+  public AccountingUserApi.KsefSyncResult syncKsef(
+      @PathVariable long profileId, @RequestParam YearMonth month, Authentication a) {
+    write(profileId, a);
+    return accounting.syncKsef(profileId, month);
   }
 
   @PostMapping("/months/{month}/confirm")

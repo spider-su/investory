@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -87,6 +88,48 @@ public class AccountingPocRepository {
         confirmation.sourceDocumentId(),
         confirmation.note(),
         confirmation.amount());
+  }
+
+  public Optional<AccountingFilingArtifact> filingArtifact(LocalDate period, String type) {
+    return jdbcTemplate.query(
+        "SELECT artifact_type, tax_period, schema_version, payload, payload_hash, generated_at, status FROM investory.accounting_filing_artifact WHERE tax_period = ? AND artifact_type = ? ORDER BY generated_at DESC LIMIT 1",
+        rs ->
+            rs.next()
+                ? Optional.of(
+                    new AccountingFilingArtifact(
+                        AccountingFilingArtifact.Type.valueOf(rs.getString(1)),
+                        rs.getDate(2).toLocalDate(),
+                        rs.getString(3),
+                        rs.getBytes(4),
+                        rs.getString(5),
+                        rs.getTimestamp(6).toInstant(),
+                        AccountingFilingArtifact.Status.valueOf(rs.getString(7))))
+                : Optional.empty(),
+        period,
+        type);
+  }
+
+  public Optional<AuthorityConfirmation> authorityConfirmation(
+      LocalDate period, String confirmationType) {
+    return jdbcTemplate.query(
+        "SELECT authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND confirmation_type = ? ORDER BY received_at DESC LIMIT 1",
+        rs ->
+            rs.next()
+                ? Optional.of(
+                    new AuthorityConfirmation(
+                        rs.getString(1),
+                        rs.getString(2),
+                        rs.getDate(3).toLocalDate(),
+                        rs.getString(4),
+                        AuthorityConfirmation.ConfirmationType.valueOf(rs.getString(5)),
+                        AuthorityConfirmation.ConfirmationStatus.valueOf(rs.getString(6)),
+                        rs.getTimestamp(7).toInstant(),
+                        rs.getObject(8, Long.class),
+                        rs.getString(9),
+                        null))
+                : Optional.empty(),
+        period,
+        confirmationType);
   }
 
   public boolean hasFilingArtifact(LocalDate period, String artifactType) {

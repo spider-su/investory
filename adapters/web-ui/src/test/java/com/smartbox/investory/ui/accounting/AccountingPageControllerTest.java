@@ -78,4 +78,14 @@ class AccountingPageControllerTest {
     verify(client, never()).reopen(anyLong(), any(), anyString());
     assertThat(redirect.getFlashAttributes()).containsKey("accountingError");
   }
+
+  @Test
+  void ksefSyncUsesClientAndRedirects() {
+    when(client.syncKsef(1, month))
+        .thenReturn(new AccountingRestClient.KsefSyncResult("COMPLETED", 1, 1, 0, 0, 0, "done"));
+
+    assertThat(controller.syncKsef(1, month, new RedirectAttributesModelMap()))
+        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+    verify(client).syncKsef(1, month);
+  }
 }

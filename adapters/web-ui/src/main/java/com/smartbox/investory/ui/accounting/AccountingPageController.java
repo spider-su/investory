@@ -124,6 +124,67 @@ public class AccountingPageController {
     return redirect(profileId, month);
   }
 
+  @PostMapping("/accounting/ksef/sync")
+  public String syncKsef(long profileId, YearMonth month, RedirectAttributes redirect) {
+    try {
+      var result = client.syncKsef(profileId, month);
+      redirect.addFlashAttribute("accountingMessage", result.message());
+      if ("NOT_CONFIGURED".equals(result.status())) {
+        redirect.addFlashAttribute("accountingError", "KSeF is not configured.");
+      }
+    } catch (RuntimeException exception) {
+      redirect.addFlashAttribute("accountingError", safeMessage(exception));
+    }
+    return redirect(profileId, month);
+  }
+
+  @PostMapping("/accounting/filings/jpk/generate")
+  public String generateJpk(long profileId, YearMonth month, RedirectAttributes redirect) {
+    try {
+      client.generateJpk(profileId, month);
+      redirect.addFlashAttribute("accountingMessage", "JPK_V7M(3) generated and validated.");
+    } catch (RuntimeException exception) {
+      redirect.addFlashAttribute("accountingError", safeMessage(exception));
+    }
+    return redirect(profileId, month);
+  }
+
+  @GetMapping("/accounting/filings/jpk")
+  public org.springframework.http.ResponseEntity<byte[]> downloadJpk(
+      long profileId, YearMonth month) {
+    return org.springframework.http.ResponseEntity.ok()
+        .contentType(org.springframework.http.MediaType.APPLICATION_XML)
+        .header(
+            org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+            "attachment; filename=\"JPK_V7M_" + month + ".xml\"")
+        .body(client.downloadJpk(profileId, month));
+  }
+
+  @PostMapping("/accounting/filings/confirmations")
+  public String recordUpo(
+      long profileId,
+      YearMonth month,
+      @RequestParam String externalReference,
+      RedirectAttributes redirect) {
+    try {
+      client.recordConfirmation(
+          profileId,
+          new AccountingRestClient.ConfirmationInput(
+              month,
+              "JPK_V7M",
+              "JPK_UPO",
+              "ACCEPTED",
+              externalReference,
+              java.time.Instant.now(),
+              null,
+              null));
+      redirect.addFlashAttribute("accountingMessage", "Accepted UPO recorded.");
+    } catch (RuntimeException exception) {
+      redirect.addFlashAttribute("accountingError", safeMessage(exception));
+    }
+    return redirect(profileId, month);
+  }
+
   private String action(
       String name,
       long profileId,

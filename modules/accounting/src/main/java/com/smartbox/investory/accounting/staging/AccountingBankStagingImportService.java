@@ -1,0 +1,70 @@
+package com.smartbox.investory.accounting.staging;
+
+import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
+import com.smartbox.investory.accounting.AccountingSourceStatus;
+import com.smartbox.investory.integrations.bank.BankDataProvider;
+import com.smartbox.investory.integrations.bank.BankTransactionQuery;
+import com.smartbox.investory.integrations.bank.CsvBankTransactionSource;
+import com.smartbox.investory.integrations.bank.ExternalBankTransaction;
+import java.time.LocalDate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+@Service
+public class AccountingBankStagingImportService {
+  private final AccountingSourceEvidenceService sources;
+  private final AccountingStagingAcquisitionService staging;
+  private final String externalAccountId;
+
+  public AccountingBankStagingImportService(
+      AccountingSourceEvidenceService sources,
+      AccountingStagingAcquisitionService staging,
+      @Value("${investory.accounting.bank.external-account-id:JDG_MAIN_ACCOUNT}")
+          String externalAccountId) {
+    this.sources = sources;
+    this.staging = staging;
+    this.externalAccountId = externalAccountId;
+  }
+
+  public Result stageFile(
+      long profileId, String filename, String contentType, byte[] payload, LocalDate period) {
+    long sourceId = sources.receiveBank(filename, contentType, payload, period);
+    try {
+      var rows =
+          new CsvBankTransactionSource(payload, externalAccountId)
+              .transactions(new BankTransactionQuery(externalAccountId, null, null, null))
+              .transactions();
+      int staged = 0;
+      for (int index = 0; index < rows.size(); index++) {
+        var row = rows.get(index);
+        staging.stageBank(
+            profileId,
+            period,
+            new ExternalBankTransaction(
+                BankDataProvider.CSV,
+                externalAccountId,
+                sourceId + ":" + index,
+                row.bookingDate(),
+                row.bookingDate(),
+                row.relatedPeriod(),
+                row.amount(),
+                row.currency(),
+                row.counterpartyName(),
+                null,
+                row.remittanceInformation(),
+                row.rawReference(),
+                null),
+            sourceId,
+            filename);
+        staged++;
+      }
+      sources.status(sourceId, AccountingSourceStatus.PARSED, null);
+      return new Result(sourceId, rows.size(), staged);
+    } catch (RuntimeException exception) {
+      sources.status(sourceId, AccountingSourceStatus.FAILED, exception.getMessage());
+      throw exception;
+    }
+  }
+
+  public record Result(long sourceId, int processedRows, int stagedRows) {}
+}

@@ -5,6 +5,8 @@ import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.Revie
 import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.accounting.AccountingSourceType;
+import com.smartbox.investory.accounting.api.AccountingKsefSyncPort;
+import com.smartbox.investory.accounting.api.AccountingUserApi;
 import com.smartbox.investory.integrations.ksef.KsefClient.KsefAccess;
 import com.smartbox.investory.integrations.ksef.KsefEnvironment;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +24,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Controller
-public class KsefConnectionController {
+public class KsefConnectionController implements AccountingKsefSyncPort {
   private static final String DEFAULT_TOKEN = "change-me-ksef-token";
   private static final int KSEF_PAGE_SIZE = 250;
   private static final int KSEF_MAX_PAGES = 100;
@@ -124,7 +126,7 @@ public class KsefConnectionController {
           "KSeF metadata read; imported "
               + result.imported()
               + " new invoice(s); skipped "
-              + result.skipped()
+              + (result.duplicates() + result.reviewRequired() + result.failed())
               + ".");
     } catch (RuntimeException exception) {
       redirectAttributes.addFlashAttribute(
@@ -133,13 +135,55 @@ public class KsefConnectionController {
     return redirectToAccounting(month);
   }
 
+  @Override
+  public AccountingUserApi.KsefSyncResult sync(java.time.YearMonth month) {
+    validateToken();
+    KsefAccess access = client.authenticateWithToken(environment, nip, token);
+    List<String> numbers = new ArrayList<>();
+    for (int page = 0; page < KSEF_MAX_PAGES; page++) {
+      String metadata =
+          client.queryIncomingInvoices(
+              environment,
+              access.accessToken(),
+              month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC),
+              month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC),
+              page,
+              KSEF_PAGE_SIZE);
+      List<String> pageNumbers = extractKsefNumbers(metadata);
+      numbers.addAll(pageNumbers);
+      if (pageNumbers.size() < KSEF_PAGE_SIZE) break;
+    }
+    ImportResult result = importIncomingInvoices(access.accessToken(), month.atDay(1), numbers);
+    return new AccountingUserApi.KsefSyncResult(
+        "COMPLETED",
+        result.received(),
+        result.imported(),
+        result.duplicates(),
+        result.reviewRequired(),
+        result.failed(),
+        "KSeF sync completed: "
+            + result.imported()
+            + " imported, "
+            + result.duplicates()
+            + " duplicates.");
+  }
+
+  @Override
+  public String providerStatus() {
+    return token == null || token.isBlank() || DEFAULT_TOKEN.equals(token)
+        ? "NOT_CONFIGURED"
+        : "CONNECTED";
+  }
+
   private ImportResult importIncomingInvoices(
       String accessToken, LocalDate taxPeriod, List<String> ksefNumbers) {
     if (invoiceParser == null || invoiceIngestionService == null) {
-      return new ImportResult(0, 0);
+      return new ImportResult(0, 0, 0, 0, 0);
     }
     int imported = 0;
-    int skipped = 0;
+    int duplicates = 0;
+    int reviewRequired = 0;
+    int failed = 0;
     for (String ksefNumber : ksefNumbers) {
       long sourceId = 0;
       try {
@@ -148,7 +192,7 @@ public class KsefConnectionController {
           if (existing != null
               && existing.isPresent()
               && sourceEvidenceService.status(existing.get()) == AccountingSourceStatus.IMPORTED) {
-            skipped++;
+            duplicates++;
             continue;
           }
         }
@@ -160,7 +204,7 @@ public class KsefConnectionController {
                     ksefNumber, null, xml.getBytes(StandardCharsets.UTF_8));
         if (sourceId != 0
             && sourceEvidenceService.status(sourceId) == AccountingSourceStatus.IMPORTED) {
-          skipped++;
+          duplicates++;
           continue;
         }
         var invoice = invoiceParser.parse(xml.getBytes(StandardCharsets.UTF_8));
@@ -172,7 +216,7 @@ public class KsefConnectionController {
                 sourceId,
                 AccountingSourceStatus.REVIEW_REQUIRED,
                 "Tax category or VAT deduction is not proven");
-          skipped++;
+          reviewRequired++;
           continue;
         }
         String supplier = firstNonBlank(invoice.sellerName(), invoice.sellerNip());
@@ -210,10 +254,10 @@ public class KsefConnectionController {
           sourceEvidenceService.status(
               sourceId, AccountingSourceStatus.FAILED, exception.getMessage());
         }
-        skipped++;
+        failed++;
       }
     }
-    return new ImportResult(imported, skipped);
+    return new ImportResult(ksefNumbers.size(), imported, duplicates, reviewRequired, failed);
   }
 
   private List<String> extractKsefNumbers(String metadataJson) {
@@ -247,7 +291,8 @@ public class KsefConnectionController {
     }
   }
 
-  private record ImportResult(int imported, int skipped) {}
+  private record ImportResult(
+      int received, int imported, int duplicates, int reviewRequired, int failed) {}
 
   private String firstNonBlank(String first, String second) {
     return first != null && !first.isBlank() ? first : second;

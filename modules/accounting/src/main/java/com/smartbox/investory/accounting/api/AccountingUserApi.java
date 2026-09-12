@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 
 /** User-facing accounting contract. Internal snapshots and repositories do not cross this seam. */
 public interface AccountingUserApi {
@@ -30,6 +31,14 @@ public interface AccountingUserApi {
   void importBank(
       long profileId, String filename, String contentType, byte[] content, YearMonth month);
 
+  KsefSyncResult syncKsef(long profileId, YearMonth month);
+
+  FilingArtifactView generateJpk(long profileId, YearMonth month);
+
+  Optional<FilingArtifactView> filingArtifact(long profileId, YearMonth month);
+
+  void recordConfirmation(long profileId, ConfirmationInput confirmation);
+
   void confirm(long profileId, YearMonth month);
 
   void file(long profileId, YearMonth month);
@@ -51,6 +60,7 @@ public interface AccountingUserApi {
       Summary summary,
       List<IssueView> issues,
       SourceSummary sources,
+      String ksefStatus,
       DocumentSummary documentSummary,
       BankSummary bankSummary,
       PaymentSummary paymentSummary,
@@ -66,16 +76,53 @@ public interface AccountingUserApi {
       int documents,
       int bankTransactions) {}
 
-  record SourceSummary(int imported, int reviewRequired, int failed) {}
+  record SourceSummary(int evidenceCount, int imported, int reviewRequired, int failed) {}
 
-  record DocumentSummary(int count, int reviewRequired, int failed) {}
+  record DocumentSummary(
+      int salesCount, int purchaseCount, int totalCount, int reviewRequired, int failed) {}
+
+  record KsefSyncResult(
+      String status,
+      int received,
+      int imported,
+      int duplicates,
+      int reviewRequired,
+      int failed,
+      String message) {}
+
+  record FilingArtifactView(
+      String type,
+      String filename,
+      String contentType,
+      byte[] content,
+      String sha256,
+      java.time.Instant generatedAt,
+      String status) {}
+
+  record ConfirmationInput(
+      YearMonth taxPeriod,
+      String obligationOrArtifactType,
+      String confirmationType,
+      String status,
+      String externalReference,
+      java.time.Instant receivedAt,
+      java.math.BigDecimal amount,
+      String note) {}
 
   record BankSummary(int transactionCount, int unmatchedCount, String importStatus) {}
 
   record PaymentSummary(int expectedCount, int outstandingCount, BigDecimal totalOutstanding) {}
 
   record FilingSummary(
-      String lifecycle, String lifecycleLabel, boolean ready, List<String> issues) {}
+      String lifecycle,
+      String lifecycleLabel,
+      boolean ready,
+      List<String> issues,
+      String jpkStatus,
+      String jpkGeneratedAt,
+      String upoStatus,
+      String upoReference,
+      String upoReceivedAt) {}
 
   record ReconciliationSummary(
       int rowCount, int settledCount, int mismatchCount, int missingEvidenceCount) {}
@@ -114,7 +161,12 @@ public interface AccountingUserApi {
       String lifecycleLabel,
       boolean confirmed,
       boolean ready,
-      List<String> issues) {}
+      List<String> issues,
+      String jpkStatus,
+      String jpkGeneratedAt,
+      String upoStatus,
+      String upoReference,
+      String upoReceivedAt) {}
 
   record ReconciliationView(
       String reference,

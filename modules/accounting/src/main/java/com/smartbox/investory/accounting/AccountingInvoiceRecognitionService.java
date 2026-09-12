@@ -13,7 +13,16 @@ public class AccountingInvoiceRecognitionService {
   private final LayeredDocumentScanner scanner;
 
   public RecognizedInvoice recognize(String filename, String contentType, byte[] bytes) {
-    return scanner.scan(new DocumentInput(filename, contentType, bytes)).invoice();
+    DocumentScanResult result = scanner.scan(new DocumentInput(filename, contentType, bytes));
+    if (result.invoice() == null) {
+      String warning =
+          result.warnings().isEmpty()
+              ? "no invoice fields were recognized"
+              : String.join("; ", result.warnings());
+      throw new IllegalArgumentException(
+          "Document could not be parsed (" + result.status() + "): " + warning);
+    }
+    return result.invoice();
   }
 
   public record RecognizedInvoice(

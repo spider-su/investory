@@ -6,10 +6,12 @@ import com.smartbox.investory.accounting.AccountingMonthSnapshot.BankRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ReconciliationRow;
+import com.smartbox.investory.accounting.api.AccountingKsefSyncPort;
 import com.smartbox.investory.accounting.api.AccountingUserApi;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,8 +23,11 @@ public class AccountingUserFacade implements AccountingUserApi {
   private final AccountingPocRepository repository;
   private final AccountingSourceEvidenceService sources;
   private final AccountingInvoiceRecognitionService recognition;
-  private final AccountingInvoiceIngestionService ingestion;
-  private final AccountingBankImportService bankImport;
+  private final com.smartbox.investory.accounting.staging.AccountingStagingAcquisitionService
+      staging;
+  private final com.smartbox.investory.accounting.staging.AccountingBankStagingImportService
+      bankImport;
+  private final Optional<AccountingKsefSyncPort> ksef;
 
   private void profile(long profileId) {
     if (profileId != 1)
@@ -84,9 +89,14 @@ public class AccountingUserFacade implements AccountingUserApi {
             snapshot.invoices().size() + snapshot.expenses().size(),
             snapshot.bankTransactions().size()),
         issues,
-        new SourceSummary(imported, review, failed),
+        new SourceSummary(outcomes.size(), imported, review, failed),
+        ksef.map(AccountingKsefSyncPort::providerStatus).orElse("NOT_CONFIGURED"),
         new DocumentSummary(
-            snapshot.invoices().size() + snapshot.expenses().size(), review, failed),
+            snapshot.invoices().size(),
+            snapshot.expenses().size(),
+            snapshot.invoices().size() + snapshot.expenses().size(),
+            review,
+            failed),
         new BankSummary(
             snapshot.bankTransactions().size(),
             unmatched,
@@ -102,7 +112,30 @@ public class AccountingUserFacade implements AccountingUserApi {
                 .map(com.smartbox.investory.accounting.AccountingPaymentInstruction::amount)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)),
         new FilingSummary(
-            lifecycle.name(), label(lifecycle), filingResult.ready(), filingResult.issues()),
+            lifecycle.name(),
+            label(lifecycle),
+            filingResult.ready(),
+            filingResult.issues(),
+            repository
+                .filingArtifact(date(month), "JPK_V7M")
+                .map(a -> a.status().name())
+                .orElse("MISSING"),
+            repository
+                .filingArtifact(date(month), "JPK_V7M")
+                .map(a -> a.generatedAt().toString())
+                .orElse(null),
+            repository
+                .authorityConfirmation(date(month), "JPK_UPO")
+                .map(a -> a.status().name())
+                .orElse("MISSING"),
+            repository
+                .authorityConfirmation(date(month), "JPK_UPO")
+                .map(AuthorityConfirmation::externalReference)
+                .orElse(null),
+            repository
+                .authorityConfirmation(date(month), "JPK_UPO")
+                .map(a -> a.receivedAt().toString())
+                .orElse(null)),
         new ReconciliationSummary(
             reconciliations.size(),
             (int)
@@ -254,12 +287,19 @@ public class AccountingUserFacade implements AccountingUserApi {
     profile(p);
     var f = filing.filing(date(m));
     var state = repository.periodState(date(m));
+    var artifact = repository.filingArtifact(date(m), "JPK_V7M");
+    var upo = repository.authorityConfirmation(date(m), "JPK_UPO");
     return new FilingView(
         state == null ? "OPEN" : state.lifecycleStatus().name(),
         state == null ? label(PeriodLifecycleStatus.OPEN) : label(state.lifecycleStatus()),
         f.confirmed(),
         f.ready(),
-        f.issues());
+        f.issues(),
+        artifact.map(a -> a.status().name()).orElse("MISSING"),
+        artifact.map(a -> a.generatedAt().toString()).orElse(null),
+        upo.map(a -> a.status().name()).orElse("MISSING"),
+        upo.map(AuthorityConfirmation::externalReference).orElse(null),
+        upo.map(a -> a.receivedAt().toString()).orElse(null));
   }
 
   @Override
@@ -311,7 +351,12 @@ public class AccountingUserFacade implements AccountingUserApi {
   public void saveReviewed(long p, ReviewedDocument d) {
     profile(p);
     try {
-      ingestion.ingest(
+      long sourceId =
+          sources
+              .findId(AccountingSourceType.UPLOAD, d.sourceReference())
+              .orElseThrow(() -> new IllegalArgumentException("Upload source evidence is missing"));
+      staging.stageInvoice(
+          p,
           new AccountingInvoiceIngestionService.ReviewedInvoice(
               d.taxPeriod().atDay(1),
               d.documentType(),
@@ -327,14 +372,12 @@ public class AccountingUserFacade implements AccountingUserApi {
               d.vatDeductionRatio(),
               "REVIEWED",
               d.note(),
-              d.sourceReference(),
+              Long.toString(sourceId),
               d.counterpartyTaxIdentifier(),
               null,
               null,
               null));
-      sources
-          .findId(AccountingSourceType.UPLOAD, d.sourceReference())
-          .ifPresent(id -> sources.status(id, AccountingSourceStatus.IMPORTED, null));
+      // Staging is intentionally not reported as canonical IMPORTED data.
     } catch (RuntimeException exception) {
       sources
           .findId(AccountingSourceType.UPLOAD, d.sourceReference())
@@ -349,7 +392,66 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public void importBank(long p, String f, String c, byte[] b, YearMonth m) {
     profile(p);
-    bankImport.importFile(f, c, b, date(m));
+    bankImport.stageFile(p, f, c, b, date(m));
+  }
+
+  @Override
+  public AccountingUserApi.KsefSyncResult syncKsef(long p, YearMonth m) {
+    profile(p);
+    return ksef.map(adapter -> adapter.sync(m))
+        .orElseGet(
+            () ->
+                new AccountingUserApi.KsefSyncResult(
+                    "NOT_CONFIGURED", 0, 0, 0, 0, 0, "KSeF is not configured."));
+  }
+
+  @Override
+  public AccountingUserApi.FilingArtifactView generateJpk(long p, YearMonth m) {
+    profile(p);
+    filing.jpk(date(m));
+    return artifact(p, m);
+  }
+
+  @Override
+  public java.util.Optional<AccountingUserApi.FilingArtifactView> filingArtifact(
+      long p, YearMonth m) {
+    profile(p);
+    return repository.filingArtifact(date(m), "JPK_V7M").map(this::artifactView);
+  }
+
+  private AccountingUserApi.FilingArtifactView artifact(long p, YearMonth m) {
+    return filingArtifact(p, m)
+        .orElseThrow(() -> new IllegalStateException("JPK artifact was not persisted"));
+  }
+
+  private AccountingUserApi.FilingArtifactView artifactView(AccountingFilingArtifact artifact) {
+    return new AccountingUserApi.FilingArtifactView(
+        artifact.type().name(),
+        "JPK_V7M_" + artifact.period() + ".xml",
+        "application/xml",
+        artifact.payload(),
+        artifact.payloadHash(),
+        artifact.generatedAt(),
+        artifact.status().name());
+  }
+
+  @Override
+  public void recordConfirmation(long p, AccountingUserApi.ConfirmationInput input) {
+    profile(p);
+    if (input == null || input.confirmationType() == null || input.status() == null)
+      throw new IllegalArgumentException("Confirmation type and status are required");
+    filing.recordAuthorityConfirmation(
+        new AuthorityConfirmation(
+            "MANUAL",
+            input.obligationOrArtifactType() == null ? "JPK_V7M" : input.obligationOrArtifactType(),
+            date(input.taxPeriod()),
+            input.externalReference(),
+            AuthorityConfirmation.ConfirmationType.valueOf(input.confirmationType()),
+            AuthorityConfirmation.ConfirmationStatus.valueOf(input.status()),
+            input.receivedAt(),
+            null,
+            input.note(),
+            input.amount()));
   }
 
   @Override

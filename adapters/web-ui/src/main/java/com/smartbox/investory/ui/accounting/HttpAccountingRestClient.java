@@ -106,6 +106,51 @@ public class HttpAccountingRestClient implements AccountingRestClient {
         Void.class);
   }
 
+  public KsefSyncResult syncKsef(long p, YearMonth m) {
+    return exchange(
+        client.post().uri(API + "/ksef/sync?month={month}", p, m), KsefSyncResult.class);
+  }
+
+  public FilingArtifactView generateJpk(long p, YearMonth m) {
+    return exchange(
+        client.post().uri(API + "/months/{month}/filings/jpk/generate", p, m),
+        FilingArtifactView.class);
+  }
+
+  public java.util.Optional<FilingArtifactView> filingArtifact(long p, YearMonth m) {
+    try {
+      return java.util.Optional.of(
+          exchange(
+              client
+                  .get()
+                  .uri(API + "/months/{month}/filings/jpk/metadata", p, m)
+                  .accept(MediaType.APPLICATION_JSON),
+              FilingArtifactView.class));
+    } catch (AccountingClientException exception) {
+      if (exception.status() == 404) return java.util.Optional.empty();
+      throw exception;
+    }
+  }
+
+  public byte[] downloadJpk(long p, YearMonth m) {
+    return exchange(
+        client
+            .get()
+            .uri(API + "/months/{month}/filings/jpk", p, m)
+            .accept(MediaType.APPLICATION_XML),
+        byte[].class);
+  }
+
+  public void recordConfirmation(long p, ConfirmationInput input) {
+    exchange(
+        client
+            .post()
+            .uri(API + "/months/{month}/filings/confirmations", p, input.taxPeriod())
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(input),
+        Void.class);
+  }
+
   public void confirm(long p, YearMonth m) {
     postAction("confirm", p, m);
   }

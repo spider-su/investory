@@ -77,22 +77,40 @@ class HttpAccountingRestClientTest {
         .andExpect(method(HttpMethod.POST))
         .andRespond(withSuccess("{\"sourceReference\":\"sha256:x\"}", MediaType.APPLICATION_JSON));
 
-    assertThat(client.recognize(1, "invoice.pdf", "application/pdf", new byte[] {1}).sourceReference())
+    assertThat(
+            client.recognize(1, "invoice.pdf", "application/pdf", new byte[] {1}).sourceReference())
         .isEqualTo("sha256:x");
   }
 
   @Test
   void sendsBankImportAndEncodedReopen() {
     server
-        .expect(requestTo("http://localhost:8080/api/profiles/1/accounting/bank/import?month=2026-01"))
+        .expect(
+            requestTo("http://localhost:8080/api/profiles/1/accounting/bank/import?month=2026-01"))
         .andExpect(method(HttpMethod.POST))
         .andRespond(withSuccess());
     server
-        .expect(requestTo("http://localhost:8080/api/profiles/1/accounting/months/2026-01/reopen?reason=fix%20invoice"))
+        .expect(
+            requestTo(
+                "http://localhost:8080/api/profiles/1/accounting/months/2026-01/reopen?reason=fix%20invoice"))
         .andExpect(method(HttpMethod.POST))
         .andRespond(withSuccess());
 
     client.importBank(1, "bank.csv", "text/csv", new byte[] {1}, YearMonth.of(2026, 1));
     client.reopen(1, YearMonth.of(2026, 1), "fix invoice");
+  }
+
+  @Test
+  void sendsKsefSync() {
+    server
+        .expect(
+            requestTo("http://localhost:8080/api/profiles/1/accounting/ksef/sync?month=2026-01"))
+        .andExpect(method(HttpMethod.POST))
+        .andRespond(
+            withSuccess(
+                "{\"status\":\"COMPLETED\",\"received\":2,\"imported\":1,\"duplicates\":1,\"reviewRequired\":0,\"failed\":0,\"message\":\"done\"}",
+                MediaType.APPLICATION_JSON));
+
+    assertThat(client.syncKsef(1, YearMonth.of(2026, 1)).imported()).isEqualTo(1);
   }
 }
