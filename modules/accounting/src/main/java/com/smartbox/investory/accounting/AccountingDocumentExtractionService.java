@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 public class AccountingDocumentExtractionService {
   private final List<AccountingDocumentExtractor> extractors;
   private final InvoiceValidator validator;
+  private final AccountingFactService factService;
 
   public ExtractionResult extract(AccountingSourceDocument source) {
     return extractors.stream()
@@ -23,10 +24,13 @@ public class AccountingDocumentExtractionService {
 
   private ExtractionResult validate(ExtractionResult result) {
     if (result.candidate() == null) return result;
-    List<String> issues = validator.validate(result.candidate());
+    AccountingDocumentCandidate candidate =
+        validator.resolveDirection(result.candidate(), factService.accountingProfile().nip());
+    List<String> issues = validator.validate(candidate);
     if (!issues.isEmpty())
       return new ExtractionResult(
-          result.candidate(), result.extractorType(), ExtractionOutcome.REVIEW_REQUIRED, issues);
-    return result;
+          candidate, result.extractorType(), ExtractionOutcome.REVIEW_REQUIRED, issues);
+    return new ExtractionResult(
+        candidate, result.extractorType(), ExtractionOutcome.ACCEPTED, List.of());
   }
 }

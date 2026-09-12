@@ -56,6 +56,38 @@ class InvoiceValidator {
             List.of()));
   }
 
+  AccountingDocumentCandidate resolveDirection(
+      AccountingDocumentCandidate candidate, String ownNip) {
+    if ("CREDIT_NOTE".equals(candidate.documentType()) || ownNip == null || ownNip.isBlank()) {
+      return candidate;
+    }
+    String own = digits(ownNip);
+    String type =
+        own != null && own.equals(digits(candidate.sellerNip()))
+            ? "SALES_INVOICE"
+            : own != null && own.equals(digits(candidate.buyerNip()))
+                ? "PURCHASE_INVOICE"
+                : "UNKNOWN";
+    return new AccountingDocumentCandidate(
+        type,
+        candidate.reference(),
+        candidate.issueDate(),
+        candidate.saleDate(),
+        candidate.dueDate(),
+        candidate.seller(),
+        candidate.sellerNip(),
+        candidate.buyer(),
+        candidate.buyerNip(),
+        candidate.currency(),
+        candidate.netAmount(),
+        candidate.vatAmount(),
+        candidate.grossAmount(),
+        candidate.vatSummaryRows(),
+        candidate.suggestedCategory(),
+        candidate.fields(),
+        candidate.parserVersion());
+  }
+
   AccountingInvoiceRecognitionService.RecognizedInvoice resolveDirection(
       AccountingInvoiceRecognitionService.RecognizedInvoice invoice, String ownNip) {
     if ("CREDIT_NOTE".equals(invoice.documentType()) || ownNip == null || ownNip.isBlank())
