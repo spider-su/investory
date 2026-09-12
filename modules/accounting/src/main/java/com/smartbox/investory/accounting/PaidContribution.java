@@ -16,6 +16,6 @@ public record PaidContribution(
       throw new IllegalArgumentException("contribution type is required");
     if (paymentDate == null || paidAmount == null || paidAmount.signum() < 0)
       throw new IllegalArgumentException("paid contribution payment and amount are required");
-    deductibleAmount = deductibleAmount == null ? BigDecimal.ZERO : deductibleAmount;
+    deductibleAmount = deductibleAmount == null ? paidAmount : deductibleAmount;
   }
 }

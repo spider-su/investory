@@ -34,6 +34,7 @@ public class AccountingFactService {
   private final AccountingPocRepository pocRepository;
   private final CurrencyConversion currencyConversion;
   private final AccountingMonthCalculator calculator;
+  private final AccountingProfileResolver profileResolver;
 
   public AccountingFactService(
       AccountingFactRepository factRepository,
@@ -43,7 +44,8 @@ public class AccountingFactService {
         factRepository,
         pocRepository,
         currencyConversion,
-        new DefaultAccountingMonthCalculator(currencyConversion));
+        new DefaultAccountingMonthCalculator(currencyConversion),
+        new AccountingProfileResolver());
   }
 
   @Autowired
@@ -51,11 +53,13 @@ public class AccountingFactService {
       AccountingFactRepository factRepository,
       AccountingPocRepository pocRepository,
       CurrencyConversion currencyConversion,
-      AccountingMonthCalculator calculator) {
+      AccountingMonthCalculator calculator,
+      AccountingProfileResolver profileResolver) {
     this.factRepository = factRepository;
     this.pocRepository = pocRepository;
     this.currencyConversion = currencyConversion;
     this.calculator = calculator;
+    this.profileResolver = profileResolver;
   }
 
   public List<AccountingFact> facts() {
@@ -117,6 +121,20 @@ public class AccountingFactService {
         period.isBefore(OPERATIONAL_MONTH)
             ? AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
             : AccountingCalculationMode.CURRENT_CALCULATION;
+    var activityPeriods = pocRepository.businessActivityPeriods();
+    var employmentPeriods = pocRepository.employmentPeriods();
+    var resolved = profileResolver.resolve(period, activityPeriods, employmentPeriods, List.of());
+    var context =
+        activityPeriods.isEmpty() && employmentPeriods.isEmpty()
+            ? AccountingPeriodContext.compatibility(period, profile)
+            : new AccountingPeriodContext(
+                period,
+                resolved.jdgActive(),
+                resolved.qualifyingUop(),
+                resolved.zusRegime(),
+                resolved.voluntarySickness(),
+                AccountingYearToDateContext.empty(),
+                ZusRules2026.input(resolved.qualifyingUop()));
     AccountingCalculationResult calculated =
         calculator.calculate(
             new AccountingCalculationInput(
@@ -135,7 +153,17 @@ public class AccountingFactService {
                         ? correctionSources.stream()
                             .map(InvoiceRow::correctionVatAmount)
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
-                        : BigDecimal.ZERO)));
+                        : BigDecimal.ZERO),
+                new AccountingPeriodContext(
+                    context.period(),
+                    context.jdgActive(),
+                    context.qualifyingUop(),
+                    context.zusRegime(),
+                    context.voluntarySickness(),
+                    context.yearToDate(),
+                    calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+                        ? ZusRules2026.input(resolved.qualifyingUop())
+                        : null)));
     if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
       domesticRevenue = calculated.revenue().domesticPln();
       foreignBookedRevenue = calculated.revenue().convertedForeignPln();

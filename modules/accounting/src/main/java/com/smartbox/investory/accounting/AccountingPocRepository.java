@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -17,6 +18,11 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class AccountingPocRepository {
   private final JdbcTemplate jdbcTemplate;
+
+  private AccountingFilingEvidence filingEvidence(String value, String ksefNumber) {
+    if (value == null || value.isBlank()) return null;
+    return new AccountingFilingEvidence(AccountingFilingEvidence.Type.valueOf(value), ksefNumber);
+  }
 
   public PeriodState periodState(LocalDate period) {
     return jdbcTemplate.query(
@@ -95,7 +101,7 @@ public class AccountingPocRepository {
         SELECT id, tax_period, issue_date, sale_date, fx_rate_date, reference, customer_alias, invoice_kind,
                currency, net_amount, vat_amount, gross_amount, correction_net_amount,
                correction_vat_amount, correction_gross_amount, expected_receivable,
-               booked_net_pln, ryczalt_rate, note
+               booked_net_pln, ryczalt_rate, note, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence
           FROM investory.accounting_poc_invoice
          WHERE tax_period = ?
          ORDER BY id
@@ -120,7 +126,11 @@ public class AccountingPocRepository {
                 rs.getBigDecimal("expected_receivable"),
                 rs.getBigDecimal("booked_net_pln"),
                 rs.getBigDecimal("ryczalt_rate"),
-                rs.getString("note")),
+                rs.getString("note"),
+                rs.getString("counterparty_tax_identifier"),
+                rs.getString("counterparty_country"),
+                rs.getString("ksef_number"),
+                filingEvidence(rs.getString("filing_evidence"), rs.getString("ksef_number"))),
         period);
   }
 
@@ -203,7 +213,7 @@ public class AccountingPocRepository {
         SELECT id, tax_period, invoice_date, reference, supplier_alias, category, currency,
                net_amount, vat_amount, gross_amount, vat_deduction_ratio,
                ROUND(vat_amount * vat_deduction_ratio, 2) AS deductible_vat,
-               source_quality, note
+               source_quality, note, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence
           FROM investory.accounting_poc_expense_invoice
          WHERE tax_period = ?
          ORDER BY invoice_date NULLS LAST, id
@@ -223,7 +233,11 @@ public class AccountingPocRepository {
                 rs.getBigDecimal("vat_deduction_ratio"),
                 rs.getBigDecimal("deductible_vat"),
                 rs.getString("source_quality"),
-                rs.getString("note")),
+                rs.getString("note"),
+                rs.getString("counterparty_tax_identifier"),
+                rs.getString("counterparty_country"),
+                rs.getString("ksef_number"),
+                filingEvidence(rs.getString("filing_evidence"), rs.getString("ksef_number"))),
         period);
   }
 
@@ -388,6 +402,30 @@ public class AccountingPocRepository {
             new TaxInputRow(
                 rs.getString("input_type"), rs.getBigDecimal("amount"), rs.getString("note")),
         period);
+  }
+
+  public List<EmploymentInsurancePeriod> employmentPeriods() {
+    try {
+      return jdbcTemplate.query(
+          "SELECT date_from, date_to FROM investory.employment_period WHERE profile_id = 1 AND employment_type = 'UOP' ORDER BY date_from, id",
+          (rs, rowNum) ->
+              new EmploymentInsurancePeriod(
+                  rs.getObject(1, LocalDate.class), rs.getObject(2, LocalDate.class), true));
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
+  }
+
+  public List<BusinessActivityPeriod> businessActivityPeriods() {
+    try {
+      return jdbcTemplate.query(
+          "SELECT date_from, date_to FROM investory.employment_period WHERE profile_id = 1 AND employment_type = 'JDG' ORDER BY date_from, id",
+          (rs, rowNum) ->
+              new BusinessActivityPeriod(
+                  rs.getObject(1, LocalDate.class), rs.getObject(2, LocalDate.class)));
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
   }
 
   public List<AccountingIssue> sourceIssuesForPeriod(LocalDate period) {

@@ -113,6 +113,22 @@ public final class AccountingDatabase {
       statement.execute(
           "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS source_row_identity VARCHAR(256)");
       statement.execute(
+          "ALTER TABLE investory.accounting_poc_invoice ADD COLUMN IF NOT EXISTS counterparty_tax_identifier VARCHAR(32)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_invoice ADD COLUMN IF NOT EXISTS counterparty_country VARCHAR(2)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_invoice ADD COLUMN IF NOT EXISTS ksef_number VARCHAR(256)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_invoice ADD COLUMN IF NOT EXISTS filing_evidence VARCHAR(8)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_expense_invoice ADD COLUMN IF NOT EXISTS counterparty_tax_identifier VARCHAR(32)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_expense_invoice ADD COLUMN IF NOT EXISTS counterparty_country VARCHAR(2)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_expense_invoice ADD COLUMN IF NOT EXISTS ksef_number VARCHAR(256)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_expense_invoice ADD COLUMN IF NOT EXISTS filing_evidence VARCHAR(8)");
+      statement.execute(
           "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS nip VARCHAR(10)");
       statement.execute(
           "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS full_name VARCHAR(240)");

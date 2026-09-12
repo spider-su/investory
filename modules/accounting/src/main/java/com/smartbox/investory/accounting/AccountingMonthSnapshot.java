@@ -89,7 +89,57 @@ public record AccountingMonthSnapshot(
       BigDecimal expectedReceivable,
       BigDecimal bookedNetPln,
       BigDecimal ryczaltRate,
-      String note) {}
+      String note,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String ksefNumber,
+      AccountingFilingEvidence filingEvidence) {
+    public InvoiceRow(
+        long id,
+        LocalDate taxPeriod,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        LocalDate fxRateDate,
+        String reference,
+        String customerAlias,
+        String invoiceKind,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal correctionNetAmount,
+        BigDecimal correctionVatAmount,
+        BigDecimal correctionGrossAmount,
+        BigDecimal expectedReceivable,
+        BigDecimal bookedNetPln,
+        BigDecimal ryczaltRate,
+        String note) {
+      this(
+          id,
+          taxPeriod,
+          issueDate,
+          saleDate,
+          fxRateDate,
+          reference,
+          customerAlias,
+          invoiceKind,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          correctionNetAmount,
+          correctionVatAmount,
+          correctionGrossAmount,
+          expectedReceivable,
+          bookedNetPln,
+          ryczaltRate,
+          note,
+          null,
+          null,
+          null,
+          null);
+    }
+  }
 
   public record ExpenseRow(
       long id,
@@ -105,7 +155,47 @@ public record AccountingMonthSnapshot(
       BigDecimal vatDeductionRatio,
       BigDecimal deductibleVat,
       String sourceQuality,
-      String note) {}
+      String note,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String ksefNumber,
+      AccountingFilingEvidence filingEvidence) {
+    public ExpenseRow(
+        long id,
+        LocalDate taxPeriod,
+        LocalDate invoiceDate,
+        String reference,
+        String supplierAlias,
+        String category,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal vatDeductionRatio,
+        BigDecimal deductibleVat,
+        String sourceQuality,
+        String note) {
+      this(
+          id,
+          taxPeriod,
+          invoiceDate,
+          reference,
+          supplierAlias,
+          category,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          vatDeductionRatio,
+          deductibleVat,
+          sourceQuality,
+          note,
+          null,
+          null,
+          null,
+          null);
+    }
+  }
 
   public record BankRow(
       long id,

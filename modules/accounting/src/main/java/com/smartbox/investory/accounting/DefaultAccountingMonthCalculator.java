@@ -39,30 +39,42 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
     BigDecimal revenue =
         domestic.add(fx.convertedRevenuePln()).add(input.adjustments().revenueNetPln());
     var paidContributions = input.periodContext().yearToDate().paidContributions();
+    var periodEnd = input.period().withDayOfMonth(input.period().lengthOfMonth());
     BigDecimal paidSocial =
         paidContributions.stream()
             .filter(p -> "SOCIAL".equals(p.contributionType()))
-            .filter(p -> !p.paymentDate().isAfter(input.period()))
-            .map(PaidContribution::paidAmount)
+            .filter(p -> !p.paymentDate().isAfter(periodEnd))
+            .map(PaidContribution::deductibleAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     ZusCalculationInput zusInput = input.periodContext().zusCalculationInput();
     BigDecimal health =
         zusInput != null && zusInput.healthAmount() != null
             ? zusInput.healthAmount()
-            :
-        paidContributions.stream()
-            .filter(p -> "HEALTH".equals(p.contributionType()))
-            .filter(p -> !p.paymentDate().isAfter(input.period()))
-            .map(PaidContribution::paidAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            : paidContributions.stream()
+                .filter(p -> "HEALTH".equals(p.contributionType()))
+                .filter(p -> !p.paymentDate().isAfter(periodEnd))
+                .map(PaidContribution::deductibleAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     if (health.signum() == 0) {
       health = required(input.taxInputs(), "HEALTH_CONTRIBUTION_PAID", issues);
     }
     BigDecimal socialDeduction = paidSocial;
     BigDecimal healthDeduction =
-        health.signum() == 0
+        paidContributions.stream()
+                    .filter(p -> "HEALTH".equals(p.contributionType()))
+                    .filter(p -> !p.paymentDate().isAfter(periodEnd))
+                    .map(PaidContribution::deductibleAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .signum()
+                == 0
             ? BigDecimal.ZERO
-            : health.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
+            : paidContributions.stream()
+                .filter(p -> "HEALTH".equals(p.contributionType()))
+                .filter(p -> !p.paymentDate().isAfter(periodEnd))
+                .map(PaidContribution::deductibleAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .multiply(HALF)
+                .setScale(2, RoundingMode.HALF_UP);
     BigDecimal taxable =
         revenue
             .subtract(socialDeduction)

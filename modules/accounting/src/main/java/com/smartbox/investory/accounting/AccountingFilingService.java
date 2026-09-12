@@ -211,12 +211,15 @@ public class AccountingFilingService {
                           invoice.issueDate(),
                           invoice.saleDate(),
                           null,
-                          "",
+                          invoice.counterpartyTaxIdentifier(),
                           invoice.customerAlias(),
                           invoice.netAmount(),
                           invoice.vatAmount(),
                           invoice.vatAmount(),
-                          null))
+                          invoice.filingEvidence() == null && invoice.ksefNumber() != null
+                              ? new AccountingFilingEvidence(
+                                  AccountingFilingEvidence.Type.KSEF, invoice.ksefNumber())
+                              : invoice.filingEvidence()))
               .toList();
       var purchases =
           snapshot.expenses().stream()
@@ -227,12 +230,15 @@ public class AccountingFilingService {
                           expense.invoiceDate(),
                           null,
                           expense.invoiceDate(),
-                          "",
+                          expense.counterpartyTaxIdentifier(),
                           expense.supplierAlias(),
                           expense.netAmount(),
                           expense.vatAmount(),
                           expense.deductibleVat(),
-                          null))
+                          expense.filingEvidence() == null && expense.ksefNumber() != null
+                              ? new AccountingFilingEvidence(
+                                  AccountingFilingEvidence.Type.KSEF, expense.ksefNumber())
+                              : expense.filingEvidence()))
               .toList();
       return new AccountingFilingInput(
           period,
