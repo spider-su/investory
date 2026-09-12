@@ -107,10 +107,20 @@ public class AccountingFactService {
                 obligations,
                 taxInputs)
             : List.of();
+    List<ReconciliationRow> reconciliations =
+        reconcile(invoices, expenses, bankTransactions, obligations);
     List<AccountingIssue> issues =
-        issuesFor(calculationMode, invoices, expenses, fx, taxInputs, profile, period);
-
-    List<ReconciliationRow> reconciliations = reconcile(invoices, bankTransactions, obligations);
+        issuesFor(
+            calculationMode,
+            invoices,
+            expenses,
+            fx,
+            taxInputs,
+            profile,
+            period,
+            bankTransactions,
+            reconciliations,
+            obligations);
 
     return new AccountingMonthSnapshot(
         period,
@@ -140,7 +150,10 @@ public class AccountingFactService {
       FxCalculation fx,
       List<TaxInputRow> taxInputs,
       AccountingProfile profile,
-      LocalDate period) {
+      LocalDate period,
+      List<BankRow> bankTransactions,
+      List<ReconciliationRow> reconciliations,
+      List<ObligationRow> obligations) {
     List<AccountingIssue> issues = new ArrayList<>();
     List<AccountingIssue> sourceIssues = pocRepository.sourceIssuesForPeriod(period);
     if (sourceIssues != null) issues.addAll(sourceIssues);
@@ -184,6 +197,26 @@ public class AccountingFactService {
               "INCOMPLETE",
               null,
               "Compulsory social ZUS input is required when UoP is disabled."));
+    }
+    if (!obligations.isEmpty() && bankTransactions.isEmpty()) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_BANK_INPUT",
+              "INCOMPLETE",
+              null,
+              "No normalized bank transactions are available to reconcile this month."));
+    }
+    if (!bankTransactions.isEmpty()) {
+      reconciliations.stream()
+          .filter(row -> "UNMATCHED".equals(row.status()) || "DIFF".equals(row.status()))
+          .forEach(
+              row ->
+                  issues.add(
+                      new AccountingIssue(
+                          "RECONCILIATION_REVIEW",
+                          "REVIEW_REQUIRED",
+                          row.reference(),
+                          row.explanation())));
     }
     return issues;
   }
@@ -497,7 +530,10 @@ public class AccountingFactService {
   }
 
   private List<ReconciliationRow> reconcile(
-      List<InvoiceRow> invoices, List<BankRow> bankTransactions, List<ObligationRow> obligations) {
+      List<InvoiceRow> invoices,
+      List<ExpenseRow> expenses,
+      List<BankRow> bankTransactions,
+      List<ObligationRow> obligations) {
     List<ReconciliationRow> result = new ArrayList<>();
     Set<Long> usedBankTransactionIds = new HashSet<>();
 
@@ -535,6 +571,38 @@ public class AccountingFactService {
               match == null ? null : match.bookingDate(),
               match == null ? "UNMATCHED" : "MATCHED",
               match == null ? "No exact business receipt found." : explanation));
+    }
+
+    for (ExpenseRow expense : expenses) {
+      BankRow match =
+          bankTransactions.stream()
+              .filter(row -> "BUSINESS".equals(row.scope()))
+              .filter(row -> "SUPPLIER_PAYMENT".equals(row.transactionType()))
+              .filter(row -> expense.currency().equals(row.currency()))
+              .filter(row -> expense.grossAmount().compareTo(row.amount().abs()) == 0)
+              .filter(
+                  row ->
+                      row.relatedPeriod() == null
+                          || expense.taxPeriod().equals(row.relatedPeriod()))
+              .filter(
+                  row ->
+                      expense.reference().equalsIgnoreCase(row.reference())
+                          || expense.supplierAlias().equals(row.counterpartyAlias()))
+              .filter(row -> usedBankTransactionIds.add(row.id()))
+              .findFirst()
+              .orElse(null);
+      result.add(
+          new ReconciliationRow(
+              expense.reference(),
+              "EXPENSE_PAYMENT",
+              expense.grossAmount(),
+              expense.currency(),
+              match == null ? BigDecimal.ZERO : match.amount().abs(),
+              match == null ? null : match.bookingDate(),
+              match == null ? "UNMATCHED" : "MATCHED",
+              match == null
+                  ? "No exact business supplier payment found."
+                  : "Exact supplier payment matched."));
     }
 
     for (ObligationRow obligation : obligations) {

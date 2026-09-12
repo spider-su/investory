@@ -107,6 +107,25 @@ tax classification or deduction makes it review-required. The UI shows the mode,
 historical comparison tables are shown only for reconstruction mode. This is operational completeness
 visibility, not a full review inbox.
 
+### Bank ingestion and reconciliation
+
+Raw bank files are source evidence. The file is persisted before parsing, then parsed into normalized
+bank transactions through `AccountingBankTransactionIngestionService`. The POC accepts a deterministic
+semicolon-delimited export with booking date, related period, reference, counterparty, currency,
+amount and note. The source hash makes repeated file import idempotent, while each normalized row uses
+a stable source-row identity and retains its source foreign key.
+
+Only explicit classifications are accepted: customer receipt, supplier payment, VAT payment, ryczałt
+payment, ZUS payment and internal transfer. Unknown rows remain persisted as `UNKNOWN`, mark the source
+`REVIEW_REQUIRED`, and cannot satisfy reconciliation. Internal transfers are retained for audit but are
+excluded from income, expense and payment matching.
+
+Reconciliation compares invoice receivables, supplier invoice gross amounts and tax/ZUS obligations
+with actual bank movements. It reports matching and payment differences separately; bank cash never
+changes a calculated accounting amount. For example, a 1,495.00 PLN ZUS payment against a 1,495.04 PLN
+obligation remains a visible difference. Current-month readiness incorporates unresolved bank source
+and reconciliation issues, while unpaid future obligations do not become calculation changes.
+
 ### Sales period vs cash period
 
 A sales invoice belongs to its accounting/tax period. Payment can happen in a later calendar month.

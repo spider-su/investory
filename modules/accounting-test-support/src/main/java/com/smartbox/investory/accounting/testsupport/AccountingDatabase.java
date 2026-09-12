@@ -97,6 +97,16 @@ public final class AccountingDatabase {
       statement.execute(
           "ALTER TABLE investory.accounting_poc_expense_invoice ADD COLUMN IF NOT EXISTS source_id BIGINT");
       statement.execute(
+          "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS source_id BIGINT");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS source_row_identity VARCHAR(256)");
+      statement.execute(
+          "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_poc_bank_source_row ON investory.accounting_poc_bank_transaction (source_row_identity) WHERE source_row_identity IS NOT NULL");
+      statement.execute(
+          "ALTER TABLE investory.accounting_source_evidence DROP CONSTRAINT IF EXISTS chk_accounting_source_type");
+      statement.execute(
+          "ALTER TABLE investory.accounting_source_evidence ADD CONSTRAINT chk_accounting_source_type CHECK (source_type IN ('KSEF', 'UPLOAD', 'BANK'))");
+      statement.execute(
           """
           CREATE TABLE IF NOT EXISTS investory.accounting_poc_profile (
               id SMALLINT PRIMARY KEY,

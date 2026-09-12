@@ -174,7 +174,14 @@ public class AccountingFactController {
     model.addAttribute("facts", service.facts());
     if (sourceEvidenceService != null) {
       model.addAttribute("sourceOutcomes", sourceEvidenceService.outcomes(selected));
+      model.addAttribute("bankSourceOutcomes", sourceEvidenceService.bankOutcomes(selected));
     }
+    model.addAttribute("bankProcessedRows", snapshot.bankTransactions().size());
+    model.addAttribute(
+        "bankReviewRows",
+        snapshot.bankTransactions().stream()
+            .filter(transaction -> "UNKNOWN".equals(transaction.transactionType()))
+            .count());
     return selected;
   }
 

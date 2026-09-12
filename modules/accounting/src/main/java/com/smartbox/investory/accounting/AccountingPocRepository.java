@@ -286,6 +286,40 @@ public class AccountingPocRepository {
         period.plusMonths(1));
   }
 
+  public boolean insertBankTransaction(
+      LocalDate bookingDate,
+      LocalDate relatedPeriod,
+      String reference,
+      String counterparty,
+      String currency,
+      java.math.BigDecimal amount,
+      String transactionType,
+      String scope,
+      String note,
+      long sourceId,
+      String sourceRowIdentity) {
+    return jdbcTemplate.update(
+            """
+            INSERT INTO investory.accounting_poc_bank_transaction
+                (booking_date, related_period, reference, counterparty_alias, currency, amount,
+                 transaction_type, scope, note, source_id, source_row_identity)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
+            """,
+            bookingDate,
+            relatedPeriod,
+            reference,
+            counterparty,
+            currency,
+            amount,
+            transactionType,
+            scope,
+            note,
+            sourceId,
+            sourceRowIdentity)
+        == 1;
+  }
+
   public List<ObligationRow> obligationsForPeriod(LocalDate period) {
     return jdbcTemplate.query(
         """

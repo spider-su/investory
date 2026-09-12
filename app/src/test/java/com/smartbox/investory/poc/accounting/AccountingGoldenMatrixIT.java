@@ -29,6 +29,8 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
 
   @Autowired private AccountingSourceEvidenceService sourceEvidence;
 
+  @Autowired private AccountingBankImportService bankImport;
+
   @Autowired private JdbcTemplate jdbcTemplate;
 
   @MockitoBean(name = "currencyRateService")
@@ -199,15 +201,79 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         .isInstanceOf(DataIntegrityViolationException.class);
   }
 
+  @Test
+  void bankImportReconcilesReceiptWithoutChangingAccountingAmount() {
+    LocalDate september = LocalDate.of(2026, 9, 1);
+    long sourceId =
+        sourceEvidence.receiveKsef(
+            "E2E-BANK-INVOICE", september.plusDays(10), "invoice".getBytes());
+    ingestion.ingest(
+        new AccountingInvoiceIngestionService.ReviewedInvoice(
+            september,
+            "SALES_INVOICE",
+            september.plusDays(10),
+            september.plusDays(10),
+            "E2E-BANK-INVOICE-REF",
+            "E2E BANK CUSTOMER",
+            "SERVICE",
+            "PLN",
+            new BigDecimal("1000.00"),
+            new BigDecimal("230.00"),
+            new BigDecimal("1230.00"),
+            BigDecimal.ZERO,
+            "E2E_TEST",
+            "Bank reconciliation invoice",
+            Long.toString(sourceId)));
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?)",
+        september,
+        "HEALTH_CONTRIBUTION_PAID",
+        new BigDecimal("100.00"),
+        "E2E_BANK_TEST");
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?)",
+        september,
+        "JDG_COMPULSORY_SOCIAL_ZUS",
+        new BigDecimal("200.00"),
+        "E2E_BANK_TEST");
+    bankImport.importFile(
+        "e2e-bank.csv",
+        "text/csv",
+        ("booking_date;related_period;reference;counterparty;currency;amount;note\n"
+                + "2026-09-20;2026-09-01;E2E-BANK-INVOICE-REF;E2E BANK CUSTOMER;PLN;1230.00;customer receipt")
+            .getBytes(),
+        september);
+
+    AccountingMonthSnapshot snapshot = service.snapshot(september);
+    assertThat(snapshot.ryczalt().revenueBeforeDeductions()).isEqualByComparingTo("1000.00");
+    assertThat(snapshot.reconciliations())
+        .anySatisfy(
+            row -> {
+              assertThat(row.reference()).isEqualTo("E2E-BANK-INVOICE-REF");
+              assertThat(row.status()).isEqualTo("MATCHED");
+              assertThat(row.matchedAmount()).isEqualByComparingTo("1230.00");
+            });
+  }
+
   @org.junit.jupiter.api.AfterEach
   void removeOperationalFixture() {
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_poc_invoice WHERE reference IN ('E2E-SEPTEMBER-SALE', 'E2E-INVALID-SOURCE')");
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_poc_expense_invoice WHERE reference = 'E2E-SEPTEMBER-PURCHASE'");
+    jdbcTemplate.update(
+        "DELETE FROM investory.accounting_poc_bank_transaction WHERE reference = 'E2E-BANK-INVOICE-REF'");
     jdbcTemplate.update("DELETE FROM investory.accounting_poc_tax_input WHERE note = 'E2E_TEST'");
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_source_evidence WHERE external_reference = 'E2E-KSEF-SEPTEMBER'");
+    jdbcTemplate.update(
+        "DELETE FROM investory.accounting_poc_invoice WHERE reference = 'E2E-BANK-INVOICE-REF'");
+    jdbcTemplate.update(
+        "DELETE FROM investory.accounting_poc_tax_input WHERE note = 'E2E_BANK_TEST'");
+    jdbcTemplate.update(
+        "DELETE FROM investory.accounting_source_evidence WHERE original_filename = 'e2e-bank.csv'");
+    jdbcTemplate.update(
+        "DELETE FROM investory.accounting_source_evidence WHERE external_reference = 'E2E-BANK-INVOICE'");
   }
 
   private void stubFx(LocalDate rateDate, String pln) {

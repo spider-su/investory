@@ -104,6 +104,30 @@
       </section>
 
       <section class="card section-card">
+        <div class="card-header"><h2 class="card-title">Bank sources</h2></div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data" th:action="@{/poc/accounting/bank/import}">
+            <input type="hidden" name="month" th:value="${#temporals.format(selectedPeriod, 'yyyy-MM')}">
+            <div class="input-group">
+              <input class="form-control" type="file" name="bankFile" required>
+              <button class="btn btn-primary" type="submit">Import bank file</button>
+            </div>
+          </form>
+          <div class="mt-3" th:if="${bankSourceOutcomes != null}">
+            <div><strong th:text="${bankProcessedRows}">0</strong> transaction(s) processed;
+              <strong th:text="${bankReviewRows}">0</strong> review required.</div>
+            <ul class="mb-0 mt-2" th:if="${!bankSourceOutcomes.isEmpty()}">
+              <li th:each="source : ${bankSourceOutcomes}">
+                <span th:text="${source.reference()}">sha256:bank</span> —
+                <span th:text="${source.status()}">IMPORTED</span>
+                <span th:if="${source.error() != null}" th:text="${' (' + source.error() + ')'}"> (issue)</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="card section-card">
         <div class="card-header"><h2 class="card-title">Calculation status</h2></div>
         <div class="card-body">
           <div class="d-flex flex-wrap gap-3">
@@ -132,6 +156,8 @@
       <div class="alert alert-success" role="alert" th:if="${ksefConnectionMessage}" th:text="${ksefConnectionMessage}"></div>
       <div class="alert alert-danger" role="alert" th:if="${ksefConnectionError}" th:text="${ksefConnectionError}"></div>
       <div class="alert alert-danger" role="alert" th:if="${ksefInvoiceReadError}" th:text="${ksefInvoiceReadError}"></div>
+      <div class="alert alert-success" role="alert" th:if="${bankImportMessage}" th:text="${bankImportMessage}"></div>
+      <div class="alert alert-danger" role="alert" th:if="${bankImportError}" th:text="${bankImportError}"></div>
 
       <section class="card section-card">
         <div class="card-header">

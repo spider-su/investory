@@ -37,6 +37,20 @@ public class AccountingSourceEvidenceService {
         payload);
   }
 
+  public long receiveBank(
+      String filename, String contentType, byte[] payload, LocalDate documentDate) {
+    byte[] hash = sha256(payload);
+    return repository.save(
+        AccountingSourceType.BANK,
+        "sha256:" + hex(hash),
+        filename,
+        contentType,
+        Instant.now(),
+        documentDate,
+        hash,
+        payload);
+  }
+
   public void status(long id, AccountingSourceStatus status, String error) {
     repository.updateStatus(id, status, error);
   }
@@ -51,6 +65,10 @@ public class AccountingSourceEvidenceService {
 
   public java.util.List<SourceOutcome> outcomes(LocalDate period) {
     return repository.outcomes(period);
+  }
+
+  public java.util.List<SourceOutcome> bankOutcomes(LocalDate period) {
+    return repository.bankOutcomes(period);
   }
 
   public record SourceOutcome(String reference, String status, String error) {}

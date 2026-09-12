@@ -65,6 +65,23 @@ public class AccountingSourceRepository {
         period);
   }
 
+  public java.util.List<AccountingSourceEvidenceService.SourceOutcome> bankOutcomes(
+      LocalDate period) {
+    return jdbcTemplate.query(
+        """
+        SELECT external_reference, processing_status, processing_error
+          FROM investory.accounting_source_evidence
+         WHERE source_type = 'BANK' AND (document_date = ? OR document_date IS NULL)
+         ORDER BY id
+        """,
+        (rs, rowNum) ->
+            new AccountingSourceEvidenceService.SourceOutcome(
+                rs.getString("external_reference"),
+                rs.getString("processing_status"),
+                rs.getString("processing_error")),
+        period);
+  }
+
   public void updateStatus(long id, AccountingSourceStatus status, String error) {
     jdbcTemplate.update(
         "UPDATE investory.accounting_source_evidence SET processing_status = ?, processing_error = ? WHERE id = ?",
