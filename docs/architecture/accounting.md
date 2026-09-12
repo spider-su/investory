@@ -208,9 +208,10 @@ The current obligation matrix is:
 These are representations and evidence boundaries. Government submission APIs are not part of this
 POC.
 
-This is not yet fully filing-ready. Hardening areas include natural-person JDG taxpayer identity,
-KSeF/OFF/BFK/DI semantics, deductible purchase VAT projection, official XSD validation, typed filing
-issues, deterministic semantic confirmation fingerprints and business-day due dates.
+This is a bounded filing-ready POC projection: natural-person JDG identity, KSeF/OFF/BFK/DI
+semantics, deductible purchase VAT, official local JPK_V7M(3) XSD validation, typed filing issues,
+deterministic semantic confirmation fingerprints and business-day due dates are implemented. It
+does not submit to government services; confirmation evidence is imported or recorded manually.
 
 ## CURRENT: bank reconciliation
 

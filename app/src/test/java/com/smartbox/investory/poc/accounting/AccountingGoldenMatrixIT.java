@@ -235,7 +235,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     AccountingFilingService.FilingResult filing = filingService.filing(july);
 
     assertThat(filing.ready()).isTrue();
-    assertThat(new String(filingService.jpk(july))).contains("JPK_V7M (3)", "<P_51>207.00</P_51>");
+    assertThat(new String(filingService.jpk(july))).contains("JPK_V7M (3)", "<P_51>207</P_51>");
     assertThat(filingService.paymentInstructions(july))
         .extracting(AccountingPaymentInstruction::obligationType)
         .containsExactly("VAT", "RYCZALT", "ZUS");
