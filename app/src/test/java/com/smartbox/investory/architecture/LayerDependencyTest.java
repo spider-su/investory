@@ -423,6 +423,7 @@ class LayerDependencyTest {
             "..profile.api..",
             "..retirement.api..",
             "..integrations.management.api..",
+            "..accounting.api..",
             "java..",
             "javax..",
             "jakarta..",
