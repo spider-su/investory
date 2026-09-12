@@ -46,7 +46,7 @@ public class AccountingPocRepository {
 
   public void saveFilingArtifact(AccountingFilingArtifact artifact) {
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_filing_artifact (artifact_type, tax_period, schema_version, payload, payload_hash, generated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO investory.accounting_filing_artifact (artifact_type, tax_period, schema_version, payload, payload_hash, generated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (artifact_type, tax_period, payload_hash) DO NOTHING",
         artifact.type().name(),
         artifact.period(),
         artifact.schemaVersion(),

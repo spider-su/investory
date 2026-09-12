@@ -178,6 +178,8 @@ public final class AccountingDatabase {
       statement.execute(
           "CREATE TABLE IF NOT EXISTS investory.accounting_authority_confirmation (id BIGSERIAL PRIMARY KEY, authority VARCHAR(32) NOT NULL, obligation_or_artifact_type VARCHAR(40) NOT NULL, tax_period DATE NOT NULL, external_reference VARCHAR(256) NOT NULL, confirmation_type VARCHAR(40) NOT NULL, status VARCHAR(16) NOT NULL, received_at TIMESTAMPTZ NOT NULL, source_document_id BIGINT, note VARCHAR(1000))");
       statement.execute(
+          "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_filing_artifact_hash ON investory.accounting_filing_artifact (artifact_type, tax_period, payload_hash)");
+      statement.execute(
           "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_poc_bank_source_row ON investory.accounting_poc_bank_transaction (source_row_identity) WHERE source_row_identity IS NOT NULL");
       statement.execute(
           "ALTER TABLE investory.accounting_source_evidence DROP CONSTRAINT IF EXISTS chk_accounting_source_type");

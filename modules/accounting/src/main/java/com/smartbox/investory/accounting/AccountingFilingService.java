@@ -92,7 +92,21 @@ public class AccountingFilingService {
     if (!result.ready()) throw new IllegalStateException(String.join("; ", result.issues()));
     byte[] payload = jpkGenerator.generate(result);
     jpkXmlValidator.validate(payload);
+    repository.saveFilingArtifact(
+        new AccountingFilingArtifact(
+            AccountingFilingArtifact.Type.JPK_V7M,
+            period,
+            "JPK_V7M_3",
+            payload,
+            AccountingFilingFingerprint.sha256(payload),
+            Instant.now(),
+            AccountingFilingArtifact.Status.VALID));
     return payload;
+  }
+
+  /** Records imported/manual authority evidence; no government submission is performed. */
+  public void recordAuthorityConfirmation(AuthorityConfirmation confirmation) {
+    repository.saveAuthorityConfirmation(confirmation);
   }
 
   public List<AccountingPaymentInstruction> paymentInstructions(LocalDate period) {
