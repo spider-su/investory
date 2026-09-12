@@ -44,6 +44,32 @@ public class AccountingPocRepository {
         hash);
   }
 
+  public void saveFilingArtifact(AccountingFilingArtifact artifact) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_filing_artifact (artifact_type, tax_period, schema_version, payload, payload_hash, generated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        artifact.type().name(),
+        artifact.period(),
+        artifact.schemaVersion(),
+        artifact.payload(),
+        artifact.payloadHash(),
+        java.sql.Timestamp.from(artifact.generatedAt()),
+        artifact.status().name());
+  }
+
+  public void saveAuthorityConfirmation(AuthorityConfirmation confirmation) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_authority_confirmation (authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        confirmation.authority(),
+        confirmation.obligationOrArtifactType(),
+        confirmation.period(),
+        confirmation.externalReference(),
+        confirmation.confirmationType().name(),
+        confirmation.status().name(),
+        java.sql.Timestamp.from(confirmation.receivedAt()),
+        confirmation.sourceDocumentId(),
+        confirmation.note());
+  }
+
   public record PeriodState(Instant confirmedAt, String confirmedCalculationHash) {}
 
   public AccountingProfile accountingProfile() {
