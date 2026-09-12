@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AccountingFactService {
   private static final LocalDate JULY_2026 = LocalDate.of(2026, 7, 1);
+  private static final LocalDate OPERATIONAL_MONTH = LocalDate.of(2026, 9, 1);
   private static final BigDecimal HALF = new BigDecimal("0.50");
 
   private final AccountingFactRepository factRepository;
@@ -87,18 +88,27 @@ public class AccountingFactService {
         calculateRyczalt(
             period, invoices, correctionSources, domesticRevenue, fx, obligations, taxInputs);
     VatCalculation vat = calculateVat(period, invoices, correctionSources, expenses, obligations);
-    ZusCalculation zus = calculateZus(accountingProfile(), taxInputs);
+    AccountingProfile profile = accountingProfile();
+    ZusCalculation zus = calculateZus(profile, taxInputs);
+    AccountingCalculationMode calculationMode =
+        period.isBefore(OPERATIONAL_MONTH)
+            ? AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+            : AccountingCalculationMode.CURRENT_CALCULATION;
     List<ComparisonRow> comparisons =
-        buildComparisons(
-            period,
-            domesticRevenue,
-            foreignBookedRevenue,
-            fx,
-            ryczalt,
-            vat,
-            zus,
-            obligations,
-            taxInputs);
+        calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+            ? buildComparisons(
+                period,
+                domesticRevenue,
+                foreignBookedRevenue,
+                fx,
+                ryczalt,
+                vat,
+                zus,
+                obligations,
+                taxInputs)
+            : List.of();
+    List<AccountingIssue> issues =
+        issuesFor(calculationMode, invoices, expenses, fx, taxInputs, profile, period);
 
     List<ReconciliationRow> reconciliations = reconcile(invoices, bankTransactions, obligations);
 
@@ -117,7 +127,75 @@ public class AccountingFactService {
         expenses,
         reconciliations,
         obligations,
-        bankTransactions);
+        bankTransactions,
+        calculationMode,
+        readiness(issues),
+        issues);
+  }
+
+  private List<AccountingIssue> issuesFor(
+      AccountingCalculationMode mode,
+      List<InvoiceRow> invoices,
+      List<ExpenseRow> expenses,
+      FxCalculation fx,
+      List<TaxInputRow> taxInputs,
+      AccountingProfile profile,
+      LocalDate period) {
+    List<AccountingIssue> issues = new ArrayList<>();
+    List<AccountingIssue> sourceIssues = pocRepository.sourceIssuesForPeriod(period);
+    if (sourceIssues != null) issues.addAll(sourceIssues);
+    if (mode != AccountingCalculationMode.CURRENT_CALCULATION) return issues;
+    if (invoices.isEmpty()) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_REQUIRED_INPUT",
+              "INCOMPLETE",
+              null,
+              "No normalized sales invoices are available for this month."));
+    }
+    if (expenses.isEmpty()) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_REQUIRED_INPUT",
+              "INCOMPLETE",
+              null,
+              "No normalized purchase invoices are available for this month."));
+    }
+    if ("FX_UNAVAILABLE".equals(fx.status())) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_FX",
+              "INCOMPLETE",
+              String.join(", ", fx.unavailableInvoiceReferences()),
+              "EUR revenue cannot be converted because the required FX rate is unavailable."));
+    }
+    if (taxInputOrNull(taxInputs, "HEALTH_CONTRIBUTION_PAID") == null) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_ZUS_INPUT",
+              "INCOMPLETE",
+              null,
+              "Health contribution input is required for the current month."));
+    }
+    if (!profile.hasUop() && taxInputOrNull(taxInputs, "JDG_COMPULSORY_SOCIAL_ZUS") == null) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_ZUS_INPUT",
+              "INCOMPLETE",
+              null,
+              "Compulsory social ZUS input is required when UoP is disabled."));
+    }
+    return issues;
+  }
+
+  private AccountingReadiness readiness(List<AccountingIssue> issues) {
+    if (issues.stream().anyMatch(issue -> "REVIEW_REQUIRED".equals(issue.severity()))) {
+      return AccountingReadiness.REVIEW_REQUIRED;
+    }
+    if (issues.stream().anyMatch(issue -> "INCOMPLETE".equals(issue.severity()))) {
+      return AccountingReadiness.INCOMPLETE;
+    }
+    return AccountingReadiness.READY;
   }
 
   private ZusCalculation calculateZus(AccountingProfile profile, List<TaxInputRow> taxInputs) {
@@ -395,11 +473,15 @@ public class AccountingFactService {
   }
 
   private BigDecimal taxInput(List<TaxInputRow> inputs, String inputType) {
+    TaxInputRow input = taxInputOrNull(inputs, inputType);
+    return input == null || input.amount() == null ? BigDecimal.ZERO : input.amount();
+  }
+
+  private TaxInputRow taxInputOrNull(List<TaxInputRow> inputs, String inputType) {
     return inputs.stream()
         .filter(input -> inputType.equals(input.inputType()))
-        .map(TaxInputRow::amount)
         .findFirst()
-        .orElse(BigDecimal.ZERO);
+        .orElse(null);
   }
 
   private boolean hasObligation(List<ObligationRow> obligations, String type) {

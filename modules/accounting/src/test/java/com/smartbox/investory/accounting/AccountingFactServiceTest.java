@@ -64,6 +64,50 @@ class AccountingFactServiceTest {
   }
 
   @Test
+  void calculatesOperationalMonthFromNormalizedFactsWithoutGoldenComparison() {
+    AccountingMonthSnapshot snapshot =
+        currentMonthService(List.of()).snapshot(LocalDate.of(2026, 9, 1));
+
+    assertThat(snapshot.calculationMode()).isEqualTo(AccountingCalculationMode.CURRENT_CALCULATION);
+    assertThat(snapshot.comparisons()).isEmpty();
+    assertThat(snapshot.readiness()).isEqualTo(AccountingReadiness.READY);
+    assertThat(snapshot.totalBookedRevenuePln()).isEqualByComparingTo("1000.00");
+  }
+
+  @Test
+  void marksOperationalMonthIncompleteWhenRequiredInputsAreMissing() {
+    AccountingFactRepository facts = mock(AccountingFactRepository.class);
+    AccountingPocRepository repository = mock(AccountingPocRepository.class);
+    CurrencyConversion fx = mock(CurrencyConversion.class);
+    when(repository.accountingProfile()).thenReturn(new AccountingProfile(false));
+    when(repository.invoicesForPeriod(LocalDate.of(2026, 9, 1))).thenReturn(List.of());
+    when(repository.expensesForPeriod(LocalDate.of(2026, 9, 1))).thenReturn(List.of());
+    when(repository.bankTransactionsForPeriod(LocalDate.of(2026, 9, 1))).thenReturn(List.of());
+    when(repository.obligationsForPeriod(LocalDate.of(2026, 9, 1))).thenReturn(List.of());
+    when(repository.taxInputsForPeriod(LocalDate.of(2026, 9, 1))).thenReturn(List.of());
+
+    AccountingMonthSnapshot snapshot =
+        new AccountingFactService(facts, repository, fx).snapshot(LocalDate.of(2026, 9, 1));
+
+    assertThat(snapshot.readiness()).isEqualTo(AccountingReadiness.INCOMPLETE);
+    assertThat(snapshot.issues())
+        .extracting(AccountingIssue::type)
+        .contains("MISSING_REQUIRED_INPUT", "MISSING_ZUS_INPUT");
+  }
+
+  @Test
+  void sourceReviewOverridesOperationalInputReadiness() {
+    AccountingIssue issue =
+        new AccountingIssue(
+            "SOURCE_REVIEW_REQUIRED", "REVIEW_REQUIRED", "KSEF-9", "Unknown VAT deduction");
+    AccountingMonthSnapshot snapshot =
+        currentMonthService(List.of(issue)).snapshot(LocalDate.of(2026, 9, 1));
+
+    assertThat(snapshot.readiness()).isEqualTo(AccountingReadiness.REVIEW_REQUIRED);
+    assertThat(snapshot.issues()).contains(issue);
+  }
+
+  @Test
   void reconstructsJulyFromSeparateSalesCorrectionAndPurchaseDocuments() {
     AccountingFactRepository factRepository = mock(AccountingFactRepository.class);
     AccountingPocRepository repository = mock(AccountingPocRepository.class);
@@ -203,6 +247,44 @@ class AccountingFactServiceTest {
                 new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("1495.04"), "fixture"),
                 new TaxInputRow(
                     "JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("1788.29"), "fixture")));
+    return new AccountingFactService(factRepository, repository, fx);
+  }
+
+  private AccountingFactService currentMonthService(List<AccountingIssue> issues) {
+    LocalDate september = LocalDate.of(2026, 9, 1);
+    AccountingFactRepository factRepository = mock(AccountingFactRepository.class);
+    AccountingPocRepository repository = mock(AccountingPocRepository.class);
+    CurrencyConversion fx = mock(CurrencyConversion.class);
+    when(repository.accountingProfile()).thenReturn(new AccountingProfile(false));
+    when(repository.invoicesForPeriod(september))
+        .thenReturn(
+            List.of(
+                invoice(
+                    september,
+                    september.plusDays(10),
+                    null,
+                    "SEP-1",
+                    "CUSTOMER",
+                    "PLN",
+                    "1000.00",
+                    "230.00",
+                    "1230.00",
+                    "0",
+                    "0",
+                    "0",
+                    "1230.00",
+                    "1000.00")));
+    when(repository.expensesForPeriod(september))
+        .thenReturn(List.of(expense("EXP-1", "23.00", "1.00", "23.00")));
+    when(repository.bankTransactionsForPeriod(september)).thenReturn(List.of());
+    when(repository.obligationsForPeriod(september)).thenReturn(List.of());
+    when(repository.taxInputsForPeriod(september))
+        .thenReturn(
+            List.of(
+                new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("100.00"), "operator"),
+                new TaxInputRow(
+                    "JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("200.00"), "operator")));
+    when(repository.sourceIssuesForPeriod(september)).thenReturn(issues);
     return new AccountingFactService(factRepository, repository, fx);
   }
 

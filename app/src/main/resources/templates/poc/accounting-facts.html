@@ -103,6 +103,29 @@
         </table></div>
       </section>
 
+      <section class="card section-card">
+        <div class="card-header"><h2 class="card-title">Calculation status</h2></div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-3">
+            <span><strong>Mode:</strong> <span th:text="${snapshot.calculationMode()}">CURRENT_CALCULATION</span></span>
+            <span><strong>Readiness:</strong> <span th:text="${snapshot.readiness()}">READY</span></span>
+            <span><strong>FX:</strong> <span th:text="${snapshot.fx().status()}">NO_FX_SOURCE</span></span>
+          </div>
+          <div class="table-responsive mt-3" th:if="${!snapshot.issues().isEmpty()}">
+            <table class="table table-vcenter card-table">
+              <thead><tr><th>Type</th><th>Severity</th><th>Source</th><th>Message</th></tr></thead>
+              <tbody><tr th:each="issue : ${snapshot.issues()}">
+                <td th:text="${issue.type()}">MISSING_REQUIRED_INPUT</td>
+                <td th:text="${issue.severity()}">INCOMPLETE</td>
+                <td th:text="${issue.sourceReference() != null ? issue.sourceReference() : '—'}">—</td>
+                <td class="note" th:text="${issue.message()}">Input is missing.</td>
+              </tr></tbody>
+            </table>
+          </div>
+          <div class="text-secondary mt-2" th:if="${snapshot.issues().isEmpty()}">No readiness issues.</div>
+        </div>
+      </section>
+
       <div class="alert alert-success" role="alert" th:if="${invoiceSaved}" th:text="${invoiceSaved}"></div>
       <div class="alert alert-danger" role="alert" th:if="${invoiceSaveError}" th:text="${invoiceSaveError}"></div>
       <div class="alert alert-success" role="alert" th:if="${accountingProfileMessage}" th:text="${accountingProfileMessage}"></div>
@@ -257,7 +280,7 @@
         <div class="card summary-card"><div class="card-body"><div class="text-secondary">VAT</div><div class="h2"><span th:text="${snapshot.vat().calculatedVat()}">3557</span> PLN</div></div></div>
       </div>
 
-      <section class="card section-card">
+      <section class="card section-card" th:if="${snapshot.calculationMode().name() == 'HISTORICAL_RECONSTRUCTION'}">
         <div class="card-header"><h2 class="card-title">Monthly comparison</h2></div>
         <div class="card-body py-2 text-secondary">Canonical comparison for revenue, ryczałt, VAT, ZUS and FX.</div>
         <div class="table-responsive"><table class="table table-vcenter card-table">

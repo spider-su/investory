@@ -19,7 +19,47 @@ public record AccountingMonthSnapshot(
     List<ExpenseRow> expenses,
     List<ReconciliationRow> reconciliations,
     List<ObligationRow> obligations,
-    List<BankRow> bankTransactions) {
+    List<BankRow> bankTransactions,
+    AccountingCalculationMode calculationMode,
+    AccountingReadiness readiness,
+    List<AccountingIssue> issues) {
+
+  public AccountingMonthSnapshot(
+      LocalDate period,
+      BigDecimal domesticRevenueNetPln,
+      BigDecimal foreignBookedRevenuePln,
+      BigDecimal foreignSourceRevenueEur,
+      BigDecimal totalBookedRevenuePln,
+      FxCalculation fx,
+      RyczaltCalculation ryczalt,
+      VatCalculation vat,
+      ZusCalculation zus,
+      List<ComparisonRow> comparisons,
+      List<InvoiceRow> invoices,
+      List<ExpenseRow> expenses,
+      List<ReconciliationRow> reconciliations,
+      List<ObligationRow> obligations,
+      List<BankRow> bankTransactions) {
+    this(
+        period,
+        domesticRevenueNetPln,
+        foreignBookedRevenuePln,
+        foreignSourceRevenueEur,
+        totalBookedRevenuePln,
+        fx,
+        ryczalt,
+        vat,
+        zus,
+        comparisons,
+        invoices,
+        expenses,
+        reconciliations,
+        obligations,
+        bankTransactions,
+        AccountingCalculationMode.HISTORICAL_RECONSTRUCTION,
+        AccountingReadiness.READY,
+        List.of());
+  }
 
   public record ComparisonRow(
       String area,

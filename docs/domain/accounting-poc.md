@@ -88,6 +88,22 @@ reach `AccountingInvoiceIngestionService`. Historical golden fixtures are regres
 Unknown tax-relevant classification or VAT deduction must produce `REVIEW_REQUIRED`, never a guessed
 value.
 
+### Operational monthly calculation
+
+Historical reconstruction and current calculation are separate modes. January through August 2026
+remain frozen reconstruction evidence and may compare with captured goldens. A new operational month
+is calculated from normalized rows already persisted for that month; it does not need a month-specific
+accounting-result fixture or golden output. The existing VAT, ryczałt, ZUS, FX and payment-reconciliation
+calculations remain authoritative for those rows, and UoP keeps its documented health-only/social-ZUS
+semantics.
+
+Each operational snapshot exposes derived readiness: `READY`, `REVIEW_REQUIRED` or `INCOMPLETE`.
+Compact issues identify a type, severity, source reference and message. Missing normalized inputs,
+missing FX or missing tax/ZUS inputs make the month incomplete. A preserved source with an uncertain
+tax classification or deduction makes it review-required. The UI shows the mode, readiness and issues;
+historical comparison tables are shown only for reconstruction mode. This is operational completeness
+visibility, not a full review inbox.
+
 ### Sales period vs cash period
 
 A sales invoice belongs to its accounting/tax period. Payment can happen in a later calendar month.

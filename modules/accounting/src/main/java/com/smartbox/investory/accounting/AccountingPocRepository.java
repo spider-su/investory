@@ -320,4 +320,24 @@ public class AccountingPocRepository {
                 rs.getString("input_type"), rs.getBigDecimal("amount"), rs.getString("note")),
         period);
   }
+
+  public List<AccountingIssue> sourceIssuesForPeriod(LocalDate period) {
+    return jdbcTemplate.query(
+        """
+        SELECT external_reference, processing_error
+          FROM investory.accounting_source_evidence
+         WHERE processing_status IN ('REVIEW_REQUIRED', 'FAILED')
+           AND (document_date = ? OR document_date IS NULL)
+         ORDER BY id
+        """,
+        (rs, rowNum) ->
+            new AccountingIssue(
+                "SOURCE_REVIEW_REQUIRED",
+                "REVIEW_REQUIRED",
+                rs.getString("external_reference"),
+                rs.getString("processing_error") == null
+                    ? "Source document requires review."
+                    : rs.getString("processing_error")),
+        period);
+  }
 }
