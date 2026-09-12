@@ -17,7 +17,6 @@
         <module>modules/longterm</module>
         <module>modules/profile</module>
         <module>modules/retirement</module>
-        <module>modules/accounting-test-support</module>
         <module>modules/accounting</module>
         <module>integrations</module>
         <module>test-support</module>

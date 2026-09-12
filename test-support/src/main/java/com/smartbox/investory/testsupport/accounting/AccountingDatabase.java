@@ -1,4 +1,4 @@
-package com.smartbox.investory.accounting.testsupport;
+package com.smartbox.investory.testsupport.accounting;
 
 import java.io.IOException;
 import java.net.URL;
@@ -9,8 +9,8 @@ import org.testcontainers.utility.MountableFile;
 /** Shared PostgreSQL instance for integration tests that do not need Flyway validation. */
 public final class AccountingDatabase {
 
-  private static final String SNAPSHOT = "db/snapshot/schema.sql";
-  private static final String POC_SNAPSHOT = "db/snapshot/poc.sql";
+  private static final String SNAPSHOT = "db/snapshot/accounting/schema.sql";
+  private static final String POC_SNAPSHOT = "db/snapshot/accounting/poc.sql";
 
   private static final com.smartbox.investory.testsupport.WorkerDatabase DATABASE = startDatabase();
 

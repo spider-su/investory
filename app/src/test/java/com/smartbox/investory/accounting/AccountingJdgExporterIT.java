@@ -3,7 +3,7 @@ package com.smartbox.investory.accounting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.accounting.testsupport.AccountingDatabaseTest;
+import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

@@ -1,4 +1,4 @@
-package com.smartbox.investory.accounting.testsupport;
+package com.smartbox.investory.testsupport.accounting;
 
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
