@@ -71,7 +71,8 @@ class DefaultAccountingMonthCalculatorTest {
   @Test
   void usesEffectiveUopStateInsteadOfCompatibilityProfileFlag() {
     CurrencyConversion conversion = mock(CurrencyConversion.class);
-    AccountingCalculationInput base = input(List.of(invoice("PLN-1", "PLN", "1000.00", "0.12")), List.of());
+    AccountingCalculationInput base =
+        input(List.of(invoice("PLN-1", "PLN", "1000.00", "0.12")), List.of());
     AccountingCalculationInput effective =
         new AccountingCalculationInput(
             base.period(),
@@ -83,7 +84,8 @@ class DefaultAccountingMonthCalculatorTest {
             new AccountingPeriodContext(
                 PERIOD, true, true, "JDG", false, AccountingYearToDateContext.empty()));
 
-    AccountingCalculationResult result = new DefaultAccountingMonthCalculator(conversion).calculate(effective);
+    AccountingCalculationResult result =
+        new DefaultAccountingMonthCalculator(conversion).calculate(effective);
 
     assertThat(result.zus().socialZus()).isZero();
     assertThat(result.zus().socialZusReasonCode()).isEqualTo("UOP_PRIMARY_INSURANCE");
@@ -92,13 +94,16 @@ class DefaultAccountingMonthCalculatorTest {
   @Test
   void onlyPaidContributionsAreUsedForRyczaltDeduction() {
     CurrencyConversion conversion = mock(CurrencyConversion.class);
-    AccountingCalculationInput base = input(List.of(invoice("PLN-1", "PLN", "1000.00", "0.12")), List.of());
+    AccountingCalculationInput base =
+        input(List.of(invoice("PLN-1", "PLN", "1000.00", "0.12")), List.of());
     AccountingCalculationInput effective =
         new AccountingCalculationInput(
             base.period(),
             base.invoices(),
             base.expenses(),
-            List.of(new TaxInputRow("JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("200.00"), "obligation")),
+            List.of(
+                new TaxInputRow(
+                    "JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("200.00"), "obligation")),
             base.profile(),
             base.adjustments(),
             new AccountingPeriodContext(
@@ -118,7 +123,8 @@ class DefaultAccountingMonthCalculatorTest {
                         new PaidContribution(
                             "HEALTH", PERIOD, PERIOD, new BigDecimal("100.00"), null, 8L)))));
 
-    AccountingCalculationResult result = new DefaultAccountingMonthCalculator(conversion).calculate(effective);
+    AccountingCalculationResult result =
+        new DefaultAccountingMonthCalculator(conversion).calculate(effective);
 
     assertThat(result.ryczalt().socialContributionDeduction()).isEqualByComparingTo("100.00");
     assertThat(result.ryczalt().healthDeduction()).isEqualByComparingTo("50.00");

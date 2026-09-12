@@ -12,8 +12,10 @@ public final class AccountingVatEuExporter {
         transactions.stream()
             .filter(t -> t.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE)
             .toList();
-    List<String> issues = euRows.stream().flatMap(t -> classifier.issues(t).stream()).distinct().toList();
-    return new VatEuResult(period, euRows, issues, euRows.isEmpty() ? Status.NOT_REQUIRED : Status.READY);
+    List<String> issues =
+        euRows.stream().flatMap(t -> classifier.issues(t).stream()).distinct().toList();
+    return new VatEuResult(
+        period, euRows, issues, euRows.isEmpty() ? Status.NOT_REQUIRED : Status.READY);
   }
 
   public enum Status {

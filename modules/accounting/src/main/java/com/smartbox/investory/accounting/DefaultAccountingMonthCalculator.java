@@ -60,7 +60,10 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             ? BigDecimal.ZERO
             : health.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
     BigDecimal taxable =
-        revenue.subtract(socialDeduction).subtract(healthDeduction).setScale(2, RoundingMode.HALF_UP);
+        revenue
+            .subtract(socialDeduction)
+            .subtract(healthDeduction)
+            .setScale(2, RoundingMode.HALF_UP);
     Map<BigDecimal, BigDecimal> buckets = new LinkedHashMap<>();
     for (InvoiceRow invoice : input.invoices()) {
       if (invoice.ryczaltRate() == null) {

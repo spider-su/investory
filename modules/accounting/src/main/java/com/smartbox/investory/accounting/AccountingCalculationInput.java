@@ -38,7 +38,9 @@ public record AccountingCalculationInput(
     taxInputs = List.copyOf(taxInputs);
     adjustments = adjustments == null ? CalculationAdjustments.none() : adjustments;
     periodContext =
-        periodContext == null ? AccountingPeriodContext.compatibility(period, profile) : periodContext;
+        periodContext == null
+            ? AccountingPeriodContext.compatibility(period, profile)
+            : periodContext;
   }
 
   public record CalculationAdjustments(

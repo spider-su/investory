@@ -17,9 +17,21 @@ class AccountingVatAndLifecycleTest {
 
     var row =
         new AccountingVatTransaction(
-            LocalDate.of(2026, 9, 1), "source", "EU-1", AccountingVatTransaction.Direction.SALE,
-            VatTreatment.EU_B2B_REVERSE_CHARGE, "DE", "DE123", "VAT", null, null, null,
-            new BigDecimal("100"), BigDecimal.ZERO, BigDecimal.ZERO, "review");
+            LocalDate.of(2026, 9, 1),
+            "source",
+            "EU-1",
+            AccountingVatTransaction.Direction.SALE,
+            VatTreatment.EU_B2B_REVERSE_CHARGE,
+            "DE",
+            "DE123",
+            "VAT",
+            null,
+            null,
+            null,
+            new BigDecimal("100"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            "review");
     assertThat(exporter.export(row.taxDate(), List.of(row)).status())
         .isEqualTo(AccountingVatEuExporter.Status.REVIEW_REQUIRED);
   }
@@ -38,20 +50,32 @@ class AccountingVatAndLifecycleTest {
         .isInstanceOf(IllegalStateException.class);
     assertThat(
             lifecycle.transition(
-                PeriodLifecycleStatus.FILED,
-                PeriodLifecycleStatus.SETTLED,
-                false,
-                true,
-                true))
+                PeriodLifecycleStatus.FILED, PeriodLifecycleStatus.SETTLED, false, true, true))
         .isEqualTo(PeriodLifecycleStatus.SETTLED);
     assertThatThrownBy(
             () ->
                 lifecycle.transition(
-                    PeriodLifecycleStatus.LOCKED,
-                    PeriodLifecycleStatus.SETTLED,
-                    false,
-                    true,
-                    true))
+                    PeriodLifecycleStatus.LOCKED, PeriodLifecycleStatus.SETTLED, false, true, true))
         .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  void settlementRequiresCalculatedFiledAndAuthorityAmountsToAgree() {
+    var reconciliation =
+        AccountingObligationReconciliation.compare(
+            "VAT",
+            LocalDate.of(2026, 9, 1),
+            new BigDecimal("100"),
+            new BigDecimal("100"),
+            new BigDecimal("100"),
+            new BigDecimal("99.99"));
+
+    assertThat(reconciliation.status())
+        .isEqualTo(AccountingObligationReconciliation.Status.SETTLED);
+    assertThat(
+            AccountingObligationReconciliation.compare(
+                    "VAT", reconciliation.period(), new BigDecimal("100"), null, null, null)
+                .status())
+        .isEqualTo(AccountingObligationReconciliation.Status.MISSING_FILING);
   }
 }

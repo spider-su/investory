@@ -8,7 +8,8 @@ public final class AccountingVatClassifier {
     if (transaction == null || transaction.treatment() == null)
       return List.of("VAT treatment is required");
     if (transaction.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE
-        && blank(transaction.vatEuNumber())) return List.of("EU VAT-UE identity evidence is required");
+        && blank(transaction.vatEuNumber()))
+      return List.of("EU VAT-UE identity evidence is required");
     if (transaction.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE
         && !"VERIFIED".equals(transaction.viesStatus()))
       return List.of("EU VAT-UE verification evidence is required");
