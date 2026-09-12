@@ -92,7 +92,7 @@ class AccountingFactServiceTest {
     assertThat(snapshot.readiness()).isEqualTo(AccountingReadiness.INCOMPLETE);
     assertThat(snapshot.issues())
         .extracting(AccountingIssue::type)
-        .contains("MISSING_REQUIRED_INPUT", "MISSING_ZUS_INPUT");
+        .contains("MISSING_REQUIRED_INPUT", "MISSING_ZUS_RULE_INPUT");
   }
 
   @Test
@@ -284,6 +284,46 @@ class AccountingFactServiceTest {
                 new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("100.00"), "operator"),
                 new TaxInputRow(
                     "JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("200.00"), "operator")));
+    when(repository.taxProfilePeriods())
+        .thenReturn(
+            List.of(
+                new AccountingTaxProfilePeriod(
+                    september, null, true, new BigDecimal("0.12"), true, true, "JDG", false)));
+    when(repository.vatTransactionsForPeriod(september))
+        .thenReturn(
+            List.of(
+                new AccountingVatTransaction(
+                    september.plusDays(10),
+                    "SEP-SOURCE",
+                    "SEP-1",
+                    AccountingVatTransaction.Direction.SALE,
+                    VatTreatment.DOMESTIC_VAT,
+                    "PL",
+                    "PL1234567890",
+                    "NIP",
+                    null,
+                    null,
+                    null,
+                    new BigDecimal("1000.00"),
+                    new BigDecimal("230.00"),
+                    BigDecimal.ZERO,
+                    "OFF"),
+                new AccountingVatTransaction(
+                    september.plusDays(10),
+                    "SEP-EXP-SOURCE",
+                    "EXP-1",
+                    AccountingVatTransaction.Direction.PURCHASE,
+                    VatTreatment.DOMESTIC_PURCHASE,
+                    "PL",
+                    "PL0987654321",
+                    "NIP",
+                    null,
+                    null,
+                    null,
+                    new BigDecimal("100.00"),
+                    new BigDecimal("23.00"),
+                    new BigDecimal("23.00"),
+                    "OFF")));
     when(repository.sourceIssuesForPeriod(september)).thenReturn(issues);
     return new AccountingFactService(factRepository, repository, fx);
   }

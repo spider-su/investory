@@ -2,8 +2,10 @@ package com.smartbox.investory.accounting;
 
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.stereotype.Component;
 
 /** Resolves effective accounting state for one requested accounting period. */
+@Component
 public final class AccountingProfileResolver {
   public ResolvedProfile resolve(
       LocalDate period,

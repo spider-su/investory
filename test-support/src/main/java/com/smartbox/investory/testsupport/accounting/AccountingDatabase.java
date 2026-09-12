@@ -176,9 +176,15 @@ public final class AccountingDatabase {
       statement.execute(
           "ALTER TABLE investory.accounting_poc_period_state ADD COLUMN IF NOT EXISTS lifecycle_status VARCHAR(32) NOT NULL DEFAULT 'OPEN'");
       statement.execute(
+          "ALTER TABLE investory.accounting_poc_period_state ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_period_state ADD COLUMN IF NOT EXISTS reopen_reason VARCHAR(1000)");
+      statement.execute(
           "CREATE TABLE IF NOT EXISTS investory.accounting_filing_artifact (id BIGSERIAL PRIMARY KEY, artifact_type VARCHAR(40) NOT NULL, tax_period DATE NOT NULL, schema_version VARCHAR(40) NOT NULL, payload BYTEA NOT NULL, payload_hash VARCHAR(64) NOT NULL, generated_at TIMESTAMPTZ NOT NULL, status VARCHAR(16) NOT NULL)");
       statement.execute(
           "CREATE TABLE IF NOT EXISTS investory.accounting_authority_confirmation (id BIGSERIAL PRIMARY KEY, authority VARCHAR(32) NOT NULL, obligation_or_artifact_type VARCHAR(40) NOT NULL, tax_period DATE NOT NULL, external_reference VARCHAR(256) NOT NULL, confirmation_type VARCHAR(40) NOT NULL, status VARCHAR(16) NOT NULL, received_at TIMESTAMPTZ NOT NULL, source_document_id BIGINT, note VARCHAR(1000))");
+      statement.execute(
+          "CREATE TABLE IF NOT EXISTS investory.accounting_vat_transaction (id BIGSERIAL PRIMARY KEY, tax_period DATE NOT NULL, tax_date DATE NOT NULL, source_document_id VARCHAR(256) NOT NULL, reference VARCHAR(256) NOT NULL, direction VARCHAR(16) NOT NULL, treatment VARCHAR(48) NOT NULL, counterparty_country VARCHAR(2), counterparty_tax_identifier VARCHAR(64), identifier_type VARCHAR(16), vat_eu_number VARCHAR(64), vies_verified_at DATE, vies_status VARCHAR(24), net_amount NUMERIC(18, 2) NOT NULL, vat_amount NUMERIC(18, 2) NOT NULL, deductible_vat NUMERIC(18, 2) NOT NULL, evidence VARCHAR(256) NOT NULL)");
       statement.execute(
           "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_filing_artifact_hash ON investory.accounting_filing_artifact (artifact_type, tax_period, payload_hash)");
       statement.execute(

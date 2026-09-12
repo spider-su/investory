@@ -11,7 +11,7 @@ public final class AccountingFilingFingerprint {
 
   public static String sha256(AccountingFilingInput input) {
     StringBuilder value =
-        new StringBuilder("JPK_V7M(3)|")
+        new StringBuilder("JPK_V7M(3)|RULES=RYCZALT_2026,ZUS_2026,VAT_2026|")
             .append(input.period())
             .append('|')
             .append(input.schemaVersion())
@@ -25,6 +25,8 @@ public final class AccountingFilingFingerprint {
             .append(input.taxpayer().dateOfBirth())
             .append('|')
             .append(input.taxpayer().taxOfficeCode())
+            .append('|')
+            .append(input.taxpayer().hasUop())
             .append('|')
             .append(input.vat().calculatedVat())
             .append('|')

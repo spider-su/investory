@@ -15,7 +15,8 @@ public record AccountingCalculationInput(
     AccountingProfile profile,
     CalculationAdjustments adjustments,
     AccountingPeriodContext periodContext,
-    List<AccountingVatTransaction> vatTransactions) {
+    List<AccountingVatTransaction> vatTransactions,
+    AccountingCalculationMode calculationMode) {
   public AccountingCalculationInput(
       LocalDate period,
       List<InvoiceRow> invoices,
@@ -31,7 +32,8 @@ public record AccountingCalculationInput(
         profile,
         adjustments,
         AccountingPeriodContext.compatibility(period, profile),
-        List.of());
+        List.of(),
+        AccountingCalculationMode.HISTORICAL_RECONSTRUCTION);
   }
 
   public AccountingCalculationInput(
@@ -42,7 +44,37 @@ public record AccountingCalculationInput(
       AccountingProfile profile,
       CalculationAdjustments adjustments,
       AccountingPeriodContext periodContext) {
-    this(period, invoices, expenses, taxInputs, profile, adjustments, periodContext, List.of());
+    this(
+        period,
+        invoices,
+        expenses,
+        taxInputs,
+        profile,
+        adjustments,
+        periodContext,
+        List.of(),
+        AccountingCalculationMode.HISTORICAL_RECONSTRUCTION);
+  }
+
+  public AccountingCalculationInput(
+      LocalDate period,
+      List<InvoiceRow> invoices,
+      List<ExpenseRow> expenses,
+      List<TaxInputRow> taxInputs,
+      AccountingProfile profile,
+      CalculationAdjustments adjustments,
+      AccountingPeriodContext periodContext,
+      List<AccountingVatTransaction> vatTransactions) {
+    this(
+        period,
+        invoices,
+        expenses,
+        taxInputs,
+        profile,
+        adjustments,
+        periodContext,
+        vatTransactions,
+        AccountingCalculationMode.HISTORICAL_RECONSTRUCTION);
   }
 
   public AccountingCalculationInput {
@@ -55,6 +87,10 @@ public record AccountingCalculationInput(
             ? AccountingPeriodContext.compatibility(period, profile)
             : periodContext;
     vatTransactions = vatTransactions == null ? List.of() : List.copyOf(vatTransactions);
+    calculationMode =
+        calculationMode == null
+            ? AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+            : calculationMode;
   }
 
   public record CalculationAdjustments(

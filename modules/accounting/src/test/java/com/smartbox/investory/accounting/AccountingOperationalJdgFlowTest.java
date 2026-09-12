@@ -116,8 +116,14 @@ class AccountingOperationalJdgFlowTest {
     var lifecycle = new AccountingPeriodLifecycle();
     var status =
         lifecycle.transition(
-            PeriodLifecycleStatus.OPEN, PeriodLifecycleStatus.CONFIRMED, false, false, false);
+            PeriodLifecycleStatus.OPEN,
+            PeriodLifecycleStatus.READY_FOR_REVIEW,
+            false,
+            false,
+            false);
+    status = lifecycle.transition(status, PeriodLifecycleStatus.CONFIRMED, false, false, false);
     status = lifecycle.transition(status, PeriodLifecycleStatus.FILED, false, true, false);
+    status = lifecycle.transition(status, PeriodLifecycleStatus.PAID, false, true, false);
     status = lifecycle.transition(status, PeriodLifecycleStatus.SETTLED, false, true, true);
     assertThat(lifecycle.transition(status, PeriodLifecycleStatus.LOCKED, false, true, true))
         .isEqualTo(PeriodLifecycleStatus.LOCKED);

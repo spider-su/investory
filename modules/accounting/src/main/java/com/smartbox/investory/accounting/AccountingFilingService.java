@@ -84,8 +84,23 @@ public class AccountingFilingService {
       throw new IllegalStateException(
           "Cannot confirm month: " + String.join("; ", result.issues()));
     }
+    var state = repository.periodState(period);
+    var current = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
+    if (current == PeriodLifecycleStatus.OPEN) {
+      repository.updateLifecycleStatus(period, PeriodLifecycleStatus.READY_FOR_REVIEW);
+      current = PeriodLifecycleStatus.READY_FOR_REVIEW;
+    }
+    new AccountingPeriodLifecycle()
+        .transition(current, PeriodLifecycleStatus.CONFIRMED, false, false, false);
     repository.confirm(period, result.calculationHash(), Instant.now());
     repository.updateLifecycleStatus(period, PeriodLifecycleStatus.CONFIRMED);
+  }
+
+  public void reopen(LocalDate period, String reason) {
+    var state = repository.periodState(period);
+    var current = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
+    new AccountingPeriodLifecycle().reopen(current, reason);
+    repository.reopen(period, reason, Instant.now());
   }
 
   public void transitionLifecycle(

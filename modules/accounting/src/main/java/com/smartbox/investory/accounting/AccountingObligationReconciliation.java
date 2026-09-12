@@ -17,8 +17,10 @@ public record AccountingObligationReconciliation(
   public enum Status {
     MATCH,
     MISSING_FILING,
+    MISSING_PAYMENT,
     MISSING_CONFIRMATION,
     AMOUNT_MISMATCH,
+    PAYMENT_MISMATCH,
     REVIEW_REQUIRED,
     SETTLED
   }
@@ -39,6 +41,12 @@ public record AccountingObligationReconciliation(
     if (!same(calculated, filed) || !same(filed, authority))
       return new AccountingObligationReconciliation(
           type, period, calculated, filed, authority, bankPaid, Status.AMOUNT_MISMATCH);
+    if (calculated != null && calculated.signum() > 0 && bankPaid == null)
+      return new AccountingObligationReconciliation(
+          type, period, calculated, filed, authority, null, Status.MISSING_PAYMENT);
+    if (calculated != null && calculated.signum() > 0 && !same(calculated, bankPaid))
+      return new AccountingObligationReconciliation(
+          type, period, calculated, filed, authority, bankPaid, Status.PAYMENT_MISMATCH);
     return new AccountingObligationReconciliation(
         type, period, calculated, filed, authority, bankPaid, Status.SETTLED);
   }

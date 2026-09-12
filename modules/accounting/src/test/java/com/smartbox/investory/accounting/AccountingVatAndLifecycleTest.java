@@ -48,9 +48,25 @@ class AccountingVatAndLifecycleTest {
                     false,
                     false))
         .isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(
+            () ->
+                lifecycle.transition(
+                    PeriodLifecycleStatus.OPEN, PeriodLifecycleStatus.FILED, false, true, true))
+        .isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> lifecycle.reopen(PeriodLifecycleStatus.SETTLED, "fix"))
+        .isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> lifecycle.reopen(PeriodLifecycleStatus.LOCKED, " "))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(lifecycle.reopen(PeriodLifecycleStatus.LOCKED, "correct source"))
+        .isEqualTo(PeriodLifecycleStatus.OPEN);
     assertThat(
             lifecycle.transition(
-                PeriodLifecycleStatus.FILED, PeriodLifecycleStatus.SETTLED, false, true, true))
+                lifecycle.transition(
+                    PeriodLifecycleStatus.FILED, PeriodLifecycleStatus.PAID, false, true, false),
+                PeriodLifecycleStatus.SETTLED,
+                false,
+                true,
+                true))
         .isEqualTo(PeriodLifecycleStatus.SETTLED);
     assertThatThrownBy(
             () ->
@@ -71,11 +87,31 @@ class AccountingVatAndLifecycleTest {
             new BigDecimal("99.99"));
 
     assertThat(reconciliation.status())
-        .isEqualTo(AccountingObligationReconciliation.Status.SETTLED);
+        .isEqualTo(AccountingObligationReconciliation.Status.PAYMENT_MISMATCH);
     assertThat(
             AccountingObligationReconciliation.compare(
                     "VAT", reconciliation.period(), new BigDecimal("100"), null, null, null)
                 .status())
         .isEqualTo(AccountingObligationReconciliation.Status.MISSING_FILING);
+    assertThat(
+            AccountingObligationReconciliation.compare(
+                    "VAT",
+                    reconciliation.period(),
+                    new BigDecimal("100"),
+                    new BigDecimal("100"),
+                    new BigDecimal("100"),
+                    null)
+                .status())
+        .isEqualTo(AccountingObligationReconciliation.Status.MISSING_PAYMENT);
+    assertThat(
+            AccountingObligationReconciliation.compare(
+                    "VAT",
+                    reconciliation.period(),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    null)
+                .status())
+        .isEqualTo(AccountingObligationReconciliation.Status.SETTLED);
   }
 }

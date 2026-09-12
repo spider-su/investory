@@ -9,6 +9,7 @@ import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -133,7 +134,11 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             BigDecimal.ZERO,
             "E2E_TEST",
             "September source evidence",
-            Long.toString(sourceId)));
+            Long.toString(sourceId),
+            "PL1234567890",
+            "PL",
+            "E2E-KSEF-SALE",
+            new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, "E2E-KSEF-SALE")));
     ingestion.ingest(
         new AccountingInvoiceIngestionService.ReviewedInvoice(
             september,
@@ -150,8 +155,14 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             BigDecimal.ONE,
             "E2E_TEST",
             "September source evidence",
-            Long.toString(sourceId)));
+            Long.toString(sourceId),
+            "PL0987654321",
+            "PL",
+            "E2E-KSEF-PURCHASE",
+            new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, "E2E-KSEF-PURCHASE")));
     sourceEvidence.status(sourceId, AccountingSourceStatus.IMPORTED, null);
+    insertOperationalProfile(september);
+    insertOperationalVatTransactions(september, "E2E-SEPTEMBER-SALE", "E2E-SEPTEMBER-PURCHASE");
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
         september,
@@ -194,7 +205,12 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             BigDecimal.ZERO,
             "E2E_TEST",
             "Complete filing month",
-            Long.toString(sourceId)));
+            Long.toString(sourceId),
+            "PL1234567890",
+            "PL",
+            "M123456789-20261010-ABCDEF-123456-78",
+            new AccountingFilingEvidence(
+                AccountingFilingEvidence.Type.KSEF, "M123456789-20261010-ABCDEF-123456-78")));
     ingestion.ingest(
         new AccountingInvoiceIngestionService.ReviewedInvoice(
             july,
@@ -211,8 +227,15 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             BigDecimal.ONE,
             "E2E_TEST",
             "Complete filing month",
-            Long.toString(sourceId)));
+            Long.toString(sourceId),
+            "PL0987654321",
+            "PL",
+            "M123456789-20261011-ABCDEF-123456-79",
+            new AccountingFilingEvidence(
+                AccountingFilingEvidence.Type.KSEF, "M123456789-20261011-ABCDEF-123456-79")));
     sourceEvidence.status(sourceId, AccountingSourceStatus.IMPORTED, null);
+    insertOperationalProfile(july);
+    insertOperationalVatTransactions(july, "E2E-FILING-SALE", "E2E-FILING-PURCHASE");
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
         july,
@@ -226,7 +249,11 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         new BigDecimal("200.00"),
         "E2E_TEST");
     jdbcTemplate.update(
-        "UPDATE investory.accounting_poc_profile SET vat_payment_account = ?, ryczalt_payment_account = ?, zus_payment_account = ? WHERE id = 1",
+        "UPDATE investory.accounting_poc_profile SET nip = ?, first_name = ?, surname = ?, date_of_birth = ?, vat_payment_account = ?, ryczalt_payment_account = ?, zus_payment_account = ? WHERE id = 1",
+        "1010000000",
+        "Jan",
+        "Testowy",
+        LocalDate.of(1980, 1, 1),
         "PL00123456789012345678901234",
         "PL00123456789012345678901234",
         "PL00123456789012345678901234");
@@ -236,11 +263,112 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
 
     assertThat(filing.ready()).isTrue();
     assertThat(new String(filingService.jpk(july))).contains("JPK_V7M (3)", "<P_51>207</P_51>");
-    assertThat(filingService.paymentInstructions(july))
+    var instructions = filingService.paymentInstructions(july);
+    assertThat(instructions)
         .extracting(AccountingPaymentInstruction::obligationType)
         .containsExactly("VAT", "RYCZALT", "ZUS");
-    assertThat(filingService.paymentInstructions(july).getFirst().amount())
-        .isEqualByComparingTo("207");
+    assertThat(instructions.getFirst().amount()).isEqualByComparingTo("207");
+    for (var instruction : instructions) {
+      jdbcTemplate.update(
+          "INSERT INTO investory.accounting_poc_bank_transaction (booking_date, related_period, reference, counterparty_alias, currency, amount, transaction_type, scope, note) VALUES (?, ?, ?, 'TAX_AUTHORITY', 'PLN', ?, ?, 'BUSINESS', 'operational settlement payment')",
+          instruction.dueDate().minusDays(1),
+          july,
+          "SETTLE-" + instruction.obligationType(),
+          instruction.amount(),
+          instruction.obligationType() + "_PAYMENT");
+    }
+    var snapshot = service.snapshot(july);
+    var reconciliations =
+        instructions.stream()
+            .map(
+                instruction ->
+                    AccountingObligationReconciliation.compare(
+                        instruction.obligationType(),
+                        july,
+                        instruction.amount(),
+                        instruction.amount(),
+                        instruction.amount(),
+                        instruction.amount()))
+            .toList();
+    assertThat(reconciliations)
+        .allMatch(row -> row.status() == AccountingObligationReconciliation.Status.SETTLED);
+    filingService.recordAuthorityConfirmation(
+        new AuthorityConfirmation(
+            "TAX_OFFICE",
+            "JPK_V7M",
+            july,
+            "UPO-JPK-OPERATIONAL",
+            AuthorityConfirmation.ConfirmationType.JPK_UPO,
+            AuthorityConfirmation.ConfirmationStatus.ACCEPTED,
+            Instant.parse("2026-11-01T10:00:00Z"),
+            null,
+            "Imported UPO"));
+    filingService.recordAuthorityConfirmation(
+        new AuthorityConfirmation(
+            "TAX_OFFICE",
+            "VAT",
+            july,
+            "POST-VAT-OPERATIONAL",
+            AuthorityConfirmation.ConfirmationType.TAX_ACCOUNT_POSTING,
+            AuthorityConfirmation.ConfirmationStatus.POSTED,
+            Instant.parse("2026-11-02T10:00:00Z"),
+            null,
+            "Imported posting"));
+    filingService.recordAuthorityConfirmation(
+        new AuthorityConfirmation(
+            "TAX_OFFICE",
+            "RYCZALT",
+            july,
+            "POST-PPE-OPERATIONAL",
+            AuthorityConfirmation.ConfirmationType.TAX_ACCOUNT_POSTING,
+            AuthorityConfirmation.ConfirmationStatus.POSTED,
+            Instant.parse("2026-11-02T10:00:00Z"),
+            null,
+            "Imported PPE posting"));
+    filingService.recordAuthorityConfirmation(
+        new AuthorityConfirmation(
+            "ZUS",
+            "ZUS",
+            july,
+            "DRA-OPERATIONAL",
+            AuthorityConfirmation.ConfirmationType.ZUS_DRA_ACCEPTANCE,
+            AuthorityConfirmation.ConfirmationStatus.ACCEPTED,
+            Instant.parse("2026-11-03T10:00:00Z"),
+            null,
+            "Imported DRA acceptance"));
+    filingService.recordAuthorityConfirmation(
+        new AuthorityConfirmation(
+            "ZUS",
+            "ZUS",
+            july,
+            "POST-ZUS-OPERATIONAL",
+            AuthorityConfirmation.ConfirmationType.ZUS_ACCOUNT_POSTING,
+            AuthorityConfirmation.ConfirmationStatus.POSTED,
+            Instant.parse("2026-11-04T10:00:00Z"),
+            null,
+            "Imported ZUS posting"));
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM investory.accounting_authority_confirmation WHERE tax_period = ?",
+                Integer.class,
+                july))
+        .isEqualTo(5);
+    filingService.transitionLifecycle(july, PeriodLifecycleStatus.FILED, false, true, false);
+    filingService.transitionLifecycle(july, PeriodLifecycleStatus.PAID, false, true, false);
+    filingService.transitionLifecycle(
+        july,
+        PeriodLifecycleStatus.SETTLED,
+        false,
+        true,
+        reconciliations.stream()
+            .allMatch(row -> row.status() == AccountingObligationReconciliation.Status.SETTLED));
+    filingService.transitionLifecycle(july, PeriodLifecycleStatus.LOCKED, false, true, true);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT lifecycle_status FROM investory.accounting_poc_period_state WHERE tax_period = ?",
+                String.class,
+                july))
+        .isEqualTo("LOCKED");
   }
 
   @Test
@@ -346,6 +474,37 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         "DELETE FROM investory.accounting_source_evidence WHERE original_filename = 'e2e-bank.csv'");
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_source_evidence WHERE external_reference = 'E2E-BANK-INVOICE'");
+    jdbcTemplate.update(
+        "DELETE FROM investory.accounting_vat_transaction WHERE reference LIKE 'E2E-%'");
+    jdbcTemplate.update(
+        "DELETE FROM investory.employment_period WHERE profile_id = 1 AND date_from >= DATE '2026-09-01'");
+    jdbcTemplate.update(
+        "DELETE FROM investory.accounting_tax_profile_period WHERE profile_id = 1 AND valid_from >= DATE '2026-09-01'");
+  }
+
+  private void insertOperationalProfile(LocalDate period) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.employment_period (profile_id, employment_type, date_from) VALUES (1, 'JDG', ?)"
+            + " ON CONFLICT DO NOTHING",
+        period);
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_tax_profile_period (profile_id, valid_from, jdg_active, ryczalt_rate, vat_registered, vat_eu_registered, zus_regime, voluntary_sickness) VALUES (1, ?, true, 0.12, true, true, 'JDG', false)"
+            + " ON CONFLICT DO NOTHING",
+        period);
+  }
+
+  private void insertOperationalVatTransactions(
+      LocalDate period, String saleReference, String purchaseReference) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_vat_transaction (tax_period, tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, net_amount, vat_amount, deductible_vat, evidence) VALUES (?, ?, 'E2E-SOURCE', ?, 'SALE', 'DOMESTIC_VAT', 'PL', 'PL1234567890', 'NIP', 1000.00, 230.00, 0.00, 'OFF')",
+        period,
+        period.plusDays(10),
+        saleReference);
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_vat_transaction (tax_period, tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, net_amount, vat_amount, deductible_vat, evidence) VALUES (?, ?, 'E2E-SOURCE', ?, 'PURCHASE', 'DOMESTIC_PURCHASE', 'PL', 'PL0987654321', 'NIP', 100.00, 23.00, 23.00, 'OFF')",
+        period,
+        period.plusDays(11),
+        purchaseReference);
   }
 
   private void stubFx(LocalDate rateDate, String pln) {

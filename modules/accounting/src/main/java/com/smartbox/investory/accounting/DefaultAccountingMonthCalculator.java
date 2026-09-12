@@ -48,16 +48,23 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     ZusCalculationInput zusInput = input.periodContext().zusCalculationInput();
     BigDecimal health =
-        input.periodContext().jdgActive() && zusInput != null && zusInput.healthAmount() != null
-            ? zusInput.healthAmount()
-            : !input.periodContext().jdgActive()
-                ? BigDecimal.ZERO
-                : paidContributions.stream()
-                    .filter(p -> "HEALTH".equals(p.contributionType()))
-                    .filter(p -> !p.paymentDate().isAfter(periodEnd))
-                    .map(PaidContribution::deductibleAmount)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-    if (health.signum() == 0) {
+        input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
+            ? zusInput != null && zusInput.healthAmount() != null
+                ? zusInput.healthAmount()
+                : missingCurrentZusAmount("health", issues)
+            : input.periodContext().jdgActive()
+                    && zusInput != null
+                    && zusInput.healthAmount() != null
+                ? zusInput.healthAmount()
+                : !input.periodContext().jdgActive()
+                    ? BigDecimal.ZERO
+                    : paidContributions.stream()
+                        .filter(p -> "HEALTH".equals(p.contributionType()))
+                        .filter(p -> !p.paymentDate().isAfter(periodEnd))
+                        .map(PaidContribution::deductibleAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (input.calculationMode() != AccountingCalculationMode.CURRENT_CALCULATION
+        && health.signum() == 0) {
       health = required(input.taxInputs(), "HEALTH_CONTRIBUTION_PAID", issues);
     }
     BigDecimal socialDeduction = paidSocial;
@@ -84,7 +91,8 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .setScale(2, RoundingMode.HALF_UP);
     Map<BigDecimal, BigDecimal> buckets = new LinkedHashMap<>();
     BigDecimal effectiveRate = input.periodContext().ryczaltRate();
-    if (input.periodContext().jdgActive() && effectiveRate == null) {
+    if (input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
+        && (input.periodContext().zusRegime() == null || effectiveRate == null)) {
       issues.add(
           issue("MISSING_EFFECTIVE_TAX_PROFILE", null, "No tax profile is active for the period."));
     }
@@ -127,7 +135,17 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .setScale(0, RoundingMode.HALF_UP);
     BigDecimal outputVat;
     BigDecimal deductible;
-    if (input.vatTransactions().isEmpty()) {
+    if (input.vatTransactions().isEmpty()
+        && input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
+        && (!input.invoices().isEmpty() || !input.expenses().isEmpty())) {
+      issues.add(
+          issue(
+              "MISSING_VAT_CLASSIFICATION",
+              null,
+              "Current calculation requires explicit VAT transaction treatment."));
+      outputVat = BigDecimal.ZERO;
+      deductible = BigDecimal.ZERO;
+    } else if (input.vatTransactions().isEmpty()) {
       outputVat =
           input.invoices().stream()
               .filter(i -> "PLN".equals(i.currency()))
@@ -177,11 +195,17 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .subtract(deductible.setScale(0, RoundingMode.HALF_UP));
     boolean qualifyingUop = input.periodContext().qualifyingUop();
     BigDecimal social =
-        input.periodContext().jdgActive() && zusInput != null && zusInput.socialAmount() != null
-            ? zusInput.socialAmount()
-            : !input.periodContext().jdgActive() || qualifyingUop
-                ? BigDecimal.ZERO
-                : required(input.taxInputs(), "JDG_COMPULSORY_SOCIAL_ZUS", issues);
+        input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
+            ? zusInput != null && zusInput.socialAmount() != null
+                ? zusInput.socialAmount()
+                : missingCurrentZusAmount("social", issues)
+            : input.periodContext().jdgActive()
+                    && zusInput != null
+                    && zusInput.socialAmount() != null
+                ? zusInput.socialAmount()
+                : !input.periodContext().jdgActive() || qualifyingUop
+                    ? BigDecimal.ZERO
+                    : required(input.taxInputs(), "JDG_COMPULSORY_SOCIAL_ZUS", issues);
     BigDecimal totalZus = social.add(health).setScale(2, RoundingMode.HALF_UP);
     var zus =
         new AccountingCalculationResult.ZusCalculation(
@@ -214,6 +238,17 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             new CalculatedObligation("VAT", calculatedVat, input.period()),
             new CalculatedObligation("ZUS", totalZus, input.period())),
         List.copyOf(issues));
+  }
+
+  private BigDecimal missingCurrentZusAmount(String contribution, List<AccountingIssue> issues) {
+    issues.add(
+        issue(
+            "MISSING_ZUS_RULE_INPUT",
+            null,
+            "Current calculation requires the effective 2026 ZUS rule input for "
+                + contribution
+                + "."));
+    return BigDecimal.ZERO;
   }
 
   private AccountingCalculationResult.FxCalculation calculateFx(

@@ -54,6 +54,14 @@ public class AccountingPocRepository {
         status.name());
   }
 
+  public void reopen(LocalDate period, String reason, Instant reopenedAt) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_period_state (tax_period, lifecycle_status, reopened_at, reopen_reason) VALUES (?, 'OPEN', ?, ?) ON CONFLICT (tax_period) DO UPDATE SET lifecycle_status = 'OPEN', confirmed_at = NULL, confirmed_calculation_hash = NULL, reopened_at = EXCLUDED.reopened_at, reopen_reason = EXCLUDED.reopen_reason",
+        period,
+        java.sql.Timestamp.from(reopenedAt),
+        reason);
+  }
+
   public void saveFilingArtifact(AccountingFilingArtifact artifact) {
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_filing_artifact (artifact_type, tax_period, schema_version, payload, payload_hash, generated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (artifact_type, tax_period, payload_hash) DO NOTHING",
@@ -132,6 +140,18 @@ public class AccountingPocRepository {
          ORDER BY period
         """,
         LocalDate.class);
+  }
+
+  public BigDecimal yearToDateRevenue(LocalDate period) {
+    return jdbcTemplate.queryForObject(
+        """
+        SELECT COALESCE(SUM(COALESCE(booked_net_pln, net_amount)), 0)
+          FROM investory.accounting_poc_invoice
+         WHERE tax_period >= DATE '2026-01-01' AND tax_period < ?
+           AND correction_net_amount IS NULL
+        """,
+        BigDecimal.class,
+        period);
   }
 
   public List<InvoiceRow> invoicesForPeriod(LocalDate period) {
@@ -412,7 +432,7 @@ public class AccountingPocRepository {
             (tax_period, invoice_date, reference, supplier_alias, category, currency,
              net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note, source_id,
              counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (reference) DO NOTHING
         """,
             taxPeriod,
@@ -569,6 +589,33 @@ public class AccountingPocRepository {
                   rs.getBoolean("vat_eu_registered"),
                   rs.getString("zus_regime"),
                   rs.getBoolean("voluntary_sickness")));
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
+  }
+
+  public List<AccountingVatTransaction> vatTransactionsForPeriod(LocalDate period) {
+    try {
+      return jdbcTemplate.query(
+          "SELECT tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, vat_eu_number, vies_verified_at, vies_status, net_amount, vat_amount, deductible_vat, evidence FROM investory.accounting_vat_transaction WHERE tax_period = ? ORDER BY id",
+          (rs, rowNum) ->
+              new AccountingVatTransaction(
+                  rs.getObject("tax_date", LocalDate.class),
+                  rs.getString("source_document_id"),
+                  rs.getString("reference"),
+                  AccountingVatTransaction.Direction.valueOf(rs.getString("direction")),
+                  VatTreatment.valueOf(rs.getString("treatment")),
+                  rs.getString("counterparty_country"),
+                  rs.getString("counterparty_tax_identifier"),
+                  rs.getString("identifier_type"),
+                  rs.getString("vat_eu_number"),
+                  rs.getObject("vies_verified_at", LocalDate.class),
+                  rs.getString("vies_status"),
+                  rs.getBigDecimal("net_amount"),
+                  rs.getBigDecimal("vat_amount"),
+                  rs.getBigDecimal("deductible_vat"),
+                  rs.getString("evidence")),
+          period);
     } catch (DataAccessException ignored) {
       return List.of();
     }

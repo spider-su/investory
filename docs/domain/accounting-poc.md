@@ -18,7 +18,9 @@ The current POC models a Polish JDG operating with:
 - domestic PLN revenue and foreign EUR revenue converted through Investory FX;
 - sales invoices, purchase invoices, document-level deductible VAT and bank reconciliation.
 
-The accounting profile contains a single POC-wide `hasUop` flag. The flag applies to all represented accounting months; the POC does not maintain effective-dated employment history.
+Historical reconstruction retains the legacy POC-wide `hasUop` flag for compatibility. Operational
+months use persisted effective-dated JDG activity, employment, tax-profile and VAT-treatment facts;
+the legacy flag is not an operational fallback when those facts exist.
 
 ### UoP and JDG ZUS semantics
 
@@ -168,6 +170,17 @@ non-EU B2B outside-Poland service, domestic purchase and import-of-services trea
 from currency. Missing or ambiguous treatment remains review-required; currency alone never decides
 the VAT result. Accepted EU B2B rows feed a separate VAT-UE projection, which is `NOT_REQUIRED` when
 no qualifying rows exist.
+
+For an operational month, every invoice and purchase needs an explicit persisted
+`AccountingVatTransaction` treatment. A PLN amount does not classify VAT by itself; missing rows
+produce `MISSING_VAT_CLASSIFICATION`. Historical reconstruction may retain the documented fallback.
+
+The operational lifecycle is `OPEN -> READY_FOR_REVIEW -> CONFIRMED -> FILED -> PAID -> SETTLED
+-> LOCKED` (with explicit incomplete/issue states before review). Illegal jumps are rejected.
+`SETTLED` requires calculated, filed and authority amounts to agree and every positive obligation to
+have a matching positive bank payment. Zero obligations may settle without a payment row. Only a
+locked period can be reopened, with a mandatory reason; the old confirmation and evidence remain
+auditable while the confirmation becomes stale.
 
 Ryczałt deductions use eligible contributions actually paid by the applicable payment-date rule.
 An unpaid ZUS obligation is not a PIT deduction. The operational calculator supports the guaranteed

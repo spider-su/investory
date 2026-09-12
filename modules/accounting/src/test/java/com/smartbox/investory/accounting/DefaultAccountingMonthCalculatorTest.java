@@ -170,6 +170,77 @@ class DefaultAccountingMonthCalculatorTest {
     assertThat(result.vat().outputVat()).isZero();
   }
 
+  @Test
+  void currentCalculationDoesNotFallBackToLegacyZusRows() {
+    CurrencyConversion conversion = mock(CurrencyConversion.class);
+    AccountingCalculationInput base =
+        input(List.of(invoice("PLN-1", "PLN", "100.00", "0.12")), List.of());
+    AccountingCalculationResult result =
+        calculator(conversion)
+            .calculate(
+                new AccountingCalculationInput(
+                    base.period(),
+                    base.invoices(),
+                    base.expenses(),
+                    base.taxInputs(),
+                    base.profile(),
+                    base.adjustments(),
+                    new AccountingPeriodContext(
+                        PERIOD,
+                        true,
+                        false,
+                        "JDG",
+                        false,
+                        new BigDecimal("0.12"),
+                        true,
+                        false,
+                        AccountingYearToDateContext.empty(),
+                        null),
+                    List.of(),
+                    AccountingCalculationMode.CURRENT_CALCULATION));
+
+    assertThat(result.zus().socialZus()).isZero();
+    assertThat(result.zus().healthZus()).isZero();
+    assertThat(result.issues())
+        .extracting(AccountingIssue::type)
+        .contains("MISSING_ZUS_RULE_INPUT");
+  }
+
+  @Test
+  void currentCalculationRequiresExplicitVatRows() {
+    CurrencyConversion conversion = mock(CurrencyConversion.class);
+    AccountingCalculationInput base =
+        input(List.of(invoice("PLN-1", "PLN", "100.00", "0.12")), List.of());
+    AccountingCalculationResult result =
+        calculator(conversion)
+            .calculate(
+                new AccountingCalculationInput(
+                    base.period(),
+                    base.invoices(),
+                    base.expenses(),
+                    base.taxInputs(),
+                    base.profile(),
+                    base.adjustments(),
+                    new AccountingPeriodContext(
+                        PERIOD,
+                        true,
+                        false,
+                        "JDG",
+                        false,
+                        new BigDecimal("0.12"),
+                        true,
+                        false,
+                        AccountingYearToDateContext.empty(),
+                        new ZusCalculationInput(
+                            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "MIN", "JDG")),
+                    List.of(),
+                    AccountingCalculationMode.CURRENT_CALCULATION));
+
+    assertThat(result.issues())
+        .extracting(AccountingIssue::type)
+        .contains("MISSING_VAT_CLASSIFICATION");
+  }
+
   private DefaultAccountingMonthCalculator calculator(CurrencyConversion conversion) {
     return new DefaultAccountingMonthCalculator(conversion);
   }

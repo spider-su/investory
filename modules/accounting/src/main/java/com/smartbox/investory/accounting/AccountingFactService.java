@@ -126,8 +126,28 @@ public class AccountingFactService {
     var resolved =
         profileResolver.resolve(
             period, activityPeriods, employmentPeriods, pocRepository.taxProfilePeriods());
+    var vatTransactions = pocRepository.vatTransactionsForPeriod(period);
+    var yearToDate =
+        new AccountingYearToDateContext(
+            pocRepository.yearToDateRevenue(period), null, null, null, List.of());
+    var zusCalculation =
+        calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+                && resolved.zusRegime() != null
+                && resolved.ryczaltRate() != null
+            ? new ZusCalculator()
+                .calculate(
+                    new ZusCalculator.Input(
+                        resolved.jdgActive(),
+                        resolved.qualifyingUop(),
+                        resolved.zusRegime(),
+                        resolved.voluntarySickness(),
+                        yearToDate.taxableRyczaltRevenue(),
+                        ZusRules2026.FULL_JDG_SOCIAL))
+            : null;
     var context =
-        activityPeriods.isEmpty() && employmentPeriods.isEmpty()
+        calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+                && activityPeriods.isEmpty()
+                && employmentPeriods.isEmpty()
             ? AccountingPeriodContext.compatibility(period, profile)
             : new AccountingPeriodContext(
                 period,
@@ -138,10 +158,15 @@ public class AccountingFactService {
                 resolved.ryczaltRate(),
                 resolved.vatRegistered(),
                 resolved.vatEuRegistered(),
-                AccountingYearToDateContext.empty(),
-                calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
-                    ? ZusRules2026.input(resolved.qualifyingUop())
-                    : null);
+                yearToDate,
+                zusCalculation == null
+                    ? null
+                    : new ZusCalculationInput(
+                        zusCalculation.socialContribution(),
+                        zusCalculation.healthContribution(),
+                        BigDecimal.ZERO,
+                        zusCalculation.healthBand().name(),
+                        zusCalculation.reason()));
     AccountingCalculationResult calculated =
         calculator.calculate(
             new AccountingCalculationInput(
@@ -161,7 +186,9 @@ public class AccountingFactService {
                             .map(InvoiceRow::correctionVatAmount)
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
                         : BigDecimal.ZERO),
-                context));
+                context,
+                vatTransactions,
+                calculationMode));
     if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
       domesticRevenue = calculated.revenue().domesticPln();
       foreignBookedRevenue = calculated.revenue().convertedForeignPln();
@@ -318,22 +345,6 @@ public class AccountingFactService {
               "INCOMPLETE",
               String.join(", ", fx.unavailableInvoiceReferences()),
               "EUR revenue cannot be converted because the required FX rate is unavailable."));
-    }
-    if (taxInputOrNull(taxInputs, "HEALTH_CONTRIBUTION_PAID") == null) {
-      issues.add(
-          new AccountingIssue(
-              "MISSING_ZUS_INPUT",
-              "INCOMPLETE",
-              null,
-              "Health contribution input is required for the current month."));
-    }
-    if (!profile.hasUop() && taxInputOrNull(taxInputs, "JDG_COMPULSORY_SOCIAL_ZUS") == null) {
-      issues.add(
-          new AccountingIssue(
-              "MISSING_ZUS_INPUT",
-              "INCOMPLETE",
-              null,
-              "Compulsory social ZUS input is required when UoP is disabled."));
     }
     if (!obligations.isEmpty() && bankTransactions.isEmpty()) {
       issues.add(
