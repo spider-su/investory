@@ -13,4 +13,8 @@ public record AccountingPaymentInstruction(
     String title,
     LocalDate period,
     String status,
-    BigDecimal matchedBankPayment) {}
+    BigDecimal matchedBankPayment) {
+  public String transferSymbol() {
+    return "RYCZALT".equals(obligationType) ? "PPE" : obligationType;
+  }
+}

@@ -23,8 +23,10 @@ public class AccountingJpkXmlValidator {
         if (schema == null) throw new IllegalStateException("Bundled JPK_V7M(3) schema is missing");
         var source = new StreamSource(schema);
         source.setSystemId(schemaUrl.toExternalForm());
-        factory.newSchema(source).newValidator().validate(
-            new StreamSource(new ByteArrayInputStream(payload)));
+        factory
+            .newSchema(source)
+            .newValidator()
+            .validate(new StreamSource(new ByteArrayInputStream(payload)));
       }
     } catch (Exception exception) {
       throw new IllegalStateException("JPK_VALIDATION_FAILED", exception);

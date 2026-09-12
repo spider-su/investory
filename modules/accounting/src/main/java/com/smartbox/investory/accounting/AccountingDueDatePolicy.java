@@ -20,7 +20,7 @@ public class AccountingDueDatePolicy {
   }
 
   public LocalDate dueDate(LocalDate period, String obligationType) {
-    int day = "VAT".equals(obligationType) ? 25 : 20;
+    int day = "VAT".equals(obligationType) || "VAT_UE".equals(obligationType) ? 25 : 20;
     LocalDate date = period.plusMonths(1).withDayOfMonth(day);
     while (date.getDayOfWeek() == DayOfWeek.SATURDAY
         || date.getDayOfWeek() == DayOfWeek.SUNDAY
