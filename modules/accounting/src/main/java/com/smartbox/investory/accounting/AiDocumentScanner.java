@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class AiDocumentScanner implements DocumentScanner {
   private final AiInvoiceRecognitionClient client;
+  private final InvoiceValidator validator;
+  private final AccountingFactService factService;
 
   @Override
   public boolean supports(DocumentInput input) {
@@ -19,6 +21,12 @@ class AiDocumentScanner implements DocumentScanner {
   public DocumentScanResult scan(DocumentInput input) {
     AccountingInvoiceRecognitionService.RecognizedInvoice invoice =
         client.recognize(input.fileName(), input.contentType(), input.bytes());
+    invoice = validator.resolveDirection(invoice, factService.accountingProfile().nip());
+    var issues = validator.validate(invoice);
+    if (!issues.isEmpty()) {
+      log.info("AI invoice result requires review: {}", issues);
+      return new DocumentScanResult(null, ScannerType.AI_FALLBACK, ScanStatus.PARTIAL, 0.0, issues);
+    }
     log.info("AI fallback successful");
     return DocumentScanResult.complete(invoice, ScannerType.AI_FALLBACK, 0.8);
   }

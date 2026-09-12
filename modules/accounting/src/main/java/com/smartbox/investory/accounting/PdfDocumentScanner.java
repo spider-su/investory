@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 class PdfDocumentScanner implements DocumentScanner {
   private final PdfTextExtractor textExtractor;
   private final InvoiceTextParser textParser;
+  private final AccountingFactService factService;
+  private final InvoiceValidator validator;
 
   @Override
   public boolean supports(DocumentInput input) {
@@ -19,9 +21,13 @@ class PdfDocumentScanner implements DocumentScanner {
   @Override
   public DocumentScanResult scan(DocumentInput input) {
     try {
-      String text = textExtractor.extract(input.bytes());
-      log.info("PDF text extracted: {} chars", text.length());
-      InvoiceTextParser.ParseResult parsed = textParser.parse(text);
+      DocumentText text = textExtractor.extract(input.bytes());
+      log.info("PDF text extracted: {} chars across {} pages", text.plainText().length(), text.pages().size());
+      InvoiceTextParser.ParseResult parsed = textParser.parse(text, factService.accountingProfile().nip());
+      if (parsed.invoice() != null) {
+        var issues = validator.validate(parsed.invoice());
+        if (!issues.isEmpty()) parsed = new InvoiceTextParser.ParseResult(null, ScanStatus.PARTIAL, issues);
+      }
       if (parsed.status() != ScanStatus.COMPLETE) {
         log.info("deterministic PDF parse incomplete: {}", String.join(", ", parsed.warnings()));
         return new DocumentScanResult(

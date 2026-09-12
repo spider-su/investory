@@ -178,7 +178,11 @@ class AiInvoiceRecognitionClient {
           decimal(node, "netAmount"),
           decimal(node, "vatAmount"),
           decimal(node, "grossAmount"),
-          text(node, "note"));
+          text(node, "note"),
+          text(node, "sellerNip"),
+          text(node, "buyerNip"),
+          List.of(new AccountingInvoiceRecognitionService.FieldCandidate<>(
+              output, AccountingInvoiceRecognitionService.ExtractionSource.AI, "AI JSON response")));
     } catch (Exception exception) {
       log.warn("Could not parse invoice recognition payload: {}", abbreviate(output, 500));
       throw new IllegalStateException("AI result could not be parsed as an invoice", exception);
@@ -205,7 +209,9 @@ class AiInvoiceRecognitionClient {
           "dueDate": "yyyy-MM-dd or null",
           "reference": "invoice/document number or null",
           "seller": "seller/issuer name or null",
+          "sellerNip": "seller NIP or null",
           "buyer": "buyer/customer name or null",
+          "buyerNip": "buyer NIP or null",
           "category": "VEHICLE_FUEL | ACCOUNTING_SERVICE | BUSINESS_SERVICE | EQUIPMENT | OTHER",
           "currency": "ISO currency code, usually PLN",
           "netAmount": "decimal string or null",
