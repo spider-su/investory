@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -41,7 +42,7 @@ public class AccountingSourceRepository {
         externalReference,
         originalFilename,
         contentType,
-        receivedAt,
+        Timestamp.from(receivedAt),
         documentDate,
         contentHash,
         payload);
@@ -56,8 +57,11 @@ public class AccountingSourceRepository {
          WHERE document_date = ? OR document_date IS NULL
          ORDER BY id
         """,
-        (rs, rowNum) -> new AccountingSourceEvidenceService.SourceOutcome(
-            rs.getString("external_reference"), rs.getString("processing_status"), rs.getString("processing_error")),
+        (rs, rowNum) ->
+            new AccountingSourceEvidenceService.SourceOutcome(
+                rs.getString("external_reference"),
+                rs.getString("processing_status"),
+                rs.getString("processing_error")),
         period);
   }
 

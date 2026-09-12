@@ -82,11 +82,14 @@ Production source evidence is stored separately from normalized accounting facts
 file and KSeF XML payload is preserved in the source-evidence table with an immutable content hash
 and processing status. Source identity is deliberately separate from accounting identity: KSeF
 number and upload hash identify the source, while invoice reference identifies the business fact.
+Normalized invoice rows carry `source_id` with a database foreign key to the immutable source row;
+the provenance link is therefore enforced, not only descriptive.
 The statuses are `RECEIVED`, `PARSED`, `REVIEW_REQUIRED`, `IMPORTED` and `FAILED`. The common path
 is source -> parse -> review/validation -> normalized facts; only reviewed or proven documents
 reach `AccountingInvoiceIngestionService`. Historical golden fixtures are regression evidence only.
 Unknown tax-relevant classification or VAT deduction must produce `REVIEW_REQUIRED`, never a guessed
-value.
+value. KSeF classification intentionally recognizes only explicit, proven rules (for example vehicle
+fuel); all other tax-relevant cases remain review-required until a user supplies the missing decision.
 
 ### Operational monthly calculation
 

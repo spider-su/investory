@@ -4,9 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
-import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
-import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ComparisonRow;
 import com.smartbox.investory.accounting.testsupport.AccountingDatabaseTest;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
@@ -18,9 +15,9 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
@@ -114,26 +111,55 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
   @Test
   void calculatesSeptemberFromPersistedNormalizedFactsWithoutMonthGolden() {
     LocalDate september = LocalDate.of(2026, 9, 1);
-    long sourceId = sourceEvidence.receiveKsef("E2E-KSEF-SEPTEMBER", september.plusDays(10), "xml".getBytes());
+    long sourceId =
+        sourceEvidence.receiveKsef("E2E-KSEF-SEPTEMBER", september.plusDays(10), "xml".getBytes());
     ingestion.ingest(
         new AccountingInvoiceIngestionService.ReviewedInvoice(
-            september, "SALES_INVOICE", september.plusDays(10), september.plusDays(10),
-            "E2E-SEPTEMBER-SALE", "E2E CUSTOMER", "SERVICE", "PLN",
-            new BigDecimal("1000.00"), new BigDecimal("230.00"), new BigDecimal("1230.00"),
-            BigDecimal.ZERO, "E2E_TEST", "September source evidence", Long.toString(sourceId)));
+            september,
+            "SALES_INVOICE",
+            september.plusDays(10),
+            september.plusDays(10),
+            "E2E-SEPTEMBER-SALE",
+            "E2E CUSTOMER",
+            "SERVICE",
+            "PLN",
+            new BigDecimal("1000.00"),
+            new BigDecimal("230.00"),
+            new BigDecimal("1230.00"),
+            BigDecimal.ZERO,
+            "E2E_TEST",
+            "September source evidence",
+            Long.toString(sourceId)));
     ingestion.ingest(
         new AccountingInvoiceIngestionService.ReviewedInvoice(
-            september, "PURCHASE_INVOICE", september.plusDays(11), null,
-            "E2E-SEPTEMBER-PURCHASE", "E2E SUPPLIER", "ACCOUNTING_SERVICE", "PLN",
-            new BigDecimal("100.00"), new BigDecimal("23.00"), new BigDecimal("123.00"),
-            BigDecimal.ONE, "E2E_TEST", "September source evidence", Long.toString(sourceId)));
+            september,
+            "PURCHASE_INVOICE",
+            september.plusDays(11),
+            null,
+            "E2E-SEPTEMBER-PURCHASE",
+            "E2E SUPPLIER",
+            "ACCOUNTING_SERVICE",
+            "PLN",
+            new BigDecimal("100.00"),
+            new BigDecimal("23.00"),
+            new BigDecimal("123.00"),
+            BigDecimal.ONE,
+            "E2E_TEST",
+            "September source evidence",
+            Long.toString(sourceId)));
     sourceEvidence.status(sourceId, AccountingSourceStatus.IMPORTED, null);
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?)",
-        september, "HEALTH_CONTRIBUTION_PAID", new BigDecimal("100.00"), "E2E_TEST");
+        september,
+        "HEALTH_CONTRIBUTION_PAID",
+        new BigDecimal("100.00"),
+        "E2E_TEST");
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?)",
-        september, "JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("200.00"), "E2E_TEST");
+        september,
+        "JDG_COMPULSORY_SOCIAL_ZUS",
+        new BigDecimal("200.00"),
+        "E2E_TEST");
 
     assertThat(service.availablePeriods()).contains(september);
     AccountingMonthSnapshot snapshot = service.snapshot(september);
@@ -155,10 +181,21 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
                          booked_net_pln, ryczalt_rate, note, source_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
-                    "E2E-INVALID-SOURCE", "CUSTOMER", "DOMESTIC_SERVICE", "PLN",
-                    new BigDecimal("1"), new BigDecimal("0.23"), new BigDecimal("1.23"),
-                    new BigDecimal("1.23"), new BigDecimal("1"), new BigDecimal("0.12"), "E2E", 999999999L))
+                    LocalDate.of(2026, 9, 1),
+                    LocalDate.of(2026, 9, 1),
+                    LocalDate.of(2026, 9, 1),
+                    "E2E-INVALID-SOURCE",
+                    "CUSTOMER",
+                    "DOMESTIC_SERVICE",
+                    "PLN",
+                    new BigDecimal("1"),
+                    new BigDecimal("0.23"),
+                    new BigDecimal("1.23"),
+                    new BigDecimal("1.23"),
+                    new BigDecimal("1"),
+                    new BigDecimal("0.12"),
+                    "E2E",
+                    999999999L))
         .isInstanceOf(DataIntegrityViolationException.class);
   }
 
@@ -168,8 +205,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         "DELETE FROM investory.accounting_poc_invoice WHERE reference IN ('E2E-SEPTEMBER-SALE', 'E2E-INVALID-SOURCE')");
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_poc_expense_invoice WHERE reference = 'E2E-SEPTEMBER-PURCHASE'");
-    jdbcTemplate.update(
-        "DELETE FROM investory.accounting_poc_tax_input WHERE note = 'E2E_TEST'");
+    jdbcTemplate.update("DELETE FROM investory.accounting_poc_tax_input WHERE note = 'E2E_TEST'");
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_source_evidence WHERE external_reference = 'E2E-KSEF-SEPTEMBER'");
   }

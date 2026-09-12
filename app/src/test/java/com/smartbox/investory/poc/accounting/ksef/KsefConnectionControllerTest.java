@@ -224,20 +224,33 @@ class KsefConnectionControllerTest {
     when(client.authenticateWithToken(KsefEnvironment.TEST, "1234567890", "secret-token"))
         .thenReturn(new KsefAccess("access-token", null, null, null));
     when(client.queryIncomingInvoices(
-            eq(KsefEnvironment.TEST), eq("access-token"), eq(anyOffset(2026, 7, 1)),
-            eq(anyOffset(2026, 8, 1)), eq(0), eq(250)))
+            eq(KsefEnvironment.TEST),
+            eq("access-token"),
+            eq(anyOffset(2026, 7, 1)),
+            eq(anyOffset(2026, 8, 1)),
+            eq(0),
+            eq(250)))
         .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-BAD\"}]}");
     when(client.downloadInvoice(KsefEnvironment.TEST, "access-token", "KSEF-BAD"))
         .thenReturn("<broken/>");
-    when(sources.receiveKsef(eq("KSEF-BAD"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.any()))
+    when(sources.receiveKsef(
+            eq("KSEF-BAD"),
+            org.mockito.ArgumentMatchers.isNull(),
+            org.mockito.ArgumentMatchers.any()))
         .thenReturn(11L);
     when(sources.status(11L)).thenReturn(AccountingSourceStatus.RECEIVED);
     when(parser.parse(org.mockito.ArgumentMatchers.any()))
         .thenThrow(new IllegalArgumentException("invalid KSeF XML"));
 
     new KsefConnectionController(
-            client, KsefEnvironment.TEST, "1234567890", "secret-token", parser, ingestion,
-            new ObjectMapper(), sources)
+            client,
+            KsefEnvironment.TEST,
+            "1234567890",
+            "secret-token",
+            parser,
+            ingestion,
+            new ObjectMapper(),
+            sources)
         .readInvoices("2026-07", new RedirectAttributesModelMap());
 
     verify(sources).status(11L, AccountingSourceStatus.FAILED, "invalid KSeF XML");
@@ -255,17 +268,26 @@ class KsefConnectionControllerTest {
     when(client.authenticateWithToken(KsefEnvironment.TEST, "1234567890", "secret-token"))
         .thenReturn(new KsefAccess("access-token", null, null, null));
     when(client.queryIncomingInvoices(
-            eq(KsefEnvironment.TEST), eq("access-token"), eq(anyOffset(2026, 7, 1)),
-            eq(anyOffset(2026, 8, 1)), eq(0), eq(250)))
+            eq(KsefEnvironment.TEST),
+            eq("access-token"),
+            eq(anyOffset(2026, 7, 1)),
+            eq(anyOffset(2026, 8, 1)),
+            eq(0),
+            eq(250)))
         .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-IMPORTED\"}]}");
-    when(sources.findId(AccountingSourceType.KSEF, "KSEF-IMPORTED"))
-        .thenReturn(Optional.of(12L));
+    when(sources.findId(AccountingSourceType.KSEF, "KSEF-IMPORTED")).thenReturn(Optional.of(12L));
     when(sources.status(12L)).thenReturn(AccountingSourceStatus.IMPORTED);
 
     RedirectAttributesModelMap attributes = new RedirectAttributesModelMap();
     new KsefConnectionController(
-            client, KsefEnvironment.TEST, "1234567890", "secret-token", parser, ingestion,
-            new ObjectMapper(), sources)
+            client,
+            KsefEnvironment.TEST,
+            "1234567890",
+            "secret-token",
+            parser,
+            ingestion,
+            new ObjectMapper(),
+            sources)
         .readInvoices("2026-07", attributes);
 
     org.mockito.Mockito.verifyNoInteractions(parser, ingestion);
