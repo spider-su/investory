@@ -2,31 +2,36 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Accounting</title>
-  <link rel="stylesheet" th:href="@{/css/base.css}">
+  <title>Accounting · Investory</title>
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
 </head>
 <body>
-<header class="app-header"><a href="/">Investory</a><span>Accounting</span></header>
-<main class="page-content" data-testid="accounting-page">
-  <div class="page-heading"><h1>Accounting</h1><span th:text="${overview.lifecycleLabel}">Open</span></div>
-  <form method="get" action="/accounting">
-    <input type="hidden" name="profileId" th:value="${profileId}">
-    <label>Month <select name="month" onchange="this.form.submit()"><option th:each="m : ${months}" th:value="${m.month}" th:text="${m.label}" th:selected="${m.month == selectedMonth}">September 2026</option></select></label>
-  </form>
-  <section class="card-grid" data-testid="accounting-summary">
-    <article class="card"><h2>Revenue</h2><p th:text="${overview.summary.revenue}">0</p></article>
-    <article class="card"><h2>VAT</h2><p th:text="${overview.summary.vat}">0</p></article>
-    <article class="card"><h2>Ryczałt</h2><p th:text="${overview.summary.ryczalt}">0</p></article>
-    <article class="card"><h2>ZUS</h2><p th:text="${overview.summary.zus}">0</p></article>
-  </section>
-  <section class="card" data-testid="accounting-next-action"><h2>Next action</h2><p th:text="${overview.nextActionLabel}">Review issues</p></section>
-  <section class="card" data-testid="accounting-sources"><h2>Sources</h2><p><span th:text="${overview.sources.imported}">0</span> imported · <span th:text="${overview.sources.reviewRequired}">0</span> review required · <span th:text="${overview.sources.failed}">0</span> failed</p></section>
-  <section class="card" data-testid="accounting-issues"><h2>Issues</h2><p th:if="${#lists.isEmpty(overview.issues)}">No issues.</p><ul><li th:each="issue : ${overview.issues}"><strong th:text="${issue.title}">Issue</strong>: <span th:text="${issue.message}">Details</span></li></ul></section>
-  <section class="card" data-testid="accounting-documents"><h2>Documents</h2><p th:text="${documents.size()}">0</p><table><tr th:each="document : ${documents}"><td th:text="${document.reference}">INV</td><td th:text="${document.direction}">PURCHASE</td><td th:text="${document.grossAmount + ' ' + document.currency}">0 PLN</td></tr></table></section>
-  <section class="card" data-testid="accounting-bank"><h2>Bank</h2><p th:text="${bankTransactions.size()}">0</p></section>
-  <section class="card" data-testid="accounting-payments"><h2>Taxes and payments</h2><table><tr th:each="payment : ${payments}"><td th:text="${payment.type}">VAT</td><td th:text="${payment.amount}">0</td><td th:text="${payment.status}">EXPECTED</td></tr></table></section>
-  <section class="card" data-testid="accounting-filings"><h2>Filings</h2><p th:text="${filings.lifecycleLabel}">Open</p><p th:each="issue : ${filings.issues}" th:text="${issue}">Issue</p></section>
-  <section class="card" data-testid="accounting-reconciliation"><h2>Reconciliation and closure</h2><p th:text="${reconciliation.size() + ' reconciliation rows'}">0 reconciliation rows</p></section>
+<main class="iv-app iv-planning-page iv-report-page" data-testid="accounting-page">
+  <div th:replace="~{fragments/app-header :: appHeader('Accounting', ${overview.lifecycleLabel}, 'accounting', ${profileId}, 'Revenue', ${overview.summary.revenue}, 'VAT', ${overview.summary.vat}, 'Next action', ${overview.nextActionLabel}, null, null, null)}"></div>
+  <div class="container-xl py-4">
+    <div class="iv-section-heading">
+      <div><div class="iv-section-heading__eyebrow">Monthly workspace</div><h2 th:text="${'Accounting · ' + selectedMonth}">Accounting · 2026-01</h2></div>
+      <form method="get" action="/accounting" class="d-flex align-items-center gap-2"><input type="hidden" name="profileId" th:value="${profileId}"><label class="form-label mb-0">Month</label><select class="form-select" name="month" onchange="this.form.submit()"><option th:each="m : ${months}" th:value="${m.month}" th:text="${m.label}" th:selected="${m.month == selectedMonth}">January 2026</option></select></form>
+    </div>
+    <div class="row row-cards" data-testid="accounting-summary">
+      <div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">Revenue</div><div class="h2 mb-0" th:text="${overview.summary.revenue}">0</div></div></section></div>
+      <div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">VAT</div><div class="h2 mb-0" th:text="${overview.summary.vat}">0</div></div></section></div>
+      <div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">Ryczałt</div><div class="h2 mb-0" th:text="${overview.summary.ryczalt}">0</div></div></section></div>
+      <div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">ZUS</div><div class="h2 mb-0" th:text="${overview.summary.zus}">0</div></div></section></div>
+    </div>
+    <div class="row row-cards mt-3">
+      <div class="col-lg-6"><section class="iv-card" data-testid="accounting-next-action"><div class="iv-card__head"><h3 class="iv-card__title">Next action</h3></div><div class="iv-card__body"><strong th:text="${overview.nextActionLabel}">Review issues</strong><p class="text-secondary mb-0" th:text="${overview.lifecycleLabel}">Open</p></div></section></div>
+      <div class="col-lg-6"><section class="iv-card" data-testid="accounting-sources"><div class="iv-card__head"><h3 class="iv-card__title">Sources</h3></div><div class="iv-card__body"><span th:text="${overview.sources.imported}">0</span> imported · <span th:text="${overview.sources.reviewRequired}">0</span> review required · <span th:text="${overview.sources.failed}">0</span> failed</div></section></div>
+    </div>
+    <section class="iv-card mt-3" data-testid="accounting-issues"><div class="iv-card__head"><h3 class="iv-card__title">Issues and action center</h3></div><div class="iv-card__body"><p th:if="${#lists.isEmpty(overview.issues)}" class="text-secondary">No issues.</p><ul class="mb-0"><li th:each="issue : ${overview.issues}"><strong th:text="${issue.title}">Issue</strong>: <span th:text="${issue.message}">Details</span></li></ul></div></section>
+    <div class="row row-cards mt-3">
+      <div class="col-lg-7"><section class="iv-card" data-testid="accounting-documents"><div class="iv-card__head"><h3 class="iv-card__title">Documents</h3></div><div class="iv-card__body iv-table-wrap"><table class="iv-table"><tbody><tr th:each="document : ${documents}"><td th:text="${document.reference}">INV</td><td th:text="${document.direction}">PURCHASE</td><td th:text="${document.grossAmount + ' ' + document.currency}">0 PLN</td></tr></tbody></table><p th:if="${#lists.isEmpty(documents)}" class="text-secondary mb-0">No documents.</p></div></section></div>
+      <div class="col-lg-5"><section class="iv-card" data-testid="accounting-bank"><div class="iv-card__head"><h3 class="iv-card__title">Bank</h3></div><div class="iv-card__body"><strong th:text="${bankTransactions.size()}">0</strong> transactions</div></section><section class="iv-card mt-3" data-testid="accounting-filings"><div class="iv-card__head"><h3 class="iv-card__title">Filings and closure</h3></div><div class="iv-card__body"><strong th:text="${filings.lifecycleLabel}">Open</strong><p th:each="issue : ${filings.issues}" class="text-secondary mb-0" th:text="${issue}">Issue</p></div></section></div>
+    </div>
+    <section class="iv-card mt-3" data-testid="accounting-payments"><div class="iv-card__head"><h3 class="iv-card__title">Taxes and payments</h3></div><div class="iv-card__body iv-table-wrap"><table class="iv-table"><tbody><tr th:each="payment : ${payments}"><td th:text="${payment.type}">VAT</td><td th:text="${payment.amount}">0</td><td th:text="${payment.status}">EXPECTED</td></tr></tbody></table></div></section>
+    <section class="iv-card mt-3" data-testid="accounting-reconciliation"><div class="iv-card__head"><h3 class="iv-card__title">Reconciliation and closure</h3></div><div class="iv-card__body"><span th:text="${reconciliation.size() + ' reconciliation rows'}">0 reconciliation rows</span></div></section>
+  </div>
 </main>
 </body>
 </html>

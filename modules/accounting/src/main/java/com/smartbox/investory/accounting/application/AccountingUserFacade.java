@@ -57,10 +57,11 @@ public class AccountingUserFacade implements AccountingUserApi {
     var state = repository.periodState(date(month));
     var lifecycle = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
     var outcomes = sources.outcomes(date(month));
+    var filingIssues = filing.filing(date(month)).issues();
     int imported = (int) outcomes.stream().filter(o -> "IMPORTED".equals(o.status())).count();
     int review = (int) outcomes.stream().filter(o -> "REVIEW_REQUIRED".equals(o.status())).count();
     int failed = (int) outcomes.stream().filter(o -> "FAILED".equals(o.status())).count();
-    var issues = issues(snapshot, outcomes);
+    var issues = issues(snapshot, outcomes, filingIssues);
     return new MonthOverview(
         month,
         lifecycle.name(),
@@ -80,7 +81,8 @@ public class AccountingUserFacade implements AccountingUserApi {
 
   private List<IssueView> issues(
       AccountingMonthSnapshot snapshot,
-      List<AccountingSourceEvidenceService.SourceOutcome> outcomes) {
+      List<AccountingSourceEvidenceService.SourceOutcome> outcomes,
+      List<String> filingIssues) {
     var result = new java.util.ArrayList<IssueView>();
     snapshot
         .issues()
@@ -104,6 +106,18 @@ public class AccountingUserFacade implements AccountingUserApi {
                         "Source requires attention",
                         o.error() == null ? "Source was not imported." : o.error(),
                         o.reference())));
+    filingIssues.stream()
+        .filter(issue -> !issue.startsWith("Month calculation is not confirmed"))
+        .filter(issue -> result.stream().noneMatch(existing -> existing.message().equals(issue)))
+        .forEach(
+            issue ->
+                result.add(
+                    new IssueView(
+                        "FILING_READINESS",
+                        "BLOCKING",
+                        "Filing readiness",
+                        issue,
+                        null)));
     return result;
   }
 
