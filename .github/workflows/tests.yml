@@ -292,7 +292,6 @@ jobs:
             app/target/surefire-reports/
           if-no-files-found: warn
           retention-days: 1
-          retention-days: 1
 
       - name: Upload UI integration execution data
         uses: actions/upload-artifact@v7

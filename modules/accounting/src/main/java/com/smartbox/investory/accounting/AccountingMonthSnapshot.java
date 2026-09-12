@@ -3,6 +3,7 @@ package com.smartbox.investory.accounting;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 
 public record AccountingMonthSnapshot(
     LocalDate period,
@@ -23,6 +24,60 @@ public record AccountingMonthSnapshot(
     AccountingCalculationMode calculationMode,
     AccountingReadiness readiness,
     List<AccountingIssue> issues) {
+
+  public long salesDocumentCount() {
+    return invoices.stream().filter(invoice -> invoice != null).count();
+  }
+
+  public long expenseDocumentCount() {
+    return expenses.stream().filter(expense -> expense != null).count();
+  }
+
+  public BigDecimal salesNetPln() {
+    return invoices.stream()
+        .map(InvoiceRow::bookedNetPln)
+        .filter(Objects::nonNull)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  public BigDecimal salesVat() {
+    return invoices.stream()
+        .map(InvoiceRow::vatAmount)
+        .filter(Objects::nonNull)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  public BigDecimal expenseNet() {
+    return expenses.stream()
+        .map(ExpenseRow::netAmount)
+        .filter(Objects::nonNull)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  public BigDecimal deductibleInputVat() {
+    return vat.deductibleInputVat();
+  }
+
+  public long matchedPaymentCount() {
+    return reconciliations.stream()
+        .filter(row -> "MATCHED".equals(row.status()) || "PAID".equals(row.status()))
+        .count();
+  }
+
+  public long paymentReviewCount() {
+    return reconciliations.stream()
+        .filter(row -> "UNMATCHED".equals(row.status()) || "DIFF".equals(row.status()))
+        .count();
+  }
+
+  public String userStatus() {
+    if (!issues.isEmpty()) return "Needs attention";
+    return filingConfirmed() ? "Closed" : "Ready to file";
+  }
+
+  private boolean filingConfirmed() {
+    return obligations.stream().anyMatch(row -> "CONFIRMED".equals(row.status()));
+  }
 
   public AccountingMonthSnapshot(
       LocalDate period,

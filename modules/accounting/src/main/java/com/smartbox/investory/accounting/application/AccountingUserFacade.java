@@ -324,7 +324,11 @@ public class AccountingUserFacade implements AccountingUserApi {
     long id = sources.receiveUpload(filename, contentType, content);
     try {
       RecognizedInvoice r = recognition.recognize(filename, contentType, content);
-      sources.status(id, AccountingSourceStatus.PARSED, null);
+      boolean requiresReview = "UNKNOWN".equals(r.documentType());
+      sources.status(
+          id,
+          requiresReview ? AccountingSourceStatus.REVIEW_REQUIRED : AccountingSourceStatus.PARSED,
+          requiresReview ? "Invoice direction requires review" : null);
       return new CandidateView(
           "sha256:" + hash(content),
           r.documentType(),
@@ -340,7 +344,7 @@ public class AccountingUserFacade implements AccountingUserApi {
           r.vatAmount(),
           r.grossAmount(),
           r.note(),
-          "PARSED");
+          requiresReview ? "REVIEW_REQUIRED" : "PARSED");
     } catch (RuntimeException e) {
       sources.status(id, AccountingSourceStatus.FAILED, e.getMessage());
       throw e;

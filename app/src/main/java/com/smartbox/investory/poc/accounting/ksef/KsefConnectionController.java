@@ -250,9 +250,7 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
             // source uniqueness constraint.
             sourceId =
                 sourceEvidenceService.receiveKsef(
-                    "FAILED:" + ksefNumber + ":" + java.util.UUID.randomUUID(),
-                    null,
-                    new byte[0]);
+                    "FAILED:" + ksefNumber + ":" + java.util.UUID.randomUUID(), null, new byte[0]);
           } catch (RuntimeException ignored) {
             // Preserve the original KSeF failure if the failure marker itself cannot be stored.
           }

@@ -25,7 +25,8 @@ class AiDocumentScanner implements DocumentScanner {
     var issues = validator.validate(invoice);
     if (!issues.isEmpty()) {
       log.info("AI invoice result requires review: {}", issues);
-      return new DocumentScanResult(null, ScannerType.AI_FALLBACK, ScanStatus.PARTIAL, 0.0, issues);
+      return new DocumentScanResult(
+          invoice, ScannerType.AI_FALLBACK, ScanStatus.PARTIAL, 0.0, issues);
     }
     log.info("AI fallback successful");
     return DocumentScanResult.complete(invoice, ScannerType.AI_FALLBACK, 0.8);
