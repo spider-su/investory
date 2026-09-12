@@ -54,21 +54,20 @@ public class AccountingBankTransactionIngestionService {
 
   private Classification classifyLegacy(AccountingBankFileParser.ParsedBankTransaction row) {
     return classify(
-            new ExternalBankTransaction(
-                com.smartbox.investory.integrations.bank.BankDataProvider.CSV,
-                "LEGACY_SOURCE",
-                row.reference(),
-                row.bookingDate(),
-                row.bookingDate(),
-                row.relatedPeriod(),
-                row.amount(),
-                row.currency(),
-                row.counterparty(),
-                null,
-                row.note(),
-                row.reference(),
-                null))
-        ;
+        new ExternalBankTransaction(
+            com.smartbox.investory.integrations.bank.BankDataProvider.CSV,
+            "LEGACY_SOURCE",
+            row.reference(),
+            row.bookingDate(),
+            row.bookingDate(),
+            row.relatedPeriod(),
+            row.amount(),
+            row.currency(),
+            row.counterparty(),
+            null,
+            row.note(),
+            row.reference(),
+            null));
   }
 
   private Classification classify(ExternalBankTransaction row) {

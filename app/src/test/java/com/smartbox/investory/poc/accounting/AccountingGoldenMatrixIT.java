@@ -313,7 +313,12 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             AuthorityConfirmation.ConfirmationStatus.POSTED,
             Instant.parse("2026-11-02T10:00:00Z"),
             null,
-            "Imported posting"));
+            "Imported posting",
+            instructions.stream()
+                .filter(i -> i.obligationType().equals("VAT"))
+                .findFirst()
+                .orElseThrow()
+                .amount()));
     filingService.recordAuthorityConfirmation(
         new AuthorityConfirmation(
             "TAX_OFFICE",
@@ -324,7 +329,12 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             AuthorityConfirmation.ConfirmationStatus.POSTED,
             Instant.parse("2026-11-02T10:00:00Z"),
             null,
-            "Imported PPE posting"));
+            "Imported PPE posting",
+            instructions.stream()
+                .filter(i -> i.obligationType().equals("RYCZALT"))
+                .findFirst()
+                .orElseThrow()
+                .amount()));
     filingService.recordAuthorityConfirmation(
         new AuthorityConfirmation(
             "ZUS",
@@ -346,7 +356,12 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             AuthorityConfirmation.ConfirmationStatus.POSTED,
             Instant.parse("2026-11-04T10:00:00Z"),
             null,
-            "Imported ZUS posting"));
+            "Imported ZUS posting",
+            instructions.stream()
+                .filter(i -> i.obligationType().equals("ZUS"))
+                .findFirst()
+                .orElseThrow()
+                .amount()));
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM investory.accounting_authority_confirmation WHERE tax_period = ?",

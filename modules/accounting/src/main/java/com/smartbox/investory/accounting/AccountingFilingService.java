@@ -156,7 +156,8 @@ public class AccountingFilingService {
             case "ZUS" -> "ZUS_ACCOUNT_POSTING";
             default -> "TAX_ACCOUNT_POSTING";
           };
-      if (!repository.hasAcceptedConfirmation(period, confirmationType))
+      if (!repository.hasAcceptedConfirmationForAmount(
+          period, obligation.type(), confirmationType, obligation.amount()))
         throw new IllegalStateException("Missing authority posting: " + obligation.type());
     }
     markPaid(period);

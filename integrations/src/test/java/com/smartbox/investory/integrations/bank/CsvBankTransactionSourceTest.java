@@ -12,24 +12,34 @@ class CsvBankTransactionSourceTest {
 
   @Test
   void mapsMultipleCurrenciesAndOptionalFields() {
-    var page = source(HEADER + row("2026-09-01", "ZUS 09/2026", "ZUS", "PLN", "-100.00", "paid" )
-            + row("2026-09-02", "EUR RECEIPT", "", "eur", "123.45", ""))
-        .transactions(query());
+    var page =
+        source(
+                HEADER
+                    + row("2026-09-01", "ZUS 09/2026", "ZUS", "PLN", "-100.00", "paid")
+                    + row("2026-09-02", "EUR RECEIPT", "", "eur", "123.45", ""))
+            .transactions(query());
 
     assertThat(page.nextContinuationToken()).isNull();
     assertThat(page.transactions()).hasSize(2);
     assertThat(page.transactions().get(0))
-        .extracting(ExternalBankTransaction::provider, ExternalBankTransaction::externalAccountId,
-            ExternalBankTransaction::currency, ExternalBankTransaction::amount,
+        .extracting(
+            ExternalBankTransaction::provider,
+            ExternalBankTransaction::externalAccountId,
+            ExternalBankTransaction::currency,
+            ExternalBankTransaction::amount,
             ExternalBankTransaction::remittanceInformation)
-        .containsExactly(BankDataProvider.CSV, "JDG_MAIN_ACCOUNT", "PLN", new BigDecimal("-100.00"), "paid");
+        .containsExactly(
+            BankDataProvider.CSV, "JDG_MAIN_ACCOUNT", "PLN", new BigDecimal("-100.00"), "paid");
     assertThat(page.transactions().get(1).counterpartyName()).isEmpty();
   }
 
   @Test
   void derivesStableIdentityIndependentOfRowPosition() {
-    var first = source(HEADER + row("2026-09-01", "REF", "BANK", "PLN", "-1", "note"))
-        .transactions(query()).transactions().get(0);
+    var first =
+        source(HEADER + row("2026-09-01", "REF", "BANK", "PLN", "-1", "note"))
+            .transactions(query())
+            .transactions()
+            .get(0);
     var second =
         source(
                 HEADER
@@ -60,8 +70,14 @@ class CsvBankTransactionSourceTest {
     return new BankTransactionQuery("JDG_MAIN_ACCOUNT", null, null, null);
   }
 
-  private String row(String date, String reference, String counterparty, String currency,
-      String amount, String note) {
-    return String.join(";", date, "2026-09-01", reference, counterparty, currency, amount, note) + "\n";
+  private String row(
+      String date,
+      String reference,
+      String counterparty,
+      String currency,
+      String amount,
+      String note) {
+    return String.join(";", date, "2026-09-01", reference, counterparty, currency, amount, note)
+        + "\n";
   }
 }

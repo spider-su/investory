@@ -2,10 +2,11 @@ package com.smartbox.investory.accounting;
 
 import com.smartbox.investory.integrations.bank.BankTransactionQuery;
 import com.smartbox.investory.integrations.bank.CsvBankTransactionSource;
-import java.util.Objects;
 import java.time.LocalDate;
-import org.springframework.stereotype.Service;
+import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 @Service
 public class AccountingBankImportService {
@@ -13,6 +14,7 @@ public class AccountingBankImportService {
   private final AccountingBankTransactionIngestionService ingestion;
   private final String externalAccountId;
 
+  @Autowired
   public AccountingBankImportService(
       AccountingSourceEvidenceService sourceEvidence,
       AccountingBankTransactionIngestionService ingestion) {

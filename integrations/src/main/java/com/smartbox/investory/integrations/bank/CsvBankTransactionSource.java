@@ -95,7 +95,8 @@ public final class CsvBankTransactionSource implements BankTransactionSource {
   }
 
   private String required(String value) {
-    if (blank(value) == null) throw new IllegalArgumentException("Bank export contains a blank required value");
+    if (blank(value) == null)
+      throw new IllegalArgumentException("Bank export contains a blank required value");
     return value;
   }
 

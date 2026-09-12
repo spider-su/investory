@@ -76,7 +76,7 @@ public class AccountingPocRepository {
 
   public void saveAuthorityConfirmation(AuthorityConfirmation confirmation) {
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_authority_confirmation (authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO investory.accounting_authority_confirmation (authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         confirmation.authority(),
         confirmation.obligationOrArtifactType(),
         confirmation.period(),
@@ -85,7 +85,8 @@ public class AccountingPocRepository {
         confirmation.status().name(),
         java.sql.Timestamp.from(confirmation.receivedAt()),
         confirmation.sourceDocumentId(),
-        confirmation.note());
+        confirmation.note(),
+        confirmation.amount());
   }
 
   public boolean hasFilingArtifact(LocalDate period, String artifactType) {
@@ -104,6 +105,21 @@ public class AccountingPocRepository {
             Boolean.class,
             period,
             confirmationType));
+  }
+
+  public boolean hasAcceptedConfirmationForAmount(
+      LocalDate period,
+      String obligationType,
+      String confirmationType,
+      BigDecimal expectedAmount) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND obligation_or_artifact_type = ? AND confirmation_type = ? AND status IN ('ACCEPTED', 'POSTED') AND amount IS NOT NULL AND amount = ?)",
+            Boolean.class,
+            period,
+            obligationType,
+            confirmationType,
+            expectedAmount));
   }
 
   public record PeriodState(
@@ -500,16 +516,19 @@ public class AccountingPocRepository {
         period.plusMonths(1));
   }
 
-  /**
-   * Projects only exact, persisted ZUS payments; obligations are never inferred from payment rows.
-   */
-  public List<PaidContribution> paidContributionsUpTo(
-      LocalDate period, BigDecimal socialObligation, BigDecimal healthObligation) {
-    BigDecimal social = socialObligation == null ? BigDecimal.ZERO : socialObligation;
-    BigDecimal health = healthObligation == null ? BigDecimal.ZERO : healthObligation;
-    BigDecimal total = social.add(health).setScale(2);
-    List<List<PaidContribution>> rows =
-        jdbcTemplate.query(
+  public List<LocalDate> zusPaymentPeriodsUpTo(LocalDate period) {
+    return jdbcTemplate.queryForList(
+        "SELECT DISTINCT related_period FROM investory.accounting_poc_bank_transaction WHERE transaction_type = 'ZUS_PAYMENT' AND booking_date <= ? AND related_period IS NOT NULL ORDER BY related_period",
+        LocalDate.class,
+        period.withDayOfMonth(period.lengthOfMonth()));
+  }
+
+  /** Projects persisted ZUS payments against the obligation for their own contribution period. */
+  public PaidContributionProjection paidContributionsUpTo(
+      LocalDate period, java.util.Map<LocalDate, ZusAmounts> obligationsByPeriod) {
+    List<PaidContribution> contributions = new java.util.ArrayList<>();
+    List<AccountingIssue> issues = new java.util.ArrayList<>();
+    jdbcTemplate.query(
             """
             SELECT id, booking_date, related_period, amount, reference
               FROM investory.accounting_poc_bank_transaction
@@ -523,27 +542,38 @@ public class AccountingPocRepository {
               LocalDate contributionPeriod = rs.getObject("related_period", LocalDate.class);
               long id = rs.getLong("id");
               String reference = rs.getString("reference");
-              if (paid.compareTo(total) == 0 && total.signum() > 0) {
-                var result = new java.util.ArrayList<PaidContribution>();
-                if (social.signum() > 0)
-                  result.add(
-                      new PaidContribution(
-                          "SOCIAL", contributionPeriod, paymentDate, social, social, id));
-                if (health.signum() > 0)
-                  result.add(
-                      new PaidContribution(
-                          "HEALTH", contributionPeriod, paymentDate, health, health, id));
-                return result;
+              ZusAmounts obligation = obligationsByPeriod.get(contributionPeriod);
+              if (obligation == null) {
+                issues.add(reviewIssue(reference, "No calculated ZUS obligation for contribution period."));
+                return null;
               }
-              if (social.signum() == 0 && paid.compareTo(health) == 0 && health.signum() > 0)
-                return List.of(
-                    new PaidContribution(
-                        "HEALTH", contributionPeriod, paymentDate, health, health, id));
-              return List.of();
+              BigDecimal total = obligation.social().add(obligation.health()).setScale(2);
+              if (paid.compareTo(total) == 0 && total.signum() > 0) {
+                if (obligation.social().signum() > 0)
+                  contributions.add(new PaidContribution("SOCIAL", contributionPeriod, paymentDate, obligation.social(), obligation.social(), id));
+                if (obligation.health().signum() > 0)
+                  contributions.add(new PaidContribution("HEALTH", contributionPeriod, paymentDate, obligation.health(), obligation.health(), id));
+              } else if (obligation.social().signum() == 0
+                  && paid.compareTo(obligation.health()) == 0
+                  && obligation.health().signum() > 0) {
+                contributions.add(new PaidContribution("HEALTH", contributionPeriod, paymentDate, obligation.health(), obligation.health(), id));
+              } else {
+                issues.add(reviewIssue(reference, "ZUS payment does not match its contribution-period obligation."));
+              }
+              return null;
             },
             period.withDayOfMonth(period.lengthOfMonth()));
-    return rows.stream().flatMap(List::stream).toList();
+    return new PaidContributionProjection(List.copyOf(contributions), List.copyOf(issues));
   }
+
+  private AccountingIssue reviewIssue(String reference, String message) {
+    return new AccountingIssue("PAID_CONTRIBUTION_REVIEW_REQUIRED", "REVIEW_REQUIRED", reference, message);
+  }
+
+  public record ZusAmounts(BigDecimal social, BigDecimal health) {}
+
+  public record PaidContributionProjection(
+      List<PaidContribution> contributions, List<AccountingIssue> issues) {}
 
   public boolean insertBankTransaction(
       java.time.LocalDate bookingDate,

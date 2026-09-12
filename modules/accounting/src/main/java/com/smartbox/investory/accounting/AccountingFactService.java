@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -144,6 +145,14 @@ public class AccountingFactService {
                         yearToDate.taxableRyczaltRevenue(),
                         ZusRules2026.FULL_JDG_SOCIAL))
             : null;
+    var paidContributionProjection =
+        calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+            ? projectPaidContributions(period, resolved, zusCalculation)
+            : new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
+    if (paidContributionProjection == null) {
+      paidContributionProjection =
+          new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
+    }
     var context =
         calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
                 && activityPeriods.isEmpty()
@@ -164,10 +173,7 @@ public class AccountingFactService {
                     null,
                     null,
                     calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
-                        ? pocRepository.paidContributionsUpTo(
-                            period,
-                            zusCalculation == null ? null : zusCalculation.socialContribution(),
-                            zusCalculation == null ? null : zusCalculation.healthContribution())
+                        ? paidContributionProjection.contributions()
                         : List.of()),
                 zusCalculation == null
                     ? null
@@ -241,6 +247,7 @@ public class AccountingFactService {
             reconciliations,
             obligations);
     if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
+      issues.addAll(paidContributionProjection.issues());
       issues.addAll(calculated.issues());
     }
 
@@ -263,6 +270,49 @@ public class AccountingFactService {
         calculationMode,
         readiness(issues),
         issues);
+  }
+
+  private AccountingPocRepository.PaidContributionProjection projectPaidContributions(
+      LocalDate period,
+      AccountingProfileResolver.ResolvedProfile resolved,
+      ZusCalculator.ZusCalculation currentZus) {
+    var obligations = paidContributionObligations(period, resolved, currentZus);
+    return pocRepository.paidContributionsUpTo(period, obligations);
+  }
+
+  private Map<LocalDate, AccountingPocRepository.ZusAmounts> paidContributionObligations(
+      LocalDate period,
+      AccountingProfileResolver.ResolvedProfile resolved,
+      ZusCalculator.ZusCalculation currentZus) {
+    var activityPeriods = pocRepository.businessActivityPeriods();
+    var employmentPeriods = pocRepository.employmentPeriods();
+    var taxPeriods = pocRepository.taxProfilePeriods();
+    var obligations = new java.util.LinkedHashMap<LocalDate, AccountingPocRepository.ZusAmounts>();
+    for (LocalDate contributionPeriod : pocRepository.zusPaymentPeriodsUpTo(period)) {
+      var effective = profileResolver.resolve(contributionPeriod, activityPeriods, employmentPeriods, taxPeriods);
+      if (effective.zusRegime() == null) continue;
+      var calculated =
+          new ZusCalculator()
+              .calculate(
+                  new ZusCalculator.Input(
+                      effective.jdgActive(),
+                      effective.qualifyingUop(),
+                      effective.zusRegime(),
+                      effective.voluntarySickness(),
+                      pocRepository.yearToDateRevenue(contributionPeriod),
+                      ZusRules2026.FULL_JDG_SOCIAL));
+      obligations.put(
+          contributionPeriod,
+          new AccountingPocRepository.ZusAmounts(
+              calculated.socialContribution(), calculated.healthContribution()));
+    }
+    if (currentZus != null) {
+      obligations.put(
+          period,
+          new AccountingPocRepository.ZusAmounts(
+              currentZus.socialContribution(), currentZus.healthContribution()));
+    }
+    return obligations;
   }
 
   private FxCalculation currentFx(AccountingCalculationResult result) {
