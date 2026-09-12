@@ -225,6 +225,15 @@ Disable `ai-fallback-enabled` to return an incomplete result instead of calling 
 
 ## Filing output
 
+Filing output uses a dedicated projection. Natural-person JDG identity is emitted as
+`OsobaFizyczna`; missing identity, counterparty identifier, or explicit KSeF/OFF/BFK/DI evidence
+blocks export. Purchase rows use normalized deductible VAT, so `ZakupCtrl` reconciles to the same
+document-level deductions used by accounting. Confirmation fingerprints are SHA-256 hashes of
+stable semantic filing fields and are independent of collection order or Java object formatting.
+Due dates use the next Polish working day when the statutory date falls on a weekend or supported
+public holiday. CSV remains a separate reporting export. The current POC has a local XML well-formedness
+guard; official JPK XSD resources are not bundled because no licensed local schema is present.
+
 The canonical monthly result is the `AccountingMonthSnapshot` produced by `AccountingFactService`.
 JPK_V7M(3) is only a projection of that result; it is not a second VAT calculator. The POC preserves
 the current Ministry of Finance schema boundary (JPK_V7M(3), effective from February 2026), but does

@@ -21,11 +21,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 public class AccountingFactService {
   private static final LocalDate JULY_2026 = LocalDate.of(2026, 7, 1);
   private static final LocalDate OPERATIONAL_MONTH = LocalDate.of(2026, 9, 1);
@@ -34,6 +33,30 @@ public class AccountingFactService {
   private final AccountingFactRepository factRepository;
   private final AccountingPocRepository pocRepository;
   private final CurrencyConversion currencyConversion;
+  private final AccountingMonthCalculator calculator;
+
+  public AccountingFactService(
+      AccountingFactRepository factRepository,
+      AccountingPocRepository pocRepository,
+      CurrencyConversion currencyConversion) {
+    this(
+        factRepository,
+        pocRepository,
+        currencyConversion,
+        new DefaultAccountingMonthCalculator(currencyConversion));
+  }
+
+  @Autowired
+  public AccountingFactService(
+      AccountingFactRepository factRepository,
+      AccountingPocRepository pocRepository,
+      CurrencyConversion currencyConversion,
+      AccountingMonthCalculator calculator) {
+    this.factRepository = factRepository;
+    this.pocRepository = pocRepository;
+    this.currencyConversion = currencyConversion;
+    this.calculator = calculator;
+  }
 
   public List<AccountingFact> facts() {
     return factRepository.findAll();
@@ -62,6 +85,7 @@ public class AccountingFactService {
     List<BankRow> bankTransactions = pocRepository.bankTransactionsForPeriod(period);
     List<ObligationRow> obligations = pocRepository.obligationsForPeriod(period);
     List<TaxInputRow> taxInputs = pocRepository.taxInputsForPeriod(period);
+    AccountingProfile profile = accountingProfile();
 
     BigDecimal domesticRevenue =
         invoices.stream()
@@ -88,12 +112,44 @@ public class AccountingFactService {
         calculateRyczalt(
             period, invoices, correctionSources, domesticRevenue, fx, obligations, taxInputs);
     VatCalculation vat = calculateVat(period, invoices, correctionSources, expenses, obligations);
-    AccountingProfile profile = accountingProfile();
     ZusCalculation zus = calculateZus(profile, taxInputs);
     AccountingCalculationMode calculationMode =
         period.isBefore(OPERATIONAL_MONTH)
             ? AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
             : AccountingCalculationMode.CURRENT_CALCULATION;
+    AccountingCalculationResult calculated =
+        calculator.calculate(
+            new AccountingCalculationInput(
+                period,
+                invoices,
+                expenses,
+                taxInputs,
+                profile,
+                new AccountingCalculationInput.CalculationAdjustments(
+                    JULY_2026.equals(period)
+                        ? correctionSources.stream()
+                            .map(InvoiceRow::correctionNetAmount)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                        : BigDecimal.ZERO,
+                    JULY_2026.equals(period)
+                        ? correctionSources.stream()
+                            .map(InvoiceRow::correctionVatAmount)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                        : BigDecimal.ZERO)));
+    if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
+      domesticRevenue = calculated.revenue().domesticPln();
+      foreignBookedRevenue = calculated.revenue().convertedForeignPln();
+      foreignSourceEur =
+          invoices.stream()
+              .filter(invoice -> "EUR".equals(invoice.currency()))
+              .map(InvoiceRow::netAmount)
+              .filter(value -> value != null)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+      fx = currentFx(calculated);
+      ryczalt = currentRyczalt(calculated);
+      vat = currentVat(calculated);
+      zus = currentZus(calculated);
+    }
     List<ComparisonRow> comparisons =
         calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
             ? buildComparisons(
@@ -121,6 +177,9 @@ public class AccountingFactService {
             bankTransactions,
             reconciliations,
             obligations);
+    if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
+      issues.addAll(calculated.issues());
+    }
 
     return new AccountingMonthSnapshot(
         period,
@@ -141,6 +200,58 @@ public class AccountingFactService {
         calculationMode,
         readiness(issues),
         issues);
+  }
+
+  private FxCalculation currentFx(AccountingCalculationResult result) {
+    String status = result.fx().complete() ? "CALCULATED" : "FX_UNAVAILABLE";
+    return new FxCalculation(
+        null,
+        result.fx().entries().stream()
+            .filter(entry -> "EUR".equals(entry.currency()))
+            .map(AccountingCalculationResult.FxCalculation.Conversion::sourceAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add),
+        result.fx().convertedRevenuePln(),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        status,
+        result.fx().unavailableReferences());
+  }
+
+  private RyczaltCalculation currentRyczalt(AccountingCalculationResult result) {
+    BigDecimal rate =
+        result.ryczalt().revenueByRate().size() == 1
+            ? result.ryczalt().revenueByRate().keySet().iterator().next()
+            : BigDecimal.ZERO;
+    return new RyczaltCalculation(
+        result.ryczalt().revenueBeforeDeductions(),
+        BigDecimal.ZERO,
+        result.ryczalt().healthContributionPaid(),
+        result.ryczalt().healthDeduction(),
+        result.ryczalt().taxableBase(),
+        rate,
+        result.ryczalt().calculatedTax(),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        result.complete() ? "CALCULATED" : "INPUTS_INCOMPLETE");
+  }
+
+  private VatCalculation currentVat(AccountingCalculationResult result) {
+    return new VatCalculation(
+        result.vat().outputVatBeforeCorrection(),
+        result.vat().salesCorrectionVat(),
+        result.vat().outputVat(),
+        result.vat().deductibleInputVat(),
+        BigDecimal.ZERO,
+        result.vat().calculatedVat(),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        result.complete() ? "CALCULATED" : "INPUTS_INCOMPLETE");
+  }
+
+  private ZusCalculation currentZus(AccountingCalculationResult result) {
+    var zus = result.zus();
+    return new ZusCalculation(
+        zus.socialZus(), zus.healthZus(), zus.totalZus(), zus.hasUop(), zus.socialZusReasonCode());
   }
 
   private List<AccountingIssue> issuesFor(

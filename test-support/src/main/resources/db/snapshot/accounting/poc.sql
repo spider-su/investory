@@ -264,6 +264,16 @@ ALTER SEQUENCE investory.accounting_poc_obligation_id_seq OWNED BY investory.acc
 CREATE TABLE investory.accounting_poc_profile (
     id smallint NOT NULL,
     has_uop boolean NOT NULL,
+    nip character varying(10),
+    full_name character varying(240),
+    tax_office_code character varying(4),
+    email character varying(255),
+    vat_payment_account character varying(34),
+    ryczalt_payment_account character varying(34),
+    zus_payment_account character varying(34),
+    first_name character varying(120),
+    surname character varying(160),
+    date_of_birth date,
     CONSTRAINT chk_accounting_poc_profile_singleton CHECK ((id = 1))
 );
 
@@ -739,5 +749,4 @@ ALTER TABLE ONLY investory.accounting_poc_invoice
 --
 -- PostgreSQL database dump complete
 --
-
 

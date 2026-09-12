@@ -4,14 +4,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import org.springframework.stereotype.Service;
 
-/** JPK_V7M(3) projection. It consumes FilingResult and performs no tax calculation. */
+/** JPK_V7M(3) projection. It consumes a filing-only input and performs no tax calculation. */
 @Service
 public class AccountingJpkGenerator {
   static final String NS = "http://crd.gov.pl/wzor/2025/12/19/14090/";
 
   public byte[] generate(AccountingFilingService.FilingResult result) {
-    AccountingMonthSnapshot s = result.snapshot();
-    AccountingProfile p = result.profile();
+    return generate(result.filingInput());
+  }
+
+  public byte[] generate(AccountingFilingInput input) {
+    AccountingMonthSnapshot.VatCalculation vat = input.vat();
+    AccountingProfile p = input.taxpayer();
     StringBuilder xml = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     xml.append("<JPK xmlns=\"")
         .append(NS)
@@ -24,33 +28,40 @@ public class AccountingJpkGenerator {
             "</DataWytworzeniaJPK><NazwaSystemu>Investory Accounting POC</NazwaSystemu><CelZlozenia poz=\"P_7\">1</CelZlozenia><KodUrzedu>")
         .append(escape(p.taxOfficeCode()))
         .append("</KodUrzedu><Rok>")
-        .append(s.period().getYear())
+        .append(input.period().getYear())
         .append("</Rok><Miesiac>")
-        .append(s.period().getMonthValue())
+        .append(input.period().getMonthValue())
         .append("</Miesiac></Naglowek>\n");
-    xml.append("<Podmiot1 rola=\"Podatnik\"><OsobaNiefizyczna><etd:NIP>")
+    xml.append("<Podmiot1 rola=\"Podatnik\"><OsobaFizyczna><etd:NIP>")
         .append(escape(p.nip()))
         .append("</etd:NIP><PelnaNazwa>")
         .append(escape(p.fullName()))
         .append("</PelnaNazwa><Email>")
         .append(escape(p.email()))
-        .append("</Email></OsobaNiefizyczna></Podmiot1>\n");
+        .append("</Email><etd:ImiePierwsze>")
+        .append(escape(p.firstName()))
+        .append("</etd:ImiePierwsze><etd:Nazwisko>")
+        .append(escape(p.surname()))
+        .append("</etd:Nazwisko>")
+        .append(p.dateOfBirth() == null ? "" : "<etd:DataUrodzenia>" + p.dateOfBirth() + "</etd:DataUrodzenia>")
+        .append("</OsobaFizyczna></Podmiot1>\n");
     xml.append(
             "<Deklaracja><Naglowek><KodFormularzaDekl kodSystemowy=\"VAT-7 (23)\" kodPodatku=\"VAT\" rodzajZobowiazania=\"Z\" wersjaSchemy=\"1-0E\">VAT-7</KodFormularzaDekl><WariantFormularzaDekl>23</WariantFormularzaDekl></Naglowek><PozycjeSzczegolowe><P_38>")
-        .append(money(s.vat().outputVatAfterSalesCorrection()))
+        .append(money(vat.outputVatAfterSalesCorrection()))
         .append("</P_38><P_41>")
-        .append(money(s.vat().deductibleInputVat()))
+        .append(money(vat.deductibleInputVat()))
         .append("</P_41><P_51>")
-        .append(money(s.vat().calculatedVat()))
+        .append(money(vat.calculatedVat()))
         .append("</P_51></PozycjeSzczegolowe><Pouczenia>1</Pouczenia></Deklaracja>\n");
     xml.append("<Ewidencja>");
     int i = 1;
-    for (var row : s.invoices()) {
-      if ("SALES_INVOICE".equals(row.invoiceKind()))
+    for (var row : input.sales()) {
         xml.append("<SprzedazWiersz><LpSprzedazy>")
             .append(i++)
-            .append("</LpSprzedazy><NrKontrahenta>UNKNOWN</NrKontrahenta><NazwaKontrahenta>")
-            .append(escape(row.customerAlias()))
+            .append("</LpSprzedazy><NrKontrahenta>")
+            .append(escape(row.counterpartyIdentifier()))
+            .append("</NrKontrahenta><NazwaKontrahenta>")
+            .append(escape(row.counterpartyName()))
             .append("</NazwaKontrahenta><DowodSprzedazy>")
             .append(escape(row.reference()))
             .append("</DowodSprzedazy><DataWystawienia>")
@@ -60,7 +71,8 @@ public class AccountingJpkGenerator {
                 row.saleDate() == null
                     ? ""
                     : "<DataSprzedazy>" + row.saleDate() + "</DataSprzedazy>")
-            .append("<BFK>1</BFK><K_19>")
+            .append(evidence(row.evidence()))
+            .append("<K_19>")
             .append(money(row.netAmount()))
             .append("</K_19><K_20>")
             .append(money(row.vatAmount()))
@@ -69,27 +81,29 @@ public class AccountingJpkGenerator {
     xml.append("<SprzedazCtrl><LiczbaWierszySprzedazy>")
         .append(i - 1)
         .append("</LiczbaWierszySprzedazy><PodatekNalezny>")
-        .append(money(s.vat().outputVatAfterSalesCorrection()))
+        .append(money(vat.outputVatAfterSalesCorrection()))
         .append("</PodatekNalezny></SprzedazCtrl>");
     int j = 1;
-    for (var row : s.expenses())
+    for (var row : input.purchases())
       xml.append("<ZakupWiersz><LpZakupu>")
           .append(j++)
-          .append("</LpZakupu><NrDostawcy>UNKNOWN</NrDostawcy><NazwaDostawcy>")
-          .append(escape(row.supplierAlias()))
+          .append("</LpZakupu><NrDostawcy>")
+          .append(escape(row.counterpartyIdentifier()))
+          .append("</NrDostawcy><NazwaDostawcy>")
+          .append(escape(row.counterpartyName()))
           .append("</NazwaDostawcy><DowodZakupu>")
           .append(escape(row.reference()))
           .append("</DowodZakupu><DataZakupu>")
-          .append(row.invoiceDate())
-          .append("</DataZakupu><BFK>1</BFK><K_42>")
+          .append(row.purchaseDate())
+          .append("</DataZakupu>").append(evidence(row.evidence())).append("<K_42>")
           .append(money(row.netAmount()))
           .append("</K_42><K_43>")
-          .append(money(row.vatAmount()))
+          .append(money(row.deductibleVat()))
           .append("</K_43></ZakupWiersz>");
     xml.append("<ZakupCtrl><LiczbaWierszyZakupow>")
         .append(j - 1)
         .append("</LiczbaWierszyZakupow><PodatekNaliczony>")
-        .append(money(s.vat().deductibleInputVat()))
+        .append(money(vat.deductibleInputVat()))
         .append("</PodatekNaliczony></ZakupCtrl></Ewidencja></JPK>");
     return xml.toString().getBytes(StandardCharsets.UTF_8);
   }
@@ -105,5 +119,15 @@ public class AccountingJpkGenerator {
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace("\"", "&quot;");
+  }
+
+  private String evidence(AccountingFilingEvidence evidence) {
+    if (evidence == null || evidence.type() == null) return "";
+    return switch (evidence.type()) {
+      case KSEF -> "<NrKSeF>" + escape(evidence.ksefNumber()) + "</NrKSeF>";
+      case OFF -> "<OFF>1</OFF>";
+      case BFK -> "<BFK>1</BFK>";
+      case DI -> "<DI>1</DI>";
+    };
   }
 }

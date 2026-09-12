@@ -17,11 +17,13 @@ public class AccountingFilingService {
   private final AccountingPocRepository repository;
   private final AccountingJpkGenerator jpkGenerator;
   private final AccountingDueDatePolicy dueDatePolicy;
+  private final AccountingJpkXmlValidator jpkXmlValidator;
 
   public FilingResult filing(LocalDate period) {
     AccountingMonthSnapshot snapshot = factService.snapshot(period);
     AccountingProfile profile = factService.accountingProfile();
-    String hash = calculationHash(snapshot, profile);
+    AccountingFilingInput filingInput = new AccountingFilingService.FilingResult(period, snapshot, profile, "", false, List.of()).filingInput();
+    String hash = AccountingFilingFingerprint.sha256(filingInput);
     AccountingPocRepository.PeriodState state = repository.periodState(period);
     boolean confirmed = state != null && hash.equals(state.confirmedCalculationHash());
     List<String> issues = new ArrayList<>();
@@ -46,9 +48,14 @@ public class AccountingFilingService {
     if (blank(profile.nip())
         || blank(profile.fullName())
         || blank(profile.taxOfficeCode())
-        || blank(profile.email())) {
+        || blank(profile.email())
+        || blank(profile.firstName())
+        || blank(profile.surname())
+        || profile.dateOfBirth() == null) {
       issues.add("MISSING_TAXPAYER_CONFIGURATION");
     }
+    filingInput.sales().forEach(document -> validateDocument(document, issues));
+    filingInput.purchases().forEach(document -> validateDocument(document, issues));
     if (positive(snapshot.vat().calculatedVat()) && blank(profile.vatPaymentAccount())) {
       issues.add("MISSING_PAYMENT_CONFIGURATION: VAT");
     }
@@ -59,6 +66,15 @@ public class AccountingFilingService {
       issues.add("MISSING_PAYMENT_CONFIGURATION: ZUS");
     }
     return new FilingResult(period, snapshot, profile, hash, confirmed, issues);
+  }
+
+  private void validateDocument(AccountingFilingInput.FilingDocument document, List<String> issues) {
+    if (blank(document.counterpartyIdentifier())) {
+      issues.add("MISSING_COUNTERPARTY_IDENTIFIER: " + document.reference());
+    }
+    if (document.evidence() == null || document.evidence().type() == null) {
+      issues.add("MISSING_JPK_EVIDENCE_CLASSIFICATION: " + document.reference());
+    }
   }
 
   public void confirm(LocalDate period) {
@@ -75,7 +91,9 @@ public class AccountingFilingService {
   public byte[] jpk(LocalDate period) {
     FilingResult result = filing(period);
     if (!result.ready()) throw new IllegalStateException(String.join("; ", result.issues()));
-    return jpkGenerator.generate(result);
+    byte[] payload = jpkGenerator.generate(result);
+    jpkXmlValidator.validate(payload);
+    return payload;
   }
 
   public List<AccountingPaymentInstruction> paymentInstructions(LocalDate period) {
@@ -119,11 +137,13 @@ public class AccountingFilingService {
     BigDecimal paid =
         existing == null || existing.paidAmount() == null ? BigDecimal.ZERO : existing.paidAmount();
     String status =
-        paid.signum() == 0
-            ? "NOT_DUE"
-            : paid.compareTo(amount) < 0
-                ? "PARTIAL"
-                : paid.compareTo(amount) > 0 ? "OVERPAID" : "PAID";
+        paid.compareTo(amount) > 0
+            ? AccountingPaymentStatus.OVERPAID.name()
+            : paid.compareTo(amount) < 0 && paid.signum() > 0
+                ? AccountingPaymentStatus.PARTIAL.name()
+                : paid.compareTo(amount) == 0 && paid.signum() > 0
+                    ? AccountingPaymentStatus.PAID.name()
+                    : dueDatePolicy.paymentStatus(dueDatePolicy.dueDate(period, type), paid).name();
     out.add(
         new AccountingPaymentInstruction(
             type,
@@ -135,32 +155,6 @@ public class AccountingFilingService {
             period,
             status,
             paid));
-  }
-
-  private String calculationHash(AccountingMonthSnapshot s, AccountingProfile p) {
-    String value =
-        s.period()
-            + "|"
-            + s.invoices()
-            + "|"
-            + s.expenses()
-            + "|"
-            + s.vat()
-            + "|"
-            + s.ryczalt()
-            + "|"
-            + s.zus()
-            + "|"
-            + p.hasUop();
-    try {
-      byte[] digest =
-          MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-      StringBuilder result = new StringBuilder();
-      for (byte b : digest) result.append("%02x".formatted(b));
-      return result.toString();
-    } catch (java.security.NoSuchAlgorithmException e) {
-      throw new IllegalStateException(e);
-    }
   }
 
   private boolean blank(String value) {
@@ -178,6 +172,35 @@ public class AccountingFilingService {
       String calculationHash,
       boolean confirmed,
       List<String> issues) {
+    public List<AccountingFilingIssue> typedIssues() {
+      return issues.stream().map(FilingResult::typedIssue).toList();
+    }
+
+    private static AccountingFilingIssue typedIssue(String issue) {
+      if (issue.startsWith("MISSING_TAXPAYER_CONFIGURATION"))
+        return new AccountingFilingIssue(AccountingFilingIssueCode.MISSING_TAXPAYER_CONFIGURATION, null, issue);
+      if (issue.startsWith("MISSING_PAYMENT_CONFIGURATION"))
+        return new AccountingFilingIssue(AccountingFilingIssueCode.MISSING_PAYMENT_CONFIGURATION, null, issue);
+      if (issue.startsWith("MISSING_COUNTERPARTY_IDENTIFIER"))
+        return new AccountingFilingIssue(AccountingFilingIssueCode.MISSING_COUNTERPARTY_IDENTIFIER, null, issue);
+      if (issue.startsWith("MISSING_JPK_EVIDENCE_CLASSIFICATION"))
+        return new AccountingFilingIssue(AccountingFilingIssueCode.MISSING_JPK_EVIDENCE_CLASSIFICATION, null, issue);
+      if (issue.startsWith("Month calculation"))
+        return new AccountingFilingIssue(AccountingFilingIssueCode.NOT_CONFIRMED, null, issue);
+      return new AccountingFilingIssue(AccountingFilingIssueCode.CALCULATION_INCOMPLETE, null, issue);
+    }
+
+    public AccountingFilingInput filingInput() {
+      var sales = snapshot.invoices().stream()
+          .filter(invoice -> "SALES_INVOICE".equals(invoice.invoiceKind()) || "DOMESTIC_SERVICE".equals(invoice.invoiceKind()) || "EU_SERVICE".equals(invoice.invoiceKind()))
+          .map(invoice -> new AccountingFilingInput.FilingDocument(invoice.reference(), invoice.issueDate(), invoice.saleDate(), null,
+              "", invoice.customerAlias(), invoice.netAmount(), invoice.vatAmount(), invoice.vatAmount(), null)).toList();
+      var purchases = snapshot.expenses().stream()
+          .map(expense -> new AccountingFilingInput.FilingDocument(expense.reference(), expense.invoiceDate(), null, expense.invoiceDate(),
+              "", expense.supplierAlias(), expense.netAmount(), expense.vatAmount(), expense.deductibleVat(), null)).toList();
+      return new AccountingFilingInput(period, snapshot.vat(), snapshot.ryczalt(), snapshot.zus(), sales, purchases, profile, "JPK_V7M(3)");
+    }
+
     public boolean ready() {
       return confirmed && issues.isEmpty();
     }

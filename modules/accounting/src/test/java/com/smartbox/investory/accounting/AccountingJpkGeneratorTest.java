@@ -30,7 +30,7 @@ class AccountingJpkGeneratorTest {
   void dueDatesAreDeterministicForMonthlyJdg() {
     AccountingDueDatePolicy policy = new AccountingDueDatePolicy();
     assertThat(policy.dueDate(LocalDate.of(2026, 9, 1), "VAT"))
-        .isEqualTo(LocalDate.of(2026, 10, 25));
+        .isEqualTo(LocalDate.of(2026, 10, 26));
     assertThat(policy.dueDate(LocalDate.of(2026, 9, 1), "ZUS"))
         .isEqualTo(LocalDate.of(2026, 10, 20));
   }

@@ -42,7 +42,7 @@ public class AccountingPocRepository {
 
   public AccountingProfile accountingProfile() {
     return jdbcTemplate.queryForObject(
-        "SELECT has_uop, nip, full_name, tax_office_code, email, vat_payment_account, ryczalt_payment_account, zus_payment_account FROM investory.accounting_poc_profile WHERE id = 1",
+        "SELECT has_uop, nip, full_name, tax_office_code, email, vat_payment_account, ryczalt_payment_account, zus_payment_account, first_name, surname, date_of_birth FROM investory.accounting_poc_profile WHERE id = 1",
         (rs, rowNum) ->
             new AccountingProfile(
                 rs.getBoolean("has_uop"),
@@ -52,7 +52,8 @@ public class AccountingPocRepository {
                 rs.getString("email"),
                 rs.getString("vat_payment_account"),
                 rs.getString("ryczalt_payment_account"),
-                rs.getString("zus_payment_account")));
+                rs.getString("zus_payment_account"), rs.getString("first_name"), rs.getString("surname"),
+                rs.getObject("date_of_birth", LocalDate.class)));
   }
 
   public void updateHasUop(boolean hasUop) {
