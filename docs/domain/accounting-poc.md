@@ -229,6 +229,13 @@ bad source document skips while other documents continue. Reviewed credit notes 
 sales adjustments in the same normalized invoice table; the historical July correction remains the
 only special fixture treatment.
 
+The user-facing `/accounting` page reads only `months` and the aggregate monthly `overview` over the
+HTTP `AccountingRestClient` boundary. Detailed documents, bank transactions, payments, filings and
+reconciliation endpoints remain available separately. Page mutations (month lifecycle actions,
+document recognition/review and bank CSV import) also go through that REST client. Server-side REST
+authorization is authoritative; `PROFILE_USER` is read-only in the UI while administrators and
+profile owners see mutation controls.
+
 ## Filing output
 
 Filing output uses a dedicated projection. Natural-person JDG identity is emitted as

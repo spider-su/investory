@@ -74,7 +74,8 @@ public interface AccountingUserApi {
 
   record PaymentSummary(int expectedCount, int outstandingCount, BigDecimal totalOutstanding) {}
 
-  record FilingSummary(String lifecycle, String lifecycleLabel, boolean ready, List<String> issues) {}
+  record FilingSummary(
+      String lifecycle, String lifecycleLabel, boolean ready, List<String> issues) {}
 
   record ReconciliationSummary(
       int rowCount, int settledCount, int mismatchCount, int missingEvidenceCount) {}

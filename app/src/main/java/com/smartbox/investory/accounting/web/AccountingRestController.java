@@ -23,34 +23,35 @@ public class AccountingRestController {
   }
 
   @GetMapping("/months")
-  public Object months(@PathVariable long profileId, Authentication a) {
+  public java.util.List<AccountingUserApi.MonthRef> months(
+      @PathVariable long profileId, Authentication a) {
     read(profileId, a);
     return accounting.months(profileId);
   }
 
   @GetMapping("/months/{month}/overview")
-  public Object overview(
+  public AccountingUserApi.MonthOverview overview(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
     read(profileId, a);
     return accounting.overview(profileId, month);
   }
 
   @GetMapping("/months/{month}/issues")
-  public Object issues(
+  public java.util.List<AccountingUserApi.IssueView> issues(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
     read(profileId, a);
     return accounting.issues(profileId, month);
   }
 
   @GetMapping("/months/{month}/documents")
-  public Object documents(
+  public java.util.List<AccountingUserApi.DocumentView> documents(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
     read(profileId, a);
     return accounting.documents(profileId, month);
   }
 
   @GetMapping("/months/{month}/documents/{documentId}")
-  public Object document(
+  public AccountingUserApi.DocumentView document(
       @PathVariable long profileId,
       @PathVariable YearMonth month,
       @PathVariable long documentId,
@@ -66,35 +67,35 @@ public class AccountingRestController {
   }
 
   @GetMapping("/months/{month}/bank-transactions")
-  public Object bank(
+  public java.util.List<AccountingUserApi.BankTransactionView> bank(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
     read(profileId, a);
     return accounting.bankTransactions(profileId, month);
   }
 
   @GetMapping("/months/{month}/payments")
-  public Object payments(
+  public java.util.List<AccountingUserApi.PaymentView> payments(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
     read(profileId, a);
     return accounting.payments(profileId, month);
   }
 
   @GetMapping("/months/{month}/filings")
-  public Object filings(
+  public AccountingUserApi.FilingView filings(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
     read(profileId, a);
     return accounting.filings(profileId, month);
   }
 
   @GetMapping("/months/{month}/reconciliation")
-  public Object reconciliation(
+  public java.util.List<AccountingUserApi.ReconciliationView> reconciliation(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
     read(profileId, a);
     return accounting.reconciliation(profileId, month);
   }
 
   @PostMapping(value = "/documents/recognize", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public Object recognize(
+  public AccountingUserApi.CandidateView recognize(
       @PathVariable long profileId, @RequestPart MultipartFile file, Authentication a)
       throws java.io.IOException {
     write(profileId, a);

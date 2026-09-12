@@ -65,6 +65,11 @@ public class AccountingUserFacade implements AccountingUserApi {
     var payments = paymentInstructions(date(month));
     var filingResult = filing.filing(date(month));
     var reconciliations = snapshot.reconciliations();
+    int unmatched =
+        (int)
+            reconciliations.stream()
+                .filter(row -> !"MATCHED".equalsIgnoreCase(row.status()))
+                .count();
     return new MonthOverview(
         month,
         lifecycle.name(),
@@ -80,18 +85,18 @@ public class AccountingUserFacade implements AccountingUserApi {
             snapshot.bankTransactions().size()),
         issues,
         new SourceSummary(imported, review, failed),
-        new DocumentSummary(snapshot.invoices().size() + snapshot.expenses().size(), review, failed),
+        new DocumentSummary(
+            snapshot.invoices().size() + snapshot.expenses().size(), review, failed),
         new BankSummary(
             snapshot.bankTransactions().size(),
-            (int) snapshot.bankTransactions().stream()
-                .filter(row -> !"MATCHED".equalsIgnoreCase(row.status()))
-                .count(),
+            unmatched,
             snapshot.bankTransactions().isEmpty() ? "NO_IMPORT" : "IMPORTED"),
         new PaymentSummary(
             payments.size(),
-            (int) payments.stream()
-                .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
-                .count(),
+            (int)
+                payments.stream()
+                    .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
+                    .count(),
             payments.stream()
                 .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
                 .map(com.smartbox.investory.accounting.AccountingPaymentInstruction::amount)
@@ -100,11 +105,24 @@ public class AccountingUserFacade implements AccountingUserApi {
             lifecycle.name(), label(lifecycle), filingResult.ready(), filingResult.issues()),
         new ReconciliationSummary(
             reconciliations.size(),
-            (int) reconciliations.stream().filter(row -> "SETTLED".equalsIgnoreCase(row.status())).count(),
-            (int) reconciliations.stream().filter(row -> "MISMATCH".equalsIgnoreCase(row.status())).count(),
-            (int) reconciliations.stream()
-                .filter(row -> row.explanation() != null && row.explanation().toLowerCase().contains("evidence"))
-                .count()),
+            (int)
+                reconciliations.stream()
+                    .filter(row -> "MATCHED".equalsIgnoreCase(row.status()))
+                    .count(),
+            (int)
+                reconciliations.stream()
+                    .filter(
+                        row ->
+                            "DIFF".equalsIgnoreCase(row.status())
+                                || "UNMATCHED".equalsIgnoreCase(row.status()))
+                    .count(),
+            (int)
+                reconciliations.stream()
+                    .filter(
+                        row ->
+                            row.explanation() != null
+                                && row.explanation().toLowerCase().contains("evidence"))
+                    .count()),
         allowedActions(lifecycle, issues));
   }
 
@@ -116,7 +134,8 @@ public class AccountingUserFacade implements AccountingUserApi {
     }
   }
 
-  private static List<String> allowedActions(PeriodLifecycleStatus lifecycle, List<IssueView> issues) {
+  private static List<String> allowedActions(
+      PeriodLifecycleStatus lifecycle, List<IssueView> issues) {
     if (!issues.isEmpty()) return List.of();
     return switch (lifecycle) {
       case OPEN, SOURCES_INCOMPLETE, ISSUES, READY_FOR_REVIEW -> List.of("CONFIRM");
@@ -218,16 +237,16 @@ public class AccountingUserFacade implements AccountingUserApi {
   public List<PaymentView> payments(long p, YearMonth m) {
     profile(p);
     return paymentInstructions(date(m)).stream()
-          .map(
-              x ->
-                  new PaymentView(
-                      x.obligationType(),
-                      x.amount(),
-                      x.dueDate(),
-                      x.recipient(),
-                      x.account(),
-                      x.status()))
-          .toList();
+        .map(
+            x ->
+                new PaymentView(
+                    x.obligationType(),
+                    x.amount(),
+                    x.dueDate(),
+                    x.recipient(),
+                    x.account(),
+                    x.status()))
+        .toList();
   }
 
   @Override

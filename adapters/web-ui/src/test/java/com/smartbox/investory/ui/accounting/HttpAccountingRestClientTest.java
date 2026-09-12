@@ -69,4 +69,30 @@ class HttpAccountingRestClientTest {
         .isInstanceOf(AccountingClientException.class)
         .hasMessageContaining("period is invalid");
   }
+
+  @Test
+  void sendsDocumentRecognitionMultipart() {
+    server
+        .expect(requestTo("http://localhost:8080/api/profiles/1/accounting/documents/recognize"))
+        .andExpect(method(HttpMethod.POST))
+        .andRespond(withSuccess("{\"sourceReference\":\"sha256:x\"}", MediaType.APPLICATION_JSON));
+
+    assertThat(client.recognize(1, "invoice.pdf", "application/pdf", new byte[] {1}).sourceReference())
+        .isEqualTo("sha256:x");
+  }
+
+  @Test
+  void sendsBankImportAndEncodedReopen() {
+    server
+        .expect(requestTo("http://localhost:8080/api/profiles/1/accounting/bank/import?month=2026-01"))
+        .andExpect(method(HttpMethod.POST))
+        .andRespond(withSuccess());
+    server
+        .expect(requestTo("http://localhost:8080/api/profiles/1/accounting/months/2026-01/reopen?reason=fix%20invoice"))
+        .andExpect(method(HttpMethod.POST))
+        .andRespond(withSuccess());
+
+    client.importBank(1, "bank.csv", "text/csv", new byte[] {1}, YearMonth.of(2026, 1));
+    client.reopen(1, YearMonth.of(2026, 1), "fix invoice");
+  }
 }
