@@ -14,6 +14,10 @@ public class AccountingInvoiceForm {
   private LocalDate dueDate;
   private String reference;
   private String counterpartyAlias;
+  private String counterpartyTaxIdentifier;
+  private String counterpartyCountry;
+  private String ksefNumber;
+  private AccountingFilingEvidence.Type filingEvidence;
   private String category;
   private String currency = "PLN";
   private BigDecimal netAmount;

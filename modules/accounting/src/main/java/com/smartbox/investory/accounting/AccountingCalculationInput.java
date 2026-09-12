@@ -14,7 +14,8 @@ public record AccountingCalculationInput(
     List<TaxInputRow> taxInputs,
     AccountingProfile profile,
     CalculationAdjustments adjustments,
-    AccountingPeriodContext periodContext) {
+    AccountingPeriodContext periodContext,
+    List<AccountingVatTransaction> vatTransactions) {
   public AccountingCalculationInput(
       LocalDate period,
       List<InvoiceRow> invoices,
@@ -29,7 +30,19 @@ public record AccountingCalculationInput(
         taxInputs,
         profile,
         adjustments,
-        AccountingPeriodContext.compatibility(period, profile));
+        AccountingPeriodContext.compatibility(period, profile),
+        List.of());
+  }
+
+  public AccountingCalculationInput(
+      LocalDate period,
+      List<InvoiceRow> invoices,
+      List<ExpenseRow> expenses,
+      List<TaxInputRow> taxInputs,
+      AccountingProfile profile,
+      CalculationAdjustments adjustments,
+      AccountingPeriodContext periodContext) {
+    this(period, invoices, expenses, taxInputs, profile, adjustments, periodContext, List.of());
   }
 
   public AccountingCalculationInput {
@@ -41,6 +54,7 @@ public record AccountingCalculationInput(
         periodContext == null
             ? AccountingPeriodContext.compatibility(period, profile)
             : periodContext;
+    vatTransactions = vatTransactions == null ? List.of() : List.copyOf(vatTransactions);
   }
 
   public record CalculationAdjustments(

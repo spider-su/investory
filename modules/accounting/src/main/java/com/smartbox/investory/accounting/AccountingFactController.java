@@ -167,7 +167,14 @@ public class AccountingFactController {
                   invoiceDraft.getVatDeductionRatio(),
                   "AI_EXTRACTED_REVIEWED",
                   buildReviewedNote(invoiceDraft),
-                  invoiceDraft.getSourceIdentity()));
+                  invoiceDraft.getSourceIdentity(),
+                  invoiceDraft.getCounterpartyTaxIdentifier(),
+                  invoiceDraft.getCounterpartyCountry(),
+                  invoiceDraft.getKsefNumber(),
+                  invoiceDraft.getFilingEvidence() == null
+                      ? null
+                      : new AccountingFilingEvidence(
+                          invoiceDraft.getFilingEvidence(), invoiceDraft.getKsefNumber())));
       if (invoiceDraft.getSourceIdentity() != null && !invoiceDraft.getSourceIdentity().isBlank()) {
         sourceEvidenceService.status(
             Long.parseLong(invoiceDraft.getSourceIdentity()),
@@ -233,6 +240,10 @@ public class AccountingFactController {
     form.setDueDate(recognized.dueDate());
     form.setReference(recognized.reference());
     form.setCounterpartyAlias(counterparty(recognized));
+    form.setCounterpartyTaxIdentifier(
+        "SALES_INVOICE".equals(recognized.documentType())
+            ? recognized.buyerNip()
+            : recognized.sellerNip());
     form.setCategory(recognized.category());
     form.setCurrency(recognized.currency());
     form.setNetAmount(recognized.netAmount());

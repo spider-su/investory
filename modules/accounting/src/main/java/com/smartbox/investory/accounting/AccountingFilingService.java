@@ -80,9 +80,7 @@ public class AccountingFilingService {
 
   public void confirm(LocalDate period) {
     FilingResult result = filing(period);
-    if (!result.issues().isEmpty()
-        && !(result.issues().size() == 1
-            && result.issues().getFirst().startsWith("Month calculation"))) {
+    if (!result.issues().isEmpty() && !result.onlyNotConfirmed()) {
       throw new IllegalStateException(
           "Cannot confirm month: " + String.join("; ", result.issues()));
     }
@@ -175,6 +173,12 @@ public class AccountingFilingService {
       List<String> issues) {
     public List<AccountingFilingIssue> typedIssues() {
       return issues.stream().map(FilingResult::typedIssue).toList();
+    }
+
+    public boolean onlyNotConfirmed() {
+      return !issues.isEmpty()
+          && typedIssues().stream()
+              .allMatch(issue -> issue.code() == AccountingFilingIssueCode.NOT_CONFIRMED);
     }
 
     private static AccountingFilingIssue typedIssue(String issue) {

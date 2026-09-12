@@ -48,13 +48,15 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     ZusCalculationInput zusInput = input.periodContext().zusCalculationInput();
     BigDecimal health =
-        zusInput != null && zusInput.healthAmount() != null
+        input.periodContext().jdgActive() && zusInput != null && zusInput.healthAmount() != null
             ? zusInput.healthAmount()
-            : paidContributions.stream()
-                .filter(p -> "HEALTH".equals(p.contributionType()))
-                .filter(p -> !p.paymentDate().isAfter(periodEnd))
-                .map(PaidContribution::deductibleAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            : !input.periodContext().jdgActive()
+                ? BigDecimal.ZERO
+                : paidContributions.stream()
+                    .filter(p -> "HEALTH".equals(p.contributionType()))
+                    .filter(p -> !p.paymentDate().isAfter(periodEnd))
+                    .map(PaidContribution::deductibleAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
     if (health.signum() == 0) {
       health = required(input.taxInputs(), "HEALTH_CONTRIBUTION_PAID", issues);
     }
@@ -111,28 +113,61 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .subtract(socialDeduction.multiply(new BigDecimal("0.12")))
             .subtract(healthDeduction.multiply(new BigDecimal("0.12")))
             .setScale(0, RoundingMode.HALF_UP);
-    BigDecimal outputVat =
-        input.invoices().stream()
-            .filter(i -> "PLN".equals(i.currency()))
-            .map(InvoiceRow::vatAmount)
-            .filter(v -> v != null)
-            .reduce(BigDecimal.ZERO, BigDecimal::add)
-            .add(input.adjustments().salesVat());
-    BigDecimal deductible =
-        input.expenses().stream()
-            .map(ExpenseRow::deductibleVat)
-            .filter(v -> v != null)
-            .reduce(BigDecimal.ZERO, BigDecimal::add)
-            .setScale(2, RoundingMode.HALF_UP);
+    BigDecimal outputVat;
+    BigDecimal deductible;
+    if (input.vatTransactions().isEmpty()) {
+      outputVat =
+          input.invoices().stream()
+              .filter(i -> "PLN".equals(i.currency()))
+              .map(InvoiceRow::vatAmount)
+              .filter(v -> v != null)
+              .reduce(BigDecimal.ZERO, BigDecimal::add)
+              .add(input.adjustments().salesVat());
+      deductible =
+          input.expenses().stream()
+              .map(ExpenseRow::deductibleVat)
+              .filter(v -> v != null)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+    } else {
+      AccountingVatClassifier vatClassifier = new AccountingVatClassifier();
+      input
+          .vatTransactions()
+          .forEach(
+              t ->
+                  vatClassifier
+                      .issues(t)
+                      .forEach(
+                          message ->
+                              issues.add(
+                                  issue(
+                                      "VAT_CLASSIFICATION",
+                                      t == null ? null : t.reference(),
+                                      message))));
+      outputVat =
+          input.vatTransactions().stream()
+              .filter(t -> t.direction() == AccountingVatTransaction.Direction.SALE)
+              .filter(t -> t.treatment() == VatTreatment.DOMESTIC_VAT)
+              .map(AccountingVatTransaction::vatAmount)
+              .filter(v -> v != null)
+              .reduce(BigDecimal.ZERO, BigDecimal::add)
+              .add(input.adjustments().salesVat());
+      deductible =
+          input.vatTransactions().stream()
+              .filter(t -> t.direction() == AccountingVatTransaction.Direction.PURCHASE)
+              .map(AccountingVatTransaction::deductibleVat)
+              .filter(v -> v != null)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+    deductible = deductible.setScale(2, RoundingMode.HALF_UP);
     BigDecimal calculatedVat =
         outputVat
             .setScale(0, RoundingMode.HALF_UP)
             .subtract(deductible.setScale(0, RoundingMode.HALF_UP));
     boolean qualifyingUop = input.periodContext().qualifyingUop();
     BigDecimal social =
-        zusInput != null && zusInput.socialAmount() != null
+        input.periodContext().jdgActive() && zusInput != null && zusInput.socialAmount() != null
             ? zusInput.socialAmount()
-            : qualifyingUop
+            : !input.periodContext().jdgActive() || qualifyingUop
                 ? BigDecimal.ZERO
                 : required(input.taxInputs(), "JDG_COMPULSORY_SOCIAL_ZUS", issues);
     BigDecimal totalZus = social.add(health).setScale(2, RoundingMode.HALF_UP);
@@ -178,10 +213,10 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
       try {
         CurrencyType source = CurrencyType.valueOf(invoice.currency());
         BigDecimal converted =
-            currencyConversion
-                .convertToBaseCurrency(
-                    invoice.netAmount(), CurrencyType.PLN, source, invoice.fxRateDate())
-                .setScale(2, RoundingMode.HALF_UP);
+            currencyConversion.convertToBaseCurrency(
+                invoice.netAmount(), CurrencyType.PLN, source, invoice.fxRateDate());
+        if (converted == null) throw new CurrencyConversionUnavailableException("No FX result");
+        converted = converted.setScale(2, RoundingMode.HALF_UP);
         entries.add(
             new Conversion(
                 invoice.reference(), invoice.currency(), invoice.netAmount(), converted));

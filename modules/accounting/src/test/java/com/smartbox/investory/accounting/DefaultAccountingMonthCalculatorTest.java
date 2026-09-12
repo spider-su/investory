@@ -131,6 +131,45 @@ class DefaultAccountingMonthCalculatorTest {
     assertThat(result.ryczalt().taxableBase()).isEqualByComparingTo("850.00");
   }
 
+  @Test
+  void explicitVatTreatmentControlsOutputInsteadOfCurrency() {
+    CurrencyConversion conversion = mock(CurrencyConversion.class);
+    InvoiceRow invoice = invoice("EU-1", "PLN", "100.00", "0.12");
+    AccountingVatTransaction transaction =
+        new AccountingVatTransaction(
+            PERIOD,
+            "source",
+            "EU-1",
+            AccountingVatTransaction.Direction.SALE,
+            VatTreatment.EU_B2B_REVERSE_CHARGE,
+            "DE",
+            "DE123",
+            "VAT",
+            "DE123",
+            PERIOD,
+            "VERIFIED",
+            new BigDecimal("100.00"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            "reviewed");
+
+    AccountingCalculationInput base = input(List.of(invoice), List.of());
+    AccountingCalculationResult result =
+        new DefaultAccountingMonthCalculator(conversion)
+            .calculate(
+                new AccountingCalculationInput(
+                    base.period(),
+                    base.invoices(),
+                    base.expenses(),
+                    base.taxInputs(),
+                    base.profile(),
+                    base.adjustments(),
+                    base.periodContext(),
+                    List.of(transaction)));
+
+    assertThat(result.vat().outputVat()).isZero();
+  }
+
   private DefaultAccountingMonthCalculator calculator(CurrencyConversion conversion) {
     return new DefaultAccountingMonthCalculator(conversion);
   }

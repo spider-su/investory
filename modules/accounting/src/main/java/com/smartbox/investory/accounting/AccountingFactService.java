@@ -134,7 +134,9 @@ public class AccountingFactService {
                 resolved.zusRegime(),
                 resolved.voluntarySickness(),
                 AccountingYearToDateContext.empty(),
-                ZusRules2026.input(resolved.qualifyingUop()));
+                calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+                    ? ZusRules2026.input(resolved.qualifyingUop())
+                    : null);
     AccountingCalculationResult calculated =
         calculator.calculate(
             new AccountingCalculationInput(
@@ -154,16 +156,7 @@ public class AccountingFactService {
                             .map(InvoiceRow::correctionVatAmount)
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
                         : BigDecimal.ZERO),
-                new AccountingPeriodContext(
-                    context.period(),
-                    context.jdgActive(),
-                    context.qualifyingUop(),
-                    context.zusRegime(),
-                    context.voluntarySickness(),
-                    context.yearToDate(),
-                    calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
-                        ? ZusRules2026.input(resolved.qualifyingUop())
-                        : null)));
+                context));
     if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
       domesticRevenue = calculated.revenue().domesticPln();
       foreignBookedRevenue = calculated.revenue().convertedForeignPln();

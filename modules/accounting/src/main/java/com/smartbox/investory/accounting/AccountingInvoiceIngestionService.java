@@ -45,6 +45,26 @@ public class AccountingInvoiceIngestionService {
                 invoice.netAmount(),
                 invoice.vatAmount(),
                 deductionRatio));
+    if (invoice.hasFilingProvenance()) {
+      return repository.insertExpense(
+          invoice.taxPeriod(),
+          firstNonNull(invoice.issueDate(), invoice.saleDate()),
+          invoice.reference().trim(),
+          invoice.counterpartyAlias().trim(),
+          invoice.category().trim(),
+          invoice.currency().trim().toUpperCase(),
+          normalized.netAmount(),
+          normalized.vatAmount(),
+          normalized.grossAmount(),
+          normalized.vatDeductionRatio(),
+          invoice.sourceQuality(),
+          invoice.note(),
+          sourceIdOrNull(invoice.sourceIdentity()),
+          invoice.counterpartyTaxIdentifier(),
+          invoice.counterpartyCountry(),
+          invoice.ksefNumber(),
+          invoice.filingEvidence());
+    }
     if (invoice.sourceIdentity() == null || invoice.sourceIdentity().isBlank()) {
       return repository.insertExpense(
           invoice.taxPeriod(),
@@ -80,6 +100,27 @@ public class AccountingInvoiceIngestionService {
     String currency = invoice.currency().trim().toUpperCase();
     String invoiceKind = "PLN".equals(currency) ? "DOMESTIC_SERVICE" : "EU_SERVICE";
     BigDecimal bookedNetPln = "PLN".equals(currency) ? invoice.netAmount() : null;
+    if (invoice.hasFilingProvenance()) {
+      return repository.insertSalesInvoice(
+          invoice.taxPeriod(),
+          invoice.issueDate(),
+          invoice.saleDate(),
+          invoice.reference().trim(),
+          invoice.counterpartyAlias().trim(),
+          invoiceKind,
+          currency,
+          invoice.netAmount(),
+          invoice.vatAmount(),
+          invoice.grossAmount(),
+          bookedNetPln,
+          RYCZALT_RATE,
+          invoice.note(),
+          sourceIdOrNull(invoice.sourceIdentity()),
+          invoice.counterpartyTaxIdentifier(),
+          invoice.counterpartyCountry(),
+          invoice.ksefNumber(),
+          invoice.filingEvidence());
+    }
     if (invoice.sourceIdentity() == null || invoice.sourceIdentity().isBlank()) {
       return repository.insertSalesInvoice(
           invoice.taxPeriod(),
@@ -194,6 +235,10 @@ public class AccountingInvoiceIngestionService {
     }
   }
 
+  private Long sourceIdOrNull(String identity) {
+    return identity == null || identity.isBlank() ? null : sourceId(identity);
+  }
+
   public record ReviewedInvoice(
       LocalDate taxPeriod,
       String documentType,
@@ -209,7 +254,56 @@ public class AccountingInvoiceIngestionService {
       BigDecimal vatDeductionRatio,
       String sourceQuality,
       String note,
-      String sourceIdentity) {
+      String sourceIdentity,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String ksefNumber,
+      AccountingFilingEvidence filingEvidence) {
+    public boolean hasFilingProvenance() {
+      return counterpartyTaxIdentifier != null
+          || counterpartyCountry != null
+          || ksefNumber != null
+          || filingEvidence != null;
+    }
+
+    public ReviewedInvoice(
+        LocalDate taxPeriod,
+        String documentType,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        String reference,
+        String counterpartyAlias,
+        String category,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal vatDeductionRatio,
+        String sourceQuality,
+        String note,
+        String sourceIdentity) {
+      this(
+          taxPeriod,
+          documentType,
+          issueDate,
+          saleDate,
+          reference,
+          counterpartyAlias,
+          category,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          vatDeductionRatio,
+          sourceQuality,
+          note,
+          sourceIdentity,
+          null,
+          null,
+          null,
+          null);
+    }
+
     public ReviewedInvoice(
         LocalDate taxPeriod,
         String documentType,
@@ -240,6 +334,10 @@ public class AccountingInvoiceIngestionService {
           vatDeductionRatio,
           sourceQuality,
           note,
+          null,
+          null,
+          null,
+          null,
           null);
     }
   }
