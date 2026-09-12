@@ -52,7 +52,9 @@ public class AccountingPocRepository {
                 rs.getString("email"),
                 rs.getString("vat_payment_account"),
                 rs.getString("ryczalt_payment_account"),
-                rs.getString("zus_payment_account"), rs.getString("first_name"), rs.getString("surname"),
+                rs.getString("zus_payment_account"),
+                rs.getString("first_name"),
+                rs.getString("surname"),
                 rs.getObject("date_of_birth", LocalDate.class)));
   }
 

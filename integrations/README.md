@@ -9,6 +9,14 @@ This module owns external-system adapters and their runtime management. Package 
 - `notifications`: provider-neutral notification application and persistence;
 - `ai.openai`: OpenAI client and portfolio-analysis orchestration;
 - `health`: integration-related health indicators.
+- `zus`: provider-neutral ZUS contract with a mock payment provider. The mock simulates a future
+  ZUS API lookup from canonical persisted bank transaction history and is replaceable by a real ZUS
+  adapter behind `ZusClient`.
+
+The mock currently supports the singleton POC profile (`profileId = 1`) because the persisted bank
+transaction table has no profile column. It reads the half-open range `[from, to)`, accepts only
+outgoing PLN transactions, classifies strong ZUS counterparty names, and exposes a positive settled
+amount with a stable `BANK-TX-{id}` external ID.
 
 Dependency direction:
 

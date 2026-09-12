@@ -1,8 +1,6 @@
 package com.smartbox.investory.accounting;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -22,7 +20,9 @@ public class AccountingFilingService {
   public FilingResult filing(LocalDate period) {
     AccountingMonthSnapshot snapshot = factService.snapshot(period);
     AccountingProfile profile = factService.accountingProfile();
-    AccountingFilingInput filingInput = new AccountingFilingService.FilingResult(period, snapshot, profile, "", false, List.of()).filingInput();
+    AccountingFilingInput filingInput =
+        new AccountingFilingService.FilingResult(period, snapshot, profile, "", false, List.of())
+            .filingInput();
     String hash = AccountingFilingFingerprint.sha256(filingInput);
     AccountingPocRepository.PeriodState state = repository.periodState(period);
     boolean confirmed = state != null && hash.equals(state.confirmedCalculationHash());
@@ -68,7 +68,8 @@ public class AccountingFilingService {
     return new FilingResult(period, snapshot, profile, hash, confirmed, issues);
   }
 
-  private void validateDocument(AccountingFilingInput.FilingDocument document, List<String> issues) {
+  private void validateDocument(
+      AccountingFilingInput.FilingDocument document, List<String> issues) {
     if (blank(document.counterpartyIdentifier())) {
       issues.add("MISSING_COUNTERPARTY_IDENTIFIER: " + document.reference());
     }
@@ -178,27 +179,70 @@ public class AccountingFilingService {
 
     private static AccountingFilingIssue typedIssue(String issue) {
       if (issue.startsWith("MISSING_TAXPAYER_CONFIGURATION"))
-        return new AccountingFilingIssue(AccountingFilingIssueCode.MISSING_TAXPAYER_CONFIGURATION, null, issue);
+        return new AccountingFilingIssue(
+            AccountingFilingIssueCode.MISSING_TAXPAYER_CONFIGURATION, null, issue);
       if (issue.startsWith("MISSING_PAYMENT_CONFIGURATION"))
-        return new AccountingFilingIssue(AccountingFilingIssueCode.MISSING_PAYMENT_CONFIGURATION, null, issue);
+        return new AccountingFilingIssue(
+            AccountingFilingIssueCode.MISSING_PAYMENT_CONFIGURATION, null, issue);
       if (issue.startsWith("MISSING_COUNTERPARTY_IDENTIFIER"))
-        return new AccountingFilingIssue(AccountingFilingIssueCode.MISSING_COUNTERPARTY_IDENTIFIER, null, issue);
+        return new AccountingFilingIssue(
+            AccountingFilingIssueCode.MISSING_COUNTERPARTY_IDENTIFIER, null, issue);
       if (issue.startsWith("MISSING_JPK_EVIDENCE_CLASSIFICATION"))
-        return new AccountingFilingIssue(AccountingFilingIssueCode.MISSING_JPK_EVIDENCE_CLASSIFICATION, null, issue);
+        return new AccountingFilingIssue(
+            AccountingFilingIssueCode.MISSING_JPK_EVIDENCE_CLASSIFICATION, null, issue);
       if (issue.startsWith("Month calculation"))
         return new AccountingFilingIssue(AccountingFilingIssueCode.NOT_CONFIRMED, null, issue);
-      return new AccountingFilingIssue(AccountingFilingIssueCode.CALCULATION_INCOMPLETE, null, issue);
+      return new AccountingFilingIssue(
+          AccountingFilingIssueCode.CALCULATION_INCOMPLETE, null, issue);
     }
 
     public AccountingFilingInput filingInput() {
-      var sales = snapshot.invoices().stream()
-          .filter(invoice -> "SALES_INVOICE".equals(invoice.invoiceKind()) || "DOMESTIC_SERVICE".equals(invoice.invoiceKind()) || "EU_SERVICE".equals(invoice.invoiceKind()))
-          .map(invoice -> new AccountingFilingInput.FilingDocument(invoice.reference(), invoice.issueDate(), invoice.saleDate(), null,
-              "", invoice.customerAlias(), invoice.netAmount(), invoice.vatAmount(), invoice.vatAmount(), null)).toList();
-      var purchases = snapshot.expenses().stream()
-          .map(expense -> new AccountingFilingInput.FilingDocument(expense.reference(), expense.invoiceDate(), null, expense.invoiceDate(),
-              "", expense.supplierAlias(), expense.netAmount(), expense.vatAmount(), expense.deductibleVat(), null)).toList();
-      return new AccountingFilingInput(period, snapshot.vat(), snapshot.ryczalt(), snapshot.zus(), sales, purchases, profile, "JPK_V7M(3)");
+      var sales =
+          snapshot.invoices().stream()
+              .filter(
+                  invoice ->
+                      "SALES_INVOICE".equals(invoice.invoiceKind())
+                          || "DOMESTIC_SERVICE".equals(invoice.invoiceKind())
+                          || "EU_SERVICE".equals(invoice.invoiceKind()))
+              .map(
+                  invoice ->
+                      new AccountingFilingInput.FilingDocument(
+                          invoice.reference(),
+                          invoice.issueDate(),
+                          invoice.saleDate(),
+                          null,
+                          "",
+                          invoice.customerAlias(),
+                          invoice.netAmount(),
+                          invoice.vatAmount(),
+                          invoice.vatAmount(),
+                          null))
+              .toList();
+      var purchases =
+          snapshot.expenses().stream()
+              .map(
+                  expense ->
+                      new AccountingFilingInput.FilingDocument(
+                          expense.reference(),
+                          expense.invoiceDate(),
+                          null,
+                          expense.invoiceDate(),
+                          "",
+                          expense.supplierAlias(),
+                          expense.netAmount(),
+                          expense.vatAmount(),
+                          expense.deductibleVat(),
+                          null))
+              .toList();
+      return new AccountingFilingInput(
+          period,
+          snapshot.vat(),
+          snapshot.ryczalt(),
+          snapshot.zus(),
+          sales,
+          purchases,
+          profile,
+          "JPK_V7M(3)");
     }
 
     public boolean ready() {

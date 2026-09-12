@@ -18,10 +18,27 @@ public record AccountingProfile(
     String firstName,
     String surname,
     java.time.LocalDate dateOfBirth) {
-  public AccountingProfile(boolean hasUop, String nip, String fullName, String taxOfficeCode,
-      String email, String vatPaymentAccount, String ryczaltPaymentAccount, String zusPaymentAccount) {
-    this(hasUop, nip, fullName, taxOfficeCode, email, vatPaymentAccount, ryczaltPaymentAccount,
-        zusPaymentAccount, null, null, null);
+  public AccountingProfile(
+      boolean hasUop,
+      String nip,
+      String fullName,
+      String taxOfficeCode,
+      String email,
+      String vatPaymentAccount,
+      String ryczaltPaymentAccount,
+      String zusPaymentAccount) {
+    this(
+        hasUop,
+        nip,
+        fullName,
+        taxOfficeCode,
+        email,
+        vatPaymentAccount,
+        ryczaltPaymentAccount,
+        zusPaymentAccount,
+        null,
+        null,
+        null);
   }
 
   public AccountingProfile(boolean hasUop) {

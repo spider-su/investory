@@ -69,14 +69,17 @@ public final class AccountingDatabase {
     com.smartbox.investory.testsupport.WorkerDatabase database =
         com.smartbox.investory.testsupport.SharedPostgres.database("accounting_poc");
 
+    loadSnapshot(database, false);
+    // Prepare compatibility objects before loading poc.sql: older accounting snapshots do not
+    // contain the source-evidence table referenced by the POC fixture.
+    ensureSourceEvidence(database);
     loadSnapshot(database, true);
-    // Keep the fast fixture self-healing when an older packaged snapshot is present on the test
-    // classpath.
     ensureZusFixture(database);
     return database;
   }
 
-  private static void ensureZusFixture(com.smartbox.investory.testsupport.WorkerDatabase database) {
+  private static void ensureSourceEvidence(
+      com.smartbox.investory.testsupport.WorkerDatabase database) {
     try (var connection = database.openConnection();
         var statement = connection.createStatement()) {
       statement.execute(
@@ -92,6 +95,15 @@ public final class AccountingDatabase {
               UNIQUE (source_type, external_reference)
           )
           """);
+    } catch (java.sql.SQLException exception) {
+      throw new IllegalStateException(
+          "Cannot initialize accounting source evidence fixture", exception);
+    }
+  }
+
+  private static void ensureZusFixture(com.smartbox.investory.testsupport.WorkerDatabase database) {
+    try (var connection = database.openConnection();
+        var statement = connection.createStatement()) {
       statement.execute(
           "ALTER TABLE investory.accounting_poc_invoice ADD COLUMN IF NOT EXISTS source_id BIGINT");
       statement.execute(

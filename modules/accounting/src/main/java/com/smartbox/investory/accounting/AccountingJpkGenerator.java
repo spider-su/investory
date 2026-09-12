@@ -43,7 +43,10 @@ public class AccountingJpkGenerator {
         .append("</etd:ImiePierwsze><etd:Nazwisko>")
         .append(escape(p.surname()))
         .append("</etd:Nazwisko>")
-        .append(p.dateOfBirth() == null ? "" : "<etd:DataUrodzenia>" + p.dateOfBirth() + "</etd:DataUrodzenia>")
+        .append(
+            p.dateOfBirth() == null
+                ? ""
+                : "<etd:DataUrodzenia>" + p.dateOfBirth() + "</etd:DataUrodzenia>")
         .append("</OsobaFizyczna></Podmiot1>\n");
     xml.append(
             "<Deklaracja><Naglowek><KodFormularzaDekl kodSystemowy=\"VAT-7 (23)\" kodPodatku=\"VAT\" rodzajZobowiazania=\"Z\" wersjaSchemy=\"1-0E\">VAT-7</KodFormularzaDekl><WariantFormularzaDekl>23</WariantFormularzaDekl></Naglowek><PozycjeSzczegolowe><P_38>")
@@ -56,27 +59,25 @@ public class AccountingJpkGenerator {
     xml.append("<Ewidencja>");
     int i = 1;
     for (var row : input.sales()) {
-        xml.append("<SprzedazWiersz><LpSprzedazy>")
-            .append(i++)
-            .append("</LpSprzedazy><NrKontrahenta>")
-            .append(escape(row.counterpartyIdentifier()))
-            .append("</NrKontrahenta><NazwaKontrahenta>")
-            .append(escape(row.counterpartyName()))
-            .append("</NazwaKontrahenta><DowodSprzedazy>")
-            .append(escape(row.reference()))
-            .append("</DowodSprzedazy><DataWystawienia>")
-            .append(row.issueDate())
-            .append("</DataWystawienia>")
-            .append(
-                row.saleDate() == null
-                    ? ""
-                    : "<DataSprzedazy>" + row.saleDate() + "</DataSprzedazy>")
-            .append(evidence(row.evidence()))
-            .append("<K_19>")
-            .append(money(row.netAmount()))
-            .append("</K_19><K_20>")
-            .append(money(row.vatAmount()))
-            .append("</K_20></SprzedazWiersz>");
+      xml.append("<SprzedazWiersz><LpSprzedazy>")
+          .append(i++)
+          .append("</LpSprzedazy><NrKontrahenta>")
+          .append(escape(row.counterpartyIdentifier()))
+          .append("</NrKontrahenta><NazwaKontrahenta>")
+          .append(escape(row.counterpartyName()))
+          .append("</NazwaKontrahenta><DowodSprzedazy>")
+          .append(escape(row.reference()))
+          .append("</DowodSprzedazy><DataWystawienia>")
+          .append(row.issueDate())
+          .append("</DataWystawienia>")
+          .append(
+              row.saleDate() == null ? "" : "<DataSprzedazy>" + row.saleDate() + "</DataSprzedazy>")
+          .append(evidence(row.evidence()))
+          .append("<K_19>")
+          .append(money(row.netAmount()))
+          .append("</K_19><K_20>")
+          .append(money(row.vatAmount()))
+          .append("</K_20></SprzedazWiersz>");
     }
     xml.append("<SprzedazCtrl><LiczbaWierszySprzedazy>")
         .append(i - 1)
@@ -95,7 +96,9 @@ public class AccountingJpkGenerator {
           .append(escape(row.reference()))
           .append("</DowodZakupu><DataZakupu>")
           .append(row.purchaseDate())
-          .append("</DataZakupu>").append(evidence(row.evidence())).append("<K_42>")
+          .append("</DataZakupu>")
+          .append(evidence(row.evidence()))
+          .append("<K_42>")
           .append(money(row.netAmount()))
           .append("</K_42><K_43>")
           .append(money(row.deductibleVat()))

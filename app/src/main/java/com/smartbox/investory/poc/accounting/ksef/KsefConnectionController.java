@@ -145,7 +145,8 @@ public class KsefConnectionController {
       try {
         if (sourceEvidenceService != null) {
           var existing = sourceEvidenceService.findId(AccountingSourceType.KSEF, ksefNumber);
-          if (existing != null && existing.isPresent()
+          if (existing != null
+              && existing.isPresent()
               && sourceEvidenceService.status(existing.get()) == AccountingSourceStatus.IMPORTED) {
             skipped++;
             continue;

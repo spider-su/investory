@@ -1,10 +1,9 @@
 package com.smartbox.investory.accounting;
 
-import java.time.LocalDate;
-import java.time.DayOfWeek;
-import java.time.Month;
 import java.time.Clock;
-import java.time.ZoneId;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.Month;
 import org.springframework.stereotype.Component;
 
 /** Due dates for the currently supported monthly Polish JDG POC. */
@@ -38,13 +37,15 @@ public class AccountingDueDatePolicy {
         || (month == Month.MAY && (date.getDayOfMonth() == 1 || date.getDayOfMonth() == 3))
         || (month == Month.AUGUST && date.getDayOfMonth() == 15)
         || (month == Month.NOVEMBER && (date.getDayOfMonth() == 1 || date.getDayOfMonth() == 11))
-        || (month == Month.DECEMBER && (date.getDayOfMonth() == 25 || date.getDayOfMonth() == 26))) return true;
+        || (month == Month.DECEMBER && (date.getDayOfMonth() == 25 || date.getDayOfMonth() == 26)))
+      return true;
     int year = date.getYear();
     int a = year % 19, b = year / 100, c = year % 100, d = b / 4, e = b % 4;
     int f = (b + 8) / 25, g = (b - f + 1) / 3;
     int h = (19 * a + b - d - g + 15) % 30, i = c / 4, k = c % 4;
     int l = (32 + 2 * e + 2 * i - h - k) % 7, m = (a + 11 * h + 22 * l) / 451;
-    LocalDate easter = LocalDate.of(year, (h + l - 7 * m + 114) / 31, (h + l - 7 * m + 114) % 31 + 1);
+    LocalDate easter =
+        LocalDate.of(year, (h + l - 7 * m + 114) / 31, (h + l - 7 * m + 114) % 31 + 1);
     return date.equals(easter.plusDays(1)) || date.equals(easter.plusDays(60));
   }
 
@@ -52,8 +53,10 @@ public class AccountingDueDatePolicy {
     java.math.BigDecimal amount = paid == null ? java.math.BigDecimal.ZERO : paid;
     if (amount.signum() == 0) {
       return LocalDate.now(clock).isAfter(dueDate)
-          ? AccountingPaymentStatus.OVERDUE : LocalDate.now(clock).isEqual(dueDate)
-              ? AccountingPaymentStatus.DUE : AccountingPaymentStatus.NOT_DUE;
+          ? AccountingPaymentStatus.OVERDUE
+          : LocalDate.now(clock).isEqual(dueDate)
+              ? AccountingPaymentStatus.DUE
+              : AccountingPaymentStatus.NOT_DUE;
     }
     return amount.signum() < 0 ? AccountingPaymentStatus.PARTIAL : AccountingPaymentStatus.PAID;
   }

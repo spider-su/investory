@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ComparisonRow;
-import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;

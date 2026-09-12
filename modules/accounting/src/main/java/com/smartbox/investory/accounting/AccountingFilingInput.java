@@ -20,7 +20,14 @@ public record AccountingFilingInput(
   }
 
   public record FilingDocument(
-      String reference, LocalDate issueDate, LocalDate saleDate, LocalDate purchaseDate,
-      String counterpartyIdentifier, String counterpartyName, BigDecimal netAmount,
-      BigDecimal vatAmount, BigDecimal deductibleVat, AccountingFilingEvidence evidence) {}
+      String reference,
+      LocalDate issueDate,
+      LocalDate saleDate,
+      LocalDate purchaseDate,
+      String counterpartyIdentifier,
+      String counterpartyName,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal deductibleVat,
+      AccountingFilingEvidence evidence) {}
 }

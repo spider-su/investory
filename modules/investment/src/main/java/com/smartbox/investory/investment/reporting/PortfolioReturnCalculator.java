@@ -110,10 +110,10 @@ public final class PortfolioReturnCalculator {
           .anyMatch(
               row ->
                   row == null
-                  || row.date() == null
-                  || row.contributions() == null
-                  || row.withdrawals() == null
-                  || row.initializationAdjustment() == null)) {
+                      || row.date() == null
+                      || row.contributions() == null
+                      || row.withdrawals() == null
+                      || row.initializationAdjustment() == null)) {
         return ReturnMetric.unavailable(
             ReturnMetric.Status.INSUFFICIENT_DATA,
             "A daily valuation date or normalized flow is missing");

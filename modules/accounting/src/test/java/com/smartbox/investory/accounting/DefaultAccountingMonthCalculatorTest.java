@@ -26,11 +26,13 @@ class DefaultAccountingMonthCalculatorTest {
             new BigDecimal("100.00"), CurrencyType.PLN, CurrencyType.USD, PERIOD))
         .thenReturn(new BigDecimal("400.00"));
 
-    AccountingCalculationResult result = calculator(conversion).calculate(input(List.of(invoice), List.of()));
+    AccountingCalculationResult result =
+        calculator(conversion).calculate(input(List.of(invoice), List.of()));
 
     assertThat(result.revenue().totalPln()).isEqualByComparingTo("400.00");
     assertThat(result.fx().entries()).singleElement().extracting("currency").isEqualTo("USD");
-    assertThat(result.calculatedObligations()).extracting(AccountingCalculationResult.CalculatedObligation::type)
+    assertThat(result.calculatedObligations())
+        .extracting(AccountingCalculationResult.CalculatedObligation::type)
         .containsExactly("RYCZALT", "VAT", "ZUS");
   }
 
@@ -42,7 +44,8 @@ class DefaultAccountingMonthCalculatorTest {
             new BigDecimal("100.00"), CurrencyType.PLN, CurrencyType.USD, PERIOD))
         .thenThrow(new CurrencyConversionUnavailableException("missing"));
 
-    AccountingCalculationResult result = calculator(conversion).calculate(input(List.of(invoice), List.of()));
+    AccountingCalculationResult result =
+        calculator(conversion).calculate(input(List.of(invoice), List.of()));
 
     assertThat(result.complete()).isFalse();
     assertThat(result.fx().unavailableReferences()).containsExactly("USD-1");
@@ -52,12 +55,17 @@ class DefaultAccountingMonthCalculatorTest {
   @Test
   void unsupportedRateDoesNotUseFirstInvoiceRate() {
     CurrencyConversion conversion = mock(CurrencyConversion.class);
-    List<InvoiceRow> invoices = List.of(invoice("PLN-1", "PLN", "100.00", "0.12"), invoice("PLN-2", "PLN", "100.00", "0.08"));
+    List<InvoiceRow> invoices =
+        List.of(
+            invoice("PLN-1", "PLN", "100.00", "0.12"), invoice("PLN-2", "PLN", "100.00", "0.08"));
 
-    AccountingCalculationResult result = calculator(conversion).calculate(input(invoices, List.of()));
+    AccountingCalculationResult result =
+        calculator(conversion).calculate(input(invoices, List.of()));
 
     assertThat(result.complete()).isFalse();
-    assertThat(result.issues()).extracting(AccountingIssue::type).contains("UNSUPPORTED_RYCZALT_RATE");
+    assertThat(result.issues())
+        .extracting(AccountingIssue::type)
+        .contains("UNSUPPORTED_RYCZALT_RATE");
   }
 
   private DefaultAccountingMonthCalculator calculator(CurrencyConversion conversion) {
@@ -65,16 +73,38 @@ class DefaultAccountingMonthCalculatorTest {
   }
 
   private AccountingCalculationInput input(List<InvoiceRow> invoices, List<ExpenseRow> expenses) {
-    return new AccountingCalculationInput(PERIOD, invoices, expenses,
-        List.of(new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("100.00"), "test"),
+    return new AccountingCalculationInput(
+        PERIOD,
+        invoices,
+        expenses,
+        List.of(
+            new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("100.00"), "test"),
             new TaxInputRow("JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("200.00"), "test")),
-        new AccountingProfile(false), AccountingCalculationInput.CalculationAdjustments.none());
+        new AccountingProfile(false),
+        AccountingCalculationInput.CalculationAdjustments.none());
   }
 
   private InvoiceRow invoice(String reference, String currency, String net, String rate) {
     BigDecimal amount = new BigDecimal(net);
-    return new InvoiceRow(1, PERIOD, PERIOD, PERIOD, PERIOD, reference, "customer", "SALE", currency,
-        amount, BigDecimal.ZERO, amount, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, amount,
-        "PLN".equals(currency) ? amount : null, new BigDecimal(rate), "test");
+    return new InvoiceRow(
+        1,
+        PERIOD,
+        PERIOD,
+        PERIOD,
+        PERIOD,
+        reference,
+        "customer",
+        "SALE",
+        currency,
+        amount,
+        BigDecimal.ZERO,
+        amount,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        amount,
+        "PLN".equals(currency) ? amount : null,
+        new BigDecimal(rate),
+        "test");
   }
 }

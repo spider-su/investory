@@ -90,8 +90,7 @@ class InvestmentProfilePageViewTest {
     InvestmentProfile profile = emptyProfile();
 
     assertThat(pageWithReturn(profile, "0.281").expectedAnnualReturnDisplay()).isEqualTo("28.1%");
-    assertThat(pageWithReturn(profile, "-0.042").expectedAnnualReturnDisplay())
-        .isEqualTo("-4.2%");
+    assertThat(pageWithReturn(profile, "-0.042").expectedAnnualReturnDisplay()).isEqualTo("-4.2%");
     assertThat(pageWithReturn(profile, "0").expectedAnnualReturnDisplay()).isEqualTo("0.0%");
   }
 
