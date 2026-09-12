@@ -86,6 +86,7 @@ CREATE TABLE investory.accounting_poc_expense_invoice (
     vat_deduction_ratio numeric(3,2) NOT NULL,
     source_quality character varying(32) NOT NULL,
     note character varying(512),
+    source_id bigint,
     CONSTRAINT chk_accounting_poc_expense_ratio CHECK ((vat_deduction_ratio = ANY (ARRAY[0.00, 0.50, 1.00])))
 );
 
@@ -182,7 +183,8 @@ CREATE TABLE investory.accounting_poc_invoice (
     expected_receivable numeric(19,4) NOT NULL,
     booked_net_pln numeric(19,4),
     ryczalt_rate numeric(7,4),
-    note character varying(512)
+    note character varying(512),
+    source_id bigint
 );
 
 
@@ -393,30 +395,30 @@ COPY investory.accounting_poc_bank_transaction (id, booking_date, related_period
 -- Data for Name: accounting_poc_expense_invoice; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_expense_invoice (id, tax_period, invoice_date, reference, supplier_alias, category, currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note) FROM stdin;
-1	2026-01-01	\N	I26394B03000087	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	253.3400	58.2700	311.6100	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.
-2	2026-01-01	\N	91/1/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	280.0000	64.4000	344.4000	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.
-3	2026-02-01	2026-02-27	1118/2/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	SOURCE_DOCUMENT	KSeF purchase invoice captured: net 298.00, VAT 68.54, gross 366.54.
-4	2026-02-01	\N	I26394B03002189	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	278.3200	64.0100	342.3300	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.
-5	2026-03-01	\N	I26394B01006279	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	323.5800	74.4200	398.0000	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.
-6	2026-03-01	\N	2186/3/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.
-7	2026-03-01	2026-03-06	5034146070	SUPPLIER_NOWA_ERA_001	BUSINESS_SERVICE	PLN	406.5000	93.5000	500.0000	1.00	SOURCE_DOCUMENT	KSeF purchase invoice captured: net 406.50, VAT 93.50, gross 500.00.
-8	2026-03-01	\N	I26394B03003487	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	340.2000	78.2500	418.4500	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.
-9	2026-04-01	\N	538/4/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	468.0000	107.6400	575.6400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft expense; exact VAT composition still needs source-document verification.
-10	2026-04-01	\N	I26394B03005740	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	313.8100	25.1100	338.9200	0.50	WFIRMA_LIST_DERIVED_8	BP Europa fuel; reconstructed at 8% VAT from gross 338.92 PLN; 50% mixed-use vehicle VAT deduction.
-11	2026-05-01	2026-05-30	I26394B03009405	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	356.5600	28.5200	385.0800	0.50	SOURCE_DOCUMENT	Source BP invoice: 8% VAT, net 356.56, VAT 28.52, gross 385.08; mixed-use vehicle deducts 50% VAT.
-12	2026-05-01	2026-05-16	I26394801011115	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	359.3900	28.7500	388.1400	0.50	SOURCE_DOCUMENT	Source BP invoice: 8% VAT, net 359.39, VAT 28.75, gross 388.14; mixed-use vehicle deducts 50% VAT.
-13	2026-05-01	2026-05-29	752/5/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	SOURCE_DOCUMENT	Captured SalSoft invoice: net 298.00, VAT 68.54, gross 366.54.
-14	2026-05-01	\N	FS-652540/26/MEPL1	SUPPLIER_TERG_001	EQUIPMENT	PLN	430.6800	99.0600	529.7400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked TERG expense; exact VAT treatment still needs source-document verification.
-15	2026-05-01	2026-05-02	FVF/463/58/5/2026	SUPPLIER_ANIWIM_001	VEHICLE_FUEL	PLN	279.4200	22.3500	301.7700	0.50	SOURCE_DOCUMENT	Source Aniwim fuel invoice: 8% VAT, net 279.42, VAT 22.35, gross 301.77; mixed-use vehicle deducts 50% VAT.
-16	2026-06-01	\N	1571/6/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.
-17	2026-06-01	\N	FA/1789/2026	SUPPLIER_SWIAT_DRUKU_001	BUSINESS_SERVICE	PLN	185.3700	42.6300	228.0000	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked expense; exact VAT treatment still needs source-document verification.
-18	2026-06-01	\N	I26394B03011055	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	336.3300	26.9100	363.2400	0.50	WFIRMA_LIST_DERIVED_8	wFirma gross 363.24; fuel uses 8% VAT in this POC, derived net 336.33 / VAT 26.91; mixed-use vehicle deducts 50% VAT.
-19	2026-06-01	\N	I26394B03010191	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	323.5500	25.8800	349.4300	0.50	WFIRMA_LIST_DERIVED_8	wFirma gross 349.43; fuel uses 8% VAT in this POC, derived net 323.55 / VAT 25.88; mixed-use vehicle deducts 50% VAT.
-20	2026-06-01	\N	FVS/xk/00000127858	SUPPLIER_XKOM_001	EQUIPMENT	PLN	254.4600	58.5300	312.9900	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked X-KOM expense; exact VAT treatment still needs source-document verification.
-21	2026-07-01	\N	1339/7/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.
-22	2026-07-01	\N	I26100B01009678	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	376.6200	86.6200	463.2400	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.
-23	2026-07-01	\N	I26394B01015705	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	296.8200	68.2700	365.0900	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.
+COPY investory.accounting_poc_expense_invoice (id, tax_period, invoice_date, reference, supplier_alias, category, currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note, source_id) FROM stdin;
+1	2026-01-01	\N	I26394B03000087	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	253.3400	58.2700	311.6100	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N
+2	2026-01-01	\N	91/1/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	280.0000	64.4000	344.4000	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N
+3	2026-02-01	2026-02-27	1118/2/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	SOURCE_DOCUMENT	KSeF purchase invoice captured: net 298.00, VAT 68.54, gross 366.54.	\N
+4	2026-02-01	\N	I26394B03002189	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	278.3200	64.0100	342.3300	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N
+5	2026-03-01	\N	I26394B01006279	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	323.5800	74.4200	398.0000	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N
+6	2026-03-01	\N	2186/3/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N
+7	2026-03-01	2026-03-06	5034146070	SUPPLIER_NOWA_ERA_001	BUSINESS_SERVICE	PLN	406.5000	93.5000	500.0000	1.00	SOURCE_DOCUMENT	KSeF purchase invoice captured: net 406.50, VAT 93.50, gross 500.00.	\N
+8	2026-03-01	\N	I26394B03003487	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	340.2000	78.2500	418.4500	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N
+9	2026-04-01	\N	538/4/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	468.0000	107.6400	575.6400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft expense; exact VAT composition still needs source-document verification.	\N
+10	2026-04-01	\N	I26394B03005740	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	313.8100	25.1100	338.9200	0.50	WFIRMA_LIST_DERIVED_8	BP Europa fuel; reconstructed at 8% VAT from gross 338.92 PLN; 50% mixed-use vehicle VAT deduction.	\N
+11	2026-05-01	2026-05-30	I26394B03009405	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	356.5600	28.5200	385.0800	0.50	SOURCE_DOCUMENT	Source BP invoice: 8% VAT, net 356.56, VAT 28.52, gross 385.08; mixed-use vehicle deducts 50% VAT.	\N
+12	2026-05-01	2026-05-16	I26394801011115	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	359.3900	28.7500	388.1400	0.50	SOURCE_DOCUMENT	Source BP invoice: 8% VAT, net 359.39, VAT 28.75, gross 388.14; mixed-use vehicle deducts 50% VAT.	\N
+13	2026-05-01	2026-05-29	752/5/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	SOURCE_DOCUMENT	Captured SalSoft invoice: net 298.00, VAT 68.54, gross 366.54.	\N
+14	2026-05-01	\N	FS-652540/26/MEPL1	SUPPLIER_TERG_001	EQUIPMENT	PLN	430.6800	99.0600	529.7400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked TERG expense; exact VAT treatment still needs source-document verification.	\N
+15	2026-05-01	2026-05-02	FVF/463/58/5/2026	SUPPLIER_ANIWIM_001	VEHICLE_FUEL	PLN	279.4200	22.3500	301.7700	0.50	SOURCE_DOCUMENT	Source Aniwim fuel invoice: 8% VAT, net 279.42, VAT 22.35, gross 301.77; mixed-use vehicle deducts 50% VAT.	\N
+16	2026-06-01	\N	1571/6/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N
+17	2026-06-01	\N	FA/1789/2026	SUPPLIER_SWIAT_DRUKU_001	BUSINESS_SERVICE	PLN	185.3700	42.6300	228.0000	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked expense; exact VAT treatment still needs source-document verification.	\N
+18	2026-06-01	\N	I26394B03011055	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	336.3300	26.9100	363.2400	0.50	WFIRMA_LIST_DERIVED_8	wFirma gross 363.24; fuel uses 8% VAT in this POC, derived net 336.33 / VAT 26.91; mixed-use vehicle deducts 50% VAT.	\N
+19	2026-06-01	\N	I26394B03010191	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	323.5500	25.8800	349.4300	0.50	WFIRMA_LIST_DERIVED_8	wFirma gross 349.43; fuel uses 8% VAT in this POC, derived net 323.55 / VAT 25.88; mixed-use vehicle deducts 50% VAT.	\N
+20	2026-06-01	\N	FVS/xk/00000127858	SUPPLIER_XKOM_001	EQUIPMENT	PLN	254.4600	58.5300	312.9900	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked X-KOM expense; exact VAT treatment still needs source-document verification.	\N
+21	2026-07-01	\N	1339/7/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N
+22	2026-07-01	\N	I26100B01009678	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	376.6200	86.6200	463.2400	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N
+23	2026-07-01	\N	I26394B01015705	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	296.8200	68.2700	365.0900	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N
 \.
 
 
@@ -442,22 +444,22 @@ COPY investory.accounting_poc_fact (id, fact_date, fact_type, reference, counter
 -- Data for Name: accounting_poc_invoice; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_invoice (id, tax_period, issue_date, sale_date, fx_rate_date, reference, customer_alias, invoice_kind, currency, net_amount, vat_amount, gross_amount, correction_gross_amount, correction_net_amount, correction_vat_amount, expected_receivable, booked_net_pln, ryczalt_rate, note) FROM stdin;
-1	2026-06-01	2026-07-02	2026-06-30	\N	FV 4/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	32560.0000	7488.8000	40048.8000	-184.5000	-150.0000	-34.5000	39864.3000	32560.0000	0.1200	KSeF FV 4/2026: issue 2026-07-02, sale/accounting period June, original net 32,560.00 PLN. July FK 1/2026 is a separate -150.00 net / -34.50 VAT correction.
-2	2026-07-01	\N	\N	\N	FV 5/2026	CUSTOMER_PL_002	DOMESTIC_SERVICE	PLN	16250.0000	3737.5000	19987.5000	0.0000	0.0000	0.0000	19987.5000	16250.0000	0.1200	Domestic service invoice. Exact issue/sale dates were not present in the captured source, so they remain null.
-3	2026-07-01	2026-07-31	2026-07-31	2026-07-30	EU-SERVICE-2026-07	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32908.8700	0.1200	Recurring EU service. Tax value uses Investory FX on 2026-07-30; 32,908.87 PLN remains the observed accounting golden value.
-4	2026-01-01	2026-01-31	2026-01-31	\N	PDC-V1650-11	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	January domestic service invoice.
-5	2026-02-01	2026-02-28	2026-02-28	\N	PDC-V1650-12	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	February domestic service invoice.
-6	2026-03-01	2026-03-31	2026-03-31	\N	FV 1/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	32560.0000	7488.8000	40048.8000	0.0000	0.0000	0.0000	40048.8000	32560.0000	0.1200	March domestic service invoice.
-7	2026-04-01	2026-04-30	2026-04-30	\N	FV 2/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	31080.0000	7148.4000	38228.4000	0.0000	0.0000	0.0000	38228.4000	31080.0000	0.1200	April domestic service invoice.
-8	2026-05-01	2026-05-29	2026-05-29	\N	FV 3/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	May domestic service invoice.
-9	2026-08-01	2026-08-31	2026-08-31	\N	FV 6/2026	CUSTOMER_PL_002	DOMESTIC_SERVICE	PLN	26250.0000	6037.5000	32287.5000	0.0000	0.0000	0.0000	32287.5000	26250.0000	0.1200	August domestic service invoice; tax outputs were not captured, therefore August remains partial.
-10	2026-02-01	2026-02-28	2026-02-28	2026-02-27	EU-SERVICE-2026-02	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32249.1200	0.1200	Observed February foreign-service accounting value.
-11	2026-03-01	2026-03-31	2026-03-31	2026-03-30	EU-SERVICE-2026-03	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32706.5200	0.1200	Observed March foreign-service accounting value.
-12	2026-04-01	2026-04-30	2026-04-30	2026-04-29	EU-SERVICE-2026-04	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32481.2500	0.1200	Observed April foreign-service accounting value.
-13	2026-05-01	2026-05-29	2026-05-29	2026-05-29	EU-SERVICE-2026-05	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32317.0800	0.1200	Observed May foreign-service accounting value. Source review maps it to the 2026-05-29 NBP table-A EUR rate.
-14	2026-06-01	2026-06-30	2026-06-30	2026-06-29	EU-SERVICE-2026-06	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32750.8000	0.1200	Observed June foreign-service accounting value.
-15	2026-01-01	2026-01-31	2026-01-31	2026-01-30	EU-SERVICE-2026-01	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32171.2300	0.1200	Source document 015 (Platform Developer): 7,636.00 EUR, sale 2026-01-31. NBP prior-business-day rate date 2026-01-30; booked wFirma value 32,171.23 PLN.
+COPY investory.accounting_poc_invoice (id, tax_period, issue_date, sale_date, fx_rate_date, reference, customer_alias, invoice_kind, currency, net_amount, vat_amount, gross_amount, correction_gross_amount, correction_net_amount, correction_vat_amount, expected_receivable, booked_net_pln, ryczalt_rate, note, source_id) FROM stdin;
+1	2026-06-01	2026-07-02	2026-06-30	\N	FV 4/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	32560.0000	7488.8000	40048.8000	-184.5000	-150.0000	-34.5000	39864.3000	32560.0000	0.1200	KSeF FV 4/2026: issue 2026-07-02, sale/accounting period June, original net 32,560.00 PLN. July FK 1/2026 is a separate -150.00 net / -34.50 VAT correction.	\N
+2	2026-07-01	\N	\N	\N	FV 5/2026	CUSTOMER_PL_002	DOMESTIC_SERVICE	PLN	16250.0000	3737.5000	19987.5000	0.0000	0.0000	0.0000	19987.5000	16250.0000	0.1200	Domestic service invoice. Exact issue/sale dates were not present in the captured source, so they remain null.	\N
+3	2026-07-01	2026-07-31	2026-07-31	2026-07-30	EU-SERVICE-2026-07	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32908.8700	0.1200	Recurring EU service. Tax value uses Investory FX on 2026-07-30; 32,908.87 PLN remains the observed accounting golden value.	\N
+4	2026-01-01	2026-01-31	2026-01-31	\N	PDC-V1650-11	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	January domestic service invoice.	\N
+5	2026-02-01	2026-02-28	2026-02-28	\N	PDC-V1650-12	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	February domestic service invoice.	\N
+6	2026-03-01	2026-03-31	2026-03-31	\N	FV 1/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	32560.0000	7488.8000	40048.8000	0.0000	0.0000	0.0000	40048.8000	32560.0000	0.1200	March domestic service invoice.	\N
+7	2026-04-01	2026-04-30	2026-04-30	\N	FV 2/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	31080.0000	7148.4000	38228.4000	0.0000	0.0000	0.0000	38228.4000	31080.0000	0.1200	April domestic service invoice.	\N
+8	2026-05-01	2026-05-29	2026-05-29	\N	FV 3/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	May domestic service invoice.	\N
+9	2026-08-01	2026-08-31	2026-08-31	\N	FV 6/2026	CUSTOMER_PL_002	DOMESTIC_SERVICE	PLN	26250.0000	6037.5000	32287.5000	0.0000	0.0000	0.0000	32287.5000	26250.0000	0.1200	August domestic service invoice; tax outputs were not captured, therefore August remains partial.	\N
+10	2026-02-01	2026-02-28	2026-02-28	2026-02-27	EU-SERVICE-2026-02	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32249.1200	0.1200	Observed February foreign-service accounting value.	\N
+11	2026-03-01	2026-03-31	2026-03-31	2026-03-30	EU-SERVICE-2026-03	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32706.5200	0.1200	Observed March foreign-service accounting value.	\N
+12	2026-04-01	2026-04-30	2026-04-30	2026-04-29	EU-SERVICE-2026-04	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32481.2500	0.1200	Observed April foreign-service accounting value.	\N
+13	2026-05-01	2026-05-29	2026-05-29	2026-05-29	EU-SERVICE-2026-05	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32317.0800	0.1200	Observed May foreign-service accounting value. Source review maps it to the 2026-05-29 NBP table-A EUR rate.	\N
+14	2026-06-01	2026-06-30	2026-06-30	2026-06-29	EU-SERVICE-2026-06	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32750.8000	0.1200	Observed June foreign-service accounting value.	\N
+15	2026-01-01	2026-01-31	2026-01-31	2026-01-30	EU-SERVICE-2026-01	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32171.2300	0.1200	Source document 015 (Platform Developer): 7,636.00 EUR, sale 2026-01-31. NBP prior-business-day rate date 2026-01-30; booked wFirma value 32,171.23 PLN.	\N
 \.
 
 
@@ -684,6 +686,13 @@ CREATE INDEX idx_accounting_poc_expense_period ON investory.accounting_poc_expen
 
 
 --
+-- Name: idx_accounting_poc_expense_source_id; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX idx_accounting_poc_expense_source_id ON investory.accounting_poc_expense_invoice USING btree (source_id);
+
+
+--
 -- Name: idx_accounting_poc_fact_date; Type: INDEX; Schema: investory; Owner: -
 --
 
@@ -698,6 +707,13 @@ CREATE INDEX idx_accounting_poc_invoice_period ON investory.accounting_poc_invoi
 
 
 --
+-- Name: idx_accounting_poc_invoice_source_id; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX idx_accounting_poc_invoice_source_id ON investory.accounting_poc_invoice USING btree (source_id);
+
+
+--
 -- Name: idx_accounting_poc_obligation_period; Type: INDEX; Schema: investory; Owner: -
 --
 
@@ -705,5 +721,23 @@ CREATE INDEX idx_accounting_poc_obligation_period ON investory.accounting_poc_ob
 
 
 --
+-- Name: accounting_poc_expense_invoice accounting_poc_expense_invoice_source_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_poc_expense_invoice
+    ADD CONSTRAINT accounting_poc_expense_invoice_source_id_fkey FOREIGN KEY (source_id) REFERENCES investory.accounting_source_evidence(id);
+
+
+--
+-- Name: accounting_poc_invoice accounting_poc_invoice_source_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_poc_invoice
+    ADD CONSTRAINT accounting_poc_invoice_source_id_fkey FOREIGN KEY (source_id) REFERENCES investory.accounting_source_evidence(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
+
+

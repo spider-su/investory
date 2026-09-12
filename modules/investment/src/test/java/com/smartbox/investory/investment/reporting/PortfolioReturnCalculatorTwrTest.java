@@ -62,6 +62,21 @@ class PortfolioReturnCalculatorTwrTest {
         0.000001);
   }
 
+  @DisplayName("does not treat newly observed pre-existing capital as return")
+  @Test
+  void doesNotTreatNewlyObservedPreExistingCapitalAsReturn() {
+    assertEquals(
+        0.0,
+        PortfolioReturnCalculator.twr(
+                bd("100"),
+                List.of(
+                    new DailyPortfolioValue(
+                        DAY, bd("200"), bd("0"), bd("0"), bd("100"))))
+            .value()
+            .doubleValue(),
+        0.000001);
+  }
+
   @DisplayName("missing Valuation Is Unavailable")
   @Test
   void missingValuationIsUnavailable() {

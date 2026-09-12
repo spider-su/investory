@@ -29,7 +29,7 @@ public final class HappyInvestorProfileFacts {
   public static final BigDecimal INVESTMENT_CAPITAL = HappyInvestorBrokerFacts.OPEN_POSITIONS_VALUE;
 
   /** Portfolio investment result for the fixed 2025 YTD reporting boundary. */
-  public static final BigDecimal MARKET_INCOME_YTD = new BigDecimal("171961.04197033");
+  public static final BigDecimal MARKET_INCOME_YTD = new BigDecimal("29103.10594433");
 
   public static final BigDecimal MARKET_ANNUAL_INCOME = new BigDecimal("2115.67955206");
   public static final BigDecimal MARKET_NET_YIELD = new BigDecimal("0.005068159466499644834");

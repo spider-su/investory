@@ -289,9 +289,9 @@ class UiPageSmokeIT extends FastDatabaseTest {
       assertThat(marketCard)
           .contains(
               "Investment result YTD",
-              "Projected annual income (net)",
+              "Expected annual investment result",
               "Forward-looking estimate",
-              "Historical annualized return",
+              "Historical annualized TWR",
               "Benchmark estimate")
           .doesNotContain("p.a.");
       assertThat(

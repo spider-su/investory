@@ -30,7 +30,8 @@ public final class PortfolioReturnCalculator {
                     || row.date() == null
                     || row.endValue() == null
                     || row.contributions() == null
-                    || row.withdrawals() == null)) {
+                    || row.withdrawals() == null
+                    || row.initializationAdjustment() == null)) {
       return ReturnMetric.unavailable(
           ReturnMetric.Status.INSUFFICIENT_DATA, "A daily valuation or normalized flow is missing");
     }
@@ -40,7 +41,10 @@ public final class PortfolioReturnCalculator {
     BigDecimal factor = BigDecimal.ONE;
     for (DailyPortfolioValue row : rows) {
       BigDecimal denominator =
-          previous.add(nz(row.contributions())).subtract(nz(row.withdrawals()));
+          previous
+              .add(nz(row.contributions()))
+              .subtract(nz(row.withdrawals()))
+              .add(nz(row.initializationAdjustment()));
       if (denominator.signum() <= 0) {
         if (row.endValue().signum() == 0 && denominator.signum() == 0) {
           previous = row.endValue();
@@ -106,9 +110,10 @@ public final class PortfolioReturnCalculator {
           .anyMatch(
               row ->
                   row == null
-                      || row.date() == null
-                      || row.contributions() == null
-                      || row.withdrawals() == null)) {
+                  || row.date() == null
+                  || row.contributions() == null
+                  || row.withdrawals() == null
+                  || row.initializationAdjustment() == null)) {
         return ReturnMetric.unavailable(
             ReturnMetric.Status.INSUFFICIENT_DATA,
             "A daily valuation date or normalized flow is missing");
@@ -124,6 +129,11 @@ public final class PortfolioReturnCalculator {
                   // Investor cash-flow signs: money entering the portfolio is negative;
                   // money leaving the portfolio is positive.
                   flows.add(new CashFlow(row.date(), withdrawal.subtract(contribution)));
+                }
+                if (row.initializationAdjustment().signum() != 0) {
+                  // Opening capital entering the observed valuation scope is not an investor
+                  // contribution, but XIRR still needs its cash-flow-neutral boundary.
+                  flows.add(new CashFlow(row.date(), row.initializationAdjustment().negate()));
                 }
               });
     }
