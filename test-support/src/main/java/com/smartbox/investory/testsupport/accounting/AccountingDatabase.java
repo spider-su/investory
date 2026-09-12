@@ -95,6 +95,21 @@ public final class AccountingDatabase {
               UNIQUE (source_type, external_reference)
           )
           """);
+      statement.execute(
+          """
+          CREATE TABLE IF NOT EXISTS investory.accounting_tax_profile_period (
+              id BIGSERIAL PRIMARY KEY,
+              profile_id BIGINT NOT NULL,
+              valid_from DATE NOT NULL,
+              valid_to DATE,
+              jdg_active BOOLEAN NOT NULL,
+              ryczalt_rate NUMERIC(8, 5),
+              vat_registered BOOLEAN NOT NULL,
+              vat_eu_registered BOOLEAN NOT NULL,
+              zus_regime VARCHAR(32),
+              voluntary_sickness BOOLEAN NOT NULL
+          )
+          """);
     } catch (java.sql.SQLException exception) {
       throw new IllegalStateException(
           "Cannot initialize accounting source evidence fixture", exception);

@@ -123,7 +123,9 @@ public class AccountingFactService {
             : AccountingCalculationMode.CURRENT_CALCULATION;
     var activityPeriods = pocRepository.businessActivityPeriods();
     var employmentPeriods = pocRepository.employmentPeriods();
-    var resolved = profileResolver.resolve(period, activityPeriods, employmentPeriods, List.of());
+    var resolved =
+        profileResolver.resolve(
+            period, activityPeriods, employmentPeriods, pocRepository.taxProfilePeriods());
     var context =
         activityPeriods.isEmpty() && employmentPeriods.isEmpty()
             ? AccountingPeriodContext.compatibility(period, profile)

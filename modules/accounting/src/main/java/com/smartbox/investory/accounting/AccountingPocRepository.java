@@ -516,6 +516,25 @@ public class AccountingPocRepository {
     }
   }
 
+  public List<AccountingTaxProfilePeriod> taxProfilePeriods() {
+    try {
+      return jdbcTemplate.query(
+          "SELECT valid_from, valid_to, jdg_active, ryczalt_rate, vat_registered, vat_eu_registered, zus_regime, voluntary_sickness FROM investory.accounting_tax_profile_period WHERE profile_id = 1 ORDER BY valid_from",
+          (rs, rowNum) ->
+              new AccountingTaxProfilePeriod(
+                  rs.getObject("valid_from", LocalDate.class),
+                  rs.getObject("valid_to", LocalDate.class),
+                  rs.getBoolean("jdg_active"),
+                  rs.getBigDecimal("ryczalt_rate"),
+                  rs.getBoolean("vat_registered"),
+                  rs.getBoolean("vat_eu_registered"),
+                  rs.getString("zus_regime"),
+                  rs.getBoolean("voluntary_sickness")));
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
+  }
+
   public List<AccountingIssue> sourceIssuesForPeriod(LocalDate period) {
     return jdbcTemplate.query(
         """
