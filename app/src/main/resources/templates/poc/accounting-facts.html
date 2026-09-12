@@ -148,6 +148,7 @@
 
           <form class="mt-4" method="post" th:action="@{/poc/accounting/invoice}" th:object="${invoiceDraft}" th:if="${invoiceDraft != null}">
             <input type="hidden" th:field="*{month}">
+            <input type="hidden" th:field="*{sourceIdentity}">
             <div class="invoice-import-grid">
               <div>
                 <label class="form-label">Document type</label>

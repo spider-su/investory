@@ -76,6 +76,15 @@ The golden matrix is enforced by `AccountingGoldenMatrixIT` and the focused scen
 
 ## Accounting boundaries
 
+### Source evidence and ingestion
+
+Production source evidence is stored separately from normalized accounting facts. Each uploaded
+file and KSeF XML payload is preserved in the source-evidence table with an immutable content hash
+and processing status. The common path is source -> parse -> review/validation -> normalized facts;
+only reviewed or proven documents reach `AccountingInvoiceIngestionService`. Historical golden
+fixtures are regression evidence only. Unknown tax-relevant classification or VAT deduction must
+produce `REVIEW_REQUIRED`, never a guessed value.
+
 ### Sales period vs cash period
 
 A sales invoice belongs to its accounting/tax period. Payment can happen in a later calendar month.

@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,12 +18,34 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
-@RequiredArgsConstructor
 public class AccountingFactController {
   private final AccountingFactService service;
   private final AccountingInvoiceRecognitionService invoiceRecognitionService;
   private final AccountingInvoiceIngestionService invoiceIngestionService;
+  private final AccountingSourceEvidenceService sourceEvidenceService;
   private final AccountingJdgExporter exporter;
+
+  public AccountingFactController(
+      AccountingFactService service,
+      AccountingInvoiceRecognitionService recognition,
+      AccountingInvoiceIngestionService ingestion,
+      AccountingJdgExporter exporter) {
+    this(service, recognition, ingestion, exporter, null);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public AccountingFactController(
+      AccountingFactService service,
+      AccountingInvoiceRecognitionService recognition,
+      AccountingInvoiceIngestionService ingestion,
+      AccountingJdgExporter exporter,
+      AccountingSourceEvidenceService sourceEvidenceService) {
+    this.service = service;
+    this.invoiceRecognitionService = recognition;
+    this.invoiceIngestionService = ingestion;
+    this.sourceEvidenceService = sourceEvidenceService;
+    this.exporter = exporter;
+  }
 
   @GetMapping("/poc/accounting")
   public String facts(@RequestParam(required = false) String month, Model model) {
@@ -61,16 +82,29 @@ public class AccountingFactController {
     LocalDate selected = populateModel(month, model);
     AccountingInvoiceForm form = new AccountingInvoiceForm();
     form.setMonth(formatMonth(selected));
+    long sourceId = 0;
     try {
+      sourceId =
+          sourceEvidenceService == null
+              ? 0
+              : sourceEvidenceService.receiveUpload(
+                  invoice.getOriginalFilename(), invoice.getContentType(), invoice.getBytes());
       RecognizedInvoice recognized =
           invoiceRecognitionService.recognize(
               invoice.getOriginalFilename(), invoice.getContentType(), invoice.getBytes());
       copyRecognized(recognized, form);
+      form.setSourceIdentity(Long.toString(sourceId));
+      if (sourceId != 0)
+        sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
       model.addAttribute("invoiceDraft", form);
       model.addAttribute(
           "recognitionMessage",
           "Invoice fields and document direction were extracted. Review the type, counterparty and dates before saving.");
     } catch (IOException | RuntimeException exception) {
+      if (sourceId != 0) {
+        sourceEvidenceService.status(
+            sourceId, AccountingSourceStatus.FAILED, exception.getMessage());
+      }
       model.addAttribute("invoiceDraft", form);
       model.addAttribute("recognitionError", exception.getMessage());
     }
@@ -100,7 +134,14 @@ public class AccountingFactController {
                   invoiceDraft.getGrossAmount(),
                   invoiceDraft.getVatDeductionRatio(),
                   "AI_EXTRACTED_REVIEWED",
-                  buildReviewedNote(invoiceDraft)));
+                  buildReviewedNote(invoiceDraft),
+                  invoiceDraft.getSourceIdentity()));
+      if (invoiceDraft.getSourceIdentity() != null && !invoiceDraft.getSourceIdentity().isBlank()) {
+        sourceEvidenceService.status(
+            Long.parseLong(invoiceDraft.getSourceIdentity()),
+            inserted ? AccountingSourceStatus.IMPORTED : AccountingSourceStatus.IMPORTED,
+            null);
+      }
       redirectAttributes.addFlashAttribute(
           "invoiceSaved",
           inserted
@@ -173,6 +214,9 @@ public class AccountingFactController {
       note.append("Due date ").append(form.getDueDate()).append(". ");
     }
     note.append("Uploaded document recognized by AI and reviewed before persistence.");
+    if (form.getSourceIdentity() != null && !form.getSourceIdentity().isBlank()) {
+      note.append(" Source evidence ID ").append(form.getSourceIdentity()).append('.');
+    }
     return note.toString();
   }
 

@@ -57,7 +57,9 @@ public class KsefInvoiceXmlParser {
           currency,
           net,
           vat,
-          gross);
+          gross,
+          null,
+          null);
     } catch (Exception exception) {
       throw new IllegalStateException(
           "Could not parse KSeF invoice XML: " + rootMessage(exception), exception);
@@ -154,5 +156,15 @@ public class KsefInvoiceXmlParser {
       String currency,
       BigDecimal netAmount,
       BigDecimal vatAmount,
-      BigDecimal grossAmount) {}
+      BigDecimal grossAmount,
+      String category,
+      BigDecimal vatDeductionRatio) {
+    public ParsedKsefInvoice(
+        String reference, LocalDate issueDate, LocalDate saleDate, String sellerNip,
+        String sellerName, String buyerNip, String buyerName, String currency,
+        BigDecimal netAmount, BigDecimal vatAmount, BigDecimal grossAmount) {
+      this(reference, issueDate, saleDate, sellerNip, sellerName, buyerNip, buyerName, currency,
+          netAmount, vatAmount, grossAmount, "ACCOUNTING_SERVICE", BigDecimal.ONE);
+    }
+  }
 }

@@ -149,5 +149,39 @@ public class AccountingInvoiceIngestionService {
       BigDecimal grossAmount,
       BigDecimal vatDeductionRatio,
       String sourceQuality,
-      String note) {}
+      String note,
+      String sourceIdentity) {
+    public ReviewedInvoice(
+        LocalDate taxPeriod,
+        String documentType,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        String reference,
+        String counterpartyAlias,
+        String category,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal vatDeductionRatio,
+        String sourceQuality,
+        String note) {
+      this(
+          taxPeriod,
+          documentType,
+          issueDate,
+          saleDate,
+          reference,
+          counterpartyAlias,
+          category,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          vatDeductionRatio,
+          sourceQuality,
+          note,
+          null);
+    }
+  }
 }

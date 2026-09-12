@@ -2,6 +2,8 @@ package com.smartbox.investory.poc.accounting.ksef;
 
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
+import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
+import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.integrations.ksef.KsefClient.KsefAccess;
 import com.smartbox.investory.integrations.ksef.KsefEnvironment;
 import java.math.BigDecimal;
@@ -32,6 +34,7 @@ public class KsefConnectionController {
   private final KsefInvoiceXmlParser invoiceParser;
   private final AccountingInvoiceIngestionService invoiceIngestionService;
   private final ObjectMapper objectMapper;
+  private final AccountingSourceEvidenceService sourceEvidenceService;
 
   @Autowired
   public KsefConnectionController(
@@ -41,7 +44,8 @@ public class KsefConnectionController {
       @Value("${app.ksef.token:}") String token,
       KsefInvoiceXmlParser invoiceParser,
       AccountingInvoiceIngestionService invoiceIngestionService,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      AccountingSourceEvidenceService sourceEvidenceService) {
     this.client = client;
     this.environment = environment;
     this.nip = nip;
@@ -49,6 +53,7 @@ public class KsefConnectionController {
     this.invoiceParser = invoiceParser;
     this.invoiceIngestionService = invoiceIngestionService;
     this.objectMapper = objectMapper;
+    this.sourceEvidenceService = sourceEvidenceService;
   }
 
   public KsefConnectionController(
@@ -56,7 +61,18 @@ public class KsefConnectionController {
       KsefEnvironment environment,
       String nip,
       String token) {
-    this(client, environment, nip, token, null, null, null);
+    this(client, environment, nip, token, null, null, null, null);
+  }
+
+  public KsefConnectionController(
+      com.smartbox.investory.integrations.ksef.KsefClient client,
+      KsefEnvironment environment,
+      String nip,
+      String token,
+      KsefInvoiceXmlParser parser,
+      AccountingInvoiceIngestionService ingestion,
+      ObjectMapper objectMapper) {
+    this(client, environment, nip, token, parser, ingestion, objectMapper, null);
   }
 
   @PostMapping("/poc/accounting/ksef/test-connection")
@@ -125,12 +141,22 @@ public class KsefConnectionController {
     int imported = 0;
     int skipped = 0;
     for (String ksefNumber : ksefNumbers) {
+      long sourceId = 0;
       try {
+        String xml = client.downloadInvoice(environment, accessToken, ksefNumber);
+        sourceId = sourceEvidenceService == null ? 0 : sourceEvidenceService.receiveKsef(ksefNumber, null, xml.getBytes(StandardCharsets.UTF_8));
+        if (sourceId != 0 && sourceEvidenceService.status(sourceId) == AccountingSourceStatus.IMPORTED) {
+          skipped++;
+          continue;
+        }
         var invoice =
-            invoiceParser.parse(
-                client
-                    .downloadInvoice(environment, accessToken, ksefNumber)
-                    .getBytes(StandardCharsets.UTF_8));
+            invoiceParser.parse(xml.getBytes(StandardCharsets.UTF_8));
+        if (sourceId != 0) sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
+        if (invoice.category() == null || invoice.vatDeductionRatio() == null) {
+          if (sourceId != 0) sourceEvidenceService.status(sourceId, AccountingSourceStatus.REVIEW_REQUIRED, "Tax category or VAT deduction is not proven");
+          skipped++;
+          continue;
+        }
         String supplier = firstNonBlank(invoice.sellerName(), invoice.sellerNip());
         String currency = invoice.currency() == null ? "PLN" : invoice.currency();
         boolean saved =
@@ -147,11 +173,16 @@ public class KsefConnectionController {
                     invoice.netAmount(),
                     invoice.vatAmount(),
                     invoice.grossAmount(),
-                    BigDecimal.ONE,
+                    invoice.vatDeductionRatio(),
                     "KSEF_SOURCE_DOCUMENT",
-                    "KSeF " + ksefNumber + "; supplier " + supplier));
+                    "KSeF " + ksefNumber + "; supplier " + supplier,
+                    sourceId == 0 ? null : Long.toString(sourceId)));
         if (saved) imported++;
+        if (sourceId != 0) sourceEvidenceService.status(sourceId, AccountingSourceStatus.IMPORTED, null);
       } catch (RuntimeException exception) {
+        if (sourceId != 0 && sourceEvidenceService != null) {
+          sourceEvidenceService.status(sourceId, AccountingSourceStatus.FAILED, exception.getMessage());
+        }
         skipped++;
       }
     }

@@ -7,6 +7,7 @@ import lombok.Data;
 @Data
 public class AccountingInvoiceForm {
   private String month;
+  private String sourceIdentity;
   private String documentType = "PURCHASE_INVOICE";
   private LocalDate issueDate;
   private LocalDate saleDate;

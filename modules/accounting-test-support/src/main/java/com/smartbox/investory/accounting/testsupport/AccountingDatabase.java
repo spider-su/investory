@@ -81,6 +81,19 @@ public final class AccountingDatabase {
         var statement = connection.createStatement()) {
       statement.execute(
           """
+          CREATE TABLE IF NOT EXISTS investory.accounting_source_evidence (
+              id BIGSERIAL PRIMARY KEY,
+              source_type VARCHAR(16) NOT NULL,
+              external_reference VARCHAR(256) NOT NULL,
+              original_filename VARCHAR(512), content_type VARCHAR(128),
+              received_at TIMESTAMPTZ NOT NULL, document_date DATE,
+              content_hash BYTEA NOT NULL, payload BYTEA NOT NULL,
+              processing_status VARCHAR(32) NOT NULL, processing_error VARCHAR(1000),
+              UNIQUE (source_type, external_reference)
+          )
+          """);
+      statement.execute(
+          """
           CREATE TABLE IF NOT EXISTS investory.accounting_poc_profile (
               id SMALLINT PRIMARY KEY,
               has_uop BOOLEAN NOT NULL,
