@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
+import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
+import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.integrations.ksef.KsefClient;
 import com.smartbox.investory.integrations.ksef.KsefClient.KsefAccess;
 import com.smartbox.investory.integrations.ksef.KsefEnvironment;
@@ -143,6 +145,70 @@ class KsefConnectionControllerTest {
     assertThat(captor.getValue().note()).contains("KSeF KSEF-1");
     assertThat(attributes.getFlashAttributes().get("ksefConnectionMessage"))
         .isEqualTo("KSeF metadata read; imported 1 new invoice(s); skipped 0.");
+  }
+
+  @Test
+  void leavesUnknownKsefTaxClassificationForReview() {
+    KsefClient client = org.mockito.Mockito.mock(KsefClient.class);
+    KsefInvoiceXmlParser parser = org.mockito.Mockito.mock(KsefInvoiceXmlParser.class);
+    AccountingInvoiceIngestionService ingestion =
+        org.mockito.Mockito.mock(AccountingInvoiceIngestionService.class);
+    AccountingSourceEvidenceService sources =
+        org.mockito.Mockito.mock(AccountingSourceEvidenceService.class);
+    when(client.authenticateWithToken(KsefEnvironment.TEST, "1234567890", "secret-token"))
+        .thenReturn(new KsefAccess("access-token", null, null, null));
+    when(client.queryIncomingInvoices(
+            eq(KsefEnvironment.TEST),
+            eq("access-token"),
+            eq(anyOffset(2026, 7, 1)),
+            eq(anyOffset(2026, 8, 1)),
+            eq(0),
+            eq(250)))
+        .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-UNKNOWN\"}]}");
+    when(client.downloadInvoice(KsefEnvironment.TEST, "access-token", "KSEF-UNKNOWN"))
+        .thenReturn("<Invoice/>");
+    when(sources.receiveKsef(
+            eq("KSEF-UNKNOWN"),
+            org.mockito.ArgumentMatchers.isNull(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenReturn(10L);
+    when(sources.status(10L)).thenReturn(AccountingSourceStatus.RECEIVED);
+    when(parser.parse(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            new KsefInvoiceXmlParser.ParsedKsefInvoice(
+                "FV-UNKNOWN",
+                LocalDate.of(2026, 7, 10),
+                LocalDate.of(2026, 7, 10),
+                "1111111111",
+                "Supplier",
+                "1234567890",
+                "Buyer",
+                "PLN",
+                new BigDecimal("100"),
+                new BigDecimal("23"),
+                new BigDecimal("123"),
+                null,
+                null));
+
+    KsefConnectionController controller =
+        new KsefConnectionController(
+            client,
+            KsefEnvironment.TEST,
+            "1234567890",
+            "secret-token",
+            parser,
+            ingestion,
+            new ObjectMapper(),
+            sources);
+
+    controller.readInvoices("2026-07", new RedirectAttributesModelMap());
+
+    org.mockito.Mockito.verifyNoInteractions(ingestion);
+    org.mockito.Mockito.verify(sources)
+        .status(
+            10L,
+            AccountingSourceStatus.REVIEW_REQUIRED,
+            "Tax category or VAT deduction is not proven");
   }
 
   private static OffsetDateTime anyOffset(int year, int month, int day) {

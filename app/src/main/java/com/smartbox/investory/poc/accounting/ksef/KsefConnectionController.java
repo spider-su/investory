@@ -6,7 +6,6 @@ import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.integrations.ksef.KsefClient.KsefAccess;
 import com.smartbox.investory.integrations.ksef.KsefEnvironment;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -144,16 +143,25 @@ public class KsefConnectionController {
       long sourceId = 0;
       try {
         String xml = client.downloadInvoice(environment, accessToken, ksefNumber);
-        sourceId = sourceEvidenceService == null ? 0 : sourceEvidenceService.receiveKsef(ksefNumber, null, xml.getBytes(StandardCharsets.UTF_8));
-        if (sourceId != 0 && sourceEvidenceService.status(sourceId) == AccountingSourceStatus.IMPORTED) {
+        sourceId =
+            sourceEvidenceService == null
+                ? 0
+                : sourceEvidenceService.receiveKsef(
+                    ksefNumber, null, xml.getBytes(StandardCharsets.UTF_8));
+        if (sourceId != 0
+            && sourceEvidenceService.status(sourceId) == AccountingSourceStatus.IMPORTED) {
           skipped++;
           continue;
         }
-        var invoice =
-            invoiceParser.parse(xml.getBytes(StandardCharsets.UTF_8));
-        if (sourceId != 0) sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
+        var invoice = invoiceParser.parse(xml.getBytes(StandardCharsets.UTF_8));
+        if (sourceId != 0)
+          sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
         if (invoice.category() == null || invoice.vatDeductionRatio() == null) {
-          if (sourceId != 0) sourceEvidenceService.status(sourceId, AccountingSourceStatus.REVIEW_REQUIRED, "Tax category or VAT deduction is not proven");
+          if (sourceId != 0)
+            sourceEvidenceService.status(
+                sourceId,
+                AccountingSourceStatus.REVIEW_REQUIRED,
+                "Tax category or VAT deduction is not proven");
           skipped++;
           continue;
         }
@@ -178,10 +186,12 @@ public class KsefConnectionController {
                     "KSeF " + ksefNumber + "; supplier " + supplier,
                     sourceId == 0 ? null : Long.toString(sourceId)));
         if (saved) imported++;
-        if (sourceId != 0) sourceEvidenceService.status(sourceId, AccountingSourceStatus.IMPORTED, null);
+        if (sourceId != 0)
+          sourceEvidenceService.status(sourceId, AccountingSourceStatus.IMPORTED, null);
       } catch (RuntimeException exception) {
         if (sourceId != 0 && sourceEvidenceService != null) {
-          sourceEvidenceService.status(sourceId, AccountingSourceStatus.FAILED, exception.getMessage());
+          sourceEvidenceService.status(
+              sourceId, AccountingSourceStatus.FAILED, exception.getMessage());
         }
         skipped++;
       }

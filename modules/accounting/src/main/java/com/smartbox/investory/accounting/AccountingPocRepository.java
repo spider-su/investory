@@ -103,13 +103,45 @@ public class AccountingPocRepository {
       BigDecimal bookedNetPln,
       BigDecimal ryczaltRate,
       String note) {
+    return insertSalesInvoice(
+        taxPeriod,
+        issueDate,
+        saleDate,
+        reference,
+        customerAlias,
+        invoiceKind,
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        bookedNetPln,
+        ryczaltRate,
+        note,
+        null);
+  }
+
+  public boolean insertSalesInvoice(
+      LocalDate taxPeriod,
+      LocalDate issueDate,
+      LocalDate saleDate,
+      String reference,
+      String customerAlias,
+      String invoiceKind,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      BigDecimal bookedNetPln,
+      BigDecimal ryczaltRate,
+      String note,
+      Long sourceId) {
     return jdbcTemplate.update(
             """
         INSERT INTO investory.accounting_poc_invoice
             (tax_period, issue_date, sale_date, reference, customer_alias, invoice_kind, currency,
              net_amount, vat_amount, gross_amount, expected_receivable, booked_net_pln,
-             ryczalt_rate, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ryczalt_rate, note, source_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (reference) DO NOTHING
         """,
             taxPeriod,
@@ -125,7 +157,8 @@ public class AccountingPocRepository {
             grossAmount,
             bookedNetPln,
             ryczaltRate,
-            note)
+            note,
+            sourceId)
         == 1;
   }
 
@@ -172,12 +205,42 @@ public class AccountingPocRepository {
       BigDecimal vatDeductionRatio,
       String sourceQuality,
       String note) {
+    return insertExpense(
+        taxPeriod,
+        invoiceDate,
+        reference,
+        supplierAlias,
+        category,
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        vatDeductionRatio,
+        sourceQuality,
+        note,
+        null);
+  }
+
+  public boolean insertExpense(
+      LocalDate taxPeriod,
+      LocalDate invoiceDate,
+      String reference,
+      String supplierAlias,
+      String category,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      BigDecimal vatDeductionRatio,
+      String sourceQuality,
+      String note,
+      Long sourceId) {
     return jdbcTemplate.update(
             """
         INSERT INTO investory.accounting_poc_expense_invoice
             (tax_period, invoice_date, reference, supplier_alias, category, currency,
-             net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note, source_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (reference) DO NOTHING
         """,
             taxPeriod,
@@ -191,7 +254,8 @@ public class AccountingPocRepository {
             grossAmount,
             vatDeductionRatio,
             sourceQuality,
-            note)
+            note,
+            sourceId)
         == 1;
   }
 

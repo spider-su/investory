@@ -93,6 +93,10 @@ public final class AccountingDatabase {
           )
           """);
       statement.execute(
+          "ALTER TABLE investory.accounting_poc_invoice ADD COLUMN IF NOT EXISTS source_id BIGINT");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_expense_invoice ADD COLUMN IF NOT EXISTS source_id BIGINT");
+      statement.execute(
           """
           CREATE TABLE IF NOT EXISTS investory.accounting_poc_profile (
               id SMALLINT PRIMARY KEY,

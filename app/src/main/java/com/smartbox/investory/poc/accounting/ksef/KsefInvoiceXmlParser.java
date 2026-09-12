@@ -37,6 +37,12 @@ public class KsefInvoiceXmlParser {
       String sellerName = firstTextUnder(document, "Podmiot1", "Nazwa");
       String buyerNip = firstTextUnder(document, "Podmiot2", "NIP");
       String buyerName = firstTextUnder(document, "Podmiot2", "Nazwa");
+      String description = allText(document, "P_7");
+      String category = category(description);
+      BigDecimal vatDeductionRatio =
+          "VEHICLE_FUEL".equals(category)
+              ? new BigDecimal("0.50")
+              : "ACCOUNTING_SERVICE".equals(category) ? BigDecimal.ONE : null;
 
       BigDecimal gross = decimal(firstText(document, "P_15"));
       BigDecimal net = sumNumberedFields(document, "P_13_");
@@ -58,8 +64,8 @@ public class KsefInvoiceXmlParser {
           net,
           vat,
           gross,
-          null,
-          null);
+          category,
+          vatDeductionRatio);
     } catch (Exception exception) {
       throw new IllegalStateException(
           "Could not parse KSeF invoice XML: " + rootMessage(exception), exception);
@@ -90,6 +96,25 @@ public class KsefInvoiceXmlParser {
       String value = clean(nodes.item(i).getTextContent());
       if (value != null) return value;
     }
+    return null;
+  }
+
+  private String allText(Document document, String localName) {
+    NodeList nodes = document.getElementsByTagNameNS("*", localName);
+    StringBuilder result = new StringBuilder();
+    for (int i = 0; i < nodes.getLength(); i++)
+      result.append(' ').append(nodes.item(i).getTextContent());
+    return result.toString().trim();
+  }
+
+  private String category(String description) {
+    String value = description == null ? "" : description.toLowerCase(java.util.Locale.ROOT);
+    if (value.contains("paliwo")
+        || value.contains("fuel")
+        || value.contains("bp")
+        || value.contains("aniwim")) return "VEHICLE_FUEL";
+    if (value.contains("księg") || value.contains("ksieg") || value.contains("accounting"))
+      return "ACCOUNTING_SERVICE";
     return null;
   }
 
@@ -160,11 +185,31 @@ public class KsefInvoiceXmlParser {
       String category,
       BigDecimal vatDeductionRatio) {
     public ParsedKsefInvoice(
-        String reference, LocalDate issueDate, LocalDate saleDate, String sellerNip,
-        String sellerName, String buyerNip, String buyerName, String currency,
-        BigDecimal netAmount, BigDecimal vatAmount, BigDecimal grossAmount) {
-      this(reference, issueDate, saleDate, sellerNip, sellerName, buyerNip, buyerName, currency,
-          netAmount, vatAmount, grossAmount, "ACCOUNTING_SERVICE", BigDecimal.ONE);
+        String reference,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        String sellerNip,
+        String sellerName,
+        String buyerNip,
+        String buyerName,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount) {
+      this(
+          reference,
+          issueDate,
+          saleDate,
+          sellerNip,
+          sellerName,
+          buyerNip,
+          buyerName,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          "ACCOUNTING_SERVICE",
+          BigDecimal.ONE);
     }
   }
 }
