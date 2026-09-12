@@ -45,7 +45,11 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .filter(p -> !p.paymentDate().isAfter(input.period()))
             .map(PaidContribution::paidAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+    ZusCalculationInput zusInput = input.periodContext().zusCalculationInput();
     BigDecimal health =
+        zusInput != null && zusInput.healthAmount() != null
+            ? zusInput.healthAmount()
+            :
         paidContributions.stream()
             .filter(p -> "HEALTH".equals(p.contributionType()))
             .filter(p -> !p.paymentDate().isAfter(input.period()))
@@ -114,9 +118,11 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .subtract(deductible.setScale(0, RoundingMode.HALF_UP));
     boolean qualifyingUop = input.periodContext().qualifyingUop();
     BigDecimal social =
-        qualifyingUop
-            ? BigDecimal.ZERO
-            : required(input.taxInputs(), "JDG_COMPULSORY_SOCIAL_ZUS", issues);
+        zusInput != null && zusInput.socialAmount() != null
+            ? zusInput.socialAmount()
+            : qualifyingUop
+                ? BigDecimal.ZERO
+                : required(input.taxInputs(), "JDG_COMPULSORY_SOCIAL_ZUS", issues);
     BigDecimal totalZus = social.add(health).setScale(2, RoundingMode.HALF_UP);
     var zus =
         new AccountingCalculationResult.ZusCalculation(
@@ -124,7 +130,9 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             health.setScale(2, RoundingMode.HALF_UP),
             totalZus,
             qualifyingUop,
-            qualifyingUop ? "UOP_PRIMARY_INSURANCE" : "JDG_PRIMARY_INSURANCE");
+            zusInput != null && zusInput.socialReasonCode() != null
+                ? zusInput.socialReasonCode()
+                : qualifyingUop ? "UOP_PRIMARY_INSURANCE" : "JDG_PRIMARY_INSURANCE");
     var ryczalt =
         new AccountingCalculationResult.RyczaltCalculation(
             revenue, socialDeduction, health, healthDeduction, taxable, buckets, tax);
