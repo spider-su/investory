@@ -3,7 +3,7 @@
 This document describes the current Accounting boundaries. It separates source extraction from
 accounting-safe validation, normalized facts, calculation and filing projections.
 
-## Current flow
+## CURRENT: end-to-end flow
 
 ```text
 sources
@@ -22,6 +22,22 @@ Runtime source data is separate from test-support and historical golden data. Up
 KSeF XML and bank files are immutable source evidence. The snapshots and fixtures under
 `test-support` are deterministic regression evidence and historical reconstruction inputs; they are
 not runtime adapters and must not drive current operational calculations.
+
+The source boundary is therefore:
+
+```text
+source acquisition
+    ↓
+immutable source evidence
+    ↓
+document extraction adapters
+    ↓
+document candidate + field evidence
+    ↓
+common validation
+    ↓
+normalized accounting facts
+```
 
 ## Document extraction boundary
 
@@ -113,7 +129,7 @@ AccountingMonthSnapshot
 `AccountingFactService` currently orchestrates monthly calculation, historical comparison, bank
 reconciliation, readiness and snapshot assembly. The snapshot is the canonical POC monthly result.
 
-### Target calculation architecture
+## TARGET: pure calculation architecture
 
 The following is a refactoring direction, not the current stable production boundary:
 
@@ -135,7 +151,7 @@ sources
 target pure-calculation concepts. Comparison, reconciliation and readiness should remain outside the
 pure calculator as this refactoring matures.
 
-## Filing and payment projections
+## CURRENT: filing and payment projections
 
 The current POC filing path is:
 
@@ -152,11 +168,36 @@ JPK projection
 Payment instructions are also projections of the calculated snapshot. They are not a second
 calculation path and actual bank payments remain separate evidence.
 
+The responsibility split is:
+
+```text
+calculation        = authoritative accounting amounts
+filing             = projection of accepted canonical accounting data
+payment instruction = operational projection
+bank transaction   = observed cash evidence
+```
+
+No export layer independently recalculates tax.
+
 This is not yet fully filing-ready. Hardening areas include natural-person JDG taxpayer identity,
 KSeF/OFF/BFK/DI semantics, deductible purchase VAT projection, official XSD validation, typed filing
 issues, deterministic semantic confirmation fingerprints and business-day due dates.
 
-## Historical comparison and fixtures
+## CURRENT: bank reconciliation
+
+```text
+raw bank source
+    → immutable source evidence
+    → normalized bank transactions
+    → classification
+    → reconciliation
+```
+
+Calculated accounting obligations, actual bank movements and reconciliation state remain separate.
+Bank cash can expose a difference or unresolved classification, but never mutates a calculated
+accounting value.
+
+## CURRENT: historical comparison and fixtures
 
 Historical goldens may reconstruct or compare historical months, but they must never influence the
 canonical calculation:

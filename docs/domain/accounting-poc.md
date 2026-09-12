@@ -188,17 +188,11 @@ Derived fixtures are acceptable for the POC, but the UI and data must preserve p
 
 ## Document recognition boundary
 
-The stable extraction architecture is documented in [Accounting architecture](../architecture/accounting.md).
-In short, PDF, image, AI and KSeF-style sources feed source-specific adapters that return one common
-candidate/evidence model and pass through one validator before normalized ingestion.
-
-Implemented on this branch: deterministic PDFBox extraction with layout-aware document text, field
-evidence, multi-rate VAT summary support, configured-NIP direction checks, and shared validation.
-AI is an extraction fallback and its output also passes shared validation. OCR is **not implemented**;
-the image compatibility path may fall through to AI, but it must not be treated as OCR.
-
-The old scanner classes remain transitional compatibility plumbing. They are not the long-term
-architecture or a separate accounting fact boundary.
+The stable extraction architecture, including current versus target boundaries, is documented in
+[Accounting architecture](../architecture/accounting.md). PDF, image, AI and KSeF-style sources use
+source-specific adapters and converge on one candidate/evidence model and one validator before
+normalized ingestion. This domain document keeps only the proven source and accounting semantics;
+it does not define scanner implementation details.
 
 Reviewed upload persistence remains centralized in `AccountingInvoiceIngestionService`. It validates
 the reviewed document, preserves the selected VAT deduction ratio for purchases, applies the POC sales
@@ -208,20 +202,6 @@ invoices use the same service after structured XML parsing; their purchase rows 
 bad source document skips while other documents continue. Reviewed credit notes persist as signed
 sales adjustments in the same normalized invoice table; the historical July correction remains the
 only special fixture treatment.
-
-The pipeline has simple application feature flags:
-
-```yaml
-app:
-  accounting:
-    document-scanner:
-      pdf-enabled: true
-      image-enabled: true
-      ai-fallback-enabled: true
-```
-
-All flags default to `true`. Disable `pdf-enabled` or `image-enabled` to skip that deterministic layer.
-Disable `ai-fallback-enabled` to return an incomplete result instead of calling AI.
 
 ## Filing output
 
