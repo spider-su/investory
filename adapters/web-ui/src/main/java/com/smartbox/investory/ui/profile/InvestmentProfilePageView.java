@@ -49,6 +49,10 @@ record InvestmentProfilePageView(
     BigDecimal marketAnnualIncome = profile.incomeSummary().marketAnnualIncome();
     var income = profile.incomeSummary();
     boolean hasInvestmentIncome = income.investmentIncomeAvailable();
+    BigDecimal expectedAnnualInvestmentResult =
+        hasInvestmentIncome && income.expectedAnnualInvestmentResult() != null
+            ? income.expectedAnnualInvestmentResult()
+            : marketAnnualIncome;
     return new InvestmentProfilePageView(
         profile.portfolioId(),
         profile.currency(),
@@ -57,7 +61,7 @@ record InvestmentProfilePageView(
         UiPresentation.compactMoney(profile.marketPortfolioValue()),
         UiPresentation.percentage(profile.longTermAssetPercentage()) + " of net worth",
         UiPresentation.compactMoney(profile.longTermAssetValue()),
-        UiPresentation.compactMoney(marketAnnualIncome),
+        UiPresentation.compactMoney(expectedAnnualInvestmentResult),
         UiPresentation.percentage(profile.marketPortfolioPercentage()),
         UiPresentation.percentage(profile.longTermAssetPercentage()),
         hasInvestmentIncome
@@ -66,14 +70,14 @@ record InvestmentProfilePageView(
                 ? UiPresentation.percentage(performance.expectedAnnualReturn())
                 : "Unavailable",
         hasInvestmentIncome
-            ? "Investment performance"
+            ? "Forward-looking estimate"
             : performance.kpiStartDate() == null
                 ? "Total return"
                 : "Since " + performance.kpiStartDate(),
         performance.historicalAnnualizedReturn() == null
             ? "Unavailable"
             : UiPresentation.percentage(performance.historicalAnnualizedReturn()),
-        performance.historyContext() == null ? "Portfolio history" : performance.historyContext(),
+        "Cash-flow-neutral portfolio history",
         money(
             hasInvestmentIncome
                 ? income.investmentResultYtd()

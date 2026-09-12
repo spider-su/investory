@@ -108,6 +108,30 @@ class AccountingFactControllerTest {
   }
 
   @Test
+  void reviewedUploadIsPersistedThroughAccountingIngestionService() throws Exception {
+    when(invoiceIngestionService.ingest(any())).thenReturn(true);
+
+    mvc.perform(
+            post("/poc/accounting/invoice")
+                .param("month", "2026-07")
+                .param("sourceIdentity", "42")
+                .param("documentType", "PURCHASE_INVOICE")
+                .param("issueDate", "2026-07-10")
+                .param("reference", "REVIEWED-42")
+                .param("counterpartyAlias", "Supplier")
+                .param("category", "ACCOUNTING_SERVICE")
+                .param("currency", "PLN")
+                .param("netAmount", "100")
+                .param("vatAmount", "23")
+                .param("grossAmount", "123")
+                .param("vatDeductionRatio", "1"))
+        .andExpect(status().is3xxRedirection());
+
+    verify(invoiceIngestionService).ingest(any());
+    verify(sourceEvidenceService).status(42L, AccountingSourceStatus.IMPORTED, null);
+  }
+
+  @Test
   void selectsRequestedMonthAndExposesAdjacentPeriods() throws Exception {
     mvc.perform(get("/poc/accounting").param("month", "2026-02"))
         .andExpect(status().isOk())

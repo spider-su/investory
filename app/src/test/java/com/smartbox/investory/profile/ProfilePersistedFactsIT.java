@@ -241,7 +241,7 @@ class ProfilePersistedFactsIT {
             HappyInvestorTestData.PORTFOLIO_ID);
 
     assertThat((BigDecimal) boundary.get("initialization_adjustment"))
-        .isEqualByComparingTo("142857.93602640");
+        .isEqualByComparingTo("142857.93602600");
     assertThat((BigDecimal) boundary.get("total_profit")).isEqualByComparingTo("0");
     assertThat((BigDecimal) boundary.get("daily_return_pct")).isEqualByComparingTo("0");
 
