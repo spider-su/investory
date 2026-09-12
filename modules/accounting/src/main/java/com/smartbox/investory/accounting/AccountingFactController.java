@@ -24,13 +24,23 @@ public class AccountingFactController {
   private final AccountingInvoiceIngestionService invoiceIngestionService;
   private final AccountingSourceEvidenceService sourceEvidenceService;
   private final AccountingJdgExporter exporter;
+  private final AccountingFilingService filingService;
 
   public AccountingFactController(
       AccountingFactService service,
       AccountingInvoiceRecognitionService recognition,
       AccountingInvoiceIngestionService ingestion,
       AccountingJdgExporter exporter) {
-    this(service, recognition, ingestion, exporter, null);
+    this(service, recognition, ingestion, exporter, null, null);
+  }
+
+  public AccountingFactController(
+      AccountingFactService service,
+      AccountingInvoiceRecognitionService recognition,
+      AccountingInvoiceIngestionService ingestion,
+      AccountingJdgExporter exporter,
+      AccountingSourceEvidenceService sourceEvidenceService) {
+    this(service, recognition, ingestion, exporter, sourceEvidenceService, null);
   }
 
   @org.springframework.beans.factory.annotation.Autowired
@@ -39,12 +49,14 @@ public class AccountingFactController {
       AccountingInvoiceRecognitionService recognition,
       AccountingInvoiceIngestionService ingestion,
       AccountingJdgExporter exporter,
-      AccountingSourceEvidenceService sourceEvidenceService) {
+      AccountingSourceEvidenceService sourceEvidenceService,
+      AccountingFilingService filingService) {
     this.service = service;
     this.invoiceRecognitionService = recognition;
     this.invoiceIngestionService = ingestion;
     this.sourceEvidenceService = sourceEvidenceService;
     this.exporter = exporter;
+    this.filingService = filingService;
   }
 
   @GetMapping("/poc/accounting")
@@ -74,6 +86,26 @@ public class AccountingFactController {
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=jdg-accounting-2026.csv")
         .contentType(MediaType.parseMediaType("text/csv"))
         .body(exporter.exportCsv());
+  }
+
+  @GetMapping("/poc/accounting/jpk")
+  public ResponseEntity<byte[]> exportJpk(@RequestParam String month) {
+    byte[] xml = filingService.jpk(parseMonth(month));
+    return ResponseEntity.ok()
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=jpk-v7m-" + month + ".xml")
+        .contentType(MediaType.APPLICATION_XML)
+        .body(xml);
+  }
+
+  @PostMapping("/poc/accounting/confirm")
+  public String confirm(@RequestParam String month, RedirectAttributes redirectAttributes) {
+    try {
+      filingService.confirm(parseMonth(month));
+      redirectAttributes.addFlashAttribute("filingMessage", "Month confirmed for filing output.");
+    } catch (RuntimeException exception) {
+      redirectAttributes.addFlashAttribute("filingError", exception.getMessage());
+    }
+    return "redirect:/poc/accounting?month=" + month;
   }
 
   @PostMapping("/poc/accounting/invoice/recognize")
@@ -182,6 +214,15 @@ public class AccountingFactController {
         snapshot.bankTransactions().stream()
             .filter(transaction -> "UNKNOWN".equals(transaction.transactionType()))
             .count());
+    if (filingService != null) {
+      AccountingFilingService.FilingResult filing = filingService.filing(selected);
+      model.addAttribute("filing", filing);
+      try {
+        model.addAttribute("paymentInstructions", filingService.paymentInstructions(selected));
+      } catch (RuntimeException exception) {
+        model.addAttribute("paymentInstructionError", exception.getMessage());
+      }
+    }
     return selected;
   }
 

@@ -231,6 +231,25 @@ app:
 All flags default to `true`. Disable `pdf-enabled` or `image-enabled` to skip that deterministic layer.
 Disable `ai-fallback-enabled` to return an incomplete result instead of calling AI.
 
+## Filing output
+
+The canonical monthly result is the `AccountingMonthSnapshot` produced by `AccountingFactService`.
+JPK_V7M(3) is only a projection of that result; it is not a second VAT calculator. The POC preserves
+the current Ministry of Finance schema boundary (JPK_V7M(3), effective from February 2026), but does
+not submit files to government services. Filing output is blocked while the month has unresolved
+`REVIEW_REQUIRED` or `INCOMPLETE` issues, taxpayer configuration is incomplete, or the user has not
+confirmed the calculated month. Confirmation stores a calculation hash and becomes stale when
+accounting-relevant facts change.
+
+## Payment obligations
+
+VAT, ryczałt and ZUS payment instructions are projections of the canonical calculated amounts. They
+contain a deterministic due date, recipient, configured account and transfer title. A missing account
+is exposed as `MISSING_PAYMENT_CONFIGURATION`; no account number is fabricated. Calculated obligation,
+payment instruction and actual bank payment remain separate concepts. Prompt 3 bank transactions are
+actual cash evidence used for reconciliation and can show `PARTIAL`, `OVERPAID` or `UNMATCHED` without
+changing the calculated obligation.
+
 ## Next milestone
 
 The historical POC is considered proven when the frozen matrix stays stable. The next product milestone is:

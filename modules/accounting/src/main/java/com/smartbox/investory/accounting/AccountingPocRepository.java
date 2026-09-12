@@ -6,6 +6,7 @@ import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,10 +18,41 @@ import org.springframework.stereotype.Repository;
 public class AccountingPocRepository {
   private final JdbcTemplate jdbcTemplate;
 
+  public PeriodState periodState(LocalDate period) {
+    return jdbcTemplate.query(
+        "SELECT confirmed_at, confirmed_calculation_hash FROM investory.accounting_poc_period_state WHERE tax_period = ?",
+        rs ->
+            rs.next()
+                ? new PeriodState(
+                    rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
+                    rs.getString(2))
+                : null,
+        period);
+  }
+
+  public void confirm(LocalDate period, String hash, Instant confirmedAt) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_period_state (tax_period, confirmed_at, confirmed_calculation_hash) VALUES (?, ?, ?) ON CONFLICT (tax_period) DO UPDATE SET confirmed_at = EXCLUDED.confirmed_at, confirmed_calculation_hash = EXCLUDED.confirmed_calculation_hash",
+        period,
+        java.sql.Timestamp.from(confirmedAt),
+        hash);
+  }
+
+  public record PeriodState(Instant confirmedAt, String confirmedCalculationHash) {}
+
   public AccountingProfile accountingProfile() {
     return jdbcTemplate.queryForObject(
-        "SELECT has_uop FROM investory.accounting_poc_profile WHERE id = 1",
-        (rs, rowNum) -> new AccountingProfile(rs.getBoolean("has_uop")));
+        "SELECT has_uop, nip, full_name, tax_office_code, email, vat_payment_account, ryczalt_payment_account, zus_payment_account FROM investory.accounting_poc_profile WHERE id = 1",
+        (rs, rowNum) ->
+            new AccountingProfile(
+                rs.getBoolean("has_uop"),
+                rs.getString("nip"),
+                rs.getString("full_name"),
+                rs.getString("tax_office_code"),
+                rs.getString("email"),
+                rs.getString("vat_payment_account"),
+                rs.getString("ryczalt_payment_account"),
+                rs.getString("zus_payment_account")));
   }
 
   public void updateHasUop(boolean hasUop) {

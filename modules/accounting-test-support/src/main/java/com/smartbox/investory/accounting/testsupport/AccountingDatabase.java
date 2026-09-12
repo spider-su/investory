@@ -101,6 +101,24 @@ public final class AccountingDatabase {
       statement.execute(
           "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS source_row_identity VARCHAR(256)");
       statement.execute(
+          "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS nip VARCHAR(10)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS full_name VARCHAR(240)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS tax_office_code VARCHAR(4)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS email VARCHAR(255)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS vat_payment_account VARCHAR(34)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS ryczalt_payment_account VARCHAR(34)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_profile ADD COLUMN IF NOT EXISTS zus_payment_account VARCHAR(34)");
+      statement.execute(
+          "UPDATE investory.accounting_poc_profile SET nip = COALESCE(nip, '1010000000'), full_name = COALESCE(full_name, 'Investory Accounting POC'), tax_office_code = COALESCE(tax_office_code, '1215'), email = COALESCE(email, 'accounting@example.invalid') WHERE id = 1");
+      statement.execute(
+          "CREATE TABLE IF NOT EXISTS investory.accounting_poc_period_state (tax_period DATE PRIMARY KEY, confirmed_at TIMESTAMPTZ, confirmed_calculation_hash VARCHAR(64))");
+      statement.execute(
           "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_poc_bank_source_row ON investory.accounting_poc_bank_transaction (source_row_identity) WHERE source_row_identity IS NOT NULL");
       statement.execute(
           "ALTER TABLE investory.accounting_source_evidence DROP CONSTRAINT IF EXISTS chk_accounting_source_type");

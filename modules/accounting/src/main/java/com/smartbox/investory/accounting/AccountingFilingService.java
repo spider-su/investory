@@ -28,12 +28,35 @@ public class AccountingFilingService {
     snapshot.issues().stream()
         .filter(i -> !"INFO".equals(i.severity()))
         .forEach(i -> issues.add(i.message()));
+    snapshot
+        .invoices()
+        .forEach(
+            invoice -> {
+              if (invoice.reference() == null
+                  || invoice.reference().isBlank()
+                  || invoice.issueDate() == null
+                  || invoice.currency() == null
+                  || invoice.netAmount() == null
+                  || invoice.vatAmount() == null
+                  || invoice.grossAmount() == null) {
+                issues.add("Incomplete invoice fields: " + invoice.reference());
+              }
+            });
     if (!confirmed) issues.add("Month calculation is not confirmed or changed after confirmation.");
     if (blank(profile.nip())
         || blank(profile.fullName())
         || blank(profile.taxOfficeCode())
         || blank(profile.email())) {
       issues.add("MISSING_TAXPAYER_CONFIGURATION");
+    }
+    if (positive(snapshot.vat().calculatedVat()) && blank(profile.vatPaymentAccount())) {
+      issues.add("MISSING_PAYMENT_CONFIGURATION: VAT");
+    }
+    if (positive(snapshot.ryczalt().calculatedTax()) && blank(profile.ryczaltPaymentAccount())) {
+      issues.add("MISSING_PAYMENT_CONFIGURATION: RYCZALT");
+    }
+    if (positive(snapshot.zus().totalZus()) && blank(profile.zusPaymentAccount())) {
+      issues.add("MISSING_PAYMENT_CONFIGURATION: ZUS");
     }
     return new FilingResult(period, snapshot, profile, hash, confirmed, issues);
   }
@@ -142,6 +165,10 @@ public class AccountingFilingService {
 
   private boolean blank(String value) {
     return value == null || value.isBlank();
+  }
+
+  private boolean positive(BigDecimal value) {
+    return value != null && value.signum() > 0;
   }
 
   public record FilingResult(

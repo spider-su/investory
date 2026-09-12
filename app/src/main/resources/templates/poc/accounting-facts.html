@@ -158,6 +158,20 @@
       <div class="alert alert-danger" role="alert" th:if="${ksefInvoiceReadError}" th:text="${ksefInvoiceReadError}"></div>
       <div class="alert alert-success" role="alert" th:if="${bankImportMessage}" th:text="${bankImportMessage}"></div>
       <div class="alert alert-danger" role="alert" th:if="${bankImportError}" th:text="${bankImportError}"></div>
+      <div class="alert alert-success" role="alert" th:if="${filingMessage}" th:text="${filingMessage}"></div>
+      <div class="alert alert-danger" role="alert" th:if="${filingError}" th:text="${filingError}"></div>
+
+      <section class="card section-card" th:if="${filing != null}">
+        <div class="card-header"><h2 class="card-title">Filing</h2></div>
+        <div class="card-body">
+          <p><strong>Status:</strong> <span th:text="${filing.ready() ? 'READY' : 'BLOCKED'}">BLOCKED</span></p>
+          <ul class="mb-3"><li th:each="issue : ${filing.issues()}" th:text="${issue}">Issue</li><li th:if="${filing.issues().isEmpty()}">JPK totals reconcile; taxpayer data complete; no unresolved accounting issues.</li></ul>
+          <form class="d-inline" method="post" th:action="@{/poc/accounting/confirm}"><input type="hidden" name="month" th:value="${#temporals.format(selectedPeriod, 'yyyy-MM')}"><button class="btn btn-outline-primary" type="submit">Confirm month</button></form>
+          <a class="btn btn-primary" th:if="${filing.ready()}" th:href="@{/poc/accounting/jpk(month=${#temporals.format(selectedPeriod, 'yyyy-MM')})}">Download JPK_V7M</a>
+          <div class="mt-3" th:if="${paymentInstructionError}" th:text="${paymentInstructionError}"></div>
+          <table class="table table-sm mt-3" th:if="${paymentInstructions != null && !paymentInstructions.isEmpty()}"><thead><tr><th>Obligation</th><th>Amount</th><th>Due</th><th>Title</th><th>Status</th></tr></thead><tbody><tr th:each="instruction : ${paymentInstructions}"><td th:text="${instruction.obligationType()}">VAT</td><td th:text="${instruction.amount()}">0.00</td><td th:text="${instruction.dueDate()}">2026-10-25</td><td th:text="${instruction.title()}">VAT</td><td th:text="${instruction.status()}">NOT_DUE</td></tr></tbody></table>
+        </div>
+      </section>
 
       <section class="card section-card">
         <div class="card-header">
