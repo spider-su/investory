@@ -31,6 +31,8 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
 
   @Autowired private AccountingBankImportService bankImport;
 
+  @Autowired private AccountingFilingService filingService;
+
   @Autowired private JdbcTemplate jdbcTemplate;
 
   @MockitoBean(name = "currencyRateService")
@@ -151,13 +153,13 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             Long.toString(sourceId)));
     sourceEvidence.status(sourceId, AccountingSourceStatus.IMPORTED, null);
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?)",
+        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
         september,
         "HEALTH_CONTRIBUTION_PAID",
         new BigDecimal("100.00"),
         "E2E_TEST");
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?)",
+        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
         september,
         "JDG_COMPULSORY_SOCIAL_ZUS",
         new BigDecimal("200.00"),
@@ -169,6 +171,76 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     assertThat(snapshot.comparisons()).isEmpty();
     assertThat(snapshot.readiness()).isEqualTo(AccountingReadiness.READY);
     assertThat(snapshot.totalBookedRevenuePln()).isEqualByComparingTo("1000.00");
+  }
+
+  @Test
+  void completeOperationalMonthConfirmsAndProjectsJpkAndPayments() {
+    LocalDate july = LocalDate.of(2026, 10, 1);
+    long sourceId =
+        sourceEvidence.receiveKsef("E2E-FILING-SEPTEMBER", july.plusDays(10), "filing".getBytes());
+    ingestion.ingest(
+        new AccountingInvoiceIngestionService.ReviewedInvoice(
+            july,
+            "SALES_INVOICE",
+            july.plusDays(10),
+            july.plusDays(10),
+            "E2E-FILING-SALE",
+            "FILING CUSTOMER",
+            "SERVICE",
+            "PLN",
+            new BigDecimal("1000.00"),
+            new BigDecimal("230.00"),
+            new BigDecimal("1230.00"),
+            BigDecimal.ZERO,
+            "E2E_TEST",
+            "Complete filing month",
+            Long.toString(sourceId)));
+    ingestion.ingest(
+        new AccountingInvoiceIngestionService.ReviewedInvoice(
+            july,
+            "PURCHASE_INVOICE",
+            july.plusDays(11),
+            july.plusDays(11),
+            "E2E-FILING-PURCHASE",
+            "FILING SUPPLIER",
+            "ACCOUNTING_SERVICE",
+            "PLN",
+            new BigDecimal("100.00"),
+            new BigDecimal("23.00"),
+            new BigDecimal("123.00"),
+            BigDecimal.ONE,
+            "E2E_TEST",
+            "Complete filing month",
+            Long.toString(sourceId)));
+    sourceEvidence.status(sourceId, AccountingSourceStatus.IMPORTED, null);
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
+        july,
+        "HEALTH_CONTRIBUTION_PAID",
+        new BigDecimal("100.00"),
+        "E2E_TEST");
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
+        july,
+        "JDG_COMPULSORY_SOCIAL_ZUS",
+        new BigDecimal("200.00"),
+        "E2E_TEST");
+    jdbcTemplate.update(
+        "UPDATE investory.accounting_poc_profile SET vat_payment_account = ?, ryczalt_payment_account = ?, zus_payment_account = ? WHERE id = 1",
+        "PL00123456789012345678901234",
+        "PL00123456789012345678901234",
+        "PL00123456789012345678901234");
+
+    filingService.confirm(july);
+    AccountingFilingService.FilingResult filing = filingService.filing(july);
+
+    assertThat(filing.ready()).isTrue();
+    assertThat(new String(filingService.jpk(july))).contains("JPK_V7M (3)", "<P_51>207.00</P_51>");
+    assertThat(filingService.paymentInstructions(july))
+        .extracting(AccountingPaymentInstruction::obligationType)
+        .containsExactly("VAT", "RYCZALT", "ZUS");
+    assertThat(filingService.paymentInstructions(july).getFirst().amount())
+        .isEqualByComparingTo("207");
   }
 
   @Test
