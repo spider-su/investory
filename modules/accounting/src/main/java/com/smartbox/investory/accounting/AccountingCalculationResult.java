@@ -39,6 +39,7 @@ public record AccountingCalculationResult(
 
   public record RyczaltCalculation(
       BigDecimal revenueBeforeDeductions,
+      BigDecimal socialContributionDeduction,
       BigDecimal healthContributionPaid,
       BigDecimal healthDeduction,
       BigDecimal taxableBase,

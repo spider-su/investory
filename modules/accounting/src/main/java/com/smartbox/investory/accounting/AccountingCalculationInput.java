@@ -13,12 +13,32 @@ public record AccountingCalculationInput(
     List<ExpenseRow> expenses,
     List<TaxInputRow> taxInputs,
     AccountingProfile profile,
-    CalculationAdjustments adjustments) {
+    CalculationAdjustments adjustments,
+    AccountingPeriodContext periodContext) {
+  public AccountingCalculationInput(
+      LocalDate period,
+      List<InvoiceRow> invoices,
+      List<ExpenseRow> expenses,
+      List<TaxInputRow> taxInputs,
+      AccountingProfile profile,
+      CalculationAdjustments adjustments) {
+    this(
+        period,
+        invoices,
+        expenses,
+        taxInputs,
+        profile,
+        adjustments,
+        AccountingPeriodContext.compatibility(period, profile));
+  }
+
   public AccountingCalculationInput {
     invoices = List.copyOf(invoices);
     expenses = List.copyOf(expenses);
     taxInputs = List.copyOf(taxInputs);
     adjustments = adjustments == null ? CalculationAdjustments.none() : adjustments;
+    periodContext =
+        periodContext == null ? AccountingPeriodContext.compatibility(period, profile) : periodContext;
   }
 
   public record CalculationAdjustments(

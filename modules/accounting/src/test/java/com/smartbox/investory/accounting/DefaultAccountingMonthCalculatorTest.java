@@ -68,6 +68,63 @@ class DefaultAccountingMonthCalculatorTest {
         .contains("UNSUPPORTED_RYCZALT_RATE");
   }
 
+  @Test
+  void usesEffectiveUopStateInsteadOfCompatibilityProfileFlag() {
+    CurrencyConversion conversion = mock(CurrencyConversion.class);
+    AccountingCalculationInput base = input(List.of(invoice("PLN-1", "PLN", "1000.00", "0.12")), List.of());
+    AccountingCalculationInput effective =
+        new AccountingCalculationInput(
+            base.period(),
+            base.invoices(),
+            base.expenses(),
+            base.taxInputs(),
+            new AccountingProfile(false),
+            base.adjustments(),
+            new AccountingPeriodContext(
+                PERIOD, true, true, "JDG", false, AccountingYearToDateContext.empty()));
+
+    AccountingCalculationResult result = new DefaultAccountingMonthCalculator(conversion).calculate(effective);
+
+    assertThat(result.zus().socialZus()).isZero();
+    assertThat(result.zus().socialZusReasonCode()).isEqualTo("UOP_PRIMARY_INSURANCE");
+  }
+
+  @Test
+  void onlyPaidContributionsAreUsedForRyczaltDeduction() {
+    CurrencyConversion conversion = mock(CurrencyConversion.class);
+    AccountingCalculationInput base = input(List.of(invoice("PLN-1", "PLN", "1000.00", "0.12")), List.of());
+    AccountingCalculationInput effective =
+        new AccountingCalculationInput(
+            base.period(),
+            base.invoices(),
+            base.expenses(),
+            List.of(new TaxInputRow("JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("200.00"), "obligation")),
+            base.profile(),
+            base.adjustments(),
+            new AccountingPeriodContext(
+                PERIOD,
+                true,
+                false,
+                "JDG",
+                false,
+                new AccountingYearToDateContext(
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of(
+                        new PaidContribution(
+                            "SOCIAL", PERIOD, PERIOD, new BigDecimal("100.00"), null, 7L),
+                        new PaidContribution(
+                            "HEALTH", PERIOD, PERIOD, new BigDecimal("100.00"), null, 8L)))));
+
+    AccountingCalculationResult result = new DefaultAccountingMonthCalculator(conversion).calculate(effective);
+
+    assertThat(result.ryczalt().socialContributionDeduction()).isEqualByComparingTo("100.00");
+    assertThat(result.ryczalt().healthDeduction()).isEqualByComparingTo("50.00");
+    assertThat(result.ryczalt().taxableBase()).isEqualByComparingTo("850.00");
+  }
+
   private DefaultAccountingMonthCalculator calculator(CurrencyConversion conversion) {
     return new DefaultAccountingMonthCalculator(conversion);
   }

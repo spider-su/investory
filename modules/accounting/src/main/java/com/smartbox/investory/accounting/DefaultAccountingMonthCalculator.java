@@ -38,9 +38,29 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal revenue =
         domestic.add(fx.convertedRevenuePln()).add(input.adjustments().revenueNetPln());
-    BigDecimal health = required(input.taxInputs(), "HEALTH_CONTRIBUTION_PAID", issues);
-    BigDecimal healthDeduction = health.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
-    BigDecimal taxable = revenue.subtract(healthDeduction).setScale(2, RoundingMode.HALF_UP);
+    var paidContributions = input.periodContext().yearToDate().paidContributions();
+    BigDecimal paidSocial =
+        paidContributions.stream()
+            .filter(p -> "SOCIAL".equals(p.contributionType()))
+            .filter(p -> !p.paymentDate().isAfter(input.period()))
+            .map(PaidContribution::paidAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal health =
+        paidContributions.stream()
+            .filter(p -> "HEALTH".equals(p.contributionType()))
+            .filter(p -> !p.paymentDate().isAfter(input.period()))
+            .map(PaidContribution::paidAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (health.signum() == 0) {
+      health = required(input.taxInputs(), "HEALTH_CONTRIBUTION_PAID", issues);
+    }
+    BigDecimal socialDeduction = paidSocial;
+    BigDecimal healthDeduction =
+        health.signum() == 0
+            ? BigDecimal.ZERO
+            : health.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
+    BigDecimal taxable =
+        revenue.subtract(socialDeduction).subtract(healthDeduction).setScale(2, RoundingMode.HALF_UP);
     Map<BigDecimal, BigDecimal> buckets = new LinkedHashMap<>();
     for (InvoiceRow invoice : input.invoices()) {
       if (invoice.ryczaltRate() == null) {
@@ -69,6 +89,7 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         buckets.entrySet().stream()
             .map(e -> e.getValue().multiply(e.getKey()))
             .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .subtract(socialDeduction.multiply(new BigDecimal("0.12")))
             .subtract(healthDeduction.multiply(new BigDecimal("0.12")))
             .setScale(0, RoundingMode.HALF_UP);
     BigDecimal outputVat =
@@ -88,8 +109,9 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         outputVat
             .setScale(0, RoundingMode.HALF_UP)
             .subtract(deductible.setScale(0, RoundingMode.HALF_UP));
+    boolean qualifyingUop = input.periodContext().qualifyingUop();
     BigDecimal social =
-        input.profile().hasUop()
+        qualifyingUop
             ? BigDecimal.ZERO
             : required(input.taxInputs(), "JDG_COMPULSORY_SOCIAL_ZUS", issues);
     BigDecimal totalZus = social.add(health).setScale(2, RoundingMode.HALF_UP);
@@ -98,11 +120,11 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             social.setScale(2, RoundingMode.HALF_UP),
             health.setScale(2, RoundingMode.HALF_UP),
             totalZus,
-            input.profile().hasUop(),
-            input.profile().hasUop() ? "UOP_PRIMARY_INSURANCE" : "JDG_PRIMARY_INSURANCE");
+            qualifyingUop,
+            qualifyingUop ? "UOP_PRIMARY_INSURANCE" : "JDG_PRIMARY_INSURANCE");
     var ryczalt =
         new AccountingCalculationResult.RyczaltCalculation(
-            revenue, health, healthDeduction, taxable, buckets, tax);
+            revenue, socialDeduction, health, healthDeduction, taxable, buckets, tax);
     var vat =
         new AccountingCalculationResult.VatCalculation(
             outputVat.subtract(input.adjustments().salesVat()),
