@@ -85,6 +85,20 @@ public class AccountingFilingService {
           "Cannot confirm month: " + String.join("; ", result.issues()));
     }
     repository.confirm(period, result.calculationHash(), Instant.now());
+    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.CONFIRMED);
+  }
+
+  public void transitionLifecycle(
+      LocalDate period,
+      PeriodLifecycleStatus target,
+      boolean blockingIssues,
+      boolean hasFilingEvidence,
+      boolean amountsReconcile) {
+    var state = repository.periodState(period);
+    var current = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
+    new AccountingPeriodLifecycle()
+        .transition(current, target, blockingIssues, hasFilingEvidence, amountsReconcile);
+    repository.updateLifecycleStatus(period, target);
   }
 
   public byte[] jpk(LocalDate period) {

@@ -26,12 +26,15 @@ public class AccountingPocRepository {
 
   public PeriodState periodState(LocalDate period) {
     return jdbcTemplate.query(
-        "SELECT confirmed_at, confirmed_calculation_hash FROM investory.accounting_poc_period_state WHERE tax_period = ?",
+        "SELECT confirmed_at, confirmed_calculation_hash, lifecycle_status FROM investory.accounting_poc_period_state WHERE tax_period = ?",
         rs ->
             rs.next()
                 ? new PeriodState(
                     rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
-                    rs.getString(2))
+                    rs.getString(2),
+                    rs.getString(3) == null
+                        ? PeriodLifecycleStatus.OPEN
+                        : PeriodLifecycleStatus.valueOf(rs.getString(3)))
                 : null,
         period);
   }
@@ -42,6 +45,12 @@ public class AccountingPocRepository {
         period,
         java.sql.Timestamp.from(confirmedAt),
         hash);
+  }
+
+  public void updateLifecycleStatus(LocalDate period, PeriodLifecycleStatus status) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_period_state (tax_period, lifecycle_status) VALUES (?, ?) ON CONFLICT (tax_period) DO UPDATE SET lifecycle_status = EXCLUDED.lifecycle_status",
+        period, status.name());
   }
 
   public void saveFilingArtifact(AccountingFilingArtifact artifact) {
@@ -70,7 +79,8 @@ public class AccountingPocRepository {
         confirmation.note());
   }
 
-  public record PeriodState(Instant confirmedAt, String confirmedCalculationHash) {}
+  public record PeriodState(
+      Instant confirmedAt, String confirmedCalculationHash, PeriodLifecycleStatus lifecycleStatus) {}
 
   public AccountingProfile accountingProfile() {
     return jdbcTemplate.queryForObject(
