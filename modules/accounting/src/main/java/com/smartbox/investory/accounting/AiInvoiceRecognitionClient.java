@@ -181,8 +181,11 @@ class AiInvoiceRecognitionClient {
           text(node, "note"),
           text(node, "sellerNip"),
           text(node, "buyerNip"),
-          List.of(new AccountingInvoiceRecognitionService.FieldCandidate<>(
-              output, AccountingInvoiceRecognitionService.ExtractionSource.AI, "AI JSON response")));
+          List.of(
+              new AccountingInvoiceRecognitionService.FieldCandidate<>(
+                  output,
+                  AccountingInvoiceRecognitionService.ExtractionSource.AI,
+                  "AI JSON response")));
     } catch (Exception exception) {
       log.warn("Could not parse invoice recognition payload: {}", abbreviate(output, 500));
       throw new IllegalStateException("AI result could not be parsed as an invoice", exception);

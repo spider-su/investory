@@ -37,8 +37,19 @@ class DocumentScannerProperties {
     this.aiFallbackEnabled = aiFallbackEnabled;
   }
 
-  public long getMaxBytes() { return maxBytes; }
-  public void setMaxBytes(long maxBytes) { this.maxBytes = maxBytes; }
-  public int getMaxPages() { return maxPages; }
-  public void setMaxPages(int maxPages) { this.maxPages = maxPages; }
+  public long getMaxBytes() {
+    return maxBytes;
+  }
+
+  public void setMaxBytes(long maxBytes) {
+    this.maxBytes = maxBytes;
+  }
+
+  public int getMaxPages() {
+    return maxPages;
+  }
+
+  public void setMaxPages(int maxPages) {
+    this.maxPages = maxPages;
+  }
 }

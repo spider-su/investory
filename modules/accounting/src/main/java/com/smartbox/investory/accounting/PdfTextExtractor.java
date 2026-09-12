@@ -22,12 +22,15 @@ class PdfTextExtractor {
   DocumentText extract(byte[] bytes) {
     if (bytes == null || bytes.length == 0) throw new IllegalArgumentException("PDF file is empty");
     if (bytes.length > properties.getMaxBytes()) {
-      throw new IllegalArgumentException("PDF file is too large; maximum size is " + properties.getMaxBytes() + " bytes");
+      throw new IllegalArgumentException(
+          "PDF file is too large; maximum size is " + properties.getMaxBytes() + " bytes");
     }
     try (PDDocument document = Loader.loadPDF(bytes)) {
-      if (document.isEncrypted()) throw new IllegalArgumentException("Encrypted/password-protected PDFs are not supported");
+      if (document.isEncrypted())
+        throw new IllegalArgumentException("Encrypted/password-protected PDFs are not supported");
       if (document.getNumberOfPages() > properties.getMaxPages()) {
-        throw new IllegalArgumentException("PDF has too many pages; maximum is " + properties.getMaxPages());
+        throw new IllegalArgumentException(
+            "PDF has too many pages; maximum is " + properties.getMaxPages());
       }
       LayoutStripper stripper = new LayoutStripper();
       stripper.setSortByPosition(true);
@@ -51,14 +54,31 @@ class PdfTextExtractor {
 
     @Override
     protected void endPage(PDPage page) throws IOException {
-      List<DocumentText.Line> lines = currentLines.stream()
-          .map(items -> items.stream().sorted(Comparator.comparing(TextPosition::getX)).toList())
-          .map(items -> new DocumentText.Line(
-              items.stream().map(TextPosition::getUnicode).reduce("", String::concat).replace('\u00a0', ' ').trim(),
-              items.get(0).getYDirAdj(),
-              items.stream().map(p -> new DocumentText.Token(p.getUnicode().replace('\u00a0', ' '), getCurrentPageNo(), p.getXDirAdj(), p.getYDirAdj(), p.getWidthDirAdj())).toList()))
-          .filter(line -> !line.text().isBlank())
-          .toList();
+      List<DocumentText.Line> lines =
+          currentLines.stream()
+              .map(
+                  items -> items.stream().sorted(Comparator.comparing(TextPosition::getX)).toList())
+              .map(
+                  items ->
+                      new DocumentText.Line(
+                          items.stream()
+                              .map(TextPosition::getUnicode)
+                              .reduce("", String::concat)
+                              .replace('\u00a0', ' ')
+                              .trim(),
+                          items.get(0).getYDirAdj(),
+                          items.stream()
+                              .map(
+                                  p ->
+                                      new DocumentText.Token(
+                                          p.getUnicode().replace('\u00a0', ' '),
+                                          getCurrentPageNo(),
+                                          p.getXDirAdj(),
+                                          p.getYDirAdj(),
+                                          p.getWidthDirAdj()))
+                              .toList()))
+              .filter(line -> !line.text().isBlank())
+              .toList();
       pages.add(new DocumentText.Page(getCurrentPageNo(), lines));
       currentLines.clear();
       super.endPage(page);

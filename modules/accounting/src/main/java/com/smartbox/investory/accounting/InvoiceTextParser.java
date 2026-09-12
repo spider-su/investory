@@ -51,7 +51,12 @@ class InvoiceTextParser {
         while (amount.find()) amounts.add(decimal(amount.group()));
         if (amounts.size() >= 3) {
           int n = amounts.size();
-          rows.add(new VatSummaryRow(new BigDecimal(rate.group(1)), amounts.get(n - 3), amounts.get(n - 2), amounts.get(n - 1)));
+          rows.add(
+              new VatSummaryRow(
+                  new BigDecimal(rate.group(1)),
+                  amounts.get(n - 3),
+                  amounts.get(n - 2),
+                  amounts.get(n - 1)));
         }
       }
     }
@@ -82,6 +87,17 @@ class InvoiceTextParser {
     if (net == null) net = inferred.net();
     if (vat == null) vat = inferred.vat();
     if (gross == null) gross = inferred.gross();
+    if (document != null) {
+      List<VatSummaryRow> rows = vatSummaryRows(document);
+      if (!rows.isEmpty()) {
+        if (net == null)
+          net = rows.stream().map(VatSummaryRow::net).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (vat == null)
+          vat = rows.stream().map(VatSummaryRow::vat).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (gross == null)
+          gross = rows.stream().map(VatSummaryRow::gross).reduce(BigDecimal.ZERO, BigDecimal::add);
+      }
+    }
     boolean zeroVat = hasZeroVatMarker(lower);
     if ((zeroVat || correction) && gross != null) {
       if (net == null) net = gross;
@@ -145,7 +161,8 @@ class InvoiceTextParser {
   private AccountingInvoiceRecognitionService.FieldCandidate<Object> candidate(
       String field, Object value, String source, Object evidence) {
     return new AccountingInvoiceRecognitionService.FieldCandidate<>(
-        value, AccountingInvoiceRecognitionService.ExtractionSource.valueOf(source),
+        value,
+        AccountingInvoiceRecognitionService.ExtractionSource.valueOf(source),
         field + " extracted from invoice text: " + String.valueOf(evidence));
   }
 
