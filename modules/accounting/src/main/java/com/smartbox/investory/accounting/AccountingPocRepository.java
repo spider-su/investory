@@ -546,6 +546,35 @@ public class AccountingPocRepository {
   }
 
   public boolean insertBankTransaction(
+      java.time.LocalDate bookingDate,
+      java.time.LocalDate relatedPeriod,
+      String reference,
+      String counterparty,
+      String currency,
+      java.math.BigDecimal amount,
+      String transactionType,
+      String scope,
+      String note,
+      long sourceId,
+      String sourceRowIdentity) {
+    return insertBankTransaction(
+        bookingDate,
+        relatedPeriod,
+        reference,
+        counterparty,
+        currency,
+        amount,
+        transactionType,
+        scope,
+        note,
+        sourceId,
+        "CSV",
+        "LEGACY_SOURCE",
+        sourceRowIdentity,
+        null);
+  }
+
+  public boolean insertBankTransaction(
       LocalDate bookingDate,
       LocalDate relatedPeriod,
       String reference,
@@ -556,13 +585,17 @@ public class AccountingPocRepository {
       String scope,
       String note,
       long sourceId,
-      String sourceRowIdentity) {
+      String provider,
+      String externalAccountId,
+      String externalTransactionId,
+      String sourcePayloadHash) {
     return jdbcTemplate.update(
             """
             INSERT INTO investory.accounting_poc_bank_transaction
                 (booking_date, related_period, reference, counterparty_alias, currency, amount,
-                 transaction_type, scope, note, source_id, source_row_identity)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 transaction_type, scope, note, source_id, source_row_identity,
+                 provider, external_account_id, external_transaction_id, source_payload_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT DO NOTHING
             """,
             bookingDate,
@@ -575,7 +608,11 @@ public class AccountingPocRepository {
             scope,
             note,
             sourceId,
-            sourceRowIdentity)
+            externalTransactionId,
+            provider,
+            externalAccountId,
+            externalTransactionId,
+            sourcePayloadHash)
         == 1;
   }
 

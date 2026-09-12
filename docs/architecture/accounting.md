@@ -37,6 +37,32 @@ KSeF XML and bank files are immutable source evidence. The snapshots and fixture
 `test-support` are deterministic regression evidence and historical reconstruction inputs; they are
 not runtime adapters and must not drive current operational calculations.
 
+## Bank acquisition boundary
+
+Bank acquisition is provider-neutral before it enters Accounting:
+
+```text
+bank provider
+    ↓
+BankTransactionSource
+    ↓
+ExternalBankTransaction
+    ↓
+normalized bank fact and provider metadata
+    ↓
+classification / reconciliation / PaidContribution / settlement
+```
+
+`CsvBankTransactionSource` is the current deterministic offline adapter used by the POC and CI.
+It maps the supported semicolon or comma CSV format into external transactions and derives a stable
+transaction identity when the file has no provider ID. Accounting classification happens only after
+normalization; unknown transactions remain persisted for review. The persisted provider, external
+account, external transaction ID and source payload hash support idempotent imports and audit.
+
+The future seam is `EnableBankingTransactionSource implements BankTransactionSource`. It is not
+implemented here: it will later map Enable Banking accounts, pagination and provider payloads into
+the same external model without changing Accounting calculations or settlement.
+
 The source boundary is therefore:
 
 ```text

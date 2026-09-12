@@ -70,3 +70,19 @@ The management UI exposes connection tests as transient, read-only probes. Test
 payloads and secrets are never persisted by the test operation. Persisted jobs are
 currently deliberately scoped to the executable `refresh-prices` and
 `refresh-rates` handlers; new jobs must add a handler before being declared.
+# Integrations
+
+Provider adapters expose neutral application-facing ports. Bank acquisition currently has one
+implementation:
+
+```text
+BankTransactionSource
+    ├── CsvBankTransactionSource       CURRENT
+    └── EnableBankingTransactionSource FUTURE
+```
+
+The CSV adapter produces `ExternalBankTransaction` values only. It does not classify tax or bank
+semantics. Accounting receives the normalized values, retains provider metadata for dedupe/audit,
+and performs classification, reconciliation, PaidContribution projection and settlement.
+
+CSV is the deterministic offline provider used for POC and CI, not a separate accounting path.

@@ -1,15 +1,33 @@
 package com.smartbox.investory.accounting;
 
+import com.smartbox.investory.integrations.bank.BankTransactionQuery;
+import com.smartbox.investory.integrations.bank.CsvBankTransactionSource;
+import java.util.Objects;
 import java.time.LocalDate;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
-@RequiredArgsConstructor
 public class AccountingBankImportService {
   private final AccountingSourceEvidenceService sourceEvidence;
   private final AccountingBankTransactionIngestionService ingestion;
-  private final AccountingBankFileParser parser = new AccountingBankFileParser();
+  private final String externalAccountId;
+
+  public AccountingBankImportService(
+      AccountingSourceEvidenceService sourceEvidence,
+      AccountingBankTransactionIngestionService ingestion) {
+    this(sourceEvidence, ingestion, "JDG_MAIN_ACCOUNT");
+  }
+
+  public AccountingBankImportService(
+      AccountingSourceEvidenceService sourceEvidence,
+      AccountingBankTransactionIngestionService ingestion,
+      @Value("${investory.accounting.bank.external-account-id:JDG_MAIN_ACCOUNT}")
+          String externalAccountId) {
+    this.sourceEvidence = sourceEvidence;
+    this.ingestion = ingestion;
+    this.externalAccountId = Objects.requireNonNull(externalAccountId);
+  }
 
   public Result importFile(String filename, String contentType, byte[] payload, LocalDate period) {
     long sourceId = sourceEvidence.receiveBank(filename, contentType, payload, period);
@@ -17,12 +35,16 @@ public class AccountingBankImportService {
       return new Result(sourceId, 0, 0, 0);
     }
     try {
-      var rows = parser.parse(payload);
+      var source = new CsvBankTransactionSource(payload, externalAccountId);
+      var rows =
+          source
+              .transactions(new BankTransactionQuery(externalAccountId, null, null, null))
+              .transactions();
       sourceEvidence.status(sourceId, AccountingSourceStatus.PARSED, null);
       int imported = 0;
       int reviewRequired = 0;
-      for (int index = 0; index < rows.size(); index++) {
-        var result = ingestion.ingest(rows.get(index), sourceId, sourceId + ":" + (index + 1));
+      for (var row : rows) {
+        var result = ingestion.ingest(row, sourceId);
         if (result.inserted()) imported++;
         if (result.reviewRequired()) reviewRequired++;
       }

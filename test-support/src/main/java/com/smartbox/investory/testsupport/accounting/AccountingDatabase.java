@@ -128,6 +128,18 @@ public final class AccountingDatabase {
       statement.execute(
           "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS source_row_identity VARCHAR(256)");
       statement.execute(
+          "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS provider VARCHAR(32)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS external_account_id VARCHAR(256)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS external_transaction_id VARCHAR(256)");
+      statement.execute(
+          "ALTER TABLE investory.accounting_poc_bank_transaction ADD COLUMN IF NOT EXISTS source_payload_hash VARCHAR(128)");
+      statement.execute(
+          "UPDATE investory.accounting_poc_bank_transaction SET provider = COALESCE(provider, 'CSV'), external_account_id = COALESCE(external_account_id, 'LEGACY_SOURCE'), external_transaction_id = COALESCE(external_transaction_id, COALESCE(source_row_identity, 'legacy-' || id::varchar)) WHERE provider IS NULL OR external_account_id IS NULL OR external_transaction_id IS NULL");
+      statement.execute(
+          "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_poc_bank_external_transaction ON investory.accounting_poc_bank_transaction (provider, external_account_id, external_transaction_id)");
+      statement.execute(
           "ALTER TABLE investory.accounting_poc_invoice ADD COLUMN IF NOT EXISTS counterparty_tax_identifier VARCHAR(32)");
       statement.execute(
           "ALTER TABLE investory.accounting_poc_invoice ADD COLUMN IF NOT EXISTS counterparty_country VARCHAR(2)");

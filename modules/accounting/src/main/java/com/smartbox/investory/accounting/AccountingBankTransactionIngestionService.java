@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting;
 
+import com.smartbox.investory.integrations.bank.ExternalBankTransaction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -8,9 +9,31 @@ import org.springframework.stereotype.Service;
 public class AccountingBankTransactionIngestionService {
   private final AccountingPocRepository repository;
 
+  public Result ingest(ExternalBankTransaction row, long sourceId) {
+    Classification classification = classify(row);
+    boolean inserted =
+        repository.insertBankTransaction(
+            row.bookingDate(),
+            row.relatedPeriod(),
+            row.rawReference(),
+            row.counterpartyName(),
+            row.currency(),
+            row.amount(),
+            classification.transactionType(),
+            classification.scope(),
+            row.remittanceInformation(),
+            sourceId,
+            row.provider().name(),
+            row.externalAccountId(),
+            row.externalTransactionId(),
+            row.sourcePayloadHash());
+    return new Result(inserted, classification.reviewRequired(), classification.transactionType());
+  }
+
+  /** Compatibility adapter for callers compiled against the original POC parser boundary. */
   public Result ingest(
       AccountingBankFileParser.ParsedBankTransaction row, long sourceId, String sourceRowIdentity) {
-    Classification classification = classify(row);
+    Classification classification = classifyLegacy(row);
     String note = row.note() == null ? "" : row.note() + " ";
     note += "Bank source row " + sourceRowIdentity + ".";
     boolean inserted =
@@ -29,9 +52,32 @@ public class AccountingBankTransactionIngestionService {
     return new Result(inserted, classification.reviewRequired(), classification.transactionType());
   }
 
-  private Classification classify(AccountingBankFileParser.ParsedBankTransaction row) {
+  private Classification classifyLegacy(AccountingBankFileParser.ParsedBankTransaction row) {
+    return classify(
+            new ExternalBankTransaction(
+                com.smartbox.investory.integrations.bank.BankDataProvider.CSV,
+                "LEGACY_SOURCE",
+                row.reference(),
+                row.bookingDate(),
+                row.bookingDate(),
+                row.relatedPeriod(),
+                row.amount(),
+                row.currency(),
+                row.counterparty(),
+                null,
+                row.note(),
+                row.reference(),
+                null))
+        ;
+  }
+
+  private Classification classify(ExternalBankTransaction row) {
     String text =
-        (row.reference() + " " + row.counterparty() + " " + (row.note() == null ? "" : row.note()))
+        (row.rawReference()
+                + " "
+                + row.counterpartyName()
+                + " "
+                + (row.remittanceInformation() == null ? "" : row.remittanceInformation()))
             .toUpperCase();
     if (contains(text, "OWN_ACCOUNT", "INTERNAL", "TRANSFER", "TRANSFER OF FUNDS"))
       return new Classification("INTERNAL_TRANSFER", "EXCLUDED_INTERNAL", false);
