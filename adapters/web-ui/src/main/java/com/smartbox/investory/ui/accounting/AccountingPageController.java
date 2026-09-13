@@ -56,9 +56,7 @@ public class AccountingPageController {
                 ? "Review issues"
                 : stagingSummary.readyToPromote() > 0
                     ? "Promote ready data"
-                    : !stagingRows.isEmpty()
-                        ? "Reconcile staged data"
-                        : overview.nextActionLabel();
+                    : !stagingRows.isEmpty() ? "Reconcile staged data" : overview.nextActionLabel();
 
     int referenceHeadlineMatchCount = 0;
     if (hasOperationalData && overview.reference().available()) {
