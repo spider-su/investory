@@ -9,6 +9,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.smartbox.investory.accounting.api.AccountingStagingApi;
 import java.time.YearMonth;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -112,5 +113,29 @@ class HttpAccountingRestClientTest {
                 MediaType.APPLICATION_JSON));
 
     assertThat(client.syncKsef(1, YearMonth.of(2026, 1)).imported()).isEqualTo(1);
+  }
+
+  @Test
+  void sendsStagingReconcileAndPromotion() {
+    server
+        .expect(
+            requestTo(
+                "http://localhost:8080/api/profiles/1/accounting/months/2026-01/staging/reconcile"))
+        .andExpect(method(HttpMethod.POST))
+        .andRespond(
+            withSuccess(
+                "{\"invoiceMatched\":0,\"invoiceNew\":2,\"invoiceMismatch\":0,\"invoiceAmbiguous\":0,\"bankMatched\":0,\"bankNew\":0,\"bankMismatch\":0,\"bankAmbiguous\":0,\"readyToPromote\":2,\"blockingCount\":0}",
+                MediaType.APPLICATION_JSON));
+    server
+        .expect(
+            requestTo(
+                "http://localhost:8080/api/profiles/1/accounting/months/2026-01/staging/promote"))
+        .andExpect(method(HttpMethod.POST))
+        .andRespond(
+            withSuccess("{\"invoices\":1,\"bankTransactions\":1}", MediaType.APPLICATION_JSON));
+
+    AccountingStagingApi.Summary summary = client.reconcile(1, YearMonth.of(2026, 1));
+    assertThat(summary.readyToPromote()).isEqualTo(2);
+    assertThat(client.promote(1, YearMonth.of(2026, 1)).invoices()).isEqualTo(1);
   }
 }

@@ -208,6 +208,7 @@ public interface AccountingUserApi {
       BigDecimal vatAmount,
       BigDecimal grossAmount,
       BigDecimal vatDeductionRatio,
+      String vatTreatment,
       String note,
       YearMonth taxPeriod) {}
 }

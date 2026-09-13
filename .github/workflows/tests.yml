@@ -136,7 +136,7 @@ jobs:
         suite:
           - name: contracts
             project: app
-            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AccountingGoldenIT,AccountingGoldenMatrixIT,AccountingInvoiceFolderRecognitionIT,AccountingKsefImportIT,AccountingJdgExporterIT,AccountingRestControllerIT,BankTransactionProviderNeutralIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT,MockZusClientIT
+            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AccountingGoldenIT,AccountingGoldenMatrixIT,AccountingInvoiceFolderRecognitionIT,AccountingKsefImportIT,AccountingJdgExporterIT,AccountingRestControllerIT,AccountingStagingFlowIT,AccountingStagingFlowCurrentIT,BankTransactionProviderNeutralIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT,MockZusClientIT
           - name: imports
             project: app
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT

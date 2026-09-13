@@ -32,6 +32,8 @@ public class AccountingPageController {
     model.addAttribute("months", months);
     model.addAttribute("selectedMonth", selected);
     model.addAttribute("overview", client.overview(profileId, selected));
+    model.addAttribute("stagingSummary", client.summary(profileId, selected));
+    model.addAttribute("stagingRows", client.rows(profileId, selected));
     model.addAttribute("canWrite", canWrite(request));
     return "accounting/accounting";
   }
@@ -102,7 +104,7 @@ public class AccountingPageController {
       RedirectAttributes redirect) {
     try {
       client.saveReviewed(profileId, document);
-      redirect.addFlashAttribute("accountingMessage", "Document imported.");
+      redirect.addFlashAttribute("accountingMessage", "Document staged for reconciliation.");
     } catch (RuntimeException exception) {
       redirect.addFlashAttribute("accountingError", safeMessage(exception));
     }
@@ -115,7 +117,7 @@ public class AccountingPageController {
     try {
       client.importBank(
           profileId, file.getOriginalFilename(), file.getContentType(), file.getBytes(), month);
-      redirect.addFlashAttribute("accountingMessage", "Bank file imported.");
+      redirect.addFlashAttribute("accountingMessage", "Bank file staged for reconciliation.");
     } catch (RuntimeException exception) {
       redirect.addFlashAttribute("accountingError", safeMessage(exception));
     } catch (java.io.IOException exception) {
@@ -132,6 +134,36 @@ public class AccountingPageController {
       if ("NOT_CONFIGURED".equals(result.status())) {
         redirect.addFlashAttribute("accountingError", "KSeF is not configured.");
       }
+    } catch (RuntimeException exception) {
+      redirect.addFlashAttribute("accountingError", safeMessage(exception));
+    }
+    return redirect(profileId, month);
+  }
+
+  @PostMapping("/accounting/staging/reconcile")
+  public String reconcile(long profileId, YearMonth month, RedirectAttributes redirect) {
+    try {
+      var summary = client.reconcile(profileId, month);
+      redirect.addFlashAttribute(
+          "accountingMessage",
+          "Reconciliation completed: " + summary.readyToPromote() + " row(s) ready to promote.");
+    } catch (RuntimeException exception) {
+      redirect.addFlashAttribute("accountingError", safeMessage(exception));
+    }
+    return redirect(profileId, month);
+  }
+
+  @PostMapping("/accounting/staging/promote")
+  public String promote(long profileId, YearMonth month, RedirectAttributes redirect) {
+    try {
+      var promotion = client.promote(profileId, month);
+      redirect.addFlashAttribute(
+          "accountingMessage",
+          "Promoted "
+              + promotion.invoices()
+              + " document(s) and "
+              + promotion.bankTransactions()
+              + " bank transaction(s).");
     } catch (RuntimeException exception) {
       redirect.addFlashAttribute("accountingError", safeMessage(exception));
     }

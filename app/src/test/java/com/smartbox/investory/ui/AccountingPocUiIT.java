@@ -126,6 +126,24 @@ class AccountingPocUiIT extends AccountingDatabaseTest {
     }
   }
 
+  @Test
+  void productAccountingPageExposesStagingReconciliationAndPromotion() {
+    try (BrowserContext context = context();
+        Page page = context.newPage()) {
+      page.navigate(baseUrl() + "/accounting?profileId=1&month=2026-03");
+
+      assertThat(page.getByTestId("accounting-staging")).isVisible();
+      assertThat(
+              page.getByRole(
+                  AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Reconcile staged rows")))
+          .isVisible();
+      assertThat(
+              page.getByRole(
+                  AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Promote ready rows")))
+          .isVisible();
+    }
+  }
+
   private Locator zusRow(Page page, String label) {
     return page.locator("section")
         .filter(new Locator.FilterOptions().setHasText("ZUS trace"))

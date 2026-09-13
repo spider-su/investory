@@ -1,5 +1,6 @@
 package com.smartbox.investory.ui.accounting;
 
+import com.smartbox.investory.accounting.api.AccountingStagingApi;
 import java.time.YearMonth;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,6 +55,27 @@ public class HttpAccountingRestClient implements AccountingRestClient {
 
   public List<ReconciliationView> reconciliation(long p, YearMonth m) {
     return get(API + "/months/{month}/reconciliation", new ParameterizedTypeReference<>() {}, p, m);
+  }
+
+  public AccountingStagingApi.Summary summary(long p, YearMonth m) {
+    return get(
+        API + "/months/{month}/staging/reconciliation", AccountingStagingApi.Summary.class, p, m);
+  }
+
+  public List<AccountingStagingApi.Row> rows(long p, YearMonth m) {
+    return get(API + "/months/{month}/staging", new ParameterizedTypeReference<>() {}, p, m);
+  }
+
+  public AccountingStagingApi.Summary reconcile(long p, YearMonth m) {
+    return exchange(
+        client.post().uri(API + "/months/{month}/staging/reconcile", p, m),
+        AccountingStagingApi.Summary.class);
+  }
+
+  public AccountingStagingApi.Promotion promote(long p, YearMonth m) {
+    return exchange(
+        client.post().uri(API + "/months/{month}/staging/promote", p, m),
+        AccountingStagingApi.Promotion.class);
   }
 
   public CandidateView recognize(long p, String filename, String contentType, byte[] content) {

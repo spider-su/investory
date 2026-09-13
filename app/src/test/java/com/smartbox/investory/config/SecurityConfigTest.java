@@ -1,5 +1,8 @@
 package com.smartbox.investory.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -9,11 +12,17 @@ import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
 import com.smartbox.investory.investment.web.ImportController;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -84,5 +93,48 @@ class SecurityConfigTest {
   @Test
   void livenessProbe_isOpen() throws Exception {
     mockMvc.perform(get("/actuator/health/liveness")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void configuredFallbackIsAvailableOnlyInExplicitTestOrLocalProfiles() {
+    ObjectProvider<JdbcTemplate> noJdbc = org.mockito.Mockito.mock(ObjectProvider.class);
+    when(noJdbc.getIfAvailable()).thenReturn(null);
+    var environment = new MockEnvironment();
+    environment.setActiveProfiles("test-fast");
+    UserDetailsService localUsers =
+        new SecurityConfig()
+            .userDetailsService(
+                "admin",
+                "change-me-admin",
+                "user",
+                "change-me-user",
+                new BCryptPasswordEncoder(),
+                noJdbc,
+                environment);
+
+    assertThat(localUsers.loadUserByUsername("admin").getAuthorities())
+        .extracting(Object::toString)
+        .contains("ROLE_ADMIN");
+  }
+
+  @Test
+  void productionRejectsFallbackWhenDatabaseUserIsAbsent() {
+    ObjectProvider<JdbcTemplate> noJdbc = org.mockito.Mockito.mock(ObjectProvider.class);
+    when(noJdbc.getIfAvailable()).thenReturn(null);
+    var environment = new MockEnvironment();
+    environment.setActiveProfiles("prod");
+    UserDetailsService productionUsers =
+        new SecurityConfig()
+            .userDetailsService(
+                "admin",
+                "change-me-admin",
+                "user",
+                "change-me-user",
+                new BCryptPasswordEncoder(),
+                noJdbc,
+                environment);
+
+    assertThatThrownBy(() -> productionUsers.loadUserByUsername("admin"))
+        .isInstanceOf(UsernameNotFoundException.class);
   }
 }

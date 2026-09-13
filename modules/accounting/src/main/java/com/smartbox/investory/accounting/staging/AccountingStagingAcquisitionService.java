@@ -2,8 +2,10 @@ package com.smartbox.investory.accounting.staging;
 
 import com.smartbox.investory.accounting.AccountingExpenseNormalizer;
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
+import com.smartbox.investory.accounting.VatTreatment;
 import com.smartbox.investory.integrations.bank.ExternalBankTransaction;
 import java.time.LocalDate;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -11,11 +13,24 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class AccountingStagingAcquisitionService {
+  private static final Set<String> SALES_DOCUMENT_TYPES = Set.of("SALES_INVOICE", "CREDIT_NOTE");
+  private static final Set<String> PURCHASE_DOCUMENT_TYPES = Set.of("PURCHASE_INVOICE", "RECEIPT");
+  private static final Set<VatTreatment> SALES_VAT_TREATMENTS =
+      Set.of(
+          VatTreatment.DOMESTIC_VAT,
+          VatTreatment.EU_B2B_REVERSE_CHARGE,
+          VatTreatment.NON_EU_B2B_OUTSIDE_POLAND,
+          VatTreatment.VAT_EXEMPT);
+  private static final Set<VatTreatment> PURCHASE_VAT_TREATMENTS =
+      Set.of(
+          VatTreatment.DOMESTIC_PURCHASE,
+          VatTreatment.IMPORT_OF_SERVICES_EU,
+          VatTreatment.IMPORT_OF_SERVICES_NON_EU);
   private final AccountingStagingRepository repository;
   private final AccountingExpenseNormalizer expenseNormalizer;
 
-  public long stageInvoice(long profileId, ReviewedInvoice invoice) {
-    validate(invoice);
+  public long stageInvoice(long profileId, ReviewedInvoice invoice, String vatTreatment) {
+    VatTreatment treatment = validate(invoice, vatTreatment);
     long sourceId = sourceId(invoice.sourceIdentity());
     boolean expense =
         invoice.documentType().equals("PURCHASE_INVOICE")
@@ -50,7 +65,7 @@ public class AccountingStagingAcquisitionService {
         (normalized == null ? invoice.grossAmount() : normalized.grossAmount()).multiply(sign),
         normalized == null ? null : normalized.vatDeductionRatio(),
         normalized == null ? null : normalized.deductibleVat(),
-        null,
+        treatment.name(),
         invoice.ksefNumber());
   }
 
@@ -79,7 +94,7 @@ public class AccountingStagingAcquisitionService {
         row.sourcePayloadHash());
   }
 
-  private void validate(ReviewedInvoice invoice) {
+  private VatTreatment validate(ReviewedInvoice invoice, String vatTreatment) {
     if (invoice == null
         || invoice.taxPeriod() == null
         || invoice.documentType() == null
@@ -97,6 +112,27 @@ public class AccountingStagingAcquisitionService {
         || invoice.grossAmount() == null
         || invoice.netAmount().add(invoice.vatAmount()).compareTo(invoice.grossAmount()) != 0)
       throw new IllegalArgumentException("Net + VAT must equal gross before staging");
+    if (!SALES_DOCUMENT_TYPES.contains(invoice.documentType())
+        && !PURCHASE_DOCUMENT_TYPES.contains(invoice.documentType())) {
+      throw new IllegalArgumentException(
+          "Choose sales, purchase, receipt, or correction before staging");
+    }
+    if (vatTreatment == null || vatTreatment.isBlank()) {
+      throw new IllegalArgumentException("Staged invoice requires explicit VAT treatment");
+    }
+    final VatTreatment treatment;
+    try {
+      treatment = VatTreatment.valueOf(vatTreatment);
+    } catch (IllegalArgumentException exception) {
+      throw new IllegalArgumentException("Unsupported VAT treatment: " + vatTreatment, exception);
+    }
+    boolean salesDocument = SALES_DOCUMENT_TYPES.contains(invoice.documentType());
+    if ((salesDocument && !SALES_VAT_TREATMENTS.contains(treatment))
+        || (!salesDocument && !PURCHASE_VAT_TREATMENTS.contains(treatment))) {
+      throw new IllegalArgumentException(
+          "VAT treatment " + treatment + " is not valid for " + invoice.documentType());
+    }
+    return treatment;
   }
 
   private long sourceId(String value) {

@@ -6,6 +6,8 @@ import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.integrations.bank.BankDataProvider;
 import com.smartbox.investory.integrations.bank.ExternalBankTransaction;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,17 +51,34 @@ public class AccountingStagingPromotionService {
       repository.promoted("bank_transaction", row.id(), repository.promoteBank(row));
       bank++;
     }
-    repository.invoices(profileId, taxPeriod).stream()
-        .filter(row -> row.status() == StagingReconciliationStatus.PROMOTED)
-        .map(StagedInvoice::sourceId)
-        .distinct()
-        .forEach(id -> sources.status(id, AccountingSourceStatus.IMPORTED, null));
-    repository.bankTransactions(profileId, taxPeriod).stream()
-        .filter(row -> row.status() == StagingReconciliationStatus.PROMOTED)
-        .map(StagedBankTransaction::sourceId)
-        .distinct()
-        .forEach(id -> sources.status(id, AccountingSourceStatus.IMPORTED, null));
+    updateSourceStatuses(profileId, taxPeriod);
     return new PromotionResult(invoices, bank);
+  }
+
+  private void updateSourceStatuses(long profileId, LocalDate taxPeriod) {
+    Map<Long, Boolean> sourcesComplete = new HashMap<>();
+    repository
+        .invoices(profileId, taxPeriod)
+        .forEach(
+            row ->
+                sourcesComplete.merge(
+                    row.sourceId(),
+                    row.status() == StagingReconciliationStatus.PROMOTED,
+                    Boolean::logicalAnd));
+    repository
+        .bankTransactions(profileId, taxPeriod)
+        .forEach(
+            row ->
+                sourcesComplete.merge(
+                    row.sourceId(),
+                    row.status() == StagingReconciliationStatus.PROMOTED,
+                    Boolean::logicalAnd));
+    sourcesComplete.forEach(
+        (sourceId, complete) ->
+            sources.status(
+                sourceId,
+                complete ? AccountingSourceStatus.IMPORTED : AccountingSourceStatus.REVIEW_REQUIRED,
+                complete ? null : "Source has staging rows requiring reconciliation"));
   }
 
   public record PromotionResult(int invoices, int bankTransactions) {}

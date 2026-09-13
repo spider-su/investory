@@ -380,7 +380,8 @@ public class AccountingUserFacade implements AccountingUserApi {
               d.counterpartyTaxIdentifier(),
               null,
               null,
-              null));
+              null),
+          d.vatTreatment());
       // Staging is intentionally not reported as canonical IMPORTED data.
     } catch (RuntimeException exception) {
       sources
