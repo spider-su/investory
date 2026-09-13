@@ -28,6 +28,12 @@ class AccountingPageControllerTest {
   }
 
   @Test
+  void legacyRouteRedirectsToProfileScopedAccounting() {
+    assertThat(controller.legacyPage(1, month))
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
+  }
+
+  @Test
   void untouchedMonthIsPresentedAsWaitingForSourceData() {
     when(client.months(1))
         .thenReturn(
@@ -129,9 +135,9 @@ class AccountingPageControllerTest {
     var reconcile = new RedirectAttributesModelMap();
     var promote = new RedirectAttributesModelMap();
     assertThat(controller.reconcile(1, month, reconcile))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.promote(1, month, promote))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
 
     verify(client).reconcile(1, month);
     verify(client).promote(1, month);
@@ -146,15 +152,15 @@ class AccountingPageControllerTest {
     var redirect = new RedirectAttributesModelMap();
 
     assertThat(controller.confirm(1, month, redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.file(1, month, redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.settle(1, month, redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.lock(1, month, redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.reopen(1, month, "correction", redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
 
     verify(client).confirm(1, month);
     verify(client).file(1, month);
@@ -168,7 +174,7 @@ class AccountingPageControllerTest {
     var redirect = new RedirectAttributesModelMap();
 
     assertThat(controller.reopen(1, month, " ", redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
 
     verify(client, never()).reopen(anyLong(), any(), anyString());
     assertThat(redirect.getFlashAttributes()).containsKey("accountingError");
@@ -180,7 +186,7 @@ class AccountingPageControllerTest {
         .thenReturn(new AccountingRestClient.KsefSyncResult("COMPLETED", 1, 1, 0, 0, 0, "done"));
 
     assertThat(controller.syncKsef(1, month, new RedirectAttributesModelMap()))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     verify(client).syncKsef(1, month);
   }
 
