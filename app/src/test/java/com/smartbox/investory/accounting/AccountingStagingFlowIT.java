@@ -7,26 +7,35 @@ import com.smartbox.investory.accounting.staging.AccountingStagingReconciliation
 import com.smartbox.investory.accounting.staging.AccountingStagingRepository;
 import com.smartbox.investory.accounting.staging.StagedInvoice;
 import com.smartbox.investory.accounting.staging.StagingReconciliationStatus;
+import com.smartbox.investory.testsupport.FastDatabase;
+import com.smartbox.investory.testsupport.WorkerDatabase;
 import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /** DB-backed contract for source staging, reconciliation and explicit promotion. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@ActiveProfiles("test-fast")
 @DisplayName("Accounting staging flow")
 class AccountingStagingFlowIT extends AccountingDatabaseTest {
+  private static final WorkerDatabase DATABASE =
+      FastDatabase.scopedDatabase("accounting_staging_flow");
 
   private static final LocalDate PERIOD = LocalDate.of(2026, 9, 1);
-  private static final long PROFILE_A = 1L;
-  private static final long PROFILE_B = 2L;
+  private static final long PROFILE_A = -930001L;
+  private static final long PROFILE_B = -930002L;
   private static final String SOURCE_PREFIX = "staging-it-";
   private static final String REFERENCE_PREFIX = "STAGING-IT-";
 
@@ -35,6 +44,18 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
   @Autowired private AccountingStagingRepository staging;
   @Autowired private AccountingStagingReconciliationService reconciliation;
   @Autowired private AccountingStagingPromotionService promotion;
+
+  @AfterAll
+  static void closeDatabase() {
+    DATABASE.close();
+  }
+
+  @DynamicPropertySource
+  protected static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", DATABASE::jdbcUrl);
+    registry.add("spring.datasource.username", DATABASE::username);
+    registry.add("spring.datasource.password", DATABASE::password);
+  }
 
   @AfterEach
   void cleanFixture() {
@@ -57,6 +78,9 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
         REFERENCE_PREFIX + "%");
     jdbc.update(
         "DELETE FROM investory.accounting_poc_bank_transaction WHERE external_transaction_id LIKE ?",
+        SOURCE_PREFIX + "%");
+    jdbc.update(
+        "DELETE FROM investory.accounting_source_evidence WHERE external_reference LIKE ?",
         SOURCE_PREFIX + "%");
   }
 
@@ -88,6 +112,53 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
                 reference("INV-A")))
         .isEqualTo(1L);
     assertThat(sourceRepository.status(sourceId)).isEqualTo(AccountingSourceStatus.IMPORTED);
+  }
+
+  @Test
+  @DisplayName("reconciliation and promotion operate only on the requested staging profile")
+  void twoProfilesRemainIsolatedThroughReconciliationAndPromotion() {
+    long sourceA = source("profile-a");
+    long sourceB = source("profile-b");
+    long stageA = stageInvoice(PROFILE_A, sourceA, "PROFILE-A");
+    long stageB = stageInvoice(PROFILE_B, sourceB, "PROFILE-B");
+
+    var summaryA = reconciliation.reconcile(PROFILE_A, PERIOD);
+
+    assertThat(summaryA.invoiceNew()).isEqualTo(1);
+    assertThat(stagedInvoice(stageA).status()).isEqualTo(StagingReconciliationStatus.NEW);
+    assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.PENDING);
+
+    var promotedA = promotion.promoteNew(PROFILE_A, PERIOD);
+
+    assertThat(promotedA.invoices()).isEqualTo(1);
+    assertThat(stagedInvoice(stageA).status()).isEqualTo(StagingReconciliationStatus.PROMOTED);
+    assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.PENDING);
+    assertThat(canonicalInvoiceCount("PROFILE-B")).isZero();
+    assertThat(sourceRepository.status(sourceA)).isEqualTo(AccountingSourceStatus.IMPORTED);
+    assertThat(sourceRepository.status(sourceB)).isEqualTo(AccountingSourceStatus.RECEIVED);
+
+    var summaryB = reconciliation.reconcile(PROFILE_B, PERIOD);
+    assertThat(summaryB.invoiceNew()).isEqualTo(1);
+    assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.NEW);
+  }
+
+  @Test
+  @DisplayName("canonical invoice owned by another profile must not match staged input")
+  void canonicalFactsFromAnotherProfileDoNotContaminateReconciliation() {
+    long sourceA = source("canonical-profile-a");
+    stageInvoice(PROFILE_A, sourceA, "CROSS-PROFILE");
+    reconciliation.reconcile(PROFILE_A, PERIOD);
+    promotion.promoteNew(PROFILE_A, PERIOD);
+    assertThat(canonicalInvoiceCount("CROSS-PROFILE")).isEqualTo(1L);
+
+    long sourceB = source("staged-profile-b");
+    long stageB = stageInvoice(PROFILE_B, sourceB, "CROSS-PROFILE");
+
+    var summaryB = reconciliation.reconcile(PROFILE_B, PERIOD);
+
+    assertThat(summaryB.invoiceNew()).isEqualTo(1);
+    assertThat(summaryB.invoiceMatched()).isZero();
+    assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.NEW);
   }
 
   @Test

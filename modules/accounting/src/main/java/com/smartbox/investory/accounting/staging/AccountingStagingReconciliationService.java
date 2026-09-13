@@ -17,14 +17,10 @@ public class AccountingStagingReconciliationService {
 
   @Transactional
   public Summary reconcile(long profileId, LocalDate taxPeriod) {
-    repository
-        .invoices(profileId, taxPeriod)
-        .stream()
+    repository.invoices(profileId, taxPeriod).stream()
         .filter(row -> row.status() != StagingReconciliationStatus.PROMOTED)
         .forEach(this::reconcileInvoice);
-    repository
-        .bankTransactions(profileId, taxPeriod)
-        .stream()
+    repository.bankTransactions(profileId, taxPeriod).stream()
         .filter(row -> row.status() != StagingReconciliationStatus.PROMOTED)
         .forEach(this::reconcileBank);
     return summary(profileId, taxPeriod);

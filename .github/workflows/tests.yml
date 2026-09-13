@@ -64,25 +64,6 @@ jobs:
       - name: Compile, run unit tests, and package reactor
         run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" clean -DskipITs install
 
-      - name: Upload packaged reactor outputs
-        uses: actions/upload-artifact@v7
-        with:
-          name: packaged-reactor
-          include-hidden-files: true
-          path: |
-            app/target/classes/**
-            app/target/test-classes/**
-            modules/*/target/classes/**
-            modules/*/target/test-classes/**
-            integrations/target/classes/**
-            integrations/target/test-classes/**
-            adapters/web-ui/target/classes/**
-            adapters/web-ui/target/test-classes/**
-            test-support/target/classes/**
-            test-support/target/test-classes/**
-          if-no-files-found: error
-          retention-days: 1
-
       - name: Upload coverage reports
         uses: actions/upload-artifact@v7
         with:
@@ -152,12 +133,6 @@ jobs:
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
 
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
-
       - name: BE_IT
         run: |
           sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl "${{ matrix.suite.project }}" -am initialize test-compile failsafe:integration-test failsafe:verify \
@@ -183,12 +158,6 @@ jobs:
 
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
-
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
 
       - name: Restore Playwright browser cache
         id: playwright-cache
@@ -241,12 +210,6 @@ jobs:
 
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
-
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
 
       - name: Download Playwright browser
         uses: actions/download-artifact@v8
@@ -305,12 +268,6 @@ jobs:
 
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
-
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
 
       - name: Run offline golden gate
         run: |
@@ -394,12 +351,6 @@ jobs:
 
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
-
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
 
       - name: Calculate schema fingerprint
         id: fingerprint
