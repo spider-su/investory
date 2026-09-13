@@ -30,7 +30,7 @@ public class AccountingPageController {
 
   @GetMapping(BASE)
   public String page(
-      @PathVariable long profileId,
+      @PathVariable("profileId") long profileId,
       @RequestParam(required = false) YearMonth month,
       Model model,
       jakarta.servlet.http.HttpServletRequest request) {
@@ -102,29 +102,31 @@ public class AccountingPageController {
 
   @PostMapping(BASE + "/actions/confirm")
   public String confirm(
-      @PathVariable long profileId, YearMonth month, RedirectAttributes redirect) {
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     return action("confirm", profileId, month, redirect, () -> client.confirm(profileId, month));
   }
 
   @PostMapping(BASE + "/actions/file")
-  public String file(@PathVariable long profileId, YearMonth month, RedirectAttributes redirect) {
+  public String file(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     return action("file", profileId, month, redirect, () -> client.file(profileId, month));
   }
 
   @PostMapping(BASE + "/actions/settle")
   public String settle(
-      @PathVariable long profileId, YearMonth month, RedirectAttributes redirect) {
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     return action("settle", profileId, month, redirect, () -> client.settle(profileId, month));
   }
 
   @PostMapping(BASE + "/actions/lock")
-  public String lock(@PathVariable long profileId, YearMonth month, RedirectAttributes redirect) {
+  public String lock(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     return action("lock", profileId, month, redirect, () -> client.lock(profileId, month));
   }
 
   @PostMapping(BASE + "/actions/reopen")
   public String reopen(
-      @PathVariable long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       @RequestParam String reason,
       RedirectAttributes redirect) {
@@ -139,7 +141,7 @@ public class AccountingPageController {
 
   @PostMapping(BASE + "/documents/recognize")
   public String recognize(
-      @PathVariable long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       MultipartFile file,
       RedirectAttributes redirect,
@@ -166,7 +168,7 @@ public class AccountingPageController {
 
   @GetMapping(BASE + "/documents/review")
   public String reviewSource(
-      @PathVariable long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       @RequestParam String sourceReference,
       Model model,
@@ -187,7 +189,7 @@ public class AccountingPageController {
 
   @PostMapping(BASE + "/documents/save")
   public String saveReviewed(
-      @PathVariable long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       AccountingRestClient.ReviewedDocument document,
       RedirectAttributes redirect) {
@@ -202,7 +204,7 @@ public class AccountingPageController {
 
   @PostMapping(BASE + "/bank/import")
   public String importBank(
-      @PathVariable long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       MultipartFile file,
       RedirectAttributes redirect) {
@@ -223,7 +225,7 @@ public class AccountingPageController {
 
   @PostMapping(BASE + "/ksef/sync")
   public String syncKsef(
-      @PathVariable long profileId, YearMonth month, RedirectAttributes redirect) {
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     try {
       var result = client.syncKsef(profileId, month);
       if ("NOT_CONFIGURED".equals(result.status())) {
@@ -243,7 +245,7 @@ public class AccountingPageController {
 
   @PostMapping(BASE + "/staging/reconcile")
   public String reconcile(
-      @PathVariable long profileId, YearMonth month, RedirectAttributes redirect) {
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     try {
       var summary = client.reconcile(profileId, month);
       redirect.addFlashAttribute(
@@ -257,7 +259,7 @@ public class AccountingPageController {
 
   @PostMapping(BASE + "/staging/promote")
   public String promote(
-      @PathVariable long profileId, YearMonth month, RedirectAttributes redirect) {
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     try {
       var promotion = client.promote(profileId, month);
       redirect.addFlashAttribute(
@@ -275,7 +277,7 @@ public class AccountingPageController {
 
   @PostMapping(BASE + "/filings/jpk/generate")
   public String generateJpk(
-      @PathVariable long profileId, YearMonth month, RedirectAttributes redirect) {
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     try {
       client.generateJpk(profileId, month);
       redirect.addFlashAttribute("accountingMessage", "JPK_V7M(3) generated and validated.");
@@ -287,7 +289,7 @@ public class AccountingPageController {
 
   @GetMapping(BASE + "/filings/jpk")
   public org.springframework.http.ResponseEntity<byte[]> downloadJpk(
-      @PathVariable long profileId, YearMonth month) {
+      @PathVariable("profileId") long profileId, YearMonth month) {
     return org.springframework.http.ResponseEntity.ok()
         .contentType(org.springframework.http.MediaType.APPLICATION_XML)
         .header(
@@ -298,7 +300,7 @@ public class AccountingPageController {
 
   @PostMapping(BASE + "/filings/confirmations")
   public String recordUpo(
-      @PathVariable long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       @RequestParam String externalReference,
       RedirectAttributes redirect) {
