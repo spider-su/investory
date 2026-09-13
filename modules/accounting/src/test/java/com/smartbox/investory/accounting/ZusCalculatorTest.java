@@ -1,6 +1,7 @@
 package com.smartbox.investory.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
@@ -33,7 +34,22 @@ class ZusCalculatorTest {
     assertThat(result.totalObligation()).isZero();
   }
 
+  @Test
+  void rejectsInputsOutsideTheSupportedZusPolicy() {
+    assertThatThrownBy(() -> calculator.calculate(input("PREFERENTIAL", false)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported ZUS regime");
+    assertThatThrownBy(() -> calculator.calculate(input("JDG", true)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Voluntary sickness");
+  }
+
   private ZusCalculator.Input input(boolean jdg, boolean uop, BigDecimal revenue) {
     return new ZusCalculator.Input(jdg, uop, "JDG", false, revenue, null);
+  }
+
+  private ZusCalculator.Input input(String regime, boolean voluntarySickness) {
+    return new ZusCalculator.Input(
+        true, false, regime, voluntarySickness, new BigDecimal("100000"), null);
   }
 }

@@ -10,6 +10,10 @@ public class AccountingBankTransactionIngestionService {
   private final AccountingPocRepository repository;
 
   public Result ingest(ExternalBankTransaction row, long sourceId) {
+    return ingest(row, sourceId, null);
+  }
+
+  public Result ingest(ExternalBankTransaction row, long sourceId, Long profileId) {
     Classification classification = classify(row);
     boolean inserted =
         repository.insertBankTransaction(
@@ -23,6 +27,7 @@ public class AccountingBankTransactionIngestionService {
             classification.scope(),
             row.remittanceInformation(),
             sourceId,
+            profileId,
             row.provider().name(),
             row.externalAccountId(),
             row.externalTransactionId(),

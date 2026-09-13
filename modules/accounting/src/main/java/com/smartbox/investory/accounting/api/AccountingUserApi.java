@@ -26,6 +26,8 @@ public interface AccountingUserApi {
 
   CandidateView recognize(long profileId, String filename, String contentType, byte[] content);
 
+  CandidateView reviewSource(long profileId, String sourceReference);
+
   void saveReviewed(long profileId, ReviewedDocument document);
 
   void importBank(
@@ -66,7 +68,8 @@ public interface AccountingUserApi {
       PaymentSummary paymentSummary,
       FilingSummary filingSummary,
       ReconciliationSummary reconciliationSummary,
-      List<String> allowedActions) {}
+      List<String> allowedActions,
+      ReferenceSummary reference) {}
 
   record Summary(
       BigDecimal revenue,
@@ -127,6 +130,19 @@ public interface AccountingUserApi {
   record ReconciliationSummary(
       int rowCount, int settledCount, int mismatchCount, int missingEvidenceCount) {}
 
+  record ReferenceSummary(
+      boolean available,
+      BigDecimal revenue,
+      BigDecimal expenses,
+      BigDecimal outputVat,
+      BigDecimal deductibleInputVat,
+      BigDecimal vatPayable,
+      BigDecimal ryczalt,
+      BigDecimal zus,
+      int documentCount,
+      int bankCount,
+      String filingStatus) {}
+
   record IssueView(
       String code, String severity, String title, String message, String sourceReference) {}
 
@@ -185,6 +201,8 @@ public interface AccountingUserApi {
       String reference,
       String seller,
       String buyer,
+      String sellerNip,
+      String buyerNip,
       String category,
       String currency,
       BigDecimal netAmount,
@@ -202,6 +220,7 @@ public interface AccountingUserApi {
       String reference,
       String counterpartyAlias,
       String counterpartyTaxIdentifier,
+      String counterpartyCountry,
       String category,
       String currency,
       BigDecimal netAmount,

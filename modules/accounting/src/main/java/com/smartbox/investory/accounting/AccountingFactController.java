@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -12,12 +13,12 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
+@Profile("legacy-accounting")
 public class AccountingFactController {
   private final AccountingFactService service;
   private final AccountingInvoiceRecognitionService invoiceRecognitionService;
@@ -65,21 +66,6 @@ public class AccountingFactController {
     return "poc/accounting-facts";
   }
 
-  @PostMapping("/poc/accounting/profile")
-  public String updateProfile(
-      @RequestParam String month,
-      @RequestParam(defaultValue = "false") boolean hasUop,
-      RedirectAttributes redirectAttributes) {
-    LocalDate selected = parseMonth(month);
-    service.updateHasUop(hasUop);
-    redirectAttributes.addFlashAttribute(
-        "accountingProfileMessage",
-        hasUop
-            ? "UoP enabled. JDG social ZUS is not charged; health ZUS remains applicable."
-            : "UoP disabled. Normal JDG social and health ZUS apply.");
-    return "redirect:/poc/accounting?month=" + formatMonth(selected);
-  }
-
   @GetMapping("/poc/accounting/export")
   public ResponseEntity<byte[]> exportJdg() {
     return ResponseEntity.ok()
@@ -97,18 +83,6 @@ public class AccountingFactController {
         .body(xml);
   }
 
-  @PostMapping("/poc/accounting/confirm")
-  public String confirm(@RequestParam String month, RedirectAttributes redirectAttributes) {
-    try {
-      filingService.confirm(parseMonth(month));
-      redirectAttributes.addFlashAttribute("filingMessage", "Month confirmed for filing output.");
-    } catch (RuntimeException exception) {
-      redirectAttributes.addFlashAttribute("filingError", exception.getMessage());
-    }
-    return "redirect:/poc/accounting?month=" + month;
-  }
-
-  @PostMapping("/poc/accounting/invoice/recognize")
   public String recognizeInvoice(
       @RequestParam String month, @RequestParam("invoice") MultipartFile invoice, Model model) {
     LocalDate selected = populateModel(month, model);
@@ -143,7 +117,6 @@ public class AccountingFactController {
     return "poc/accounting-facts";
   }
 
-  @PostMapping("/poc/accounting/invoice")
   public String saveInvoice(
       @ModelAttribute AccountingInvoiceForm invoiceDraft, RedirectAttributes redirectAttributes) {
     String month = invoiceDraft.getMonth();

@@ -72,11 +72,24 @@ public class AccountingJpkGenerator {
           .append(
               row.saleDate() == null ? "" : "<DataSprzedazy>" + row.saleDate() + "</DataSprzedazy>")
           .append(evidence(row.evidence()))
-          .append("<K_19>")
-          .append(money(row.netAmount()))
-          .append("</K_19><K_20>")
-          .append(money(row.vatAmount()))
-          .append("</K_20></SprzedazWiersz>");
+          .append(salesVatColumns(row))
+          .append("</SprzedazWiersz>");
+    }
+    for (var row : input.purchases()) {
+      if (!isImportOfServices(row)) continue;
+      xml.append("<SprzedazWiersz><LpSprzedazy>")
+          .append(i++)
+          .append("</LpSprzedazy><NrKontrahenta>")
+          .append(escape(row.counterpartyIdentifier()))
+          .append("</NrKontrahenta><NazwaKontrahenta>")
+          .append(escape(row.counterpartyName()))
+          .append("</NazwaKontrahenta><DowodSprzedazy>")
+          .append(escape(row.reference()))
+          .append("</DowodSprzedazy><DataWystawienia>")
+          .append(row.issueDate())
+          .append("</DataWystawienia>")
+          .append(importServiceColumns(row))
+          .append("</SprzedazWiersz>");
     }
     xml.append("<SprzedazCtrl><LiczbaWierszySprzedazy>")
         .append(i - 1)
@@ -116,6 +129,45 @@ public class AccountingJpkGenerator {
 
   private String declarationMoney(java.math.BigDecimal value) {
     return value == null ? "0" : value.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString();
+  }
+
+  private String salesVatColumns(AccountingFilingInput.FilingDocument row) {
+    String net = money(row.netAmount());
+    String vat = money(row.vatAmount());
+    if (row.treatment() == VatTreatment.VAT_EXEMPT) return "<K_10>" + net + "</K_10>";
+    if (row.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE
+        || row.treatment() == VatTreatment.NON_EU_B2B_OUTSIDE_POLAND)
+      return "<K_11>" + net + "</K_11>";
+    if (row.treatment() != VatTreatment.DOMESTIC_VAT) return "";
+    if (vatRate(row) == 8) return "<K_17>" + net + "</K_17><K_18>" + vat + "</K_18>";
+    if (vatRate(row) == 5) return "<K_15>" + net + "</K_15><K_16>" + vat + "</K_16>";
+    return "<K_19>" + net + "</K_19><K_20>" + vat + "</K_20>";
+  }
+
+  private boolean isImportOfServices(AccountingFilingInput.FilingDocument row) {
+    return row.treatment() == VatTreatment.IMPORT_OF_SERVICES_EU
+        || row.treatment() == VatTreatment.IMPORT_OF_SERVICES_NON_EU;
+  }
+
+  private int importServiceCount(java.util.List<AccountingFilingInput.FilingDocument> purchases) {
+    return (int) purchases.stream().filter(this::isImportOfServices).count();
+  }
+
+  private String importServiceColumns(AccountingFilingInput.FilingDocument row) {
+    String net = money(row.netAmount());
+    String vat = money(row.vatAmount());
+    return row.treatment() == VatTreatment.IMPORT_OF_SERVICES_EU
+        ? "<K_29>" + net + "</K_29><K_30>" + vat + "</K_30>"
+        : "<K_27>" + net + "</K_27><K_28>" + vat + "</K_28>";
+  }
+
+  private int vatRate(AccountingFilingInput.FilingDocument row) {
+    if (row.netAmount() == null || row.netAmount().signum() == 0 || row.vatAmount() == null)
+      return 23;
+    return row.vatAmount()
+        .multiply(java.math.BigDecimal.valueOf(100))
+        .divide(row.netAmount(), 0, java.math.RoundingMode.HALF_UP)
+        .intValue();
   }
 
   private String escape(String value) {

@@ -1045,7 +1045,7 @@ CREATE TABLE investory.accounting_authority_confirmation (
     source_document_id bigint,
     note character varying(1000),
     amount numeric(19,2),
-    profile_id bigint,
+    profile_id bigint NOT NULL,
     calculation_hash character varying(64)
 );
 
@@ -1096,7 +1096,7 @@ CREATE TABLE investory.accounting_filing_artifact (
     payload_hash character varying(64) NOT NULL,
     generated_at timestamp with time zone NOT NULL,
     status character varying(16) NOT NULL,
-    profile_id bigint,
+    profile_id bigint NOT NULL,
     calculation_hash character varying(64),
     CONSTRAINT chk_accounting_filing_artifact_hash CHECK (((length((payload_hash)::text) >= 1) AND (length((payload_hash)::text) <= 64))),
     CONSTRAINT chk_accounting_filing_artifact_status CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'VALID'::character varying, 'SUBMITTED'::character varying, 'ACCEPTED'::character varying, 'REJECTED'::character varying])::text[])))
@@ -1130,6 +1130,151 @@ ALTER SEQUENCE investory.accounting_filing_artifact_id_seq OWNED BY investory.ac
 
 
 --
+-- Name: accounting_reference_bank_transaction; Type: TABLE; Schema: investory; Owner: -
+--
+
+CREATE TABLE investory.accounting_reference_bank_transaction (
+    id bigint NOT NULL,
+    profile_id bigint NOT NULL,
+    booking_date date NOT NULL,
+    related_period date,
+    reference character varying(128),
+    counterparty_alias character varying(128),
+    currency character(3) NOT NULL,
+    amount numeric(19,4) NOT NULL,
+    transaction_type character varying(32) NOT NULL,
+    scope character varying(32) NOT NULL,
+    note character varying(512),
+    source_id bigint,
+    source_row_identity character varying(256),
+    provider character varying(32) NOT NULL,
+    external_account_id character varying(256) CONSTRAINT accounting_reference_bank_transact_external_account_id_not_null NOT NULL,
+    external_transaction_id character varying(256) CONSTRAINT accounting_reference_bank_tran_external_transaction_id_not_null NOT NULL,
+    source_payload_hash character varying(128)
+);
+
+
+--
+-- Name: accounting_reference_expense_invoice; Type: TABLE; Schema: investory; Owner: -
+--
+
+CREATE TABLE investory.accounting_reference_expense_invoice (
+    id bigint NOT NULL,
+    profile_id bigint NOT NULL,
+    tax_period date NOT NULL,
+    invoice_date date,
+    reference character varying(128) NOT NULL,
+    supplier_alias character varying(128) NOT NULL,
+    category character varying(64) NOT NULL,
+    currency character(3) NOT NULL,
+    net_amount numeric(19,4) NOT NULL,
+    vat_amount numeric(19,4) NOT NULL,
+    gross_amount numeric(19,4) NOT NULL,
+    vat_deduction_ratio numeric(3,2) CONSTRAINT accounting_reference_expense_invoi_vat_deduction_ratio_not_null NOT NULL,
+    source_quality character varying(32) NOT NULL,
+    note character varying(512),
+    source_id bigint,
+    counterparty_tax_identifier character varying(32),
+    counterparty_country character varying(2),
+    ksef_number character varying(256),
+    filing_evidence character varying(8)
+);
+
+
+--
+-- Name: accounting_reference_invoice; Type: TABLE; Schema: investory; Owner: -
+--
+
+CREATE TABLE investory.accounting_reference_invoice (
+    id bigint NOT NULL,
+    profile_id bigint NOT NULL,
+    tax_period date NOT NULL,
+    issue_date date,
+    sale_date date,
+    fx_rate_date date,
+    reference character varying(128) NOT NULL,
+    counterparty_alias character varying(128) NOT NULL,
+    invoice_kind character varying(32) NOT NULL,
+    currency character(3) NOT NULL,
+    net_amount numeric(19,4) NOT NULL,
+    vat_amount numeric(19,4) NOT NULL,
+    gross_amount numeric(19,4) NOT NULL,
+    correction_net_amount numeric(19,4) NOT NULL,
+    correction_vat_amount numeric(19,4) NOT NULL,
+    correction_gross_amount numeric(19,4) NOT NULL,
+    expected_receivable numeric(19,4) NOT NULL,
+    booked_net_pln numeric(19,4),
+    ryczalt_rate numeric(7,4),
+    note character varying(512),
+    source_id bigint,
+    counterparty_tax_identifier character varying(32),
+    counterparty_country character varying(2),
+    ksef_number character varying(256),
+    filing_evidence character varying(8)
+);
+
+
+--
+-- Name: accounting_reference_month; Type: TABLE; Schema: investory; Owner: -
+--
+
+CREATE TABLE investory.accounting_reference_month (
+    profile_id bigint NOT NULL,
+    tax_period date NOT NULL,
+    revenue numeric(19,4) NOT NULL,
+    expenses numeric(19,4) NOT NULL,
+    output_vat numeric(19,4) NOT NULL,
+    deductible_input_vat numeric(19,4) NOT NULL,
+    vat_payable numeric(19,4) NOT NULL,
+    ryczalt numeric(19,4),
+    zus numeric(19,4),
+    document_count integer NOT NULL,
+    bank_count integer NOT NULL,
+    filing_status character varying(32),
+    CONSTRAINT chk_accounting_reference_month_range CHECK (((tax_period >= '2026-01-01'::date) AND (tax_period < '2026-09-01'::date)))
+);
+
+
+--
+-- Name: TABLE accounting_reference_month; Type: COMMENT; Schema: investory; Owner: -
+--
+
+COMMENT ON TABLE investory.accounting_reference_month IS 'Immutable Jan-Aug 2026 verification oracle. Never used as operational calculation input.';
+
+
+--
+-- Name: accounting_reference_obligation; Type: TABLE; Schema: investory; Owner: -
+--
+
+CREATE TABLE investory.accounting_reference_obligation (
+    id bigint NOT NULL,
+    profile_id bigint NOT NULL,
+    tax_period date NOT NULL,
+    obligation_type character varying(32) NOT NULL,
+    due_date date,
+    expected_amount numeric(19,4) NOT NULL,
+    paid_amount numeric(19,4),
+    payment_date date,
+    status character varying(32) NOT NULL,
+    note character varying(512)
+);
+
+
+--
+-- Name: accounting_reference_tax_input; Type: TABLE; Schema: investory; Owner: -
+--
+
+CREATE TABLE investory.accounting_reference_tax_input (
+    id bigint NOT NULL,
+    profile_id bigint NOT NULL,
+    tax_period date NOT NULL,
+    input_type character varying(64) NOT NULL,
+    amount numeric(19,4) NOT NULL,
+    note character varying(512)
+);
+
+
+--
 -- Name: accounting_source_evidence; Type: TABLE; Schema: investory; Owner: -
 --
 
@@ -1145,6 +1290,7 @@ CREATE TABLE investory.accounting_source_evidence (
     payload bytea NOT NULL,
     processing_status character varying(32) NOT NULL,
     processing_error character varying(1000),
+    profile_id bigint NOT NULL,
     CONSTRAINT chk_accounting_source_status CHECK (((processing_status)::text = ANY ((ARRAY['RECEIVED'::character varying, 'PARSED'::character varying, 'REVIEW_REQUIRED'::character varying, 'IMPORTED'::character varying, 'FAILED'::character varying])::text[]))),
     CONSTRAINT chk_accounting_source_type CHECK (((source_type)::text = ANY ((ARRAY['KSEF'::character varying, 'UPLOAD'::character varying, 'BANK'::character varying])::text[])))
 );
@@ -1243,6 +1389,7 @@ CREATE TABLE investory.accounting_tmp_bank_transaction (
     reconciliation_message character varying(1000),
     promoted_at timestamp with time zone,
     canonical_id bigint,
+    related_period date,
     CONSTRAINT chk_accounting_tmp_bank_status CHECK (((reconciliation_status)::text = ANY ((ARRAY['PENDING'::character varying, 'MATCH'::character varying, 'NEW'::character varying, 'MISMATCH'::character varying, 'AMBIGUOUS'::character varying, 'PROMOTED'::character varying])::text[])))
 );
 
@@ -1299,6 +1446,7 @@ CREATE TABLE investory.accounting_tmp_invoice (
     promoted_at timestamp with time zone,
     canonical_id bigint,
     canonical_type character varying(32),
+    due_date date,
     CONSTRAINT chk_accounting_tmp_invoice_status CHECK (((reconciliation_status)::text = ANY ((ARRAY['PENDING'::character varying, 'MATCH'::character varying, 'NEW'::character varying, 'MISMATCH'::character varying, 'AMBIGUOUS'::character varying, 'PROMOTED'::character varying])::text[])))
 );
 
@@ -1390,7 +1538,7 @@ CREATE TABLE investory.accounting_vat_transaction (
     vat_amount numeric(18,2) NOT NULL,
     deductible_vat numeric(18,2) NOT NULL,
     evidence character varying(256) NOT NULL,
-    profile_id bigint,
+    profile_id bigint NOT NULL,
     source_id bigint,
     invoice_id bigint,
     expense_invoice_id bigint,
@@ -10739,10 +10887,177 @@ COPY investory.accounting_filing_artifact (id, artifact_type, tax_period, schema
 
 
 --
+-- Data for Name: accounting_reference_bank_transaction; Type: TABLE DATA; Schema: investory; Owner: -
+--
+
+COPY investory.accounting_reference_bank_transaction (id, profile_id, booking_date, related_period, reference, counterparty_alias, currency, amount, transaction_type, scope, note, source_id, source_row_identity, provider, external_account_id, external_transaction_id, source_payload_hash) FROM stdin;
+1	1	2026-07-03	2026-06-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	SEPA receipt for the prior monthly EU service; retained to prevent false July matching.	\N	\N	CSV	LEGACY_SOURCE	legacy-1	\N
+2	1	2026-07-04	\N	Transfer of funds	OWN_ACCOUNT	EUR	-7636.0000	INTERNAL_TRANSFER	EXCLUDED_INTERNAL	Transfer between own accounts; never revenue or expense.	\N	\N	CSV	LEGACY_SOURCE	legacy-2	\N
+3	1	2026-07-16	2026-06-01	FV 4/2026	CUSTOMER_PL_001	PLN	39864.3000	CUSTOMER_RECEIPT	BUSINESS	Exactly matches the corrected FV 4/2026 receivable.	\N	\N	CSV	LEGACY_SOURCE	legacy-3	\N
+4	1	2026-07-16	\N	Transfer of funds	OWN_ACCOUNT	PLN	-20000.0000	INTERNAL_TRANSFER	EXCLUDED_INTERNAL	Own-account transfer.	\N	\N	CSV	LEGACY_SOURCE	legacy-4	\N
+5	1	2026-08-05	2026-07-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	SEPA receipt matched to the July EU service fixture.	\N	\N	CSV	LEGACY_SOURCE	legacy-5	\N
+6	1	2026-08-13	2026-07-01	FV 5/2026	CUSTOMER_PL_002	PLN	19987.5000	CUSTOMER_RECEIPT	BUSINESS	Payment received for FV 5/2026.	\N	\N	CSV	LEGACY_SOURCE	legacy-6	\N
+7	1	2026-08-18	2026-07-01	26M07 PPE business	TAX_OFFICE	PLN	-5791.0000	RYCZALT_PAYMENT	BUSINESS	Business ryczalt payment for 2026-07.	\N	\N	CSV	LEGACY_SOURCE	legacy-7	\N
+8	1	2026-08-18	2026-07-01	26M07 VAT-7	TAX_OFFICE	PLN	-3557.0000	VAT_PAYMENT	BUSINESS	VAT payment for 2026-07.	\N	\N	CSV	LEGACY_SOURCE	legacy-8	\N
+9	1	2026-08-18	2026-07-01	26M07 ZUS	ZUS	PLN	-1495.0000	ZUS_PAYMENT	BUSINESS	Bank payment for the 2026-07 ZUS obligation.	\N	\N	CSV	LEGACY_SOURCE	legacy-9	\N
+10	1	2026-08-18	2026-07-01	26M07 PPE rental	TAX_OFFICE	PLN	-740.0000	RENTAL_TAX_PAYMENT	EXCLUDED_PRIVATE	Private rental ryczalt; deliberately outside the business POC.	\N	\N	CSV	LEGACY_SOURCE	legacy-10	\N
+11	1	2026-08-18	\N	Transfer of funds	OWN_ACCOUNT	PLN	-8000.0000	INTERNAL_TRANSFER	EXCLUDED_INTERNAL	Own-account transfer.	\N	\N	CSV	LEGACY_SOURCE	legacy-11	\N
+12	1	2026-02-13	2026-01-01	PDC-V1650-11	CUSTOMER_PL_001	PLN	36408.0000	CUSTOMER_RECEIPT	BUSINESS	Payment of January domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-12	\N
+13	1	2026-03-13	2026-02-01	PDC-V1650-12	CUSTOMER_PL_001	PLN	36408.0000	CUSTOMER_RECEIPT	BUSINESS	Payment of February domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-13	\N
+14	1	2026-04-14	2026-03-01	FV 1/2026	CUSTOMER_PL_001	PLN	40048.8000	CUSTOMER_RECEIPT	BUSINESS	Payment of March domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-14	\N
+15	1	2026-05-14	2026-04-01	FV 2/2026	CUSTOMER_PL_001	PLN	38228.4000	CUSTOMER_RECEIPT	BUSINESS	Payment of April domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-15	\N
+16	1	2026-06-12	2026-05-01	FV 3/2026	CUSTOMER_PL_001	PLN	36408.0000	CUSTOMER_RECEIPT	BUSINESS	Payment of May domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-16	\N
+17	1	2026-03-05	2026-02-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	Receipt for February EU service.	\N	\N	CSV	LEGACY_SOURCE	legacy-17	\N
+18	1	2026-04-07	2026-03-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	Receipt for March EU service.	\N	\N	CSV	LEGACY_SOURCE	legacy-18	\N
+19	1	2026-05-06	2026-04-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	Receipt for April EU service.	\N	\N	CSV	LEGACY_SOURCE	legacy-19	\N
+20	1	2026-06-05	2026-05-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	Receipt for May EU service.	\N	\N	CSV	LEGACY_SOURCE	legacy-20	\N
+\.
+
+
+--
+-- Data for Name: accounting_reference_expense_invoice; Type: TABLE DATA; Schema: investory; Owner: -
+--
+
+COPY investory.accounting_reference_expense_invoice (id, profile_id, tax_period, invoice_date, reference, supplier_alias, category, currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note, source_id, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence) FROM stdin;
+1	1	2026-01-01	\N	I26394B03000087	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	253.3400	58.2700	311.6100	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
+2	1	2026-01-01	\N	91/1/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	280.0000	64.4000	344.4000	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N	\N	\N	\N	\N
+3	1	2026-02-01	2026-02-27	1118/2/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	SOURCE_DOCUMENT	KSeF purchase invoice captured: net 298.00, VAT 68.54, gross 366.54.	\N	\N	\N	\N	\N
+4	1	2026-02-01	\N	I26394B03002189	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	278.3200	64.0100	342.3300	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
+5	1	2026-03-01	\N	I26394B01006279	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	323.5800	74.4200	398.0000	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
+6	1	2026-03-01	\N	2186/3/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N	\N	\N	\N	\N
+7	1	2026-03-01	2026-03-06	5034146070	SUPPLIER_NOWA_ERA_001	BUSINESS_SERVICE	PLN	406.5000	93.5000	500.0000	1.00	SOURCE_DOCUMENT	KSeF purchase invoice captured: net 406.50, VAT 93.50, gross 500.00.	\N	\N	\N	\N	\N
+8	1	2026-03-01	\N	I26394B03003487	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	340.2000	78.2500	418.4500	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
+9	1	2026-04-01	\N	538/4/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	468.0000	107.6400	575.6400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft expense; exact VAT composition still needs source-document verification.	\N	\N	\N	\N	\N
+10	1	2026-04-01	\N	I26394B03005740	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	313.8100	25.1100	338.9200	0.50	WFIRMA_LIST_DERIVED_8	BP Europa fuel; reconstructed at 8% VAT from gross 338.92 PLN; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
+11	1	2026-05-01	2026-05-30	I26394B03009405	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	356.5600	28.5200	385.0800	0.50	SOURCE_DOCUMENT	Source BP invoice: 8% VAT, net 356.56, VAT 28.52, gross 385.08; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
+12	1	2026-05-01	2026-05-16	I26394801011115	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	359.3900	28.7500	388.1400	0.50	SOURCE_DOCUMENT	Source BP invoice: 8% VAT, net 359.39, VAT 28.75, gross 388.14; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
+13	1	2026-05-01	2026-05-29	752/5/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	SOURCE_DOCUMENT	Captured SalSoft invoice: net 298.00, VAT 68.54, gross 366.54.	\N	\N	\N	\N	\N
+14	1	2026-05-01	\N	FS-652540/26/MEPL1	SUPPLIER_TERG_001	EQUIPMENT	PLN	430.6800	99.0600	529.7400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked TERG expense; exact VAT treatment still needs source-document verification.	\N	\N	\N	\N	\N
+15	1	2026-05-01	2026-05-02	FVF/463/58/5/2026	SUPPLIER_ANIWIM_001	VEHICLE_FUEL	PLN	279.4200	22.3500	301.7700	0.50	SOURCE_DOCUMENT	Source Aniwim fuel invoice: 8% VAT, net 279.42, VAT 22.35, gross 301.77; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
+16	1	2026-06-01	\N	1571/6/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N	\N	\N	\N	\N
+17	1	2026-06-01	\N	FA/1789/2026	SUPPLIER_SWIAT_DRUKU_001	BUSINESS_SERVICE	PLN	185.3700	42.6300	228.0000	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked expense; exact VAT treatment still needs source-document verification.	\N	\N	\N	\N	\N
+18	1	2026-06-01	\N	I26394B03011055	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	336.3300	26.9100	363.2400	0.50	WFIRMA_LIST_DERIVED_8	wFirma gross 363.24; fuel uses 8% VAT in this POC, derived net 336.33 / VAT 26.91; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
+19	1	2026-06-01	\N	I26394B03010191	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	323.5500	25.8800	349.4300	0.50	WFIRMA_LIST_DERIVED_8	wFirma gross 349.43; fuel uses 8% VAT in this POC, derived net 323.55 / VAT 25.88; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
+20	1	2026-06-01	\N	FVS/xk/00000127858	SUPPLIER_XKOM_001	EQUIPMENT	PLN	254.4600	58.5300	312.9900	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked X-KOM expense; exact VAT treatment still needs source-document verification.	\N	\N	\N	\N	\N
+21	1	2026-07-01	\N	1339/7/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N	\N	\N	\N	\N
+22	1	2026-07-01	\N	I26100B01009678	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	376.6200	86.6200	463.2400	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
+23	1	2026-07-01	\N	I26394B01015705	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	296.8200	68.2700	365.0900	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
+\.
+
+
+--
+-- Data for Name: accounting_reference_invoice; Type: TABLE DATA; Schema: investory; Owner: -
+--
+
+COPY investory.accounting_reference_invoice (id, profile_id, tax_period, issue_date, sale_date, fx_rate_date, reference, counterparty_alias, invoice_kind, currency, net_amount, vat_amount, gross_amount, correction_net_amount, correction_vat_amount, correction_gross_amount, expected_receivable, booked_net_pln, ryczalt_rate, note, source_id, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence) FROM stdin;
+1	1	2026-06-01	2026-07-02	2026-06-30	\N	FV 4/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	32560.0000	7488.8000	40048.8000	-150.0000	-34.5000	-184.5000	39864.3000	32560.0000	0.1200	KSeF FV 4/2026: issue 2026-07-02, sale/accounting period June, original net 32,560.00 PLN. July FK 1/2026 is a separate -150.00 net / -34.50 VAT correction.	\N	\N	\N	\N	\N
+2	1	2026-07-01	\N	\N	\N	FV 5/2026	CUSTOMER_PL_002	DOMESTIC_SERVICE	PLN	16250.0000	3737.5000	19987.5000	0.0000	0.0000	0.0000	19987.5000	16250.0000	0.1200	Domestic service invoice. Exact issue/sale dates were not present in the captured source, so they remain null.	\N	\N	\N	\N	\N
+3	1	2026-07-01	2026-07-31	2026-07-31	2026-07-30	EU-SERVICE-2026-07	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32908.8700	0.1200	Recurring EU service. Tax value uses Investory FX on 2026-07-30; 32,908.87 PLN remains the observed accounting golden value.	\N	\N	\N	\N	\N
+4	1	2026-01-01	2026-01-31	2026-01-31	\N	PDC-V1650-11	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	January domestic service invoice.	\N	\N	\N	\N	\N
+5	1	2026-02-01	2026-02-28	2026-02-28	\N	PDC-V1650-12	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	February domestic service invoice.	\N	\N	\N	\N	\N
+6	1	2026-03-01	2026-03-31	2026-03-31	\N	FV 1/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	32560.0000	7488.8000	40048.8000	0.0000	0.0000	0.0000	40048.8000	32560.0000	0.1200	March domestic service invoice.	\N	\N	\N	\N	\N
+7	1	2026-04-01	2026-04-30	2026-04-30	\N	FV 2/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	31080.0000	7148.4000	38228.4000	0.0000	0.0000	0.0000	38228.4000	31080.0000	0.1200	April domestic service invoice.	\N	\N	\N	\N	\N
+8	1	2026-05-01	2026-05-29	2026-05-29	\N	FV 3/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	May domestic service invoice.	\N	\N	\N	\N	\N
+9	1	2026-08-01	2026-08-31	2026-08-31	\N	FV 6/2026	CUSTOMER_PL_002	DOMESTIC_SERVICE	PLN	26250.0000	6037.5000	32287.5000	0.0000	0.0000	0.0000	32287.5000	26250.0000	0.1200	August domestic service invoice; tax outputs were not captured, therefore August remains partial.	\N	\N	\N	\N	\N
+10	1	2026-02-01	2026-02-28	2026-02-28	2026-02-27	EU-SERVICE-2026-02	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32249.1200	0.1200	Observed February foreign-service accounting value.	\N	\N	\N	\N	\N
+11	1	2026-03-01	2026-03-31	2026-03-31	2026-03-30	EU-SERVICE-2026-03	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32706.5200	0.1200	Observed March foreign-service accounting value.	\N	\N	\N	\N	\N
+12	1	2026-04-01	2026-04-30	2026-04-30	2026-04-29	EU-SERVICE-2026-04	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32481.2500	0.1200	Observed April foreign-service accounting value.	\N	\N	\N	\N	\N
+13	1	2026-05-01	2026-05-29	2026-05-29	2026-05-29	EU-SERVICE-2026-05	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32317.0800	0.1200	Observed May foreign-service accounting value. Source review maps it to the 2026-05-29 NBP table-A EUR rate.	\N	\N	\N	\N	\N
+14	1	2026-06-01	2026-06-30	2026-06-30	2026-06-29	EU-SERVICE-2026-06	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32750.8000	0.1200	Observed June foreign-service accounting value.	\N	\N	\N	\N	\N
+15	1	2026-01-01	2026-01-31	2026-01-31	2026-01-30	EU-SERVICE-2026-01	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32171.2300	0.1200	Source document 015 (Platform Developer): 7,636.00 EUR, sale 2026-01-31. NBP prior-business-day rate date 2026-01-30; booked wFirma value 32,171.23 PLN.	\N	\N	\N	\N	\N
+\.
+
+
+--
+-- Data for Name: accounting_reference_month; Type: TABLE DATA; Schema: investory; Owner: -
+--
+
+COPY investory.accounting_reference_month (profile_id, tax_period, revenue, expenses, output_vat, deductible_input_vat, vat_payable, ryczalt, zus, document_count, bank_count, filing_status) FROM stdin;
+1	2026-08-01	26250.0000	0.0000	6037.5000	0.0000	6037.5000	0.0000	0.0000	1	1	\N
+1	2026-02-01	61849.1200	576.3200	6808.0000	100.5450	6707.4550	7332.0000	1495.0400	4	2	\N
+1	2026-07-01	49158.8700	971.4400	3737.5000	145.9850	3591.5150	5791.0000	1495.0400	5	8	\N
+1	2026-01-01	61771.2300	533.3400	6808.0000	93.5350	6714.4650	7323.0000	1495.0400	4	1	\N
+1	2026-06-01	65310.8000	1397.7100	7454.3000	196.0950	7258.2050	7748.0000	1495.0400	7	2	\N
+1	2026-03-01	65266.5200	1368.2800	7488.8000	238.3750	7250.4250	7742.0000	1495.0400	6	2	\N
+1	2026-05-01	61917.0800	1724.0500	6808.0000	207.4100	6600.5900	7340.0000	1495.0400	7	2	\N
+1	2026-04-01	63561.2500	781.8100	7148.4000	120.1950	7028.2050	7538.0000	1495.0400	4	2	\N
+\.
+
+
+--
+-- Data for Name: accounting_reference_obligation; Type: TABLE DATA; Schema: investory; Owner: -
+--
+
+COPY investory.accounting_reference_obligation (id, profile_id, tax_period, obligation_type, due_date, expected_amount, paid_amount, payment_date, status, note) FROM stdin;
+4	1	2026-01-01	RYCZALT	2026-02-20	7323.0000	7323.0000	\N	GOLDEN	January ryczałt recomputed after restoring source document 015.
+5	1	2026-01-01	VAT	\N	6714.0000	6714.0000	\N	GOLDEN	Known January VAT payment.
+6	1	2026-01-01	ZUS	2026-02-20	1495.0400	1495.0400	\N	GOLDEN	Known January health contribution.
+7	1	2026-02-01	RYCZALT	2026-03-20	7332.0000	7332.0000	\N	GOLDEN	Known February ryczalt payment.
+8	1	2026-02-01	VAT	\N	6707.0000	6707.0000	\N	GOLDEN	Known February VAT payment.
+9	1	2026-02-01	ZUS	2026-03-20	1495.0400	1495.0400	\N	GOLDEN	Known February health contribution.
+10	1	2026-03-01	RYCZALT	2026-04-20	7742.0000	7742.0000	\N	GOLDEN	Known March ryczalt payment.
+11	1	2026-03-01	VAT	\N	7251.0000	7251.0000	\N	GOLDEN	Known March VAT payment.
+12	1	2026-03-01	ZUS	2026-04-20	1495.0400	1495.0400	\N	GOLDEN	Known March health contribution.
+13	1	2026-04-01	RYCZALT	2026-05-20	7538.0000	7538.0000	\N	GOLDEN	Known April ryczalt payment.
+14	1	2026-04-01	VAT	\N	7028.0000	7028.0000	\N	GOLDEN	Known April VAT payment.
+15	1	2026-04-01	ZUS	2026-05-20	1495.0400	1495.0400	\N	GOLDEN	Known April health contribution.
+16	1	2026-05-01	RYCZALT	2026-06-22	7340.0000	7340.0000	\N	GOLDEN	Known May ryczalt payment.
+17	1	2026-05-01	VAT	\N	6601.0000	6601.0000	\N	GOLDEN	Known May VAT payment.
+18	1	2026-05-01	ZUS	2026-06-22	1495.0400	1495.0400	\N	GOLDEN	Known May health contribution.
+19	1	2026-06-01	RYCZALT	2026-07-20	7748.0000	7748.0000	\N	GOLDEN	Known June ryczalt payment.
+20	1	2026-06-01	VAT	\N	7293.0000	7293.0000	\N	GOLDEN	Known June VAT payment.
+21	1	2026-06-01	ZUS	2026-07-20	1495.0400	1495.0400	\N	GOLDEN	Known June health contribution.
+1	1	2026-07-01	RYCZALT	2026-08-20	5791.0000	5791.0000	2026-08-18	MATCHED	Golden wFirma/business-tax amount confirmed by bank payment.
+2	1	2026-07-01	VAT	\N	3557.0000	3557.0000	2026-08-18	MATCHED	Golden VAT amount confirmed by bank payment. Detailed JPK calculation is a later POC step.
+3	1	2026-07-01	VAT_UE	2026-08-25	0.0000	0.0000	\N	REPORTING_ONLY	VAT-UE reporting obligation; no additional tax payment.
+22	1	2026-07-01	ZUS	2026-08-20	1495.0400	1495.0000	2026-08-18	MATCHED	Golden July ZUS/health contribution from wFirma. Bank cash evidence remains recorded separately.
+\.
+
+
+--
+-- Data for Name: accounting_reference_tax_input; Type: TABLE DATA; Schema: investory; Owner: -
+--
+
+COPY investory.accounting_reference_tax_input (id, profile_id, tax_period, input_type, amount, note) FROM stdin;
+16	1	2026-01-01	EXPECTED_INPUT_VAT	93.5400	wFirma VAT analytics purchase VAT.
+8	1	2026-01-01	EXPECTED_REVENUE_PLN	61771.2300	wFirma analytics monthly revenue golden.
+1	1	2026-01-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
+24	1	2026-01-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
+17	1	2026-02-01	EXPECTED_INPUT_VAT	100.5500	wFirma VAT analytics purchase VAT.
+9	1	2026-02-01	EXPECTED_REVENUE_PLN	61849.1200	wFirma analytics monthly revenue golden.
+2	1	2026-02-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
+25	1	2026-02-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
+18	1	2026-03-01	EXPECTED_INPUT_VAT	238.3800	wFirma VAT analytics purchase VAT.
+10	1	2026-03-01	EXPECTED_REVENUE_PLN	65266.5200	wFirma analytics monthly revenue golden.
+3	1	2026-03-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
+26	1	2026-03-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
+19	1	2026-04-01	EXPECTED_INPUT_VAT	120.2000	wFirma VAT analytics purchase VAT.
+11	1	2026-04-01	EXPECTED_REVENUE_PLN	63561.2500	wFirma analytics monthly revenue golden.
+4	1	2026-04-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
+27	1	2026-04-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
+20	1	2026-05-01	EXPECTED_INPUT_VAT	207.4200	wFirma VAT analytics purchase VAT.
+12	1	2026-05-01	EXPECTED_REVENUE_PLN	61917.0800	wFirma analytics monthly revenue golden.
+5	1	2026-05-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
+28	1	2026-05-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
+21	1	2026-06-01	EXPECTED_INPUT_VAT	196.1000	wFirma VAT analytics purchase VAT.
+13	1	2026-06-01	EXPECTED_REVENUE_PLN	65310.8000	wFirma analytics monthly revenue golden.
+6	1	2026-06-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
+29	1	2026-06-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
+22	1	2026-07-01	EXPECTED_INPUT_VAT	145.9900	wFirma VAT analytics purchase VAT.
+14	1	2026-07-01	EXPECTED_REVENUE_PLN	49008.8700	wFirma analytics monthly revenue golden including July correction.
+7	1	2026-07-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Visible wFirma health contribution amount. Ryczałt deducts 50% of paid health contribution.
+30	1	2026-07-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
+23	1	2026-08-01	EXPECTED_INPUT_VAT	0.0000	wFirma VAT analytics purchase VAT.
+15	1	2026-08-01	EXPECTED_REVENUE_PLN	26250.0000	wFirma analytics monthly revenue golden; no foreign revenue is booked in August.
+31	1	2026-08-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
+\.
+
+
+--
 -- Data for Name: accounting_source_evidence; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_source_evidence (id, source_type, external_reference, original_filename, content_type, received_at, document_date, content_hash, payload, processing_status, processing_error) FROM stdin;
+COPY investory.accounting_source_evidence (id, source_type, external_reference, original_filename, content_type, received_at, document_date, content_hash, payload, processing_status, processing_error, profile_id) FROM stdin;
 \.
 
 
@@ -10758,7 +11073,7 @@ COPY investory.accounting_tax_profile_period (id, profile_id, valid_from, valid_
 -- Data for Name: accounting_tmp_bank_transaction; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_tmp_bank_transaction (id, profile_id, tax_period, source_id, source_type, source_reference, source_hash, provider, external_account_id, external_transaction_id, booking_date, value_date, amount, currency, counterparty_name, counterparty_account, remittance_information, source_payload_hash, created_at, reconciliation_status, reconciliation_reason_codes, reconciliation_message, promoted_at, canonical_id) FROM stdin;
+COPY investory.accounting_tmp_bank_transaction (id, profile_id, tax_period, source_id, source_type, source_reference, source_hash, provider, external_account_id, external_transaction_id, booking_date, value_date, amount, currency, counterparty_name, counterparty_account, remittance_information, source_payload_hash, created_at, reconciliation_status, reconciliation_reason_codes, reconciliation_message, promoted_at, canonical_id, related_period) FROM stdin;
 \.
 
 
@@ -10766,7 +11081,7 @@ COPY investory.accounting_tmp_bank_transaction (id, profile_id, tax_period, sour
 -- Data for Name: accounting_tmp_invoice; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_tmp_invoice (id, profile_id, tax_period, source_id, source_type, source_reference, source_hash, document_kind, document_date, reference, counterparty_name, counterparty_tax_identifier, counterparty_country, currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio, deductible_vat, vat_treatment, ksef_number, created_at, reconciliation_status, reconciliation_reason_codes, reconciliation_message, promoted_at, canonical_id, canonical_type) FROM stdin;
+COPY investory.accounting_tmp_invoice (id, profile_id, tax_period, source_id, source_type, source_reference, source_hash, document_kind, document_date, reference, counterparty_name, counterparty_tax_identifier, counterparty_country, currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio, deductible_vat, vat_treatment, ksef_number, created_at, reconciliation_status, reconciliation_reason_codes, reconciliation_message, promoted_at, canonical_id, canonical_type, due_date) FROM stdin;
 \.
 
 
@@ -10791,28 +11106,28 @@ COPY investory.accounting_vat_transaction (id, tax_period, tax_date, source_docu
 --
 
 COPY investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only, created_at) FROM stdin;
-51551301	51551301	PLN	XTB	Sample PLN Account	Sample User	1	f	2026-09-13 07:21:48.93185+00
-51822121	51822121	USD	XTB	Sample USD Account	Sample User	1	f	2026-09-13 07:21:48.93185+00
-51747407	51747407	EUR	XTB	Sample EUR Account	Sample User	1	t	2026-09-13 07:21:48.93185+00
-53582946	53582946	USD	XTB	Sample Metals Account	Sample User	1	f	2026-09-13 07:21:48.93185+00
-51729109	51729109	PLN	XTB	Sample Retirement Account	Sample User	1	f	2026-09-13 07:21:48.93185+00
-50290466	50290466	PLN	XTB	Sample PLN Cash Account	Sample User	1	t	2026-09-13 07:21:48.93185+00
-51499241	51499241	USD	XTB	Sample USD Trading Account	Sample User	1	f	2026-09-13 07:21:48.93185+00
-51548444	51548444	EUR	XTB	Sample EUR Cash Account	Sample User	1	t	2026-09-13 07:21:48.93185+00
-51993106	51993106	USD	XTB	Sample Income Account	Sample User	1	f	2026-09-13 07:21:48.93185+00
-51707603	51707603	PLN	XTB	Sample PLN Reserve Account	Sample User	1	t	2026-09-13 07:21:48.93185+00
-17959259	17959259	USD	IBKR	Sample IBKR Account	Sample User	1	f	2026-09-13 07:21:48.93185+00
-2051822121	51822121	USD	XTB	XTB USD reserve account	Happy Investor	2	f	2026-09-13 07:21:48.93185+00
-2051747407	51747407	EUR	XTB	XTB EUR cash account	Happy Investor	2	t	2026-09-13 07:21:48.93185+00
-2053582946	53582946	USD	XTB	XTB metals account	Happy Investor	2	f	2026-09-13 07:21:48.93185+00
-2051729109	51729109	PLN	XTB	XTB retirement account	Happy Investor	2	f	2026-09-13 07:21:48.93185+00
-2050290466	50290466	PLN	XTB	XTB cash account	Happy Investor	2	t	2026-09-13 07:21:48.93185+00
-2051993106	51993106	USD	XTB	XTB income account	Happy Investor	2	f	2026-09-13 07:21:48.93185+00
-2051707603	51707603	PLN	XTB	XTB PLN reserve account	Happy Investor	2	t	2026-09-13 07:21:48.93185+00
-2017959259	17959259	USD	IBKR	IBKR USD investment account	Happy Investor	2	f	2026-09-13 07:21:48.93185+00
-2051499241	51499241	USD	XTB	XTB USD investment account	Happy Investor	2	f	2026-09-13 07:21:48.93185+00
-2051551301	51551301	PLN	XTB	XTB PLN investment account	Happy Investor	2	f	2026-09-13 07:21:48.93185+00
-2051548444	51548444	EUR	XTB	XTB EUR cash-only account	Happy Investor	2	t	2026-09-13 07:21:48.93185+00
+51551301	51551301	PLN	XTB	Sample PLN Account	Sample User	1	f	2026-09-13 19:26:08.639594+00
+51822121	51822121	USD	XTB	Sample USD Account	Sample User	1	f	2026-09-13 19:26:08.639594+00
+51747407	51747407	EUR	XTB	Sample EUR Account	Sample User	1	t	2026-09-13 19:26:08.639594+00
+53582946	53582946	USD	XTB	Sample Metals Account	Sample User	1	f	2026-09-13 19:26:08.639594+00
+51729109	51729109	PLN	XTB	Sample Retirement Account	Sample User	1	f	2026-09-13 19:26:08.639594+00
+50290466	50290466	PLN	XTB	Sample PLN Cash Account	Sample User	1	t	2026-09-13 19:26:08.639594+00
+51499241	51499241	USD	XTB	Sample USD Trading Account	Sample User	1	f	2026-09-13 19:26:08.639594+00
+51548444	51548444	EUR	XTB	Sample EUR Cash Account	Sample User	1	t	2026-09-13 19:26:08.639594+00
+51993106	51993106	USD	XTB	Sample Income Account	Sample User	1	f	2026-09-13 19:26:08.639594+00
+51707603	51707603	PLN	XTB	Sample PLN Reserve Account	Sample User	1	t	2026-09-13 19:26:08.639594+00
+17959259	17959259	USD	IBKR	Sample IBKR Account	Sample User	1	f	2026-09-13 19:26:08.639594+00
+2051822121	51822121	USD	XTB	XTB USD reserve account	Happy Investor	2	f	2026-09-13 19:26:08.639594+00
+2051747407	51747407	EUR	XTB	XTB EUR cash account	Happy Investor	2	t	2026-09-13 19:26:08.639594+00
+2053582946	53582946	USD	XTB	XTB metals account	Happy Investor	2	f	2026-09-13 19:26:08.639594+00
+2051729109	51729109	PLN	XTB	XTB retirement account	Happy Investor	2	f	2026-09-13 19:26:08.639594+00
+2050290466	50290466	PLN	XTB	XTB cash account	Happy Investor	2	t	2026-09-13 19:26:08.639594+00
+2051993106	51993106	USD	XTB	XTB income account	Happy Investor	2	f	2026-09-13 19:26:08.639594+00
+2051707603	51707603	PLN	XTB	XTB PLN reserve account	Happy Investor	2	t	2026-09-13 19:26:08.639594+00
+2017959259	17959259	USD	IBKR	IBKR USD investment account	Happy Investor	2	f	2026-09-13 19:26:08.639594+00
+2051499241	51499241	USD	XTB	XTB USD investment account	Happy Investor	2	f	2026-09-13 19:26:08.639594+00
+2051551301	51551301	PLN	XTB	XTB PLN investment account	Happy Investor	2	f	2026-09-13 19:26:08.639594+00
+2051548444	51548444	EUR	XTB	XTB EUR cash-only account	Happy Investor	2	t	2026-09-13 19:26:08.639594+00
 \.
 
 
@@ -10821,8 +11136,8 @@ COPY investory.accounts (id, external_account_id, currency, provider, name, owne
 --
 
 COPY investory.app_users (id, username, display_name, birth_date, active, created_at, updated_at, password_hash, role) FROM stdin;
-1	sample.user	Sample User	1985-09-09	t	2026-09-13 07:21:48.920459+00	2026-09-13 07:21:51.285849+00	\N	PROFILE_OWNER
-2	happy.investor	Happy Investor	1984-01-01	t	2026-09-13 07:21:48.923214+00	2026-09-13 07:21:51.709772+00	\N	PROFILE_OWNER
+1	sample.user	Sample User	1985-09-09	t	2026-09-13 19:26:08.629246+00	2026-09-13 19:26:10.900482+00	\N	PROFILE_OWNER
+2	happy.investor	Happy Investor	1984-01-01	t	2026-09-13 19:26:08.631694+00	2026-09-13 19:26:11.634483+00	\N	PROFILE_OWNER
 \.
 
 
@@ -10831,30 +11146,30 @@ COPY investory.app_users (id, username, display_name, birth_date, active, create
 --
 
 COPY investory.asset_price_history (asset_id, price_date, source, source_symbol, source_mapping_id, price_origin, price_currency, open_price, high_price, low_price, close_price, adjusted_close_price, volume, estimated, interpolation_method, interpolation_left_date, interpolation_right_date, observation_count, source_date, imported_at, quality_score, quality_class, is_observed, is_proxy, price_scale_factor, scale_reason, original_source_symbol) FROM stdin;
-1	2025-01-01	STOOQ	aapl.us	11	STOOQ	USD	251.06900000	251.90500000	248.07500000	249.05900000	\N	39696389.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	aapl.us
-51	2025-01-01	STOOQ	ale	17	STOOQ	PLN	27.49500000	28.24000000	27.20000000	28.24000000	\N	1690982.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	ale
-101	2025-01-01	STOOQ	amzn.us	4	STOOQ	USD	222.96500000	223.22990000	218.94000000	219.39000000	\N	24819655.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	amzn.us
-151	2025-01-01	STOOQ	emim.uk	12	STOOQ	USD	2713.00000000	2727.00000000	2712.00000000	2724.00000000	\N	94147.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	90	EXACT_LISTING_SCALED	t	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	emim.uk
-201	2025-01-01	STOOQ	etfbw20tr.pl	14	STOOQ	PLN	42.20500000	42.45500000	41.87000000	42.34000000	\N	19855.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	etfbw20tr.pl
-251	2025-01-01	STOOQ	googl.us	2	STOOQ	USD	191.07500000	191.96000000	188.51000000	189.30000000	\N	17466919.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	googl.us
-301	2025-01-01	STOOQ	hprd.uk	8	STOOQ	USD	20.82000000	20.94250000	20.82000000	20.94250000	\N	1704.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	hprd.uk
-351	2025-01-01	MANUAL	jgpi.de	\N	MANUAL_WEEKLY	EUR	25.30000000	25.39000000	24.92000000	25.25000000	\N	389706.00000000	f	\N	\N	\N	1	2025-01-06	2026-09-13 07:21:48.985444+00	90	MANUAL_WEEKLY_CLOSE	t	f	1.00000000	Manual weekly backfill	jgpi.de
-401	2025-01-01	STOOQ	meta.us	3	STOOQ	USD	592.26500000	593.97000000	583.85000000	585.51000000	\N	6019520.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	meta.us
-451	2025-01-01	STOOQ	msft.us	10	STOOQ	USD	426.10000000	426.73000000	420.66000000	421.50000000	\N	13246509.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	msft.us
-501	2025-01-01	XTB_TRADE_CLOSE	NATGAS	\N	XTB_TRADE_CLOSE	USD	\N	\N	\N	2.94600000	\N	0.01000000	f	\N	\N	\N	1	2024-11-11	2026-09-13 07:21:48.985444+00	60	XTB_TRADE_OBSERVATION	t	f	1.00000000	\N	\N
-551	2025-01-01	STOOQ	nclr.uk	19	STOOQ	USD	24.42500000	24.42500000	24.42500000	24.42500000	\N	0.00000000	f	\N	\N	\N	1	2025-03-13	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nclr.uk
-601	2025-01-01	STOOQ	nucl.uk	18	STOOQ	USD	32.20000000	32.20000000	32.03000000	32.10000000	\N	1671.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nucl.uk
-651	2025-01-01	STOOQ	nvda.us	5	STOOQ	USD	138.03000000	138.07000000	133.83000000	134.29000000	\N	155659211.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nvda.us
-701	2025-01-01	STOOQ	o.us	7	STOOQ	USD	52.96000000	53.48000000	52.87000000	53.41000000	\N	5643315.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	o.us
-751	2025-01-01	STOOQ	pall.us	21	STOOQ	USD	16.63720000	16.84510000	16.61200000	16.70400000	\N	255610.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pall.us
-801	2025-01-01	STOOQ	pkn	16	STOOQ	PLN	41.80190000	43.53180000	41.80190000	43.24280000	\N	4468832.77048588	f	\N	\N	\N	1	2025-01-02	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pkn
-851	2025-01-01	STOOQ	pko	15	STOOQ	PLN	55.93010000	56.34040000	54.68060000	55.25870000	\N	1958279.91280614	f	\N	\N	\N	1	2025-01-02	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pko
-901	2025-01-01	STOOQ	pzu	13	STOOQ	PLN	42.58700000	43.23540000	42.49440000	43.01310000	\N	1378040.63739274	f	\N	\N	\N	1	2025-01-02	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pzu
-951	2025-01-01	INTERPOLATED_XTB	SPYW.DE	\N	INTERPOLATED_XTB	EUR	\N	\N	\N	23.87250000	\N	\N	t	LINEAR_BUSINESS_DAY	2024-12-30	2025-01-03	\N	\N	2026-09-13 07:21:48.985444+00	30	INTERPOLATED_XTB	f	f	1.00000000	\N	\N
-1001	2025-01-01	STOOQ	tsla.us	6	STOOQ	USD	423.79000000	427.93000000	402.54000000	403.84000000	\N	76825121.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	tsla.us
-1101	2025-01-01	STOOQ	vhyd.uk	20	STOOQ	USD	66.26500000	66.65000000	66.26000000	66.51250000	\N	2136.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	vhyd.uk
-1151	2025-01-01	STOOQ	vwra.uk	1	STOOQ	USD	138.78000000	139.40000000	138.70000000	139.34000000	\N	27062.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 07:21:48.985444+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	vwra.uk
-1201	2025-12-31	HAPPYINVESTOR_FIXTURE	US91282CKB62	\N	FIXTURE	USD	100.00000000	100.00000000	100.00000000	100.00000000	\N	\N	f	\N	\N	\N	\N	2025-12-31	2026-09-13 07:21:51.795403+00	100	FIXTURE_PERCENT_OF_PAR	t	f	1.00000000	\N	T458022826
+1	2025-01-01	STOOQ	aapl.us	11	STOOQ	USD	251.06900000	251.90500000	248.07500000	249.05900000	\N	39696389.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	aapl.us
+51	2025-01-01	STOOQ	ale	17	STOOQ	PLN	27.49500000	28.24000000	27.20000000	28.24000000	\N	1690982.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	ale
+101	2025-01-01	STOOQ	amzn.us	4	STOOQ	USD	222.96500000	223.22990000	218.94000000	219.39000000	\N	24819655.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	amzn.us
+151	2025-01-01	STOOQ	emim.uk	12	STOOQ	USD	2713.00000000	2727.00000000	2712.00000000	2724.00000000	\N	94147.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	90	EXACT_LISTING_SCALED	t	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	emim.uk
+201	2025-01-01	STOOQ	etfbw20tr.pl	14	STOOQ	PLN	42.20500000	42.45500000	41.87000000	42.34000000	\N	19855.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	etfbw20tr.pl
+251	2025-01-01	STOOQ	googl.us	2	STOOQ	USD	191.07500000	191.96000000	188.51000000	189.30000000	\N	17466919.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	googl.us
+301	2025-01-01	STOOQ	hprd.uk	8	STOOQ	USD	20.82000000	20.94250000	20.82000000	20.94250000	\N	1704.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	hprd.uk
+351	2025-01-01	MANUAL	jgpi.de	\N	MANUAL_WEEKLY	EUR	25.30000000	25.39000000	24.92000000	25.25000000	\N	389706.00000000	f	\N	\N	\N	1	2025-01-06	2026-09-13 19:26:08.684097+00	90	MANUAL_WEEKLY_CLOSE	t	f	1.00000000	Manual weekly backfill	jgpi.de
+401	2025-01-01	STOOQ	meta.us	3	STOOQ	USD	592.26500000	593.97000000	583.85000000	585.51000000	\N	6019520.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	meta.us
+451	2025-01-01	STOOQ	msft.us	10	STOOQ	USD	426.10000000	426.73000000	420.66000000	421.50000000	\N	13246509.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	msft.us
+501	2025-01-01	XTB_TRADE_CLOSE	NATGAS	\N	XTB_TRADE_CLOSE	USD	\N	\N	\N	2.94600000	\N	0.01000000	f	\N	\N	\N	1	2024-11-11	2026-09-13 19:26:08.684097+00	60	XTB_TRADE_OBSERVATION	t	f	1.00000000	\N	\N
+551	2025-01-01	STOOQ	nclr.uk	19	STOOQ	USD	24.42500000	24.42500000	24.42500000	24.42500000	\N	0.00000000	f	\N	\N	\N	1	2025-03-13	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nclr.uk
+601	2025-01-01	STOOQ	nucl.uk	18	STOOQ	USD	32.20000000	32.20000000	32.03000000	32.10000000	\N	1671.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nucl.uk
+651	2025-01-01	STOOQ	nvda.us	5	STOOQ	USD	138.03000000	138.07000000	133.83000000	134.29000000	\N	155659211.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nvda.us
+701	2025-01-01	STOOQ	o.us	7	STOOQ	USD	52.96000000	53.48000000	52.87000000	53.41000000	\N	5643315.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	o.us
+751	2025-01-01	STOOQ	pall.us	21	STOOQ	USD	16.63720000	16.84510000	16.61200000	16.70400000	\N	255610.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pall.us
+801	2025-01-01	STOOQ	pkn	16	STOOQ	PLN	41.80190000	43.53180000	41.80190000	43.24280000	\N	4468832.77048588	f	\N	\N	\N	1	2025-01-02	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pkn
+851	2025-01-01	STOOQ	pko	15	STOOQ	PLN	55.93010000	56.34040000	54.68060000	55.25870000	\N	1958279.91280614	f	\N	\N	\N	1	2025-01-02	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pko
+901	2025-01-01	STOOQ	pzu	13	STOOQ	PLN	42.58700000	43.23540000	42.49440000	43.01310000	\N	1378040.63739274	f	\N	\N	\N	1	2025-01-02	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pzu
+951	2025-01-01	INTERPOLATED_XTB	SPYW.DE	\N	INTERPOLATED_XTB	EUR	\N	\N	\N	23.87250000	\N	\N	t	LINEAR_BUSINESS_DAY	2024-12-30	2025-01-03	\N	\N	2026-09-13 19:26:08.684097+00	30	INTERPOLATED_XTB	f	f	1.00000000	\N	\N
+1001	2025-01-01	STOOQ	tsla.us	6	STOOQ	USD	423.79000000	427.93000000	402.54000000	403.84000000	\N	76825121.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	tsla.us
+1101	2025-01-01	STOOQ	vhyd.uk	20	STOOQ	USD	66.26500000	66.65000000	66.26000000	66.51250000	\N	2136.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	vhyd.uk
+1151	2025-01-01	STOOQ	vwra.uk	1	STOOQ	USD	138.78000000	139.40000000	138.70000000	139.34000000	\N	27062.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-13 19:26:08.684097+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	vwra.uk
+1201	2025-12-31	HAPPYINVESTOR_FIXTURE	US91282CKB62	\N	FIXTURE	USD	100.00000000	100.00000000	100.00000000	100.00000000	\N	\N	f	\N	\N	\N	\N	2025-12-31	2026-09-13 19:26:11.712627+00	100	FIXTURE_PERCENT_OF_PAR	t	f	1.00000000	\N	T458022826
 \.
 
 
@@ -10863,27 +11178,27 @@ COPY investory.asset_price_history (asset_id, price_date, source, source_symbol,
 --
 
 COPY investory.asset_source_symbols (id, asset_id, source, source_symbol, source_market, price_currency, active, created_at, updated_at, xtb_symbol, match_method, match_status, confidence, is_exact_listing, is_alternate_listing, original_exchange, matched_exchange, original_currency, matched_currency, requires_fx_conversion, price_scale_factor, scale_reason, scale_confidence, scale_observation_count, scale_median_ratio, scale_dispersion, manual_approval_status, substitution_reason) FROM stdin;
-1	1151	STOOQ	vwra.uk	uk/lse etfs/3	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	VWRA	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	HIGH	43	0.99890666	0.00178020	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-2	251	STOOQ	googl.us	us/nasdaq stocks/1	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	GOOGL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	155	0.99915645	0.00461066	AUTO_ACCEPTED	\N
-3	401	STOOQ	meta.us	us/nasdaq stocks/2	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	META.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	120	1.00133297	0.00462610	AUTO_ACCEPTED	\N
-4	101	STOOQ	amzn.us	us/nasdaq stocks/1	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	AMZN.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	107	0.99966079	0.00655302	AUTO_ACCEPTED	\N
-5	651	STOOQ	nvda.us	us/nasdaq stocks/2	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	NVDA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	192	1.00118575	0.00695909	AUTO_ACCEPTED	\N
-6	1001	STOOQ	tsla.us	us/nasdaq stocks/3	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	TSLA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	121	1.00301594	0.01051235	AUTO_ACCEPTED	\N
-7	701	STOOQ	o.us	us/nyse stocks/2	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	O.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	76	0.99889614	0.00433819	AUTO_ACCEPTED	\N
-8	301	STOOQ	hprd.uk	uk/lse etfs/2	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	HPRD	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-9	1051	STOOQ	vhyl.uk	uk/lse etfs/3	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	VHYL	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-10	451	STOOQ	msft.us	us/nasdaq stocks/2	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	MSFT.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	108	1.00035589	0.00426819	AUTO_ACCEPTED	\N
-11	1	STOOQ	aapl.us	us/nasdaq stocks/1	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	AAPL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	124	1.00318564	0.00398781	AUTO_ACCEPTED	\N
-12	151	STOOQ	emim.uk	uk/lse etfs/1	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	EMIM.UK	EXACT_SYMBOL	ACCEPTED_SCALED	HIGH	t	f	UK	UK	USD	USD	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	MANUAL	2	0.01000626	0.00133110	AUTO_ACCEPTED	\N
-13	901	STOOQ	pzu	pl/wse stocks	PLN	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	PZU.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	45	1.06728790	0.02651832	AUTO_ACCEPTED	\N
-14	201	STOOQ	etfbw20tr.pl	pl/wse etfs	PLN	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	ETFBW20TR.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	59	1.00074716	0.00442657	AUTO_ACCEPTED	\N
-15	851	STOOQ	pko	pl/wse stocks	PLN	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	PKO.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	48	1.06537170	0.01184250	AUTO_ACCEPTED	\N
-16	801	STOOQ	pkn	pl/wse stocks	PLN	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	PKN.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	55	1.13417093	0.01231641	AUTO_ACCEPTED	\N
-17	51	STOOQ	ale	pl/wse stocks	PLN	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	ALE.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	4	0.99693386	0.00657529	AUTO_ACCEPTED	\N
-18	601	STOOQ	nucl.uk	uk/lse etfs/2	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	NUCL.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	16	1.00190817	0.00580955	AUTO_ACCEPTED	\N
-19	551	STOOQ	nclr.uk	uk/lse etfs/2	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	NCLR.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	3	1.01019041	0.01449302	AUTO_ACCEPTED	\N
-20	1101	STOOQ	vhyd.uk	uk/lse etfs/3	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	VHYD.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	29	0.99826191	0.00178553	AUTO_ACCEPTED	\N
-21	751	STOOQ	pall.us	us/nyse etfs/1	USD	t	2026-09-13 07:21:48.977566+00	2026-09-13 07:21:48.977566+00	PALL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	\N	2	5.02832373	\N	AUTO_ACCEPTED	\N
+1	1151	STOOQ	vwra.uk	uk/lse etfs/3	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	VWRA	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	HIGH	43	0.99890666	0.00178020	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+2	251	STOOQ	googl.us	us/nasdaq stocks/1	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	GOOGL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	155	0.99915645	0.00461066	AUTO_ACCEPTED	\N
+3	401	STOOQ	meta.us	us/nasdaq stocks/2	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	META.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	120	1.00133297	0.00462610	AUTO_ACCEPTED	\N
+4	101	STOOQ	amzn.us	us/nasdaq stocks/1	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	AMZN.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	107	0.99966079	0.00655302	AUTO_ACCEPTED	\N
+5	651	STOOQ	nvda.us	us/nasdaq stocks/2	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	NVDA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	192	1.00118575	0.00695909	AUTO_ACCEPTED	\N
+6	1001	STOOQ	tsla.us	us/nasdaq stocks/3	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	TSLA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	121	1.00301594	0.01051235	AUTO_ACCEPTED	\N
+7	701	STOOQ	o.us	us/nyse stocks/2	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	O.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	76	0.99889614	0.00433819	AUTO_ACCEPTED	\N
+8	301	STOOQ	hprd.uk	uk/lse etfs/2	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	HPRD	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+9	1051	STOOQ	vhyl.uk	uk/lse etfs/3	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	VHYL	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+10	451	STOOQ	msft.us	us/nasdaq stocks/2	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	MSFT.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	108	1.00035589	0.00426819	AUTO_ACCEPTED	\N
+11	1	STOOQ	aapl.us	us/nasdaq stocks/1	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	AAPL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	124	1.00318564	0.00398781	AUTO_ACCEPTED	\N
+12	151	STOOQ	emim.uk	uk/lse etfs/1	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	EMIM.UK	EXACT_SYMBOL	ACCEPTED_SCALED	HIGH	t	f	UK	UK	USD	USD	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	MANUAL	2	0.01000626	0.00133110	AUTO_ACCEPTED	\N
+13	901	STOOQ	pzu	pl/wse stocks	PLN	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	PZU.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	45	1.06728790	0.02651832	AUTO_ACCEPTED	\N
+14	201	STOOQ	etfbw20tr.pl	pl/wse etfs	PLN	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	ETFBW20TR.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	59	1.00074716	0.00442657	AUTO_ACCEPTED	\N
+15	851	STOOQ	pko	pl/wse stocks	PLN	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	PKO.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	48	1.06537170	0.01184250	AUTO_ACCEPTED	\N
+16	801	STOOQ	pkn	pl/wse stocks	PLN	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	PKN.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	55	1.13417093	0.01231641	AUTO_ACCEPTED	\N
+17	51	STOOQ	ale	pl/wse stocks	PLN	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	ALE.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	4	0.99693386	0.00657529	AUTO_ACCEPTED	\N
+18	601	STOOQ	nucl.uk	uk/lse etfs/2	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	NUCL.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	16	1.00190817	0.00580955	AUTO_ACCEPTED	\N
+19	551	STOOQ	nclr.uk	uk/lse etfs/2	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	NCLR.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	3	1.01019041	0.01449302	AUTO_ACCEPTED	\N
+20	1101	STOOQ	vhyd.uk	uk/lse etfs/3	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	VHYD.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	29	0.99826191	0.00178553	AUTO_ACCEPTED	\N
+21	751	STOOQ	pall.us	us/nyse etfs/1	USD	t	2026-09-13 19:26:08.675771+00	2026-09-13 19:26:08.675771+00	PALL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	\N	2	5.02832373	\N	AUTO_ACCEPTED	\N
 \.
 
 
@@ -10953,8 +11268,8 @@ COPY investory.benchmark_monthly_closes (id, symbol, month, close_price, fetched
 --
 
 COPY investory.bond (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9405	2	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-09-13 07:21:51.71993+00	2026-09-13 07:21:51.71993+00
-9407	2	United States Treasury 4 3/8 07/31/33	PLN	10000.000000000000	2026-03-01	0.043750000000	2033-07-31	\N	Happy Investor reinvestment of Treasury 2026 principal	\N	2026-09-13 07:21:51.722745+00	2026-09-13 07:21:51.722745+00
+9405	2	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-09-13 19:26:11.643443+00	2026-09-13 19:26:11.643443+00
+9407	2	United States Treasury 4 3/8 07/31/33	PLN	10000.000000000000	2026-03-01	0.043750000000	2033-07-31	\N	Happy Investor reinvestment of Treasury 2026 principal	\N	2026-09-13 19:26:11.645533+00	2026-09-13 19:26:11.645533+00
 \.
 
 
@@ -10998,8 +11313,8 @@ COPY investory.cash_operations (id, account_id, operation, asset_id, source_asse
 --
 
 COPY investory.cash_reserve (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9406	2	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-09-13 07:21:51.724325+00	2026-09-13 07:21:51.724325+00
-9401	2	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-09-13 07:21:51.731279+00	2026-09-13 07:21:51.731279+00
+9406	2	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-09-13 19:26:11.646752+00	2026-09-13 19:26:11.646752+00
+9401	2	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-09-13 19:26:11.651563+00	2026-09-13 19:26:11.651563+00
 \.
 
 
@@ -11035,126 +11350,126 @@ COPY investory.employment_period (id, profile_id, employment_type, date_from, da
 --
 
 COPY investory.exchange_rates (id, rate_date, base, to_currency, rate, purpose, source, method, source_rate_date, observed_at, source_reference, imported_at) FROM stdin;
-1	2024-07-31	EUR	USD	1.08223900	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-2	2024-07-31	EUR	PLN	4.29529837	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-3	2024-07-31	USD	PLN	3.96890000	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-4	2024-07-31	PLN	USD	0.25195898	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-5	2025-03-01	EUR	USD	1.03955700	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-6	2025-03-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-7	2025-03-01	USD	PLN	3.99930000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-8	2025-03-01	PLN	USD	0.25099000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-9	2025-04-01	EUR	USD	1.08270600	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-10	2025-04-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-11	2025-04-01	USD	PLN	3.86430000	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-12	2025-04-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-13	2025-05-01	EUR	USD	1.13719900	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-14	2025-05-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-15	2025-05-01	USD	PLN	3.76170000	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-16	2025-05-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-17	2025-06-01	EUR	USD	1.13240300	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-18	2025-06-01	EUR	PLN	4.22199000	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-19	2025-06-01	USD	PLN	3.75370000	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-20	2025-06-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-21	2025-07-01	EUR	USD	1.17296200	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-22	2025-07-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-23	2025-07-01	USD	PLN	3.61640000	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-24	2025-07-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-25	2025-08-01	EUR	USD	1.14504700	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-26	2025-08-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-27	2025-08-01	USD	PLN	3.72570000	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-28	2025-08-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-29	2025-09-01	EUR	USD	1.16753700	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-30	2025-09-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-31	2025-09-01	USD	PLN	3.65590000	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-32	2025-09-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-33	2025-10-01	EUR	USD	1.17560200	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-34	2025-10-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-35	2025-10-01	USD	PLN	3.63150000	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-36	2025-10-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-37	2025-11-01	EUR	USD	1.15760100	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-38	2025-11-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-39	2025-11-01	USD	PLN	3.67510000	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-40	2025-11-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-41	2025-12-01	EUR	USD	1.15686400	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-42	2025-12-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-43	2025-12-01	USD	PLN	3.66240000	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-44	2025-12-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-45	2025-12-31	EUR	USD	1.17356200	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-46	2025-12-31	EUR	PLN	4.22670090	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-47	2025-12-31	USD	PLN	3.60160000	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-48	2025-12-31	PLN	USD	0.27765434	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-49	2026-01-01	EUR	USD	1.17356200	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-50	2026-01-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-51	2026-01-01	USD	PLN	3.60160000	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-52	2026-01-01	PLN	USD	0.27703500	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-53	2026-02-01	EUR	USD	1.19084800	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-54	2026-02-01	EUR	PLN	4.18726300	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-55	2026-02-01	USD	PLN	3.53790000	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-56	2026-02-01	PLN	USD	0.27633400	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-57	2026-03-01	EUR	USD	1.17956100	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-58	2026-03-01	EUR	PLN	4.18726300	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-59	2026-03-01	USD	PLN	3.58040000	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-60	2026-03-01	PLN	USD	0.27633400	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-61	2026-04-01	EUR	USD	1.14665300	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-62	2026-04-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-63	2026-04-01	USD	PLN	3.74080000	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-64	2026-04-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-65	2026-05-01	EUR	USD	1.16810200	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-66	2026-05-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-67	2026-05-01	USD	PLN	3.64600000	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-68	2026-05-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-69	2026-06-01	EUR	USD	1.16285200	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-70	2026-06-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-71	2026-06-01	USD	PLN	3.63950000	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-72	2026-06-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-73	2026-07-01	EUR	USD	1.13936000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-74	2026-07-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-75	2026-07-01	USD	PLN	3.77080000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-76	2026-07-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-77	2026-08-01	EUR	USD	1.15238500	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:EUR:USD	2026-09-13 07:21:48.936868+00
-78	2026-08-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 07:21:48.936868+00
-79	2026-08-01	USD	PLN	3.74250000	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:USD:PLN	2026-09-13 07:21:48.936868+00
-80	2026-08-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:PLN:USD	2026-09-13 07:21:48.936868+00
-81	2024-07-31	USD	EUR	0.92401032	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-82	2025-03-01	USD	EUR	0.96194821	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-83	2025-04-01	USD	EUR	0.92361177	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-84	2025-05-01	USD	EUR	0.87935357	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-85	2025-06-01	USD	EUR	0.88307784	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-86	2025-07-01	USD	EUR	0.85254254	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-87	2025-08-01	USD	EUR	0.87332660	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-88	2025-09-01	USD	EUR	0.85650391	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-89	2025-10-01	USD	EUR	0.85062802	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-90	2025-11-01	USD	EUR	0.86385551	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-91	2025-12-01	USD	EUR	0.86440584	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-92	2025-12-31	USD	EUR	0.85210666	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-93	2026-01-01	USD	EUR	0.85210666	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-94	2026-02-01	USD	EUR	0.83973773	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-95	2026-03-01	USD	EUR	0.84777303	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-96	2026-04-01	USD	EUR	0.87210342	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-97	2026-05-01	USD	EUR	0.85608962	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-98	2026-06-01	USD	EUR	0.85995466	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-99	2026-07-01	USD	EUR	0.87768572	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-100	2026-08-01	USD	EUR	0.86776555	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:USD:EUR	2026-09-13 07:21:48.936868+00
-101	2024-07-31	PLN	EUR	0.23281270	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-102	2025-03-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-103	2025-04-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-104	2025-05-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-105	2025-06-01	PLN	EUR	0.23685513	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-106	2025-07-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-107	2025-08-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-108	2025-09-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-109	2025-10-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-110	2025-11-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-111	2025-12-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-112	2025-12-31	PLN	EUR	0.23659114	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-113	2026-01-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-114	2026-02-01	PLN	EUR	0.23881949	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-115	2026-03-01	PLN	EUR	0.23881949	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-116	2026-04-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-117	2026-05-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-118	2026-06-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-119	2026-07-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
-120	2026-08-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 07:21:48.936868+00
+1	2024-07-31	EUR	USD	1.08223900	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+2	2024-07-31	EUR	PLN	4.29529837	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+3	2024-07-31	USD	PLN	3.96890000	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+4	2024-07-31	PLN	USD	0.25195898	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+5	2025-03-01	EUR	USD	1.03955700	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+6	2025-03-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+7	2025-03-01	USD	PLN	3.99930000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+8	2025-03-01	PLN	USD	0.25099000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+9	2025-04-01	EUR	USD	1.08270600	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+10	2025-04-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+11	2025-04-01	USD	PLN	3.86430000	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+12	2025-04-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+13	2025-05-01	EUR	USD	1.13719900	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+14	2025-05-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+15	2025-05-01	USD	PLN	3.76170000	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+16	2025-05-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+17	2025-06-01	EUR	USD	1.13240300	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+18	2025-06-01	EUR	PLN	4.22199000	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+19	2025-06-01	USD	PLN	3.75370000	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+20	2025-06-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+21	2025-07-01	EUR	USD	1.17296200	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+22	2025-07-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+23	2025-07-01	USD	PLN	3.61640000	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+24	2025-07-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+25	2025-08-01	EUR	USD	1.14504700	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+26	2025-08-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+27	2025-08-01	USD	PLN	3.72570000	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+28	2025-08-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+29	2025-09-01	EUR	USD	1.16753700	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+30	2025-09-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+31	2025-09-01	USD	PLN	3.65590000	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+32	2025-09-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+33	2025-10-01	EUR	USD	1.17560200	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+34	2025-10-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+35	2025-10-01	USD	PLN	3.63150000	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+36	2025-10-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+37	2025-11-01	EUR	USD	1.15760100	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+38	2025-11-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+39	2025-11-01	USD	PLN	3.67510000	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+40	2025-11-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+41	2025-12-01	EUR	USD	1.15686400	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+42	2025-12-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+43	2025-12-01	USD	PLN	3.66240000	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+44	2025-12-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+45	2025-12-31	EUR	USD	1.17356200	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+46	2025-12-31	EUR	PLN	4.22670090	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+47	2025-12-31	USD	PLN	3.60160000	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+48	2025-12-31	PLN	USD	0.27765434	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+49	2026-01-01	EUR	USD	1.17356200	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+50	2026-01-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+51	2026-01-01	USD	PLN	3.60160000	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+52	2026-01-01	PLN	USD	0.27703500	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+53	2026-02-01	EUR	USD	1.19084800	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+54	2026-02-01	EUR	PLN	4.18726300	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+55	2026-02-01	USD	PLN	3.53790000	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+56	2026-02-01	PLN	USD	0.27633400	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+57	2026-03-01	EUR	USD	1.17956100	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+58	2026-03-01	EUR	PLN	4.18726300	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+59	2026-03-01	USD	PLN	3.58040000	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+60	2026-03-01	PLN	USD	0.27633400	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+61	2026-04-01	EUR	USD	1.14665300	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+62	2026-04-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+63	2026-04-01	USD	PLN	3.74080000	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+64	2026-04-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+65	2026-05-01	EUR	USD	1.16810200	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+66	2026-05-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+67	2026-05-01	USD	PLN	3.64600000	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+68	2026-05-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+69	2026-06-01	EUR	USD	1.16285200	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+70	2026-06-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+71	2026-06-01	USD	PLN	3.63950000	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+72	2026-06-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+73	2026-07-01	EUR	USD	1.13936000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+74	2026-07-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+75	2026-07-01	USD	PLN	3.77080000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+76	2026-07-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+77	2026-08-01	EUR	USD	1.15238500	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:EUR:USD	2026-09-13 19:26:08.642214+00
+78	2026-08-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:EUR:PLN	2026-09-13 19:26:08.642214+00
+79	2026-08-01	USD	PLN	3.74250000	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:USD:PLN	2026-09-13 19:26:08.642214+00
+80	2026-08-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:PLN:USD	2026-09-13 19:26:08.642214+00
+81	2024-07-31	USD	EUR	0.92401032	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+82	2025-03-01	USD	EUR	0.96194821	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+83	2025-04-01	USD	EUR	0.92361177	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+84	2025-05-01	USD	EUR	0.87935357	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+85	2025-06-01	USD	EUR	0.88307784	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+86	2025-07-01	USD	EUR	0.85254254	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+87	2025-08-01	USD	EUR	0.87332660	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+88	2025-09-01	USD	EUR	0.85650391	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+89	2025-10-01	USD	EUR	0.85062802	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+90	2025-11-01	USD	EUR	0.86385551	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+91	2025-12-01	USD	EUR	0.86440584	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+92	2025-12-31	USD	EUR	0.85210666	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+93	2026-01-01	USD	EUR	0.85210666	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+94	2026-02-01	USD	EUR	0.83973773	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+95	2026-03-01	USD	EUR	0.84777303	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+96	2026-04-01	USD	EUR	0.87210342	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+97	2026-05-01	USD	EUR	0.85608962	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+98	2026-06-01	USD	EUR	0.85995466	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+99	2026-07-01	USD	EUR	0.87768572	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+100	2026-08-01	USD	EUR	0.86776555	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:USD:EUR	2026-09-13 19:26:08.642214+00
+101	2024-07-31	PLN	EUR	0.23281270	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+102	2025-03-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+103	2025-04-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+104	2025-05-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+105	2025-06-01	PLN	EUR	0.23685513	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+106	2025-07-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+107	2025-08-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+108	2025-09-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+109	2025-10-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+110	2025-11-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+111	2025-12-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+112	2025-12-31	PLN	EUR	0.23659114	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+113	2026-01-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+114	2026-02-01	PLN	EUR	0.23881949	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+115	2026-03-01	PLN	EUR	0.23881949	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+116	2026-04-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+117	2026-05-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+118	2026-06-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+119	2026-07-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
+120	2026-08-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:PLN:EUR	2026-09-13 19:26:08.642214+00
 \.
 
 
@@ -11254,7 +11569,7 @@ COPY investory.notification_event (id, event_type, severity, portfolio_id, sourc
 --
 
 COPY investory.personal_asset (id, portfolio_id, name, category, currency, value, acquisition_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9404	2	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-09-13 07:21:51.73283+00	2026-09-13 07:21:51.73283+00
+9404	2	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-09-13 19:26:11.653059+00	2026-09-13 19:26:11.653059+00
 \.
 
 
@@ -11263,8 +11578,8 @@ COPY investory.personal_asset (id, portfolio_id, name, category, currency, value
 --
 
 COPY investory.portfolios (id, name, base_currency, local_currency, owner, user_id, created_at, taxpayer_nip, taxpayer_full_name, taxpayer_first_name, taxpayer_surname, taxpayer_date_of_birth, taxpayer_tax_office_code, taxpayer_email, tax_micro_account, zus_payment_account) FROM stdin;
-1	Sample Portfolio	USD	PLN	Sample User	1	2026-09-13 07:21:48.926598+00	1010000000	Investory Accounting POC	\N	\N	\N	1215	accounting@example.invalid	\N	\N
-2	Happy Investor Portfolio	PLN	PLN	Happy Investor	2	2026-09-13 07:21:48.929312+00	\N	\N	\N	\N	\N	\N	\N	\N	\N
+1	Sample Portfolio	USD	PLN	Sample User	1	2026-09-13 19:26:08.635224+00	1010000000	Investory Accounting POC	\N	\N	\N	1215	accounting@example.invalid	\N	\N
+2	Happy Investor Portfolio	PLN	PLN	Happy Investor	2	2026-09-13 19:26:08.637347+00	\N	\N	\N	\N	\N	\N	\N	\N	\N
 \.
 
 
@@ -11292,8 +11607,8 @@ COPY investory.positions (id, account_id, asset_id, source_asset_symbol, broker_
 --
 
 COPY investory.profile_memberships (user_id, profile_id, role, created_at) FROM stdin;
-1	1	OWNER	2026-09-13 07:21:51.282728+00
-2	2	OWNER	2026-09-13 07:21:51.282728+00
+1	1	OWNER	2026-09-13 19:26:10.898065+00
+2	2	OWNER	2026-09-13 19:26:10.898065+00
 \.
 
 
@@ -11312,8 +11627,8 @@ IBKR
 --
 
 COPY investory.real_estate (id, portfolio_id, name, currency, value, tax_base, acquisition_date, land_register_number, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9402	2	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	KR1P/4322432/0	\N	Happy Investor canonical profile	\N	2026-09-13 07:21:51.727174+00	2026-09-13 07:21:51.727174+00
-9403	2	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-09-13 07:21:51.727174+00	2026-09-13 07:21:51.727174+00
+9402	2	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	KR1P/4322432/0	\N	Happy Investor canonical profile	\N	2026-09-13 19:26:11.648519+00	2026-09-13 19:26:11.648519+00
+9403	2	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-09-13 19:26:11.648519+00	2026-09-13 19:26:11.648519+00
 \.
 
 
@@ -11371,9 +11686,9 @@ reconciliation_price_scale_ten_lower_ratio	9.500000000000	Lower boundary for a p
 --
 
 COPY investory.rental_contract (id, real_estate_id, start_date, end_date, terminated_date, bootstrap_managed, tenant_name, tenant_email, tenant_phone, notes, created_at, updated_at) FROM stdin;
-9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-09-13 07:21:51.735536+00	2026-09-13 07:21:51.735536+00
-9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-09-13 07:21:51.735536+00	2026-09-13 07:21:51.735536+00
-9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-09-13 07:21:51.735536+00	2026-09-13 07:21:51.735536+00
+9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-09-13 19:26:11.656014+00	2026-09-13 19:26:11.656014+00
+9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-09-13 19:26:11.656014+00	2026-09-13 19:26:11.656014+00
+9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-09-13 19:26:11.656014+00	2026-09-13 19:26:11.656014+00
 \.
 
 
@@ -11401,7 +11716,7 @@ COPY investory.retirement_plan_events (id, plan_id, event_year, name, amount, ev
 --
 
 COPY investory.retirement_planning_years (id, portfolio_id, planning_year, status, state, created_at, updated_at) FROM stdin;
-9301	2	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-09-13 07:21:51.744531+00	2026-09-13 07:21:51.744531+00
+9301	2	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-09-13 19:26:11.664435+00	2026-09-13 19:26:11.664435+00
 \.
 
 
@@ -11687,19 +12002,75 @@ ALTER TABLE ONLY investory.accounting_filing_artifact
 
 
 --
+-- Name: accounting_reference_bank_transaction accounting_reference_bank_transaction_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_bank_transaction
+    ADD CONSTRAINT accounting_reference_bank_transaction_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: accounting_reference_expense_invoice accounting_reference_expense_invoice_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_expense_invoice
+    ADD CONSTRAINT accounting_reference_expense_invoice_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: accounting_reference_expense_invoice accounting_reference_expense_invoice_profile_id_reference_key; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_expense_invoice
+    ADD CONSTRAINT accounting_reference_expense_invoice_profile_id_reference_key UNIQUE (profile_id, reference);
+
+
+--
+-- Name: accounting_reference_invoice accounting_reference_invoice_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_invoice
+    ADD CONSTRAINT accounting_reference_invoice_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: accounting_reference_invoice accounting_reference_invoice_profile_id_reference_key; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_invoice
+    ADD CONSTRAINT accounting_reference_invoice_profile_id_reference_key UNIQUE (profile_id, reference);
+
+
+--
+-- Name: accounting_reference_month accounting_reference_month_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_month
+    ADD CONSTRAINT accounting_reference_month_pkey PRIMARY KEY (profile_id, tax_period);
+
+
+--
+-- Name: accounting_reference_obligation accounting_reference_obligation_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_obligation
+    ADD CONSTRAINT accounting_reference_obligation_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: accounting_reference_tax_input accounting_reference_tax_input_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_tax_input
+    ADD CONSTRAINT accounting_reference_tax_input_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: accounting_source_evidence accounting_source_evidence_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.accounting_source_evidence
     ADD CONSTRAINT accounting_source_evidence_pkey PRIMARY KEY (id);
-
-
---
--- Name: accounting_source_evidence accounting_source_evidence_source_type_external_reference_key; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.accounting_source_evidence
-    ADD CONSTRAINT accounting_source_evidence_source_type_external_reference_key UNIQUE (source_type, external_reference);
 
 
 --
@@ -12119,38 +12490,6 @@ ALTER TABLE ONLY investory.system_audit_runs
 
 
 --
--- Name: accounting_authority_confirmation uq_accounting_authority_confirmation_identity; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.accounting_authority_confirmation
-    ADD CONSTRAINT uq_accounting_authority_confirmation_identity UNIQUE (authority, tax_period, confirmation_type, external_reference);
-
-
---
--- Name: accounting_filing_artifact uq_accounting_filing_artifact_hash; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.accounting_filing_artifact
-    ADD CONSTRAINT uq_accounting_filing_artifact_hash UNIQUE (artifact_type, tax_period, payload_hash);
-
-
---
--- Name: accounting_tmp_bank_transaction uq_accounting_tmp_bank_identity; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.accounting_tmp_bank_transaction
-    ADD CONSTRAINT uq_accounting_tmp_bank_identity UNIQUE (source_id, external_transaction_id);
-
-
---
--- Name: accounting_tmp_invoice uq_accounting_tmp_invoice_source_reference; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.accounting_tmp_invoice
-    ADD CONSTRAINT uq_accounting_tmp_invoice_source_reference UNIQUE (source_id, reference);
-
-
---
 -- Name: asset_source_symbols uq_asset_source_symbols_asset_source_symbol; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
@@ -12242,6 +12581,13 @@ CREATE INDEX ix_accounting_authority_confirmation_period ON investory.accounting
 
 
 --
+-- Name: ix_accounting_source_evidence_profile_period; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_accounting_source_evidence_profile_period ON investory.accounting_source_evidence USING btree (profile_id, document_date, processing_status, id);
+
+
+--
 -- Name: ix_accounting_tax_profile_period_profile_dates; Type: INDEX; Schema: investory; Owner: -
 --
 
@@ -12274,6 +12620,13 @@ CREATE INDEX ix_accounting_tmp_vat_period ON investory.accounting_tmp_vat_transa
 --
 
 CREATE INDEX ix_accounting_vat_transaction_period ON investory.accounting_vat_transaction USING btree (tax_period, id);
+
+
+--
+-- Name: ix_accounting_vat_transaction_profile_period; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_accounting_vat_transaction_profile_period ON investory.accounting_vat_transaction USING btree (profile_id, tax_period, id);
 
 
 --
@@ -12624,6 +12977,48 @@ CREATE INDEX ix_system_audit_runs_import_started ON investory.system_audit_runs 
 --
 
 CREATE INDEX ix_system_audit_runs_status_finished ON investory.system_audit_runs USING btree (status, finished_at DESC);
+
+
+--
+-- Name: uq_accounting_authority_confirmation_profile_identity; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_authority_confirmation_profile_identity ON investory.accounting_authority_confirmation USING btree (profile_id, authority, tax_period, confirmation_type, external_reference);
+
+
+--
+-- Name: uq_accounting_filing_artifact_profile_hash; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_filing_artifact_profile_hash ON investory.accounting_filing_artifact USING btree (profile_id, artifact_type, tax_period, payload_hash);
+
+
+--
+-- Name: uq_accounting_source_evidence_profile_reference; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_source_evidence_profile_reference ON investory.accounting_source_evidence USING btree (profile_id, source_type, external_reference);
+
+
+--
+-- Name: uq_accounting_tmp_bank_profile_external_transaction; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_tmp_bank_profile_external_transaction ON investory.accounting_tmp_bank_transaction USING btree (profile_id, provider, external_account_id, external_transaction_id);
+
+
+--
+-- Name: uq_accounting_tmp_bank_profile_identity; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_tmp_bank_profile_identity ON investory.accounting_tmp_bank_transaction USING btree (profile_id, source_id, external_transaction_id);
+
+
+--
+-- Name: uq_accounting_tmp_invoice_profile_source_reference; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_tmp_invoice_profile_source_reference ON investory.accounting_tmp_invoice USING btree (profile_id, source_id, reference);
 
 
 --
@@ -12985,6 +13380,62 @@ ALTER TABLE ONLY investory.accounting_authority_confirmation
 
 ALTER TABLE ONLY investory.accounting_filing_artifact
     ADD CONSTRAINT accounting_filing_artifact_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_reference_bank_transaction accounting_reference_bank_transaction_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_bank_transaction
+    ADD CONSTRAINT accounting_reference_bank_transaction_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_reference_expense_invoice accounting_reference_expense_invoice_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_expense_invoice
+    ADD CONSTRAINT accounting_reference_expense_invoice_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_reference_invoice accounting_reference_invoice_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_invoice
+    ADD CONSTRAINT accounting_reference_invoice_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_reference_month accounting_reference_month_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_month
+    ADD CONSTRAINT accounting_reference_month_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_reference_obligation accounting_reference_obligation_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_obligation
+    ADD CONSTRAINT accounting_reference_obligation_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_reference_tax_input accounting_reference_tax_input_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_reference_tax_input
+    ADD CONSTRAINT accounting_reference_tax_input_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_source_evidence accounting_source_evidence_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_source_evidence
+    ADD CONSTRAINT accounting_source_evidence_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
 
 
 --

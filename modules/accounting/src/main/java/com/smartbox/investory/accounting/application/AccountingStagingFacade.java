@@ -16,8 +16,8 @@ public class AccountingStagingFacade implements AccountingStagingApi {
   private final AccountingStagingPromotionService promotion;
 
   private void profile(long profileId) {
-    if (profileId != 1)
-      throw new IllegalArgumentException("Unknown accounting profile: " + profileId);
+    if (profileId <= 0 || !repository.profileExists(profileId))
+      throw new IllegalArgumentException("Unknown accounting profile");
   }
 
   @Override

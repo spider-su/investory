@@ -169,6 +169,87 @@ class AccountingInvoiceIngestionServiceTest {
         .containsExactly("-100.00", "-23.00", "-123.00");
   }
 
+  @Test
+  void carriesReviewedDueDateAndCounterpartyCountryToProfileScopedPersistence() {
+    var invoice = salesWithDueDateAndCountry(LocalDate.of(2026, 7, 31), "DE");
+    assertThat(service.ingest(1L, invoice)).isFalse();
+
+    verify(repository)
+        .insertSalesInvoice(
+            1L,
+            invoice.taxPeriod(),
+            invoice.issueDate(),
+            invoice.saleDate(),
+            invoice.dueDate(),
+            invoice.reference(),
+            invoice.counterpartyAlias(),
+            "EU_SERVICE",
+            "EUR",
+            invoice.netAmount(),
+            invoice.vatAmount(),
+            invoice.grossAmount(),
+            null,
+            new BigDecimal("0.12"),
+            invoice.note(),
+            42L,
+            invoice.counterpartyTaxIdentifier(),
+            invoice.counterpartyCountry(),
+            null,
+            null);
+  }
+
+  @Test
+  void carriesOptionalReviewedDueDateAsNull() {
+    assertThat(service.ingest(1L, sales())).isFalse();
+    verify(repository)
+        .insertSalesInvoice(
+            any(Long.class),
+            any(),
+            any(),
+            any(),
+            org.mockito.ArgumentMatchers.isNull(),
+            anyString(),
+            anyString(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            any(),
+            any(),
+            any(),
+            anyString(),
+            any(),
+            any(),
+            any(),
+            any(),
+            any());
+  }
+
+  private AccountingInvoiceIngestionService.ReviewedInvoice salesWithDueDateAndCountry(
+      LocalDate dueDate, String country) {
+    return new AccountingInvoiceIngestionService.ReviewedInvoice(
+        LocalDate.of(2026, 7, 1),
+        "SALES_INVOICE",
+        LocalDate.of(2026, 7, 10),
+        LocalDate.of(2026, 7, 10),
+        "SALE-EU-1",
+        "Customer",
+        "BUSINESS_SERVICE",
+        "EUR",
+        new BigDecimal("100.00"),
+        BigDecimal.ZERO,
+        new BigDecimal("100.00"),
+        null,
+        "REVIEWED",
+        "reviewed",
+        "42",
+        "DE123",
+        country,
+        null,
+        null,
+        dueDate);
+  }
+
   private AccountingInvoiceIngestionService.ReviewedInvoice purchase(BigDecimal ratio) {
     return purchaseWithGross(ratio, new BigDecimal("123.00"));
   }

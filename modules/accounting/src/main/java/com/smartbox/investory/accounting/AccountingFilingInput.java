@@ -29,5 +29,7 @@ public record AccountingFilingInput(
       BigDecimal netAmount,
       BigDecimal vatAmount,
       BigDecimal deductibleVat,
-      AccountingFilingEvidence evidence) {}
+      AccountingFilingEvidence evidence,
+      VatTreatment treatment,
+      String counterpartyCountry) {}
 }

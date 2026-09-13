@@ -92,6 +92,7 @@ public class PortfolioOwnershipInterceptor implements HandlerInterceptor {
       }
     }
     String value = request.getParameter("portfolioId");
+    if (value == null) value = request.getParameter("profileId");
     if (value == null) return null;
     try {
       return Long.valueOf(value);

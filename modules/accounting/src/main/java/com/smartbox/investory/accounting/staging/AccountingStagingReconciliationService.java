@@ -59,16 +59,21 @@ public class AccountingStagingReconciliationService {
     List<Long> candidates =
         row.ksefNumber() == null || row.ksefNumber().isBlank()
             ? jdbc.queryForList(
-                "SELECT id FROM investory." + table + " WHERE reference = ?",
+                "SELECT id FROM investory." + table + " WHERE profile_id = ? AND reference = ?",
                 Long.class,
+                row.profileId(),
                 row.reference())
             : jdbc.queryForList(
-                "SELECT id FROM investory." + table + " WHERE ksef_number = ? OR reference = ?",
+                "SELECT id FROM investory."
+                    + table
+                    + " WHERE profile_id = ? AND (ksef_number = ? OR reference = ?)",
                 Long.class,
+                row.profileId(),
                 row.ksefNumber(),
                 row.reference());
     if (candidates.isEmpty()) {
       repository.result(
+          row.profileId(),
           "invoice",
           row.id(),
           StagingReconciliationStatus.NEW,
@@ -78,6 +83,7 @@ public class AccountingStagingReconciliationService {
     }
     if (candidates.size() > 1) {
       repository.result(
+          row.profileId(),
           "invoice",
           row.id(),
           StagingReconciliationStatus.AMBIGUOUS,
@@ -88,8 +94,8 @@ public class AccountingStagingReconciliationService {
     Long id = candidates.getFirst();
     String sql =
         row.documentKind().equals("EXPENSE")
-            ? "SELECT invoice_date, supplier_alias, currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio FROM investory.accounting_poc_expense_invoice WHERE id=?"
-            : "SELECT COALESCE(issue_date,sale_date), customer_alias, currency, net_amount, vat_amount, gross_amount, NULL FROM investory.accounting_poc_invoice WHERE id=?";
+            ? "SELECT invoice_date, supplier_alias, currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio FROM investory.accounting_poc_expense_invoice WHERE profile_id=? AND id=?"
+            : "SELECT COALESCE(issue_date,sale_date), customer_alias, currency, net_amount, vat_amount, gross_amount, NULL FROM investory.accounting_poc_invoice WHERE profile_id=? AND id=?";
     var differences =
         jdbc.queryForObject(
             sql,
@@ -110,8 +116,10 @@ public class AccountingStagingReconciliationService {
                 reasons.add("VAT_TREATMENT_MISMATCH");
               return reasons;
             },
+            row.profileId(),
             id);
     repository.result(
+        row.profileId(),
         "invoice",
         row.id(),
         differences.isEmpty()
@@ -126,22 +134,25 @@ public class AccountingStagingReconciliationService {
         row.externalTransactionId() == null
             ? List.of()
             : jdbc.queryForList(
-                "SELECT id FROM investory.accounting_poc_bank_transaction WHERE provider=? AND external_account_id IS NOT DISTINCT FROM ? AND external_transaction_id=?",
+                "SELECT id FROM investory.accounting_poc_bank_transaction WHERE profile_id=? AND provider=? AND external_account_id IS NOT DISTINCT FROM ? AND external_transaction_id=?",
                 Long.class,
+                row.profileId(),
                 row.provider(),
                 row.externalAccountId(),
                 row.externalTransactionId());
     if (exact.isEmpty()) {
       List<Long> fallback =
           jdbc.queryForList(
-              "SELECT id FROM investory.accounting_poc_bank_transaction WHERE booking_date=? AND amount=? AND currency=? AND (reference=? OR note LIKE ?)",
+              "SELECT id FROM investory.accounting_poc_bank_transaction WHERE profile_id=? AND booking_date=? AND amount=? AND currency=? AND (reference=? OR note LIKE ?)",
               Long.class,
+              row.profileId(),
               row.bookingDate(),
               row.amount(),
               row.currency(),
               row.remittanceInformation(),
               "%" + row.remittanceInformation() + "%");
       repository.result(
+          row.profileId(),
           "bank_transaction",
           row.id(),
           fallback.size() > 1
@@ -159,6 +170,7 @@ public class AccountingStagingReconciliationService {
     }
     if (exact.size() > 1) {
       repository.result(
+          row.profileId(),
           "bank_transaction",
           row.id(),
           StagingReconciliationStatus.AMBIGUOUS,
@@ -168,7 +180,7 @@ public class AccountingStagingReconciliationService {
     }
     var differences =
         jdbc.queryForObject(
-            "SELECT booking_date, amount, currency, reference FROM investory.accounting_poc_bank_transaction WHERE id=?",
+            "SELECT booking_date, amount, currency, reference FROM investory.accounting_poc_bank_transaction WHERE profile_id=? AND id=?",
             (rs, n) -> {
               var reasons = new ArrayList<String>();
               if (!row.bookingDate().equals(rs.getObject(1, LocalDate.class)))
@@ -180,8 +192,10 @@ public class AccountingStagingReconciliationService {
                 reasons.add("REFERENCE_MISMATCH");
               return reasons;
             },
+            row.profileId(),
             exact.getFirst());
     repository.result(
+        row.profileId(),
         "bank_transaction",
         row.id(),
         differences.isEmpty()

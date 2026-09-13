@@ -44,7 +44,8 @@ CREATE TABLE investory.accounting_poc_bank_transaction (
     provider character varying(32) NOT NULL,
     external_account_id character varying(256) NOT NULL,
     external_transaction_id character varying(256) CONSTRAINT accounting_poc_bank_transactio_external_transaction_id_not_null NOT NULL,
-    source_payload_hash character varying(128)
+    source_payload_hash character varying(128),
+    profile_id bigint NOT NULL
 );
 
 
@@ -111,6 +112,8 @@ CREATE TABLE investory.accounting_poc_expense_invoice (
     counterparty_country character varying(2),
     ksef_number character varying(256),
     filing_evidence character varying(8),
+    profile_id bigint NOT NULL,
+    due_date date,
     CONSTRAINT chk_accounting_poc_expense_ratio CHECK ((vat_deduction_ratio = ANY (ARRAY[0.00, 0.50, 1.00])))
 );
 
@@ -154,7 +157,8 @@ CREATE TABLE investory.accounting_poc_fact (
     currency character(3) NOT NULL,
     amount numeric(19,4) NOT NULL,
     tax_rate numeric(7,4),
-    note character varying(512)
+    note character varying(512),
+    profile_id bigint NOT NULL
 );
 
 
@@ -212,7 +216,9 @@ CREATE TABLE investory.accounting_poc_invoice (
     counterparty_tax_identifier character varying(32),
     counterparty_country character varying(2),
     ksef_number character varying(256),
-    filing_evidence character varying(8)
+    filing_evidence character varying(8),
+    profile_id bigint NOT NULL,
+    due_date date
 );
 
 
@@ -255,7 +261,8 @@ CREATE TABLE investory.accounting_poc_obligation (
     paid_amount numeric(19,4) DEFAULT 0 NOT NULL,
     payment_date date,
     status character varying(32) NOT NULL,
-    note character varying(512)
+    note character varying(512),
+    profile_id bigint NOT NULL
 );
 
 
@@ -296,7 +303,7 @@ CREATE TABLE investory.accounting_poc_period_state (
     lifecycle_status character varying(32) DEFAULT 'OPEN'::character varying NOT NULL,
     reopened_at timestamp with time zone,
     reopen_reason character varying(1000),
-    profile_id bigint,
+    profile_id bigint NOT NULL,
     CONSTRAINT chk_accounting_period_lifecycle_status CHECK (((lifecycle_status)::text = ANY ((ARRAY['OPEN'::character varying, 'SOURCES_INCOMPLETE'::character varying, 'READY_FOR_REVIEW'::character varying, 'ISSUES'::character varying, 'CONFIRMED'::character varying, 'FILED'::character varying, 'PAID'::character varying, 'SETTLED'::character varying, 'LOCKED'::character varying])::text[]))),
     CONSTRAINT chk_accounting_period_reopen_reason CHECK (((reopened_at IS NULL) OR ((reopen_reason IS NOT NULL) AND (length(btrim((reopen_reason)::text)) > 0))))
 );
@@ -319,6 +326,7 @@ CREATE TABLE investory.accounting_poc_profile (
     first_name character varying(120),
     surname character varying(160),
     date_of_birth date,
+    profile_id bigint NOT NULL,
     CONSTRAINT chk_accounting_poc_profile_singleton CHECK ((id = 1))
 );
 
@@ -346,7 +354,8 @@ CREATE TABLE investory.accounting_poc_tax_input (
     tax_period date NOT NULL,
     input_type character varying(64) NOT NULL,
     amount numeric(19,4) NOT NULL,
-    note character varying(512)
+    note character varying(512),
+    profile_id bigint NOT NULL
 );
 
 
@@ -422,27 +431,7 @@ ALTER TABLE ONLY investory.accounting_poc_tax_input ALTER COLUMN id SET DEFAULT 
 -- Data for Name: accounting_poc_bank_transaction; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_bank_transaction (id, booking_date, related_period, reference, counterparty_alias, currency, amount, transaction_type, scope, note, source_id, source_row_identity, provider, external_account_id, external_transaction_id, source_payload_hash) FROM stdin;
-1	2026-07-03	2026-06-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	SEPA receipt for the prior monthly EU service; retained to prevent false July matching.	\N	\N	CSV	LEGACY_SOURCE	legacy-1	\N
-2	2026-07-04	\N	Transfer of funds	OWN_ACCOUNT	EUR	-7636.0000	INTERNAL_TRANSFER	EXCLUDED_INTERNAL	Transfer between own accounts; never revenue or expense.	\N	\N	CSV	LEGACY_SOURCE	legacy-2	\N
-3	2026-07-16	2026-06-01	FV 4/2026	CUSTOMER_PL_001	PLN	39864.3000	CUSTOMER_RECEIPT	BUSINESS	Exactly matches the corrected FV 4/2026 receivable.	\N	\N	CSV	LEGACY_SOURCE	legacy-3	\N
-4	2026-07-16	\N	Transfer of funds	OWN_ACCOUNT	PLN	-20000.0000	INTERNAL_TRANSFER	EXCLUDED_INTERNAL	Own-account transfer.	\N	\N	CSV	LEGACY_SOURCE	legacy-4	\N
-5	2026-08-05	2026-07-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	SEPA receipt matched to the July EU service fixture.	\N	\N	CSV	LEGACY_SOURCE	legacy-5	\N
-6	2026-08-13	2026-07-01	FV 5/2026	CUSTOMER_PL_002	PLN	19987.5000	CUSTOMER_RECEIPT	BUSINESS	Payment received for FV 5/2026.	\N	\N	CSV	LEGACY_SOURCE	legacy-6	\N
-7	2026-08-18	2026-07-01	26M07 PPE business	TAX_OFFICE	PLN	-5791.0000	RYCZALT_PAYMENT	BUSINESS	Business ryczalt payment for 2026-07.	\N	\N	CSV	LEGACY_SOURCE	legacy-7	\N
-8	2026-08-18	2026-07-01	26M07 VAT-7	TAX_OFFICE	PLN	-3557.0000	VAT_PAYMENT	BUSINESS	VAT payment for 2026-07.	\N	\N	CSV	LEGACY_SOURCE	legacy-8	\N
-9	2026-08-18	2026-07-01	26M07 ZUS	ZUS	PLN	-1495.0000	ZUS_PAYMENT	BUSINESS	Bank payment for the 2026-07 ZUS obligation.	\N	\N	CSV	LEGACY_SOURCE	legacy-9	\N
-10	2026-08-18	2026-07-01	26M07 PPE rental	TAX_OFFICE	PLN	-740.0000	RENTAL_TAX_PAYMENT	EXCLUDED_PRIVATE	Private rental ryczalt; deliberately outside the business POC.	\N	\N	CSV	LEGACY_SOURCE	legacy-10	\N
-11	2026-08-18	\N	Transfer of funds	OWN_ACCOUNT	PLN	-8000.0000	INTERNAL_TRANSFER	EXCLUDED_INTERNAL	Own-account transfer.	\N	\N	CSV	LEGACY_SOURCE	legacy-11	\N
-12	2026-02-13	2026-01-01	PDC-V1650-11	CUSTOMER_PL_001	PLN	36408.0000	CUSTOMER_RECEIPT	BUSINESS	Payment of January domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-12	\N
-13	2026-03-13	2026-02-01	PDC-V1650-12	CUSTOMER_PL_001	PLN	36408.0000	CUSTOMER_RECEIPT	BUSINESS	Payment of February domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-13	\N
-14	2026-04-14	2026-03-01	FV 1/2026	CUSTOMER_PL_001	PLN	40048.8000	CUSTOMER_RECEIPT	BUSINESS	Payment of March domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-14	\N
-15	2026-05-14	2026-04-01	FV 2/2026	CUSTOMER_PL_001	PLN	38228.4000	CUSTOMER_RECEIPT	BUSINESS	Payment of April domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-15	\N
-16	2026-06-12	2026-05-01	FV 3/2026	CUSTOMER_PL_001	PLN	36408.0000	CUSTOMER_RECEIPT	BUSINESS	Payment of May domestic invoice.	\N	\N	CSV	LEGACY_SOURCE	legacy-16	\N
-17	2026-03-05	2026-02-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	Receipt for February EU service.	\N	\N	CSV	LEGACY_SOURCE	legacy-17	\N
-18	2026-04-07	2026-03-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	Receipt for March EU service.	\N	\N	CSV	LEGACY_SOURCE	legacy-18	\N
-19	2026-05-06	2026-04-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	Receipt for April EU service.	\N	\N	CSV	LEGACY_SOURCE	legacy-19	\N
-20	2026-06-05	2026-05-01	Service Agreements	CUSTOMER_EU_001	EUR	7636.0000	CUSTOMER_RECEIPT	BUSINESS	Receipt for May EU service.	\N	\N	CSV	LEGACY_SOURCE	legacy-20	\N
+COPY investory.accounting_poc_bank_transaction (id, booking_date, related_period, reference, counterparty_alias, currency, amount, transaction_type, scope, note, source_id, source_row_identity, provider, external_account_id, external_transaction_id, source_payload_hash, profile_id) FROM stdin;
 \.
 
 
@@ -450,30 +439,7 @@ COPY investory.accounting_poc_bank_transaction (id, booking_date, related_period
 -- Data for Name: accounting_poc_expense_invoice; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_expense_invoice (id, tax_period, invoice_date, reference, supplier_alias, category, currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note, source_id, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence) FROM stdin;
-1	2026-01-01	\N	I26394B03000087	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	253.3400	58.2700	311.6100	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
-2	2026-01-01	\N	91/1/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	280.0000	64.4000	344.4000	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N	\N	\N	\N	\N
-3	2026-02-01	2026-02-27	1118/2/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	SOURCE_DOCUMENT	KSeF purchase invoice captured: net 298.00, VAT 68.54, gross 366.54.	\N	\N	\N	\N	\N
-4	2026-02-01	\N	I26394B03002189	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	278.3200	64.0100	342.3300	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
-5	2026-03-01	\N	I26394B01006279	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	323.5800	74.4200	398.0000	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
-6	2026-03-01	\N	2186/3/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N	\N	\N	\N	\N
-7	2026-03-01	2026-03-06	5034146070	SUPPLIER_NOWA_ERA_001	BUSINESS_SERVICE	PLN	406.5000	93.5000	500.0000	1.00	SOURCE_DOCUMENT	KSeF purchase invoice captured: net 406.50, VAT 93.50, gross 500.00.	\N	\N	\N	\N	\N
-8	2026-03-01	\N	I26394B03003487	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	340.2000	78.2500	418.4500	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
-9	2026-04-01	\N	538/4/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	468.0000	107.6400	575.6400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft expense; exact VAT composition still needs source-document verification.	\N	\N	\N	\N	\N
-10	2026-04-01	\N	I26394B03005740	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	313.8100	25.1100	338.9200	0.50	WFIRMA_LIST_DERIVED_8	BP Europa fuel; reconstructed at 8% VAT from gross 338.92 PLN; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
-11	2026-05-01	2026-05-30	I26394B03009405	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	356.5600	28.5200	385.0800	0.50	SOURCE_DOCUMENT	Source BP invoice: 8% VAT, net 356.56, VAT 28.52, gross 385.08; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
-12	2026-05-01	2026-05-16	I26394801011115	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	359.3900	28.7500	388.1400	0.50	SOURCE_DOCUMENT	Source BP invoice: 8% VAT, net 359.39, VAT 28.75, gross 388.14; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
-13	2026-05-01	2026-05-29	752/5/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	SOURCE_DOCUMENT	Captured SalSoft invoice: net 298.00, VAT 68.54, gross 366.54.	\N	\N	\N	\N	\N
-14	2026-05-01	\N	FS-652540/26/MEPL1	SUPPLIER_TERG_001	EQUIPMENT	PLN	430.6800	99.0600	529.7400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked TERG expense; exact VAT treatment still needs source-document verification.	\N	\N	\N	\N	\N
-15	2026-05-01	2026-05-02	FVF/463/58/5/2026	SUPPLIER_ANIWIM_001	VEHICLE_FUEL	PLN	279.4200	22.3500	301.7700	0.50	SOURCE_DOCUMENT	Source Aniwim fuel invoice: 8% VAT, net 279.42, VAT 22.35, gross 301.77; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
-16	2026-06-01	\N	1571/6/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N	\N	\N	\N	\N
-17	2026-06-01	\N	FA/1789/2026	SUPPLIER_SWIAT_DRUKU_001	BUSINESS_SERVICE	PLN	185.3700	42.6300	228.0000	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked expense; exact VAT treatment still needs source-document verification.	\N	\N	\N	\N	\N
-18	2026-06-01	\N	I26394B03011055	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	336.3300	26.9100	363.2400	0.50	WFIRMA_LIST_DERIVED_8	wFirma gross 363.24; fuel uses 8% VAT in this POC, derived net 336.33 / VAT 26.91; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
-19	2026-06-01	\N	I26394B03010191	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	323.5500	25.8800	349.4300	0.50	WFIRMA_LIST_DERIVED_8	wFirma gross 349.43; fuel uses 8% VAT in this POC, derived net 323.55 / VAT 25.88; mixed-use vehicle deducts 50% VAT.	\N	\N	\N	\N	\N
-20	2026-06-01	\N	FVS/xk/00000127858	SUPPLIER_XKOM_001	EQUIPMENT	PLN	254.4600	58.5300	312.9900	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked X-KOM expense; exact VAT treatment still needs source-document verification.	\N	\N	\N	\N	\N
-21	2026-07-01	\N	1339/7/2026	SUPPLIER_SALSOFT_001	ACCOUNTING_SERVICE	PLN	298.0000	68.5400	366.5400	1.00	WFIRMA_LIST_DERIVED_23	wFirma booked SalSoft accounting expense.	\N	\N	\N	\N	\N
-22	2026-07-01	\N	I26100B01009678	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	376.6200	86.6200	463.2400	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
-23	2026-07-01	\N	I26394B01015705	SUPPLIER_BP_001	VEHICLE_FUEL	PLN	296.8200	68.2700	365.0900	0.50	WFIRMA_LIST_DERIVED_23	wFirma booked expense; 50% mixed-use vehicle VAT deduction.	\N	\N	\N	\N	\N
+COPY investory.accounting_poc_expense_invoice (id, tax_period, invoice_date, reference, supplier_alias, category, currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note, source_id, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence, profile_id, due_date) FROM stdin;
 \.
 
 
@@ -481,17 +447,7 @@ COPY investory.accounting_poc_expense_invoice (id, tax_period, invoice_date, ref
 -- Data for Name: accounting_poc_fact; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_fact (id, fact_date, fact_type, reference, counterparty_alias, currency, amount, tax_rate, note) FROM stdin;
-1	2026-05-29	EXPENSE_INVOICE	EXPENSE_001	SUPPLIER_ACCOUNTING_001	PLN	366.5400	0.2300	Accounting services; net 298.00 PLN, VAT 68.54 PLN, fully paid, KSeF present.
-2	2026-07-02	SALES_INVOICE	FV 4/2026	CUSTOMER_PL_001	PLN	40048.8000	0.1200	Original gross invoice value; IT consulting; 23% VAT; ryczalt profile rate 12%.
-3	\N	SALES_CORRECTION	FK 1/2026	CUSTOMER_PL_001	PLN	-184.5000	\N	Correction linked to FV 4/2026; corrected receivable becomes 39,864.30 PLN.
-4	2026-07-03	BANK_RECEIPT	EU recurring payment	CUSTOMER_EU_001	EUR	7636.0000	\N	Foreign customer payment received on EUR business account. FX conversion intentionally delegated to existing Investory FX facilities.
-5	2026-07-16	BANK_RECEIPT	FV 4/2026	CUSTOMER_PL_001	PLN	39864.3000	\N	Payment matches the corrected receivable for FV 4/2026.
-6	\N	SALES_INVOICE	FV 5/2026	CUSTOMER_PL_002	PLN	19987.5000	0.1200	Domestic sales invoice historical fixture.
-7	2026-08-20	RYCZALT_DUE	2026-07	TAX_OFFICE	PLN	5791.0000	0.1200	Known wFirma result for July 2026 business ryczalt.
-8	2026-08-20	ZUS_DUE	2026-07	ZUS	PLN	1495.0400	\N	Known monthly health contribution obligation for the visible 2026 periods.
-9	\N	VAT_PAYMENT	2026-07	TAX_OFFICE	PLN	3557.0000	\N	Historical VAT payment from the PLN bank statement.
-10	2026-08-25	VAT_UE_DECLARATION	2026-07	TAX_OFFICE	PLN	0.0000	\N	VAT-UE reporting obligation; reporting event only, not an additional tax amount.
+COPY investory.accounting_poc_fact (id, fact_date, fact_type, reference, counterparty_alias, currency, amount, tax_rate, note, profile_id) FROM stdin;
 \.
 
 
@@ -499,22 +455,7 @@ COPY investory.accounting_poc_fact (id, fact_date, fact_type, reference, counter
 -- Data for Name: accounting_poc_invoice; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_invoice (id, tax_period, issue_date, sale_date, fx_rate_date, reference, customer_alias, invoice_kind, currency, net_amount, vat_amount, gross_amount, correction_gross_amount, correction_net_amount, correction_vat_amount, expected_receivable, booked_net_pln, ryczalt_rate, note, source_id, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence) FROM stdin;
-1	2026-06-01	2026-07-02	2026-06-30	\N	FV 4/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	32560.0000	7488.8000	40048.8000	-184.5000	-150.0000	-34.5000	39864.3000	32560.0000	0.1200	KSeF FV 4/2026: issue 2026-07-02, sale/accounting period June, original net 32,560.00 PLN. July FK 1/2026 is a separate -150.00 net / -34.50 VAT correction.	\N	\N	\N	\N	\N
-2	2026-07-01	\N	\N	\N	FV 5/2026	CUSTOMER_PL_002	DOMESTIC_SERVICE	PLN	16250.0000	3737.5000	19987.5000	0.0000	0.0000	0.0000	19987.5000	16250.0000	0.1200	Domestic service invoice. Exact issue/sale dates were not present in the captured source, so they remain null.	\N	\N	\N	\N	\N
-3	2026-07-01	2026-07-31	2026-07-31	2026-07-30	EU-SERVICE-2026-07	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32908.8700	0.1200	Recurring EU service. Tax value uses Investory FX on 2026-07-30; 32,908.87 PLN remains the observed accounting golden value.	\N	\N	\N	\N	\N
-4	2026-01-01	2026-01-31	2026-01-31	\N	PDC-V1650-11	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	January domestic service invoice.	\N	\N	\N	\N	\N
-5	2026-02-01	2026-02-28	2026-02-28	\N	PDC-V1650-12	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	February domestic service invoice.	\N	\N	\N	\N	\N
-6	2026-03-01	2026-03-31	2026-03-31	\N	FV 1/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	32560.0000	7488.8000	40048.8000	0.0000	0.0000	0.0000	40048.8000	32560.0000	0.1200	March domestic service invoice.	\N	\N	\N	\N	\N
-7	2026-04-01	2026-04-30	2026-04-30	\N	FV 2/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	31080.0000	7148.4000	38228.4000	0.0000	0.0000	0.0000	38228.4000	31080.0000	0.1200	April domestic service invoice.	\N	\N	\N	\N	\N
-8	2026-05-01	2026-05-29	2026-05-29	\N	FV 3/2026	CUSTOMER_PL_001	DOMESTIC_SERVICE	PLN	29600.0000	6808.0000	36408.0000	0.0000	0.0000	0.0000	36408.0000	29600.0000	0.1200	May domestic service invoice.	\N	\N	\N	\N	\N
-9	2026-08-01	2026-08-31	2026-08-31	\N	FV 6/2026	CUSTOMER_PL_002	DOMESTIC_SERVICE	PLN	26250.0000	6037.5000	32287.5000	0.0000	0.0000	0.0000	32287.5000	26250.0000	0.1200	August domestic service invoice; tax outputs were not captured, therefore August remains partial.	\N	\N	\N	\N	\N
-10	2026-02-01	2026-02-28	2026-02-28	2026-02-27	EU-SERVICE-2026-02	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32249.1200	0.1200	Observed February foreign-service accounting value.	\N	\N	\N	\N	\N
-11	2026-03-01	2026-03-31	2026-03-31	2026-03-30	EU-SERVICE-2026-03	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32706.5200	0.1200	Observed March foreign-service accounting value.	\N	\N	\N	\N	\N
-12	2026-04-01	2026-04-30	2026-04-30	2026-04-29	EU-SERVICE-2026-04	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32481.2500	0.1200	Observed April foreign-service accounting value.	\N	\N	\N	\N	\N
-13	2026-05-01	2026-05-29	2026-05-29	2026-05-29	EU-SERVICE-2026-05	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32317.0800	0.1200	Observed May foreign-service accounting value. Source review maps it to the 2026-05-29 NBP table-A EUR rate.	\N	\N	\N	\N	\N
-14	2026-06-01	2026-06-30	2026-06-30	2026-06-29	EU-SERVICE-2026-06	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32750.8000	0.1200	Observed June foreign-service accounting value.	\N	\N	\N	\N	\N
-15	2026-01-01	2026-01-31	2026-01-31	2026-01-30	EU-SERVICE-2026-01	CUSTOMER_EU_001	EU_SERVICE	EUR	7636.0000	0.0000	7636.0000	0.0000	0.0000	0.0000	7636.0000	32171.2300	0.1200	Source document 015 (Platform Developer): 7,636.00 EUR, sale 2026-01-31. NBP prior-business-day rate date 2026-01-30; booked wFirma value 32,171.23 PLN.	\N	\N	\N	\N	\N
+COPY investory.accounting_poc_invoice (id, tax_period, issue_date, sale_date, fx_rate_date, reference, customer_alias, invoice_kind, currency, net_amount, vat_amount, gross_amount, correction_gross_amount, correction_net_amount, correction_vat_amount, expected_receivable, booked_net_pln, ryczalt_rate, note, source_id, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence, profile_id, due_date) FROM stdin;
 \.
 
 
@@ -522,29 +463,7 @@ COPY investory.accounting_poc_invoice (id, tax_period, issue_date, sale_date, fx
 -- Data for Name: accounting_poc_obligation; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_obligation (id, tax_period, obligation_type, due_date, expected_amount, paid_amount, payment_date, status, note) FROM stdin;
-1	2026-07-01	RYCZALT	2026-08-20	5791.0000	5791.0000	2026-08-18	MATCHED	Golden wFirma/business-tax amount confirmed by bank payment.
-2	2026-07-01	VAT	\N	3557.0000	3557.0000	2026-08-18	MATCHED	Golden VAT amount confirmed by bank payment. Detailed JPK calculation is a later POC step.
-3	2026-07-01	VAT_UE	2026-08-25	0.0000	0.0000	\N	REPORTING_ONLY	VAT-UE reporting obligation; no additional tax payment.
-4	2026-01-01	RYCZALT	2026-02-20	7323.0000	7323.0000	\N	GOLDEN	January ryczałt recomputed after restoring source document 015.
-5	2026-01-01	VAT	\N	6714.0000	6714.0000	\N	GOLDEN	Known January VAT payment.
-6	2026-01-01	ZUS	2026-02-20	1495.0400	1495.0400	\N	GOLDEN	Known January health contribution.
-7	2026-02-01	RYCZALT	2026-03-20	7332.0000	7332.0000	\N	GOLDEN	Known February ryczalt payment.
-8	2026-02-01	VAT	\N	6707.0000	6707.0000	\N	GOLDEN	Known February VAT payment.
-9	2026-02-01	ZUS	2026-03-20	1495.0400	1495.0400	\N	GOLDEN	Known February health contribution.
-10	2026-03-01	RYCZALT	2026-04-20	7742.0000	7742.0000	\N	GOLDEN	Known March ryczalt payment.
-11	2026-03-01	VAT	\N	7251.0000	7251.0000	\N	GOLDEN	Known March VAT payment.
-12	2026-03-01	ZUS	2026-04-20	1495.0400	1495.0400	\N	GOLDEN	Known March health contribution.
-13	2026-04-01	RYCZALT	2026-05-20	7538.0000	7538.0000	\N	GOLDEN	Known April ryczalt payment.
-14	2026-04-01	VAT	\N	7028.0000	7028.0000	\N	GOLDEN	Known April VAT payment.
-15	2026-04-01	ZUS	2026-05-20	1495.0400	1495.0400	\N	GOLDEN	Known April health contribution.
-16	2026-05-01	RYCZALT	2026-06-22	7340.0000	7340.0000	\N	GOLDEN	Known May ryczalt payment.
-17	2026-05-01	VAT	\N	6601.0000	6601.0000	\N	GOLDEN	Known May VAT payment.
-18	2026-05-01	ZUS	2026-06-22	1495.0400	1495.0400	\N	GOLDEN	Known May health contribution.
-19	2026-06-01	RYCZALT	2026-07-20	7748.0000	7748.0000	\N	GOLDEN	Known June ryczalt payment.
-20	2026-06-01	VAT	\N	7293.0000	7293.0000	\N	GOLDEN	Known June VAT payment.
-21	2026-06-01	ZUS	2026-07-20	1495.0400	1495.0400	\N	GOLDEN	Known June health contribution.
-22	2026-07-01	ZUS	2026-08-20	1495.0400	1495.0000	2026-08-18	MATCHED	Golden July ZUS/health contribution from wFirma. Bank cash evidence remains recorded separately.
+COPY investory.accounting_poc_obligation (id, tax_period, obligation_type, due_date, expected_amount, paid_amount, payment_date, status, note, profile_id) FROM stdin;
 \.
 
 
@@ -560,8 +479,8 @@ COPY investory.accounting_poc_period_state (tax_period, confirmed_at, confirmed_
 -- Data for Name: accounting_poc_profile; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_profile (id, has_uop, nip, full_name, tax_office_code, email, vat_payment_account, ryczalt_payment_account, zus_payment_account, first_name, surname, date_of_birth) FROM stdin;
-1	t	1010000000	Investory Accounting POC	1215	accounting@example.invalid	\N	\N	\N	\N	\N	\N
+COPY investory.accounting_poc_profile (id, has_uop, nip, full_name, tax_office_code, email, vat_payment_account, ryczalt_payment_account, zus_payment_account, first_name, surname, date_of_birth, profile_id) FROM stdin;
+1	t	1010000000	Investory Accounting POC	1215	accounting@example.invalid	\N	\N	\N	\N	\N	\N	1
 \.
 
 
@@ -569,38 +488,7 @@ COPY investory.accounting_poc_profile (id, has_uop, nip, full_name, tax_office_c
 -- Data for Name: accounting_poc_tax_input; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_tax_input (id, tax_period, input_type, amount, note) FROM stdin;
-1	2026-01-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
-2	2026-02-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
-3	2026-03-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
-4	2026-04-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
-5	2026-05-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
-6	2026-06-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Known monthly health contribution.
-7	2026-07-01	HEALTH_CONTRIBUTION_PAID	1495.0400	Visible wFirma health contribution amount. Ryczałt deducts 50% of paid health contribution.
-8	2026-01-01	EXPECTED_REVENUE_PLN	61771.2300	wFirma analytics monthly revenue golden.
-9	2026-02-01	EXPECTED_REVENUE_PLN	61849.1200	wFirma analytics monthly revenue golden.
-10	2026-03-01	EXPECTED_REVENUE_PLN	65266.5200	wFirma analytics monthly revenue golden.
-11	2026-04-01	EXPECTED_REVENUE_PLN	63561.2500	wFirma analytics monthly revenue golden.
-12	2026-05-01	EXPECTED_REVENUE_PLN	61917.0800	wFirma analytics monthly revenue golden.
-13	2026-06-01	EXPECTED_REVENUE_PLN	65310.8000	wFirma analytics monthly revenue golden.
-14	2026-07-01	EXPECTED_REVENUE_PLN	49008.8700	wFirma analytics monthly revenue golden including July correction.
-15	2026-08-01	EXPECTED_REVENUE_PLN	26250.0000	wFirma analytics monthly revenue golden; no foreign revenue is booked in August.
-16	2026-01-01	EXPECTED_INPUT_VAT	93.5400	wFirma VAT analytics purchase VAT.
-17	2026-02-01	EXPECTED_INPUT_VAT	100.5500	wFirma VAT analytics purchase VAT.
-18	2026-03-01	EXPECTED_INPUT_VAT	238.3800	wFirma VAT analytics purchase VAT.
-19	2026-04-01	EXPECTED_INPUT_VAT	120.2000	wFirma VAT analytics purchase VAT.
-20	2026-05-01	EXPECTED_INPUT_VAT	207.4200	wFirma VAT analytics purchase VAT.
-21	2026-06-01	EXPECTED_INPUT_VAT	196.1000	wFirma VAT analytics purchase VAT.
-22	2026-07-01	EXPECTED_INPUT_VAT	145.9900	wFirma VAT analytics purchase VAT.
-23	2026-08-01	EXPECTED_INPUT_VAT	0.0000	wFirma VAT analytics purchase VAT.
-24	2026-01-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
-25	2026-02-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
-26	2026-03-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
-27	2026-04-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
-28	2026-05-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
-29	2026-06-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
-30	2026-07-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
-31	2026-08-01	JDG_COMPULSORY_SOCIAL_ZUS	1788.2900	2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.
+COPY investory.accounting_poc_tax_input (id, tax_period, input_type, amount, note, profile_id) FROM stdin;
 \.
 
 
@@ -663,14 +551,6 @@ ALTER TABLE ONLY investory.accounting_poc_expense_invoice
 
 
 --
--- Name: accounting_poc_expense_invoice accounting_poc_expense_invoice_reference_key; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.accounting_poc_expense_invoice
-    ADD CONSTRAINT accounting_poc_expense_invoice_reference_key UNIQUE (reference);
-
-
---
 -- Name: accounting_poc_fact accounting_poc_fact_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
@@ -687,35 +567,11 @@ ALTER TABLE ONLY investory.accounting_poc_invoice
 
 
 --
--- Name: accounting_poc_invoice accounting_poc_invoice_reference_key; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.accounting_poc_invoice
-    ADD CONSTRAINT accounting_poc_invoice_reference_key UNIQUE (reference);
-
-
---
 -- Name: accounting_poc_obligation accounting_poc_obligation_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.accounting_poc_obligation
     ADD CONSTRAINT accounting_poc_obligation_pkey PRIMARY KEY (id);
-
-
---
--- Name: accounting_poc_obligation accounting_poc_obligation_tax_period_obligation_type_key; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.accounting_poc_obligation
-    ADD CONSTRAINT accounting_poc_obligation_tax_period_obligation_type_key UNIQUE (tax_period, obligation_type);
-
-
---
--- Name: accounting_poc_period_state accounting_poc_period_state_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.accounting_poc_period_state
-    ADD CONSTRAINT accounting_poc_period_state_pkey PRIMARY KEY (tax_period);
 
 
 --
@@ -735,11 +591,11 @@ ALTER TABLE ONLY investory.accounting_poc_tax_input
 
 
 --
--- Name: accounting_poc_tax_input accounting_poc_tax_input_tax_period_input_type_key; Type: CONSTRAINT; Schema: investory; Owner: -
+-- Name: accounting_poc_period_state pk_accounting_poc_period_state; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
-ALTER TABLE ONLY investory.accounting_poc_tax_input
-    ADD CONSTRAINT accounting_poc_tax_input_tax_period_input_type_key UNIQUE (tax_period, input_type);
+ALTER TABLE ONLY investory.accounting_poc_period_state
+    ADD CONSTRAINT pk_accounting_poc_period_state PRIMARY KEY (profile_id, tax_period);
 
 
 --
@@ -799,17 +655,95 @@ CREATE INDEX idx_accounting_poc_obligation_period ON investory.accounting_poc_ob
 
 
 --
--- Name: uq_accounting_poc_bank_external_transaction; Type: INDEX; Schema: investory; Owner: -
+-- Name: ix_accounting_poc_bank_profile_match; Type: INDEX; Schema: investory; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_accounting_poc_bank_external_transaction ON investory.accounting_poc_bank_transaction USING btree (provider, external_account_id, external_transaction_id);
+CREATE INDEX ix_accounting_poc_bank_profile_match ON investory.accounting_poc_bank_transaction USING btree (profile_id, booking_date, amount, currency);
 
 
 --
--- Name: uq_accounting_poc_bank_source_row; Type: INDEX; Schema: investory; Owner: -
+-- Name: ix_accounting_poc_expense_profile_reference; Type: INDEX; Schema: investory; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_accounting_poc_bank_source_row ON investory.accounting_poc_bank_transaction USING btree (source_row_identity) WHERE (source_row_identity IS NOT NULL);
+CREATE INDEX ix_accounting_poc_expense_profile_reference ON investory.accounting_poc_expense_invoice USING btree (profile_id, reference);
+
+
+--
+-- Name: ix_accounting_poc_fact_profile_date; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_accounting_poc_fact_profile_date ON investory.accounting_poc_fact USING btree (profile_id, fact_date, id);
+
+
+--
+-- Name: ix_accounting_poc_invoice_profile_reference; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_accounting_poc_invoice_profile_reference ON investory.accounting_poc_invoice USING btree (profile_id, reference);
+
+
+--
+-- Name: uq_accounting_poc_bank_profile_external_transaction; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_poc_bank_profile_external_transaction ON investory.accounting_poc_bank_transaction USING btree (profile_id, provider, external_account_id, external_transaction_id);
+
+
+--
+-- Name: uq_accounting_poc_bank_profile_source_row; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_poc_bank_profile_source_row ON investory.accounting_poc_bank_transaction USING btree (profile_id, source_row_identity) WHERE (source_row_identity IS NOT NULL);
+
+
+--
+-- Name: uq_accounting_poc_expense_profile_ksef; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_poc_expense_profile_ksef ON investory.accounting_poc_expense_invoice USING btree (profile_id, ksef_number) WHERE (ksef_number IS NOT NULL);
+
+
+--
+-- Name: uq_accounting_poc_expense_profile_reference; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_poc_expense_profile_reference ON investory.accounting_poc_expense_invoice USING btree (profile_id, reference);
+
+
+--
+-- Name: uq_accounting_poc_invoice_profile_ksef; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_poc_invoice_profile_ksef ON investory.accounting_poc_invoice USING btree (profile_id, ksef_number) WHERE (ksef_number IS NOT NULL);
+
+
+--
+-- Name: uq_accounting_poc_invoice_profile_reference; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_poc_invoice_profile_reference ON investory.accounting_poc_invoice USING btree (profile_id, reference);
+
+
+--
+-- Name: uq_accounting_poc_obligation_profile_period_type; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_poc_obligation_profile_period_type ON investory.accounting_poc_obligation USING btree (profile_id, tax_period, obligation_type);
+
+
+--
+-- Name: uq_accounting_poc_tax_input_profile_period_type; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_accounting_poc_tax_input_profile_period_type ON investory.accounting_poc_tax_input USING btree (profile_id, tax_period, input_type);
+
+
+--
+-- Name: accounting_poc_bank_transaction accounting_poc_bank_transaction_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_poc_bank_transaction
+    ADD CONSTRAINT accounting_poc_bank_transaction_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
 
 
 --
@@ -821,11 +755,35 @@ ALTER TABLE ONLY investory.accounting_poc_bank_transaction
 
 
 --
+-- Name: accounting_poc_expense_invoice accounting_poc_expense_invoice_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_poc_expense_invoice
+    ADD CONSTRAINT accounting_poc_expense_invoice_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
 -- Name: accounting_poc_expense_invoice accounting_poc_expense_invoice_source_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.accounting_poc_expense_invoice
     ADD CONSTRAINT accounting_poc_expense_invoice_source_id_fkey FOREIGN KEY (source_id) REFERENCES investory.accounting_source_evidence(id);
+
+
+--
+-- Name: accounting_poc_fact accounting_poc_fact_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_poc_fact
+    ADD CONSTRAINT accounting_poc_fact_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_poc_invoice accounting_poc_invoice_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_poc_invoice
+    ADD CONSTRAINT accounting_poc_invoice_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
 
 
 --
@@ -837,11 +795,35 @@ ALTER TABLE ONLY investory.accounting_poc_invoice
 
 
 --
+-- Name: accounting_poc_obligation accounting_poc_obligation_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_poc_obligation
+    ADD CONSTRAINT accounting_poc_obligation_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
 -- Name: accounting_poc_period_state accounting_poc_period_state_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.accounting_poc_period_state
     ADD CONSTRAINT accounting_poc_period_state_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_poc_profile accounting_poc_profile_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_poc_profile
+    ADD CONSTRAINT accounting_poc_profile_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
+
+
+--
+-- Name: accounting_poc_tax_input accounting_poc_tax_input_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.accounting_poc_tax_input
+    ADD CONSTRAINT accounting_poc_tax_input_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
 
 
 --

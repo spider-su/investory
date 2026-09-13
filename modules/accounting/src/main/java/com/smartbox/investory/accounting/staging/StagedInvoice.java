@@ -11,6 +11,7 @@ public record StagedInvoice(
     String sourceReference,
     String documentKind,
     LocalDate documentDate,
+    LocalDate dueDate,
     String reference,
     String counterpartyName,
     String counterpartyTaxIdentifier,

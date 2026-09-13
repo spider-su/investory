@@ -21,6 +21,9 @@ class AiDocumentScanner implements DocumentScanner {
   public DocumentScanResult scan(DocumentInput input) {
     AccountingInvoiceRecognitionService.RecognizedInvoice invoice =
         client.recognize(input.fileName(), input.contentType(), input.bytes());
+    if (invoice == null) {
+      throw new IllegalStateException("AI invoice recognition returned no result");
+    }
     invoice = validator.resolveDirection(invoice, factService.accountingProfile().nip());
     var issues = validator.validate(invoice);
     if (!issues.isEmpty()) {

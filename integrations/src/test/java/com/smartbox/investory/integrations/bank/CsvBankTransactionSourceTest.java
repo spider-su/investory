@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 class CsvBankTransactionSourceTest {
@@ -60,6 +61,44 @@ class CsvBankTransactionSourceTest {
     assertThatThrownBy(() -> source(HEADER + "2026-09-01;only-two-columns").transactions(query()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("7 columns");
+  }
+
+  @Test
+  void acceptsUtf8BomQuotedFieldsAndWindowsLineEndings() {
+    var page =
+        new CsvBankTransactionSource(
+                ("\uFEFF\"booking_date\";\"related_period\";\"reference\";\"counterparty\";\"currency\";\"amount\";\"note\"\r\n"
+                        + "2026-09-01;;REF;\"ACME; Sp. z o.o.\";PLN;-10,50;\"paid\"\r\n")
+                    .getBytes(StandardCharsets.UTF_8),
+                "JDG_MAIN_ACCOUNT")
+            .transactions(query());
+
+    assertThat(page.transactions()).hasSize(1);
+    assertThat(page.transactions().getFirst())
+        .extracting(
+            ExternalBankTransaction::counterpartyName,
+            ExternalBankTransaction::amount,
+            ExternalBankTransaction::remittanceInformation)
+        .containsExactly("ACME; Sp. z o.o.", new BigDecimal("-10.50"), "paid");
+  }
+
+  @Test
+  void mapsPekaoEurExportAndDetectsTheOwnAccount() {
+    var page =
+        source(
+                "Data księgowania;Data waluty;Nadawca / Odbiorca;Adres nadawcy / odbiorcy;Rachunek źródłowy;Rachunek docelowy;Tytułem;Kwota operacji;Waluta;Numer referencyjny;Typ operacji\n"
+                    + "04.09.2026;04.09.2026;IT PLATFORM SOLUTIONS LIMITED;;'SACC;'16124046761978001147512542;Service Agreement;7 661,00;EUR;'RI5;SEPA CREDIT TRANSFER INCOMING\n"
+                    + "04.09.2026;04.09.2026;ALEX KOTIK;;'16124046761978001147512542;'7612;Transfer of funds;-7 661,00;EUR;'163;MOBILE TRANSFER\n")
+            .transactions(query());
+
+    assertThat(page.transactions()).hasSize(2);
+    assertThat(page.transactions().getFirst())
+        .extracting(
+            ExternalBankTransaction::externalAccountId,
+            ExternalBankTransaction::rawReference,
+            ExternalBankTransaction::currency,
+            ExternalBankTransaction::amount)
+        .containsExactly("16124046761978001147512542", "RI5", "EUR", new BigDecimal("7661.00"));
   }
 
   private CsvBankTransactionSource source(String csv) {

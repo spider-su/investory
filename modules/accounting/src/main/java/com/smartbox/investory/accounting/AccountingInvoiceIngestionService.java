@@ -18,21 +18,94 @@ public class AccountingInvoiceIngestionService {
 
   public boolean ingest(ReviewedInvoice invoice) {
     validate(invoice);
+    if ("SALES_INVOICE".equals(invoice.documentType())) return ingestSalesLegacy(invoice);
+    if ("CREDIT_NOTE".equals(invoice.documentType())) return ingestCreditNoteLegacy(invoice);
+    if ("PURCHASE_INVOICE".equals(invoice.documentType())
+        || "RECEIPT".equals(invoice.documentType())) return ingestPurchaseLegacy(invoice);
+    throw new IllegalArgumentException("Unsupported invoice document type");
+  }
+
+  private boolean ingestPurchaseLegacy(ReviewedInvoice invoice) {
+    BigDecimal ratio =
+        invoice.vatDeductionRatio() == null
+            ? defaultDeductionRatio(invoice.category())
+            : invoice.vatDeductionRatio();
+    NormalizedExpense n =
+        expenseNormalizer.normalize(
+            new ExpenseImportCandidate(
+                invoice.category(),
+                invoice.grossAmount(),
+                invoice.netAmount(),
+                invoice.vatAmount(),
+                ratio));
+    return repository.insertExpense(
+        invoice.taxPeriod(),
+        firstNonNull(invoice.issueDate(), invoice.saleDate()),
+        invoice.reference().trim(),
+        invoice.counterpartyAlias().trim(),
+        invoice.category().trim(),
+        invoice.currency().trim().toUpperCase(),
+        n.netAmount(),
+        n.vatAmount(),
+        n.grossAmount(),
+        n.vatDeductionRatio(),
+        invoice.sourceQuality(),
+        invoice.note());
+  }
+
+  private boolean ingestSalesLegacy(ReviewedInvoice invoice) {
+    String currency = invoice.currency().trim().toUpperCase();
+    return repository.insertSalesInvoice(
+        invoice.taxPeriod(),
+        invoice.issueDate(),
+        invoice.saleDate(),
+        invoice.reference().trim(),
+        invoice.counterpartyAlias().trim(),
+        "PLN".equals(currency) ? "DOMESTIC_SERVICE" : "EU_SERVICE",
+        currency,
+        invoice.netAmount(),
+        invoice.vatAmount(),
+        invoice.grossAmount(),
+        "PLN".equals(currency) ? invoice.netAmount() : null,
+        RYCZALT_RATE,
+        invoice.note());
+  }
+
+  private boolean ingestCreditNoteLegacy(ReviewedInvoice invoice) {
+    String currency = invoice.currency().trim().toUpperCase();
+    return repository.insertSalesInvoice(
+        invoice.taxPeriod(),
+        invoice.issueDate(),
+        invoice.saleDate(),
+        invoice.reference().trim(),
+        invoice.counterpartyAlias().trim(),
+        "CREDIT_NOTE",
+        currency,
+        invoice.netAmount().negate(),
+        invoice.vatAmount().negate(),
+        invoice.grossAmount().negate(),
+        "PLN".equals(currency) ? invoice.netAmount().negate() : null,
+        RYCZALT_RATE,
+        invoice.note());
+  }
+
+  public boolean ingest(long profileId, ReviewedInvoice invoice) {
+    validate(invoice);
     if ("SALES_INVOICE".equals(invoice.documentType())) {
-      return ingestSales(invoice);
+      return ingestSales(profileId, invoice);
     }
     if ("CREDIT_NOTE".equals(invoice.documentType())) {
-      return ingestCreditNote(invoice);
+      return ingestCreditNote(profileId, invoice);
     }
     if ("PURCHASE_INVOICE".equals(invoice.documentType())
         || "RECEIPT".equals(invoice.documentType())) {
-      return ingestPurchase(invoice);
+      return ingestPurchase(profileId, invoice);
     }
     throw new IllegalArgumentException(
         "Credit-note persistence is intentionally parked; review the document without saving it yet.");
   }
 
-  private boolean ingestPurchase(ReviewedInvoice invoice) {
+  private boolean ingestPurchase(long profileId, ReviewedInvoice invoice) {
     BigDecimal deductionRatio =
         invoice.vatDeductionRatio() == null
             ? defaultDeductionRatio(invoice.category())
@@ -47,8 +120,10 @@ public class AccountingInvoiceIngestionService {
                 deductionRatio));
     if (invoice.hasFilingProvenance()) {
       return repository.insertExpense(
+          profileId,
           invoice.taxPeriod(),
           firstNonNull(invoice.issueDate(), invoice.saleDate()),
+          invoice.dueDate(),
           invoice.reference().trim(),
           invoice.counterpartyAlias().trim(),
           invoice.category().trim(),
@@ -67,8 +142,10 @@ public class AccountingInvoiceIngestionService {
     }
     if (invoice.sourceIdentity() == null || invoice.sourceIdentity().isBlank()) {
       return repository.insertExpense(
+          profileId,
           invoice.taxPeriod(),
           firstNonNull(invoice.issueDate(), invoice.saleDate()),
+          invoice.dueDate(),
           invoice.reference().trim(),
           invoice.counterpartyAlias().trim(),
           invoice.category().trim(),
@@ -78,11 +155,18 @@ public class AccountingInvoiceIngestionService {
           normalized.grossAmount(),
           normalized.vatDeductionRatio(),
           invoice.sourceQuality(),
-          invoice.note());
+          invoice.note(),
+          null,
+          null,
+          null,
+          null,
+          null);
     }
     return repository.insertExpense(
+        profileId,
         invoice.taxPeriod(),
         firstNonNull(invoice.issueDate(), invoice.saleDate()),
+        invoice.dueDate(),
         invoice.reference().trim(),
         invoice.counterpartyAlias().trim(),
         invoice.category().trim(),
@@ -93,18 +177,24 @@ public class AccountingInvoiceIngestionService {
         normalized.vatDeductionRatio(),
         invoice.sourceQuality(),
         invoice.note(),
-        sourceId(invoice.sourceIdentity()));
+        sourceId(invoice.sourceIdentity()),
+        null,
+        null,
+        null,
+        null);
   }
 
-  private boolean ingestSales(ReviewedInvoice invoice) {
+  private boolean ingestSales(long profileId, ReviewedInvoice invoice) {
     String currency = invoice.currency().trim().toUpperCase();
     String invoiceKind = "PLN".equals(currency) ? "DOMESTIC_SERVICE" : "EU_SERVICE";
     BigDecimal bookedNetPln = "PLN".equals(currency) ? invoice.netAmount() : null;
     if (invoice.hasFilingProvenance()) {
       return repository.insertSalesInvoice(
+          profileId,
           invoice.taxPeriod(),
           invoice.issueDate(),
           invoice.saleDate(),
+          invoice.dueDate(),
           invoice.reference().trim(),
           invoice.counterpartyAlias().trim(),
           invoiceKind,
@@ -123,9 +213,11 @@ public class AccountingInvoiceIngestionService {
     }
     if (invoice.sourceIdentity() == null || invoice.sourceIdentity().isBlank()) {
       return repository.insertSalesInvoice(
+          profileId,
           invoice.taxPeriod(),
           invoice.issueDate(),
           invoice.saleDate(),
+          invoice.dueDate(),
           invoice.reference().trim(),
           invoice.counterpartyAlias().trim(),
           invoiceKind,
@@ -135,12 +227,19 @@ public class AccountingInvoiceIngestionService {
           invoice.grossAmount(),
           bookedNetPln,
           RYCZALT_RATE,
-          invoice.note());
+          invoice.note(),
+          null,
+          null,
+          null,
+          null,
+          null);
     }
     return repository.insertSalesInvoice(
+        profileId,
         invoice.taxPeriod(),
         invoice.issueDate(),
         invoice.saleDate(),
+        invoice.dueDate(),
         invoice.reference().trim(),
         invoice.counterpartyAlias().trim(),
         invoiceKind,
@@ -151,10 +250,14 @@ public class AccountingInvoiceIngestionService {
         bookedNetPln,
         RYCZALT_RATE,
         invoice.note(),
-        sourceId(invoice.sourceIdentity()));
+        sourceId(invoice.sourceIdentity()),
+        null,
+        null,
+        null,
+        null);
   }
 
-  private boolean ingestCreditNote(ReviewedInvoice invoice) {
+  private boolean ingestCreditNote(long profileId, ReviewedInvoice invoice) {
     String currency = invoice.currency().trim().toUpperCase();
     BigDecimal signedNet = invoice.netAmount().negate();
     BigDecimal signedVat = invoice.vatAmount().negate();
@@ -162,6 +265,7 @@ public class AccountingInvoiceIngestionService {
     BigDecimal bookedNetPln = "PLN".equals(currency) ? signedNet : null;
     if (invoice.sourceIdentity() == null || invoice.sourceIdentity().isBlank()) {
       return repository.insertSalesInvoice(
+          profileId,
           invoice.taxPeriod(),
           invoice.issueDate(),
           invoice.saleDate(),
@@ -174,9 +278,15 @@ public class AccountingInvoiceIngestionService {
           signedGross,
           bookedNetPln,
           RYCZALT_RATE,
-          invoice.note());
+          invoice.note(),
+          null,
+          null,
+          null,
+          null,
+          null);
     }
     return repository.insertSalesInvoice(
+        profileId,
         invoice.taxPeriod(),
         invoice.issueDate(),
         invoice.saleDate(),
@@ -190,7 +300,11 @@ public class AccountingInvoiceIngestionService {
         bookedNetPln,
         RYCZALT_RATE,
         invoice.note(),
-        sourceId(invoice.sourceIdentity()));
+        sourceId(invoice.sourceIdentity()),
+        null,
+        null,
+        null,
+        null);
   }
 
   private void validate(ReviewedInvoice invoice) {
@@ -258,7 +372,51 @@ public class AccountingInvoiceIngestionService {
       String counterpartyTaxIdentifier,
       String counterpartyCountry,
       String ksefNumber,
-      AccountingFilingEvidence filingEvidence) {
+      AccountingFilingEvidence filingEvidence,
+      LocalDate dueDate) {
+    public ReviewedInvoice(
+        LocalDate taxPeriod,
+        String documentType,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        String reference,
+        String counterpartyAlias,
+        String category,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal vatDeductionRatio,
+        String sourceQuality,
+        String note,
+        String sourceIdentity,
+        String counterpartyTaxIdentifier,
+        String counterpartyCountry,
+        String ksefNumber,
+        AccountingFilingEvidence filingEvidence) {
+      this(
+          taxPeriod,
+          documentType,
+          issueDate,
+          saleDate,
+          reference,
+          counterpartyAlias,
+          category,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          vatDeductionRatio,
+          sourceQuality,
+          note,
+          sourceIdentity,
+          counterpartyTaxIdentifier,
+          counterpartyCountry,
+          ksefNumber,
+          filingEvidence,
+          null);
+    }
+
     public boolean hasFilingProvenance() {
       return counterpartyTaxIdentifier != null
           || counterpartyCountry != null

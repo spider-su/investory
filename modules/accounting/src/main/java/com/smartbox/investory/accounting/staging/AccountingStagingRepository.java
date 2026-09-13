@@ -1,6 +1,5 @@
 package com.smartbox.investory.accounting.staging;
 
-import com.smartbox.investory.accounting.VatTreatment;
 import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.Timestamp;
@@ -17,6 +16,14 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class AccountingStagingRepository {
   private final JdbcTemplate jdbc;
+
+  public boolean profileExists(long profileId) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.portfolios WHERE id = ?)",
+            Boolean.class,
+            profileId));
+  }
 
   public long insertInvoice(
       long profileId,
@@ -38,14 +45,58 @@ public class AccountingStagingRepository {
       BigDecimal deductibleVat,
       String vatTreatment,
       String ksefNumber) {
+    return insertInvoice(
+        profileId,
+        taxPeriod,
+        sourceId,
+        sourceType,
+        sourceReference,
+        documentKind,
+        documentDate,
+        null,
+        reference,
+        counterpartyName,
+        counterpartyTaxIdentifier,
+        counterpartyCountry,
+        currency,
+        net,
+        vat,
+        gross,
+        deductionRatio,
+        deductibleVat,
+        vatTreatment,
+        ksefNumber);
+  }
+
+  public long insertInvoice(
+      long profileId,
+      LocalDate taxPeriod,
+      long sourceId,
+      String sourceType,
+      String sourceReference,
+      String documentKind,
+      LocalDate documentDate,
+      LocalDate dueDate,
+      String reference,
+      String counterpartyName,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String currency,
+      BigDecimal net,
+      BigDecimal vat,
+      BigDecimal gross,
+      BigDecimal deductionRatio,
+      BigDecimal deductibleVat,
+      String vatTreatment,
+      String ksefNumber) {
     jdbc.update(
         """
         INSERT INTO investory.accounting_tmp_invoice
-          (profile_id,tax_period,source_id,source_type,source_reference,document_kind,document_date,
+          (profile_id,tax_period,source_id,source_type,source_reference,document_kind,document_date,due_date,
            reference,counterparty_name,counterparty_tax_identifier,counterparty_country,currency,
            net_amount,vat_amount,gross_amount,vat_deduction_ratio,deductible_vat,vat_treatment,ksef_number)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ON CONFLICT (source_id, reference) DO NOTHING
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT (profile_id, source_id, reference) DO NOTHING
         """,
         profileId,
         taxPeriod,
@@ -54,6 +105,7 @@ public class AccountingStagingRepository {
         sourceReference,
         documentKind,
         documentDate,
+        dueDate,
         reference,
         counterpartyName,
         counterpartyTaxIdentifier,
@@ -67,8 +119,9 @@ public class AccountingStagingRepository {
         vatTreatment,
         ksefNumber);
     return jdbc.queryForObject(
-        "SELECT id FROM investory.accounting_tmp_invoice WHERE source_id = ? AND reference = ? ORDER BY id DESC LIMIT 1",
+        "SELECT id FROM investory.accounting_tmp_invoice WHERE profile_id = ? AND source_id = ? AND reference = ? ORDER BY id DESC LIMIT 1",
         Long.class,
+        profileId,
         sourceId,
         reference);
   }
@@ -90,14 +143,52 @@ public class AccountingStagingRepository {
       String counterpartyAccount,
       String remittanceInformation,
       String sourcePayloadHash) {
+    return insertBank(
+        profileId,
+        taxPeriod,
+        sourceId,
+        sourceType,
+        sourceReference,
+        provider,
+        externalAccountId,
+        externalTransactionId,
+        bookingDate,
+        valueDate,
+        null,
+        amount,
+        currency,
+        counterpartyName,
+        counterpartyAccount,
+        remittanceInformation,
+        sourcePayloadHash);
+  }
+
+  public long insertBank(
+      long profileId,
+      LocalDate taxPeriod,
+      long sourceId,
+      String sourceType,
+      String sourceReference,
+      String provider,
+      String externalAccountId,
+      String externalTransactionId,
+      LocalDate bookingDate,
+      LocalDate valueDate,
+      LocalDate relatedPeriod,
+      BigDecimal amount,
+      String currency,
+      String counterpartyName,
+      String counterpartyAccount,
+      String remittanceInformation,
+      String sourcePayloadHash) {
     jdbc.update(
         """
         INSERT INTO investory.accounting_tmp_bank_transaction
           (profile_id,tax_period,source_id,source_type,source_reference,provider,external_account_id,
-           external_transaction_id,booking_date,value_date,amount,currency,counterparty_name,
+           external_transaction_id,booking_date,value_date,related_period,amount,currency,counterparty_name,
            counterparty_account,remittance_information,source_payload_hash)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ON CONFLICT (source_id, external_transaction_id) DO NOTHING
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT (profile_id, provider, external_account_id, external_transaction_id) DO NOTHING
         """,
         profileId,
         taxPeriod,
@@ -109,6 +200,7 @@ public class AccountingStagingRepository {
         externalTransactionId,
         bookingDate,
         valueDate,
+        relatedPeriod,
         amount,
         currency,
         counterpartyName,
@@ -116,9 +208,11 @@ public class AccountingStagingRepository {
         remittanceInformation,
         sourcePayloadHash);
     return jdbc.queryForObject(
-        "SELECT id FROM investory.accounting_tmp_bank_transaction WHERE source_id = ? AND external_transaction_id = ?",
+        "SELECT id FROM investory.accounting_tmp_bank_transaction WHERE profile_id = ? AND provider = ? AND external_account_id IS NOT DISTINCT FROM ? AND external_transaction_id = ? ORDER BY id LIMIT 1",
         Long.class,
-        sourceId,
+        profileId,
+        provider,
+        externalAccountId,
         externalTransactionId);
   }
 
@@ -134,6 +228,7 @@ public class AccountingStagingRepository {
                 rs.getString("source_reference"),
                 rs.getString("document_kind"),
                 rs.getObject("document_date", LocalDate.class),
+                rs.getObject("due_date", LocalDate.class),
                 rs.getString("reference"),
                 rs.getString("counterparty_name"),
                 rs.getString("counterparty_tax_identifier"),
@@ -170,6 +265,7 @@ public class AccountingStagingRepository {
                 rs.getString("external_transaction_id"),
                 rs.getObject("booking_date", LocalDate.class),
                 rs.getObject("value_date", LocalDate.class),
+                rs.getObject("related_period", LocalDate.class),
                 rs.getBigDecimal("amount"),
                 rs.getString("currency"),
                 rs.getString("counterparty_name"),
@@ -186,6 +282,7 @@ public class AccountingStagingRepository {
   }
 
   public void result(
+      long profileId,
       String table,
       long id,
       StagingReconciliationStatus status,
@@ -196,136 +293,59 @@ public class AccountingStagingRepository {
     jdbc.update(
         "UPDATE investory.accounting_tmp_"
             + table
-            + " SET reconciliation_status = ?, reconciliation_reason_codes = ?::varchar[], reconciliation_message = ? WHERE id = ?",
+            + " SET reconciliation_status = ?, reconciliation_reason_codes = ?::varchar[], reconciliation_message = ? WHERE profile_id = ? AND id = ?",
         status.name(),
         reasons.toArray(new String[0]),
         message,
+        profileId,
+        id);
+  }
+
+  public void result(
+      String table,
+      long id,
+      StagingReconciliationStatus status,
+      List<String> reasons,
+      String message) {
+    result(1L, table, id, status, reasons, message);
+  }
+
+  public void promoted(long profileId, String table, long id, long canonicalId) {
+    jdbc.update(
+        "UPDATE investory.accounting_tmp_"
+            + table
+            + " SET reconciliation_status='PROMOTED', promoted_at=CURRENT_TIMESTAMP, canonical_id=? WHERE profile_id=? AND id=?",
+        canonicalId,
+        profileId,
         id);
   }
 
   public void promoted(String table, long id, long canonicalId) {
-    jdbc.update(
-        "UPDATE investory.accounting_tmp_"
-            + table
-            + " SET reconciliation_status='PROMOTED', promoted_at=CURRENT_TIMESTAMP, canonical_id=? WHERE id=?",
-        canonicalId,
-        id);
+    promoted(1L, table, id, canonicalId);
   }
 
-  public Long promoteInvoice(StagedInvoice row) {
-    if (row.vatTreatment() == null || row.vatTreatment().isBlank()) {
-      throw new IllegalStateException(
-          "Staged invoice requires explicit VAT treatment before promotion: " + row.reference());
-    }
-    if (row.documentKind().equals("EXPENSE")) {
-      jdbc.update(
-          """
-          INSERT INTO investory.accounting_poc_expense_invoice
-            (tax_period,invoice_date,reference,supplier_alias,category,currency,net_amount,vat_amount,gross_amount,vat_deduction_ratio,source_quality,note,source_id,counterparty_tax_identifier,counterparty_country,ksef_number)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (reference) DO NOTHING
-          """,
-          row.taxPeriod(),
-          row.documentDate(),
-          row.reference(),
-          row.counterpartyName(),
-          "OTHER",
-          row.currency(),
-          row.netAmount(),
-          row.vatAmount(),
-          row.grossAmount(),
-          Objects.requireNonNullElse(row.vatDeductionRatio(), BigDecimal.ONE),
-          "STAGED",
-          row.message(),
-          row.sourceId(),
-          row.counterpartyTaxIdentifier(),
-          row.counterpartyCountry(),
-          row.ksefNumber());
-    } else {
-      jdbc.update(
-          """
-          INSERT INTO investory.accounting_poc_invoice
-            (tax_period,issue_date,sale_date,reference,customer_alias,invoice_kind,currency,net_amount,vat_amount,gross_amount,expected_receivable,booked_net_pln,ryczalt_rate,note,source_id,counterparty_tax_identifier,counterparty_country,ksef_number)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (reference) DO NOTHING
-          """,
-          row.taxPeriod(),
-          row.documentDate(),
-          row.documentDate(),
-          row.reference(),
-          row.counterpartyName(),
-          "PLN".equals(row.currency()) ? "DOMESTIC_SERVICE" : "EU_SERVICE",
-          row.currency(),
-          row.netAmount(),
-          row.vatAmount(),
-          row.grossAmount(),
-          row.grossAmount(),
-          "PLN".equals(row.currency()) ? row.netAmount() : null,
-          new BigDecimal("0.12"),
-          row.message(),
-          row.sourceId(),
-          row.counterpartyTaxIdentifier(),
-          row.counterpartyCountry(),
-          row.ksefNumber());
-    }
-    String canonicalTable =
+  public Long canonicalInvoiceId(StagedInvoice row) {
+    String table =
         row.documentKind().equals("EXPENSE")
             ? "accounting_poc_expense_invoice"
             : "accounting_poc_invoice";
-    Long canonicalId =
-        jdbc.queryForObject(
-            "SELECT id FROM investory." + canonicalTable + " WHERE reference = ?",
-            Long.class,
-            row.reference());
-    jdbc.update(
-        """
-        INSERT INTO investory.accounting_vat_transaction
-          (tax_period,tax_date,source_document_id,reference,direction,treatment,counterparty_country,
-           counterparty_tax_identifier,net_amount,vat_amount,deductible_vat,evidence)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-        ON CONFLICT DO NOTHING
-        """,
-        row.taxPeriod(),
-        row.documentDate() == null ? row.taxPeriod() : row.documentDate(),
-        Long.toString(row.sourceId()),
-        row.reference(),
-        row.documentKind().equals("EXPENSE") ? "PURCHASE" : "SALE",
-        VatTreatment.valueOf(row.vatTreatment()).name(),
-        row.counterpartyCountry(),
-        row.counterpartyTaxIdentifier(),
-        row.netAmount(),
-        row.vatAmount(),
-        row.documentKind().equals("EXPENSE")
-            ? Objects.requireNonNullElse(row.deductibleVat(), BigDecimal.ZERO)
-            : BigDecimal.ZERO,
-        "STAGED_SOURCE:" + row.sourceId());
-    return canonicalId;
+    return jdbc.queryForObject(
+        "SELECT id FROM investory." + table + " WHERE profile_id = ? AND reference = ?",
+        Long.class,
+        row.profileId(),
+        row.reference());
   }
 
-  public Long promoteBank(StagedBankTransaction row) {
-    jdbc.update(
-        """
-        INSERT INTO investory.accounting_poc_bank_transaction
-          (booking_date,related_period,reference,counterparty_alias,currency,amount,transaction_type,scope,note,source_id,source_row_identity,provider,external_account_id,external_transaction_id,source_payload_hash)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING
-        """,
-        row.bookingDate(),
-        row.taxPeriod(),
-        row.remittanceInformation(),
-        row.counterpartyName(),
-        row.currency(),
-        row.amount(),
-        "UNKNOWN",
-        "REVIEW_REQUIRED",
-        row.remittanceInformation(),
-        row.sourceId(),
-        bankSourceIdentity(row),
+  public Long canonicalBankId(StagedBankTransaction row) {
+    return jdbc.queryForObject(
+        "SELECT id FROM investory.accounting_poc_bank_transaction "
+            + "WHERE profile_id = ? AND provider = ? AND external_account_id = ? "
+            + "AND external_transaction_id = ?",
+        Long.class,
+        row.profileId(),
         row.provider(),
         row.externalAccountId(),
-        row.externalTransactionId(),
-        row.sourcePayloadHash());
-    return jdbc.queryForObject(
-        "SELECT id FROM investory.accounting_poc_bank_transaction WHERE source_row_identity = ?",
-        Long.class,
-        bankSourceIdentity(row));
+        row.externalTransactionId());
   }
 
   private static StagingReconciliationStatus status(String value) {

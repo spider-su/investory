@@ -18,13 +18,17 @@ public class AccountingFilingService {
   private final AccountingJpkXmlValidator jpkXmlValidator;
 
   public FilingResult filing(LocalDate period) {
-    AccountingMonthSnapshot snapshot = factService.snapshot(period);
-    AccountingProfile profile = factService.accountingProfile();
+    return filing(1L, period);
+  }
+
+  public FilingResult filing(long profileId, LocalDate period) {
+    AccountingMonthSnapshot snapshot = factService.snapshot(profileId, period);
+    AccountingProfile profile = repository.accountingProfile(profileId);
     AccountingFilingInput filingInput =
         new AccountingFilingService.FilingResult(period, snapshot, profile, "", false, List.of())
             .filingInput();
     String hash = AccountingFilingFingerprint.sha256(filingInput);
-    AccountingPocRepository.PeriodState state = repository.periodState(period);
+    AccountingPocRepository.PeriodState state = repository.periodState(profileId, period);
     boolean confirmed = state != null && hash.equals(state.confirmedCalculationHash());
     List<String> issues = new ArrayList<>();
     snapshot.issues().stream()
@@ -79,58 +83,75 @@ public class AccountingFilingService {
   }
 
   public void confirm(LocalDate period) {
-    FilingResult result = filing(period);
+    confirm(1L, period);
+  }
+
+  public void confirm(long profileId, LocalDate period) {
+    FilingResult result = filing(profileId, period);
     if (!result.issues().isEmpty() && !result.onlyNotConfirmed()) {
       throw new IllegalStateException(
           "Cannot confirm month: " + String.join("; ", result.issues()));
     }
-    var state = repository.periodState(period);
+    var state = repository.periodState(profileId, period);
     var current = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
     if (current == PeriodLifecycleStatus.OPEN) {
-      repository.updateLifecycleStatus(period, PeriodLifecycleStatus.READY_FOR_REVIEW);
+      repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.READY_FOR_REVIEW);
       current = PeriodLifecycleStatus.READY_FOR_REVIEW;
     }
     new AccountingPeriodLifecycle()
         .transition(current, PeriodLifecycleStatus.CONFIRMED, false, false, false);
-    repository.confirm(period, result.calculationHash(), Instant.now());
-    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.CONFIRMED);
+    repository.confirm(profileId, period, result.calculationHash(), Instant.now());
+    repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.CONFIRMED);
   }
 
   public void reopen(LocalDate period, String reason) {
-    var state = repository.periodState(period);
+    reopen(1L, period, reason);
+  }
+
+  public void reopen(long profileId, LocalDate period, String reason) {
+    var state = repository.periodState(profileId, period);
     var current = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
     new AccountingPeriodLifecycle().reopen(current, reason);
-    repository.reopen(period, reason, Instant.now());
+    repository.reopen(profileId, period, reason, Instant.now());
   }
 
   /** Evidence-derived filing transition. */
   public void markFiled(LocalDate period) {
-    FilingResult result = filing(period);
+    markFiled(1L, period);
+  }
+
+  public void markFiled(long profileId, LocalDate period) {
+    FilingResult result = filing(profileId, period);
     if (!result.confirmed()) throw new IllegalStateException("Cannot file an unconfirmed period");
-    if (!repository.hasFilingArtifact(period, "JPK_V7M", result.calculationHash())
-        || !repository.hasAcceptedConfirmation(period, "JPK_UPO", result.calculationHash())) {
+    if (!repository.hasFilingArtifact(profileId, period, "JPK_V7M", result.calculationHash())
+        || !repository.hasAcceptedConfirmation(
+            profileId, period, "JPK_UPO", result.calculationHash())) {
       throw new IllegalStateException("Accepted JPK filing evidence is required");
     }
     boolean vatEuRequired =
-        repository.vatTransactionsForPeriod(period).stream()
+        repository.vatTransactionsForPeriod(profileId, period).stream()
             .anyMatch(t -> t.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE);
     if (vatEuRequired
-        && (!repository.hasFilingArtifact(period, "VAT_UE")
+        && (!repository.hasFilingArtifact(profileId, period, "VAT_UE")
             || !repository.hasAcceptedConfirmation(
-                period, "VAT_UE_UPO", result.calculationHash()))) {
+                profileId, period, "VAT_UE_UPO", result.calculationHash()))) {
       throw new IllegalStateException("Accepted VAT-UE filing evidence is required");
     }
     if (result.snapshot().zus().totalZus().signum() > 0
         && !repository.hasAcceptedConfirmation(
-            period, "ZUS_DRA_ACCEPTANCE", result.calculationHash())) {
+            profileId, period, "ZUS_DRA_ACCEPTANCE", result.calculationHash())) {
       throw new IllegalStateException("Accepted ZUS DRA evidence is required");
     }
-    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.FILED);
+    repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.FILED);
   }
 
   /** Evidence-derived payment transition. */
   public void markPaid(LocalDate period) {
-    AccountingMonthSnapshot snapshot = factService.snapshot(period);
+    markPaid(1L, period);
+  }
+
+  public void markPaid(long profileId, LocalDate period) {
+    AccountingMonthSnapshot snapshot = factService.snapshot(profileId, period);
     for (var obligation : payableObligations(snapshot)) {
       if (obligation.amount().signum() <= 0) continue;
       boolean paid =
@@ -145,15 +166,19 @@ public class AccountingFilingService {
               >= 0;
       if (!paid) throw new IllegalStateException("Missing payment evidence: " + obligation.type());
     }
-    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.PAID);
+    repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.PAID);
   }
 
   /**
    * Evidence-derived settlement transition; authority evidence is required separately from cash.
    */
   public void settle(LocalDate period) {
-    AccountingMonthSnapshot snapshot = factService.snapshot(period);
-    markFiled(period);
+    settle(1L, period);
+  }
+
+  public void settle(long profileId, LocalDate period) {
+    AccountingMonthSnapshot snapshot = factService.snapshot(profileId, period);
+    markFiled(profileId, period);
     for (var obligation : payableObligations(snapshot)) {
       if (obligation.amount().signum() <= 0) continue;
       String confirmationType =
@@ -162,11 +187,11 @@ public class AccountingFilingService {
             default -> "TAX_ACCOUNT_POSTING";
           };
       if (!repository.hasAcceptedConfirmationForAmount(
-          period, obligation.type(), confirmationType, obligation.amount()))
+          profileId, period, obligation.type(), confirmationType, obligation.amount()))
         throw new IllegalStateException("Missing authority posting: " + obligation.type());
     }
-    markPaid(period);
-    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.SETTLED);
+    markPaid(profileId, period);
+    repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.SETTLED);
   }
 
   private List<AccountingCalculationResult.CalculatedObligation> payableObligations(
@@ -181,18 +206,31 @@ public class AccountingFilingService {
   }
 
   public void lock(LocalDate period) {
-    var state = repository.periodState(period);
+    lock(1L, period);
+  }
+
+  public void lock(long profileId, LocalDate period) {
+    var state = repository.periodState(profileId, period);
     if (state == null || state.lifecycleStatus() != PeriodLifecycleStatus.SETTLED)
       throw new IllegalStateException("Only a settled period can be locked");
-    repository.updateLifecycleStatus(period, PeriodLifecycleStatus.LOCKED);
+    repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.LOCKED);
   }
 
   public byte[] jpk(LocalDate period) {
-    FilingResult result = filing(period);
+    return jpk(1L, period);
+  }
+
+  public byte[] jpk(long profileId, LocalDate period) {
+    FilingResult result = filing(profileId, period);
     if (!result.ready()) throw new IllegalStateException(String.join("; ", result.issues()));
+    var existing = repository.filingArtifact(profileId, period, "JPK_V7M");
+    if (existing.isPresent() && result.calculationHash().equals(existing.get().calculationHash())) {
+      return existing.get().payload();
+    }
     byte[] payload = jpkGenerator.generate(result);
     jpkXmlValidator.validate(payload);
     repository.saveFilingArtifact(
+        profileId,
         new AccountingFilingArtifact(
             AccountingFilingArtifact.Type.JPK_V7M,
             period,
@@ -207,11 +245,16 @@ public class AccountingFilingService {
 
   /** Records imported/manual authority evidence; no government submission is performed. */
   public void recordAuthorityConfirmation(AuthorityConfirmation confirmation) {
+    recordAuthorityConfirmation(1L, confirmation);
+  }
+
+  public void recordAuthorityConfirmation(long profileId, AuthorityConfirmation confirmation) {
     String hash =
         confirmation.calculationHash() == null
-            ? filing(confirmation.period()).calculationHash()
+            ? filing(profileId, confirmation.period()).calculationHash()
             : confirmation.calculationHash();
     repository.saveAuthorityConfirmation(
+        profileId,
         new AuthorityConfirmation(
             confirmation.authority(),
             confirmation.obligationOrArtifactType(),
@@ -227,7 +270,11 @@ public class AccountingFilingService {
   }
 
   public List<AccountingPaymentInstruction> paymentInstructions(LocalDate period) {
-    FilingResult result = filing(period);
+    return paymentInstructions(1L, period);
+  }
+
+  public List<AccountingPaymentInstruction> paymentInstructions(long profileId, LocalDate period) {
+    FilingResult result = filing(profileId, period);
     if (!result.ready()) throw new IllegalStateException(String.join("; ", result.issues()));
     AccountingMonthSnapshot s = result.snapshot();
     AccountingProfile p = result.profile();
@@ -347,7 +394,9 @@ public class AccountingFilingService {
                           invoice.filingEvidence() == null && invoice.ksefNumber() != null
                               ? new AccountingFilingEvidence(
                                   AccountingFilingEvidence.Type.KSEF, invoice.ksefNumber())
-                              : invoice.filingEvidence()))
+                              : invoice.filingEvidence(),
+                          filingTreatment(invoice.invoiceKind()),
+                          invoice.counterpartyCountry()))
               .toList();
       var purchases =
           snapshot.expenses().stream()
@@ -366,7 +415,9 @@ public class AccountingFilingService {
                           expense.filingEvidence() == null && expense.ksefNumber() != null
                               ? new AccountingFilingEvidence(
                                   AccountingFilingEvidence.Type.KSEF, expense.ksefNumber())
-                              : expense.filingEvidence()))
+                              : expense.filingEvidence(),
+                          VatTreatment.DOMESTIC_PURCHASE,
+                          expense.counterpartyCountry()))
               .toList();
       return new AccountingFilingInput(
           period,
@@ -377,6 +428,14 @@ public class AccountingFilingService {
           purchases,
           profile,
           "JPK_V7M(3)");
+    }
+
+    private VatTreatment filingTreatment(String invoiceKind) {
+      return switch (invoiceKind) {
+        case "EU_SERVICE" -> VatTreatment.EU_B2B_REVERSE_CHARGE;
+        case "DOMESTIC_SERVICE", "SALES_INVOICE" -> VatTreatment.DOMESTIC_VAT;
+        default -> null;
+      };
     }
 
     public boolean ready() {

@@ -24,9 +24,29 @@ public class AccountingSourceEvidenceService {
         payload);
   }
 
-  public long receiveKsef(String ksefNumber, LocalDate documentDate, byte[] payload) {
+  public long receiveUpload(long profileId, String filename, String contentType, byte[] payload) {
     byte[] hash = sha256(payload);
     return repository.save(
+        profileId,
+        AccountingSourceType.UPLOAD,
+        "sha256:" + hex(hash),
+        filename,
+        contentType,
+        Instant.now(),
+        null,
+        hash,
+        payload);
+  }
+
+  public long receiveKsef(String ksefNumber, LocalDate documentDate, byte[] payload) {
+    return receiveKsef(1L, ksefNumber, documentDate, payload);
+  }
+
+  public long receiveKsef(
+      long profileId, String ksefNumber, LocalDate documentDate, byte[] payload) {
+    byte[] hash = sha256(payload);
+    return repository.save(
+        profileId,
         AccountingSourceType.KSEF,
         ksefNumber,
         null,
@@ -39,8 +59,14 @@ public class AccountingSourceEvidenceService {
 
   public long receiveBank(
       String filename, String contentType, byte[] payload, LocalDate documentDate) {
+    return receiveBank(1L, filename, contentType, payload, documentDate);
+  }
+
+  public long receiveBank(
+      long profileId, String filename, String contentType, byte[] payload, LocalDate documentDate) {
     byte[] hash = sha256(payload);
     return repository.save(
+        profileId,
         AccountingSourceType.BANK,
         "sha256:" + hex(hash),
         filename,
@@ -55,6 +81,14 @@ public class AccountingSourceEvidenceService {
     repository.updateStatus(id, status, error);
   }
 
+  /** Reopens immutable failed evidence for an explicit reprocessing attempt. */
+  public void retry(long id) {
+    if (status(id) != AccountingSourceStatus.FAILED) {
+      throw new IllegalStateException("Only failed source evidence can be retried");
+    }
+    repository.updateStatus(id, AccountingSourceStatus.RECEIVED, null);
+  }
+
   public AccountingSourceStatus status(long id) {
     return repository.status(id);
   }
@@ -63,8 +97,22 @@ public class AccountingSourceEvidenceService {
     return repository.findId(type, externalReference);
   }
 
+  public java.util.Optional<Long> findId(
+      long profileId, AccountingSourceType type, String externalReference) {
+    return repository.findId(profileId, type, externalReference);
+  }
+
+  public java.util.Optional<AccountingSourceRepository.SourceRow> findSource(
+      long profileId, AccountingSourceType type, String externalReference) {
+    return repository.findSource(profileId, type, externalReference);
+  }
+
   public java.util.List<SourceOutcome> outcomes(LocalDate period) {
     return repository.outcomes(period);
+  }
+
+  public java.util.List<SourceOutcome> outcomes(long profileId, LocalDate period) {
+    return repository.outcomes(profileId, period);
   }
 
   public java.util.List<SourceOutcome> bankOutcomes(LocalDate period) {

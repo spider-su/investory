@@ -39,7 +39,7 @@ class FlywayMigrationChainIT {
   }
 
   @Test
-  void installsAccountingPocProfileAndNormalJdgZusInputs() throws Exception {
+  void installsReferenceBaselineAndLeavesOperationalWorkspaceEmpty() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
       assertEquals(
@@ -52,8 +52,24 @@ class FlywayMigrationChainIT {
           8,
           MigrationTestDatabase.singleInt(
               statement,
-              "SELECT count(*) FROM investory.accounting_poc_tax_input "
-                  + "WHERE input_type = 'JDG_COMPULSORY_SOCIAL_ZUS'"));
+              "SELECT count(*) FROM investory.accounting_reference_month "
+                  + "WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2026-09-01'"));
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement, "SELECT count(*) FROM investory.accounting_poc_invoice"));
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement, "SELECT count(*) FROM investory.accounting_poc_expense_invoice"));
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement, "SELECT count(*) FROM investory.accounting_poc_bank_transaction"));
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement, "SELECT count(*) FROM investory.accounting_tmp_invoice"));
     }
   }
 

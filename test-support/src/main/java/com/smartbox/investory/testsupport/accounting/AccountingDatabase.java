@@ -99,6 +99,12 @@ public final class AccountingDatabase {
           )
           """);
       statement.execute(
+          "ALTER TABLE investory.accounting_source_evidence ADD COLUMN IF NOT EXISTS profile_id BIGINT");
+      statement.execute(
+          "UPDATE investory.accounting_source_evidence SET profile_id = 1 WHERE profile_id IS NULL");
+      statement.execute(
+          "ALTER TABLE investory.accounting_source_evidence ALTER COLUMN profile_id SET NOT NULL");
+      statement.execute(
           """
           CREATE TABLE IF NOT EXISTS investory.accounting_tax_profile_period (
               id BIGSERIAL PRIMARY KEY,
@@ -219,20 +225,79 @@ public final class AccountingDatabase {
           )
           """);
       statement.executeUpdate(
-          "INSERT INTO investory.accounting_poc_profile (id, has_uop) VALUES (1, TRUE) "
+          "INSERT INTO investory.accounting_poc_profile (id, profile_id, has_uop) VALUES (1, 1, TRUE) "
               + "ON CONFLICT (id) DO NOTHING");
       statement.executeUpdate(
           """
-          INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note)
-          SELECT period, 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900,
+          INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note)
+          SELECT 1, period, 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900,
                  '2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.'
             FROM generate_series(DATE '2026-01-01', DATE '2026-08-01', INTERVAL '1 month') period
            WHERE NOT EXISTS (
                  SELECT 1
                    FROM investory.accounting_poc_tax_input input
-                  WHERE input.tax_period = period
+                  WHERE input.profile_id = 1 AND input.tax_period = period
                     AND input.input_type = 'JDG_COMPULSORY_SOCIAL_ZUS')
           """);
+      // Legacy golden tests exercise the calculation service directly. Keep their historical
+      // operational fixture isolated from the Flyway application baseline, which is empty by
+      // design after V01.013.
+      statement.execute(
+          """
+          INSERT INTO investory.accounting_poc_invoice
+            (id,tax_period,issue_date,sale_date,fx_rate_date,reference,customer_alias,invoice_kind,currency,
+             net_amount,vat_amount,gross_amount,correction_gross_amount,correction_net_amount,correction_vat_amount,
+             expected_receivable,booked_net_pln,ryczalt_rate,note,source_id,counterparty_tax_identifier,
+             counterparty_country,ksef_number,filing_evidence,profile_id)
+          SELECT id,tax_period,issue_date,sale_date,fx_rate_date,reference,counterparty_alias,invoice_kind,currency,
+                 net_amount,vat_amount,gross_amount,correction_gross_amount,correction_net_amount,correction_vat_amount,
+                 expected_receivable,booked_net_pln,ryczalt_rate,note,source_id,counterparty_tax_identifier,
+                 counterparty_country,ksef_number,filing_evidence,profile_id
+            FROM investory.accounting_reference_invoice
+           WHERE NOT EXISTS (SELECT 1 FROM investory.accounting_poc_invoice)
+          """);
+      statement.execute(
+          """
+          INSERT INTO investory.accounting_poc_expense_invoice
+            (id,tax_period,invoice_date,reference,supplier_alias,category,currency,net_amount,vat_amount,gross_amount,
+             vat_deduction_ratio,source_quality,note,source_id,counterparty_tax_identifier,counterparty_country,
+             ksef_number,filing_evidence,profile_id)
+          SELECT id,tax_period,invoice_date,reference,supplier_alias,category,currency,net_amount,vat_amount,gross_amount,
+                 vat_deduction_ratio,source_quality,note,source_id,counterparty_tax_identifier,counterparty_country,
+                 ksef_number,filing_evidence,profile_id
+            FROM investory.accounting_reference_expense_invoice
+           WHERE NOT EXISTS (SELECT 1 FROM investory.accounting_poc_expense_invoice)
+          """);
+      statement.execute(
+          """
+          INSERT INTO investory.accounting_poc_bank_transaction
+            (id,booking_date,related_period,reference,counterparty_alias,currency,amount,transaction_type,scope,note,
+             source_id,source_row_identity,provider,external_account_id,external_transaction_id,source_payload_hash,profile_id)
+          SELECT id,booking_date,related_period,reference,counterparty_alias,currency,amount,transaction_type,scope,note,
+                 source_id,source_row_identity,provider,external_account_id,external_transaction_id,source_payload_hash,profile_id
+            FROM investory.accounting_reference_bank_transaction
+           WHERE NOT EXISTS (SELECT 1 FROM investory.accounting_poc_bank_transaction)
+          """);
+      statement.execute(
+          """
+          INSERT INTO investory.accounting_poc_obligation
+            (profile_id,tax_period,obligation_type,due_date,expected_amount,paid_amount,payment_date,status,note)
+          SELECT 1,tax_period,obligation_type,due_date,expected_amount,paid_amount,payment_date,status,note
+            FROM investory.accounting_reference_obligation
+           WHERE NOT EXISTS (SELECT 1 FROM investory.accounting_poc_obligation)
+          """);
+      statement.execute(
+          """
+            INSERT INTO investory.accounting_poc_tax_input (profile_id,tax_period,input_type,amount,note)
+          SELECT 1,tax_period,input_type,amount,note
+            FROM investory.accounting_reference_tax_input
+           WHERE NOT EXISTS (
+                 SELECT 1 FROM investory.accounting_poc_tax_input current
+                  WHERE current.profile_id = 1 AND current.tax_period = accounting_reference_tax_input.tax_period
+                    AND current.input_type = accounting_reference_tax_input.input_type)
+          """);
+      statement.execute(
+          "SELECT setval('investory.accounting_poc_invoice_id_seq', COALESCE((SELECT max(id) FROM investory.accounting_poc_invoice), 1), true), setval('investory.accounting_poc_expense_invoice_id_seq', COALESCE((SELECT max(id) FROM investory.accounting_poc_expense_invoice), 1), true), setval('investory.accounting_poc_bank_transaction_id_seq', COALESCE((SELECT max(id) FROM investory.accounting_poc_bank_transaction), 1), true)");
     } catch (java.sql.SQLException exception) {
       throw new IllegalStateException("Cannot initialize accounting ZUS test fixture", exception);
     }

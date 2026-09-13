@@ -270,12 +270,13 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     assertThat(instructions.getFirst().amount()).isEqualByComparingTo("207");
     for (var instruction : instructions) {
       jdbcTemplate.update(
-          "INSERT INTO investory.accounting_poc_bank_transaction (booking_date, related_period, reference, counterparty_alias, currency, amount, transaction_type, scope, note) VALUES (?, ?, ?, 'TAX_AUTHORITY', 'PLN', ?, ?, 'BUSINESS', 'operational settlement payment')",
+          "INSERT INTO investory.accounting_poc_bank_transaction (booking_date, related_period, reference, counterparty_alias, currency, amount, transaction_type, scope, note, provider, external_account_id, external_transaction_id) VALUES (?, ?, ?, 'TAX_AUTHORITY', 'PLN', ?, ?, 'BUSINESS', 'operational settlement payment', 'TEST', 'TEST_ACCOUNT', ?)",
           instruction.dueDate().minusDays(1),
           july,
           "SETTLE-" + instruction.obligationType(),
           instruction.amount(),
-          instruction.obligationType() + "_PAYMENT");
+          instruction.obligationType() + "_PAYMENT",
+          "SETTLE-" + instruction.obligationType());
     }
     var snapshot = service.snapshot(july);
     var reconciliations =
@@ -474,15 +475,9 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         "DELETE FROM investory.accounting_poc_bank_transaction WHERE reference = 'E2E-BANK-INVOICE-REF'");
     jdbcTemplate.update("DELETE FROM investory.accounting_poc_tax_input WHERE note = 'E2E_TEST'");
     jdbcTemplate.update(
-        "DELETE FROM investory.accounting_source_evidence WHERE external_reference = 'E2E-KSEF-SEPTEMBER'");
-    jdbcTemplate.update(
         "DELETE FROM investory.accounting_poc_invoice WHERE reference = 'E2E-BANK-INVOICE-REF'");
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_poc_tax_input WHERE note = 'E2E_BANK_TEST'");
-    jdbcTemplate.update(
-        "DELETE FROM investory.accounting_source_evidence WHERE original_filename = 'e2e-bank.csv'");
-    jdbcTemplate.update(
-        "DELETE FROM investory.accounting_source_evidence WHERE external_reference = 'E2E-BANK-INVOICE'");
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_vat_transaction WHERE reference LIKE 'E2E-%'");
     jdbcTemplate.update(

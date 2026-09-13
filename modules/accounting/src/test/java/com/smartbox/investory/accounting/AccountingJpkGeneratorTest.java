@@ -47,6 +47,64 @@ class AccountingJpkGeneratorTest {
         .isEqualTo(LocalDate.of(2026, 10, 20));
   }
 
+  @Test
+  void doesNotReportExemptOrReverseChargeSalesAsDomesticVat() {
+    AccountingProfile taxpayer =
+        new AccountingProfile(
+            true,
+            "1010000000",
+            "POC",
+            "1215",
+            "a@b",
+            null,
+            null,
+            null,
+            "Jan",
+            "Kowalski",
+            LocalDate.of(1980, 1, 1));
+    AccountingFilingInput input =
+        new AccountingFilingInput(
+            LocalDate.of(2026, 9, 1),
+            snapshot().vat(),
+            snapshot().ryczalt(),
+            snapshot().zus(),
+            List.of(
+                new AccountingFilingInput.FilingDocument(
+                    "EXEMPT-1",
+                    LocalDate.of(2026, 9, 2),
+                    LocalDate.of(2026, 9, 2),
+                    null,
+                    "PL123",
+                    "Exempt customer",
+                    new BigDecimal("100"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    null,
+                    VatTreatment.VAT_EXEMPT,
+                    "PL"),
+                new AccountingFilingInput.FilingDocument(
+                    "EU-1",
+                    LocalDate.of(2026, 9, 3),
+                    LocalDate.of(2026, 9, 3),
+                    null,
+                    "DE123",
+                    "EU customer",
+                    new BigDecimal("200"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    null,
+                    VatTreatment.EU_B2B_REVERSE_CHARGE,
+                    "DE")),
+            List.of(),
+            taxpayer,
+            "JPK_V7M(3)");
+
+    String xml = new String(new AccountingJpkGenerator().generate(input));
+
+    assertThat(xml).contains("<K_10>100.00</K_10>", "<K_11>200.00</K_11>");
+    assertThat(xml).doesNotContain("<K_19>100.00</K_19>", "<K_20>200.00</K_20>");
+  }
+
   private AccountingMonthSnapshot snapshot() {
     return new AccountingMonthSnapshot(
         LocalDate.of(2026, 9, 1),

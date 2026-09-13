@@ -91,6 +91,9 @@ After private deployment, freeze major features and monitor the real system befo
 
 These are deliberately outside the private-production critical path:
 
+- production-grade multi-profile Accounting: scope canonical facts, staging/source evidence, filing
+  state, uniqueness constraints and repositories by profile, with isolation tests; the current
+  Accounting POC intentionally remains single-profile and rejects other profiles;
 - notification UI, replay/mute UX, weekly digest, and additional notification rules;
 - positions workspace, richer asset detail, profit-copy cleanup, optional enrichment, and mobile UX;
 - import progress SSE, additional broker parsers, stronger partial-overlap reporting, and import

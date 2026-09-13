@@ -23,15 +23,19 @@ public class AccountingUserFacade implements AccountingUserApi {
   private final AccountingPocRepository repository;
   private final AccountingSourceEvidenceService sources;
   private final AccountingInvoiceRecognitionService recognition;
+  private final AccountingDocumentExtractionService extraction;
   private final com.smartbox.investory.accounting.staging.AccountingStagingAcquisitionService
       staging;
+  private final com.smartbox.investory.accounting.staging.AccountingStagingReconciliationService
+      stagingReconciliation;
   private final com.smartbox.investory.accounting.staging.AccountingBankStagingImportService
       bankImport;
   private final Optional<AccountingKsefSyncPort> ksef;
+  private final AccountingPeriodLifecycle periodLifecycle = new AccountingPeriodLifecycle();
 
   private void profile(long profileId) {
-    if (profileId != 1)
-      throw new IllegalArgumentException("Unknown accounting profile: " + profileId);
+    if (profileId <= 0 || !repository.profileExists(profileId))
+      throw new IllegalArgumentException("Unknown accounting profile");
   }
 
   private java.time.LocalDate date(YearMonth month) {
@@ -41,10 +45,10 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<MonthRef> months(long profileId) {
     profile(profileId);
-    return facts.availablePeriods().stream()
+    return facts.availablePeriods(profileId).stream()
         .map(
             d -> {
-              var state = repository.periodState(d);
+              var state = repository.periodState(profileId, d);
               var status = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
               return new MonthRef(
                   YearMonth.from(d),
@@ -58,17 +62,25 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public MonthOverview overview(long profileId, YearMonth month) {
     profile(profileId);
-    var snapshot = facts.snapshot(date(month));
-    var state = repository.periodState(date(month));
+    var snapshot = facts.snapshot(profileId, date(month));
+    var state = repository.periodState(profileId, date(month));
     var lifecycle = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
-    var outcomes = sources.outcomes(date(month));
-    var filingIssues = filing.filing(date(month)).issues();
+    var outcomes = sources.outcomes(profileId, date(month));
+    var filingIssues = filing.filing(profileId, date(month)).issues();
+    var stagingState = stagingReconciliation.summary(profileId, date(month));
+    boolean acquired =
+        !outcomes.isEmpty()
+            || stagingState.readyToPromote() > 0
+            || stagingState.blockingCount() > 0
+            || !snapshot.invoices().isEmpty()
+            || !snapshot.expenses().isEmpty()
+            || !snapshot.bankTransactions().isEmpty();
     int imported = (int) outcomes.stream().filter(o -> "IMPORTED".equals(o.status())).count();
     int review = (int) outcomes.stream().filter(o -> "REVIEW_REQUIRED".equals(o.status())).count();
     int failed = (int) outcomes.stream().filter(o -> "FAILED".equals(o.status())).count();
-    var issues = issues(snapshot, outcomes, filingIssues);
-    var payments = paymentInstructions(date(month));
-    var filingResult = filing.filing(date(month));
+    var issues = acquired ? issues(snapshot, outcomes, filingIssues) : List.<IssueView>of();
+    var payments = paymentInstructions(profileId, date(month));
+    var filingResult = filing.filing(profileId, date(month));
     var reconciliations = snapshot.reconciliations();
     int unmatched =
         (int)
@@ -79,8 +91,8 @@ public class AccountingUserFacade implements AccountingUserApi {
         month,
         lifecycle.name(),
         label(lifecycle),
-        next(lifecycle, issues),
-        nextLabel(lifecycle, issues),
+        periodLifecycle.nextAction(lifecycle, acquired, !issues.isEmpty()).name(),
+        nextLabel(periodLifecycle.nextAction(lifecycle, acquired, !issues.isEmpty())),
         new Summary(
             snapshot.totalBookedRevenuePln(),
             snapshot.vat().calculatedVat(),
@@ -117,23 +129,23 @@ public class AccountingUserFacade implements AccountingUserApi {
             filingResult.ready(),
             filingResult.issues(),
             repository
-                .filingArtifact(date(month), "JPK_V7M")
+                .filingArtifact(profileId, date(month), "JPK_V7M")
                 .map(a -> a.status().name())
                 .orElse("MISSING"),
             repository
-                .filingArtifact(date(month), "JPK_V7M")
+                .filingArtifact(profileId, date(month), "JPK_V7M")
                 .map(a -> a.generatedAt().toString())
                 .orElse(null),
             repository
-                .authorityConfirmation(date(month), "JPK_UPO")
+                .authorityConfirmation(profileId, date(month), "JPK_UPO")
                 .map(a -> a.status().name())
                 .orElse("MISSING"),
             repository
-                .authorityConfirmation(date(month), "JPK_UPO")
+                .authorityConfirmation(profileId, date(month), "JPK_UPO")
                 .map(AuthorityConfirmation::externalReference)
                 .orElse(null),
             repository
-                .authorityConfirmation(date(month), "JPK_UPO")
+                .authorityConfirmation(profileId, date(month), "JPK_UPO")
                 .map(a -> a.receivedAt().toString())
                 .orElse(null)),
         new ReconciliationSummary(
@@ -156,27 +168,34 @@ public class AccountingUserFacade implements AccountingUserApi {
                             row.explanation() != null
                                 && row.explanation().toLowerCase().contains("evidence"))
                     .count()),
-        allowedActions(lifecycle, issues));
+        periodLifecycle.allowedActions(lifecycle, acquired, !issues.isEmpty()),
+        repository
+            .referenceMonth(profileId, date(month))
+            .map(
+                r ->
+                    new ReferenceSummary(
+                        true,
+                        r.revenue(),
+                        r.expenses(),
+                        r.outputVat(),
+                        r.deductibleInputVat(),
+                        r.vatPayable(),
+                        r.ryczalt(),
+                        r.zus(),
+                        r.documentCount(),
+                        r.bankCount(),
+                        r.filingStatus()))
+            .orElse(
+                new ReferenceSummary(false, null, null, null, null, null, null, null, 0, 0, null)));
   }
 
-  private List<AccountingPaymentInstruction> paymentInstructions(java.time.LocalDate period) {
+  private List<AccountingPaymentInstruction> paymentInstructions(
+      long profileId, java.time.LocalDate period) {
     try {
-      return filing.paymentInstructions(period);
+      return filing.paymentInstructions(profileId, period);
     } catch (RuntimeException ignored) {
       return List.of();
     }
-  }
-
-  private static List<String> allowedActions(
-      PeriodLifecycleStatus lifecycle, List<IssueView> issues) {
-    if (!issues.isEmpty()) return List.of();
-    return switch (lifecycle) {
-      case OPEN, SOURCES_INCOMPLETE, ISSUES, READY_FOR_REVIEW -> List.of("CONFIRM");
-      case CONFIRMED -> List.of("FILE");
-      case FILED, PAID -> List.of("SETTLE");
-      case SETTLED -> List.of("LOCK");
-      case LOCKED -> List.of("REOPEN");
-    };
   }
 
   private List<IssueView> issues(
@@ -225,7 +244,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<DocumentView> documents(long p, YearMonth m) {
     profile(p);
-    var s = facts.snapshot(date(m));
+    var s = facts.snapshot(p, date(m));
     return java.util.stream.Stream.concat(
             s.invoices().stream().map(this::document), s.expenses().stream().map(this::document))
         .toList();
@@ -258,7 +277,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<BankTransactionView> bankTransactions(long p, YearMonth m) {
     profile(p);
-    return facts.snapshot(date(m)).bankTransactions().stream().map(this::bank).toList();
+    return facts.snapshot(p, date(m)).bankTransactions().stream().map(this::bank).toList();
   }
 
   private BankTransactionView bank(BankRow r) {
@@ -269,7 +288,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<PaymentView> payments(long p, YearMonth m) {
     profile(p);
-    return paymentInstructions(date(m)).stream()
+    return paymentInstructions(p, date(m)).stream()
         .map(
             x ->
                 new PaymentView(
@@ -285,10 +304,10 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public FilingView filings(long p, YearMonth m) {
     profile(p);
-    var f = filing.filing(date(m));
-    var state = repository.periodState(date(m));
-    var artifact = repository.filingArtifact(date(m), "JPK_V7M");
-    var upo = repository.authorityConfirmation(date(m), "JPK_UPO");
+    var f = filing.filing(p, date(m));
+    var state = repository.periodState(p, date(m));
+    var artifact = repository.filingArtifact(p, date(m), "JPK_V7M");
+    var upo = repository.authorityConfirmation(p, date(m), "JPK_UPO");
     return new FilingView(
         state == null ? "OPEN" : state.lifecycleStatus().name(),
         state == null ? label(PeriodLifecycleStatus.OPEN) : label(state.lifecycleStatus()),
@@ -305,7 +324,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<ReconciliationView> reconciliation(long p, YearMonth m) {
     profile(p);
-    return facts.snapshot(date(m)).reconciliations().stream().map(this::reconciliation).toList();
+    return facts.snapshot(p, date(m)).reconciliations().stream().map(this::reconciliation).toList();
   }
 
   private ReconciliationView reconciliation(ReconciliationRow r) {
@@ -321,9 +340,13 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public CandidateView recognize(long p, String filename, String contentType, byte[] content) {
     profile(p);
-    long id = sources.receiveUpload(filename, contentType, content);
+    long id = sources.receiveUpload(p, filename, contentType, content);
     try {
+      if (sources.status(id) == AccountingSourceStatus.FAILED) sources.retry(id);
       RecognizedInvoice r = recognition.recognize(filename, contentType, content);
+      if (r == null) {
+        throw new IllegalStateException("Invoice recognition returned no result");
+      }
       boolean requiresReview = "UNKNOWN".equals(r.documentType());
       sources.status(
           id,
@@ -338,6 +361,8 @@ public class AccountingUserFacade implements AccountingUserApi {
           r.reference(),
           r.seller(),
           r.buyer(),
+          r.sellerNip(),
+          r.buyerNip(),
           r.category(),
           r.currency(),
           r.netAmount(),
@@ -352,13 +377,45 @@ public class AccountingUserFacade implements AccountingUserApi {
   }
 
   @Override
+  public CandidateView reviewSource(long p, String sourceReference) {
+    profile(p);
+    var source =
+        sources
+            .findSource(p, AccountingSourceType.KSEF, sourceReference)
+            .filter(row -> row.status() == AccountingSourceStatus.REVIEW_REQUIRED)
+            .orElseThrow(() -> new IllegalArgumentException("KSeF review source is not available"));
+    var result =
+        extraction.extract(
+            new AccountingSourceDocument(
+                source.originalFilename(), source.contentType(), source.payload()));
+    var candidate = result.candidate();
+    if (candidate == null)
+      throw new IllegalArgumentException("KSeF source could not be parsed for review");
+    return new CandidateView(
+        sourceReference,
+        candidate.documentType(),
+        candidate.issueDate(),
+        candidate.saleDate(),
+        candidate.dueDate(),
+        candidate.reference(),
+        candidate.seller(),
+        candidate.buyer(),
+        candidate.sellerNip(),
+        candidate.buyerNip(),
+        candidate.suggestedCategory(),
+        candidate.currency(),
+        candidate.netAmount(),
+        candidate.vatAmount(),
+        candidate.grossAmount(),
+        "KSeF source requires accounting review",
+        "REVIEW_REQUIRED");
+  }
+
+  @Override
   public void saveReviewed(long p, ReviewedDocument d) {
     profile(p);
     try {
-      long sourceId =
-          sources
-              .findId(AccountingSourceType.UPLOAD, d.sourceReference())
-              .orElseThrow(() -> new IllegalArgumentException("Upload source evidence is missing"));
+      var source = findReviewedSource(p, d.sourceReference());
       staging.stageInvoice(
           p,
           new AccountingInvoiceIngestionService.ReviewedInvoice(
@@ -376,22 +433,43 @@ public class AccountingUserFacade implements AccountingUserApi {
               d.vatDeductionRatio(),
               "REVIEWED",
               d.note(),
-              Long.toString(sourceId),
+              Long.toString(source.id()),
               d.counterpartyTaxIdentifier(),
-              null,
-              null,
-              null),
-          d.vatTreatment());
+              source.type() == AccountingSourceType.KSEF ? "PL" : d.counterpartyCountry(),
+              source.type() == AccountingSourceType.KSEF ? source.externalReference() : null,
+              source.type() == AccountingSourceType.KSEF
+                  ? new AccountingFilingEvidence(
+                      AccountingFilingEvidence.Type.KSEF, source.externalReference())
+                  : null,
+              d.dueDate()),
+          normalizeVatTreatment(d.documentType(), d.vatTreatment()));
       // Staging is intentionally not reported as canonical IMPORTED data.
     } catch (RuntimeException exception) {
       sources
-          .findId(AccountingSourceType.UPLOAD, d.sourceReference())
+          .findId(p, AccountingSourceType.UPLOAD, d.sourceReference())
+          .or(() -> sources.findId(p, AccountingSourceType.KSEF, d.sourceReference()))
           .ifPresent(
               id ->
                   sources.status(
                       id, AccountingSourceStatus.REVIEW_REQUIRED, exception.getMessage()));
       throw exception;
     }
+  }
+
+  private AccountingSourceRepository.SourceRow findReviewedSource(
+      long profileId, String reference) {
+    return sources
+        .findSource(profileId, AccountingSourceType.UPLOAD, reference)
+        .or(() -> sources.findSource(profileId, AccountingSourceType.KSEF, reference))
+        .orElseThrow(() -> new IllegalArgumentException("Source evidence is missing"));
+  }
+
+  private String normalizeVatTreatment(String documentType, String vatTreatment) {
+    if (("PURCHASE_INVOICE".equals(documentType) || "RECEIPT".equals(documentType))
+        && "DOMESTIC_VAT".equals(vatTreatment)) {
+      return "DOMESTIC_PURCHASE";
+    }
+    return vatTreatment;
   }
 
   @Override
@@ -413,7 +491,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public AccountingUserApi.FilingArtifactView generateJpk(long p, YearMonth m) {
     profile(p);
-    filing.jpk(date(m));
+    filing.jpk(p, date(m));
     return artifact(p, m);
   }
 
@@ -421,7 +499,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   public java.util.Optional<AccountingUserApi.FilingArtifactView> filingArtifact(
       long p, YearMonth m) {
     profile(p);
-    return repository.filingArtifact(date(m), "JPK_V7M").map(this::artifactView);
+    return repository.filingArtifact(p, date(m), "JPK_V7M").map(this::artifactView);
   }
 
   private AccountingUserApi.FilingArtifactView artifact(long p, YearMonth m) {
@@ -446,6 +524,7 @@ public class AccountingUserFacade implements AccountingUserApi {
     if (input == null || input.confirmationType() == null || input.status() == null)
       throw new IllegalArgumentException("Confirmation type and status are required");
     filing.recordAuthorityConfirmation(
+        p,
         new AuthorityConfirmation(
             "MANUAL",
             input.obligationOrArtifactType() == null ? "JPK_V7M" : input.obligationOrArtifactType(),
@@ -462,31 +541,31 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public void confirm(long p, YearMonth m) {
     profile(p);
-    filing.confirm(date(m));
+    filing.confirm(p, date(m));
   }
 
   @Override
   public void file(long p, YearMonth m) {
     profile(p);
-    filing.markFiled(date(m));
+    filing.markFiled(p, date(m));
   }
 
   @Override
   public void settle(long p, YearMonth m) {
     profile(p);
-    filing.settle(date(m));
+    filing.settle(p, date(m));
   }
 
   @Override
   public void lock(long p, YearMonth m) {
     profile(p);
-    filing.lock(date(m));
+    filing.lock(p, date(m));
   }
 
   @Override
   public void reopen(long p, YearMonth m, String reason) {
     profile(p);
-    filing.reopen(date(m), reason);
+    filing.reopen(p, date(m), reason);
   }
 
   private String hash(byte[] value) {
@@ -514,26 +593,14 @@ public class AccountingUserFacade implements AccountingUserApi {
     };
   }
 
-  private static String next(PeriodLifecycleStatus s, List<IssueView> i) {
-    if (!i.isEmpty()) return "REVIEW";
-    return switch (s) {
-      case OPEN, SOURCES_INCOMPLETE, ISSUES, READY_FOR_REVIEW -> "CONFIRM";
-      case CONFIRMED -> "FILE";
-      case FILED -> "PAY";
-      case PAID -> "SETTLE";
-      case SETTLED -> "LOCK";
-      case LOCKED -> "NONE";
-    };
-  }
-
-  private static String nextLabel(PeriodLifecycleStatus s, List<IssueView> i) {
-    return switch (next(s, i)) {
-      case "REVIEW" -> "Review issues";
-      case "CONFIRM" -> "Confirm month";
-      case "FILE" -> "Record filing";
-      case "PAY" -> "Record payments";
-      case "SETTLE" -> "Settle month";
-      case "LOCK" -> "Lock month";
+  private static String nextLabel(AccountingPeriodLifecycle.NextAction action) {
+    return switch (action) {
+      case WAITING_FOR_SOURCE -> "Waiting for source data";
+      case REVIEW -> "Review issues";
+      case CONFIRM -> "Confirm month";
+      case FILE -> "Record filing";
+      case SETTLE -> "Settle month";
+      case LOCK -> "Lock month";
       default -> "No action";
     };
   }

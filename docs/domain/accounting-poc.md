@@ -249,11 +249,11 @@ sales adjustments in the same normalized invoice table; the historical July corr
 only special fixture treatment.
 
 The user-facing `/accounting` page reads only `months` and the aggregate monthly `overview` over the
-HTTP `AccountingRestClient` boundary. Detailed documents, bank transactions, payments, filings and
-reconciliation endpoints remain available separately. Page mutations (month lifecycle actions,
-document recognition/review and bank CSV import) also go through that REST client. Server-side REST
-authorization is authoritative; `PROFILE_USER` is read-only in the UI while administrators and
-profile owners see mutation controls.
+typed application boundary. Detailed documents, bank transactions, payments, filings and
+reconciliation endpoints remain available separately. Page mutations use the same application
+services in-process; the UI does not call the application over localhost HTTP. Server-side profile
+authorization remains authoritative; `PROFILE_USER` is read-only in the UI while administrators and
+profile owners see mutation controls. The POC supports only `profileId=1`.
 
 ## Filing output
 

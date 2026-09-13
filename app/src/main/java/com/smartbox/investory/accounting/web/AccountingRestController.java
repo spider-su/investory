@@ -150,8 +150,16 @@ public class AccountingRestController {
       @PathVariable long profileId, @RequestPart MultipartFile file, Authentication a)
       throws java.io.IOException {
     write(profileId, a);
+    validateUpload(file, "application/pdf", "image/jpeg", "image/png", "image/webp");
     return accounting.recognize(
         profileId, file.getOriginalFilename(), file.getContentType(), file.getBytes());
+  }
+
+  @GetMapping("/documents/review")
+  public AccountingUserApi.CandidateView reviewSource(
+      @PathVariable long profileId, @RequestParam String sourceReference, Authentication a) {
+    read(profileId, a);
+    return accounting.reviewSource(profileId, sourceReference);
   }
 
   @PostMapping("/documents")
@@ -171,6 +179,7 @@ public class AccountingRestController {
       Authentication a)
       throws java.io.IOException {
     write(profileId, a);
+    validateUpload(file, "text/csv", "application/csv", "application/vnd.ms-excel");
     accounting.importBank(
         profileId, file.getOriginalFilename(), file.getContentType(), file.getBytes(), month);
   }
@@ -228,5 +237,16 @@ public class AccountingRestController {
     if (!authorization.canWrite(p, a))
       throw new org.springframework.web.server.ResponseStatusException(
           org.springframework.http.HttpStatus.FORBIDDEN);
+  }
+
+  private void validateUpload(MultipartFile file, String... contentTypes) {
+    if (file == null || file.isEmpty())
+      throw new IllegalArgumentException("Uploaded file is empty");
+    if (file.getSize() > 12L * 1024 * 1024)
+      throw new IllegalArgumentException("Uploaded file exceeds the 12 MB limit");
+    String contentType = file.getContentType();
+    if (contentType != null
+        && java.util.Arrays.stream(contentTypes).noneMatch(contentType::equalsIgnoreCase))
+      throw new IllegalArgumentException("Unsupported uploaded file type");
   }
 }

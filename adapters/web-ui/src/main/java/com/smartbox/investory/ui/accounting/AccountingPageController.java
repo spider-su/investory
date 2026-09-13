@@ -79,6 +79,7 @@ public class AccountingPageController {
       Model model,
       jakarta.servlet.http.HttpServletRequest request) {
     try {
+      validateUpload(file, "application/pdf", "image/jpeg", "image/png", "image/webp");
       var candidate =
           client.recognize(
               profileId, file.getOriginalFilename(), file.getContentType(), file.getBytes());
@@ -92,6 +93,27 @@ public class AccountingPageController {
       return redirect(profileId, month);
     } catch (java.io.IOException exception) {
       redirect.addFlashAttribute("accountingError", "Cannot read the uploaded document.");
+      return redirect(profileId, month);
+    }
+  }
+
+  @GetMapping("/accounting/documents/review")
+  public String reviewSource(
+      long profileId,
+      YearMonth month,
+      @RequestParam String sourceReference,
+      Model model,
+      jakarta.servlet.http.HttpServletRequest request,
+      RedirectAttributes redirect) {
+    try {
+      var candidate = client.reviewSource(profileId, sourceReference);
+      model.addAttribute("profileId", profileId);
+      model.addAttribute("selectedMonth", month);
+      model.addAttribute("candidate", candidate);
+      model.addAttribute("canWrite", canWrite(request));
+      return "accounting/review";
+    } catch (RuntimeException exception) {
+      redirect.addFlashAttribute("accountingError", safeMessage(exception));
       return redirect(profileId, month);
     }
   }
@@ -115,6 +137,7 @@ public class AccountingPageController {
   public String importBank(
       long profileId, YearMonth month, MultipartFile file, RedirectAttributes redirect) {
     try {
+      validateUpload(file, "text/csv", "application/csv", "application/vnd.ms-excel");
       client.importBank(
           profileId, file.getOriginalFilename(), file.getContentType(), file.getBytes(), month);
       redirect.addFlashAttribute("accountingMessage", "Bank file staged for reconciliation.");
@@ -130,9 +153,14 @@ public class AccountingPageController {
   public String syncKsef(long profileId, YearMonth month, RedirectAttributes redirect) {
     try {
       var result = client.syncKsef(profileId, month);
-      redirect.addFlashAttribute("accountingMessage", result.message());
       if ("NOT_CONFIGURED".equals(result.status())) {
         redirect.addFlashAttribute("accountingError", "KSeF is not configured.");
+      } else if (result.failed() > 0) {
+        redirect.addFlashAttribute("accountingError", result.message());
+      } else if (result.reviewRequired() > 0) {
+        redirect.addFlashAttribute("accountingWarning", result.message());
+      } else {
+        redirect.addFlashAttribute("accountingMessage", result.message());
       }
     } catch (RuntimeException exception) {
       redirect.addFlashAttribute("accountingError", safeMessage(exception));
@@ -243,6 +271,25 @@ public class AccountingPageController {
   private String safeMessage(RuntimeException exception) {
     String message = exception.getMessage();
     if (message == null || message.isBlank()) return "Accounting action failed.";
-    return message.replaceAll("(?i)password|secret|token|sql", "[redacted]");
+    if (exception instanceof IllegalArgumentException) return message;
+    return switch (exception) {
+      case org.springframework.web.client.RestClientException ignored ->
+          "Accounting service is temporarily unavailable.";
+      case org.springframework.web.server.ResponseStatusException status
+          when status.getStatusCode().is4xxClientError() ->
+          "Accounting request needs attention.";
+      default -> "Accounting action failed.";
+    };
+  }
+
+  private void validateUpload(MultipartFile file, String... contentTypes) {
+    if (file == null || file.isEmpty())
+      throw new IllegalArgumentException("Uploaded file is empty");
+    if (file.getSize() > 12L * 1024 * 1024)
+      throw new IllegalArgumentException("Uploaded file exceeds the 12 MB limit");
+    String contentType = file.getContentType();
+    if (contentType != null
+        && java.util.Arrays.stream(contentTypes).noneMatch(contentType::equalsIgnoreCase))
+      throw new IllegalArgumentException("Unsupported uploaded file type");
   }
 }

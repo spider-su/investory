@@ -10,6 +10,29 @@ import org.junit.jupiter.api.Test;
 
 class AccountingVatAndLifecycleTest {
   @Test
+  void nextActionMatrixKeepsLifecycleRulesInOnePlace() {
+    var lifecycle = new AccountingPeriodLifecycle();
+    assertThat(lifecycle.nextAction(PeriodLifecycleStatus.OPEN, false, false))
+        .isEqualTo(AccountingPeriodLifecycle.NextAction.WAITING_FOR_SOURCE);
+    assertThat(lifecycle.nextAction(PeriodLifecycleStatus.SOURCES_INCOMPLETE, true, true))
+        .isEqualTo(AccountingPeriodLifecycle.NextAction.REVIEW);
+    assertThat(lifecycle.nextAction(PeriodLifecycleStatus.READY_FOR_REVIEW, true, false))
+        .isEqualTo(AccountingPeriodLifecycle.NextAction.CONFIRM);
+    assertThat(lifecycle.nextAction(PeriodLifecycleStatus.CONFIRMED, true, false))
+        .isEqualTo(AccountingPeriodLifecycle.NextAction.FILE);
+    assertThat(lifecycle.nextAction(PeriodLifecycleStatus.FILED, true, false))
+        .isEqualTo(AccountingPeriodLifecycle.NextAction.SETTLE);
+    assertThat(lifecycle.nextAction(PeriodLifecycleStatus.PAID, true, false))
+        .isEqualTo(AccountingPeriodLifecycle.NextAction.SETTLE);
+    assertThat(lifecycle.nextAction(PeriodLifecycleStatus.SETTLED, true, false))
+        .isEqualTo(AccountingPeriodLifecycle.NextAction.LOCK);
+    assertThat(lifecycle.nextAction(PeriodLifecycleStatus.LOCKED, true, false))
+        .isEqualTo(AccountingPeriodLifecycle.NextAction.NONE);
+    assertThat(lifecycle.reopen(PeriodLifecycleStatus.LOCKED, "correct source"))
+        .isEqualTo(PeriodLifecycleStatus.OPEN);
+  }
+
+  @Test
   void vatEuRequiresReviewedIdentityEvidenceAndIsNotRequiredWithoutRows() {
     var exporter = new AccountingVatEuExporter();
     assertThat(exporter.export(LocalDate.of(2026, 9, 1), List.of()).status())

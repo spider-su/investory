@@ -18,6 +18,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 @Configuration
 @EnableWebSecurity
@@ -27,9 +29,21 @@ public class SecurityConfig {
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       @Value("${app.security.read-authentication-required:true}")
-          boolean readAuthenticationRequired) {
+          boolean readAuthenticationRequired,
+      @Value("${app.security.csrf-protection-required:true}") boolean csrfProtectionRequired,
+      @Value("${app.security.legacy-accounting-write-enabled:false}")
+          boolean legacyAccountingWriteEnabled) {
     var authorization =
-        http.csrf(AbstractHttpConfigurer::disable)
+        http.csrf(
+                csrf -> {
+                  if (csrfProtectionRequired) {
+                    csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                        .ignoringRequestMatchers("/api/**");
+                  } else {
+                    csrf.disable();
+                  }
+                })
             .sessionManagement(
                 session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(
@@ -54,10 +68,15 @@ public class SecurityConfig {
                         .requestMatchers(
                             HttpMethod.POST, "/api/v1/portfolios/*/investment/imports/**")
                         .hasAnyRole("ADMIN", "PROFILE_OWNER")
-                        .requestMatchers(HttpMethod.POST, "/poc/accounting/**")
-                        .hasAnyRole("ADMIN", "PROFILE_OWNER")
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/**")
                         .hasRole("ADMIN"));
+
+    authorization.authorizeHttpRequests(
+        auth -> {
+          var legacyAccounting = auth.requestMatchers(HttpMethod.POST, "/poc/accounting/**");
+          if (legacyAccountingWriteEnabled) legacyAccounting.authenticated();
+          else legacyAccounting.denyAll();
+        });
 
     if (readAuthenticationRequired) {
       authorization.authorizeHttpRequests(

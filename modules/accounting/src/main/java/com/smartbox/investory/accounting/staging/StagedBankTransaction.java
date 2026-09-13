@@ -14,6 +14,7 @@ public record StagedBankTransaction(
     String externalTransactionId,
     LocalDate bookingDate,
     LocalDate valueDate,
+    LocalDate relatedPeriod,
     BigDecimal amount,
     String currency,
     String counterpartyName,

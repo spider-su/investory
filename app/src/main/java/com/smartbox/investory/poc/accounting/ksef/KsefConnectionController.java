@@ -1,7 +1,9 @@
 package com.smartbox.investory.poc.accounting.ksef;
 
+import com.smartbox.investory.accounting.AccountingFilingEvidence;
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
+import com.smartbox.investory.accounting.AccountingPocRepository;
 import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.accounting.AccountingSourceType;
@@ -13,11 +15,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import tools.jackson.databind.JsonNode;
@@ -37,25 +40,28 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
   private final AccountingInvoiceIngestionService invoiceIngestionService;
   private final ObjectMapper objectMapper;
   private final AccountingSourceEvidenceService sourceEvidenceService;
+  private final AccountingPocRepository canonicalRepository;
 
   @Autowired
   public KsefConnectionController(
       com.smartbox.investory.integrations.ksef.KsefClient client,
-      @Value("${app.ksef.environment:TEST}") KsefEnvironment environment,
+      @Value("${app.ksef.environment:TEST}") String environment,
       @Value("${app.ksef.nip:}") String nip,
       @Value("${app.ksef.token:}") String token,
       KsefInvoiceXmlParser invoiceParser,
       AccountingInvoiceIngestionService invoiceIngestionService,
       ObjectMapper objectMapper,
-      AccountingSourceEvidenceService sourceEvidenceService) {
+      AccountingSourceEvidenceService sourceEvidenceService,
+      AccountingPocRepository canonicalRepository) {
     this.client = client;
-    this.environment = environment;
+    this.environment = KsefEnvironment.parse(environment);
     this.nip = nip;
     this.token = token;
     this.invoiceParser = invoiceParser;
     this.invoiceIngestionService = invoiceIngestionService;
     this.objectMapper = objectMapper;
     this.sourceEvidenceService = sourceEvidenceService;
+    this.canonicalRepository = canonicalRepository;
   }
 
   public KsefConnectionController(
@@ -63,7 +69,7 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
       KsefEnvironment environment,
       String nip,
       String token) {
-    this(client, environment, nip, token, null, null, null, null);
+    this(client, environment.name(), nip, token, null, null, null, null, null);
   }
 
   public KsefConnectionController(
@@ -74,10 +80,43 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
       KsefInvoiceXmlParser parser,
       AccountingInvoiceIngestionService ingestion,
       ObjectMapper objectMapper) {
-    this(client, environment, nip, token, parser, ingestion, objectMapper, null);
+    this(client, environment.name(), nip, token, parser, ingestion, objectMapper, null, null);
   }
 
-  @PostMapping("/poc/accounting/ksef/test-connection")
+  public KsefConnectionController(
+      com.smartbox.investory.integrations.ksef.KsefClient client,
+      KsefEnvironment environment,
+      String nip,
+      String token,
+      KsefInvoiceXmlParser parser,
+      AccountingInvoiceIngestionService ingestion,
+      ObjectMapper objectMapper,
+      AccountingSourceEvidenceService sources) {
+    this(client, environment.name(), nip, token, parser, ingestion, objectMapper, sources, null);
+  }
+
+  public KsefConnectionController(
+      com.smartbox.investory.integrations.ksef.KsefClient client,
+      KsefEnvironment environment,
+      String nip,
+      String token,
+      KsefInvoiceXmlParser parser,
+      AccountingInvoiceIngestionService ingestion,
+      ObjectMapper objectMapper,
+      AccountingSourceEvidenceService sources,
+      AccountingPocRepository canonicalRepository) {
+    this(
+        client,
+        environment.name(),
+        nip,
+        token,
+        parser,
+        ingestion,
+        objectMapper,
+        sources,
+        canonicalRepository);
+  }
+
   public String testConnection(
       @RequestParam(required = false) String month, RedirectAttributes redirectAttributes) {
     try {
@@ -95,39 +134,21 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
     return redirectToAccounting(month);
   }
 
-  @PostMapping("/poc/accounting/ksef/read-invoices")
   public String readInvoices(
       @RequestParam(required = false) String month, RedirectAttributes redirectAttributes) {
     try {
       validateToken();
       LocalDate selectedMonth = parseMonth(month);
       KsefAccess access = client.authenticateWithToken(environment, nip, token);
-      List<String> pages = new ArrayList<>();
+      List<String> pages =
+          queryIncomingPages(access.accessToken(), java.time.YearMonth.from(selectedMonth));
       List<String> ksefNumbers = new ArrayList<>();
-      for (int page = 0; page < KSEF_MAX_PAGES; page++) {
-        String invoices =
-            client.queryIncomingInvoices(
-                environment,
-                access.accessToken(),
-                selectedMonth.atStartOfDay().atOffset(ZoneOffset.UTC),
-                selectedMonth.plusMonths(1).atStartOfDay().atOffset(ZoneOffset.UTC),
-                page,
-                KSEF_PAGE_SIZE);
-        pages.add(invoices);
-        List<String> pageNumbers = extractKsefNumbers(invoices);
-        ksefNumbers.addAll(pageNumbers);
-        if (pageNumbers.size() < KSEF_PAGE_SIZE) break;
-      }
+      pages.forEach(page -> ksefNumbers.addAll(extractKsefNumbers(page)));
       ImportResult result =
           importIncomingInvoices(access.accessToken(), selectedMonth, ksefNumbers);
       redirectAttributes.addFlashAttribute("ksefInvoicesJson", mergePages(pages));
       redirectAttributes.addFlashAttribute(
-          "ksefConnectionMessage",
-          "KSeF metadata read; imported "
-              + result.imported()
-              + " new invoice(s); skipped "
-              + (result.duplicates() + result.reviewRequired() + result.failed())
-              + ".");
+          "ksefConnectionMessage", importSummary("KSeF metadata read", result));
     } catch (RuntimeException exception) {
       redirectAttributes.addFlashAttribute(
           "ksefInvoiceReadError", "KSeF invoice read failed: " + safeMessage(exception));
@@ -139,21 +160,22 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
   public AccountingUserApi.KsefSyncResult sync(java.time.YearMonth month) {
     validateToken();
     KsefAccess access = client.authenticateWithToken(environment, nip, token);
-    List<String> numbers = new ArrayList<>();
-    for (int page = 0; page < KSEF_MAX_PAGES; page++) {
-      String metadata =
-          client.queryIncomingInvoices(
-              environment,
-              access.accessToken(),
-              month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC),
-              month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC),
-              page,
-              KSEF_PAGE_SIZE);
-      List<String> pageNumbers = extractKsefNumbers(metadata);
-      numbers.addAll(pageNumbers);
-      if (pageNumbers.size() < KSEF_PAGE_SIZE) break;
+    ImportResult result = new ImportResult(0, 0, 0, 0, 0);
+    java.time.YearMonth cursor = month;
+    while (!cursor.isBefore(java.time.YearMonth.of(month.getYear(), 1))) {
+      List<String> numbers = new ArrayList<>();
+      queryIncomingPages(access.accessToken(), cursor)
+          .forEach(page -> numbers.addAll(extractKsefNumbers(page)));
+      Set<String> uniqueNumbers = new LinkedHashSet<>(numbers);
+      boolean alreadyLoaded =
+          !uniqueNumbers.isEmpty() && uniqueNumbers.stream().allMatch(this::canonicalExists);
+      result =
+          result.plus(
+              importIncomingInvoices(
+                  access.accessToken(), cursor.atDay(1), new ArrayList<>(uniqueNumbers)));
+      if (alreadyLoaded) break;
+      cursor = cursor.minusMonths(1);
     }
-    ImportResult result = importIncomingInvoices(access.accessToken(), month.atDay(1), numbers);
     return new AccountingUserApi.KsefSyncResult(
         "COMPLETED",
         result.received(),
@@ -161,11 +183,46 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
         result.duplicates(),
         result.reviewRequired(),
         result.failed(),
-        "KSeF sync completed: "
-            + result.imported()
-            + " imported, "
-            + result.duplicates()
-            + " duplicates.");
+        importSummary("KSeF sync finished", result));
+  }
+
+  private String importSummary(String prefix, ImportResult result) {
+    return prefix
+        + ": "
+        + result.received()
+        + " received, "
+        + result.imported()
+        + " imported, "
+        + result.duplicates()
+        + " duplicates, "
+        + result.reviewRequired()
+        + " need review, "
+        + result.failed()
+        + " failed.";
+  }
+
+  private List<String> queryIncomingPages(String accessToken, java.time.YearMonth month) {
+    List<String> pages = new ArrayList<>();
+    for (int page = 0; page < KSEF_MAX_PAGES; page++) {
+      String invoices =
+          client.queryIncomingInvoices(
+              environment,
+              accessToken,
+              month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC),
+              month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC),
+              page,
+              KSEF_PAGE_SIZE);
+      pages.add(invoices);
+      if (extractKsefNumbers(invoices).size() < KSEF_PAGE_SIZE) break;
+    }
+    return pages;
+  }
+
+  private boolean canonicalExists(String ksefNumber) {
+    if (sourceEvidenceService == null || canonicalRepository == null) return false;
+    var source = sourceEvidenceService.findId(AccountingSourceType.KSEF, ksefNumber);
+    return source.isPresent()
+        && canonicalRepository.canonicalDocumentExists(1L, source.get(), ksefNumber, null);
   }
 
   @Override
@@ -187,27 +244,35 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
     for (String ksefNumber : ksefNumbers) {
       long sourceId = 0;
       try {
-        if (sourceEvidenceService != null) {
-          var existing = sourceEvidenceService.findId(AccountingSourceType.KSEF, ksefNumber);
-          if (existing != null
-              && existing.isPresent()
-              && sourceEvidenceService.status(existing.get()) == AccountingSourceStatus.IMPORTED) {
-            duplicates++;
-            continue;
-          }
+        var existingBeforeDownload =
+            sourceEvidenceService == null
+                ? java.util.Optional.<Long>empty()
+                : sourceEvidenceService.findId(AccountingSourceType.KSEF, ksefNumber);
+        if (existingBeforeDownload.isPresent()
+            && canonicalRepository != null
+            && canonicalRepository.canonicalDocumentExists(
+                1L, existingBeforeDownload.get(), ksefNumber, null)) {
+          duplicates++;
+          continue;
         }
         String xml = client.downloadInvoice(environment, accessToken, ksefNumber);
+        var invoice = invoiceParser.parse(xml.getBytes(StandardCharsets.UTF_8));
+        var existing =
+            sourceEvidenceService == null
+                ? java.util.Optional.<Long>empty()
+                : sourceEvidenceService.findId(AccountingSourceType.KSEF, ksefNumber);
+        if (existing.isPresent()
+            && canonicalRepository != null
+            && canonicalRepository.canonicalDocumentExists(
+                1L, existing.get(), ksefNumber, invoice.reference())) {
+          duplicates++;
+          continue;
+        }
         sourceId =
             sourceEvidenceService == null
                 ? 0
                 : sourceEvidenceService.receiveKsef(
-                    ksefNumber, null, xml.getBytes(StandardCharsets.UTF_8));
-        if (sourceId != 0
-            && sourceEvidenceService.status(sourceId) == AccountingSourceStatus.IMPORTED) {
-          duplicates++;
-          continue;
-        }
-        var invoice = invoiceParser.parse(xml.getBytes(StandardCharsets.UTF_8));
+                    ksefNumber, invoice.issueDate(), xml.getBytes(StandardCharsets.UTF_8));
         if (sourceId != 0)
           sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
         if (invoice.category() == null || invoice.vatDeductionRatio() == null) {
@@ -238,7 +303,11 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
                     invoice.vatDeductionRatio(),
                     "KSEF_SOURCE_DOCUMENT",
                     "KSeF " + ksefNumber + "; supplier " + supplier,
-                    sourceId == 0 ? null : Long.toString(sourceId)));
+                    sourceId == 0 ? null : Long.toString(sourceId),
+                    invoice.sellerNip(),
+                    "PL",
+                    ksefNumber,
+                    new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, ksefNumber)));
         if (saved) imported++;
         if (sourceId != 0)
           sourceEvidenceService.status(sourceId, AccountingSourceStatus.IMPORTED, null);
@@ -297,7 +366,16 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
   }
 
   private record ImportResult(
-      int received, int imported, int duplicates, int reviewRequired, int failed) {}
+      int received, int imported, int duplicates, int reviewRequired, int failed) {
+    private ImportResult plus(ImportResult other) {
+      return new ImportResult(
+          received + other.received,
+          imported + other.imported,
+          duplicates + other.duplicates,
+          reviewRequired + other.reviewRequired,
+          failed + other.failed);
+    }
+  }
 
   private String firstNonBlank(String first, String second) {
     return first != null && !first.isBlank() ? first : second;

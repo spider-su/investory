@@ -115,4 +115,48 @@ class AccountingPageControllerTest {
         .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
     verify(client).syncKsef(1, month);
   }
+
+  @Test
+  void ksefSyncUsesErrorForFailedResults() {
+    when(client.syncKsef(1, month))
+        .thenReturn(
+            new AccountingRestClient.KsefSyncResult(
+                "COMPLETED",
+                2,
+                0,
+                0,
+                1,
+                1,
+                "KSeF sync finished: 2 received, 0 imported, 0 duplicates, 1 need review, 1 failed."));
+
+    var redirect = new RedirectAttributesModelMap();
+    controller.syncKsef(1, month, redirect);
+
+    assertThat(redirect.getFlashAttributes()).doesNotContainKey("accountingMessage");
+    assertThat(redirect.getFlashAttributes().get("accountingError"))
+        .isEqualTo(
+            "KSeF sync finished: 2 received, 0 imported, 0 duplicates, 1 need review, 1 failed.");
+  }
+
+  @Test
+  void ksefSyncUsesWarningForReviewResults() {
+    when(client.syncKsef(1, month))
+        .thenReturn(
+            new AccountingRestClient.KsefSyncResult(
+                "COMPLETED",
+                1,
+                0,
+                0,
+                1,
+                0,
+                "KSeF sync finished: 1 received, 0 imported, 0 duplicates, 1 need review, 0 failed."));
+
+    var redirect = new RedirectAttributesModelMap();
+    controller.syncKsef(1, month, redirect);
+
+    assertThat(redirect.getFlashAttributes()).doesNotContainKey("accountingMessage");
+    assertThat(redirect.getFlashAttributes().get("accountingWarning"))
+        .isEqualTo(
+            "KSeF sync finished: 1 received, 0 imported, 0 duplicates, 1 need review, 0 failed.");
+  }
 }

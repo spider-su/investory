@@ -32,7 +32,9 @@ class AccountingKsefImportIT {
 
   @Test
   void downloadsAndParsesKsefInvoicesProducingOkNokReport() throws Exception {
-    String baseUrl = KsefEnvironment.TEST.baseUrl();
+    KsefEnvironment environment =
+        KsefEnvironment.parse(property("app.ksef.environment", KsefEnvironment.TEST.name()));
+    String baseUrl = environment.baseUrl();
     String ksefToken = requiredSecret("app.ksef.token", "INVESTORY_KSEF_TOKEN");
     String nip = property("app.ksef.nip", "8133703437");
     LocalDate from = LocalDate.parse(property("accounting.ksef.it.from", "2026-01-01"));
@@ -45,8 +47,7 @@ class AccountingKsefImportIT {
     ApplicationTime applicationTime = org.mockito.Mockito.mock(ApplicationTime.class);
     org.mockito.Mockito.when(applicationTime.now()).thenReturn(Instant.now());
     KsefClient client = new KsefClient(objectMapper, applicationTime);
-    String accessToken =
-        client.authenticateWithToken(KsefEnvironment.TEST, nip, ksefToken).accessToken();
+    String accessToken = client.authenticateWithToken(environment, nip, ksefToken).accessToken();
     assertThat(accessToken).isNotBlank();
     KsefInvoiceXmlParser parser = new KsefInvoiceXmlParser();
 
@@ -59,7 +60,7 @@ class AccountingKsefImportIT {
               metadataPage(
                   objectMapper,
                   client.queryInvoices(
-                      KsefEnvironment.TEST,
+                      environment,
                       accessToken,
                       subjectType,
                       window.from().atStartOfDay().atOffset(ZoneOffset.UTC),
@@ -87,7 +88,7 @@ class AccountingKsefImportIT {
       try {
         byte[] xml =
             client
-                .downloadInvoice(KsefEnvironment.TEST, accessToken, metadata.ksefNumber())
+                .downloadInvoice(environment, accessToken, metadata.ksefNumber())
                 .getBytes(StandardCharsets.UTF_8);
         ParsedKsefInvoice invoice = parser.parse(xml);
         List<String> issues = validate(metadata, invoice);
@@ -133,8 +134,8 @@ class AccountingKsefImportIT {
 
     if (results.isEmpty()) {
       System.out.printf(
-          "KSEF note: TEST account returned no invoices for %s..%s (%s); authentication and metadata query succeeded.%n",
-          from, to, subjectTypes);
+          "KSEF note: %s account returned no invoices for %s..%s (%s); authentication and metadata query succeeded.%n",
+          environment, from, to, subjectTypes);
     }
     assertThat(nok)
         .as("KSeF import has NOK invoices; inspect %s", report.toAbsolutePath())
@@ -205,7 +206,12 @@ class AccountingKsefImportIT {
   }
 
   private OffsetDateTime parseOffsetDateTime(String value) {
-    return value == null ? null : OffsetDateTime.parse(value);
+    if (value == null) return null;
+    try {
+      return OffsetDateTime.parse(value);
+    } catch (java.time.format.DateTimeParseException exception) {
+      return LocalDate.parse(value).atStartOfDay().atOffset(ZoneOffset.UTC);
+    }
   }
 
   private List<DateWindow> windows(LocalDate from, LocalDate toInclusive) {

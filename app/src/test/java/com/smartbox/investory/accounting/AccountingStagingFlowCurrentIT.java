@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
 import com.smartbox.investory.accounting.api.AccountingStagingApi;
+import com.smartbox.investory.accounting.staging.AccountingBankStagingImportService;
 import com.smartbox.investory.accounting.staging.AccountingStagingAcquisitionService;
 import com.smartbox.investory.accounting.staging.AccountingStagingRepository;
 import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
@@ -24,6 +25,7 @@ class AccountingStagingFlowCurrentIT extends AccountingDatabaseTest {
   @Autowired private AccountingSourceEvidenceService sources;
   @Autowired private AccountingStagingAcquisitionService acquisition;
   @Autowired private AccountingStagingRepository repository;
+  @Autowired private AccountingBankStagingImportService bankImport;
 
   @Autowired
   @Qualifier("accountingStagingFacade")
@@ -70,6 +72,61 @@ class AccountingStagingFlowCurrentIT extends AccountingDatabaseTest {
                 Integer.class,
                 sourceId))
         .isZero();
+  }
+
+  @Test
+  void oneBankExportRoutesByBookingMonthAndOverlappingExportsStayIdempotent() {
+    byte[] export = bankCsv("MM-JAN", "MM-FEB", "MM-AUG");
+    var first = bankImport.stageFile(1, "multi-month.csv", "text/csv", export, PERIOD);
+
+    assertThat(first.processedRows()).isEqualTo(3);
+    assertThat(first.stagedRows()).isEqualTo(3);
+    assertThat(monthRows())
+        .containsExactlyInAnyOrder(
+            LocalDate.of(2026, 1, 1), LocalDate.of(2026, 2, 1), LocalDate.of(2026, 8, 1));
+
+    var repeated = bankImport.stageFile(1, "multi-month.csv", "text/csv", export, PERIOD);
+    assertThat(repeated.sourceId()).isEqualTo(first.sourceId());
+    assertThat(monthRows()).hasSize(3);
+
+    bankImport.stageFile(1, "overlap.csv", "text/csv", bankCsv("MM-JAN", "MM-NEW-MARCH"), PERIOD);
+    assertThat(monthRows())
+        .containsExactlyInAnyOrder(
+            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, 2, 1),
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 8, 1));
+  }
+
+  private byte[] bankCsv(String firstReference, String secondReference, String... moreReferences) {
+    LocalDate secondDate =
+        secondReference.equals("MM-NEW-MARCH")
+            ? LocalDate.of(2026, 3, 1)
+            : LocalDate.of(2026, 2, 2);
+    StringBuilder csv =
+        new StringBuilder(
+            "booking_date;related_period;reference;counterparty;currency;amount;note\n"
+                + "2026-01-31;2026-01-01;"
+                + firstReference
+                + ";Customer;PLN;100.00;receipt\n"
+                + secondDate
+                + ";"
+                + secondDate.withDayOfMonth(1)
+                + ";"
+                + secondReference
+                + ";Customer;PLN;200.00;receipt\n");
+    for (String reference : moreReferences) {
+      csv.append("2026-08-31;2026-08-01;")
+          .append(reference)
+          .append(";Customer;PLN;300.00;receipt\n");
+    }
+    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  }
+
+  private java.util.List<LocalDate> monthRows() {
+    return jdbc.query(
+        "SELECT tax_period FROM investory.accounting_tmp_bank_transaction WHERE source_reference IN ('multi-month.csv', 'overlap.csv') ORDER BY tax_period",
+        (rs, rowNum) -> rs.getObject("tax_period", LocalDate.class));
   }
 
   private ReviewedInvoice invoice(String reference, long sourceId) {

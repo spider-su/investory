@@ -1,6 +1,7 @@
 package com.smartbox.investory.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -9,6 +10,20 @@ import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
 class AiDocumentScannerTest {
+  @Test
+  void reportsEmptyAiResultAsControlledFailure() {
+    AiInvoiceRecognitionClient client = mock(AiInvoiceRecognitionClient.class);
+    when(client.recognize("invoice.pdf", "application/pdf", new byte[] {1})).thenReturn(null);
+
+    assertThatThrownBy(
+            () ->
+                new AiDocumentScanner(
+                        client, new InvoiceValidator(), mock(AccountingFactService.class))
+                    .scan(new DocumentInput("invoice.pdf", "application/pdf", new byte[] {1})))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("AI invoice recognition returned no result");
+  }
+
   @Test
   void keepsAnAmbiguousInvoiceForTheManualReviewFlow() {
     AiInvoiceRecognitionClient client = mock(AiInvoiceRecognitionClient.class);

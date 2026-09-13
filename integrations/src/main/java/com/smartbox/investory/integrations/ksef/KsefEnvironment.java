@@ -17,6 +17,7 @@ public enum KsefEnvironment {
 
   public static KsefEnvironment parse(String value) {
     if (value == null || value.isBlank()) return TEST;
-    return KsefEnvironment.valueOf(value.trim().toUpperCase());
+    String normalized = value.trim().toUpperCase();
+    return "PROD".equals(normalized) ? PRODUCTION : KsefEnvironment.valueOf(normalized);
   }
 }

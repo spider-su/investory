@@ -6,6 +6,13 @@ import java.math.RoundingMode;
 /** Pure 2026 ZUS policy for the supported JDG case. */
 public final class ZusCalculator {
   public ZusCalculation calculate(Input input) {
+    if (input.zusRegime() != null && !"JDG".equals(input.zusRegime())) {
+      throw new IllegalArgumentException("Unsupported ZUS regime: " + input.zusRegime());
+    }
+    if (input.voluntarySickness()) {
+      throw new IllegalArgumentException(
+          "Voluntary sickness insurance is outside the supported 2026 POC calculation");
+    }
     ZusRules2026.HealthBand band = input.explicitHealthBand();
     BigDecimal social =
         input.jdgActive() && !input.qualifyingUop() ? input.fullJdgSocial() : BigDecimal.ZERO;

@@ -39,11 +39,15 @@ public class AccountingBankStagingImportService {
         var row = rows.get(index);
         staging.stageBank(
             profileId,
-            period,
+            // The visible month is only navigation context. The bank contract makes the
+            // booking date authoritative, so one uploaded statement can populate many months.
+            row.bookingDate().withDayOfMonth(1),
             new ExternalBankTransaction(
                 BankDataProvider.CSV,
                 externalAccountId,
-                sourceId + ":" + index,
+                // The row identity is content-derived by the provider adapter. Do not include
+                // sourceId or row position: overlapping exports must deduplicate the same row.
+                row.externalTransactionId(),
                 row.bookingDate(),
                 row.bookingDate(),
                 row.relatedPeriod(),

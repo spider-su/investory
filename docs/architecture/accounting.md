@@ -272,6 +272,11 @@ The frozen 2026 matrix is regression evidence for the POC. A new operational mon
 from normalized rows persisted through the normal ingestion boundaries, without writing a month-
 specific golden or Flyway balancing fixture.
 
+`V01.010__accounting_poc_facts.sql` currently also contains temporary trusted/test verification data.
+Those bootstrap rows are an explicit exception for the calculation-verification phase. They must be
+removed or moved to test-only support before production readiness. The migration squash is intentional
+and is not itself a defect; this policy does not restructure Flyway history.
+
 ## Status boundaries
 
 Calculation readiness, filing status, payment status, authority confirmation status and period
@@ -300,8 +305,27 @@ See [Accounting POC](../domain/accounting-poc.md) for supported JDG scope, UoP/Z
 FX rules, historical proof values, correction scope and domain non-goals.
 # Accounting application boundary
 
-The diagnostic `/poc/accounting` page remains a development and evidence view. The product page is `/accounting` and reads a stable profile-scoped API contract. Its flow is:
+The former `/poc/accounting` flow is not an active product surface; its mutating POST routes are denied. The product page is `/accounting` and reads a stable profile-scoped API contract. Its flow is:
 
-`Browser -> AccountingPageController -> AccountingRestClient -> AccountingUserApi -> AccountingUserFacade -> accounting services`
+`Browser -> AccountingPageController -> InProcessAccountingClient -> AccountingUserApi/AccountingStagingApi -> accounting services`
 
-The MVC controller depends only on the typed client. The facade maps internal calculations to user DTOs and owns the user-facing lifecycle, next-action, issue, source, document, bank, payment, filing, and reconciliation projections. Production sources remain separate from normalized facts; unknown tax-relevant values remain reviewable.
+The MVC controller depends only on the typed client. The in-process adapter avoids loopback HTTP,
+forwarded credentials, and a localhost/port dependency. The facade maps internal calculations to user
+DTOs and owns the user-facing lifecycle, next-action, issue, source, document, bank, payment, filing,
+and reconciliation projections. Production sources remain separate from normalized facts; unknown
+tax-relevant values remain reviewable. Accounting currently supports only the configured POC profile
+(`profileId=1`). The explicit guard and rejection of other profile IDs are intentional for this POC and
+must not be read as production-grade generic multi-profile support. Multi-profile Accounting is roadmap
+work. A future implementation must scope canonical facts, staging/source evidence, filing state,
+uniqueness constraints and repositories by profile, and add isolation tests for those boundaries.
+# Accounting freeze hardening
+
+Accounting operational rows are scoped by `profile_id`, using the existing
+portfolio/profile identity that is also used by `profile_memberships`. Legacy
+2026 rows are backfilled to profile 1. New acquisition follows source evidence
+-> staging -> reconciliation -> explicit promotion -> canonical facts; the
+legacy `/poc/accounting` POST surface is disabled.
+
+Filing artifacts and authority confirmations are profile-scoped and carry a
+calculation fingerprint. XSD validation is only a structural check; semantic
+VAT/JPK reconciliation remains a separate calculation and test concern.

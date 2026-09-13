@@ -71,6 +71,10 @@ public class AccountingFactService {
     return pocRepository.availablePeriods();
   }
 
+  public List<LocalDate> availablePeriods(long profileId) {
+    return pocRepository.availablePeriods(profileId);
+  }
+
   public AccountingProfile accountingProfile() {
     AccountingProfile profile = pocRepository.accountingProfile();
     return profile == null ? AccountingProfile.defaultProfile() : profile;
@@ -81,16 +85,38 @@ public class AccountingFactService {
   }
 
   public AccountingMonthSnapshot snapshot(LocalDate period) {
-    List<InvoiceRow> invoices = pocRepository.invoicesForPeriod(period);
+    return snapshot(1L, period);
+  }
+
+  public AccountingMonthSnapshot snapshot(long profileId, LocalDate period) {
+    List<InvoiceRow> invoices =
+        profileId == 1
+            ? pocRepository.invoicesForPeriod(period)
+            : pocRepository.invoicesForPeriod(profileId, period);
     List<InvoiceRow> correctionSources =
         JULY_2026.equals(period)
-            ? pocRepository.invoicesForPeriod(period.minusMonths(1))
+            ? (profileId == 1
+                ? pocRepository.invoicesForPeriod(period.minusMonths(1))
+                : pocRepository.invoicesForPeriod(profileId, period.minusMonths(1)))
             : List.of();
-    List<ExpenseRow> expenses = pocRepository.expensesForPeriod(period);
-    List<BankRow> bankTransactions = pocRepository.bankTransactionsForPeriod(period);
-    List<ObligationRow> obligations = pocRepository.obligationsForPeriod(period);
-    List<TaxInputRow> taxInputs = pocRepository.taxInputsForPeriod(period);
-    AccountingProfile profile = accountingProfile();
+    List<ExpenseRow> expenses =
+        profileId == 1
+            ? pocRepository.expensesForPeriod(period)
+            : pocRepository.expensesForPeriod(profileId, period);
+    List<BankRow> bankTransactions =
+        profileId == 1
+            ? pocRepository.bankTransactionsForPeriod(period)
+            : pocRepository.bankTransactionsForPeriod(profileId, period);
+    List<ObligationRow> obligations =
+        profileId == 1
+            ? pocRepository.obligationsForPeriod(period)
+            : pocRepository.obligationsForPeriod(profileId, period);
+    List<TaxInputRow> taxInputs =
+        profileId == 1
+            ? pocRepository.taxInputsForPeriod(period)
+            : pocRepository.taxInputsForPeriod(profileId, period);
+    AccountingProfile profile =
+        profileId == 1 ? accountingProfile() : pocRepository.accountingProfile(profileId);
 
     BigDecimal domesticRevenue =
         invoices.stream()
@@ -122,15 +148,35 @@ public class AccountingFactService {
         period.isBefore(OPERATIONAL_MONTH)
             ? AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
             : AccountingCalculationMode.CURRENT_CALCULATION;
-    var activityPeriods = pocRepository.businessActivityPeriods();
-    var employmentPeriods = pocRepository.employmentPeriods();
+    var activityPeriods =
+        profileId == 1
+            ? pocRepository.businessActivityPeriods()
+            : pocRepository.businessActivityPeriods(profileId);
+    var employmentPeriods =
+        profileId == 1
+            ? pocRepository.employmentPeriods()
+            : pocRepository.employmentPeriods(profileId);
     var resolved =
         profileResolver.resolve(
-            period, activityPeriods, employmentPeriods, pocRepository.taxProfilePeriods());
-    var vatTransactions = pocRepository.vatTransactionsForPeriod(period);
+            period,
+            activityPeriods,
+            employmentPeriods,
+            profileId == 1
+                ? pocRepository.taxProfilePeriods()
+                : pocRepository.taxProfilePeriods(profileId));
+    var vatTransactions =
+        profileId == 1
+            ? pocRepository.vatTransactionsForPeriod(period)
+            : pocRepository.vatTransactionsForPeriod(profileId, period);
     var yearToDate =
         new AccountingYearToDateContext(
-            pocRepository.yearToDateRevenue(period), null, null, null, List.of());
+            profileId == 1
+                ? pocRepository.yearToDateRevenue(period)
+                : pocRepository.yearToDateRevenue(profileId, period),
+            null,
+            null,
+            null,
+            List.of());
     var zusCalculation =
         calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
                 && resolved.zusRegime() != null
@@ -147,7 +193,7 @@ public class AccountingFactService {
             : null;
     var paidContributionProjection =
         calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
-            ? projectPaidContributions(period, resolved, zusCalculation)
+            ? projectPaidContributions(profileId, period, resolved, zusCalculation)
             : new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
     if (paidContributionProjection == null) {
       paidContributionProjection =
@@ -273,22 +319,38 @@ public class AccountingFactService {
   }
 
   private AccountingPocRepository.PaidContributionProjection projectPaidContributions(
+      long profileId,
       LocalDate period,
       AccountingProfileResolver.ResolvedProfile resolved,
       ZusCalculator.ZusCalculation currentZus) {
-    var obligations = paidContributionObligations(period, resolved, currentZus);
-    return pocRepository.paidContributionsUpTo(period, obligations);
+    var obligations = paidContributionObligations(profileId, period, resolved, currentZus);
+    return profileId == 1
+        ? pocRepository.paidContributionsUpTo(period, obligations)
+        : pocRepository.paidContributionsUpTo(profileId, period, obligations);
   }
 
   private Map<LocalDate, AccountingPocRepository.ZusAmounts> paidContributionObligations(
+      long profileId,
       LocalDate period,
       AccountingProfileResolver.ResolvedProfile resolved,
       ZusCalculator.ZusCalculation currentZus) {
-    var activityPeriods = pocRepository.businessActivityPeriods();
-    var employmentPeriods = pocRepository.employmentPeriods();
-    var taxPeriods = pocRepository.taxProfilePeriods();
+    var activityPeriods =
+        profileId == 1
+            ? pocRepository.businessActivityPeriods()
+            : pocRepository.businessActivityPeriods(profileId);
+    var employmentPeriods =
+        profileId == 1
+            ? pocRepository.employmentPeriods()
+            : pocRepository.employmentPeriods(profileId);
+    var taxPeriods =
+        profileId == 1
+            ? pocRepository.taxProfilePeriods()
+            : pocRepository.taxProfilePeriods(profileId);
     var obligations = new java.util.LinkedHashMap<LocalDate, AccountingPocRepository.ZusAmounts>();
-    for (LocalDate contributionPeriod : pocRepository.zusPaymentPeriodsUpTo(period)) {
+    for (LocalDate contributionPeriod :
+        profileId == 1
+            ? pocRepository.zusPaymentPeriodsUpTo(period)
+            : pocRepository.zusPaymentPeriodsUpTo(profileId, period)) {
       var effective =
           profileResolver.resolve(
               contributionPeriod, activityPeriods, employmentPeriods, taxPeriods);
@@ -301,7 +363,9 @@ public class AccountingFactService {
                       effective.qualifyingUop(),
                       effective.zusRegime(),
                       effective.voluntarySickness(),
-                      pocRepository.yearToDateRevenue(contributionPeriod),
+                      profileId == 1
+                          ? pocRepository.yearToDateRevenue(contributionPeriod)
+                          : pocRepository.yearToDateRevenue(profileId, contributionPeriod),
                       ZusRules2026.FULL_JDG_SOCIAL));
       obligations.put(
           contributionPeriod,
@@ -404,7 +468,7 @@ public class AccountingFactService {
       issues.add(
           new AccountingIssue(
               "MISSING_FX",
-              "INCOMPLETE",
+              "BLOCKING",
               String.join(", ", fx.unavailableInvoiceReferences()),
               "EUR revenue cannot be converted because the required FX rate is unavailable."));
     }

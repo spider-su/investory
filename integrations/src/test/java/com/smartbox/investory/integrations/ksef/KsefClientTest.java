@@ -46,4 +46,9 @@ class KsefClientTest {
     assertEquals("https://api-demo.ksef.mf.gov.pl/v2", KsefEnvironment.DEMO.baseUrl());
     assertEquals("https://api.ksef.mf.gov.pl/v2", KsefEnvironment.PRODUCTION.baseUrl());
   }
+
+  @Test
+  void acceptsProductionAlias() {
+    assertEquals(KsefEnvironment.PRODUCTION, KsefEnvironment.parse("PROD"));
+  }
 }

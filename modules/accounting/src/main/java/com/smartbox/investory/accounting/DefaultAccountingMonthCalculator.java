@@ -30,6 +30,7 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
   @Override
   public AccountingCalculationResult calculate(AccountingCalculationInput input) {
     List<AccountingIssue> issues = new ArrayList<>();
+    validateVatInputs(input, issues);
     AccountingCalculationResult.FxCalculation fx = calculateFx(input, issues);
     BigDecimal domestic =
         input.invoices().stream()
@@ -230,8 +231,13 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
                                       message))));
       outputVat =
           input.vatTransactions().stream()
-              .filter(t -> t.direction() == AccountingVatTransaction.Direction.SALE)
-              .filter(t -> t.treatment() == VatTreatment.DOMESTIC_VAT)
+              .filter(
+                  t ->
+                      t.direction() == AccountingVatTransaction.Direction.SALE
+                              && t.treatment() == VatTreatment.DOMESTIC_VAT
+                          || t.direction() == AccountingVatTransaction.Direction.PURCHASE
+                              && (t.treatment() == VatTreatment.IMPORT_OF_SERVICES_EU
+                                  || t.treatment() == VatTreatment.IMPORT_OF_SERVICES_NON_EU))
               .map(AccountingVatTransaction::vatAmount)
               .filter(v -> v != null)
               .reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -306,6 +312,36 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
     return BigDecimal.ZERO;
   }
 
+  private void validateVatInputs(AccountingCalculationInput input, List<AccountingIssue> issues) {
+    input
+        .vatTransactions()
+        .forEach(
+            transaction -> {
+              if (transaction == null) {
+                issues.add(issue("INVALID_VAT_TRANSACTION", null, "VAT transaction is missing."));
+                return;
+              }
+              if (transaction.netAmount() == null || transaction.vatAmount() == null) return;
+              if (transaction.direction() == AccountingVatTransaction.Direction.PURCHASE
+                  && transaction.deductibleVat() != null
+                  && transaction.deductibleVat().compareTo(transaction.vatAmount()) > 0) {
+                issues.add(
+                    issue(
+                        "INVALID_DEDUCTIBLE_VAT",
+                        transaction.reference(),
+                        "Deductible VAT cannot exceed document VAT."));
+              }
+              if (transaction.netAmount().signum() != transaction.vatAmount().signum()
+                  && transaction.vatAmount().signum() != 0) {
+                issues.add(
+                    issue(
+                        "INVALID_VAT_SIGN",
+                        transaction.reference(),
+                        "Net and VAT amounts must have consistent direction."));
+              }
+            });
+  }
+
   private AccountingCalculationResult.FxCalculation calculateFx(
       AccountingCalculationInput input, List<AccountingIssue> issues) {
     List<Conversion> entries = new ArrayList<>();
@@ -350,6 +386,12 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
   }
 
   private AccountingIssue issue(String type, String reference, String message) {
-    return new AccountingIssue(type, "INCOMPLETE", reference, message);
+    String severity =
+        type.startsWith("MISSING_FX")
+                || type.startsWith("INVALID_VAT")
+                || type.startsWith("VAT_CLASSIFICATION")
+            ? "BLOCKING"
+            : "INCOMPLETE";
+    return new AccountingIssue(type, severity, reference, message);
   }
 }

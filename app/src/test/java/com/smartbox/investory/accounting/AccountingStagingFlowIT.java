@@ -34,8 +34,8 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
       FastDatabase.scopedDatabase("accounting_staging_flow");
 
   private static final LocalDate PERIOD = LocalDate.of(2026, 9, 1);
-  private static final long PROFILE_A = -930001L;
-  private static final long PROFILE_B = -930002L;
+  private static final long PROFILE_A = 1L;
+  private static final long PROFILE_B = 2L;
   private static final String SOURCE_PREFIX = "staging-it-";
   private static final String REFERENCE_PREFIX = "STAGING-IT-";
 
@@ -79,9 +79,8 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
     jdbc.update(
         "DELETE FROM investory.accounting_poc_bank_transaction WHERE external_transaction_id LIKE ?",
         SOURCE_PREFIX + "%");
-    jdbc.update(
-        "DELETE FROM investory.accounting_source_evidence WHERE external_reference LIKE ?",
-        SOURCE_PREFIX + "%");
+    // Source evidence is immutable by contract. This class uses a disposable database and
+    // unique source references, so retained evidence does not contaminate later test cases.
   }
 
   @Test
@@ -112,6 +111,27 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
                 reference("INV-A")))
         .isEqualTo(1L);
     assertThat(sourceRepository.status(sourceId)).isEqualTo(AccountingSourceStatus.IMPORTED);
+  }
+
+  @Test
+  @DisplayName("reviewed invoice due date survives staging and canonical promotion")
+  void reviewedDueDateIsPersisted() {
+    long sourceId = source("due-date");
+    stageInvoice(PROFILE_A, sourceId, "DUE-DATE", LocalDate.of(2026, 9, 30));
+
+    reconciliation.reconcile(PROFILE_A, PERIOD);
+    assertThat(promotion.promoteNew(PROFILE_A, PERIOD).invoices()).isEqualTo(1);
+
+    var persisted =
+        jdbc.queryForObject(
+            "SELECT due_date, counterparty_country FROM investory.accounting_poc_invoice WHERE reference = ?",
+            (rs, rowNum) ->
+                java.util.Map.entry(
+                    rs.getObject("due_date", LocalDate.class),
+                    rs.getString("counterparty_country")),
+            reference("DUE-DATE"));
+    assertThat(persisted.getKey()).isEqualTo(LocalDate.of(2026, 9, 30));
+    assertThat(persisted.getValue()).isEqualTo("DE");
   }
 
   @Test
@@ -159,6 +179,27 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
     assertThat(summaryB.invoiceNew()).isEqualTo(1);
     assertThat(summaryB.invoiceMatched()).isZero();
     assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.NEW);
+  }
+
+  @Test
+  @DisplayName("same external invoice reference is independently promotable per profile")
+  void sameReferenceCanBePromotedForTwoProfiles() {
+    long stageA = stageInvoice(PROFILE_A, source("same-reference-a"), "SAME-REFERENCE");
+    long stageB = stageInvoice(PROFILE_B, source("same-reference-b"), "SAME-REFERENCE");
+
+    assertThat(promotion.promoteNew(PROFILE_A, PERIOD).invoices()).isEqualTo(1);
+    assertThat(promotion.promoteNew(PROFILE_B, PERIOD).invoices()).isEqualTo(1);
+
+    assertThat(stagedInvoice(stageA).canonicalId())
+        .isNotEqualTo(stagedInvoice(stageB).canonicalId());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM investory.accounting_poc_invoice WHERE profile_id IN (?, ?) AND reference = ?",
+                Long.class,
+                PROFILE_A,
+                PROFILE_B,
+                reference("SAME-REFERENCE")))
+        .isEqualTo(2L);
   }
 
   @Test
@@ -299,6 +340,56 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
         .isEqualTo(1L);
   }
 
+  @Test
+  @DisplayName("canonical bank transaction from another profile does not match")
+  void bankFactsFromAnotherProfileDoNotContaminateReconciliation() {
+    long canonicalSource = source("bank-profile-a");
+    staging.insertBank(
+        PROFILE_A,
+        PERIOD,
+        canonicalSource,
+        "BANK",
+        SOURCE_PREFIX + "bank-profile-a",
+        "CSV",
+        "same-account",
+        "same-transaction",
+        LocalDate.of(2026, 9, 10),
+        LocalDate.of(2026, 9, 10),
+        new BigDecimal("-123.45"),
+        "PLN",
+        "Test Supplier",
+        "PL001",
+        "SAME PAYMENT",
+        "hash-a");
+    promotion.promoteNew(PROFILE_A, PERIOD);
+
+    long stagedSource = source("bank-profile-b");
+    long stagedId =
+        staging.insertBank(
+            PROFILE_B,
+            PERIOD,
+            stagedSource,
+            "BANK",
+            SOURCE_PREFIX + "bank-profile-b",
+            "CSV",
+            "same-account",
+            "same-transaction",
+            LocalDate.of(2026, 9, 10),
+            LocalDate.of(2026, 9, 10),
+            new BigDecimal("-123.45"),
+            "PLN",
+            "Test Supplier",
+            "PL001",
+            "SAME PAYMENT",
+            "hash-b");
+
+    var summary = reconciliation.reconcile(PROFILE_B, PERIOD);
+
+    assertThat(summary.bankNew()).isEqualTo(1);
+    assertThat(stagedBankForProfile(stagedId, PROFILE_B).status())
+        .isEqualTo(StagingReconciliationStatus.NEW);
+  }
+
   private long source(String suffix) {
     String externalReference = SOURCE_PREFIX + suffix;
     byte[] payload = externalReference.getBytes(StandardCharsets.UTF_8);
@@ -314,10 +405,19 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
   }
 
   private long stageInvoice(long profileId, long sourceId, String suffix) {
-    return stageInvoice(profileId, sourceId, suffix, null);
+    return stageInvoice(profileId, sourceId, suffix, (String) null);
   }
 
   private long stageInvoice(long profileId, long sourceId, String suffix, String ksefNumber) {
+    return stageInvoice(profileId, sourceId, suffix, null, ksefNumber);
+  }
+
+  private long stageInvoice(long profileId, long sourceId, String suffix, LocalDate dueDate) {
+    return stageInvoice(profileId, sourceId, suffix, dueDate, null);
+  }
+
+  private long stageInvoice(
+      long profileId, long sourceId, String suffix, LocalDate dueDate, String ksefNumber) {
     return staging.insertInvoice(
         profileId,
         PERIOD,
@@ -326,6 +426,7 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
         SOURCE_PREFIX + suffix.toLowerCase(),
         "INCOME",
         LocalDate.of(2026, 9, 5),
+        dueDate,
         reference(suffix),
         "Test Customer",
         "DE123456789",
@@ -364,7 +465,12 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
   }
 
   private com.smartbox.investory.accounting.staging.StagedBankTransaction stagedBank(long id) {
-    return staging.bankTransactions(PROFILE_A, PERIOD).stream()
+    return stagedBankForProfile(id, PROFILE_A);
+  }
+
+  private com.smartbox.investory.accounting.staging.StagedBankTransaction stagedBankForProfile(
+      long id, long profileId) {
+    return staging.bankTransactions(profileId, PERIOD).stream()
         .filter(row -> row.id() == id)
         .findFirst()
         .orElseThrow();

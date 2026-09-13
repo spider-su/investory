@@ -2,6 +2,7 @@ package com.smartbox.investory.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
@@ -70,5 +71,14 @@ class AccountingSourceEvidenceServiceTest {
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.same(payload));
     assertThat(identities.getAllValues()).containsOnly(identities.getAllValues().getFirst());
+  }
+
+  @Test
+  void failedEvidenceCanBeReopenedWithoutDeletingTheOriginal() {
+    when(repository.status(7L)).thenReturn(AccountingSourceStatus.FAILED);
+
+    service.retry(7L);
+
+    verify(repository).updateStatus(7L, AccountingSourceStatus.RECEIVED, null);
   }
 }
