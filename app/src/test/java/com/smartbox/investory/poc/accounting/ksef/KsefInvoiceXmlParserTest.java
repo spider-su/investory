@@ -58,4 +58,21 @@ class KsefInvoiceXmlParserTest {
     assertThat(result.category()).isEqualTo("VEHICLE_FUEL");
     assertThat(result.vatDeductionRatio()).isEqualByComparingTo("0.50");
   }
+
+  @Test
+  void parsesCorrectionInvoiceTypeForSellerSideImport() {
+    String xml =
+        "<Faktura xmlns=\"urn:test\"><Podmiot1><NIP>1111111111</NIP></Podmiot1>"
+            + "<Podmiot2><NIP>2222222222</NIP><Nazwa>Buyer</Nazwa></Podmiot2><Fa>"
+            + "<KodWaluty>PLN</KodWaluty><RodzajFaktury>KOR</RodzajFaktury>"
+            + "<P_1>2026-07-15</P_1><P_2>FK 1/2026</P_2><P_13_1>-150</P_13_1>"
+            + "<P_14_1>-34.50</P_14_1><P_15>-184.50</P_15></Fa></Faktura>";
+
+    var result = parser.parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertThat(result.invoiceType()).isEqualTo("KOR");
+    assertThat(result.reference()).startsWith("FK");
+    assertThat(result.buyerName()).isEqualTo("Buyer");
+    assertThat(result.grossAmount()).isEqualByComparingTo("-184.50");
+  }
 }

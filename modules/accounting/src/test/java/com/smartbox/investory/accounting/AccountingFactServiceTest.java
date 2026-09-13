@@ -204,7 +204,7 @@ class AccountingFactServiceTest {
             CurrencyType.PLN,
             CurrencyType.EUR,
             LocalDate.of(2026, 7, 30)))
-        .thenReturn(new BigDecimal("32908.8692"));
+        .thenReturn(new BigDecimal("33058.87"));
 
     AccountingMonthSnapshot snapshot = service.snapshot(JULY);
 
@@ -213,11 +213,19 @@ class AccountingFactServiceTest {
         .containsExactly("FV 5/2026", "EU-SERVICE-2026-07");
     assertThat(snapshot.ryczalt().julyOnlyCorrectionNetAdjustment())
         .isEqualByComparingTo("-150.00");
+    assertThat(snapshot.ryczalt().taxableBase()).isEqualByComparingTo("48261");
+    assertThat(snapshot.ryczalt().calculatedTax()).isEqualByComparingTo("5791");
     assertThat(snapshot.vat().julyOnlySalesCorrectionVat()).isEqualByComparingTo("-34.50");
     assertThat(snapshot.vat().deductibleInputVat()).isEqualByComparingTo("145.99");
     assertThat(snapshot.vat().julyOnlyVatCorrectionAdjustment()).isZero();
     assertThat(snapshot.vat().calculatedVat()).isEqualByComparingTo("3557");
-    assertThat(snapshot.comparisons()).allMatch(row -> "MATCH".equals(row.status()));
+    assertThat(snapshot.comparisons())
+        .filteredOn(row -> !"FX".equals(row.area()))
+        .allMatch(row -> "MATCH".equals(row.status()));
+    assertThat(snapshot.comparisons())
+        .filteredOn(row -> "FX".equals(row.area()))
+        .singleElement()
+        .satisfies(row -> assertThat(row.status()).isEqualTo("DIFF"));
   }
 
   private AccountingFactService serviceForZus(AccountingProfile profile) {

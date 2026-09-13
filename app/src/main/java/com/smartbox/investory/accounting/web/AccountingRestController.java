@@ -191,6 +191,20 @@ public class AccountingRestController {
     return accounting.syncKsef(profileId, month);
   }
 
+  @PostMapping("/ksef/sync-seller")
+  public AccountingUserApi.KsefSyncResult syncKsefSeller(
+      @PathVariable long profileId, @RequestParam YearMonth month, Authentication a) {
+    write(profileId, a);
+    return accounting.syncKsefSeller(profileId, month);
+  }
+
+  @PostMapping("/ksef/sync-third-party")
+  public AccountingUserApi.KsefSyncResult syncKsefThirdParty(
+      @PathVariable long profileId, @RequestParam YearMonth month, Authentication a) {
+    write(profileId, a);
+    return accounting.syncKsefThirdParty(profileId, month);
+  }
+
   @PostMapping("/months/{month}/confirm")
   public void confirm(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {

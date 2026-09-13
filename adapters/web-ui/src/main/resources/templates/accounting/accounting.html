@@ -6,7 +6,7 @@
   <title>Accounting · Investory</title>
   <link href="/css/tabler.min.css" rel="stylesheet">
   <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
-  <meta name="_csrf" th:content="${_csrf?.token}">
+  <meta name="_csrf" th:content="${_csrf.token}">
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const token = document.querySelector('meta[name="_csrf"]')?.content;
@@ -30,10 +30,9 @@
         <div class="iv-section-heading__eyebrow">Monthly workspace</div>
         <h2 th:text="${'Accounting · ' + selectedMonth}">Accounting · 2026-01</h2>
       </div>
-      <form method="get" action="/accounting" class="d-flex align-items-center gap-2">
-        <input type="hidden" name="profileId" th:value="${profileId}">
+      <form method="get" th:action="@{/profiles/{profileId}/accounting(profileId=${profileId})}" class="d-flex align-items-center gap-2">
         <label class="form-label mb-0" for="accounting-month">Month</label>
-        <select id="accounting-month" class="form-select" name="month" onchange="this.form.submit()">
+        <select id="accounting-month" data-testid="accounting-month" class="form-select" name="month" onchange="this.form.submit()">
           <option th:each="m : ${months}" th:value="${m.month}" th:text="${m.label}" th:selected="${m.month == selectedMonth}">January 2026</option>
         </select>
       </form>
@@ -68,12 +67,11 @@
           <div class="col-md-4">
             <strong>Documents</strong>
             <p class="text-secondary mb-2">Upload a PDF or image and review the recognized invoice.</p>
-            <form th:if="${canWrite}" method="post" enctype="multipart/form-data" action="/accounting/documents/recognize">
-              <input type="hidden" name="profileId" th:value="${profileId}">
+            <form th:if="${canWrite}" method="post" enctype="multipart/form-data" th:action="@{/profiles/{profileId}/accounting/documents/recognize(profileId=${profileId})}">
               <input type="hidden" name="month" th:value="${selectedMonth}">
               <div class="input-group">
-                <input class="form-control" type="file" name="file" accept="application/pdf,image/*" required>
-                <button class="btn btn-primary">Upload</button>
+                <input class="form-control" data-testid="accounting-document-file" type="file" name="file" accept="application/pdf,image/*" required>
+                <button class="btn btn-primary" data-testid="accounting-document-upload">Upload</button>
               </div>
             </form>
             <span th:unless="${canWrite}" class="text-secondary">Read-only</span>
@@ -82,12 +80,11 @@
           <div class="col-md-4">
             <strong>Bank statement</strong>
             <p class="text-secondary mb-2">A single CSV may contain several months; transactions are routed by booking date.</p>
-            <form th:if="${canWrite}" method="post" enctype="multipart/form-data" action="/accounting/bank/import" data-testid="accounting-bank-import-form">
-              <input type="hidden" name="profileId" th:value="${profileId}">
+            <form th:if="${canWrite}" method="post" enctype="multipart/form-data" th:action="@{/profiles/{profileId}/accounting/bank/import(profileId=${profileId})}" data-testid="accounting-bank-import-form">
               <input type="hidden" name="month" th:value="${selectedMonth}">
               <div class="input-group">
-                <input class="form-control" type="file" name="file" accept=".csv,text/csv" required>
-                <button class="btn btn-primary">Import CSV</button>
+                <input class="form-control" data-testid="accounting-bank-file" type="file" name="file" accept=".csv,text/csv" required>
+                <button class="btn btn-primary" data-testid="accounting-bank-import">Import CSV</button>
               </div>
             </form>
             <span th:unless="${canWrite}" class="text-secondary">Read-only</span>
@@ -96,11 +93,20 @@
           <div class="col-md-4">
             <strong>KSeF</strong>
             <p class="text-secondary mb-2">Fetch available invoices for the selected accounting month.</p>
-            <form th:if="${canWrite}" method="post" action="/accounting/ksef/sync">
-              <input type="hidden" name="profileId" th:value="${profileId}">
+            <form th:if="${canWrite}" method="post" th:action="@{/profiles/{profileId}/accounting/ksef/sync(profileId=${profileId})}">
               <input type="hidden" name="month" th:value="${selectedMonth}">
-              <button class="btn btn-primary">Sync KSeF</button>
+              <button class="btn btn-primary" data-testid="ksef-buyer-sync">Sync KSeF</button>
             </form>
+            <div class="d-flex gap-2 mt-2" th:if="${canWrite}">
+              <form method="post" th:action="@{/profiles/{profileId}/accounting/ksef/sync-seller(profileId=${profileId})}">
+                <input type="hidden" name="month" th:value="${selectedMonth}">
+                <button class="btn btn-outline-primary" data-testid="ksef-seller-sync">Sync sales</button>
+              </form>
+              <form method="post" th:action="@{/profiles/{profileId}/accounting/ksef/sync-third-party(profileId=${profileId})}">
+                <input type="hidden" name="month" th:value="${selectedMonth}">
+                <button class="btn btn-outline-secondary" data-testid="ksef-third-party-sync">Review third-party</button>
+              </form>
+            </div>
             <span class="text-secondary d-block mt-2" th:text="${overview.ksefStatus == 'NOT_CONFIGURED' ? 'KSeF not configured' : 'KSeF ' + overview.ksefStatus}">KSeF not configured</span>
           </div>
         </div>
@@ -142,15 +148,13 @@
         </div>
 
         <div class="d-flex flex-wrap gap-2" th:if="${canWrite && !#lists.isEmpty(stagingRows)}">
-          <form method="post" action="/accounting/staging/reconcile">
-            <input type="hidden" name="profileId" th:value="${profileId}">
+          <form method="post" th:action="@{/profiles/{profileId}/accounting/staging/reconcile(profileId=${profileId})}">
             <input type="hidden" name="month" th:value="${selectedMonth}">
-            <button class="btn btn-outline-primary">Reconcile</button>
+            <button class="btn btn-outline-primary" data-testid="accounting-reconcile">Reconcile</button>
           </form>
-          <form method="post" action="/accounting/staging/promote" th:if="${stagingSummary.readyToPromote > 0}">
-            <input type="hidden" name="profileId" th:value="${profileId}">
+          <form method="post" th:action="@{/profiles/{profileId}/accounting/staging/promote(profileId=${profileId})}" th:if="${stagingSummary.readyToPromote > 0}">
             <input type="hidden" name="month" th:value="${selectedMonth}">
-            <button class="btn btn-primary">Promote ready data</button>
+            <button class="btn btn-primary" data-testid="accounting-promote">Promote ready data</button>
           </form>
         </div>
 
@@ -160,13 +164,13 @@
       </div>
     </section>
 
-    <section class="iv-card mt-3" data-testid="accounting-ksef-review-queue" th:if="${overview.sources.reviewRequired > 0}">
+    <section class="iv-card mt-3" data-testid="accounting-ksef-review-queue" th:if="${overview.sources().reviewRequired() > 0}">
       <div class="iv-card__head"><h3 class="iv-card__title">Documents needing review</h3></div>
       <div class="iv-card__body">
         <ul class="mb-0">
-          <li th:each="issue : ${overview.issues}" th:if="${issue.code == 'SOURCE_REVIEW_REQUIRED' and issue.sourceReference != null}">
-            <a th:href="@{/accounting/documents/review(profileId=${profileId},month=${selectedMonth},sourceReference=${issue.sourceReference})}" data-testid="accounting-ksef-review-link">Review document</a>
-            <span class="ms-2 text-secondary" th:text="${issue.sourceReference}">source reference</span>
+          <li th:each="issue : ${overview.issues()}" th:if="${issue.code() == 'SOURCE_REVIEW_REQUIRED' and issue.sourceReference() != null}">
+            <a th:href="@{/profiles/{profileId}/accounting/documents/review(profileId=${profileId},month=${selectedMonth},sourceReference=${issue.sourceReference()})}" data-testid="accounting-ksef-review-link">Review document</a>
+            <span class="ms-2 text-secondary" th:text="${issue.sourceReference()}">source reference</span>
           </li>
         </ul>
       </div>
@@ -225,12 +229,12 @@
         <strong th:text="${workspaceNextAction}">Review issues</strong>
         <p class="text-secondary mb-3" th:text="${workspaceStatus}">In progress</p>
         <div class="d-flex flex-wrap gap-2">
-          <form th:if="${canWrite && overview.allowedActions.contains('CONFIRM')}" method="post" action="/accounting/actions/confirm"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Confirm month</button></form>
-          <form th:if="${canWrite && overview.allowedActions.contains('FILE')}" method="post" action="/accounting/actions/file"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Record filing</button></form>
-          <form th:if="${canWrite && overview.allowedActions.contains('SETTLE')}" method="post" action="/accounting/actions/settle"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Settle month</button></form>
-          <form th:if="${canWrite && overview.allowedActions.contains('LOCK')}" method="post" action="/accounting/actions/lock"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Lock month</button></form>
+          <form th:if="${canWrite && overview.allowedActions.contains('CONFIRM')}" method="post" th:action="@{/profiles/{profileId}/accounting/actions/confirm(profileId=${profileId})}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Confirm month</button></form>
+          <form th:if="${canWrite && overview.allowedActions.contains('FILE')}" method="post" th:action="@{/profiles/{profileId}/accounting/actions/file(profileId=${profileId})}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Record filing</button></form>
+          <form th:if="${canWrite && overview.allowedActions.contains('SETTLE')}" method="post" th:action="@{/profiles/{profileId}/accounting/actions/settle(profileId=${profileId})}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Settle month</button></form>
+          <form th:if="${canWrite && overview.allowedActions.contains('LOCK')}" method="post" th:action="@{/profiles/{profileId}/accounting/actions/lock(profileId=${profileId})}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Lock month</button></form>
         </div>
-        <form th:if="${canWrite && overview.allowedActions.contains('REOPEN')}" method="post" action="/accounting/actions/reopen" class="mt-3"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><div class="input-group"><input class="form-control" name="reason" placeholder="Reason for reopening" required><button class="btn btn-outline-primary">Reopen month</button></div></form>
+        <form th:if="${canWrite && overview.allowedActions.contains('REOPEN')}" method="post" th:action="@{/profiles/{profileId}/accounting/actions/reopen(profileId=${profileId})}" class="mt-3"><input type="hidden" name="month" th:value="${selectedMonth}"><div class="input-group"><input class="form-control" name="reason" placeholder="Reason for reopening" required><button class="btn btn-outline-primary">Reopen month</button></div></form>
       </div>
     </section>
 
@@ -297,10 +301,10 @@
           <p>Generated: <strong th:text="${overview.filingSummary.jpkStatus}">MISSING</strong> · XSD validation: <strong th:text="${overview.filingSummary.jpkStatus == 'VALID' ? 'Validated' : 'Pending'}">Pending</strong></p>
           <p>Submitted: Manual · UPO: <strong th:text="${overview.filingSummary.upoStatus}">MISSING</strong><span th:if="${overview.filingSummary.upoReference != null}" th:text="${' · ' + overview.filingSummary.upoReference}"></span></p>
           <div class="d-flex flex-wrap gap-2">
-            <form th:if="${canWrite && overview.filingSummary.ready}" method="post" action="/accounting/filings/jpk/generate"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Generate JPK_V7M</button></form>
-            <a th:if="${overview.filingSummary.jpkStatus == 'VALID'}" class="btn btn-outline-primary" th:href="@{/accounting/filings/jpk(profileId=${profileId},month=${selectedMonth})}">Download XML</a>
+            <form th:if="${canWrite && overview.filingSummary.ready}" method="post" th:action="@{/profiles/{profileId}/accounting/filings/jpk/generate(profileId=${profileId})}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Generate JPK_V7M</button></form>
+            <a th:if="${overview.filingSummary.jpkStatus == 'VALID'}" class="btn btn-outline-primary" th:href="@{/profiles/{profileId}/accounting/filings/jpk(profileId=${profileId},month=${selectedMonth})}">Download XML</a>
           </div>
-          <form th:if="${canWrite}" method="post" action="/accounting/filings/confirmations" class="mt-3"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><input type="hidden" name="taxPeriod" th:value="${selectedMonth}"><input type="hidden" name="obligationOrArtifactType" value="JPK_V7M"><input type="hidden" name="confirmationType" value="JPK_UPO"><input type="hidden" name="status" value="ACCEPTED"><div class="input-group"><input class="form-control" name="externalReference" placeholder="UPO reference" required><button class="btn btn-outline-primary">Record UPO</button></div></form>
+          <form th:if="${canWrite}" method="post" th:action="@{/profiles/{profileId}/accounting/filings/confirmations(profileId=${profileId})}" class="mt-3"><input type="hidden" name="month" th:value="${selectedMonth}"><input type="hidden" name="taxPeriod" th:value="${selectedMonth}"><input type="hidden" name="obligationOrArtifactType" value="JPK_V7M"><input type="hidden" name="confirmationType" value="JPK_UPO"><input type="hidden" name="status" value="ACCEPTED"><div class="input-group"><input class="form-control" name="externalReference" placeholder="UPO reference" required><button class="btn btn-outline-primary">Record UPO</button></div></form>
         </section>
       </div>
     </details>

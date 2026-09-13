@@ -54,6 +54,10 @@ Purpose: post-POC-freeze cleanup and architectural polishing. Items here are exp
 
 ## Testing and maintainability
 
+- Certify full multi-profile Accounting after the POC: verify profile-scoped acquisition, staging,
+  canonical facts, reconciliation, filing state, authorization, uniqueness constraints, and
+  cross-profile isolation with end-to-end tests. Current persistence/API `profileId` support is
+  implementation direction only; the POC is certified only for the primary profile (`profileId=1`).
 - Add architecture tests enforcing module/controller placement and forbidden dependency directions.
 - Add direct tests for remaining large facades and repositories as they are decomposed.
 - Add contract tests for the normalized API error model and typed enums.

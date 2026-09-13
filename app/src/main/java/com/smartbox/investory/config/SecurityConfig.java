@@ -30,7 +30,9 @@ public class SecurityConfig {
       HttpSecurity http,
       @Value("${app.security.read-authentication-required:true}")
           boolean readAuthenticationRequired,
-      @Value("${app.security.csrf-protection-required:true}") boolean csrfProtectionRequired,
+      // CSRF is intentionally disabled during the Accounting POC. Re-enable it after the POC
+      // through APP_SECURITY_CSRF_PROTECTION_REQUIRED or environment-specific configuration.
+      @Value("${app.security.csrf-protection-required:false}") boolean csrfProtectionRequired,
       @Value("${app.security.legacy-accounting-write-enabled:false}")
           boolean legacyAccountingWriteEnabled) {
     var authorization =
@@ -39,7 +41,10 @@ public class SecurityConfig {
                   if (csrfProtectionRequired) {
                     csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        .ignoringRequestMatchers("/api/**");
+                        .ignoringRequestMatchers(
+                            "/api/**",
+                            "/profiles/*/accounting/documents/recognize",
+                            "/profiles/*/accounting/documents/save");
                   } else {
                     csrf.disable();
                   }

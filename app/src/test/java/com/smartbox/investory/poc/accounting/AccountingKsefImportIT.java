@@ -84,12 +84,15 @@ class AccountingKsefImportIT {
     }
 
     List<Result> results = new ArrayList<>();
+    Path payloadDirectory = Path.of("target", "accounting-ksef-invoices", "subject1");
+    Files.createDirectories(payloadDirectory);
     for (InvoiceMetadata metadata : selected) {
       try {
         byte[] xml =
             client
                 .downloadInvoice(environment, accessToken, metadata.ksefNumber())
                 .getBytes(StandardCharsets.UTF_8);
+        Files.write(payloadDirectory.resolve(metadata.ksefNumber() + ".xml"), xml);
         ParsedKsefInvoice invoice = parser.parse(xml);
         List<String> issues = validate(metadata, invoice);
         Result result =
@@ -131,6 +134,9 @@ class AccountingKsefImportIT {
         results.size() - nok,
         nok,
         report.toAbsolutePath());
+    System.out.printf(
+        "KSEF payloads: saved=%d directory=%s%n",
+        results.size(), payloadDirectory.toAbsolutePath());
 
     if (results.isEmpty()) {
       System.out.printf(

@@ -13,6 +13,10 @@ defect:
 - improve OpenAPI enum and `/api/v1` naming consistency;
 - replace signed document IDs, simplify provenance, and remove dead tables;
 - add query-plan-backed indexes and cosmetic UI cleanup;
+- certify full multi-profile Accounting: verify profile-scoped acquisition, staging, canonical facts,
+  reconciliation, filing state, authorization, uniqueness constraints, and cross-profile isolation
+  end to end. Current persistence/API `profileId` support is not production certification; the POC
+  is certified only for the primary profile (`profileId=1`);
 - extend database isolation beyond the minimum profile correctness boundary.
 
 All entries are post-freeze polish unless a concrete production defect is

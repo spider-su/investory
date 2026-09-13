@@ -39,8 +39,6 @@ class BankTransactionProviderNeutralIT extends AccountingDatabaseTest {
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_poc_bank_transaction WHERE reference LIKE 'FREEZE-%'");
     jdbcTemplate.update(
-        "DELETE FROM investory.accounting_source_evidence WHERE original_filename LIKE 'freeze-%'");
-    jdbcTemplate.update(
         "DELETE FROM investory.employment_period WHERE profile_id = 1 AND date_from = ?", PERIOD);
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_tax_profile_period WHERE profile_id = 1 AND valid_from = ?",

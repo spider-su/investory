@@ -33,6 +33,7 @@ public class KsefInvoiceXmlParser {
       LocalDate issueDate = date(firstText(document, "P_1"));
       LocalDate saleDate = date(firstText(document, "P_6"));
       String currency = firstText(document, "KodWaluty");
+      String invoiceType = firstText(document, "RodzajFaktury");
       String sellerNip = firstTextUnder(document, "Podmiot1", "NIP");
       String sellerName = firstTextUnder(document, "Podmiot1", "Nazwa");
       String buyerNip = firstTextUnder(document, "Podmiot2", "NIP");
@@ -65,7 +66,8 @@ public class KsefInvoiceXmlParser {
           vat,
           gross,
           category,
-          vatDeductionRatio);
+          vatDeductionRatio,
+          invoiceType);
     } catch (Exception exception) {
       throw new IllegalStateException(
           "Could not parse KSeF invoice XML: " + rootMessage(exception), exception);
@@ -183,7 +185,40 @@ public class KsefInvoiceXmlParser {
       BigDecimal vatAmount,
       BigDecimal grossAmount,
       String category,
-      BigDecimal vatDeductionRatio) {
+      BigDecimal vatDeductionRatio,
+      String invoiceType) {
+
+    public ParsedKsefInvoice(
+        String reference,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        String sellerNip,
+        String sellerName,
+        String buyerNip,
+        String buyerName,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        String category,
+        BigDecimal vatDeductionRatio) {
+      this(
+          reference,
+          issueDate,
+          saleDate,
+          sellerNip,
+          sellerName,
+          buyerNip,
+          buyerName,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          category,
+          vatDeductionRatio,
+          "VAT");
+    }
+
     public ParsedKsefInvoice(
         String reference,
         LocalDate issueDate,
@@ -209,7 +244,8 @@ public class KsefInvoiceXmlParser {
           vatAmount,
           grossAmount,
           "ACCOUNTING_SERVICE",
-          BigDecimal.ONE);
+          BigDecimal.ONE,
+          "VAT");
     }
   }
 }

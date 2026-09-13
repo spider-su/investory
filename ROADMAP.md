@@ -150,6 +150,10 @@ complete and verify per-user data scoping across financial tables, UI CSRF prote
 limiting. Those are public/multi-user requirements and remain outside this private-release path unless
 the deployment assumption changes.
 
+The Accounting POC currently runs with CSRF protection disabled to keep the POC UI and write flows
+usable. Re-enable and verify CSRF protection after the Accounting POC phase is complete, before any
+deployment outside the trusted private/network-controlled boundary.
+
 ## Explicitly deferred
 
 - database-schema/module isolation experiments unless concrete release evidence requires them;

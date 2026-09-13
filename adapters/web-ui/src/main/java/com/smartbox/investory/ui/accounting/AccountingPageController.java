@@ -5,6 +5,7 @@ import java.time.YearMonth;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
@@ -12,6 +13,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 public class AccountingPageController {
+  private static final String BASE = "/profiles/{profileId}/accounting";
   private final AccountingRestClient client;
 
   public AccountingPageController(AccountingRestClient client) {
@@ -19,8 +21,15 @@ public class AccountingPageController {
   }
 
   @GetMapping("/accounting")
-  public String page(
+  public String legacyPage(
       @RequestParam(defaultValue = "1") long profileId,
+      @RequestParam(required = false) YearMonth month) {
+    return redirect(profileId, month);
+  }
+
+  @GetMapping(BASE)
+  public String page(
+      @PathVariable("profileId") long profileId,
       @RequestParam(required = false) YearMonth month,
       Model model,
       jakarta.servlet.http.HttpServletRequest request) {
@@ -90,29 +99,36 @@ public class AccountingPageController {
     return "accounting/accounting";
   }
 
-  @PostMapping("/accounting/actions/confirm")
-  public String confirm(long profileId, YearMonth month, RedirectAttributes redirect) {
+  @PostMapping(BASE + "/actions/confirm")
+  public String confirm(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     return action("confirm", profileId, month, redirect, () -> client.confirm(profileId, month));
   }
 
-  @PostMapping("/accounting/actions/file")
-  public String file(long profileId, YearMonth month, RedirectAttributes redirect) {
+  @PostMapping(BASE + "/actions/file")
+  public String file(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     return action("file", profileId, month, redirect, () -> client.file(profileId, month));
   }
 
-  @PostMapping("/accounting/actions/settle")
-  public String settle(long profileId, YearMonth month, RedirectAttributes redirect) {
+  @PostMapping(BASE + "/actions/settle")
+  public String settle(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     return action("settle", profileId, month, redirect, () -> client.settle(profileId, month));
   }
 
-  @PostMapping("/accounting/actions/lock")
-  public String lock(long profileId, YearMonth month, RedirectAttributes redirect) {
+  @PostMapping(BASE + "/actions/lock")
+  public String lock(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     return action("lock", profileId, month, redirect, () -> client.lock(profileId, month));
   }
 
-  @PostMapping("/accounting/actions/reopen")
+  @PostMapping(BASE + "/actions/reopen")
   public String reopen(
-      long profileId, YearMonth month, @RequestParam String reason, RedirectAttributes redirect) {
+      @PathVariable("profileId") long profileId,
+      YearMonth month,
+      @RequestParam String reason,
+      RedirectAttributes redirect) {
     if (reason == null || reason.isBlank()) {
       redirect.addFlashAttribute("accountingError", "Cannot reopen this month without a reason.");
     } else {
@@ -122,9 +138,9 @@ public class AccountingPageController {
     return redirect(profileId, month);
   }
 
-  @PostMapping("/accounting/documents/recognize")
+  @PostMapping(BASE + "/documents/recognize")
   public String recognize(
-      long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       MultipartFile file,
       RedirectAttributes redirect,
@@ -149,9 +165,9 @@ public class AccountingPageController {
     }
   }
 
-  @GetMapping("/accounting/documents/review")
+  @GetMapping(BASE + "/documents/review")
   public String reviewSource(
-      long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       @RequestParam String sourceReference,
       Model model,
@@ -170,9 +186,9 @@ public class AccountingPageController {
     }
   }
 
-  @PostMapping("/accounting/documents/save")
+  @PostMapping(BASE + "/documents/save")
   public String saveReviewed(
-      long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       AccountingRestClient.ReviewedDocument document,
       RedirectAttributes redirect) {
@@ -185,9 +201,12 @@ public class AccountingPageController {
     return redirect(profileId, month);
   }
 
-  @PostMapping("/accounting/bank/import")
+  @PostMapping(BASE + "/bank/import")
   public String importBank(
-      long profileId, YearMonth month, MultipartFile file, RedirectAttributes redirect) {
+      @PathVariable("profileId") long profileId,
+      YearMonth month,
+      MultipartFile file,
+      RedirectAttributes redirect) {
     try {
       validateUpload(file, "text/csv", "application/csv", "application/vnd.ms-excel");
       client.importBank(
@@ -203,8 +222,9 @@ public class AccountingPageController {
     return redirect(profileId, month);
   }
 
-  @PostMapping("/accounting/ksef/sync")
-  public String syncKsef(long profileId, YearMonth month, RedirectAttributes redirect) {
+  @PostMapping(BASE + "/ksef/sync")
+  public String syncKsef(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     try {
       var result = client.syncKsef(profileId, month);
       if ("NOT_CONFIGURED".equals(result.status())) {
@@ -222,8 +242,49 @@ public class AccountingPageController {
     return redirect(profileId, month);
   }
 
-  @PostMapping("/accounting/staging/reconcile")
-  public String reconcile(long profileId, YearMonth month, RedirectAttributes redirect) {
+  @PostMapping(BASE + "/ksef/sync-seller")
+  public String syncKsefSeller(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
+    try {
+      var result = client.syncKsefSeller(profileId, month);
+      if ("NOT_CONFIGURED".equals(result.status())) {
+        redirect.addFlashAttribute("accountingError", "KSeF is not configured.");
+      } else if (result.failed() > 0) {
+        redirect.addFlashAttribute("accountingError", result.message());
+      } else if (result.reviewRequired() > 0) {
+        redirect.addFlashAttribute("accountingWarning", result.message());
+      } else {
+        redirect.addFlashAttribute("accountingMessage", result.message());
+      }
+    } catch (RuntimeException exception) {
+      redirect.addFlashAttribute("accountingError", safeMessage(exception));
+    }
+    return redirect(profileId, month);
+  }
+
+  @PostMapping(BASE + "/ksef/sync-third-party")
+  public String syncKsefThirdParty(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
+    try {
+      var result = client.syncKsefThirdParty(profileId, month);
+      if ("NOT_CONFIGURED".equals(result.status())) {
+        redirect.addFlashAttribute("accountingError", "KSeF is not configured.");
+      } else if (result.failed() > 0) {
+        redirect.addFlashAttribute("accountingError", result.message());
+      } else if (result.reviewRequired() > 0) {
+        redirect.addFlashAttribute("accountingWarning", result.message());
+      } else {
+        redirect.addFlashAttribute("accountingMessage", result.message());
+      }
+    } catch (RuntimeException exception) {
+      redirect.addFlashAttribute("accountingError", safeMessage(exception));
+    }
+    return redirect(profileId, month);
+  }
+
+  @PostMapping(BASE + "/staging/reconcile")
+  public String reconcile(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     try {
       var summary = client.reconcile(profileId, month);
       redirect.addFlashAttribute(
@@ -235,8 +296,9 @@ public class AccountingPageController {
     return redirect(profileId, month);
   }
 
-  @PostMapping("/accounting/staging/promote")
-  public String promote(long profileId, YearMonth month, RedirectAttributes redirect) {
+  @PostMapping(BASE + "/staging/promote")
+  public String promote(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     try {
       var promotion = client.promote(profileId, month);
       redirect.addFlashAttribute(
@@ -252,8 +314,9 @@ public class AccountingPageController {
     return redirect(profileId, month);
   }
 
-  @PostMapping("/accounting/filings/jpk/generate")
-  public String generateJpk(long profileId, YearMonth month, RedirectAttributes redirect) {
+  @PostMapping(BASE + "/filings/jpk/generate")
+  public String generateJpk(
+      @PathVariable("profileId") long profileId, YearMonth month, RedirectAttributes redirect) {
     try {
       client.generateJpk(profileId, month);
       redirect.addFlashAttribute("accountingMessage", "JPK_V7M(3) generated and validated.");
@@ -263,9 +326,9 @@ public class AccountingPageController {
     return redirect(profileId, month);
   }
 
-  @GetMapping("/accounting/filings/jpk")
+  @GetMapping(BASE + "/filings/jpk")
   public org.springframework.http.ResponseEntity<byte[]> downloadJpk(
-      long profileId, YearMonth month) {
+      @PathVariable("profileId") long profileId, YearMonth month) {
     return org.springframework.http.ResponseEntity.ok()
         .contentType(org.springframework.http.MediaType.APPLICATION_XML)
         .header(
@@ -274,9 +337,9 @@ public class AccountingPageController {
         .body(client.downloadJpk(profileId, month));
   }
 
-  @PostMapping("/accounting/filings/confirmations")
+  @PostMapping(BASE + "/filings/confirmations")
   public String recordUpo(
-      long profileId,
+      @PathVariable("profileId") long profileId,
       YearMonth month,
       @RequestParam String externalReference,
       RedirectAttributes redirect) {
@@ -315,7 +378,8 @@ public class AccountingPageController {
   }
 
   private String redirect(long profileId, YearMonth month) {
-    return "redirect:/accounting?profileId=" + profileId + "&month=" + month;
+    String location = "redirect:/profiles/" + profileId + "/accounting";
+    return month == null ? location : location + "?month=" + month;
   }
 
   private boolean canWrite(jakarta.servlet.http.HttpServletRequest request) {

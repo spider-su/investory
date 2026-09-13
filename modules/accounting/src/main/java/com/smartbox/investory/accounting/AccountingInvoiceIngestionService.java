@@ -18,6 +18,7 @@ public class AccountingInvoiceIngestionService {
 
   public boolean ingest(ReviewedInvoice invoice) {
     validate(invoice);
+    invoice = canonicalizeCounterparty(1L, invoice);
     if ("SALES_INVOICE".equals(invoice.documentType())) return ingestSalesLegacy(invoice);
     if ("CREDIT_NOTE".equals(invoice.documentType())) return ingestCreditNoteLegacy(invoice);
     if ("PURCHASE_INVOICE".equals(invoice.documentType())
@@ -91,6 +92,7 @@ public class AccountingInvoiceIngestionService {
 
   public boolean ingest(long profileId, ReviewedInvoice invoice) {
     validate(invoice);
+    invoice = canonicalizeCounterparty(profileId, invoice);
     if ("SALES_INVOICE".equals(invoice.documentType())) {
       return ingestSales(profileId, invoice);
     }
@@ -103,6 +105,34 @@ public class AccountingInvoiceIngestionService {
     }
     throw new IllegalArgumentException(
         "Credit-note persistence is intentionally parked; review the document without saving it yet.");
+  }
+
+  private ReviewedInvoice canonicalizeCounterparty(long profileId, ReviewedInvoice invoice) {
+    AccountingKnownCounterparty known =
+        repository.knownCounterparty(
+            profileId, invoice.counterpartyTaxIdentifier(), invoice.counterpartyCountry());
+    if (known == null) return invoice;
+    return new ReviewedInvoice(
+        invoice.taxPeriod(),
+        invoice.documentType(),
+        invoice.issueDate(),
+        invoice.saleDate(),
+        invoice.reference(),
+        known.canonicalName(),
+        invoice.category(),
+        invoice.currency(),
+        invoice.netAmount(),
+        invoice.vatAmount(),
+        invoice.grossAmount(),
+        invoice.vatDeductionRatio(),
+        invoice.sourceQuality(),
+        invoice.note(),
+        invoice.sourceIdentity(),
+        known.taxIdentifier(),
+        known.country(),
+        invoice.ksefNumber(),
+        invoice.filingEvidence(),
+        invoice.dueDate());
   }
 
   private boolean ingestPurchase(long profileId, ReviewedInvoice invoice) {
@@ -259,9 +289,9 @@ public class AccountingInvoiceIngestionService {
 
   private boolean ingestCreditNote(long profileId, ReviewedInvoice invoice) {
     String currency = invoice.currency().trim().toUpperCase();
-    BigDecimal signedNet = invoice.netAmount().negate();
-    BigDecimal signedVat = invoice.vatAmount().negate();
-    BigDecimal signedGross = invoice.grossAmount().negate();
+    BigDecimal signedNet = negative(invoice.netAmount());
+    BigDecimal signedVat = negative(invoice.vatAmount());
+    BigDecimal signedGross = negative(invoice.grossAmount());
     BigDecimal bookedNetPln = "PLN".equals(currency) ? signedNet : null;
     if (invoice.sourceIdentity() == null || invoice.sourceIdentity().isBlank()) {
       return repository.insertSalesInvoice(
@@ -316,11 +346,14 @@ public class AccountingInvoiceIngestionService {
         || invoice.reference().isBlank()
         || invoice.counterpartyAlias() == null
         || invoice.counterpartyAlias().isBlank()
-        || invoice.category() == null
-        || invoice.category().isBlank()
         || invoice.currency() == null
         || invoice.currency().isBlank()) {
       throw new IllegalArgumentException("Reviewed invoice is missing required fields");
+    }
+    if (("PURCHASE_INVOICE".equals(invoice.documentType())
+            || "RECEIPT".equals(invoice.documentType()))
+        && (invoice.category() == null || invoice.category().isBlank())) {
+      throw new IllegalArgumentException("Purchase category is required before saving");
     }
     if (invoice.netAmount() == null
         || invoice.vatAmount() == null
@@ -334,6 +367,10 @@ public class AccountingInvoiceIngestionService {
 
   private BigDecimal defaultDeductionRatio(String category) {
     return "VEHICLE_FUEL".equals(category) ? new BigDecimal("0.50") : BigDecimal.ONE;
+  }
+
+  private BigDecimal negative(BigDecimal value) {
+    return value.signum() > 0 ? value.negate() : value;
   }
 
   private LocalDate firstNonNull(LocalDate first, LocalDate second) {

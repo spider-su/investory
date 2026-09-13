@@ -93,9 +93,10 @@ Unknown tax-relevant classification or VAT deduction must produce `REVIEW_REQUIR
 value. KSeF classification intentionally recognizes only explicit, proven rules (for example vehicle
 fuel); all other tax-relevant cases remain review-required until a user supplies the missing decision.
 
-The normal `/accounting` page is also the acquisition entry point. Upload document, bank CSV import,
-and KSeF sync go through `AccountingRestClient`, the REST controller, and `AccountingUserFacade`;
-the facade delegates to source acquisition before extraction and normalized facts. Bank is currently
+The normal `/profiles/{profileId}/accounting` page is also the acquisition entry point. Upload
+document, bank CSV import, and KSeF sync go through `AccountingPageController`, the
+`AccountingRestClient` abstraction, `InProcessAccountingClient`, and `AccountingUserFacade`; the
+facade delegates to source acquisition before extraction and normalized facts. Bank is currently
 CSV-only. KSeF status is shown explicitly as connected or not configured. Source-evidence counts are
 separate from normalized document counts, so preloaded normalized documents may coexist with zero
 source evidence.
@@ -215,10 +216,16 @@ The calculation goes through the shared `CurrencyConversion` boundary. Historica
 
 Do not silently replace a failed conversion with a fabricated rate. If the conversion provider is unavailable, the fallback golden must remain explicitly labelled.
 
-Each EUR invoice is converted independently using its stored `fx_rate_date`. If a rate is unavailable,
-the snapshot lists the affected invoice reference in `FxCalculation.unavailableInvoiceReferences`.
+Each foreign invoice is converted independently using its stored `fx_rate_date`; when that field is
+absent, the sale date, then issue date, is used. If a rate is unavailable, the snapshot lists the
+affected invoice reference in `FxCalculation.unavailableInvoiceReferences`.
 Its stored booked PLN value may be used as an explicit `FX_UNAVAILABLE_USING_BOOKED_FALLBACK`; no
 monthly golden total is substituted for an unidentified invoice.
+
+For historical reconstruction, the calculated PLN revenue is assembled per invoice: a stored booked
+PLN amount is used where captured, and the shared FX conversion is used where it is missing. A partial
+set of booked values is therefore not treated as a zero or as a monthly wFirma substitute. The FX
+comparison is marked `CALCULATED` until every invoice has a booked PLN comparison value.
 
 ## Source quality
 
@@ -248,12 +255,15 @@ bad source document skips while other documents continue. Reviewed credit notes 
 sales adjustments in the same normalized invoice table; the historical July correction remains the
 only special fixture treatment.
 
-The user-facing `/accounting` page reads only `months` and the aggregate monthly `overview` over the
-typed application boundary. Detailed documents, bank transactions, payments, filings and
-reconciliation endpoints remain available separately. Page mutations use the same application
-services in-process; the UI does not call the application over localhost HTTP. Server-side profile
-authorization remains authoritative; `PROFILE_USER` is read-only in the UI while administrators and
-profile owners see mutation controls. The POC supports only `profileId=1`.
+The persistence and API model carries `profileId`, and the user-facing `/profiles/{profileId}/accounting`
+page reads only `months` and the aggregate monthly
+`overview` over the typed application boundary. Detailed documents, bank transactions, payments,
+filings and reconciliation endpoints remain available separately. Page mutations use the same
+application services in-process; the UI does not call the application over localhost HTTP.
+Server-side profile authorization remains authoritative; `PROFILE_USER` is read-only in the UI while
+administrators and profile owners see mutation controls. The POC supports only `profileId=1`.
+Full multi-profile support and isolation certification are post-POC roadmap work; carrying
+`profileId` does not mean arbitrary multi-profile operation is production-qualified.
 
 ## Filing output
 

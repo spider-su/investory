@@ -93,7 +93,10 @@ public class AccountingFactService {
         profileId == 1
             ? pocRepository.invoicesForPeriod(period)
             : pocRepository.invoicesForPeriod(profileId, period);
-    List<InvoiceRow> correctionSources =
+    // The immutable pre-KSeF fixture stores FK1 as correction_* fields on FV4. Keep this
+    // compatibility path explicit and isolated. New KSeF CREDIT_NOTE rows are signed rows in
+    // their own sale-date tax period and must not be moved to July by this legacy adjustment.
+    List<InvoiceRow> legacyJulyCorrectionSources =
         JULY_2026.equals(period)
             ? (profileId == 1
                 ? pocRepository.invoicesForPeriod(period.minusMonths(1))
@@ -138,16 +141,28 @@ public class AccountingFactService {
             .map(InvoiceRow::netAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-    FxCalculation fx = calculateFx(invoices, foreignBookedRevenue, foreignSourceEur);
-    RyczaltCalculation ryczalt =
-        calculateRyczalt(
-            period, invoices, correctionSources, domesticRevenue, fx, obligations, taxInputs);
-    VatCalculation vat = calculateVat(period, invoices, correctionSources, expenses, obligations);
-    ZusCalculation zus = calculateZus(profile, taxInputs);
     AccountingCalculationMode calculationMode =
         period.isBefore(OPERATIONAL_MONTH)
             ? AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
             : AccountingCalculationMode.CURRENT_CALCULATION;
+    FxCalculation fx = calculateFx(invoices, foreignBookedRevenue, foreignSourceEur);
+    if (calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION) {
+      foreignBookedRevenue = reconstructedForeignRevenue(invoices);
+    }
+    RyczaltCalculation ryczalt =
+        calculateRyczalt(
+            period,
+            calculationMode,
+            invoices,
+            legacyJulyCorrectionSources,
+            domesticRevenue,
+            foreignBookedRevenue,
+            fx,
+            obligations,
+            taxInputs);
+    VatCalculation vat =
+        calculateVat(period, invoices, legacyJulyCorrectionSources, expenses, obligations);
+    ZusCalculation zus = calculateZus(profile, taxInputs);
     var activityPeriods =
         profileId == 1
             ? pocRepository.businessActivityPeriods()
@@ -239,12 +254,12 @@ public class AccountingFactService {
                 profile,
                 new AccountingCalculationInput.CalculationAdjustments(
                     JULY_2026.equals(period)
-                        ? correctionSources.stream()
+                        ? legacyJulyCorrectionSources.stream()
                             .map(InvoiceRow::correctionNetAmount)
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
                         : BigDecimal.ZERO,
                     JULY_2026.equals(period)
-                        ? correctionSources.stream()
+                        ? legacyJulyCorrectionSources.stream()
                             .map(InvoiceRow::correctionVatAmount)
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
                         : BigDecimal.ZERO),
@@ -611,7 +626,7 @@ public class AccountingFactService {
 
   private String fxNote(FxCalculation fx) {
     String note =
-        "Foreign revenue converted through Investory CurrencyConversion and compared with the booked PLN value.";
+        "Foreign revenue converted through Investory CurrencyConversion; booked PLN is comparison evidence when present.";
     if (fx.unavailableInvoiceReferences().isEmpty()) return note;
     return note
         + " Unavailable invoice FX source(s): "
@@ -642,7 +657,12 @@ public class AccountingFactService {
         calculated =
             calculated.add(
                 currencyConversion.convertToBaseCurrency(
-                    invoice.netAmount(), CurrencyType.PLN, CurrencyType.EUR, invoice.fxRateDate()));
+                    invoice.netAmount(),
+                    CurrencyType.PLN,
+                    CurrencyType.EUR,
+                    invoice.fxRateDate() != null
+                        ? invoice.fxRateDate()
+                        : firstNonNull(invoice.saleDate(), invoice.issueDate())));
       } catch (CurrencyConversionUnavailableException ex) {
         unavailableReferences.add(invoice.reference());
         if (invoice.bookedNetPln() != null) {
@@ -653,11 +673,18 @@ public class AccountingFactService {
     }
     calculated = calculated.setScale(2, RoundingMode.HALF_UP);
 
-    BigDecimal expected = expectedForeignPln.setScale(2, RoundingMode.HALF_UP);
+    boolean completeBookedComparison =
+        eurInvoices.stream().allMatch(invoice -> invoice.bookedNetPln() != null);
+    BigDecimal expected =
+        completeBookedComparison
+            ? expectedForeignPln.setScale(2, RoundingMode.HALF_UP)
+            : calculated;
     String status =
         !unavailableReferences.isEmpty()
             ? bookedFallback ? "FX_UNAVAILABLE_USING_BOOKED_FALLBACK" : "FX_UNAVAILABLE"
-            : calculated.compareTo(expected) == 0 ? "MATCH" : "DIFF";
+            : !completeBookedComparison
+                ? "CALCULATED"
+                : calculated.compareTo(expected) == 0 ? "MATCH" : "DIFF";
     return new FxCalculation(
         eurInvoices.getFirst().fxRateDate(),
         foreignSourceEur,
@@ -668,27 +695,67 @@ public class AccountingFactService {
         List.copyOf(unavailableReferences));
   }
 
+  private LocalDate firstNonNull(LocalDate preferred, LocalDate fallback) {
+    return preferred != null ? preferred : fallback;
+  }
+
+  /**
+   * Reconstruct historical foreign revenue from booked PLN where available and the configured
+   * historical FX resolver where the source record has no booked PLN value. wFirma values remain
+   * comparison data; they are never required to calculate the result.
+   */
+  private BigDecimal reconstructedForeignRevenue(List<InvoiceRow> invoices) {
+    BigDecimal total = BigDecimal.ZERO;
+    for (InvoiceRow invoice : invoices) {
+      if ("PLN".equals(invoice.currency())) continue;
+      if (invoice.bookedNetPln() != null) {
+        total = total.add(invoice.bookedNetPln());
+        continue;
+      }
+      try {
+        BigDecimal converted =
+            currencyConversion.convertToBaseCurrency(
+                invoice.netAmount(),
+                CurrencyType.PLN,
+                CurrencyType.valueOf(invoice.currency()),
+                invoice.fxRateDate() != null
+                    ? invoice.fxRateDate()
+                    : firstNonNull(invoice.saleDate(), invoice.issueDate()));
+        if (converted != null) total = total.add(converted);
+      } catch (CurrencyConversionUnavailableException | IllegalArgumentException ignored) {
+        // calculateFx records the missing source as a blocking diagnostic.
+      }
+    }
+    return total.setScale(2, RoundingMode.HALF_UP);
+  }
+
   private RyczaltCalculation calculateRyczalt(
       LocalDate period,
+      AccountingCalculationMode calculationMode,
       List<InvoiceRow> invoices,
-      List<InvoiceRow> correctionSources,
+      List<InvoiceRow> legacyJulyCorrectionSources,
       BigDecimal domesticRevenue,
+      BigDecimal foreignRevenuePln,
       FxCalculation fx,
       List<ObligationRow> obligations,
       List<TaxInputRow> taxInputs) {
     BigDecimal julyOnlyCorrectionNet =
         JULY_2026.equals(period)
-            ? correctionSources.stream()
+            ? legacyJulyCorrectionSources.stream()
                 .map(InvoiceRow::correctionNetAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
             : BigDecimal.ZERO;
+    BigDecimal foreignRevenueForTax =
+        calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+            ? foreignRevenuePln
+            : fx.calculatedPln();
     BigDecimal revenueBeforeDeductions =
-        domesticRevenue.add(fx.calculatedPln()).add(julyOnlyCorrectionNet);
+        domesticRevenue.add(foreignRevenueForTax).add(julyOnlyCorrectionNet);
 
     BigDecimal healthPaid = taxInput(taxInputs, "HEALTH_CONTRIBUTION_PAID");
     BigDecimal healthDeduction = healthPaid.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
     BigDecimal taxableBase =
-        revenueBeforeDeductions.subtract(healthDeduction).setScale(2, RoundingMode.HALF_UP);
+        revenueBeforeDeductions.subtract(healthDeduction).setScale(0, RoundingMode.HALF_UP);
 
     BigDecimal rate =
         invoices.stream()
@@ -729,7 +796,7 @@ public class AccountingFactService {
   private VatCalculation calculateVat(
       LocalDate period,
       List<InvoiceRow> invoices,
-      List<InvoiceRow> correctionSources,
+      List<InvoiceRow> legacyJulyCorrectionSources,
       List<ExpenseRow> expenses,
       List<ObligationRow> obligations) {
     BigDecimal outputBeforeCorrection =
@@ -740,7 +807,7 @@ public class AccountingFactService {
 
     BigDecimal julyOnlySalesCorrectionVat =
         JULY_2026.equals(period)
-            ? correctionSources.stream()
+            ? legacyJulyCorrectionSources.stream()
                 .map(InvoiceRow::correctionVatAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
             : BigDecimal.ZERO;

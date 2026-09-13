@@ -101,7 +101,7 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         revenue
             .subtract(socialDeduction)
             .subtract(healthDeduction)
-            .setScale(2, RoundingMode.HALF_UP);
+            .setScale(0, RoundingMode.HALF_UP);
     Map<BigDecimal, BigDecimal> buckets = new LinkedHashMap<>();
     BigDecimal effectiveRate = input.periodContext().ryczaltRate();
     if (input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
@@ -140,11 +140,8 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
       buckets.merge(new BigDecimal("0.12"), input.adjustments().revenueNetPln(), BigDecimal::add);
     }
     BigDecimal tax =
-        buckets.entrySet().stream()
-            .map(e -> e.getValue().multiply(e.getKey()))
-            .reduce(BigDecimal.ZERO, BigDecimal::add)
-            .subtract(socialDeduction.multiply(new BigDecimal("0.12")))
-            .subtract(healthDeduction.multiply(new BigDecimal("0.12")))
+        taxable
+            .multiply(effectiveRate == null ? new BigDecimal("0.12") : effectiveRate)
             .setScale(0, RoundingMode.HALF_UP);
     BigDecimal outputVat;
     BigDecimal deductible;

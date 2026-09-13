@@ -132,6 +132,17 @@ class DefaultAccountingMonthCalculatorTest {
   }
 
   @Test
+  void roundsRyczaltTaxableBaseBeforeApplyingTheRate() {
+    AccountingCalculationResult result =
+        calculator(mock(CurrencyConversion.class))
+            .calculate(
+                input(List.of(invoice("PLN-ROUNDING", "PLN", "1004.49", "0.12")), List.of()));
+
+    assertThat(result.ryczalt().taxableBase()).isEqualByComparingTo("1004");
+    assertThat(result.ryczalt().calculatedTax()).isEqualByComparingTo("120");
+  }
+
+  @Test
   void explicitVatTreatmentControlsOutputInsteadOfCurrency() {
     CurrencyConversion conversion = mock(CurrencyConversion.class);
     InvoiceRow invoice = invoice("EU-1", "PLN", "100.00", "0.12");

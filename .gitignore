@@ -56,3 +56,4 @@ src/main/resources/application-k3s.yml
 /.playwright-mcp/
 /*-blocker.png
 /*-isolation.png
+/.playwright-browsers/

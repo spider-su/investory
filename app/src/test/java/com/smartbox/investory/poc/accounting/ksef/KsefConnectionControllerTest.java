@@ -45,6 +45,215 @@ class KsefConnectionControllerTest {
   }
 
   @Test
+  void sellerSyncQueriesSubject1UsesBuyerAndSaleMonthForAccounting() {
+    KsefClient client = org.mockito.Mockito.mock(KsefClient.class);
+    KsefInvoiceXmlParser parser = org.mockito.Mockito.mock(KsefInvoiceXmlParser.class);
+    AccountingInvoiceIngestionService ingestion =
+        org.mockito.Mockito.mock(AccountingInvoiceIngestionService.class);
+    AccountingSourceEvidenceService sources =
+        org.mockito.Mockito.mock(AccountingSourceEvidenceService.class);
+    when(client.authenticateWithToken(KsefEnvironment.PRODUCTION, "1234567890", "secret-token"))
+        .thenReturn(new KsefAccess("access-token", null, null, null));
+    when(client.queryInvoices(
+            eq(KsefEnvironment.PRODUCTION),
+            eq("access-token"),
+            eq("Subject1"),
+            eq(anyOffset(2026, 7, 1)),
+            eq(anyOffset(2026, 8, 1)),
+            eq(0),
+            eq(250)))
+        .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-SALE-1\"}]}");
+    when(client.downloadInvoice(KsefEnvironment.PRODUCTION, "access-token", "KSEF-SALE-1"))
+        .thenReturn("<Invoice/>");
+    when(sources.findId(AccountingSourceType.KSEF, "KSEF-SALE-1")).thenReturn(Optional.empty());
+    when(sources.receiveKsef(eq("KSEF-SALE-1"), eq(null), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(42L);
+    when(parser.parse(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            new KsefInvoiceXmlParser.ParsedKsefInvoice(
+                "FV-SALE-1",
+                LocalDate.of(2026, 7, 10),
+                LocalDate.of(2026, 6, 29),
+                "8133703437",
+                "Seller",
+                "9452196213",
+                "Buyer",
+                "PLN",
+                new BigDecimal("100"),
+                new BigDecimal("23"),
+                new BigDecimal("123"),
+                null,
+                null,
+                "VAT"));
+    when(ingestion.ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
+        .thenReturn(true);
+
+    KsefConnectionController controller =
+        new KsefConnectionController(
+            client,
+            KsefEnvironment.PRODUCTION,
+            "1234567890",
+            "secret-token",
+            parser,
+            ingestion,
+            new ObjectMapper(),
+            sources,
+            org.mockito.Mockito.mock(AccountingPocRepository.class));
+
+    var result = controller.syncSeller(java.time.YearMonth.of(2026, 7));
+
+    assertThat(result.imported()).isEqualTo(1);
+    assertThat(result.message()).contains("discovery month uses issue date");
+    ArgumentCaptor<ReviewedInvoice> invoice = ArgumentCaptor.forClass(ReviewedInvoice.class);
+    verify(ingestion).ingest(invoice.capture());
+    assertThat(invoice.getValue().documentType()).isEqualTo("SALES_INVOICE");
+    assertThat(invoice.getValue().counterpartyAlias()).isEqualTo("Buyer");
+    assertThat(invoice.getValue().taxPeriod()).isEqualTo(LocalDate.of(2026, 6, 1));
+    assertThat(invoice.getValue().issueDate()).isEqualTo(LocalDate.of(2026, 7, 10));
+    assertThat(invoice.getValue().saleDate()).isEqualTo(LocalDate.of(2026, 6, 29));
+    verify(client)
+        .queryInvoices(
+            eq(KsefEnvironment.PRODUCTION),
+            eq("access-token"),
+            eq("Subject1"),
+            eq(anyOffset(2026, 7, 1)),
+            eq(anyOffset(2026, 8, 1)),
+            eq(0),
+            eq(250));
+  }
+
+  @Test
+  void sellerCreditNoteUsesSaleMonthForAccounting() {
+    KsefClient client = org.mockito.Mockito.mock(KsefClient.class);
+    KsefInvoiceXmlParser parser = org.mockito.Mockito.mock(KsefInvoiceXmlParser.class);
+    AccountingInvoiceIngestionService ingestion =
+        org.mockito.Mockito.mock(AccountingInvoiceIngestionService.class);
+    AccountingSourceEvidenceService sources =
+        org.mockito.Mockito.mock(AccountingSourceEvidenceService.class);
+    when(client.authenticateWithToken(KsefEnvironment.PRODUCTION, "1234567890", "secret-token"))
+        .thenReturn(new KsefAccess("access-token", null, null, null));
+    when(client.queryInvoices(
+            eq(KsefEnvironment.PRODUCTION),
+            eq("access-token"),
+            eq("Subject1"),
+            eq(anyOffset(2026, 7, 1)),
+            eq(anyOffset(2026, 8, 1)),
+            eq(0),
+            eq(250)))
+        .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-CREDIT-1\"}]}");
+    when(client.downloadInvoice(KsefEnvironment.PRODUCTION, "access-token", "KSEF-CREDIT-1"))
+        .thenReturn("<Invoice/>");
+    when(sources.findId(AccountingSourceType.KSEF, "KSEF-CREDIT-1")).thenReturn(Optional.empty());
+    when(sources.receiveKsef(eq("KSEF-CREDIT-1"), eq(null), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(43L);
+    when(parser.parse(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            new KsefInvoiceXmlParser.ParsedKsefInvoice(
+                "FK1",
+                LocalDate.of(2026, 7, 11),
+                LocalDate.of(2026, 6, 30),
+                "8133703437",
+                "Seller",
+                "9452196213",
+                "Buyer",
+                "PLN",
+                new BigDecimal("20"),
+                new BigDecimal("4.60"),
+                new BigDecimal("24.60"),
+                null,
+                null,
+                "KOR"));
+    when(ingestion.ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
+        .thenReturn(true);
+
+    KsefConnectionController controller =
+        new KsefConnectionController(
+            client,
+            KsefEnvironment.PRODUCTION,
+            "1234567890",
+            "secret-token",
+            parser,
+            ingestion,
+            new ObjectMapper(),
+            sources,
+            org.mockito.Mockito.mock(AccountingPocRepository.class));
+
+    var result = controller.syncSeller(java.time.YearMonth.of(2026, 7));
+
+    assertThat(result.imported()).isEqualTo(1);
+    ArgumentCaptor<ReviewedInvoice> invoice = ArgumentCaptor.forClass(ReviewedInvoice.class);
+    verify(ingestion).ingest(invoice.capture());
+    assertThat(invoice.getValue().documentType()).isEqualTo("CREDIT_NOTE");
+    assertThat(invoice.getValue().taxPeriod()).isEqualTo(LocalDate.of(2026, 6, 1));
+    assertThat(invoice.getValue().issueDate()).isEqualTo(LocalDate.of(2026, 7, 11));
+    assertThat(invoice.getValue().saleDate()).isEqualTo(LocalDate.of(2026, 6, 30));
+  }
+
+  @Test
+  void sellerInvoiceFallsBackToIssueMonthWhenSaleDateIsMissing() {
+    KsefClient client = org.mockito.Mockito.mock(KsefClient.class);
+    KsefInvoiceXmlParser parser = org.mockito.Mockito.mock(KsefInvoiceXmlParser.class);
+    AccountingInvoiceIngestionService ingestion =
+        org.mockito.Mockito.mock(AccountingInvoiceIngestionService.class);
+    AccountingSourceEvidenceService sources =
+        org.mockito.Mockito.mock(AccountingSourceEvidenceService.class);
+    when(client.authenticateWithToken(KsefEnvironment.PRODUCTION, "1234567890", "secret-token"))
+        .thenReturn(new KsefAccess("access-token", null, null, null));
+    when(client.queryInvoices(
+            eq(KsefEnvironment.PRODUCTION),
+            eq("access-token"),
+            eq("Subject1"),
+            eq(anyOffset(2026, 7, 1)),
+            eq(anyOffset(2026, 8, 1)),
+            eq(0),
+            eq(250)))
+        .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-NO-SALE-DATE\"}]}");
+    when(client.downloadInvoice(KsefEnvironment.PRODUCTION, "access-token", "KSEF-NO-SALE-DATE"))
+        .thenReturn("<Invoice/>");
+    when(sources.findId(AccountingSourceType.KSEF, "KSEF-NO-SALE-DATE"))
+        .thenReturn(Optional.empty());
+    when(sources.receiveKsef(eq("KSEF-NO-SALE-DATE"), eq(null), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(44L);
+    when(parser.parse(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            new KsefInvoiceXmlParser.ParsedKsefInvoice(
+                "FV-NO-SALE-DATE",
+                LocalDate.of(2026, 7, 12),
+                null,
+                "8133703437",
+                "Seller",
+                "9452196213",
+                "Buyer",
+                "PLN",
+                new BigDecimal("30"),
+                new BigDecimal("6.90"),
+                new BigDecimal("36.90"),
+                null,
+                null,
+                "VAT"));
+    when(ingestion.ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
+        .thenReturn(true);
+
+    KsefConnectionController controller =
+        new KsefConnectionController(
+            client,
+            KsefEnvironment.PRODUCTION,
+            "1234567890",
+            "secret-token",
+            parser,
+            ingestion,
+            new ObjectMapper(),
+            sources,
+            org.mockito.Mockito.mock(AccountingPocRepository.class));
+
+    controller.syncSeller(java.time.YearMonth.of(2026, 7));
+
+    ArgumentCaptor<ReviewedInvoice> invoice = ArgumentCaptor.forClass(ReviewedInvoice.class);
+    verify(ingestion).ingest(invoice.capture());
+    assertThat(invoice.getValue().taxPeriod()).isEqualTo(LocalDate.of(2026, 7, 1));
+  }
+
+  @Test
   void rejectsPlaceholderTokenWithoutCallingKsef() {
     com.smartbox.investory.integrations.ksef.KsefClient client =
         org.mockito.Mockito.mock(com.smartbox.investory.integrations.ksef.KsefClient.class);

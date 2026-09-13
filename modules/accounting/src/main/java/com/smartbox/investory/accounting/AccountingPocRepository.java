@@ -54,6 +54,32 @@ public class AccountingPocRepository {
             profileId));
   }
 
+  public AccountingKnownCounterparty knownCounterparty(
+      long profileId, String taxIdentifier, String country) {
+    if (taxIdentifier == null || taxIdentifier.isBlank() || country == null || country.isBlank()) {
+      return null;
+    }
+    String normalizedTaxIdentifier = normalizeCounterpartyTaxIdentifier(taxIdentifier);
+    String normalizedCountry = country.trim().toUpperCase();
+    return jdbcTemplate.query(
+        """
+        SELECT tax_identifier, country, canonical_name
+          FROM investory.accounting_known_counterparty
+         WHERE profile_id = ? AND country = ? AND tax_identifier = ?
+        """,
+        rs ->
+            rs.next()
+                ? new AccountingKnownCounterparty(rs.getString(1), rs.getString(2), rs.getString(3))
+                : null,
+        profileId,
+        normalizedCountry,
+        normalizedTaxIdentifier);
+  }
+
+  private String normalizeCounterpartyTaxIdentifier(String value) {
+    return value.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+  }
+
   private AccountingFilingEvidence filingEvidence(String value, String ksefNumber) {
     if (value == null || value.isBlank()) return null;
     return new AccountingFilingEvidence(AccountingFilingEvidence.Type.valueOf(value), ksefNumber);
@@ -959,7 +985,7 @@ public class AccountingPocRepository {
                transaction_type, scope, note
           FROM investory.accounting_poc_bank_transaction
          WHERE profile_id = ? AND (related_period = ?
-            OR (booking_date >= ? AND booking_date < ?)
+            OR (related_period IS NULL AND booking_date >= ? AND booking_date < ?)
          )
          ORDER BY booking_date, id
         """,

@@ -305,7 +305,9 @@ See [Accounting POC](../domain/accounting-poc.md) for supported JDG scope, UoP/Z
 FX rules, historical proof values, correction scope and domain non-goals.
 # Accounting application boundary
 
-The former `/poc/accounting` flow is not an active product surface; its mutating POST routes are denied. The product page is `/accounting` and reads a stable profile-scoped API contract. Its flow is:
+The former `/poc/accounting` flow is not an active product surface; its mutating POST routes are
+denied. The product page is `/profiles/{profileId}/accounting` (with `/accounting` retained only as a
+redirect) and reads a stable profile-scoped API contract. Its flow is:
 
 `Browser -> AccountingPageController -> InProcessAccountingClient -> AccountingUserApi/AccountingStagingApi -> accounting services`
 

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -196,6 +197,38 @@ class AccountingInvoiceIngestionServiceTest {
             invoice.counterpartyCountry(),
             null,
             null);
+  }
+
+  @Test
+  void canonicalizesCounterpartyWhenTaxIdentifierMatchesKnownRegistry() {
+    var invoice = salesWithDueDateAndCountry(LocalDate.of(2026, 7, 31), "DE");
+    when(repository.knownCounterparty(1L, "DE123", "DE"))
+        .thenReturn(new AccountingKnownCounterparty("DE123", "DE", "Known Customer"));
+
+    service.ingest(1L, invoice);
+
+    verify(repository)
+        .insertSalesInvoice(
+            eq(1L),
+            eq(invoice.taxPeriod()),
+            eq(invoice.issueDate()),
+            eq(invoice.saleDate()),
+            eq(invoice.dueDate()),
+            eq(invoice.reference()),
+            eq("Known Customer"),
+            eq("EU_SERVICE"),
+            eq("EUR"),
+            eq(invoice.netAmount()),
+            eq(invoice.vatAmount()),
+            eq(invoice.grossAmount()),
+            eq(null),
+            eq(new BigDecimal("0.12")),
+            eq(invoice.note()),
+            eq(42L),
+            eq("DE123"),
+            eq("DE"),
+            eq(null),
+            eq(null));
   }
 
   @Test

@@ -186,6 +186,62 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
         importSummary("KSeF sync finished", result));
   }
 
+  @Override
+  public AccountingUserApi.KsefSyncResult syncSeller(java.time.YearMonth month) {
+    validateToken();
+    KsefAccess access = client.authenticateWithToken(environment, nip, token);
+    ImportResult result = new ImportResult(0, 0, 0, 0, 0);
+    java.time.YearMonth cursor = month;
+    while (!cursor.isBefore(java.time.YearMonth.of(month.getYear(), 1))) {
+      List<String> numbers = new ArrayList<>();
+      queryPages(access.accessToken(), cursor, "Subject1")
+          .forEach(page -> numbers.addAll(extractKsefNumbers(page)));
+      Set<String> uniqueNumbers = new LinkedHashSet<>(numbers);
+      boolean alreadyLoaded =
+          !uniqueNumbers.isEmpty() && uniqueNumbers.stream().allMatch(this::canonicalExists);
+      result = result.plus(importSellerInvoices(access.accessToken(), uniqueNumbers));
+      if (alreadyLoaded) break;
+      cursor = cursor.minusMonths(1);
+    }
+    return new AccountingUserApi.KsefSyncResult(
+        "COMPLETED",
+        result.received(),
+        result.imported(),
+        result.duplicates(),
+        result.reviewRequired(),
+        result.failed(),
+        importSummary(
+            "KSeF seller sync finished (discovery month uses issue date; accounting month uses sale date when present)",
+            result));
+  }
+
+  @Override
+  public AccountingUserApi.KsefSyncResult syncThirdParty(java.time.YearMonth month) {
+    validateToken();
+    KsefAccess access = client.authenticateWithToken(environment, nip, token);
+    ImportResult result = new ImportResult(0, 0, 0, 0, 0);
+    java.time.YearMonth cursor = month;
+    while (!cursor.isBefore(java.time.YearMonth.of(month.getYear(), 1))) {
+      List<String> numbers = new ArrayList<>();
+      queryPages(access.accessToken(), cursor, "Subject3")
+          .forEach(page -> numbers.addAll(extractKsefNumbers(page)));
+      Set<String> uniqueNumbers = new LinkedHashSet<>(numbers);
+      boolean alreadyLoaded =
+          !uniqueNumbers.isEmpty() && uniqueNumbers.stream().allMatch(this::canonicalExists);
+      result = result.plus(importThirdPartyEvidence(access.accessToken(), uniqueNumbers));
+      if (alreadyLoaded) break;
+      cursor = cursor.minusMonths(1);
+    }
+    return new AccountingUserApi.KsefSyncResult(
+        "COMPLETED",
+        result.received(),
+        result.imported(),
+        result.duplicates(),
+        result.reviewRequired(),
+        result.failed(),
+        importSummary("KSeF third-party sync finished", result));
+  }
+
   private String importSummary(String prefix, ImportResult result) {
     return prefix
         + ": "
@@ -216,6 +272,173 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
       if (extractKsefNumbers(invoices).size() < KSEF_PAGE_SIZE) break;
     }
     return pages;
+  }
+
+  private List<String> queryPages(
+      String accessToken, java.time.YearMonth month, String subjectType) {
+    List<String> pages = new ArrayList<>();
+    for (int page = 0; page < KSEF_MAX_PAGES; page++) {
+      String invoices =
+          client.queryInvoices(
+              environment,
+              accessToken,
+              subjectType,
+              month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC),
+              month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC),
+              page,
+              KSEF_PAGE_SIZE);
+      pages.add(invoices);
+      if (extractKsefNumbers(invoices).size() < KSEF_PAGE_SIZE) break;
+    }
+    return pages;
+  }
+
+  private ImportResult importSellerInvoices(String accessToken, Set<String> ksefNumbers) {
+    if (invoiceParser == null || invoiceIngestionService == null || sourceEvidenceService == null) {
+      return new ImportResult(ksefNumbers.size(), 0, 0, 0, ksefNumbers.size());
+    }
+    int imported = 0;
+    int duplicates = 0;
+    int reviewRequired = 0;
+    int failed = 0;
+    for (String ksefNumber : ksefNumbers) {
+      long sourceId = 0;
+      try {
+        var existing = sourceEvidenceService.findId(AccountingSourceType.KSEF, ksefNumber);
+        if (existing.isPresent()
+            && canonicalRepository != null
+            && canonicalRepository.canonicalDocumentExists(1L, existing.get(), ksefNumber, null)) {
+          duplicates++;
+          continue;
+        }
+        String xml = client.downloadInvoice(environment, accessToken, ksefNumber);
+        byte[] payload = xml.getBytes(StandardCharsets.UTF_8);
+        sourceId = sourceEvidenceService.receiveKsef(ksefNumber, null, payload);
+        KsefInvoiceXmlParser.ParsedKsefInvoice invoice = invoiceParser.parse(payload);
+        validateSellerInvoice(invoice);
+        sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
+        if (!isSupportedAutomaticType(invoice.invoiceType(), true)) {
+          sourceEvidenceService.status(
+              sourceId,
+              AccountingSourceStatus.REVIEW_REQUIRED,
+              "Invoice type "
+                  + displayType(invoice.invoiceType())
+                  + " requires review before sales import");
+          reviewRequired++;
+          continue;
+        }
+        boolean correction =
+            "KOR".equalsIgnoreCase(invoice.invoiceType())
+                || (invoice.reference() != null && invoice.reference().startsWith("FK"));
+        String documentType = correction ? "CREDIT_NOTE" : "SALES_INVOICE";
+        String buyer = firstNonBlank(invoice.buyerName(), invoice.buyerNip());
+        LocalDate accountingPeriodDate =
+            invoice.saleDate() != null ? invoice.saleDate() : invoice.issueDate();
+        LocalDate accountingTaxPeriod = accountingPeriodDate.withDayOfMonth(1);
+        boolean saved =
+            invoiceIngestionService.ingest(
+                new ReviewedInvoice(
+                    accountingTaxPeriod,
+                    documentType,
+                    invoice.issueDate(),
+                    invoice.saleDate(),
+                    invoice.reference(),
+                    buyer,
+                    null,
+                    invoice.currency(),
+                    absolute(invoice.netAmount()),
+                    absolute(invoice.vatAmount()),
+                    absolute(invoice.grossAmount()),
+                    null,
+                    "KSEF_SOURCE_DOCUMENT",
+                    "KSeF " + ksefNumber + "; buyer " + buyer,
+                    Long.toString(sourceId),
+                    invoice.buyerNip(),
+                    "PL",
+                    ksefNumber,
+                    new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, ksefNumber)));
+        if (saved) {
+          imported++;
+          sourceEvidenceService.status(sourceId, AccountingSourceStatus.IMPORTED, null);
+        } else {
+          duplicates++;
+          sourceEvidenceService.status(
+              sourceId, AccountingSourceStatus.IMPORTED, "Canonical row already exists");
+        }
+      } catch (RuntimeException exception) {
+        if (sourceId != 0) {
+          sourceEvidenceService.status(
+              sourceId, AccountingSourceStatus.FAILED, safeMessage(exception));
+        }
+        failed++;
+      }
+    }
+    return new ImportResult(ksefNumbers.size(), imported, duplicates, reviewRequired, failed);
+  }
+
+  private ImportResult importThirdPartyEvidence(String accessToken, Set<String> ksefNumbers) {
+    if (sourceEvidenceService == null) {
+      return new ImportResult(ksefNumbers.size(), 0, 0, 0, ksefNumbers.size());
+    }
+    int duplicates = 0;
+    int reviewRequired = 0;
+    int failed = 0;
+    for (String ksefNumber : ksefNumbers) {
+      long sourceId = 0;
+      try {
+        var existing = sourceEvidenceService.findId(AccountingSourceType.KSEF, ksefNumber);
+        if (existing.isPresent()
+            && canonicalRepository != null
+            && canonicalRepository.canonicalDocumentExists(1L, existing.get(), ksefNumber, null)) {
+          duplicates++;
+          continue;
+        }
+        byte[] payload =
+            client
+                .downloadInvoice(environment, accessToken, ksefNumber)
+                .getBytes(StandardCharsets.UTF_8);
+        sourceId = sourceEvidenceService.receiveKsef(ksefNumber, null, payload);
+        KsefInvoiceXmlParser.ParsedKsefInvoice invoice = invoiceParser.parse(payload);
+        validateSellerInvoice(invoice);
+        sourceEvidenceService.status(
+            sourceId,
+            AccountingSourceStatus.REVIEW_REQUIRED,
+            "Subject3 document requires manual role and tax review");
+        reviewRequired++;
+      } catch (RuntimeException exception) {
+        if (sourceId != 0)
+          sourceEvidenceService.status(
+              sourceId, AccountingSourceStatus.FAILED, safeMessage(exception));
+        failed++;
+      }
+    }
+    return new ImportResult(ksefNumbers.size(), 0, duplicates, reviewRequired, failed);
+  }
+
+  private boolean isSupportedAutomaticType(String invoiceType, boolean seller) {
+    String type = invoiceType == null || invoiceType.isBlank() ? "VAT" : invoiceType.trim();
+    return "KOR".equalsIgnoreCase(type) || "VAT".equalsIgnoreCase(type);
+  }
+
+  private String displayType(String invoiceType) {
+    return invoiceType == null || invoiceType.isBlank() ? "UNKNOWN" : invoiceType;
+  }
+
+  private void validateSellerInvoice(KsefInvoiceXmlParser.ParsedKsefInvoice invoice) {
+    if (invoice.reference() == null || invoice.reference().isBlank())
+      throw new IllegalArgumentException("Seller KSeF invoice is missing invoice number");
+    if (invoice.issueDate() == null)
+      throw new IllegalArgumentException("Seller KSeF invoice is missing issue date");
+    if (firstNonBlank(invoice.buyerName(), invoice.buyerNip()) == null)
+      throw new IllegalArgumentException("Seller KSeF invoice is missing buyer");
+    if (invoice.currency() == null || invoice.currency().isBlank())
+      throw new IllegalArgumentException("Seller KSeF invoice is missing currency");
+    if (invoice.netAmount() == null || invoice.vatAmount() == null || invoice.grossAmount() == null)
+      throw new IllegalArgumentException("Seller KSeF invoice is missing net, VAT or gross amount");
+  }
+
+  private java.math.BigDecimal absolute(java.math.BigDecimal value) {
+    return value.abs();
   }
 
   private boolean canonicalExists(String ksefNumber) {
@@ -275,6 +498,17 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
                     ksefNumber, invoice.issueDate(), xml.getBytes(StandardCharsets.UTF_8));
         if (sourceId != 0)
           sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
+        if (!isSupportedAutomaticType(invoice.invoiceType(), false)) {
+          if (sourceId != 0)
+            sourceEvidenceService.status(
+                sourceId,
+                AccountingSourceStatus.REVIEW_REQUIRED,
+                "Invoice type "
+                    + displayType(invoice.invoiceType())
+                    + " requires review before purchase import");
+          reviewRequired++;
+          continue;
+        }
         if (invoice.category() == null || invoice.vatDeductionRatio() == null) {
           if (sourceId != 0)
             sourceEvidenceService.status(

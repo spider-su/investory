@@ -55,6 +55,28 @@ public final class AccountingDatabase {
     return startDatabase(scope);
   }
 
+  /** Returns a separately initialized database with the accounting schema and POC fixture. */
+  public static com.smartbox.investory.testsupport.WorkerDatabase scopedPocDatabase(String scope) {
+    if (scope == null || scope.isBlank()) {
+      throw new IllegalArgumentException("A non-blank database scope is required");
+    }
+    return startPocDatabase(scope);
+  }
+
+  /** Returns reference data plus empty operational accounting tables for acquisition E2E tests. */
+  public static com.smartbox.investory.testsupport.WorkerDatabase scopedReferenceDatabase(
+      String scope) {
+    if (scope == null || scope.isBlank()) {
+      throw new IllegalArgumentException("A non-blank database scope is required");
+    }
+    com.smartbox.investory.testsupport.WorkerDatabase database =
+        com.smartbox.investory.testsupport.SharedPostgres.database("accounting_reference_" + scope);
+    loadSnapshot(database, false);
+    ensureSourceEvidence(database);
+    loadSnapshot(database, true);
+    return database;
+  }
+
   private static com.smartbox.investory.testsupport.WorkerDatabase startDatabase() {
     return startDatabase(null);
   }
@@ -69,8 +91,13 @@ public final class AccountingDatabase {
   }
 
   private static com.smartbox.investory.testsupport.WorkerDatabase startPocDatabase() {
+    return startPocDatabase(null);
+  }
+
+  private static com.smartbox.investory.testsupport.WorkerDatabase startPocDatabase(String scope) {
     com.smartbox.investory.testsupport.WorkerDatabase database =
-        com.smartbox.investory.testsupport.SharedPostgres.database("accounting_poc");
+        com.smartbox.investory.testsupport.SharedPostgres.database(
+            scope == null || scope.isBlank() ? "accounting_poc" : "accounting_poc_" + scope);
 
     loadSnapshot(database, false);
     // Prepare compatibility objects before loading poc.sql: older accounting snapshots do not

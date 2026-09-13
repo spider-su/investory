@@ -164,13 +164,13 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     insertOperationalProfile(september);
     insertOperationalVatTransactions(september, "E2E-SEPTEMBER-SALE", "E2E-SEPTEMBER-PURCHASE");
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
+        "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) VALUES (1, ?, ?, ?, ?) ON CONFLICT (profile_id, tax_period, input_type) DO NOTHING",
         september,
         "HEALTH_CONTRIBUTION_PAID",
         new BigDecimal("100.00"),
         "E2E_TEST");
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
+        "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) VALUES (1, ?, ?, ?, ?) ON CONFLICT (profile_id, tax_period, input_type) DO NOTHING",
         september,
         "JDG_COMPULSORY_SOCIAL_ZUS",
         new BigDecimal("200.00"),
@@ -237,13 +237,13 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     insertOperationalProfile(july);
     insertOperationalVatTransactions(july, "E2E-FILING-SALE", "E2E-FILING-PURCHASE");
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
+        "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) VALUES (1, ?, ?, ?, ?) ON CONFLICT (profile_id, tax_period, input_type) DO NOTHING",
         july,
         "HEALTH_CONTRIBUTION_PAID",
         new BigDecimal("100.00"),
         "E2E_TEST");
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?) ON CONFLICT (tax_period, input_type) DO NOTHING",
+        "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) VALUES (1, ?, ?, ?, ?) ON CONFLICT (profile_id, tax_period, input_type) DO NOTHING",
         july,
         "JDG_COMPULSORY_SOCIAL_ZUS",
         new BigDecimal("200.00"),
@@ -435,13 +435,13 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             "Bank reconciliation invoice",
             Long.toString(sourceId)));
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?)",
+        "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) VALUES (1, ?, ?, ?, ?)",
         september,
         "HEALTH_CONTRIBUTION_PAID",
         new BigDecimal("100.00"),
         "E2E_BANK_TEST");
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note) VALUES (?, ?, ?, ?)",
+        "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) VALUES (1, ?, ?, ?, ?)",
         september,
         "JDG_COMPULSORY_SOCIAL_ZUS",
         new BigDecimal("200.00"),
@@ -468,9 +468,9 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
   @org.junit.jupiter.api.AfterEach
   void removeOperationalFixture() {
     jdbcTemplate.update(
-        "DELETE FROM investory.accounting_poc_invoice WHERE reference IN ('E2E-SEPTEMBER-SALE', 'E2E-INVALID-SOURCE')");
+        "DELETE FROM investory.accounting_poc_invoice WHERE reference LIKE 'E2E-%'");
     jdbcTemplate.update(
-        "DELETE FROM investory.accounting_poc_expense_invoice WHERE reference = 'E2E-SEPTEMBER-PURCHASE'");
+        "DELETE FROM investory.accounting_poc_expense_invoice WHERE reference LIKE 'E2E-%'");
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_poc_bank_transaction WHERE reference = 'E2E-BANK-INVOICE-REF'");
     jdbcTemplate.update("DELETE FROM investory.accounting_poc_tax_input WHERE note = 'E2E_TEST'");
@@ -500,12 +500,12 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
   private void insertOperationalVatTransactions(
       LocalDate period, String saleReference, String purchaseReference) {
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_vat_transaction (tax_period, tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, net_amount, vat_amount, deductible_vat, evidence) VALUES (?, ?, 'E2E-SOURCE', ?, 'SALE', 'DOMESTIC_VAT', 'PL', 'PL1234567890', 'NIP', 1000.00, 230.00, 0.00, 'OFF')",
+        "INSERT INTO investory.accounting_vat_transaction (profile_id, tax_period, tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, net_amount, vat_amount, deductible_vat, evidence) VALUES (1, ?, ?, 'E2E-SOURCE', ?, 'SALE', 'DOMESTIC_VAT', 'PL', 'PL1234567890', 'NIP', 1000.00, 230.00, 0.00, 'OFF')",
         period,
         period.plusDays(10),
         saleReference);
     jdbcTemplate.update(
-        "INSERT INTO investory.accounting_vat_transaction (tax_period, tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, net_amount, vat_amount, deductible_vat, evidence) VALUES (?, ?, 'E2E-SOURCE', ?, 'PURCHASE', 'DOMESTIC_PURCHASE', 'PL', 'PL0987654321', 'NIP', 100.00, 23.00, 23.00, 'OFF')",
+        "INSERT INTO investory.accounting_vat_transaction (profile_id, tax_period, tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, net_amount, vat_amount, deductible_vat, evidence) VALUES (1, ?, ?, 'E2E-SOURCE', ?, 'PURCHASE', 'DOMESTIC_PURCHASE', 'PL', 'PL0987654321', 'NIP', 100.00, 23.00, 23.00, 'OFF')",
         period,
         period.plusDays(11),
         purchaseReference);

@@ -1,7 +1,9 @@
 # Accounting user API
 
 The user-facing accounting boundary is profile-scoped under `/api/profiles/{profileId}/accounting`.
-`GET /months/{month}/overview` is the aggregate read for the `/accounting` page; issues, documents, bank transactions, payments, filings, and reconciliation have separate detail reads.
+`GET /months/{month}/overview` is the aggregate read for the
+`/profiles/{profileId}/accounting` page; issues, documents, bank transactions, payments, filings, and
+reconciliation have separate detail reads.
 
 Writes are explicit action endpoints (`confirm`, `file`, `settle`, `lock`, `reopen`). Document recognition returns a review candidate; `POST /documents` is the user-reviewed persistence step. Upload and bank multipart requests are preserved as source evidence before processing.
 
@@ -9,9 +11,11 @@ The API returns stable view DTOs. Accounting calculation snapshots, JDBC rows, a
 
 Accounting is currently a single-profile POC: only `profileId=1` is supported. The profile guard and
 rejection of other profile IDs are intentional POC boundaries, not generic production multi-profile
-support. Multi-profile Accounting is roadmap work. Reads require authentication; mutations require an administrator or the profile owner. Browser mutations under
-`/accounting/**` use CSRF protection, while JSON and multipart API mutations under `/api/**` use the
-explicit API security boundary. Former `/poc/accounting` mutating routes are denied.
+support. Multi-profile Accounting is roadmap work. Reads require authentication; mutations require
+an administrator or the profile owner. Browser mutations under
+`/profiles/{profileId}/accounting/**` use CSRF protection, while JSON and multipart API mutations
+under `/api/**` use the explicit API security boundary. Former `/poc/accounting` mutating routes are
+denied.
 
 The acquisition lifecycle is source evidence -> staging -> reconciliation -> explicit promotion ->
 canonical facts. Only `NEW` staging rows can be promoted; `MATCH`, `MISMATCH`, and `AMBIGUOUS` rows

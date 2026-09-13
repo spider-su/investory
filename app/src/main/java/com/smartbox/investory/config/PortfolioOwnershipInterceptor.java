@@ -81,19 +81,23 @@ public class PortfolioOwnershipInterceptor implements HandlerInterceptor {
 
   private static Long portfolioId(HttpServletRequest request) {
     String path = request.getRequestURI();
-    String marker = "/portfolios/";
-    int index = path.indexOf(marker);
-    if (index >= 0) {
-      String value = path.substring(index + marker.length()).split("/", 2)[0];
-      try {
-        return Long.valueOf(value);
-      } catch (NumberFormatException ignored) {
-        return null;
-      }
-    }
+    Long pathId = pathId(path, "/portfolios/");
+    if (pathId == null) pathId = pathId(path, "/profiles/");
+    if (pathId != null) return pathId;
     String value = request.getParameter("portfolioId");
     if (value == null) value = request.getParameter("profileId");
     if (value == null) return null;
+    try {
+      return Long.valueOf(value);
+    } catch (NumberFormatException ignored) {
+      return null;
+    }
+  }
+
+  private static Long pathId(String path, String marker) {
+    int index = path.indexOf(marker);
+    if (index < 0) return null;
+    String value = path.substring(index + marker.length()).split("/", 2)[0];
     try {
       return Long.valueOf(value);
     } catch (NumberFormatException ignored) {

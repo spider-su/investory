@@ -35,6 +35,10 @@ public interface AccountingUserApi {
 
   KsefSyncResult syncKsef(long profileId, YearMonth month);
 
+  KsefSyncResult syncKsefSeller(long profileId, YearMonth month);
+
+  KsefSyncResult syncKsefThirdParty(long profileId, YearMonth month);
+
   FilingArtifactView generateJpk(long profileId, YearMonth month);
 
   Optional<FilingArtifactView> filingArtifact(long profileId, YearMonth month);

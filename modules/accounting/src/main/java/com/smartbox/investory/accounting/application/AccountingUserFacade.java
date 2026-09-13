@@ -489,6 +489,26 @@ public class AccountingUserFacade implements AccountingUserApi {
   }
 
   @Override
+  public AccountingUserApi.KsefSyncResult syncKsefSeller(long p, YearMonth m) {
+    profile(p);
+    return ksef.map(adapter -> adapter.syncSeller(m))
+        .orElseGet(
+            () ->
+                new AccountingUserApi.KsefSyncResult(
+                    "NOT_CONFIGURED", 0, 0, 0, 0, 0, "KSeF is not configured."));
+  }
+
+  @Override
+  public AccountingUserApi.KsefSyncResult syncKsefThirdParty(long p, YearMonth m) {
+    profile(p);
+    return ksef.map(adapter -> adapter.syncThirdParty(m))
+        .orElseGet(
+            () ->
+                new AccountingUserApi.KsefSyncResult(
+                    "NOT_CONFIGURED", 0, 0, 0, 0, 0, "KSeF is not configured."));
+  }
+
+  @Override
   public AccountingUserApi.FilingArtifactView generateJpk(long p, YearMonth m) {
     profile(p);
     filing.jpk(p, date(m));
