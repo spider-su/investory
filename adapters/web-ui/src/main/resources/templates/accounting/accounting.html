@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Accounting · Investory</title><link href="/css/tabler.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accounting · Investory</title>
+  <link href="/css/tabler.min.css" rel="stylesheet">
   <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
   <meta name="_csrf" th:content="${_csrf?.token}">
   <script>
@@ -20,30 +22,289 @@
 </head>
 <body>
 <main class="iv-app iv-planning-page iv-report-page" data-testid="accounting-page">
-  <div th:replace="~{fragments/app-header :: appHeader('Accounting', ${overview.lifecycleLabel}, 'accounting', ${profileId}, 'Revenue', ${overview.summary.revenue}, 'VAT', ${overview.summary.vat}, 'Next action', ${overview.nextActionLabel}, null, null, null)}"></div>
+  <div th:replace="~{fragments/app-header :: appHeader('Accounting', ${workspaceStatus}, 'accounting', ${profileId}, 'Status', ${workspaceStatus}, 'Next action', ${workspaceNextAction}, 'Reference', ${overview.reference.available ? 'Available' : 'Not available'}, null, null, null)}"></div>
+
   <div class="container-xl py-4">
-    <div class="iv-section-heading"><div><div class="iv-section-heading__eyebrow">Monthly workspace</div><h2 th:text="${'Accounting · ' + selectedMonth}">Accounting · 2026-01</h2></div>
-      <form method="get" action="/accounting" class="d-flex align-items-center gap-2"><input type="hidden" name="profileId" th:value="${profileId}"><label class="form-label mb-0">Month</label><select class="form-select" name="month" onchange="this.form.submit()"><option th:each="m : ${months}" th:value="${m.month}" th:text="${m.label}" th:selected="${m.month == selectedMonth}">January 2026</option></select></form>
+    <div class="iv-section-heading">
+      <div>
+        <div class="iv-section-heading__eyebrow">Monthly workspace</div>
+        <h2 th:text="${'Accounting · ' + selectedMonth}">Accounting · 2026-01</h2>
+      </div>
+      <form method="get" action="/accounting" class="d-flex align-items-center gap-2">
+        <input type="hidden" name="profileId" th:value="${profileId}">
+        <label class="form-label mb-0" for="accounting-month">Month</label>
+        <select id="accounting-month" class="form-select" name="month" onchange="this.form.submit()">
+          <option th:each="m : ${months}" th:value="${m.month}" th:text="${m.label}" th:selected="${m.month == selectedMonth}">January 2026</option>
+        </select>
+      </form>
     </div>
-    <div class="alert alert-success" th:if="${accountingMessage}" th:text="${accountingMessage}"></div><div class="alert alert-warning" th:if="${accountingWarning}" th:text="${accountingWarning}"></div><div class="alert alert-danger" th:if="${accountingError}" th:text="${accountingError}"></div>
-    <section class="iv-card mt-3" data-testid="accounting-add-data"><div class="iv-card__head"><h3 class="iv-card__title">Add data</h3></div><div class="iv-card__body"><div class="row g-3"><div class="col-md-4"><strong>Upload document</strong><form th:if="${canWrite}" method="post" enctype="multipart/form-data" action="/accounting/documents/recognize" class="mt-2"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><div class="input-group"><input class="form-control" type="file" name="file" accept="application/pdf,image/*" required><button class="btn btn-primary">Upload document</button></div></form><span th:unless="${canWrite}" class="text-secondary">Read-only</span></div><div class="col-md-4"><strong>Import bank CSV</strong><form th:if="${canWrite}" method="post" enctype="multipart/form-data" action="/accounting/bank/import" class="mt-2"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><div class="input-group"><input class="form-control" type="file" name="file" accept=".csv,text/csv" required><button class="btn btn-primary">Import bank CSV</button></div></form><span class="text-secondary">Bank source: CSV</span></div><div class="col-md-4"><strong>Sync KSeF</strong><form th:if="${canWrite}" method="post" action="/accounting/ksef/sync" class="mt-2"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Sync KSeF</button></form><span class="text-secondary" th:text="${overview.ksefStatus == 'NOT_CONFIGURED' ? 'KSeF not configured' : 'KSeF ' + overview.ksefStatus}">KSeF not configured</span></div></div></div></section>
-    <section class="iv-card mt-3" data-testid="accounting-initial-state" th:if="${overview.summary.documents == 0 && overview.summary.bankTransactions == 0}"><div class="iv-card__body"><h3 class="iv-card__title">No source data acquired yet.</h3><p class="text-secondary mb-0" th:if="${overview.reference.available}">Reference data is available for this month. It is used only to verify the reconstructed result.</p></div></section>
-    <section class="iv-card mt-3" data-testid="accounting-staging"><div class="iv-card__head"><h3 class="iv-card__title">Staging and reconciliation</h3></div><div class="iv-card__body"><p><strong th:text="${stagingSummary.readyToPromote}">0</strong> ready to promote · <span th:text="${stagingSummary.blockingCount}">0</span> need review · <span th:text="${stagingSummary.invoiceMismatch + stagingSummary.bankMismatch}">0</span> mismatches · <span th:text="${stagingSummary.invoiceAmbiguous + stagingSummary.bankAmbiguous}">0</span> ambiguous</p><div class="d-flex gap-2 mb-3" th:if="${canWrite}"><form method="post" action="/accounting/staging/reconcile"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-outline-primary">Reconcile staged rows</button></form><form method="post" action="/accounting/staging/promote"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Promote ready rows</button></form></div><p th:if="${#lists.isEmpty(stagingRows)}" class="text-secondary">No staged rows for this month.</p><div class="table-responsive" th:unless="${#lists.isEmpty(stagingRows)}"><table class="table table-sm"><thead><tr><th>Type</th><th>Reference</th><th>Source</th><th>Status</th><th>Reasons</th><th>Canonical match</th></tr></thead><tbody><tr th:each="row : ${stagingRows}"><td th:text="${row.type}">INVOICE</td><td th:text="${row.reference}">Reference</td><td th:text="${row.source}">Source</td><td th:text="${row.status}">NEW</td><td th:text="${#strings.listJoin(row.reasonCodes, ', ')}">-</td><td th:text="${row.canonicalMatchId ?: '-'}">-</td></tr></tbody></table></div></div></section>
-    <div class="row row-cards" data-testid="accounting-summary"><div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">Revenue</div><div class="h2 mb-0" th:text="${overview.summary.documents == 0 ? '—' : overview.summary.revenue}">—</div></div></section></div><div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">VAT</div><div class="h2 mb-0" th:text="${overview.summary.documents == 0 ? '—' : overview.summary.vat}">—</div></div></section></div><div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">Ryczałt</div><div class="h2 mb-0" th:text="${overview.summary.documents == 0 ? '—' : overview.summary.ryczalt}">—</div></div></section></div><div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">ZUS</div><div class="h2 mb-0" th:text="${overview.summary.documents == 0 ? '—' : overview.summary.zus}">—</div></div></section></div></div>
-    <section class="iv-card mt-3" data-testid="accounting-reference-comparison" th:if="${overview.reference.available}"><div class="iv-card__head"><h3 class="iv-card__title">Reconstructed vs reference</h3></div><div class="iv-card__body"><table class="table table-sm"><thead><tr><th>Metric</th><th>Reconstructed</th><th>Reference</th><th>Result</th></tr></thead><tbody><tr><td>Revenue</td><td th:text="${overview.summary.documents == 0 ? '—' : overview.summary.revenue}">—</td><td th:text="${overview.reference.revenue}">0</td><td th:text="${overview.summary.documents == 0 ? 'NOT CALCULATED' : (overview.summary.revenue.compareTo(overview.reference.revenue) == 0 ? 'MATCH' : 'MISMATCH')}">NOT CALCULATED</td></tr><tr><td>VAT payable</td><td th:text="${overview.summary.documents == 0 ? '—' : overview.summary.vat}">—</td><td th:text="${overview.reference.vatPayable}">0</td><td>See operational detail</td></tr><tr><td>Ryczałt</td><td th:text="${overview.summary.documents == 0 ? '—' : overview.summary.ryczalt}">—</td><td th:text="${overview.reference.ryczalt}">0</td><td>See operational detail</td></tr><tr><td>ZUS</td><td th:text="${overview.summary.documents == 0 ? '—' : overview.summary.zus}">—</td><td th:text="${overview.reference.zus}">0</td><td>See operational detail</td></tr></tbody></table></div></section>
-    <div class="row row-cards mt-3"><div class="col-lg-6"><section class="iv-card" data-testid="accounting-next-action"><div class="iv-card__head"><h3 class="iv-card__title">Next action</h3></div><div class="iv-card__body"><strong th:text="${overview.nextActionLabel}">Review issues</strong><p class="text-secondary mb-2" th:text="${overview.lifecycleLabel}">Open</p>
-      <form th:if="${canWrite && overview.allowedActions.contains('CONFIRM')}" method="post" action="/accounting/actions/confirm"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Confirm month</button></form>
-      <form th:if="${canWrite && overview.allowedActions.contains('FILE')}" method="post" action="/accounting/actions/file"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Record filing</button></form>
-      <form th:if="${canWrite && overview.allowedActions.contains('SETTLE')}" method="post" action="/accounting/actions/settle"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Settle month</button></form>
-      <form th:if="${canWrite && overview.allowedActions.contains('LOCK')}" method="post" action="/accounting/actions/lock"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Lock month</button></form>
-      <form th:if="${canWrite && overview.allowedActions.contains('REOPEN')}" method="post" action="/accounting/actions/reopen"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><input class="form-control mb-2" name="reason" placeholder="Reason for reopening" required><button class="btn btn-outline-primary">Reopen month</button></form>
-      </div></section></div><div class="col-lg-6"><section class="iv-card" data-testid="accounting-sources"><div class="iv-card__head"><h3 class="iv-card__title">Source evidence</h3></div><div class="iv-card__body"><span th:text="${overview.sources.evidenceCount}">0</span> evidence · <span th:text="${overview.sources.imported}">0</span> imported · <span th:text="${overview.sources.reviewRequired}">0</span> review required · <span th:text="${overview.sources.failed}">0</span> failed</div></section></div></div>
-    <section class="iv-card mt-3" data-testid="accounting-issues"><div class="iv-card__head"><h3 class="iv-card__title">Issues and action center</h3></div><div class="iv-card__body"><p th:if="${#lists.isEmpty(overview.issues)}" class="text-secondary">No issues.</p><ul class="mb-0"><li th:each="issue : ${overview.issues}"><strong th:text="${issue.title}">Issue</strong>: <span th:text="${issue.message}">Details</span></li></ul></div></section>
-    <div class="row row-cards mt-3"><div class="col-lg-7"><section class="iv-card" data-testid="accounting-documents"><div class="iv-card__head"><h3 class="iv-card__title">Documents</h3></div><div class="iv-card__body"><p><strong th:text="${overview.documentSummary.totalCount}">0</strong> normalized documents · <span th:text="${overview.documentSummary.salesCount}">0</span> sales · <span th:text="${overview.documentSummary.purchaseCount}">0</span> purchases</p></div></section></div>
-      <div class="col-lg-5"><section class="iv-card" data-testid="accounting-bank"><div class="iv-card__head"><h3 class="iv-card__title">Bank</h3></div><div class="iv-card__body"><strong th:text="${overview.bankSummary.transactionCount}">0</strong> transactions · <span th:text="${overview.bankSummary.unmatchedCount}">0</span> unmatched<p class="text-secondary" th:text="${overview.bankSummary.importStatus}">NO_IMPORT</p><form th:if="${canWrite}" method="post" enctype="multipart/form-data" action="/accounting/bank/import"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><div class="input-group"><input class="form-control" type="file" name="file" accept=".csv,text/csv" required><button class="btn btn-primary">Import CSV</button></div></form></div></section></div></div>
-    <div class="row row-cards mt-3"><div class="col-lg-6"><section class="iv-card" data-testid="accounting-payments"><div class="iv-card__head"><h3 class="iv-card__title">Taxes and payments</h3></div><div class="iv-card__body"><span th:text="${overview.paymentSummary.expectedCount}">0</span> expected · <span th:text="${overview.paymentSummary.outstandingCount}">0</span> outstanding · <strong th:text="${overview.paymentSummary.totalOutstanding}">0</strong> total outstanding</div></section></div><div class="col-lg-6"><section class="iv-card" data-testid="accounting-filings"><div class="iv-card__head"><h3 class="iv-card__title">Filings and closure</h3></div><div class="iv-card__body"><strong th:text="${overview.filingSummary.lifecycleLabel}">Open</strong><p th:each="issue : ${overview.filingSummary.issues}" class="text-secondary mb-0" th:text="${issue}">Issue</p></div></section></div></div>
-    <section class="iv-card mt-3" data-testid="accounting-reconciliation"><div class="iv-card__head"><h3 class="iv-card__title">Reconciliation and closure</h3></div><div class="iv-card__body"><span th:text="${overview.reconciliationSummary.rowCount}">0</span> rows · <span th:text="${overview.reconciliationSummary.settledCount}">0</span> settled · <span th:text="${overview.reconciliationSummary.mismatchCount}">0</span> mismatches · <span th:text="${overview.reconciliationSummary.missingEvidenceCount}">0</span> missing evidence</div></section>
+
+    <div class="alert alert-success" th:if="${accountingMessage}" th:text="${accountingMessage}"></div>
+    <div class="alert alert-warning" th:if="${accountingWarning}" th:text="${accountingWarning}"></div>
+    <div class="alert alert-danger" th:if="${accountingError}" th:text="${accountingError}"></div>
+
+    <section class="iv-card mt-3" data-testid="accounting-workspace-status">
+      <div class="iv-card__body d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <div class="text-secondary text-uppercase small">Month status</div>
+          <div class="h3 mb-1" th:text="${workspaceStatus}">Waiting for data</div>
+          <div class="text-secondary" th:text="${workspaceNextAction}">Add source data</div>
+        </div>
+        <div th:if="${overview.reference.available}" class="text-secondary">
+          Reference baseline available for <strong th:text="${selectedMonth}">2026-01</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="iv-card mt-3" data-testid="accounting-add-data">
+      <div class="iv-card__head">
+        <div>
+          <div class="text-secondary small">STEP 1</div>
+          <h3 class="iv-card__title">Add data</h3>
+        </div>
+      </div>
+      <div class="iv-card__body">
+        <div class="row g-4">
+          <div class="col-md-4">
+            <strong>Documents</strong>
+            <p class="text-secondary mb-2">Upload a PDF or image and review the recognized invoice.</p>
+            <form th:if="${canWrite}" method="post" enctype="multipart/form-data" action="/accounting/documents/recognize">
+              <input type="hidden" name="profileId" th:value="${profileId}">
+              <input type="hidden" name="month" th:value="${selectedMonth}">
+              <div class="input-group">
+                <input class="form-control" type="file" name="file" accept="application/pdf,image/*" required>
+                <button class="btn btn-primary">Upload</button>
+              </div>
+            </form>
+            <span th:unless="${canWrite}" class="text-secondary">Read-only</span>
+          </div>
+
+          <div class="col-md-4">
+            <strong>Bank statement</strong>
+            <p class="text-secondary mb-2">A single CSV may contain several months; transactions are routed by booking date.</p>
+            <form th:if="${canWrite}" method="post" enctype="multipart/form-data" action="/accounting/bank/import" data-testid="accounting-bank-import-form">
+              <input type="hidden" name="profileId" th:value="${profileId}">
+              <input type="hidden" name="month" th:value="${selectedMonth}">
+              <div class="input-group">
+                <input class="form-control" type="file" name="file" accept=".csv,text/csv" required>
+                <button class="btn btn-primary">Import CSV</button>
+              </div>
+            </form>
+            <span th:unless="${canWrite}" class="text-secondary">Read-only</span>
+          </div>
+
+          <div class="col-md-4">
+            <strong>KSeF</strong>
+            <p class="text-secondary mb-2">Fetch available invoices for the selected accounting month.</p>
+            <form th:if="${canWrite}" method="post" action="/accounting/ksef/sync">
+              <input type="hidden" name="profileId" th:value="${profileId}">
+              <input type="hidden" name="month" th:value="${selectedMonth}">
+              <button class="btn btn-primary">Sync KSeF</button>
+            </form>
+            <span class="text-secondary d-block mt-2" th:text="${overview.ksefStatus == 'NOT_CONFIGURED' ? 'KSeF not configured' : 'KSeF ' + overview.ksefStatus}">KSeF not configured</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="iv-card mt-3" data-testid="accounting-initial-state" th:unless="${hasAcquiredData}">
+      <div class="iv-card__body py-4">
+        <h3 class="iv-card__title mb-2">No accounting data has been acquired yet</h3>
+        <p class="text-secondary mb-0">Start with a document, KSeF sync, or bank statement import.</p>
+        <p class="text-secondary mt-2 mb-0" th:if="${overview.reference.available}">Reference data is available for this month and will be used only to verify the reconstructed result.</p>
+      </div>
+    </section>
+
+    <section class="iv-card mt-3" data-testid="accounting-staging" th:if="${hasAcquiredData}">
+      <div class="iv-card__head">
+        <div>
+          <div class="text-secondary small">STEP 2</div>
+          <h3 class="iv-card__title">Review</h3>
+        </div>
+      </div>
+      <div class="iv-card__body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="text-secondary">Documents</div>
+            <strong th:text="${overview.documentSummary.totalCount + ' normalized'}">0 normalized</strong>
+            <div class="text-secondary" th:if="${overview.documentSummary.reviewRequired > 0}" th:text="${overview.documentSummary.reviewRequired + ' need review'}">0 need review</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-secondary">Bank</div>
+            <strong th:text="${overview.bankSummary.transactionCount + ' transactions'}">0 transactions</strong>
+            <div class="text-secondary" th:text="${overview.bankSummary.unmatchedCount + ' unmatched'}">0 unmatched</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-secondary">Reconciliation</div>
+            <strong><span th:text="${stagingSummary.readyToPromote}">0</span> ready</strong>
+            <div class="text-secondary"><span th:text="${stagingSummary.blockingCount}">0</span> need review</div>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2" th:if="${canWrite && !#lists.isEmpty(stagingRows)}">
+          <form method="post" action="/accounting/staging/reconcile">
+            <input type="hidden" name="profileId" th:value="${profileId}">
+            <input type="hidden" name="month" th:value="${selectedMonth}">
+            <button class="btn btn-outline-primary">Reconcile</button>
+          </form>
+          <form method="post" action="/accounting/staging/promote" th:if="${stagingSummary.readyToPromote > 0}">
+            <input type="hidden" name="profileId" th:value="${profileId}">
+            <input type="hidden" name="month" th:value="${selectedMonth}">
+            <button class="btn btn-primary">Promote ready data</button>
+          </form>
+        </div>
+
+        <div class="alert alert-warning mt-3 mb-0" th:if="${hasReviewIssues}">
+          Some acquired data needs review before the month can continue. Open details below for the exact reasons.
+        </div>
+      </div>
+    </section>
+
+    <section class="iv-card mt-3" data-testid="accounting-ksef-review-queue" th:if="${overview.sources.reviewRequired > 0}">
+      <div class="iv-card__head"><h3 class="iv-card__title">Documents needing review</h3></div>
+      <div class="iv-card__body">
+        <ul class="mb-0">
+          <li th:each="issue : ${overview.issues}" th:if="${issue.code == 'SOURCE_REVIEW_REQUIRED' and issue.sourceReference != null}">
+            <a th:href="@{/accounting/documents/review(profileId=${profileId},month=${selectedMonth},sourceReference=${issue.sourceReference})}" data-testid="accounting-ksef-review-link">Review document</a>
+            <span class="ms-2 text-secondary" th:text="${issue.sourceReference}">source reference</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="mt-3" data-testid="accounting-summary" th:if="${hasOperationalData}">
+      <div class="mb-2">
+        <div class="text-secondary small">STEP 3</div>
+        <h3 class="mb-0">Monthly result</h3>
+      </div>
+      <div class="row row-cards">
+        <div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">Revenue</div><div class="h2 mb-0" th:text="${overview.summary.revenue}">0</div></div></section></div>
+        <div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">VAT payable</div><div class="h2 mb-0" th:text="${overview.summary.vat}">0</div></div></section></div>
+        <div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">Ryczałt</div><div class="h2 mb-0" th:text="${overview.summary.ryczalt}">0</div></div></section></div>
+        <div class="col-sm-6 col-lg-3"><section class="card"><div class="card-body"><div class="text-secondary">ZUS</div><div class="h2 mb-0" th:text="${overview.summary.zus}">0</div></div></section></div>
+      </div>
+    </div>
+
+    <section class="iv-card mt-3" data-testid="accounting-reference-comparison" th:if="${hasOperationalData && overview.reference.available}">
+      <div class="iv-card__head"><h3 class="iv-card__title">Reference check</h3></div>
+      <div class="iv-card__body">
+        <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center">
+          <div>
+            <strong th:text="${referenceHeadlineMatchCount == 4 ? 'Headline accounting values match the reference' : 'Reference comparison needs review'}">Reference comparison</strong>
+            <div class="text-secondary"><span th:text="${referenceHeadlineMatchCount}">0</span>/4 headline values match</div>
+          </div>
+          <span class="badge" th:classappend="${referenceHeadlineMatchCount == 4 ? ' bg-success-lt' : ' bg-warning-lt'}" th:text="${referenceHeadlineMatchCount == 4 ? 'MATCH' : 'REVIEW'}">MATCH</span>
+        </div>
+        <details class="mt-3">
+          <summary class="text-primary">Compare reconstructed and reference values</summary>
+          <div class="table-responsive mt-2">
+            <table class="table table-sm mb-0">
+              <thead><tr><th>Metric</th><th>Reconstructed</th><th>Reference</th><th>Result</th></tr></thead>
+              <tbody>
+              <tr><td>Revenue</td><td th:text="${overview.summary.revenue}">0</td><td th:text="${overview.reference.revenue}">0</td><td th:text="${overview.summary.revenue.compareTo(overview.reference.revenue) == 0 ? 'MATCH' : 'MISMATCH'}">MATCH</td></tr>
+              <tr><td>VAT payable</td><td th:text="${overview.summary.vat}">0</td><td th:text="${overview.reference.vatPayable}">0</td><td th:text="${overview.summary.vat.compareTo(overview.reference.vatPayable) == 0 ? 'MATCH' : 'MISMATCH'}">MATCH</td></tr>
+              <tr><td>Ryczałt</td><td th:text="${overview.summary.ryczalt}">0</td><td th:text="${overview.reference.ryczalt}">0</td><td th:text="${overview.summary.ryczalt.compareTo(overview.reference.ryczalt) == 0 ? 'MATCH' : 'MISMATCH'}">MATCH</td></tr>
+              <tr><td>ZUS</td><td th:text="${overview.summary.zus}">0</td><td th:text="${overview.reference.zus}">0</td><td th:text="${overview.summary.zus.compareTo(overview.reference.zus) == 0 ? 'MATCH' : 'MISMATCH'}">MATCH</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="iv-card mt-3" data-testid="accounting-reference-waiting" th:if="${!hasOperationalData && hasAcquiredData && overview.reference.available}">
+      <div class="iv-card__body">
+        <strong>Reference check will appear after operational data is reconstructed.</strong>
+        <div class="text-secondary">Reference values are comparison-only and are not used as accounting inputs.</div>
+      </div>
+    </section>
+
+    <section class="iv-card mt-3" data-testid="accounting-next-action" th:if="${hasAcquiredData}">
+      <div class="iv-card__head"><h3 class="iv-card__title">Next action</h3></div>
+      <div class="iv-card__body">
+        <strong th:text="${workspaceNextAction}">Review issues</strong>
+        <p class="text-secondary mb-3" th:text="${workspaceStatus}">In progress</p>
+        <div class="d-flex flex-wrap gap-2">
+          <form th:if="${canWrite && overview.allowedActions.contains('CONFIRM')}" method="post" action="/accounting/actions/confirm"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Confirm month</button></form>
+          <form th:if="${canWrite && overview.allowedActions.contains('FILE')}" method="post" action="/accounting/actions/file"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Record filing</button></form>
+          <form th:if="${canWrite && overview.allowedActions.contains('SETTLE')}" method="post" action="/accounting/actions/settle"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Settle month</button></form>
+          <form th:if="${canWrite && overview.allowedActions.contains('LOCK')}" method="post" action="/accounting/actions/lock"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Lock month</button></form>
+        </div>
+        <form th:if="${canWrite && overview.allowedActions.contains('REOPEN')}" method="post" action="/accounting/actions/reopen" class="mt-3"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><div class="input-group"><input class="form-control" name="reason" placeholder="Reason for reopening" required><button class="btn btn-outline-primary">Reopen month</button></div></form>
+      </div>
+    </section>
+
+    <details class="iv-card mt-3" data-testid="accounting-advanced-details">
+      <summary class="iv-card__head" style="cursor:pointer"><h3 class="iv-card__title mb-0">Details and diagnostics</h3></summary>
+      <div class="iv-card__body">
+        <p class="text-secondary">Operational details for investigating imports, reconciliation, filing, or reference differences.</p>
+
+        <section class="mb-4" data-testid="accounting-sources">
+          <h4>Source evidence</h4>
+          <p class="mb-0"><span th:text="${overview.sources.evidenceCount}">0</span> evidence · <span th:text="${overview.sources.imported}">0</span> imported · <span th:text="${overview.sources.reviewRequired}">0</span> review required · <span th:text="${overview.sources.failed}">0</span> failed</p>
+        </section>
+
+        <section class="mb-4" data-testid="accounting-documents">
+          <h4>Documents</h4>
+          <p class="mb-0"><strong th:text="${overview.documentSummary.totalCount}">0</strong> normalized · <span th:text="${overview.documentSummary.salesCount}">0</span> sales · <span th:text="${overview.documentSummary.purchaseCount}">0</span> purchases</p>
+        </section>
+
+        <section class="mb-4" data-testid="accounting-bank">
+          <h4>Bank transactions</h4>
+          <p class="mb-0"><strong th:text="${overview.bankSummary.transactionCount}">0</strong> transactions · <span th:text="${overview.bankSummary.unmatchedCount}">0</span> unmatched · <span th:text="${overview.bankSummary.importStatus}">NO_IMPORT</span></p>
+        </section>
+
+        <section class="mb-4" data-testid="accounting-staging-rows">
+          <h4>Staging rows</h4>
+          <p th:if="${#lists.isEmpty(stagingRows)}" class="text-secondary">No staged rows for this month.</p>
+          <div class="table-responsive" th:unless="${#lists.isEmpty(stagingRows)}">
+            <table class="table table-sm">
+              <thead><tr><th>Type</th><th>Reference</th><th>Source</th><th>Status</th><th>Reasons</th><th>Canonical match</th></tr></thead>
+              <tbody><tr th:each="row : ${stagingRows}"><td th:text="${row.type}">INVOICE</td><td th:text="${row.reference}">Reference</td><td th:text="${row.source}">Source</td><td th:text="${row.status}">NEW</td><td th:text="${#strings.listJoin(row.reasonCodes, ', ')}">-</td><td th:text="${row.canonicalMatchId ?: '-'}">-</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="mb-4" data-testid="accounting-issues">
+          <h4>Issues</h4>
+          <p th:if="${#lists.isEmpty(overview.issues)}" class="text-secondary">No issues.</p>
+          <ul class="mb-0"><li th:each="issue : ${overview.issues}"><strong th:text="${issue.title}">Issue</strong>: <span th:text="${issue.message}">Details</span></li></ul>
+        </section>
+
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <section data-testid="accounting-payments">
+              <h4>Taxes and payments</h4>
+              <p><span th:text="${overview.paymentSummary.expectedCount}">0</span> expected · <span th:text="${overview.paymentSummary.outstandingCount}">0</span> outstanding · <strong th:text="${overview.paymentSummary.totalOutstanding}">0</strong> total outstanding</p>
+            </section>
+          </div>
+          <div class="col-lg-6">
+            <section data-testid="accounting-filings">
+              <h4>Filings and closure</h4>
+              <strong th:text="${overview.filingSummary.lifecycleLabel}">Open</strong>
+              <p th:each="issue : ${overview.filingSummary.issues}" class="text-secondary mb-0" th:text="${issue}">Issue</p>
+            </section>
+          </div>
+        </div>
+
+        <section class="mt-4" data-testid="accounting-reconciliation">
+          <h4>Reconciliation and closure</h4>
+          <p><span th:text="${overview.reconciliationSummary.rowCount}">0</span> rows · <span th:text="${overview.reconciliationSummary.settledCount}">0</span> settled · <span th:text="${overview.reconciliationSummary.mismatchCount}">0</span> mismatches · <span th:text="${overview.reconciliationSummary.missingEvidenceCount}">0</span> missing evidence</p>
+        </section>
+
+        <section class="mt-4" data-testid="accounting-filing-evidence" th:if="${hasOperationalData}">
+          <h4>JPK_V7M(3)</h4>
+          <p>Generated: <strong th:text="${overview.filingSummary.jpkStatus}">MISSING</strong> · XSD validation: <strong th:text="${overview.filingSummary.jpkStatus == 'VALID' ? 'Validated' : 'Pending'}">Pending</strong></p>
+          <p>Submitted: Manual · UPO: <strong th:text="${overview.filingSummary.upoStatus}">MISSING</strong><span th:if="${overview.filingSummary.upoReference != null}" th:text="${' · ' + overview.filingSummary.upoReference}"></span></p>
+          <div class="d-flex flex-wrap gap-2">
+            <form th:if="${canWrite && overview.filingSummary.ready}" method="post" action="/accounting/filings/jpk/generate"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Generate JPK_V7M</button></form>
+            <a th:if="${overview.filingSummary.jpkStatus == 'VALID'}" class="btn btn-outline-primary" th:href="@{/accounting/filings/jpk(profileId=${profileId},month=${selectedMonth})}">Download XML</a>
+          </div>
+          <form th:if="${canWrite}" method="post" action="/accounting/filings/confirmations" class="mt-3"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><input type="hidden" name="taxPeriod" th:value="${selectedMonth}"><input type="hidden" name="obligationOrArtifactType" value="JPK_V7M"><input type="hidden" name="confirmationType" value="JPK_UPO"><input type="hidden" name="status" value="ACCEPTED"><div class="input-group"><input class="form-control" name="externalReference" placeholder="UPO reference" required><button class="btn btn-outline-primary">Record UPO</button></div></form>
+        </section>
+      </div>
+    </details>
   </div>
-    <section class="iv-card mt-3" data-testid="accounting-filing-evidence"><div class="iv-card__head"><h3 class="iv-card__title">JPK_V7M(3)</h3></div><div class="iv-card__body"><p>Generated: <strong th:text="${overview.filingSummary.jpkStatus}">MISSING</strong> · XSD validation: <strong th:text="${overview.filingSummary.jpkStatus == 'VALID' ? 'Validated' : 'Pending'}">Pending</strong></p><p>Submitted: Manual · UPO: <strong th:text="${overview.filingSummary.upoStatus}">MISSING</strong><span th:if="${overview.filingSummary.upoReference != null}" th:text="${' · ' + overview.filingSummary.upoReference}"></span></p><form th:if="${canWrite && overview.filingSummary.ready}" method="post" action="/accounting/filings/jpk/generate"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><button class="btn btn-primary">Generate JPK_V7M</button></form><a th:if="${overview.filingSummary.jpkStatus == 'VALID'}" class="btn btn-outline-primary" th:href="@{/accounting/filings/jpk(profileId=${profileId},month=${selectedMonth})}">Download XML</a><form th:if="${canWrite}" method="post" action="/accounting/filings/confirmations" class="mt-2"><input type="hidden" name="profileId" th:value="${profileId}"><input type="hidden" name="month" th:value="${selectedMonth}"><input type="hidden" name="taxPeriod" th:value="${selectedMonth}"><input type="hidden" name="obligationOrArtifactType" value="JPK_V7M"><input type="hidden" name="confirmationType" value="JPK_UPO"><input type="hidden" name="status" value="ACCEPTED"><input class="form-control mb-2" name="externalReference" placeholder="UPO reference" required><button class="btn btn-outline-primary">Record UPO</button></form></div></section>
-    <section class="iv-card mt-3" data-testid="accounting-ksef-review-queue" th:if="${overview.sources.reviewRequired > 0}"><div class="iv-card__head"><h3 class="iv-card__title">KSeF documents needing review</h3></div><div class="iv-card__body"><ul class="mb-0"><li th:each="issue : ${overview.issues}" th:if="${issue.code == 'SOURCE_REVIEW_REQUIRED' and issue.sourceReference != null}"><a th:href="@{/accounting/documents/review(profileId=${profileId},month=${selectedMonth},sourceReference=${issue.sourceReference})}" data-testid="accounting-ksef-review-link">Review KSeF source</a><span class="ms-2" th:text="${issue.sourceReference}">KSeF reference</span></li></ul></div></section>
-</main></body></html>
+</main>
+</body>
+</html>
