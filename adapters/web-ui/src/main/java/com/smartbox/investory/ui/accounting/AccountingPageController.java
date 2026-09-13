@@ -1,5 +1,6 @@
 package com.smartbox.investory.ui.accounting;
 
+import java.math.BigDecimal;
 import java.time.YearMonth;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -28,12 +29,65 @@ public class AccountingPageController {
         month != null
             ? month
             : (months.isEmpty() ? YearMonth.now() : months.get(months.size() - 1).month());
+    var overview = client.overview(profileId, selected);
+    var stagingSummary = client.summary(profileId, selected);
+    var stagingRows = client.rows(profileId, selected);
+
+    boolean hasOperationalData =
+        overview.summary().documents() > 0 || overview.summary().bankTransactions() > 0;
+    boolean hasAcquiredData =
+        hasOperationalData || overview.sources().evidenceCount() > 0 || !stagingRows.isEmpty();
+    boolean hasReviewIssues =
+        overview.sources().reviewRequired() > 0
+            || overview.sources().failed() > 0
+            || stagingSummary.blockingCount() > 0;
+    String workspaceStatus =
+        !hasAcquiredData
+            ? "Waiting for data"
+            : hasReviewIssues
+                ? "Review needed"
+                : overview.filingSummary().ready() && stagingRows.isEmpty()
+                    ? "Ready to file"
+                    : "In progress";
+    String workspaceNextAction =
+        !hasAcquiredData
+            ? "Add source data"
+            : hasReviewIssues
+                ? "Review issues"
+                : stagingSummary.readyToPromote() > 0
+                    ? "Promote ready data"
+                    : !stagingRows.isEmpty()
+                        ? "Reconcile staged data"
+                        : overview.nextActionLabel();
+
+    int referenceHeadlineMatchCount = 0;
+    if (hasOperationalData && overview.reference().available()) {
+      if (same(overview.summary().revenue(), overview.reference().revenue())) {
+        referenceHeadlineMatchCount++;
+      }
+      if (same(overview.summary().vat(), overview.reference().vatPayable())) {
+        referenceHeadlineMatchCount++;
+      }
+      if (same(overview.summary().ryczalt(), overview.reference().ryczalt())) {
+        referenceHeadlineMatchCount++;
+      }
+      if (same(overview.summary().zus(), overview.reference().zus())) {
+        referenceHeadlineMatchCount++;
+      }
+    }
+
     model.addAttribute("profileId", profileId);
     model.addAttribute("months", months);
     model.addAttribute("selectedMonth", selected);
-    model.addAttribute("overview", client.overview(profileId, selected));
-    model.addAttribute("stagingSummary", client.summary(profileId, selected));
-    model.addAttribute("stagingRows", client.rows(profileId, selected));
+    model.addAttribute("overview", overview);
+    model.addAttribute("stagingSummary", stagingSummary);
+    model.addAttribute("stagingRows", stagingRows);
+    model.addAttribute("hasAcquiredData", hasAcquiredData);
+    model.addAttribute("hasOperationalData", hasOperationalData);
+    model.addAttribute("hasReviewIssues", hasReviewIssues);
+    model.addAttribute("workspaceStatus", workspaceStatus);
+    model.addAttribute("workspaceNextAction", workspaceNextAction);
+    model.addAttribute("referenceHeadlineMatchCount", referenceHeadlineMatchCount);
     model.addAttribute("canWrite", canWrite(request));
     return "accounting/accounting";
   }
@@ -140,7 +194,9 @@ public class AccountingPageController {
       validateUpload(file, "text/csv", "application/csv", "application/vnd.ms-excel");
       client.importBank(
           profileId, file.getOriginalFilename(), file.getContentType(), file.getBytes(), month);
-      redirect.addFlashAttribute("accountingMessage", "Bank file staged for reconciliation.");
+      redirect.addFlashAttribute(
+          "accountingMessage",
+          "Bank statement imported. Transactions were routed to their accounting months.");
     } catch (RuntimeException exception) {
       redirect.addFlashAttribute("accountingError", safeMessage(exception));
     } catch (java.io.IOException exception) {
@@ -266,6 +322,10 @@ public class AccountingPageController {
 
   private boolean canWrite(jakarta.servlet.http.HttpServletRequest request) {
     return request.isUserInRole("ADMIN") || request.isUserInRole("PROFILE_OWNER");
+  }
+
+  private boolean same(BigDecimal actual, BigDecimal expected) {
+    return actual != null && expected != null && actual.compareTo(expected) == 0;
   }
 
   private String safeMessage(RuntimeException exception) {
