@@ -247,7 +247,8 @@ class AccountingPageControllerTest {
         new AccountingRestClient.SourceSummary(evidence, 0, reviewRequired, failed),
         "CONNECTED",
         new AccountingRestClient.DocumentSummary(documents, 0, documents, reviewRequired, failed),
-        new AccountingRestClient.BankSummary(bankTransactions, 0, bankTransactions > 0 ? "IMPORTED" : "NO_IMPORT"),
+        new AccountingRestClient.BankSummary(
+            bankTransactions, 0, bankTransactions > 0 ? "IMPORTED" : "NO_IMPORT"),
         new AccountingRestClient.PaymentSummary(0, 0, zero),
         new AccountingRestClient.FilingSummary(
             "OPEN", "Open", filingReady, List.of(), "MISSING", null, "MISSING", null, null),
