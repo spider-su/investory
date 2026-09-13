@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.accounting.api.AccountingStagingApi;
+import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,19 +28,29 @@ class AccountingPageControllerTest {
   }
 
   @Test
-  void pageIncludesStagingRowsAndSummary() {
-    var overview = mock(AccountingRestClient.MonthOverview.class);
+  void legacyRouteRedirectsToProfileScopedAccounting() {
+    assertThat(controller.legacyPage(1, month))
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
+  }
+
+  @Test
+  void untouchedMonthIsPresentedAsWaitingForSourceData() {
     when(client.months(1))
         .thenReturn(
             List.of(new AccountingRestClient.MonthRef(month, "March 2026", "OPEN", "Open")));
-    when(client.overview(1, month)).thenReturn(overview);
+    when(client.overview(1, month)).thenReturn(overview(0, 0, 0, 0, 0, false));
     when(client.summary(1, month))
-        .thenReturn(new AccountingStagingApi.Summary(0, 1, 0, 0, 0, 0, 0, 0, 1, 0));
+        .thenReturn(new AccountingStagingApi.Summary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
     when(client.rows(1, month)).thenReturn(List.of());
 
     var model = new ExtendedModelMap();
     assertThat(controller.page(1, month, model, new MockHttpServletRequest()))
         .isEqualTo("accounting/accounting");
+
+    assertThat(model.get("hasAcquiredData")).isEqualTo(false);
+    assertThat(model.get("hasOperationalData")).isEqualTo(false);
+    assertThat(model.get("workspaceStatus")).isEqualTo("Waiting for data");
+    assertThat(model.get("workspaceNextAction")).isEqualTo("Add source data");
 
     verify(client).months(1);
     verify(client).overview(1, month);
@@ -53,6 +64,69 @@ class AccountingPageControllerTest {
   }
 
   @Test
+  void acquiredStagingRowsPresentReviewAsTheNextStep() {
+    when(client.months(1))
+        .thenReturn(
+            List.of(new AccountingRestClient.MonthRef(month, "March 2026", "OPEN", "Open")));
+    when(client.overview(1, month)).thenReturn(overview(0, 0, 1, 0, 0, false));
+    when(client.summary(1, month))
+        .thenReturn(new AccountingStagingApi.Summary(0, 1, 0, 0, 0, 0, 0, 0, 1, 0));
+    when(client.rows(1, month))
+        .thenReturn(
+            List.of(
+                new AccountingStagingApi.Row(
+                    "INVOICE",
+                    1,
+                    "INV-1",
+                    "UPLOAD",
+                    "NEW",
+                    List.of(),
+                    null,
+                    BigDecimal.TEN,
+                    "PLN",
+                    false)));
+
+    var model = new ExtendedModelMap();
+    controller.page(1, month, model, new MockHttpServletRequest());
+
+    assertThat(model.get("hasAcquiredData")).isEqualTo(true);
+    assertThat(model.get("hasOperationalData")).isEqualTo(false);
+    assertThat(model.get("workspaceStatus")).isEqualTo("In progress");
+    assertThat(model.get("workspaceNextAction")).isEqualTo("Promote ready data");
+  }
+
+  @Test
+  void blockingAcquisitionIsPresentedAsReviewNeeded() {
+    when(client.months(1))
+        .thenReturn(
+            List.of(new AccountingRestClient.MonthRef(month, "March 2026", "OPEN", "Open")));
+    when(client.overview(1, month)).thenReturn(overview(0, 0, 1, 1, 0, false));
+    when(client.summary(1, month))
+        .thenReturn(new AccountingStagingApi.Summary(0, 0, 1, 0, 0, 0, 0, 0, 0, 1));
+    when(client.rows(1, month))
+        .thenReturn(
+            List.of(
+                new AccountingStagingApi.Row(
+                    "INVOICE",
+                    1,
+                    "INV-1",
+                    "UPLOAD",
+                    "MISMATCH",
+                    List.of("AMOUNT_MISMATCH"),
+                    10L,
+                    BigDecimal.TEN,
+                    "PLN",
+                    false)));
+
+    var model = new ExtendedModelMap();
+    controller.page(1, month, model, new MockHttpServletRequest());
+
+    assertThat(model.get("workspaceStatus")).isEqualTo("Review needed");
+    assertThat(model.get("workspaceNextAction")).isEqualTo("Review issues");
+    assertThat(model.get("hasReviewIssues")).isEqualTo(true);
+  }
+
+  @Test
   void stagingActionsUseClientAndRedirect() {
     when(client.reconcile(1, month))
         .thenReturn(new AccountingStagingApi.Summary(0, 1, 0, 0, 0, 0, 0, 0, 1, 0));
@@ -61,9 +135,9 @@ class AccountingPageControllerTest {
     var reconcile = new RedirectAttributesModelMap();
     var promote = new RedirectAttributesModelMap();
     assertThat(controller.reconcile(1, month, reconcile))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.promote(1, month, promote))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
 
     verify(client).reconcile(1, month);
     verify(client).promote(1, month);
@@ -78,15 +152,15 @@ class AccountingPageControllerTest {
     var redirect = new RedirectAttributesModelMap();
 
     assertThat(controller.confirm(1, month, redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.file(1, month, redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.settle(1, month, redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.lock(1, month, redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     assertThat(controller.reopen(1, month, "correction", redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
 
     verify(client).confirm(1, month);
     verify(client).file(1, month);
@@ -100,7 +174,7 @@ class AccountingPageControllerTest {
     var redirect = new RedirectAttributesModelMap();
 
     assertThat(controller.reopen(1, month, " ", redirect))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
 
     verify(client, never()).reopen(anyLong(), any(), anyString());
     assertThat(redirect.getFlashAttributes()).containsKey("accountingError");
@@ -112,7 +186,7 @@ class AccountingPageControllerTest {
         .thenReturn(new AccountingRestClient.KsefSyncResult("COMPLETED", 1, 1, 0, 0, 0, "done"));
 
     assertThat(controller.syncKsef(1, month, new RedirectAttributesModelMap()))
-        .isEqualTo("redirect:/accounting?profileId=1&month=2026-03");
+        .isEqualTo("redirect:/profiles/1/accounting?month=2026-03");
     verify(client).syncKsef(1, month);
   }
 
@@ -158,5 +232,35 @@ class AccountingPageControllerTest {
     assertThat(redirect.getFlashAttributes().get("accountingWarning"))
         .isEqualTo(
             "KSeF sync finished: 1 received, 0 imported, 0 duplicates, 1 need review, 0 failed.");
+  }
+
+  private AccountingRestClient.MonthOverview overview(
+      int documents,
+      int bankTransactions,
+      int evidence,
+      int reviewRequired,
+      int failed,
+      boolean filingReady) {
+    var zero = BigDecimal.ZERO;
+    return new AccountingRestClient.MonthOverview(
+        month,
+        "OPEN",
+        "Open",
+        "REVIEW",
+        "Review issues",
+        new AccountingRestClient.Summary(zero, zero, zero, zero, documents, bankTransactions),
+        List.of(),
+        new AccountingRestClient.SourceSummary(evidence, 0, reviewRequired, failed),
+        "CONNECTED",
+        new AccountingRestClient.DocumentSummary(documents, 0, documents, reviewRequired, failed),
+        new AccountingRestClient.BankSummary(
+            bankTransactions, 0, bankTransactions > 0 ? "IMPORTED" : "NO_IMPORT"),
+        new AccountingRestClient.PaymentSummary(0, 0, zero),
+        new AccountingRestClient.FilingSummary(
+            "OPEN", "Open", filingReady, List.of(), "MISSING", null, "MISSING", null, null),
+        new AccountingRestClient.ReconciliationSummary(0, 0, 0, 0),
+        List.of(),
+        new AccountingRestClient.ReferenceSummary(
+            true, zero, zero, zero, zero, zero, zero, zero, 0, 0, "OPEN"));
   }
 }
