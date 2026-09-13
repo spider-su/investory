@@ -3,6 +3,7 @@ package com.smartbox.investory.accounting;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 
 public record AccountingMonthSnapshot(
     LocalDate period,
@@ -19,7 +20,101 @@ public record AccountingMonthSnapshot(
     List<ExpenseRow> expenses,
     List<ReconciliationRow> reconciliations,
     List<ObligationRow> obligations,
-    List<BankRow> bankTransactions) {
+    List<BankRow> bankTransactions,
+    AccountingCalculationMode calculationMode,
+    AccountingReadiness readiness,
+    List<AccountingIssue> issues) {
+
+  public long salesDocumentCount() {
+    return invoices.stream().filter(invoice -> invoice != null).count();
+  }
+
+  public long expenseDocumentCount() {
+    return expenses.stream().filter(expense -> expense != null).count();
+  }
+
+  public BigDecimal salesNetPln() {
+    return invoices.stream()
+        .map(InvoiceRow::bookedNetPln)
+        .filter(Objects::nonNull)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  public BigDecimal salesVat() {
+    return invoices.stream()
+        .map(InvoiceRow::vatAmount)
+        .filter(Objects::nonNull)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  public BigDecimal expenseNet() {
+    return expenses.stream()
+        .map(ExpenseRow::netAmount)
+        .filter(Objects::nonNull)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  public BigDecimal deductibleInputVat() {
+    return vat.deductibleInputVat();
+  }
+
+  public long matchedPaymentCount() {
+    return reconciliations.stream()
+        .filter(row -> "MATCHED".equals(row.status()) || "PAID".equals(row.status()))
+        .count();
+  }
+
+  public long paymentReviewCount() {
+    return reconciliations.stream()
+        .filter(row -> "UNMATCHED".equals(row.status()) || "DIFF".equals(row.status()))
+        .count();
+  }
+
+  public String userStatus() {
+    if (!issues.isEmpty()) return "Needs attention";
+    return filingConfirmed() ? "Closed" : "Ready to file";
+  }
+
+  private boolean filingConfirmed() {
+    return obligations.stream().anyMatch(row -> "CONFIRMED".equals(row.status()));
+  }
+
+  public AccountingMonthSnapshot(
+      LocalDate period,
+      BigDecimal domesticRevenueNetPln,
+      BigDecimal foreignBookedRevenuePln,
+      BigDecimal foreignSourceRevenueEur,
+      BigDecimal totalBookedRevenuePln,
+      FxCalculation fx,
+      RyczaltCalculation ryczalt,
+      VatCalculation vat,
+      ZusCalculation zus,
+      List<ComparisonRow> comparisons,
+      List<InvoiceRow> invoices,
+      List<ExpenseRow> expenses,
+      List<ReconciliationRow> reconciliations,
+      List<ObligationRow> obligations,
+      List<BankRow> bankTransactions) {
+    this(
+        period,
+        domesticRevenueNetPln,
+        foreignBookedRevenuePln,
+        foreignSourceRevenueEur,
+        totalBookedRevenuePln,
+        fx,
+        ryczalt,
+        vat,
+        zus,
+        comparisons,
+        invoices,
+        expenses,
+        reconciliations,
+        obligations,
+        bankTransactions,
+        AccountingCalculationMode.HISTORICAL_RECONSTRUCTION,
+        AccountingReadiness.READY,
+        List.of());
+  }
 
   public record ComparisonRow(
       String area,
@@ -49,7 +144,57 @@ public record AccountingMonthSnapshot(
       BigDecimal expectedReceivable,
       BigDecimal bookedNetPln,
       BigDecimal ryczaltRate,
-      String note) {}
+      String note,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String ksefNumber,
+      AccountingFilingEvidence filingEvidence) {
+    public InvoiceRow(
+        long id,
+        LocalDate taxPeriod,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        LocalDate fxRateDate,
+        String reference,
+        String customerAlias,
+        String invoiceKind,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal correctionNetAmount,
+        BigDecimal correctionVatAmount,
+        BigDecimal correctionGrossAmount,
+        BigDecimal expectedReceivable,
+        BigDecimal bookedNetPln,
+        BigDecimal ryczaltRate,
+        String note) {
+      this(
+          id,
+          taxPeriod,
+          issueDate,
+          saleDate,
+          fxRateDate,
+          reference,
+          customerAlias,
+          invoiceKind,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          correctionNetAmount,
+          correctionVatAmount,
+          correctionGrossAmount,
+          expectedReceivable,
+          bookedNetPln,
+          ryczaltRate,
+          note,
+          null,
+          null,
+          null,
+          null);
+    }
+  }
 
   public record ExpenseRow(
       long id,
@@ -65,7 +210,47 @@ public record AccountingMonthSnapshot(
       BigDecimal vatDeductionRatio,
       BigDecimal deductibleVat,
       String sourceQuality,
-      String note) {}
+      String note,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String ksefNumber,
+      AccountingFilingEvidence filingEvidence) {
+    public ExpenseRow(
+        long id,
+        LocalDate taxPeriod,
+        LocalDate invoiceDate,
+        String reference,
+        String supplierAlias,
+        String category,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal vatDeductionRatio,
+        BigDecimal deductibleVat,
+        String sourceQuality,
+        String note) {
+      this(
+          id,
+          taxPeriod,
+          invoiceDate,
+          reference,
+          supplierAlias,
+          category,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          vatDeductionRatio,
+          deductibleVat,
+          sourceQuality,
+          note,
+          null,
+          null,
+          null,
+          null);
+    }
+  }
 
   public record BankRow(
       long id,

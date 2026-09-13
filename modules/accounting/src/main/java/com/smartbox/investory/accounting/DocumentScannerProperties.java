@@ -10,6 +10,8 @@ class DocumentScannerProperties {
   private boolean pdfEnabled = true;
   private boolean imageEnabled = true;
   private boolean aiFallbackEnabled = true;
+  private long maxBytes = 12L * 1024L * 1024L;
+  private int maxPages = 50;
 
   public boolean isPdfEnabled() {
     return pdfEnabled;
@@ -33,5 +35,21 @@ class DocumentScannerProperties {
 
   public void setAiFallbackEnabled(boolean aiFallbackEnabled) {
     this.aiFallbackEnabled = aiFallbackEnabled;
+  }
+
+  public long getMaxBytes() {
+    return maxBytes;
+  }
+
+  public void setMaxBytes(long maxBytes) {
+    this.maxBytes = maxBytes;
+  }
+
+  public int getMaxPages() {
+    return maxPages;
+  }
+
+  public void setMaxPages(int maxPages) {
+    this.maxPages = maxPages;
   }
 }

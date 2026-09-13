@@ -6,8 +6,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 /**
- * Comparable annual income facts for the two Profile asset sources. These yields measure projected
- * net income only; they are not cash-flow-neutral total investment return or annualized KPI return.
+ * Comparable annual income facts for the two Profile asset sources. Investment result fields are
+ * explicitly named because expected total return is not distributable cash income.
  */
 public record ProfileIncomeSummary(
     BigDecimal marketIncomeYtd,
@@ -18,8 +18,8 @@ public record ProfileIncomeSummary(
     BigDecimal combinedAnnualIncome,
     BigDecimal combinedNetYield,
     BigDecimal investmentIncomeBase,
-    BigDecimal investmentProjectedAnnualIncome,
-    BigDecimal investmentAnnualizedYield,
+    BigDecimal expectedAnnualInvestmentResult,
+    BigDecimal expectedAnnualReturn,
     BigDecimal investmentResultYtd,
     BigDecimal investmentExpectedIncomeYtd,
     BigDecimal investmentExpectationProgress,

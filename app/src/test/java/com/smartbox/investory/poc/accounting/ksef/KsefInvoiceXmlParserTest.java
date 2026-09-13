@@ -43,5 +43,19 @@ class KsefInvoiceXmlParserTest {
     assertThat(result.netAmount()).isEqualByComparingTo("150.00");
     assertThat(result.vatAmount()).isEqualByComparingTo("27.00");
     assertThat(result.grossAmount()).isEqualByComparingTo("177.00");
+    assertThat(result.category()).isNull();
+    assertThat(result.vatDeductionRatio()).isNull();
+  }
+
+  @Test
+  void classifiesOnlyExplicitlyRecognizedPurchaseDescriptions() {
+    String xml =
+        "<Faktura xmlns=\"urn:test\"><Fa><P_7>paliwo BP</P_7>"
+            + "<P_13_1>100</P_13_1><P_14_1>23</P_14_1><P_15>123</P_15></Fa></Faktura>";
+
+    var result = parser.parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertThat(result.category()).isEqualTo("VEHICLE_FUEL");
+    assertThat(result.vatDeductionRatio()).isEqualByComparingTo("0.50");
   }
 }

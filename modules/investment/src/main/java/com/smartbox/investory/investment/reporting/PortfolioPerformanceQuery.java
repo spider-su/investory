@@ -257,7 +257,13 @@ public class PortfolioPerformanceQuery implements TrailingPortfolioReturnReader 
         .map(
             row ->
                 new DailyPortfolioValue(
-                    row.getDate(), row.getEndValue(), row.getContributions(), row.getWithdrawals()))
+                    row.getDate(),
+                    row.getEndValue(),
+                    row.getContributions(),
+                    row.getWithdrawals(),
+                    row.getInitializationAdjustment() == null
+                        ? ZERO
+                        : row.getInitializationAdjustment()))
         .toList();
   }
 

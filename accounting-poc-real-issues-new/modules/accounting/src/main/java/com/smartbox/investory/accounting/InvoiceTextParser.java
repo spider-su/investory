@@ -1,0 +1,306 @@
+package com.smartbox.investory.accounting;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.springframework.stereotype.Component;
+
+@Component
+class InvoiceTextParser {
+  private static final Pattern REFERENCE =
+      Pattern.compile(
+          "(?im)^(?:faktura(?:\u00a0| )?(?:vat)?|invoice|nr(?:\u00a0| )?faktury|numer(?:\u00a0| )?faktury)\\s*[:#-]?\\s*([^\\r\\n]+)");
+  private static final Pattern DATE =
+      Pattern.compile("(?<!\\d)(\\d{1,2}[./-]\\d{1,2}[./-]\\d{4}|\\d{4}-\\d{2}-\\d{2})(?!\\d)");
+  private static final Pattern NIP =
+      Pattern.compile("((?<!\\d)\\d{3}[- ]?\\d{3}[- ]?\\d{2}[- ]?\\d{2}(?!\\d))");
+  private static final Pattern AMOUNT =
+      Pattern.compile(
+          "(\\d{1,3}(?:,\\d{3})+\\.\\d{1,2}|\\d{1,3}(?:[ .]\\d{3})*(?:,\\d{1,2}|\\.\\d{1,2})|\\d+(?:,\\d{1,2}|\\.\\d{1,2}))");
+  private static final Pattern VAT_RATE = Pattern.compile("(\\d{1,2})\\s*%");
+  private static final Pattern CORRECTION_REFERENCE = Pattern.compile("(?im)\\b(KOR/[A-Z0-9/_-]+)");
+  private static final Pattern LABEL_LINE = Pattern.compile("(?im)^\\s*%s\\s*[:\\-]?\\s*(.+)$");
+  private static final Pattern AMOUNT_LINE = Pattern.compile("(?im)^.*%s.*$");
+  private static final Pattern ZERO_VAT_MARKER =
+      Pattern.compile("(?is)(?:\\bzw\\b|\\bnp\\b|np(?=\\d|\\s|$))");
+  private static final List<String> CURRENCIES = List.of("EUR", "USD", "GBP", "CZK", "PLN");
+
+  ParseResult parse(String rawText) {
+    String text = normalize(rawText);
+    if (text.isBlank()) return ParseResult.partial("PDF text is empty");
+
+    List<String> warnings = new ArrayList<>();
+    String reference = firstGroup(REFERENCE, text);
+    String lower = text.toLowerCase(Locale.ROOT);
+    boolean correction = containsAny(lower, "faktura korygująca", "credit note", "correction");
+    if (reference == null && correction) reference = firstGroup(CORRECTION_REFERENCE, text);
+    LocalDate issueDate = labeledDate(text, "data wystawienia", "issue date", "wystawiono");
+    if (issueDate == null) issueDate = firstDate(text);
+    LocalDate saleDate = labeledDate(text, "data sprzedaży", "sale date");
+    LocalDate dueDate = labeledDate(text, "termin płatności", "due date", "płatność do");
+    String seller = labeledLine(text, "sprzedawca", "seller", "wystawca");
+    String buyer = labeledLine(text, "nabywca", "buyer", "odbiorca");
+    // NIP is often rendered on the next line, outside the labelled party line. Keep the full
+    // invoice text as the fallback search scope rather than limiting it to the party heading.
+    List<String> nips = allGroups(NIP, text);
+    String sellerNip = nips.isEmpty() ? null : nips.get(0);
+    String buyerNip = nips.size() < 2 ? null : nips.get(1);
+    BigDecimal net = labeledAmount(text, "netto", "net amount", "net");
+    BigDecimal vat = labeledAmount(text, "vat", "podatek vat", "kwota vat");
+    BigDecimal gross = labeledAmount(text, "brutto", "gross amount", "gross");
+    InferredTotals inferred = inferTotals(text);
+    if (net == null) net = inferred.net();
+    if (vat == null) vat = inferred.vat();
+    if (gross == null) gross = inferred.gross();
+    boolean zeroVat = hasZeroVatMarker(lower);
+    if ((zeroVat || correction) && gross != null) {
+      if (net == null) net = gross;
+      if (vat == null) vat = BigDecimal.ZERO;
+    }
+    String currency = currency(text);
+
+    addMissingWarnings(warnings, reference, issueDate, seller, text, net, vat, gross);
+
+    if (!warnings.isEmpty()) return new ParseResult(null, ScanStatus.PARTIAL, warnings);
+    return new ParseResult(
+        new AccountingInvoiceRecognitionService.RecognizedInvoice(
+            correction ? "CREDIT_NOTE" : direction(sellerNip, buyerNip),
+            issueDate,
+            saleDate,
+            dueDate,
+            reference,
+            seller,
+            buyer,
+            category(text),
+            currency,
+            net,
+            vat,
+            gross,
+            "Deterministic text extraction",
+            sellerNip,
+            buyerNip),
+        ScanStatus.COMPLETE,
+        List.of());
+  }
+
+  private String direction(String sellerNip, String buyerNip) {
+    return sellerNip != null ? "PURCHASE_INVOICE" : "UNKNOWN";
+  }
+
+  private List<String> allGroups(Pattern pattern, String text) {
+    Matcher matcher = pattern.matcher(text);
+    if (!matcher.find()) return Collections.emptyList();
+    List<String> values = new ArrayList<>();
+    do {
+      values.add(matcher.group(1).replaceAll("[- ]", ""));
+    } while (matcher.find());
+    return values;
+  }
+
+  private String category(String text) {
+    String lower = text.toLowerCase(Locale.ROOT);
+    if (lower.contains("bp ") || lower.contains("paliwo") || lower.contains("fuel")) {
+      return "VEHICLE_FUEL";
+    }
+    if (lower.contains("księg") || lower.contains("accounting")) return "ACCOUNTING_SERVICE";
+    return "OTHER";
+  }
+
+  private String currency(String text) {
+    String upper = text.toUpperCase(Locale.ROOT);
+    for (String code : CURRENCIES) {
+      if (upper.contains(code)) return code;
+    }
+    return "PLN";
+  }
+
+  private boolean hasZeroVatMarker(String lower) {
+    return lower.contains("odwrotne obciążenie")
+        || lower.contains("reverse charge")
+        || ZERO_VAT_MARKER.matcher(lower).find()
+        || lower.contains("zwolnione z vat")
+        || lower.contains("exempt from vat");
+  }
+
+  private boolean containsAny(String text, String... values) {
+    for (String value : values) {
+      if (text.contains(value)) return true;
+    }
+    return false;
+  }
+
+  private void addMissingWarnings(
+      List<String> warnings,
+      String reference,
+      LocalDate issueDate,
+      String seller,
+      String text,
+      BigDecimal net,
+      BigDecimal vat,
+      BigDecimal gross) {
+    if (reference == null) warnings.add("missing invoice number");
+    if (issueDate == null) warnings.add("missing issue date");
+    if (firstGroup(NIP, seller == null ? text : seller) == null && firstGroup(NIP, text) == null) {
+      warnings.add("missing seller NIP");
+    }
+    if (net == null) warnings.add("missing net amount");
+    if (vat == null) warnings.add("missing VAT amount");
+    if (gross == null) warnings.add("missing gross amount");
+  }
+
+  private String normalize(String rawText) {
+    if (rawText == null) return "";
+    return rawText.replace('\u00a0', ' ').trim();
+  }
+
+  private String labeledLine(String text, String... labels) {
+    for (String label : labels) {
+      Matcher matcher =
+          Pattern.compile(String.format(LABEL_LINE.pattern(), Pattern.quote(label))).matcher(text);
+      if (matcher.find()) return clean(matcher.group(1));
+    }
+    return null;
+  }
+
+  private LocalDate labeledDate(String text, String... labels) {
+    String line = labeledLine(text, labels);
+    return line == null ? null : parseDate(firstGroup(DATE, line));
+  }
+
+  private BigDecimal labeledAmount(String text, String... labels) {
+    for (String label : labels) {
+      Matcher matcher =
+          Pattern.compile(String.format(AMOUNT_LINE.pattern(), Pattern.quote(label))).matcher(text);
+      while (matcher.find()) {
+        Matcher amount = AMOUNT.matcher(matcher.group());
+        BigDecimal last = null;
+        while (amount.find()) last = decimal(amount.group());
+        if (last != null) return last;
+      }
+    }
+    return null;
+  }
+
+  private InferredTotals inferTotals(String text) {
+    BigDecimal gross = lastAmountAfter(text, "razem do zapłaty", "total in", "total");
+    if (gross == null)
+      gross = lastAmountAfterPattern(text, "(?is)razem\\s+do\\s+zap(?:\\s+\\S+)?\\s*:");
+    if (gross == null) return new InferredTotals(null, null, null);
+
+    String lower = text.toLowerCase(Locale.ROOT);
+    int tableStart = lower.lastIndexOf("nabywca");
+    int tableEnd = lower.indexOf("razem do zapłaty", tableStart < 0 ? 0 : tableStart);
+    if (tableEnd < 0) return new InferredTotals(null, null, gross);
+    String table = text.substring(Math.max(tableStart, 0), tableEnd);
+    Matcher rateMatcher = VAT_RATE.matcher(table);
+    BigDecimal rate = rateMatcher.find() ? new BigDecimal(rateMatcher.group(1)) : null;
+    if (rate == null) return new InferredTotals(null, null, gross);
+
+    List<BigDecimal> amounts = new ArrayList<>();
+    Matcher amountMatcher = AMOUNT.matcher(table);
+    while (amountMatcher.find()) {
+      BigDecimal candidate = decimal(amountMatcher.group());
+      if (candidate.compareTo(BigDecimal.ZERO) > 0 && candidate.compareTo(gross) < 0) {
+        amounts.add(candidate);
+      }
+    }
+    BigDecimal ratio = rate.movePointLeft(2);
+    for (BigDecimal candidate : amounts) {
+      BigDecimal calculatedVat = gross.subtract(candidate);
+      BigDecimal calculatedRatio = calculatedVat.divide(candidate, 6, RoundingMode.HALF_UP);
+      if (calculatedRatio.subtract(ratio).abs().compareTo(new BigDecimal("0.01")) <= 0) {
+        return new InferredTotals(candidate, calculatedVat, gross);
+      }
+    }
+    return new InferredTotals(null, null, gross);
+  }
+
+  private BigDecimal lastAmountAfter(String text, String... labels) {
+    BigDecimal result = null;
+    for (String label : labels) {
+      Matcher labelMatcher =
+          Pattern.compile("(?is)" + Pattern.quote(label) + "\\s*:").matcher(text);
+      while (labelMatcher.find()) {
+        BigDecimal amount = firstAmount(text.substring(labelMatcher.end()));
+        if (amount != null) result = amount;
+      }
+    }
+    return result;
+  }
+
+  private BigDecimal lastAmountAfterPattern(String text, String labelPattern) {
+    BigDecimal result = null;
+    Matcher labelMatcher = Pattern.compile(labelPattern).matcher(text);
+    while (labelMatcher.find()) {
+      BigDecimal amount = firstAmount(text.substring(labelMatcher.end()));
+      if (amount != null) result = amount;
+    }
+    return result;
+  }
+
+  private BigDecimal firstAmount(String text) {
+    Matcher matcher = AMOUNT.matcher(text);
+    return matcher.find() ? decimal(matcher.group()) : null;
+  }
+
+  private LocalDate firstDate(String text) {
+    Matcher matcher = DATE.matcher(text);
+    return matcher.find() ? parseDate(matcher.group()) : null;
+  }
+
+  private LocalDate parseDate(String value) {
+    if (value == null) return null;
+    if (value.matches("\\d{4}-\\d{2}-\\d{2}")) return LocalDate.parse(value);
+    String normalized = value.replace('/', '.');
+    for (DateTimeFormatter formatter : List.of(DateTimeFormatter.ofPattern("d.M.uuuu"))) {
+      try {
+        return LocalDate.parse(normalized, formatter);
+      } catch (DateTimeParseException ignored) {
+        // Try the next supported date shape.
+      }
+    }
+    return null;
+  }
+
+  private BigDecimal decimal(String value) {
+    String normalized = value.replace(" ", "");
+    if (normalized.contains(",") && normalized.contains(".")) {
+      if (normalized.lastIndexOf('.') > normalized.lastIndexOf(',')) {
+        normalized = normalized.replace(",", "");
+      } else {
+        normalized = normalized.replace(".", "").replace(',', '.');
+      }
+    } else if (normalized.contains(",")) {
+      normalized = normalized.replace(',', '.');
+    }
+    return new BigDecimal(normalized);
+  }
+
+  private String firstGroup(Pattern pattern, String text) {
+    Matcher matcher = pattern.matcher(text);
+    return matcher.find() ? clean(matcher.group(1)) : null;
+  }
+
+  private String clean(String value) {
+    return value == null ? null : value.trim().replaceAll("\\s+", " ");
+  }
+
+  record ParseResult(
+      AccountingInvoiceRecognitionService.RecognizedInvoice invoice,
+      ScanStatus status,
+      List<String> warnings) {
+    static ParseResult partial(String warning) {
+      return new ParseResult(null, ScanStatus.PARTIAL, List.of(warning));
+    }
+  }
+
+  private record InferredTotals(BigDecimal net, BigDecimal vat, BigDecimal gross) {}
+}

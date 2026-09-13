@@ -20,19 +20,48 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 public class AccountingFactService {
   private static final LocalDate JULY_2026 = LocalDate.of(2026, 7, 1);
+  private static final LocalDate OPERATIONAL_MONTH = LocalDate.of(2026, 9, 1);
   private static final BigDecimal HALF = new BigDecimal("0.50");
 
   private final AccountingFactRepository factRepository;
   private final AccountingPocRepository pocRepository;
   private final CurrencyConversion currencyConversion;
+  private final AccountingMonthCalculator calculator;
+  private final AccountingProfileResolver profileResolver;
+
+  public AccountingFactService(
+      AccountingFactRepository factRepository,
+      AccountingPocRepository pocRepository,
+      CurrencyConversion currencyConversion) {
+    this(
+        factRepository,
+        pocRepository,
+        currencyConversion,
+        new DefaultAccountingMonthCalculator(currencyConversion),
+        new AccountingProfileResolver());
+  }
+
+  @Autowired
+  public AccountingFactService(
+      AccountingFactRepository factRepository,
+      AccountingPocRepository pocRepository,
+      CurrencyConversion currencyConversion,
+      AccountingMonthCalculator calculator,
+      AccountingProfileResolver profileResolver) {
+    this.factRepository = factRepository;
+    this.pocRepository = pocRepository;
+    this.currencyConversion = currencyConversion;
+    this.calculator = calculator;
+    this.profileResolver = profileResolver;
+  }
 
   public List<AccountingFact> facts() {
     return factRepository.findAll();
@@ -61,6 +90,7 @@ public class AccountingFactService {
     List<BankRow> bankTransactions = pocRepository.bankTransactionsForPeriod(period);
     List<ObligationRow> obligations = pocRepository.obligationsForPeriod(period);
     List<TaxInputRow> taxInputs = pocRepository.taxInputsForPeriod(period);
+    AccountingProfile profile = accountingProfile();
 
     BigDecimal domesticRevenue =
         invoices.stream()
@@ -87,20 +117,139 @@ public class AccountingFactService {
         calculateRyczalt(
             period, invoices, correctionSources, domesticRevenue, fx, obligations, taxInputs);
     VatCalculation vat = calculateVat(period, invoices, correctionSources, expenses, obligations);
-    ZusCalculation zus = calculateZus(accountingProfile(), taxInputs);
+    ZusCalculation zus = calculateZus(profile, taxInputs);
+    AccountingCalculationMode calculationMode =
+        period.isBefore(OPERATIONAL_MONTH)
+            ? AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+            : AccountingCalculationMode.CURRENT_CALCULATION;
+    var activityPeriods = pocRepository.businessActivityPeriods();
+    var employmentPeriods = pocRepository.employmentPeriods();
+    var resolved =
+        profileResolver.resolve(
+            period, activityPeriods, employmentPeriods, pocRepository.taxProfilePeriods());
+    var vatTransactions = pocRepository.vatTransactionsForPeriod(period);
+    var yearToDate =
+        new AccountingYearToDateContext(
+            pocRepository.yearToDateRevenue(period), null, null, null, List.of());
+    var zusCalculation =
+        calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+                && resolved.zusRegime() != null
+                && resolved.ryczaltRate() != null
+            ? new ZusCalculator()
+                .calculate(
+                    new ZusCalculator.Input(
+                        resolved.jdgActive(),
+                        resolved.qualifyingUop(),
+                        resolved.zusRegime(),
+                        resolved.voluntarySickness(),
+                        yearToDate.taxableRyczaltRevenue(),
+                        ZusRules2026.FULL_JDG_SOCIAL))
+            : null;
+    var paidContributionProjection =
+        calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+            ? projectPaidContributions(period, resolved, zusCalculation)
+            : new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
+    if (paidContributionProjection == null) {
+      paidContributionProjection =
+          new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
+    }
+    var context =
+        calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+                && activityPeriods.isEmpty()
+                && employmentPeriods.isEmpty()
+            ? AccountingPeriodContext.compatibility(period, profile)
+            : new AccountingPeriodContext(
+                period,
+                resolved.jdgActive(),
+                resolved.qualifyingUop(),
+                resolved.zusRegime(),
+                resolved.voluntarySickness(),
+                resolved.ryczaltRate(),
+                resolved.vatRegistered(),
+                resolved.vatEuRegistered(),
+                new AccountingYearToDateContext(
+                    yearToDate.taxableRyczaltRevenue(),
+                    null,
+                    null,
+                    null,
+                    calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+                        ? paidContributionProjection.contributions()
+                        : List.of()),
+                zusCalculation == null
+                    ? null
+                    : new ZusCalculationInput(
+                        zusCalculation.socialContribution(),
+                        zusCalculation.healthContribution(),
+                        BigDecimal.ZERO,
+                        zusCalculation.healthBand().name(),
+                        zusCalculation.reason()));
+    AccountingCalculationResult calculated =
+        calculator.calculate(
+            new AccountingCalculationInput(
+                period,
+                invoices,
+                expenses,
+                taxInputs,
+                profile,
+                new AccountingCalculationInput.CalculationAdjustments(
+                    JULY_2026.equals(period)
+                        ? correctionSources.stream()
+                            .map(InvoiceRow::correctionNetAmount)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                        : BigDecimal.ZERO,
+                    JULY_2026.equals(period)
+                        ? correctionSources.stream()
+                            .map(InvoiceRow::correctionVatAmount)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                        : BigDecimal.ZERO),
+                context,
+                vatTransactions,
+                calculationMode));
+    if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
+      domesticRevenue = calculated.revenue().domesticPln();
+      foreignBookedRevenue = calculated.revenue().convertedForeignPln();
+      foreignSourceEur =
+          invoices.stream()
+              .filter(invoice -> "EUR".equals(invoice.currency()))
+              .map(InvoiceRow::netAmount)
+              .filter(value -> value != null)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+      fx = currentFx(calculated);
+      ryczalt = currentRyczalt(calculated);
+      vat = currentVat(calculated);
+      zus = currentZus(calculated);
+    }
     List<ComparisonRow> comparisons =
-        buildComparisons(
-            period,
-            domesticRevenue,
-            foreignBookedRevenue,
+        calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+            ? buildComparisons(
+                period,
+                domesticRevenue,
+                foreignBookedRevenue,
+                fx,
+                ryczalt,
+                vat,
+                zus,
+                obligations,
+                taxInputs)
+            : List.of();
+    List<ReconciliationRow> reconciliations =
+        reconcile(invoices, expenses, bankTransactions, obligations);
+    List<AccountingIssue> issues =
+        issuesFor(
+            calculationMode,
+            invoices,
+            expenses,
             fx,
-            ryczalt,
-            vat,
-            zus,
-            obligations,
-            taxInputs);
-
-    List<ReconciliationRow> reconciliations = reconcile(invoices, bankTransactions, obligations);
+            taxInputs,
+            profile,
+            period,
+            bankTransactions,
+            reconciliations,
+            obligations);
+    if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
+      issues.addAll(paidContributionProjection.issues());
+      issues.addAll(calculated.issues());
+    }
 
     return new AccountingMonthSnapshot(
         period,
@@ -117,7 +266,179 @@ public class AccountingFactService {
         expenses,
         reconciliations,
         obligations,
-        bankTransactions);
+        bankTransactions,
+        calculationMode,
+        readiness(issues),
+        issues);
+  }
+
+  private AccountingPocRepository.PaidContributionProjection projectPaidContributions(
+      LocalDate period,
+      AccountingProfileResolver.ResolvedProfile resolved,
+      ZusCalculator.ZusCalculation currentZus) {
+    var obligations = paidContributionObligations(period, resolved, currentZus);
+    return pocRepository.paidContributionsUpTo(period, obligations);
+  }
+
+  private Map<LocalDate, AccountingPocRepository.ZusAmounts> paidContributionObligations(
+      LocalDate period,
+      AccountingProfileResolver.ResolvedProfile resolved,
+      ZusCalculator.ZusCalculation currentZus) {
+    var activityPeriods = pocRepository.businessActivityPeriods();
+    var employmentPeriods = pocRepository.employmentPeriods();
+    var taxPeriods = pocRepository.taxProfilePeriods();
+    var obligations = new java.util.LinkedHashMap<LocalDate, AccountingPocRepository.ZusAmounts>();
+    for (LocalDate contributionPeriod : pocRepository.zusPaymentPeriodsUpTo(period)) {
+      var effective =
+          profileResolver.resolve(
+              contributionPeriod, activityPeriods, employmentPeriods, taxPeriods);
+      if (effective.zusRegime() == null) continue;
+      var calculated =
+          new ZusCalculator()
+              .calculate(
+                  new ZusCalculator.Input(
+                      effective.jdgActive(),
+                      effective.qualifyingUop(),
+                      effective.zusRegime(),
+                      effective.voluntarySickness(),
+                      pocRepository.yearToDateRevenue(contributionPeriod),
+                      ZusRules2026.FULL_JDG_SOCIAL));
+      obligations.put(
+          contributionPeriod,
+          new AccountingPocRepository.ZusAmounts(
+              calculated.socialContribution(), calculated.healthContribution()));
+    }
+    if (currentZus != null) {
+      obligations.put(
+          period,
+          new AccountingPocRepository.ZusAmounts(
+              currentZus.socialContribution(), currentZus.healthContribution()));
+    }
+    return obligations;
+  }
+
+  private FxCalculation currentFx(AccountingCalculationResult result) {
+    String status = result.fx().complete() ? "CALCULATED" : "FX_UNAVAILABLE";
+    return new FxCalculation(
+        null,
+        result.fx().entries().stream()
+            .filter(entry -> "EUR".equals(entry.currency()))
+            .map(AccountingCalculationResult.FxCalculation.Conversion::sourceAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add),
+        result.fx().convertedRevenuePln(),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        status,
+        result.fx().unavailableReferences());
+  }
+
+  private RyczaltCalculation currentRyczalt(AccountingCalculationResult result) {
+    BigDecimal rate =
+        result.ryczalt().revenueByRate().size() == 1
+            ? result.ryczalt().revenueByRate().keySet().iterator().next()
+            : BigDecimal.ZERO;
+    return new RyczaltCalculation(
+        result.ryczalt().revenueBeforeDeductions(),
+        BigDecimal.ZERO,
+        result.ryczalt().healthContributionPaid(),
+        result.ryczalt().healthDeduction(),
+        result.ryczalt().taxableBase(),
+        rate,
+        result.ryczalt().calculatedTax(),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        result.complete() ? "CALCULATED" : "INPUTS_INCOMPLETE");
+  }
+
+  private VatCalculation currentVat(AccountingCalculationResult result) {
+    return new VatCalculation(
+        result.vat().outputVatBeforeCorrection(),
+        result.vat().salesCorrectionVat(),
+        result.vat().outputVat(),
+        result.vat().deductibleInputVat(),
+        BigDecimal.ZERO,
+        result.vat().calculatedVat(),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        result.complete() ? "CALCULATED" : "INPUTS_INCOMPLETE");
+  }
+
+  private ZusCalculation currentZus(AccountingCalculationResult result) {
+    var zus = result.zus();
+    return new ZusCalculation(
+        zus.socialZus(), zus.healthZus(), zus.totalZus(), zus.hasUop(), zus.socialZusReasonCode());
+  }
+
+  private List<AccountingIssue> issuesFor(
+      AccountingCalculationMode mode,
+      List<InvoiceRow> invoices,
+      List<ExpenseRow> expenses,
+      FxCalculation fx,
+      List<TaxInputRow> taxInputs,
+      AccountingProfile profile,
+      LocalDate period,
+      List<BankRow> bankTransactions,
+      List<ReconciliationRow> reconciliations,
+      List<ObligationRow> obligations) {
+    List<AccountingIssue> issues = new ArrayList<>();
+    List<AccountingIssue> sourceIssues = pocRepository.sourceIssuesForPeriod(period);
+    if (sourceIssues != null) issues.addAll(sourceIssues);
+    if (mode != AccountingCalculationMode.CURRENT_CALCULATION) return issues;
+    if (invoices.isEmpty()) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_REQUIRED_INPUT",
+              "INCOMPLETE",
+              null,
+              "No normalized sales invoices are available for this month."));
+    }
+    if (expenses.isEmpty()) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_REQUIRED_INPUT",
+              "INCOMPLETE",
+              null,
+              "No normalized purchase invoices are available for this month."));
+    }
+    if ("FX_UNAVAILABLE".equals(fx.status())) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_FX",
+              "INCOMPLETE",
+              String.join(", ", fx.unavailableInvoiceReferences()),
+              "EUR revenue cannot be converted because the required FX rate is unavailable."));
+    }
+    if (!obligations.isEmpty() && bankTransactions.isEmpty()) {
+      issues.add(
+          new AccountingIssue(
+              "MISSING_BANK_INPUT",
+              "INCOMPLETE",
+              null,
+              "No normalized bank transactions are available to reconcile this month."));
+    }
+    if (!bankTransactions.isEmpty()) {
+      reconciliations.stream()
+          .filter(row -> "UNMATCHED".equals(row.status()) || "DIFF".equals(row.status()))
+          .forEach(
+              row ->
+                  issues.add(
+                      new AccountingIssue(
+                          "RECONCILIATION_REVIEW",
+                          "REVIEW_REQUIRED",
+                          row.reference(),
+                          row.explanation())));
+    }
+    return issues;
+  }
+
+  private AccountingReadiness readiness(List<AccountingIssue> issues) {
+    if (issues.stream().anyMatch(issue -> "REVIEW_REQUIRED".equals(issue.severity()))) {
+      return AccountingReadiness.REVIEW_REQUIRED;
+    }
+    if (issues.stream().anyMatch(issue -> "INCOMPLETE".equals(issue.severity()))) {
+      return AccountingReadiness.INCOMPLETE;
+    }
+    return AccountingReadiness.READY;
   }
 
   private ZusCalculation calculateZus(AccountingProfile profile, List<TaxInputRow> taxInputs) {
@@ -395,11 +716,15 @@ public class AccountingFactService {
   }
 
   private BigDecimal taxInput(List<TaxInputRow> inputs, String inputType) {
+    TaxInputRow input = taxInputOrNull(inputs, inputType);
+    return input == null || input.amount() == null ? BigDecimal.ZERO : input.amount();
+  }
+
+  private TaxInputRow taxInputOrNull(List<TaxInputRow> inputs, String inputType) {
     return inputs.stream()
         .filter(input -> inputType.equals(input.inputType()))
-        .map(TaxInputRow::amount)
         .findFirst()
-        .orElse(BigDecimal.ZERO);
+        .orElse(null);
   }
 
   private boolean hasObligation(List<ObligationRow> obligations, String type) {
@@ -415,7 +740,10 @@ public class AccountingFactService {
   }
 
   private List<ReconciliationRow> reconcile(
-      List<InvoiceRow> invoices, List<BankRow> bankTransactions, List<ObligationRow> obligations) {
+      List<InvoiceRow> invoices,
+      List<ExpenseRow> expenses,
+      List<BankRow> bankTransactions,
+      List<ObligationRow> obligations) {
     List<ReconciliationRow> result = new ArrayList<>();
     Set<Long> usedBankTransactionIds = new HashSet<>();
 
@@ -453,6 +781,38 @@ public class AccountingFactService {
               match == null ? null : match.bookingDate(),
               match == null ? "UNMATCHED" : "MATCHED",
               match == null ? "No exact business receipt found." : explanation));
+    }
+
+    for (ExpenseRow expense : expenses) {
+      BankRow match =
+          bankTransactions.stream()
+              .filter(row -> "BUSINESS".equals(row.scope()))
+              .filter(row -> "SUPPLIER_PAYMENT".equals(row.transactionType()))
+              .filter(row -> expense.currency().equals(row.currency()))
+              .filter(row -> expense.grossAmount().compareTo(row.amount().abs()) == 0)
+              .filter(
+                  row ->
+                      row.relatedPeriod() == null
+                          || expense.taxPeriod().equals(row.relatedPeriod()))
+              .filter(
+                  row ->
+                      expense.reference().equalsIgnoreCase(row.reference())
+                          || expense.supplierAlias().equals(row.counterpartyAlias()))
+              .filter(row -> usedBankTransactionIds.add(row.id()))
+              .findFirst()
+              .orElse(null);
+      result.add(
+          new ReconciliationRow(
+              expense.reference(),
+              "EXPENSE_PAYMENT",
+              expense.grossAmount(),
+              expense.currency(),
+              match == null ? BigDecimal.ZERO : match.amount().abs(),
+              match == null ? null : match.bookingDate(),
+              match == null ? "UNMATCHED" : "MATCHED",
+              match == null
+                  ? "No exact business supplier payment found."
+                  : "Exact supplier payment matched."));
     }
 
     for (ObligationRow obligation : obligations) {

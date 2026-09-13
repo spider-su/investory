@@ -178,7 +178,14 @@ class AiInvoiceRecognitionClient {
           decimal(node, "netAmount"),
           decimal(node, "vatAmount"),
           decimal(node, "grossAmount"),
-          text(node, "note"));
+          text(node, "note"),
+          text(node, "sellerNip"),
+          text(node, "buyerNip"),
+          List.of(
+              new AccountingInvoiceRecognitionService.FieldCandidate<>(
+                  output,
+                  AccountingInvoiceRecognitionService.ExtractionSource.AI,
+                  "AI JSON response")));
     } catch (Exception exception) {
       log.warn("Could not parse invoice recognition payload: {}", abbreviate(output, 500));
       throw new IllegalStateException("AI result could not be parsed as an invoice", exception);
@@ -205,7 +212,9 @@ class AiInvoiceRecognitionClient {
           "dueDate": "yyyy-MM-dd or null",
           "reference": "invoice/document number or null",
           "seller": "seller/issuer name or null",
+          "sellerNip": "seller NIP or null",
           "buyer": "buyer/customer name or null",
+          "buyerNip": "buyer NIP or null",
           "category": "VEHICLE_FUEL | ACCOUNTING_SERVICE | BUSINESS_SERVICE | EQUIPMENT | OTHER",
           "currency": "ISO currency code, usually PLN",
           "netAmount": "decimal string or null",
@@ -291,7 +300,12 @@ class AiInvoiceRecognitionClient {
 
   private LocalDate localDate(JsonNode node, String field) {
     String value = text(node, field);
-    return value == null ? null : LocalDate.parse(value);
+    if (value == null) return null;
+    try {
+      return LocalDate.parse(value);
+    } catch (RuntimeException exception) {
+      throw invalidField(field, value, exception);
+    }
   }
 
   private BigDecimal decimal(JsonNode node, String field) {
@@ -309,7 +323,16 @@ class AiInvoiceRecognitionClient {
     } else if (comma >= 0) {
       normalized = normalized.replace(',', '.');
     }
-    return new BigDecimal(normalized);
+    try {
+      return new BigDecimal(normalized);
+    } catch (RuntimeException exception) {
+      throw invalidField(field, value, exception);
+    }
+  }
+
+  private IllegalArgumentException invalidField(String field, String value, Exception cause) {
+    return new IllegalArgumentException(
+        "Invalid AI invoice field '" + field + "' value '" + abbreviate(value, 120) + "'", cause);
   }
 
   private String text(JsonNode node, String field) {

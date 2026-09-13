@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,12 +18,46 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
-@RequiredArgsConstructor
 public class AccountingFactController {
   private final AccountingFactService service;
   private final AccountingInvoiceRecognitionService invoiceRecognitionService;
   private final AccountingInvoiceIngestionService invoiceIngestionService;
+  private final AccountingSourceEvidenceService sourceEvidenceService;
   private final AccountingJdgExporter exporter;
+  private final AccountingFilingService filingService;
+
+  public AccountingFactController(
+      AccountingFactService service,
+      AccountingInvoiceRecognitionService recognition,
+      AccountingInvoiceIngestionService ingestion,
+      AccountingJdgExporter exporter) {
+    this(service, recognition, ingestion, exporter, null, null);
+  }
+
+  public AccountingFactController(
+      AccountingFactService service,
+      AccountingInvoiceRecognitionService recognition,
+      AccountingInvoiceIngestionService ingestion,
+      AccountingJdgExporter exporter,
+      AccountingSourceEvidenceService sourceEvidenceService) {
+    this(service, recognition, ingestion, exporter, sourceEvidenceService, null);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public AccountingFactController(
+      AccountingFactService service,
+      AccountingInvoiceRecognitionService recognition,
+      AccountingInvoiceIngestionService ingestion,
+      AccountingJdgExporter exporter,
+      AccountingSourceEvidenceService sourceEvidenceService,
+      AccountingFilingService filingService) {
+    this.service = service;
+    this.invoiceRecognitionService = recognition;
+    this.invoiceIngestionService = ingestion;
+    this.sourceEvidenceService = sourceEvidenceService;
+    this.exporter = exporter;
+    this.filingService = filingService;
+  }
 
   @GetMapping("/poc/accounting")
   public String facts(@RequestParam(required = false) String month, Model model) {
@@ -55,22 +88,55 @@ public class AccountingFactController {
         .body(exporter.exportCsv());
   }
 
+  @GetMapping("/poc/accounting/jpk")
+  public ResponseEntity<byte[]> exportJpk(@RequestParam String month) {
+    byte[] xml = filingService.jpk(parseMonth(month));
+    return ResponseEntity.ok()
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=jpk-v7m-" + month + ".xml")
+        .contentType(MediaType.APPLICATION_XML)
+        .body(xml);
+  }
+
+  @PostMapping("/poc/accounting/confirm")
+  public String confirm(@RequestParam String month, RedirectAttributes redirectAttributes) {
+    try {
+      filingService.confirm(parseMonth(month));
+      redirectAttributes.addFlashAttribute("filingMessage", "Month confirmed for filing output.");
+    } catch (RuntimeException exception) {
+      redirectAttributes.addFlashAttribute("filingError", exception.getMessage());
+    }
+    return "redirect:/poc/accounting?month=" + month;
+  }
+
   @PostMapping("/poc/accounting/invoice/recognize")
   public String recognizeInvoice(
       @RequestParam String month, @RequestParam("invoice") MultipartFile invoice, Model model) {
     LocalDate selected = populateModel(month, model);
     AccountingInvoiceForm form = new AccountingInvoiceForm();
     form.setMonth(formatMonth(selected));
+    long sourceId = 0;
     try {
+      sourceId =
+          sourceEvidenceService == null
+              ? 0
+              : sourceEvidenceService.receiveUpload(
+                  invoice.getOriginalFilename(), invoice.getContentType(), invoice.getBytes());
       RecognizedInvoice recognized =
           invoiceRecognitionService.recognize(
               invoice.getOriginalFilename(), invoice.getContentType(), invoice.getBytes());
       copyRecognized(recognized, form);
+      form.setSourceIdentity(Long.toString(sourceId));
+      if (sourceId != 0)
+        sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
       model.addAttribute("invoiceDraft", form);
       model.addAttribute(
           "recognitionMessage",
           "Invoice fields and document direction were extracted. Review the type, counterparty and dates before saving.");
     } catch (IOException | RuntimeException exception) {
+      if (sourceId != 0) {
+        sourceEvidenceService.status(
+            sourceId, AccountingSourceStatus.FAILED, exception.getMessage());
+      }
       model.addAttribute("invoiceDraft", form);
       model.addAttribute("recognitionError", exception.getMessage());
     }
@@ -100,7 +166,21 @@ public class AccountingFactController {
                   invoiceDraft.getGrossAmount(),
                   invoiceDraft.getVatDeductionRatio(),
                   "AI_EXTRACTED_REVIEWED",
-                  buildReviewedNote(invoiceDraft)));
+                  buildReviewedNote(invoiceDraft),
+                  invoiceDraft.getSourceIdentity(),
+                  invoiceDraft.getCounterpartyTaxIdentifier(),
+                  invoiceDraft.getCounterpartyCountry(),
+                  invoiceDraft.getKsefNumber(),
+                  invoiceDraft.getFilingEvidence() == null
+                      ? null
+                      : new AccountingFilingEvidence(
+                          invoiceDraft.getFilingEvidence(), invoiceDraft.getKsefNumber())));
+      if (invoiceDraft.getSourceIdentity() != null && !invoiceDraft.getSourceIdentity().isBlank()) {
+        sourceEvidenceService.status(
+            Long.parseLong(invoiceDraft.getSourceIdentity()),
+            inserted ? AccountingSourceStatus.IMPORTED : AccountingSourceStatus.IMPORTED,
+            null);
+      }
       redirectAttributes.addFlashAttribute(
           "invoiceSaved",
           inserted
@@ -131,6 +211,25 @@ public class AccountingFactController {
     model.addAttribute("hasUop", snapshot.zus().hasUop());
     model.addAttribute("snapshot", snapshot);
     model.addAttribute("facts", service.facts());
+    if (sourceEvidenceService != null) {
+      model.addAttribute("sourceOutcomes", sourceEvidenceService.outcomes(selected));
+      model.addAttribute("bankSourceOutcomes", sourceEvidenceService.bankOutcomes(selected));
+    }
+    model.addAttribute("bankProcessedRows", snapshot.bankTransactions().size());
+    model.addAttribute(
+        "bankReviewRows",
+        snapshot.bankTransactions().stream()
+            .filter(transaction -> "UNKNOWN".equals(transaction.transactionType()))
+            .count());
+    if (filingService != null) {
+      AccountingFilingService.FilingResult filing = filingService.filing(selected);
+      model.addAttribute("filing", filing);
+      try {
+        model.addAttribute("paymentInstructions", filingService.paymentInstructions(selected));
+      } catch (RuntimeException exception) {
+        model.addAttribute("paymentInstructionError", exception.getMessage());
+      }
+    }
     return selected;
   }
 
@@ -141,6 +240,10 @@ public class AccountingFactController {
     form.setDueDate(recognized.dueDate());
     form.setReference(recognized.reference());
     form.setCounterpartyAlias(counterparty(recognized));
+    form.setCounterpartyTaxIdentifier(
+        "SALES_INVOICE".equals(recognized.documentType())
+            ? recognized.buyerNip()
+            : recognized.sellerNip());
     form.setCategory(recognized.category());
     form.setCurrency(recognized.currency());
     form.setNetAmount(recognized.netAmount());
@@ -173,6 +276,9 @@ public class AccountingFactController {
       note.append("Due date ").append(form.getDueDate()).append(". ");
     }
     note.append("Uploaded document recognized by AI and reviewed before persistence.");
+    if (form.getSourceIdentity() != null && !form.getSourceIdentity().isBlank()) {
+      note.append(" Source evidence ID ").append(form.getSourceIdentity()).append('.');
+    }
     return note.toString();
   }
 

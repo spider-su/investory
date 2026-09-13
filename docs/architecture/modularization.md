@@ -25,7 +25,6 @@ retirement -> shared + investment/longterm/profile public APIs
 integrations -> investment public/integration contracts
 accounting -> shared + integrations
 adapters/web-ui -> investment/longterm/profile/retirement/integrations public APIs
-accounting-test-support -> test-support (accounting fixtures and PostgreSQL test infrastructure only)
 test-support -> shared + investment + profile (fixtures and PostgreSQL test infrastructure only)
 ```
 

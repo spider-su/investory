@@ -33,6 +33,39 @@ class InvoiceTextParser {
   private static final List<String> CURRENCIES = List.of("EUR", "USD", "GBP", "CZK", "PLN");
 
   ParseResult parse(String rawText) {
+    return parse(null, null, rawText);
+  }
+
+  ParseResult parse(DocumentText document, String ownNip) {
+    return parse(document, ownNip, document.plainText());
+  }
+
+  List<VatSummaryRow> vatSummaryRows(DocumentText document) {
+    List<VatSummaryRow> rows = new ArrayList<>();
+    for (DocumentText.Page page : document.pages()) {
+      for (DocumentText.Line line : page.lines()) {
+        Matcher rate = VAT_RATE.matcher(line.text());
+        if (!rate.find()) continue;
+        List<BigDecimal> amounts = new ArrayList<>();
+        Matcher amount = AMOUNT.matcher(line.text());
+        while (amount.find()) amounts.add(decimal(amount.group()));
+        if (amounts.size() >= 3) {
+          int n = amounts.size();
+          rows.add(
+              new VatSummaryRow(
+                  new BigDecimal(rate.group(1)),
+                  amounts.get(n - 3),
+                  amounts.get(n - 2),
+                  amounts.get(n - 1)));
+        }
+      }
+    }
+    return List.copyOf(rows);
+  }
+
+  record VatSummaryRow(BigDecimal rate, BigDecimal net, BigDecimal vat, BigDecimal gross) {}
+
+  private ParseResult parse(DocumentText document, String ownNip, String rawText) {
     String text = normalize(rawText);
     if (text.isBlank()) return ParseResult.partial("PDF text is empty");
 
@@ -54,19 +87,33 @@ class InvoiceTextParser {
     if (net == null) net = inferred.net();
     if (vat == null) vat = inferred.vat();
     if (gross == null) gross = inferred.gross();
+    if (document != null) {
+      List<VatSummaryRow> rows = vatSummaryRows(document);
+      if (!rows.isEmpty()) {
+        if (net == null)
+          net = rows.stream().map(VatSummaryRow::net).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (vat == null)
+          vat = rows.stream().map(VatSummaryRow::vat).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (gross == null)
+          gross = rows.stream().map(VatSummaryRow::gross).reduce(BigDecimal.ZERO, BigDecimal::add);
+      }
+    }
     boolean zeroVat = hasZeroVatMarker(lower);
     if ((zeroVat || correction) && gross != null) {
       if (net == null) net = gross;
       if (vat == null) vat = BigDecimal.ZERO;
     }
     String currency = currency(text);
+    String sellerNip = nip(seller, text);
+    String buyerNip = nip(buyer, text);
+    String direction = direction(sellerNip, buyerNip, ownNip, correction);
 
     addMissingWarnings(warnings, reference, issueDate, seller, text, net, vat, gross);
 
     if (!warnings.isEmpty()) return new ParseResult(null, ScanStatus.PARTIAL, warnings);
     return new ParseResult(
         new AccountingInvoiceRecognitionService.RecognizedInvoice(
-            correction ? "CREDIT_NOTE" : "PURCHASE_INVOICE",
+            direction,
             issueDate,
             saleDate,
             dueDate,
@@ -78,9 +125,45 @@ class InvoiceTextParser {
             net,
             vat,
             gross,
-            "Deterministic text extraction"),
+            "Deterministic text extraction",
+            sellerNip,
+            buyerNip,
+            List.of(
+                candidate("reference", reference, "EXPLICIT_LABEL", reference),
+                candidate("issueDate", issueDate, "EXPLICIT_LABEL", issueDate),
+                candidate("seller", seller, "EXPLICIT_LABEL", seller),
+                candidate("net", net, "TABLE_VALUE", net),
+                candidate("vat", vat, "TABLE_VALUE", vat),
+                candidate("gross", gross, "TABLE_VALUE", gross))),
         ScanStatus.COMPLETE,
         List.of());
+  }
+
+  private String direction(String sellerNip, String buyerNip, String ownNip, boolean correction) {
+    if (correction) return "CREDIT_NOTE";
+    String own = digits(ownNip);
+    if (own != null && own.equals(digits(sellerNip))) return "SALES_INVOICE";
+    if (own != null && own.equals(digits(buyerNip))) return "PURCHASE_INVOICE";
+    return "UNKNOWN";
+  }
+
+  private String nip(String preferred, String fallback) {
+    String value = firstGroup(NIP, preferred == null ? "" : preferred);
+    return value == null ? firstGroup(NIP, fallback) : value;
+  }
+
+  private String digits(String value) {
+    if (value == null) return null;
+    String result = value.replaceAll("\\D", "");
+    return result.length() == 10 ? result : null;
+  }
+
+  private AccountingInvoiceRecognitionService.FieldCandidate<Object> candidate(
+      String field, Object value, String source, Object evidence) {
+    return new AccountingInvoiceRecognitionService.FieldCandidate<>(
+        value,
+        AccountingInvoiceRecognitionService.ExtractionSource.valueOf(source),
+        field + " extracted from invoice text: " + String.valueOf(evidence));
   }
 
   private String category(String text) {
@@ -263,6 +346,7 @@ class InvoiceTextParser {
   }
 
   private String firstGroup(Pattern pattern, String text) {
+    if (text == null) return null;
     Matcher matcher = pattern.matcher(text);
     return matcher.find() ? clean(matcher.group(1)) : null;
   }

@@ -10,6 +10,11 @@
     <dependencies>
         <dependency>
             <groupId>com.smartbox</groupId>
+            <artifactId>accounting</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.smartbox</groupId>
             <artifactId>investment</artifactId>
             <version>${project.version}</version>
         </dependency>

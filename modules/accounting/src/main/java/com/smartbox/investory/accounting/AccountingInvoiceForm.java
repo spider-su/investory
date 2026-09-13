@@ -7,12 +7,17 @@ import lombok.Data;
 @Data
 public class AccountingInvoiceForm {
   private String month;
+  private String sourceIdentity;
   private String documentType = "PURCHASE_INVOICE";
   private LocalDate issueDate;
   private LocalDate saleDate;
   private LocalDate dueDate;
   private String reference;
   private String counterpartyAlias;
+  private String counterpartyTaxIdentifier;
+  private String counterpartyCountry;
+  private String ksefNumber;
+  private AccountingFilingEvidence.Type filingEvidence;
   private String category;
   private String currency = "PLN";
   private BigDecimal netAmount;

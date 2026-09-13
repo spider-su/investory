@@ -70,7 +70,6 @@ jobs:
           name: packaged-reactor
           include-hidden-files: true
           path: |
-            .m2/repository/com/smartbox/**
             app/target/classes/**
             app/target/test-classes/**
             modules/*/target/classes/**
@@ -82,6 +81,7 @@ jobs:
             test-support/target/classes/**
             test-support/target/test-classes/**
           if-no-files-found: error
+          retention-days: 1
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v7
@@ -89,6 +89,7 @@ jobs:
           name: jacoco-module-reports
           path: '**/target/site/jacoco/'
           if-no-files-found: error
+          retention-days: 1
 
       - name: Upload unit execution data
         uses: actions/upload-artifact@v7
@@ -96,6 +97,7 @@ jobs:
           name: jacoco-unit-exec
           path: '**/target/jacoco.exec'
           if-no-files-found: error
+          retention-days: 1
 
   composition:
     name: App Startup
@@ -121,6 +123,7 @@ jobs:
           name: jacoco-application-composition
           path: '**/target/jacoco.exec'
           if-no-files-found: error
+          retention-days: 1
 
   backendIt:
     name: BE_IT (${{ matrix.suite.name }})
@@ -133,7 +136,7 @@ jobs:
         suite:
           - name: contracts
             project: app
-            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AccountingGoldenIT,AccountingGoldenMatrixIT,AccountingInvoiceFolderRecognitionIT,AccountingKsefImportIT,AccountingJdgExporterIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT
+            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AccountingGoldenIT,AccountingGoldenMatrixIT,AccountingInvoiceFolderRecognitionIT,AccountingKsefImportIT,AccountingJdgExporterIT,AccountingRestControllerIT,BankTransactionProviderNeutralIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT,MockZusClientIT
           - name: imports
             project: app
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT
@@ -174,6 +177,7 @@ jobs:
           name: jacoco-backend-${{ matrix.suite.name }}
           path: '**/target/jacoco.exec'
           if-no-files-found: error
+          retention-days: 1
 
   uiSetup:
     name: UI browser setup
@@ -215,6 +219,7 @@ jobs:
           name: playwright-chromium
           path: ${{ runner.temp }}/playwright
           if-no-files-found: error
+          retention-days: 1
 
   uiIt:
     name: FE_IT (${{ matrix.suite.name }})
@@ -286,6 +291,7 @@ jobs:
             app/target/failsafe-reports/
             app/target/surefire-reports/
           if-no-files-found: warn
+          retention-days: 1
 
       - name: Upload UI integration execution data
         uses: actions/upload-artifact@v7
@@ -293,6 +299,7 @@ jobs:
           name: jacoco-ui-${{ matrix.suite.name }}
           path: '**/target/jacoco.exec'
           if-no-files-found: ignore
+          retention-days: 1
 
   goldenPath:
     name: Golden path
@@ -325,6 +332,7 @@ jobs:
           name: jacoco-golden-path
           path: '**/target/jacoco.exec'
           if-no-files-found: ignore
+          retention-days: 1
 
   aggregateCoverage:
     name: Aggregate coverage gate
@@ -381,6 +389,7 @@ jobs:
           name: jacoco-aggregate-report
           path: app/target/site/jacoco-aggregate/
           if-no-files-found: error
+          retention-days: 1
   schema:
     name: DB_IT
     runs-on: ubuntu-latest
@@ -449,3 +458,4 @@ jobs:
           name: jacoco-backend-schema
           path: app/target/jacoco.exec
           if-no-files-found: error
+          retention-days: 1

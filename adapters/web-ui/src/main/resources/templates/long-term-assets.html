@@ -10,7 +10,7 @@
 </head>
 <body>
 <main class="iv-app iv-planning-page">
-  <div th:replace="~{fragments/app-header :: planningHeader('assets', ${portfolioId}, 'Long-term asset summary', 'Value', ${longTermHeaderTotal}, 'all assets', 'Net income / year', ${longTermHeaderIncome}, 'net', 'Annual yield', ${longTermHeaderYield}, 'net', ${currency}, 'assets', null, null)}"></div>
+  <div th:replace="~{fragments/app-header :: planningHeader('assets', ${portfolioId}, 'Long-term asset summary', 'Long-term assets value', ${longTermHeaderTotal}, 'long-term assets', 'Net income / year', ${longTermHeaderIncome}, 'net', 'Annual yield', ${longTermHeaderYield}, 'net', ${currency}, 'assets', null, null)}"></div>
   <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}">Validation error.</div>
 
   <div class="iv-long-term-assets-sections">

@@ -6,9 +6,13 @@ import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -17,10 +21,206 @@ import org.springframework.stereotype.Repository;
 public class AccountingPocRepository {
   private final JdbcTemplate jdbcTemplate;
 
+  private AccountingFilingEvidence filingEvidence(String value, String ksefNumber) {
+    if (value == null || value.isBlank()) return null;
+    return new AccountingFilingEvidence(AccountingFilingEvidence.Type.valueOf(value), ksefNumber);
+  }
+
+  public PeriodState periodState(LocalDate period) {
+    return jdbcTemplate.query(
+        "SELECT confirmed_at, confirmed_calculation_hash, lifecycle_status FROM investory.accounting_poc_period_state WHERE tax_period = ?",
+        rs ->
+            rs.next()
+                ? new PeriodState(
+                    rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
+                    rs.getString(2),
+                    rs.getString(3) == null
+                        ? PeriodLifecycleStatus.OPEN
+                        : PeriodLifecycleStatus.valueOf(rs.getString(3)))
+                : null,
+        period);
+  }
+
+  public void confirm(LocalDate period, String hash, Instant confirmedAt) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_period_state (tax_period, confirmed_at, confirmed_calculation_hash) VALUES (?, ?, ?) ON CONFLICT (tax_period) DO UPDATE SET confirmed_at = EXCLUDED.confirmed_at, confirmed_calculation_hash = EXCLUDED.confirmed_calculation_hash",
+        period,
+        java.sql.Timestamp.from(confirmedAt),
+        hash);
+  }
+
+  public void updateLifecycleStatus(LocalDate period, PeriodLifecycleStatus status) {
+    PeriodLifecycleStatus current =
+        jdbcTemplate.query(
+            "SELECT lifecycle_status FROM investory.accounting_poc_period_state WHERE tax_period = ?",
+            rs ->
+                rs.next() && rs.getString(1) != null
+                    ? PeriodLifecycleStatus.valueOf(rs.getString(1))
+                    : PeriodLifecycleStatus.OPEN,
+            period);
+    if (current == PeriodLifecycleStatus.LOCKED && status != PeriodLifecycleStatus.LOCKED) {
+      throw new IllegalStateException("Locked accounting period cannot be changed");
+    }
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_period_state (tax_period, lifecycle_status) VALUES (?, ?) ON CONFLICT (tax_period) DO UPDATE SET lifecycle_status = EXCLUDED.lifecycle_status",
+        period,
+        status.name());
+  }
+
+  public void reopen(LocalDate period, String reason, Instant reopenedAt) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_period_state (tax_period, lifecycle_status, reopened_at, reopen_reason) VALUES (?, 'OPEN', ?, ?) ON CONFLICT (tax_period) DO UPDATE SET lifecycle_status = 'OPEN', confirmed_at = NULL, confirmed_calculation_hash = NULL, reopened_at = EXCLUDED.reopened_at, reopen_reason = EXCLUDED.reopen_reason",
+        period,
+        java.sql.Timestamp.from(reopenedAt),
+        reason);
+  }
+
+  public void saveFilingArtifact(AccountingFilingArtifact artifact) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_filing_artifact (artifact_type, tax_period, schema_version, payload, payload_hash, calculation_hash, generated_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (artifact_type, tax_period, payload_hash) DO NOTHING",
+        artifact.type().name(),
+        artifact.period(),
+        artifact.schemaVersion(),
+        artifact.payload(),
+        artifact.payloadHash(),
+        artifact.calculationHash(),
+        java.sql.Timestamp.from(artifact.generatedAt()),
+        artifact.status().name());
+  }
+
+  public void saveAuthorityConfirmation(AuthorityConfirmation confirmation) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_authority_confirmation (authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note, amount, calculation_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        confirmation.authority(),
+        confirmation.obligationOrArtifactType(),
+        confirmation.period(),
+        confirmation.externalReference(),
+        confirmation.confirmationType().name(),
+        confirmation.status().name(),
+        java.sql.Timestamp.from(confirmation.receivedAt()),
+        confirmation.sourceDocumentId(),
+        confirmation.note(),
+        confirmation.amount(),
+        confirmation.calculationHash());
+  }
+
+  public Optional<AccountingFilingArtifact> filingArtifact(LocalDate period, String type) {
+    return jdbcTemplate.query(
+        "SELECT artifact_type, tax_period, schema_version, payload, payload_hash, calculation_hash, generated_at, status FROM investory.accounting_filing_artifact WHERE tax_period = ? AND artifact_type = ? ORDER BY generated_at DESC LIMIT 1",
+        rs ->
+            rs.next()
+                ? Optional.of(
+                    new AccountingFilingArtifact(
+                        AccountingFilingArtifact.Type.valueOf(rs.getString(1)),
+                        rs.getDate(2).toLocalDate(),
+                        rs.getString(3),
+                        rs.getBytes(4),
+                        rs.getString(5),
+                        rs.getString(6),
+                        rs.getTimestamp(7).toInstant(),
+                        AccountingFilingArtifact.Status.valueOf(rs.getString(8))))
+                : Optional.empty(),
+        period,
+        type);
+  }
+
+  public Optional<AuthorityConfirmation> authorityConfirmation(
+      LocalDate period, String confirmationType) {
+    return jdbcTemplate.query(
+        "SELECT authority, obligation_or_artifact_type, tax_period, external_reference, confirmation_type, status, received_at, source_document_id, note, amount, calculation_hash FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND confirmation_type = ? ORDER BY received_at DESC LIMIT 1",
+        rs ->
+            rs.next()
+                ? Optional.of(
+                    new AuthorityConfirmation(
+                        rs.getString(1),
+                        rs.getString(2),
+                        rs.getDate(3).toLocalDate(),
+                        rs.getString(4),
+                        AuthorityConfirmation.ConfirmationType.valueOf(rs.getString(5)),
+                        AuthorityConfirmation.ConfirmationStatus.valueOf(rs.getString(6)),
+                        rs.getTimestamp(7).toInstant(),
+                        rs.getObject(8, Long.class),
+                        rs.getString(9),
+                        rs.getBigDecimal(10),
+                        rs.getString(11)))
+                : Optional.empty(),
+        period,
+        confirmationType);
+  }
+
+  public boolean hasFilingArtifact(LocalDate period, String artifactType) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_filing_artifact WHERE tax_period = ? AND artifact_type = ? AND status IN ('VALID', 'SUBMITTED'))",
+            Boolean.class,
+            period,
+            artifactType));
+  }
+
+  public boolean hasFilingArtifact(LocalDate period, String artifactType, String calculationHash) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_filing_artifact WHERE tax_period = ? AND artifact_type = ? AND calculation_hash = ? AND status IN ('VALID', 'SUBMITTED'))",
+            Boolean.class,
+            period,
+            artifactType,
+            calculationHash));
+  }
+
+  public boolean hasAcceptedConfirmation(LocalDate period, String confirmationType) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND confirmation_type = ? AND status IN ('ACCEPTED', 'POSTED'))",
+            Boolean.class,
+            period,
+            confirmationType));
+  }
+
+  public boolean hasAcceptedConfirmation(
+      LocalDate period, String confirmationType, String calculationHash) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND confirmation_type = ? AND calculation_hash = ? AND status IN ('ACCEPTED', 'POSTED'))",
+            Boolean.class,
+            period,
+            confirmationType,
+            calculationHash));
+  }
+
+  public boolean hasAcceptedConfirmationForAmount(
+      LocalDate period, String obligationType, String confirmationType, BigDecimal expectedAmount) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT EXISTS (SELECT 1 FROM investory.accounting_authority_confirmation WHERE tax_period = ? AND obligation_or_artifact_type = ? AND confirmation_type = ? AND status IN ('ACCEPTED', 'POSTED') AND amount IS NOT NULL AND amount = ?)",
+            Boolean.class,
+            period,
+            obligationType,
+            confirmationType,
+            expectedAmount));
+  }
+
+  public record PeriodState(
+      Instant confirmedAt,
+      String confirmedCalculationHash,
+      PeriodLifecycleStatus lifecycleStatus) {}
+
   public AccountingProfile accountingProfile() {
     return jdbcTemplate.queryForObject(
-        "SELECT has_uop FROM investory.accounting_poc_profile WHERE id = 1",
-        (rs, rowNum) -> new AccountingProfile(rs.getBoolean("has_uop")));
+        "SELECT legacy.has_uop, COALESCE(p.taxpayer_nip, legacy.nip) AS nip, COALESCE(p.taxpayer_full_name, legacy.full_name) AS full_name, COALESCE(p.taxpayer_tax_office_code, legacy.tax_office_code) AS tax_office_code, COALESCE(p.taxpayer_email, legacy.email) AS email, legacy.vat_payment_account, legacy.ryczalt_payment_account, COALESCE(p.zus_payment_account, legacy.zus_payment_account) AS zus_payment_account, COALESCE(p.taxpayer_first_name, legacy.first_name) AS first_name, COALESCE(p.taxpayer_surname, legacy.surname) AS surname, COALESCE(p.taxpayer_date_of_birth, legacy.date_of_birth) AS date_of_birth, COALESCE(p.tax_micro_account, legacy.vat_payment_account, legacy.ryczalt_payment_account) AS tax_micro_account FROM investory.accounting_poc_profile legacy LEFT JOIN investory.portfolios p ON p.id = 1 WHERE legacy.id = 1",
+        (rs, rowNum) ->
+            new AccountingProfile(
+                rs.getBoolean("has_uop"),
+                rs.getString("nip"),
+                rs.getString("full_name"),
+                rs.getString("tax_office_code"),
+                rs.getString("email"),
+                rs.getString("vat_payment_account"),
+                rs.getString("ryczalt_payment_account"),
+                rs.getString("zus_payment_account"),
+                rs.getString("first_name"),
+                rs.getString("surname"),
+                rs.getObject("date_of_birth", LocalDate.class),
+                rs.getString("tax_micro_account")));
   }
 
   public void updateHasUop(boolean hasUop) {
@@ -54,13 +254,25 @@ public class AccountingPocRepository {
         LocalDate.class);
   }
 
+  public BigDecimal yearToDateRevenue(LocalDate period) {
+    return jdbcTemplate.queryForObject(
+        """
+        SELECT COALESCE(SUM(COALESCE(booked_net_pln, net_amount)), 0)
+          FROM investory.accounting_poc_invoice
+         WHERE tax_period >= DATE '2026-01-01' AND tax_period <= ?
+           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
+        """,
+        BigDecimal.class,
+        period);
+  }
+
   public List<InvoiceRow> invoicesForPeriod(LocalDate period) {
     return jdbcTemplate.query(
         """
         SELECT id, tax_period, issue_date, sale_date, fx_rate_date, reference, customer_alias, invoice_kind,
                currency, net_amount, vat_amount, gross_amount, correction_net_amount,
                correction_vat_amount, correction_gross_amount, expected_receivable,
-               booked_net_pln, ryczalt_rate, note
+               booked_net_pln, ryczalt_rate, note, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence
           FROM investory.accounting_poc_invoice
          WHERE tax_period = ?
          ORDER BY id
@@ -85,7 +297,11 @@ public class AccountingPocRepository {
                 rs.getBigDecimal("expected_receivable"),
                 rs.getBigDecimal("booked_net_pln"),
                 rs.getBigDecimal("ryczalt_rate"),
-                rs.getString("note")),
+                rs.getString("note"),
+                rs.getString("counterparty_tax_identifier"),
+                rs.getString("counterparty_country"),
+                rs.getString("ksef_number"),
+                filingEvidence(rs.getString("filing_evidence"), rs.getString("ksef_number"))),
         period);
   }
 
@@ -103,13 +319,86 @@ public class AccountingPocRepository {
       BigDecimal bookedNetPln,
       BigDecimal ryczaltRate,
       String note) {
+    return insertSalesInvoice(
+        taxPeriod,
+        issueDate,
+        saleDate,
+        reference,
+        customerAlias,
+        invoiceKind,
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        bookedNetPln,
+        ryczaltRate,
+        note,
+        null);
+  }
+
+  public boolean insertSalesInvoice(
+      LocalDate taxPeriod,
+      LocalDate issueDate,
+      LocalDate saleDate,
+      String reference,
+      String customerAlias,
+      String invoiceKind,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      BigDecimal bookedNetPln,
+      BigDecimal ryczaltRate,
+      String note,
+      Long sourceId) {
+    return insertSalesInvoice(
+        taxPeriod,
+        issueDate,
+        saleDate,
+        reference,
+        customerAlias,
+        invoiceKind,
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        bookedNetPln,
+        ryczaltRate,
+        note,
+        sourceId,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  public boolean insertSalesInvoice(
+      LocalDate taxPeriod,
+      LocalDate issueDate,
+      LocalDate saleDate,
+      String reference,
+      String customerAlias,
+      String invoiceKind,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      BigDecimal bookedNetPln,
+      BigDecimal ryczaltRate,
+      String note,
+      Long sourceId,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String ksefNumber,
+      AccountingFilingEvidence filingEvidence) {
     return jdbcTemplate.update(
             """
         INSERT INTO investory.accounting_poc_invoice
             (tax_period, issue_date, sale_date, reference, customer_alias, invoice_kind, currency,
              net_amount, vat_amount, gross_amount, expected_receivable, booked_net_pln,
-             ryczalt_rate, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ryczalt_rate, note, source_id, counterparty_tax_identifier, counterparty_country,
+             ksef_number, filing_evidence)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (reference) DO NOTHING
         """,
             taxPeriod,
@@ -125,7 +414,12 @@ public class AccountingPocRepository {
             grossAmount,
             bookedNetPln,
             ryczaltRate,
-            note)
+            note,
+            sourceId,
+            counterpartyTaxIdentifier,
+            counterpartyCountry,
+            ksefNumber,
+            filingEvidence == null ? null : filingEvidence.type().name())
         == 1;
   }
 
@@ -135,7 +429,7 @@ public class AccountingPocRepository {
         SELECT id, tax_period, invoice_date, reference, supplier_alias, category, currency,
                net_amount, vat_amount, gross_amount, vat_deduction_ratio,
                ROUND(vat_amount * vat_deduction_ratio, 2) AS deductible_vat,
-               source_quality, note
+               source_quality, note, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence
           FROM investory.accounting_poc_expense_invoice
          WHERE tax_period = ?
          ORDER BY invoice_date NULLS LAST, id
@@ -155,7 +449,11 @@ public class AccountingPocRepository {
                 rs.getBigDecimal("vat_deduction_ratio"),
                 rs.getBigDecimal("deductible_vat"),
                 rs.getString("source_quality"),
-                rs.getString("note")),
+                rs.getString("note"),
+                rs.getString("counterparty_tax_identifier"),
+                rs.getString("counterparty_country"),
+                rs.getString("ksef_number"),
+                filingEvidence(rs.getString("filing_evidence"), rs.getString("ksef_number"))),
         period);
   }
 
@@ -172,12 +470,81 @@ public class AccountingPocRepository {
       BigDecimal vatDeductionRatio,
       String sourceQuality,
       String note) {
+    return insertExpense(
+        taxPeriod,
+        invoiceDate,
+        reference,
+        supplierAlias,
+        category,
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        vatDeductionRatio,
+        sourceQuality,
+        note,
+        null);
+  }
+
+  public boolean insertExpense(
+      LocalDate taxPeriod,
+      LocalDate invoiceDate,
+      String reference,
+      String supplierAlias,
+      String category,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      BigDecimal vatDeductionRatio,
+      String sourceQuality,
+      String note,
+      Long sourceId) {
+    return insertExpense(
+        taxPeriod,
+        invoiceDate,
+        reference,
+        supplierAlias,
+        category,
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        vatDeductionRatio,
+        sourceQuality,
+        note,
+        sourceId,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  public boolean insertExpense(
+      LocalDate taxPeriod,
+      LocalDate invoiceDate,
+      String reference,
+      String supplierAlias,
+      String category,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      BigDecimal vatDeductionRatio,
+      String sourceQuality,
+      String note,
+      Long sourceId,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String ksefNumber,
+      AccountingFilingEvidence filingEvidence) {
     return jdbcTemplate.update(
             """
         INSERT INTO investory.accounting_poc_expense_invoice
             (tax_period, invoice_date, reference, supplier_alias, category, currency,
-             net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             net_amount, vat_amount, gross_amount, vat_deduction_ratio, source_quality, note, source_id,
+             counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (reference) DO NOTHING
         """,
             taxPeriod,
@@ -191,7 +558,12 @@ public class AccountingPocRepository {
             grossAmount,
             vatDeductionRatio,
             sourceQuality,
-            note)
+            note,
+            sourceId,
+            counterpartyTaxIdentifier,
+            counterpartyCountry,
+            ksefNumber,
+            filingEvidence == null ? null : filingEvidence.type().name())
         == 1;
   }
 
@@ -220,6 +592,167 @@ public class AccountingPocRepository {
         period,
         period,
         period.plusMonths(1));
+  }
+
+  public List<LocalDate> zusPaymentPeriodsUpTo(LocalDate period) {
+    return jdbcTemplate.queryForList(
+        "SELECT DISTINCT related_period FROM investory.accounting_poc_bank_transaction WHERE transaction_type = 'ZUS_PAYMENT' AND booking_date <= ? AND related_period IS NOT NULL ORDER BY related_period",
+        LocalDate.class,
+        period.withDayOfMonth(period.lengthOfMonth()));
+  }
+
+  /** Projects persisted ZUS payments against the obligation for their own contribution period. */
+  public PaidContributionProjection paidContributionsUpTo(
+      LocalDate period, java.util.Map<LocalDate, ZusAmounts> obligationsByPeriod) {
+    List<PaidContribution> contributions = new java.util.ArrayList<>();
+    List<AccountingIssue> issues = new java.util.ArrayList<>();
+    jdbcTemplate.query(
+        """
+            SELECT id, booking_date, related_period, amount, reference
+              FROM investory.accounting_poc_bank_transaction
+             WHERE transaction_type = 'ZUS_PAYMENT'
+               AND booking_date <= ?
+             ORDER BY id
+            """,
+        (rs, rowNum) -> {
+          BigDecimal paid = rs.getBigDecimal("amount").abs().setScale(2);
+          LocalDate paymentDate = rs.getObject("booking_date", LocalDate.class);
+          LocalDate contributionPeriod = rs.getObject("related_period", LocalDate.class);
+          long id = rs.getLong("id");
+          String reference = rs.getString("reference");
+          ZusAmounts obligation = obligationsByPeriod.get(contributionPeriod);
+          if (obligation == null) {
+            issues.add(
+                reviewIssue(reference, "No calculated ZUS obligation for contribution period."));
+            return null;
+          }
+          BigDecimal total = obligation.social().add(obligation.health()).setScale(2);
+          if (paid.compareTo(total) == 0 && total.signum() > 0) {
+            if (obligation.social().signum() > 0)
+              contributions.add(
+                  new PaidContribution(
+                      "SOCIAL",
+                      contributionPeriod,
+                      paymentDate,
+                      obligation.social(),
+                      obligation.social(),
+                      id));
+            if (obligation.health().signum() > 0)
+              contributions.add(
+                  new PaidContribution(
+                      "HEALTH",
+                      contributionPeriod,
+                      paymentDate,
+                      obligation.health(),
+                      obligation.health(),
+                      id));
+          } else if (obligation.social().signum() == 0
+              && paid.compareTo(obligation.health()) == 0
+              && obligation.health().signum() > 0) {
+            contributions.add(
+                new PaidContribution(
+                    "HEALTH",
+                    contributionPeriod,
+                    paymentDate,
+                    obligation.health(),
+                    obligation.health(),
+                    id));
+          } else {
+            issues.add(
+                reviewIssue(
+                    reference, "ZUS payment does not match its contribution-period obligation."));
+          }
+          return null;
+        },
+        period.withDayOfMonth(period.lengthOfMonth()));
+    return new PaidContributionProjection(List.copyOf(contributions), List.copyOf(issues));
+  }
+
+  private AccountingIssue reviewIssue(String reference, String message) {
+    return new AccountingIssue(
+        "PAID_CONTRIBUTION_REVIEW_REQUIRED", "REVIEW_REQUIRED", reference, message);
+  }
+
+  public record ZusAmounts(BigDecimal social, BigDecimal health) {}
+
+  public record PaidContributionProjection(
+      List<PaidContribution> contributions, List<AccountingIssue> issues) {}
+
+  public boolean insertBankTransaction(
+      java.time.LocalDate bookingDate,
+      java.time.LocalDate relatedPeriod,
+      String reference,
+      String counterparty,
+      String currency,
+      java.math.BigDecimal amount,
+      String transactionType,
+      String scope,
+      String note,
+      long sourceId,
+      String sourceRowIdentity) {
+    return insertBankTransaction(
+        bookingDate,
+        relatedPeriod,
+        reference,
+        counterparty,
+        currency,
+        amount,
+        transactionType,
+        scope,
+        note,
+        sourceId,
+        "CSV",
+        "LEGACY_SOURCE",
+        sourceRowIdentity,
+        null);
+  }
+
+  public boolean insertBankTransaction(
+      LocalDate bookingDate,
+      LocalDate relatedPeriod,
+      String reference,
+      String counterparty,
+      String currency,
+      java.math.BigDecimal amount,
+      String transactionType,
+      String scope,
+      String note,
+      long sourceId,
+      String provider,
+      String externalAccountId,
+      String externalTransactionId,
+      String sourcePayloadHash) {
+    String sourceRowIdentity =
+        String.join(
+            ":",
+            Objects.requireNonNullElse(provider, ""),
+            Objects.requireNonNullElse(externalAccountId, ""),
+            Objects.requireNonNullElse(externalTransactionId, ""));
+    return jdbcTemplate.update(
+            """
+            INSERT INTO investory.accounting_poc_bank_transaction
+                (booking_date, related_period, reference, counterparty_alias, currency, amount,
+                 transaction_type, scope, note, source_id, source_row_identity,
+                 provider, external_account_id, external_transaction_id, source_payload_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
+            """,
+            bookingDate,
+            relatedPeriod,
+            reference,
+            counterparty,
+            currency,
+            amount,
+            transactionType,
+            scope,
+            note,
+            sourceId,
+            sourceRowIdentity,
+            provider,
+            externalAccountId,
+            externalTransactionId,
+            sourcePayloadHash)
+        == 1;
   }
 
   public List<ObligationRow> obligationsForPeriod(LocalDate period) {
@@ -254,6 +787,97 @@ public class AccountingPocRepository {
         (rs, rowNum) ->
             new TaxInputRow(
                 rs.getString("input_type"), rs.getBigDecimal("amount"), rs.getString("note")),
+        period);
+  }
+
+  public List<EmploymentInsurancePeriod> employmentPeriods() {
+    try {
+      return jdbcTemplate.query(
+          "SELECT date_from, date_to FROM investory.employment_period WHERE profile_id = 1 AND employment_type = 'UOP' ORDER BY date_from, id",
+          (rs, rowNum) ->
+              new EmploymentInsurancePeriod(
+                  rs.getObject(1, LocalDate.class), rs.getObject(2, LocalDate.class), true));
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
+  }
+
+  public List<BusinessActivityPeriod> businessActivityPeriods() {
+    try {
+      return jdbcTemplate.query(
+          "SELECT date_from, date_to FROM investory.employment_period WHERE profile_id = 1 AND employment_type = 'JDG' ORDER BY date_from, id",
+          (rs, rowNum) ->
+              new BusinessActivityPeriod(
+                  rs.getObject(1, LocalDate.class), rs.getObject(2, LocalDate.class)));
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
+  }
+
+  public List<AccountingTaxProfilePeriod> taxProfilePeriods() {
+    try {
+      return jdbcTemplate.query(
+          "SELECT valid_from, valid_to, jdg_active, ryczalt_rate, vat_registered, vat_eu_registered, zus_regime, voluntary_sickness FROM investory.accounting_tax_profile_period WHERE profile_id = 1 ORDER BY valid_from",
+          (rs, rowNum) ->
+              new AccountingTaxProfilePeriod(
+                  rs.getObject("valid_from", LocalDate.class),
+                  rs.getObject("valid_to", LocalDate.class),
+                  rs.getBoolean("jdg_active"),
+                  rs.getBigDecimal("ryczalt_rate"),
+                  rs.getBoolean("vat_registered"),
+                  rs.getBoolean("vat_eu_registered"),
+                  rs.getString("zus_regime"),
+                  rs.getBoolean("voluntary_sickness")));
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
+  }
+
+  public List<AccountingVatTransaction> vatTransactionsForPeriod(LocalDate period) {
+    try {
+      return jdbcTemplate.query(
+          "SELECT tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, vat_eu_number, vies_verified_at, vies_status, net_amount, vat_amount, deductible_vat, evidence FROM investory.accounting_vat_transaction WHERE tax_period = ? ORDER BY id",
+          (rs, rowNum) ->
+              new AccountingVatTransaction(
+                  rs.getObject("tax_date", LocalDate.class),
+                  rs.getString("source_document_id"),
+                  rs.getString("reference"),
+                  AccountingVatTransaction.Direction.valueOf(rs.getString("direction")),
+                  VatTreatment.valueOf(rs.getString("treatment")),
+                  rs.getString("counterparty_country"),
+                  rs.getString("counterparty_tax_identifier"),
+                  rs.getString("identifier_type"),
+                  rs.getString("vat_eu_number"),
+                  rs.getObject("vies_verified_at", LocalDate.class),
+                  rs.getString("vies_status"),
+                  rs.getBigDecimal("net_amount"),
+                  rs.getBigDecimal("vat_amount"),
+                  rs.getBigDecimal("deductible_vat"),
+                  rs.getString("evidence")),
+          period);
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
+  }
+
+  public List<AccountingIssue> sourceIssuesForPeriod(LocalDate period) {
+    return jdbcTemplate.query(
+        """
+        SELECT external_reference, processing_error
+          FROM investory.accounting_source_evidence
+         WHERE processing_status IN ('REVIEW_REQUIRED', 'FAILED')
+           AND (document_date >= ? AND document_date < (? + INTERVAL '1 month'))
+         ORDER BY id
+        """,
+        (rs, rowNum) ->
+            new AccountingIssue(
+                "SOURCE_REVIEW_REQUIRED",
+                "REVIEW_REQUIRED",
+                rs.getString("external_reference"),
+                rs.getString("processing_error") == null
+                    ? "Source document requires review."
+                    : rs.getString("processing_error")),
+        period,
         period);
   }
 }

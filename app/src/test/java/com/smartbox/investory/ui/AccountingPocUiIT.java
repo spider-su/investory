@@ -10,7 +10,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.FilePayload;
-import com.smartbox.investory.accounting.testsupport.AccountingDatabaseTest;
+import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import org.apache.pdfbox.pdmodel.PDDocument;

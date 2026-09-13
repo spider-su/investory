@@ -3,7 +3,7 @@ package com.smartbox.investory.accounting;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.smartbox.investory.accounting.AccountingInvoiceRecognitionService.RecognizedInvoice;
-import com.smartbox.investory.accounting.testsupport.AccountingDatabaseTest;
+import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;

@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,6 +31,8 @@ class AccountingFactControllerTest {
       org.mockito.Mockito.mock(AccountingInvoiceIngestionService.class);
   private final AccountingJdgExporter exporter =
       org.mockito.Mockito.mock(AccountingJdgExporter.class);
+  private final AccountingSourceEvidenceService sourceEvidenceService =
+      org.mockito.Mockito.mock(AccountingSourceEvidenceService.class);
   private MockMvc mvc;
 
   @BeforeEach
@@ -37,12 +40,95 @@ class AccountingFactControllerTest {
     mvc =
         MockMvcBuilders.standaloneSetup(
                 new AccountingFactController(
-                    service, recognitionService, invoiceIngestionService, exporter))
+                    service,
+                    recognitionService,
+                    invoiceIngestionService,
+                    exporter,
+                    sourceEvidenceService))
             .build();
     when(service.availablePeriods()).thenReturn(List.of(JANUARY, FEBRUARY, JULY));
     when(service.facts()).thenReturn(List.of());
     when(service.snapshot(any(LocalDate.class)))
         .thenAnswer(invocation -> snapshot(invocation.getArgument(0)));
+  }
+
+  @Test
+  void persistsUploadBeforeRecognition() throws Exception {
+    byte[] payload = "pdf".getBytes();
+    when(sourceEvidenceService.receiveUpload("invoice.pdf", "application/pdf", payload))
+        .thenReturn(42L);
+    when(recognitionService.recognize("invoice.pdf", "application/pdf", payload))
+        .thenReturn(
+            new AccountingInvoiceRecognitionService.RecognizedInvoice(
+                "PURCHASE_INVOICE",
+                JULY,
+                JULY,
+                null,
+                "EXP-42",
+                "Seller",
+                null,
+                "ACCOUNTING_SERVICE",
+                "PLN",
+                new BigDecimal("100"),
+                new BigDecimal("23"),
+                new BigDecimal("123"),
+                null));
+
+    mvc.perform(
+            multipart("/poc/accounting/invoice/recognize")
+                .file(
+                    new org.springframework.mock.web.MockMultipartFile(
+                        "invoice", "invoice.pdf", "application/pdf", payload))
+                .param("month", "2026-07"))
+        .andExpect(status().isOk());
+
+    var order = org.mockito.Mockito.inOrder(sourceEvidenceService, recognitionService);
+    order.verify(sourceEvidenceService).receiveUpload("invoice.pdf", "application/pdf", payload);
+    order.verify(recognitionService).recognize("invoice.pdf", "application/pdf", payload);
+    order.verify(sourceEvidenceService).status(42L, AccountingSourceStatus.PARSED, null);
+  }
+
+  @Test
+  void keepsUploadEvidenceWhenRecognitionFails() throws Exception {
+    byte[] payload = "bad".getBytes();
+    when(sourceEvidenceService.receiveUpload("bad.pdf", "application/pdf", payload))
+        .thenReturn(43L);
+    when(recognitionService.recognize("bad.pdf", "application/pdf", payload))
+        .thenThrow(new IllegalStateException("recognition failed"));
+
+    mvc.perform(
+            multipart("/poc/accounting/invoice/recognize")
+                .file(
+                    new org.springframework.mock.web.MockMultipartFile(
+                        "invoice", "bad.pdf", "application/pdf", payload))
+                .param("month", "2026-07"))
+        .andExpect(status().isOk());
+
+    verify(sourceEvidenceService).status(43L, AccountingSourceStatus.FAILED, "recognition failed");
+  }
+
+  @Test
+  void reviewedUploadIsPersistedThroughAccountingIngestionService() throws Exception {
+    when(invoiceIngestionService.ingest(any())).thenReturn(true);
+
+    mvc.perform(
+            post("/poc/accounting/invoice")
+                .param("month", "2026-07")
+                .param("sourceIdentity", "42")
+                .param("documentType", "PURCHASE_INVOICE")
+                .param("issueDate", "2026-07-10")
+                .param("reference", "REVIEWED-42")
+                .param("counterpartyAlias", "Supplier")
+                .param("category", "ACCOUNTING_SERVICE")
+                .param("currency", "PLN")
+                .param("netAmount", "100")
+                .param("vatAmount", "23")
+                .param("grossAmount", "123")
+                .param("vatDeductionRatio", "1"))
+        .andExpect(status().is3xxRedirection());
+
+    verify(invoiceIngestionService).ingest(any());
+    verify(sourceEvidenceService).status(42L, AccountingSourceStatus.IMPORTED, null);
   }
 
   @Test

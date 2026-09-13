@@ -75,11 +75,16 @@ as a long-term annualized assumption.
 
 ## Historical and expected investment returns
 
-The investment income KPI has two separate meanings. Historical annualized return is backward-looking
+The investment income KPI has two separate meanings. Historical annualized TWR is backward-looking
 and uses only the portfolio's actual cash-flow-neutral TWR. It is annualized over the observed portfolio
 dates; history shorter than one year is not presented as a reliable long-term annualized return. Deposits,
 withdrawals, mixed currencies, and valuation boundaries are handled by the existing normalized daily
 valuation/TWR pipeline. Benchmark history is never inserted into this portfolio result.
+
+The daily performance boundary also carries an initialization adjustment. When a pre-existing
+holding first receives a usable valuation after an empty market-value boundary, that base-currency
+capital is opening capital for the observed scope: it is excluded from return and investor-flow
+totals, but included in the TWR denominator. Cash-only accounts never enter this performance scope.
 
 Expected annual return is a forward-looking projection assumption. Its default horizon is five years.
 When at least one year of portfolio history is usable, the expected value linearly weights the portfolio
@@ -89,6 +94,6 @@ benchmark assumption supplies the estimate. The default assumption is 7% and is 
 `PORTFOLIO_EXPECTED_RETURN_BENCHMARK`; it is not the latest SPY trailing return and is not historical
 portfolio performance.
 
-Forward projections and expected annual investment income use expected annual return. Historical
-annualized return is displayed as context only and does not drive those projections.
+Forward projections and expected annual investment results use expected annual return. Historical
+annualized TWR is displayed as context only and does not drive those projections.
 

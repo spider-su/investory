@@ -66,6 +66,13 @@ return and KPI observation dates as the Investment dashboard. Projected annual i
 separate income-planning metric and includes net dividends and interest; it is not used as the
 market-return KPI.
 
+Reporting names these concepts separately: historical TWR is realized cash-flow-neutral
+performance; historical annualized TWR annualizes that observed TWR; expected annual return is the
+forward estimate derived from historical annualized TWR and the benchmark assumption; expected
+annual investment result is capital base multiplied by expected annual total return. Cash income is
+dividends plus interest (or another explicitly distributable-income measure), and must not be used
+as a name for a total-return projection.
+
 The Profile market value is current brokerage equity, including signed cash. The Profile page's
 investment-result YTD value is current-calendar-year investment profit from the canonical monthly
 performance rows. It is neither income received nor a substitute for current or year-start value.

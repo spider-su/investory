@@ -246,3 +246,511 @@ VALUES
     ('2026-07-01', NULL, '1339/7/2026', 'SUPPLIER_SALSOFT_001', 'ACCOUNTING_SERVICE', 'PLN', 298.0000, 68.5400, 366.5400, 1.00, 'WFIRMA_LIST_DERIVED_23', 'wFirma booked SalSoft accounting expense.'),
     ('2026-07-01', NULL, 'I26100B01009678', 'SUPPLIER_BP_001', 'VEHICLE_FUEL', 'PLN', 376.6200, 86.6200, 463.2400, 0.50, 'WFIRMA_LIST_DERIVED_23', 'wFirma booked expense; 50% mixed-use vehicle VAT deduction.'),
     ('2026-07-01', NULL, 'I26394B01015705', 'SUPPLIER_BP_001', 'VEHICLE_FUEL', 'PLN', 296.8200, 68.2700, 365.0900, 0.50, 'WFIRMA_LIST_DERIVED_23', 'wFirma booked expense; 50% mixed-use vehicle VAT deduction.');
+
+-- Squashed from app/src/main/resources/sql/migration/V01.011__accounting_poc_uop_zus.sql
+CREATE TABLE investory.accounting_poc_profile (
+    id SMALLINT PRIMARY KEY,
+    has_uop BOOLEAN NOT NULL,
+    CONSTRAINT chk_accounting_poc_profile_singleton CHECK (id = 1)
+);
+
+COMMENT ON TABLE investory.accounting_poc_profile IS
+    'POC-only JDG accounting assumptions shared by all represented months.';
+COMMENT ON COLUMN investory.accounting_poc_profile.has_uop IS
+    'True means an active UoP meeting the minimum-remuneration condition for exemption from compulsory JDG social contributions.';
+
+INSERT INTO investory.accounting_poc_profile (id, has_uop)
+VALUES (1, TRUE);
+
+-- Explicit POC calculation input for the normal-JDG branch. This is the 2026 minimum
+-- compulsory social-side amount without voluntary sickness insurance. Keeping it as an
+-- input avoids introducing statutory rate/base tables into this POC.
+INSERT INTO investory.accounting_poc_tax_input (tax_period, input_type, amount, note)
+VALUES
+    ('2026-01-01', 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900, '2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.'),
+    ('2026-02-01', 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900, '2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.'),
+    ('2026-03-01', 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900, '2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.'),
+    ('2026-04-01', 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900, '2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.'),
+    ('2026-05-01', 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900, '2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.'),
+    ('2026-06-01', 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900, '2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.'),
+    ('2026-07-01', 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900, '2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.'),
+    ('2026-08-01', 'JDG_COMPULSORY_SOCIAL_ZUS', 1788.2900, '2026 normal-JDG compulsory social-side ZUS input; excludes voluntary sickness insurance.');
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.012__accounting_source_evidence.sql
+CREATE TABLE investory.accounting_source_evidence (
+    id BIGSERIAL PRIMARY KEY,
+    source_type VARCHAR(16) NOT NULL,
+    external_reference VARCHAR(256) NOT NULL,
+    original_filename VARCHAR(512),
+    content_type VARCHAR(128),
+    received_at TIMESTAMPTZ NOT NULL,
+    document_date DATE,
+    content_hash BYTEA NOT NULL,
+    payload BYTEA NOT NULL,
+    processing_status VARCHAR(32) NOT NULL,
+    processing_error VARCHAR(1000),
+    UNIQUE (source_type, external_reference),
+    CONSTRAINT chk_accounting_source_type CHECK (source_type IN ('KSEF', 'UPLOAD')),
+    CONSTRAINT chk_accounting_source_status CHECK (processing_status IN ('RECEIVED', 'PARSED', 'REVIEW_REQUIRED', 'IMPORTED', 'FAILED'))
+);
+
+COMMENT ON TABLE investory.accounting_source_evidence IS
+    'Immutable production source payloads retained separately from normalized accounting facts.';
+
+CREATE FUNCTION investory.prevent_accounting_source_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.id IS DISTINCT FROM OLD.id
+       OR NEW.source_type IS DISTINCT FROM OLD.source_type
+       OR NEW.external_reference IS DISTINCT FROM OLD.external_reference
+       OR NEW.original_filename IS DISTINCT FROM OLD.original_filename
+       OR NEW.content_type IS DISTINCT FROM OLD.content_type
+       OR NEW.received_at IS DISTINCT FROM OLD.received_at
+       OR NEW.document_date IS DISTINCT FROM OLD.document_date
+       OR NEW.content_hash IS DISTINCT FROM OLD.content_hash
+       OR NEW.payload IS DISTINCT FROM OLD.payload
+    THEN
+        RAISE EXCEPTION 'Accounting source evidence is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_accounting_source_immutable
+BEFORE UPDATE ON investory.accounting_source_evidence
+FOR EACH ROW EXECUTE FUNCTION investory.prevent_accounting_source_mutation();
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.013__accounting_source_provenance.sql
+ALTER TABLE investory.accounting_poc_invoice
+    ADD COLUMN source_id BIGINT REFERENCES investory.accounting_source_evidence (id);
+
+ALTER TABLE investory.accounting_poc_expense_invoice
+    ADD COLUMN source_id BIGINT REFERENCES investory.accounting_source_evidence (id);
+
+CREATE INDEX idx_accounting_poc_invoice_source_id
+    ON investory.accounting_poc_invoice (source_id);
+
+CREATE INDEX idx_accounting_poc_expense_source_id
+    ON investory.accounting_poc_expense_invoice (source_id);
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.014__accounting_bank_ingestion.sql
+ALTER TABLE investory.accounting_poc_bank_transaction
+    ADD COLUMN source_id BIGINT REFERENCES investory.accounting_source_evidence (id),
+    ADD COLUMN source_row_identity VARCHAR(256);
+
+CREATE UNIQUE INDEX uq_accounting_poc_bank_source_row
+    ON investory.accounting_poc_bank_transaction (source_row_identity)
+    WHERE source_row_identity IS NOT NULL;
+
+ALTER TABLE investory.accounting_source_evidence
+    DROP CONSTRAINT chk_accounting_source_type;
+
+ALTER TABLE investory.accounting_source_evidence
+    ADD CONSTRAINT chk_accounting_source_type
+    CHECK (source_type IN ('KSEF', 'UPLOAD', 'BANK'));
+
+CREATE INDEX idx_accounting_poc_bank_source_id
+    ON investory.accounting_poc_bank_transaction (source_id);
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.015__accounting_filing_output.sql
+ALTER TABLE investory.accounting_poc_profile
+    ADD COLUMN nip VARCHAR(10),
+    ADD COLUMN full_name VARCHAR(240),
+    ADD COLUMN tax_office_code VARCHAR(4),
+    ADD COLUMN email VARCHAR(255),
+    ADD COLUMN vat_payment_account VARCHAR(34),
+    ADD COLUMN ryczalt_payment_account VARCHAR(34),
+    ADD COLUMN zus_payment_account VARCHAR(34);
+
+UPDATE investory.accounting_poc_profile
+   SET nip = COALESCE(nip, '1010000000'),
+       full_name = COALESCE(full_name, 'Investory Accounting POC'),
+       tax_office_code = COALESCE(tax_office_code, '1215'),
+       email = COALESCE(email, 'accounting@example.invalid');
+
+CREATE TABLE investory.accounting_poc_period_state (
+    tax_period DATE PRIMARY KEY,
+    confirmed_at TIMESTAMPTZ,
+    confirmed_calculation_hash VARCHAR(64)
+);
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.016__accounting_natural_person_filing_identity.sql
+ALTER TABLE investory.accounting_poc_profile
+    ADD COLUMN first_name VARCHAR(120),
+    ADD COLUMN surname VARCHAR(160),
+    ADD COLUMN date_of_birth DATE;
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.017__employment_periods.sql
+CREATE TABLE investory.employment_period (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id) ON DELETE CASCADE,
+    employment_type VARCHAR(8) NOT NULL,
+    date_from DATE NOT NULL,
+    date_to DATE,
+    CONSTRAINT chk_employment_period_type CHECK (employment_type IN ('UOP', 'JDG')),
+    CONSTRAINT chk_employment_period_dates CHECK (date_to IS NULL OR date_to >= date_from)
+);
+
+CREATE INDEX ix_employment_period_profile_dates
+    ON investory.employment_period(profile_id, date_from, date_to);
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.018__accounting_filing_provenance.sql
+ALTER TABLE investory.accounting_poc_invoice
+    ADD COLUMN counterparty_tax_identifier VARCHAR(32),
+    ADD COLUMN counterparty_country VARCHAR(2),
+    ADD COLUMN ksef_number VARCHAR(256),
+    ADD COLUMN filing_evidence VARCHAR(8);
+
+ALTER TABLE investory.accounting_poc_expense_invoice
+    ADD COLUMN counterparty_tax_identifier VARCHAR(32),
+    ADD COLUMN counterparty_country VARCHAR(2),
+    ADD COLUMN ksef_number VARCHAR(256),
+    ADD COLUMN filing_evidence VARCHAR(8);
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.019__accounting_tax_profile_periods.sql
+CREATE TABLE investory.accounting_tax_profile_period (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id) ON DELETE CASCADE,
+    valid_from DATE NOT NULL,
+    valid_to DATE,
+    jdg_active BOOLEAN NOT NULL,
+    ryczalt_rate NUMERIC(8, 5),
+    vat_registered BOOLEAN NOT NULL,
+    vat_eu_registered BOOLEAN NOT NULL,
+    zus_regime VARCHAR(32),
+    voluntary_sickness BOOLEAN NOT NULL,
+    CONSTRAINT chk_accounting_tax_profile_period_dates CHECK (valid_to IS NULL OR valid_to >= valid_from)
+);
+
+CREATE INDEX ix_accounting_tax_profile_period_profile_dates
+    ON investory.accounting_tax_profile_period(profile_id, valid_from, valid_to);
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.020__accounting_filing_authority_evidence.sql
+CREATE TABLE investory.accounting_filing_artifact (
+    id BIGSERIAL PRIMARY KEY,
+    artifact_type VARCHAR(40) NOT NULL,
+    tax_period DATE NOT NULL,
+    schema_version VARCHAR(40) NOT NULL,
+    payload BYTEA NOT NULL,
+    payload_hash VARCHAR(64) NOT NULL,
+    generated_at TIMESTAMPTZ NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    CONSTRAINT uq_accounting_filing_artifact_hash UNIQUE (artifact_type, tax_period, payload_hash)
+);
+
+CREATE TABLE investory.accounting_authority_confirmation (
+    id BIGSERIAL PRIMARY KEY,
+    authority VARCHAR(32) NOT NULL,
+    obligation_or_artifact_type VARCHAR(40) NOT NULL,
+    tax_period DATE NOT NULL,
+    external_reference VARCHAR(256) NOT NULL,
+    confirmation_type VARCHAR(40) NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    received_at TIMESTAMPTZ NOT NULL,
+    source_document_id BIGINT,
+    note VARCHAR(1000)
+);
+
+CREATE INDEX ix_accounting_authority_confirmation_period
+    ON investory.accounting_authority_confirmation(tax_period, obligation_or_artifact_type);
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.021__accounting_period_lifecycle.sql
+ALTER TABLE investory.accounting_poc_period_state
+    ADD COLUMN lifecycle_status VARCHAR(32) NOT NULL DEFAULT 'OPEN';
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.022__accounting_vat_transactions.sql
+CREATE TABLE investory.accounting_vat_transaction (
+    id BIGSERIAL PRIMARY KEY,
+    tax_period DATE NOT NULL,
+    tax_date DATE NOT NULL,
+    source_document_id VARCHAR(256) NOT NULL,
+    reference VARCHAR(256) NOT NULL,
+    direction VARCHAR(16) NOT NULL,
+    treatment VARCHAR(48) NOT NULL,
+    counterparty_country VARCHAR(2),
+    counterparty_tax_identifier VARCHAR(64),
+    identifier_type VARCHAR(16),
+    vat_eu_number VARCHAR(64),
+    vies_verified_at DATE,
+    vies_status VARCHAR(24),
+    net_amount NUMERIC(18, 2) NOT NULL,
+    vat_amount NUMERIC(18, 2) NOT NULL,
+    deductible_vat NUMERIC(18, 2) NOT NULL,
+    evidence VARCHAR(256) NOT NULL
+);
+
+CREATE INDEX ix_accounting_vat_transaction_period
+    ON investory.accounting_vat_transaction(tax_period, id);
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.023__accounting_period_reopen.sql
+ALTER TABLE investory.accounting_poc_period_state
+    ADD COLUMN reopened_at TIMESTAMPTZ,
+    ADD COLUMN reopen_reason VARCHAR(1000);
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.024__provider_neutral_bank_identity.sql
+ALTER TABLE investory.accounting_poc_bank_transaction
+    ADD COLUMN provider VARCHAR(32),
+    ADD COLUMN external_account_id VARCHAR(256),
+    ADD COLUMN external_transaction_id VARCHAR(256),
+    ADD COLUMN source_payload_hash VARCHAR(128);
+
+UPDATE investory.accounting_poc_bank_transaction
+   SET provider = 'CSV',
+       external_account_id = 'LEGACY_SOURCE',
+       external_transaction_id = COALESCE(source_row_identity, 'legacy-' || id::varchar),
+       source_payload_hash = NULL
+ WHERE provider IS NULL;
+
+ALTER TABLE investory.accounting_poc_bank_transaction
+    ALTER COLUMN provider SET NOT NULL,
+    ALTER COLUMN external_account_id SET NOT NULL,
+    ALTER COLUMN external_transaction_id SET NOT NULL;
+
+CREATE UNIQUE INDEX uq_accounting_poc_bank_external_transaction
+    ON investory.accounting_poc_bank_transaction
+       (provider, external_account_id, external_transaction_id);
+
+COMMENT ON COLUMN investory.accounting_poc_bank_transaction.provider IS
+    'Neutral bank data provider identity; classification remains Accounting-owned.';
+COMMENT ON COLUMN investory.accounting_poc_bank_transaction.external_transaction_id IS
+    'Provider or deterministic adapter transaction identity used for idempotent ingestion.';
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.025__accounting_authority_posting_amount.sql
+ALTER TABLE investory.accounting_authority_confirmation
+    ADD COLUMN amount NUMERIC(19, 2);
+
+COMMENT ON COLUMN investory.accounting_authority_confirmation.amount IS
+    'Authority-posted obligation amount used for settlement reconciliation; null for non-monetary confirmations.';
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.026__accounting_schema_freeze_hardening.sql
+-- Operational taxpayer identity belongs to the existing portfolio/profile owner.
+ALTER TABLE investory.portfolios
+    ADD COLUMN IF NOT EXISTS taxpayer_nip VARCHAR(10),
+    ADD COLUMN IF NOT EXISTS taxpayer_full_name VARCHAR(240),
+    ADD COLUMN IF NOT EXISTS taxpayer_first_name VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS taxpayer_surname VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS taxpayer_date_of_birth DATE,
+    ADD COLUMN IF NOT EXISTS taxpayer_tax_office_code VARCHAR(4),
+    ADD COLUMN IF NOT EXISTS taxpayer_email VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS tax_micro_account VARCHAR(34),
+    ADD COLUMN IF NOT EXISTS zus_payment_account VARCHAR(34);
+
+UPDATE investory.portfolios p
+   SET taxpayer_nip = COALESCE(p.taxpayer_nip, legacy.nip),
+       taxpayer_full_name = COALESCE(p.taxpayer_full_name, legacy.full_name),
+       taxpayer_first_name = COALESCE(p.taxpayer_first_name, legacy.first_name),
+       taxpayer_surname = COALESCE(p.taxpayer_surname, legacy.surname),
+       taxpayer_date_of_birth = COALESCE(p.taxpayer_date_of_birth, legacy.date_of_birth),
+       taxpayer_tax_office_code = COALESCE(p.taxpayer_tax_office_code, legacy.tax_office_code),
+       taxpayer_email = COALESCE(p.taxpayer_email, legacy.email),
+       tax_micro_account = COALESCE(p.tax_micro_account, legacy.vat_payment_account, legacy.ryczalt_payment_account),
+       zus_payment_account = COALESCE(p.zus_payment_account, legacy.zus_payment_account)
+  FROM investory.accounting_poc_profile legacy
+ WHERE p.id = 1 AND legacy.id = 1;
+
+COMMENT ON COLUMN investory.portfolios.tax_micro_account IS
+    'Operational taxpayer tax micro-account used for VAT and ryczalt/PPE payments.';
+COMMENT ON COLUMN investory.portfolios.zus_payment_account IS
+    'Operational taxpayer ZUS/NRS payment account.';
+
+-- Operational state/evidence is attributable without changing the single-profile POC shape.
+ALTER TABLE investory.accounting_poc_period_state
+    ADD COLUMN IF NOT EXISTS profile_id BIGINT REFERENCES investory.portfolios(id);
+ALTER TABLE investory.accounting_filing_artifact
+    ADD COLUMN IF NOT EXISTS profile_id BIGINT REFERENCES investory.portfolios(id),
+    ADD COLUMN IF NOT EXISTS calculation_hash VARCHAR(64);
+ALTER TABLE investory.accounting_authority_confirmation
+    ADD COLUMN IF NOT EXISTS profile_id BIGINT REFERENCES investory.portfolios(id);
+ALTER TABLE investory.accounting_vat_transaction
+    ADD COLUMN IF NOT EXISTS profile_id BIGINT REFERENCES investory.portfolios(id),
+    ADD COLUMN IF NOT EXISTS source_id BIGINT REFERENCES investory.accounting_source_evidence(id),
+    ADD COLUMN IF NOT EXISTS invoice_id BIGINT REFERENCES investory.accounting_poc_invoice(id),
+    ADD COLUMN IF NOT EXISTS expense_invoice_id BIGINT REFERENCES investory.accounting_poc_expense_invoice(id);
+
+-- Existing free-text source_document_id remains as historical display/audit text. New normalized
+-- rows can use the nullable relational links; at least one provenance identity is always required.
+ALTER TABLE investory.accounting_vat_transaction
+    ADD CONSTRAINT chk_accounting_vat_transaction_provenance
+    CHECK (source_id IS NOT NULL OR source_document_id IS NOT NULL);
+
+ALTER TABLE investory.accounting_vat_transaction
+    ADD CONSTRAINT chk_accounting_vat_transaction_direction
+    CHECK (direction IN ('SALE', 'PURCHASE'));
+ALTER TABLE investory.accounting_vat_transaction
+    ADD CONSTRAINT chk_accounting_vat_transaction_treatment
+    CHECK (treatment IN ('DOMESTIC_VAT', 'EU_B2B_REVERSE_CHARGE', 'NON_EU_B2B_OUTSIDE_POLAND',
+                         'VAT_EXEMPT', 'DOMESTIC_PURCHASE', 'IMPORT_OF_SERVICES_EU',
+                         'IMPORT_OF_SERVICES_NON_EU'));
+ALTER TABLE investory.accounting_vat_transaction
+    ADD CONSTRAINT chk_accounting_vat_transaction_identifier_type
+    CHECK (identifier_type IS NULL OR identifier_type IN ('NIP', 'VAT_EU', 'NONE'));
+
+-- Inclusive Java date ranges are represented as half-open PostgreSQL ranges by adding one day.
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+ALTER TABLE investory.accounting_tax_profile_period
+    ADD CONSTRAINT ex_accounting_tax_profile_period_no_overlap
+    EXCLUDE USING gist (
+        profile_id WITH =,
+        daterange(valid_from, COALESCE(valid_to + 1, 'infinity'::date), '[)') WITH &&
+    );
+ALTER TABLE investory.employment_period
+    ADD CONSTRAINT ex_employment_period_same_type_no_overlap
+    EXCLUDE USING gist (
+        profile_id WITH =,
+        employment_type WITH =,
+        daterange(date_from, COALESCE(date_to + 1, 'infinity'::date), '[)') WITH &&
+    );
+
+-- Raw evidence can change processing state, but payload and identity cannot be deleted or altered.
+CREATE OR REPLACE FUNCTION investory.prevent_accounting_source_delete()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'Accounting source evidence cannot be deleted';
+END;
+$$;
+CREATE TRIGGER trg_accounting_source_no_delete
+BEFORE DELETE ON investory.accounting_source_evidence
+FOR EACH ROW EXECUTE FUNCTION investory.prevent_accounting_source_delete();
+
+ALTER TABLE investory.accounting_authority_confirmation
+    ADD CONSTRAINT uq_accounting_authority_confirmation_identity
+    UNIQUE (authority, tax_period, confirmation_type, external_reference);
+ALTER TABLE investory.accounting_authority_confirmation
+    ADD CONSTRAINT fk_accounting_authority_confirmation_source
+    FOREIGN KEY (source_document_id) REFERENCES investory.accounting_source_evidence(id);
+
+ALTER TABLE investory.accounting_filing_artifact
+    ADD CONSTRAINT chk_accounting_filing_artifact_status
+    CHECK (status IN ('DRAFT', 'VALID', 'SUBMITTED', 'ACCEPTED', 'REJECTED'));
+ALTER TABLE investory.accounting_filing_artifact
+    ADD CONSTRAINT chk_accounting_filing_artifact_hash
+    CHECK (length(payload_hash) BETWEEN 1 AND 64);
+ALTER TABLE investory.accounting_poc_period_state
+    ADD CONSTRAINT chk_accounting_period_lifecycle_status
+    CHECK (lifecycle_status IN ('OPEN', 'SOURCES_INCOMPLETE', 'READY_FOR_REVIEW', 'ISSUES',
+                                'CONFIRMED', 'FILED', 'PAID', 'SETTLED', 'LOCKED'));
+ALTER TABLE investory.accounting_poc_period_state
+    ADD CONSTRAINT chk_accounting_period_reopen_reason
+    CHECK (reopened_at IS NULL OR (reopen_reason IS NOT NULL AND length(btrim(reopen_reason)) > 0));
+
+COMMENT ON TABLE investory.accounting_source_evidence IS
+    'Operational immutable source payloads; processing status may change, raw identity and deletion may not.';
+COMMENT ON TABLE investory.accounting_poc_profile IS
+    'Historical compatibility assumptions only; operational taxpayer identity is portfolio-owned.';
+COMMENT ON TABLE investory.accounting_poc_tax_input IS
+    'Historical/golden calculation inputs retained for compatibility, not new operational ingestion.';
+COMMENT ON TABLE investory.accounting_poc_obligation IS
+    'Historical/golden obligation rows retained for compatibility, not new operational ingestion.';
+COMMENT ON TABLE investory.accounting_filing_artifact IS
+    'Operational filing output audit record linked to its calculation fingerprint and authority evidence.';
+COMMENT ON TABLE investory.accounting_authority_confirmation IS
+    'Operational imported authority evidence with idempotent external identity.';
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.027__accounting_staging_reconciliation.sql
+CREATE TABLE investory.accounting_tmp_invoice (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    source_id BIGINT NOT NULL REFERENCES investory.accounting_source_evidence(id),
+    source_type VARCHAR(16) NOT NULL,
+    source_reference VARCHAR(256),
+    source_hash BYTEA,
+    document_kind VARCHAR(16) NOT NULL,
+    document_date DATE,
+    reference VARCHAR(128) NOT NULL,
+    counterparty_name VARCHAR(256) NOT NULL,
+    counterparty_tax_identifier VARCHAR(64),
+    counterparty_country VARCHAR(2),
+    currency CHAR(3) NOT NULL,
+    net_amount NUMERIC(19,4) NOT NULL,
+    vat_amount NUMERIC(19,4) NOT NULL,
+    gross_amount NUMERIC(19,4) NOT NULL,
+    vat_deduction_ratio NUMERIC(3,2),
+    deductible_vat NUMERIC(19,4),
+    vat_treatment VARCHAR(48),
+    ksef_number VARCHAR(256),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    reconciliation_reason_codes VARCHAR(64)[] NOT NULL DEFAULT '{}',
+    reconciliation_message VARCHAR(1000),
+    promoted_at TIMESTAMPTZ,
+    canonical_id BIGINT,
+    canonical_type VARCHAR(32),
+    CONSTRAINT chk_accounting_tmp_invoice_status CHECK (reconciliation_status IN ('PENDING','MATCH','NEW','MISMATCH','AMBIGUOUS','PROMOTED')),
+    CONSTRAINT uq_accounting_tmp_invoice_source_reference UNIQUE (source_id, reference)
+);
+
+CREATE INDEX ix_accounting_tmp_invoice_period ON investory.accounting_tmp_invoice(profile_id, tax_period, reconciliation_status, id);
+
+CREATE TABLE investory.accounting_tmp_bank_transaction (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    source_id BIGINT NOT NULL REFERENCES investory.accounting_source_evidence(id),
+    source_type VARCHAR(16) NOT NULL,
+    source_reference VARCHAR(256),
+    source_hash BYTEA,
+    provider VARCHAR(64) NOT NULL,
+    external_account_id VARCHAR(256),
+    external_transaction_id VARCHAR(256),
+    booking_date DATE NOT NULL,
+    value_date DATE,
+    amount NUMERIC(19,4) NOT NULL,
+    currency CHAR(3) NOT NULL,
+    counterparty_name VARCHAR(256),
+    counterparty_account VARCHAR(256),
+    remittance_information VARCHAR(1000),
+    source_payload_hash VARCHAR(256),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    reconciliation_reason_codes VARCHAR(64)[] NOT NULL DEFAULT '{}',
+    reconciliation_message VARCHAR(1000),
+    promoted_at TIMESTAMPTZ,
+    canonical_id BIGINT,
+    CONSTRAINT chk_accounting_tmp_bank_status CHECK (reconciliation_status IN ('PENDING','MATCH','NEW','MISMATCH','AMBIGUOUS','PROMOTED')),
+    CONSTRAINT uq_accounting_tmp_bank_identity UNIQUE (source_id, external_transaction_id)
+);
+
+CREATE INDEX ix_accounting_tmp_bank_period ON investory.accounting_tmp_bank_transaction(profile_id, tax_period, reconciliation_status, id);
+
+CREATE TABLE investory.accounting_tmp_vat_transaction (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    source_id BIGINT NOT NULL REFERENCES investory.accounting_source_evidence(id),
+    direction VARCHAR(16) NOT NULL,
+    treatment VARCHAR(48) NOT NULL,
+    tax_date DATE NOT NULL,
+    counterparty_country VARCHAR(2),
+    counterparty_tax_identifier VARCHAR(64),
+    net_amount NUMERIC(19,4) NOT NULL,
+    vat_amount NUMERIC(19,4) NOT NULL,
+    deductible_vat NUMERIC(19,4) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    reconciliation_reason_codes VARCHAR(64)[] NOT NULL DEFAULT '{}',
+    reconciliation_message VARCHAR(1000),
+    promoted_at TIMESTAMPTZ,
+    canonical_id BIGINT,
+    CONSTRAINT chk_accounting_tmp_vat_status CHECK (reconciliation_status IN ('PENDING','MATCH','NEW','MISMATCH','AMBIGUOUS','PROMOTED'))
+);
+
+CREATE INDEX ix_accounting_tmp_vat_period ON investory.accounting_tmp_vat_transaction(profile_id, tax_period, reconciliation_status, id);
