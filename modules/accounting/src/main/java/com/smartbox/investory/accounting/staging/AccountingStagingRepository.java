@@ -305,7 +305,7 @@ public class AccountingStagingRepository {
         """
         INSERT INTO investory.accounting_poc_bank_transaction
           (booking_date,related_period,reference,counterparty_alias,currency,amount,transaction_type,scope,note,source_id,source_row_identity,provider,external_account_id,external_transaction_id,source_payload_hash)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (source_row_identity) DO NOTHING
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING
         """,
         row.bookingDate(),
         row.taxPeriod(),

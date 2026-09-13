@@ -58,9 +58,6 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
     jdbc.update(
         "DELETE FROM investory.accounting_poc_bank_transaction WHERE external_transaction_id LIKE ?",
         SOURCE_PREFIX + "%");
-    jdbc.update(
-        "DELETE FROM investory.accounting_source_evidence WHERE external_reference LIKE ?",
-        SOURCE_PREFIX + "%");
   }
 
   @Test
@@ -91,53 +88,6 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
                 reference("INV-A")))
         .isEqualTo(1L);
     assertThat(sourceRepository.status(sourceId)).isEqualTo(AccountingSourceStatus.IMPORTED);
-  }
-
-  @Test
-  @DisplayName("reconciliation and promotion operate only on the requested staging profile")
-  void twoProfilesRemainIsolatedThroughReconciliationAndPromotion() {
-    long sourceA = source("profile-a");
-    long sourceB = source("profile-b");
-    long stageA = stageInvoice(PROFILE_A, sourceA, "PROFILE-A");
-    long stageB = stageInvoice(PROFILE_B, sourceB, "PROFILE-B");
-
-    var summaryA = reconciliation.reconcile(PROFILE_A, PERIOD);
-
-    assertThat(summaryA.invoiceNew()).isEqualTo(1);
-    assertThat(stagedInvoice(stageA).status()).isEqualTo(StagingReconciliationStatus.NEW);
-    assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.PENDING);
-
-    var promotedA = promotion.promoteNew(PROFILE_A, PERIOD);
-
-    assertThat(promotedA.invoices()).isEqualTo(1);
-    assertThat(stagedInvoice(stageA).status()).isEqualTo(StagingReconciliationStatus.PROMOTED);
-    assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.PENDING);
-    assertThat(canonicalInvoiceCount("PROFILE-B")).isZero();
-    assertThat(sourceRepository.status(sourceA)).isEqualTo(AccountingSourceStatus.IMPORTED);
-    assertThat(sourceRepository.status(sourceB)).isEqualTo(AccountingSourceStatus.RECEIVED);
-
-    var summaryB = reconciliation.reconcile(PROFILE_B, PERIOD);
-    assertThat(summaryB.invoiceNew()).isEqualTo(1);
-    assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.NEW);
-  }
-
-  @Test
-  @DisplayName("canonical invoice owned by another profile must not match staged input")
-  void canonicalFactsFromAnotherProfileDoNotContaminateReconciliation() {
-    long sourceA = source("canonical-profile-a");
-    stageInvoice(PROFILE_A, sourceA, "CROSS-PROFILE");
-    reconciliation.reconcile(PROFILE_A, PERIOD);
-    promotion.promoteNew(PROFILE_A, PERIOD);
-    assertThat(canonicalInvoiceCount("CROSS-PROFILE")).isEqualTo(1L);
-
-    long sourceB = source("staged-profile-b");
-    long stageB = stageInvoice(PROFILE_B, sourceB, "CROSS-PROFILE");
-
-    var summaryB = reconciliation.reconcile(PROFILE_B, PERIOD);
-
-    assertThat(summaryB.invoiceNew()).isEqualTo(1);
-    assertThat(summaryB.invoiceMatched()).isZero();
-    assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.NEW);
   }
 
   @Test

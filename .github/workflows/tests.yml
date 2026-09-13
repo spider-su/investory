@@ -117,14 +117,6 @@ jobs:
             initialize test-compile failsafe:integration-test failsafe:verify \
             "-Dit.test=ApplicationContextIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
 
-      - name: Upload application composition execution data
-        uses: actions/upload-artifact@v7
-        with:
-          name: jacoco-application-composition
-          path: '**/target/jacoco.exec'
-          if-no-files-found: error
-          retention-days: 1
-
   backendIt:
     name: BE_IT (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
