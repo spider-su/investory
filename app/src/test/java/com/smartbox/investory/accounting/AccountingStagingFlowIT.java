@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.smartbox.investory.accounting.staging.AccountingStagingPromotionService;
 import com.smartbox.investory.accounting.staging.AccountingStagingReconciliationService;
 import com.smartbox.investory.accounting.staging.AccountingStagingRepository;
+import com.smartbox.investory.accounting.staging.StagedInvoice;
 import com.smartbox.investory.accounting.staging.StagingReconciliationStatus;
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
@@ -103,23 +104,18 @@ class AccountingStagingFlowIT {
     assertThat(row.status()).isEqualTo(StagingReconciliationStatus.PROMOTED);
     assertThat(row.canonicalId()).isNotNull();
     assertThat(row.promotedAt()).isNotNull();
-    assertThat(
-            jdbc.queryForObject(
-                "SELECT count(*) FROM investory.accounting_poc_invoice WHERE reference = ?",
-                Long.class,
-                REFERENCE_PREFIX + "INV-A"))
-        .isEqualTo(1L);
+    assertThat(canonicalInvoiceCount("INV-A")).isEqualTo(1L);
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM investory.accounting_vat_transaction WHERE reference = ?",
                 Long.class,
-                REFERENCE_PREFIX + "INV-A"))
+                reference("INV-A")))
         .isEqualTo(1L);
     assertThat(sourceRepository.status(sourceId)).isEqualTo(AccountingSourceStatus.IMPORTED);
   }
 
   @Test
-  @DisplayName("reconciliation and promotion operate only on the requested profile")
+  @DisplayName("reconciliation and promotion operate only on the requested staging profile")
   void twoProfilesRemainIsolatedThroughReconciliationAndPromotion() {
     long sourceA = source("profile-a");
     long sourceB = source("profile-b");
@@ -137,12 +133,7 @@ class AccountingStagingFlowIT {
     assertThat(promotedA.invoices()).isEqualTo(1);
     assertThat(stagedInvoice(stageA).status()).isEqualTo(StagingReconciliationStatus.PROMOTED);
     assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.PENDING);
-    assertThat(
-            jdbc.queryForObject(
-                "SELECT count(*) FROM investory.accounting_poc_invoice WHERE reference = ?",
-                Long.class,
-                REFERENCE_PREFIX + "PROFILE-B"))
-        .isZero();
+    assertThat(canonicalInvoiceCount("PROFILE-B")).isZero();
     assertThat(sourceRepository.status(sourceA)).isEqualTo(AccountingSourceStatus.IMPORTED);
     assertThat(sourceRepository.status(sourceB)).isEqualTo(AccountingSourceStatus.RECEIVED);
 
@@ -152,31 +143,123 @@ class AccountingStagingFlowIT {
   }
 
   @Test
-  @DisplayName("MATCH canonical invoice is never promoted again")
+  @DisplayName("canonical invoice owned by another profile must not match staged input")
+  void canonicalFactsFromAnotherProfileDoNotContaminateReconciliation() {
+    long sourceA = source("canonical-profile-a");
+    stageInvoice(PROFILE_A, sourceA, "CROSS-PROFILE");
+    reconciliation.reconcile(PROFILE_A, PERIOD);
+    promotion.promoteNew(PROFILE_A, PERIOD);
+    assertThat(canonicalInvoiceCount("CROSS-PROFILE")).isEqualTo(1L);
+
+    long sourceB = source("staged-profile-b");
+    long stageB = stageInvoice(PROFILE_B, sourceB, "CROSS-PROFILE");
+
+    var summaryB = reconciliation.reconcile(PROFILE_B, PERIOD);
+
+    assertThat(summaryB.invoiceNew()).isEqualTo(1);
+    assertThat(summaryB.invoiceMatched()).isZero();
+    assertThat(stagedInvoice(stageB).status()).isEqualTo(StagingReconciliationStatus.NEW);
+  }
+
+  @Test
+  @DisplayName("MATCH canonical invoice is not promoted again")
   void matchingCanonicalInvoiceIsNotPromoted() {
-    long canonicalSource = source("canonical-match");
-    stageInvoice(PROFILE_A, canonicalSource, "MATCH");
+    long sourceId = source("canonical-match");
+    long firstStage = stageInvoice(PROFILE_A, sourceId, "MATCH");
+    reconciliation.reconcile(PROFILE_A, PERIOD);
+    promotion.promoteNew(PROFILE_A, PERIOD);
+    assertThat(stagedInvoice(firstStage).status()).isEqualTo(StagingReconciliationStatus.PROMOTED);
+
+    long secondSource = source("staged-match");
+    long secondStage = stageInvoice(PROFILE_A, secondSource, "MATCH");
+
+    var summary = reconciliation.reconcile(PROFILE_A, PERIOD);
+
+    assertThat(summary.invoiceMatched()).isEqualTo(1);
+    assertThat(stagedInvoice(secondStage).status()).isEqualTo(StagingReconciliationStatus.MATCH);
+
+    var promoted = promotion.promoteNew(PROFILE_A, PERIOD);
+
+    assertThat(promoted.invoices()).isZero();
+    assertThat(stagedInvoice(secondStage).status()).isEqualTo(StagingReconciliationStatus.MATCH);
+    assertThat(canonicalInvoiceCount("MATCH")).isEqualTo(1L);
+  }
+
+  @Test
+  @DisplayName("MISMATCH is blocked from promotion")
+  void mismatchedCanonicalInvoiceIsBlocked() {
+    long canonicalSource = source("canonical-mismatch");
+    stageInvoice(PROFILE_A, canonicalSource, "MISMATCH");
+    reconciliation.reconcile(PROFILE_A, PERIOD);
+    promotion.promoteNew(PROFILE_A, PERIOD);
+    jdbc.update(
+        "UPDATE investory.accounting_poc_invoice SET gross_amount = 9999.99 WHERE reference = ?",
+        reference("MISMATCH"));
+
+    long stagedSource = source("staged-mismatch");
+    long stagedId = stageInvoice(PROFILE_A, stagedSource, "MISMATCH");
+
+    var summary = reconciliation.reconcile(PROFILE_A, PERIOD);
+
+    assertThat(summary.invoiceMismatch()).isEqualTo(1);
+    assertThat(stagedInvoice(stagedId).status()).isEqualTo(StagingReconciliationStatus.MISMATCH);
+    assertThat(stagedInvoice(stagedId).reasonCodes()).contains("GROSS_MISMATCH");
+
+    var promoted = promotion.promoteNew(PROFILE_A, PERIOD);
+    assertThat(promoted.invoices()).isZero();
+    assertThat(canonicalInvoiceCount("MISMATCH")).isEqualTo(1L);
+  }
+
+  @Test
+  @DisplayName("AMBIGUOUS canonical candidates are blocked from promotion")
+  void ambiguousCanonicalInvoiceIsBlocked() {
+    long sourceOne = source("ambiguous-one");
+    stageInvoice(PROFILE_A, sourceOne, "AMBIGUOUS-REF");
     reconciliation.reconcile(PROFILE_A, PERIOD);
     promotion.promoteNew(PROFILE_A, PERIOD);
 
-    long secondSource = source("staged-match");
-    long stageId = stageInvoice(PROFILE_B, secondSource, "MATCH");
+    long sourceTwo = source("ambiguous-two");
+    stageInvoice(PROFILE_A, sourceTwo, "AMBIGUOUS-KSEF");
+    reconciliation.reconcile(PROFILE_A, PERIOD);
+    promotion.promoteNew(PROFILE_A, PERIOD);
+    jdbc.update(
+        "UPDATE investory.accounting_poc_invoice SET ksef_number = ? WHERE reference = ?",
+        "STAGING-IT-KSEF-DUPLICATE",
+        reference("AMBIGUOUS-KSEF"));
 
-    var summary = reconciliation.reconcile(PROFILE_B, PERIOD);
+    long stagedSource = source("ambiguous-staged");
+    long stagedId =
+        stageInvoice(
+            PROFILE_A,
+            stagedSource,
+            "AMBIGUOUS-REF",
+            "STAGING-IT-KSEF-DUPLICATE");
 
-    assertThat(summary.invoiceMatched()).isEqualTo(1);
-    assertThat(stagedInvoice(stageId).status()).isEqualTo(StagingReconciliationStatus.MATCH);
+    var summary = reconciliation.reconcile(PROFILE_A, PERIOD);
 
-    var promoted = promotion.promoteNew(PROFILE_B, PERIOD);
+    assertThat(summary.invoiceAmbiguous()).isEqualTo(1);
+    assertThat(stagedInvoice(stagedId).status()).isEqualTo(StagingReconciliationStatus.AMBIGUOUS);
+    assertThat(stagedInvoice(stagedId).reasonCodes()).contains("MULTIPLE_CANONICAL_MATCHES");
 
+    var promoted = promotion.promoteNew(PROFILE_A, PERIOD);
     assertThat(promoted.invoices()).isZero();
-    assertThat(stagedInvoice(stageId).status()).isEqualTo(StagingReconciliationStatus.MATCH);
-    assertThat(
-            jdbc.queryForObject(
-                "SELECT count(*) FROM investory.accounting_poc_invoice WHERE reference = ?",
-                Long.class,
-                REFERENCE_PREFIX + "MATCH"))
-        .isEqualTo(1L);
+  }
+
+  @Test
+  @DisplayName("promotion is idempotent and PROMOTED remains terminal")
+  void repeatedPromotionDoesNotDuplicateOrRewritePromotedState() {
+    long sourceId = source("idempotent");
+    long stagedId = stageInvoice(PROFILE_A, sourceId, "IDEMPOTENT");
+
+    var first = promotion.promoteNew(PROFILE_A, PERIOD);
+    var second = promotion.promoteNew(PROFILE_A, PERIOD);
+
+    assertThat(first.invoices()).isEqualTo(1);
+    assertThat(second.invoices()).isZero();
+    assertThat(canonicalInvoiceCount("IDEMPOTENT")).isEqualTo(1L);
+    assertThat(stagedInvoice(stagedId).status()).isEqualTo(StagingReconciliationStatus.PROMOTED);
+    assertThat(stagedInvoice(stagedId).canonicalId()).isNotNull();
+    assertThat(stagedInvoice(stagedId).promotedAt()).isNotNull();
   }
 
   @Test
@@ -221,12 +304,12 @@ class AccountingStagingFlowIT {
   }
 
   private long source(String suffix) {
-    String reference = SOURCE_PREFIX + suffix;
-    byte[] payload = reference.getBytes(StandardCharsets.UTF_8);
+    String externalReference = SOURCE_PREFIX + suffix;
+    byte[] payload = externalReference.getBytes(StandardCharsets.UTF_8);
     return sourceRepository.save(
         AccountingSourceType.UPLOAD,
-        reference,
-        reference + ".json",
+        externalReference,
+        externalReference + ".json",
         "application/json",
         Instant.parse("2026-09-13T10:00:00Z"),
         PERIOD,
@@ -235,6 +318,10 @@ class AccountingStagingFlowIT {
   }
 
   private long stageInvoice(long profileId, long sourceId, String suffix) {
+    return stageInvoice(profileId, sourceId, suffix, null);
+  }
+
+  private long stageInvoice(long profileId, long sourceId, String suffix, String ksefNumber) {
     return staging.insertInvoice(
         profileId,
         PERIOD,
@@ -243,7 +330,7 @@ class AccountingStagingFlowIT {
         SOURCE_PREFIX + suffix.toLowerCase(),
         "INCOME",
         LocalDate.of(2026, 9, 5),
-        REFERENCE_PREFIX + suffix,
+        reference(suffix),
         "Test Customer",
         "DE123456789",
         "DE",
@@ -254,10 +341,21 @@ class AccountingStagingFlowIT {
         null,
         BigDecimal.ZERO,
         VatTreatment.DOMESTIC_VAT.name(),
-        null);
+        ksefNumber);
   }
 
-  private com.smartbox.investory.accounting.staging.StagedInvoice stagedInvoice(long id) {
+  private String reference(String suffix) {
+    return REFERENCE_PREFIX + suffix;
+  }
+
+  private long canonicalInvoiceCount(String suffix) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM investory.accounting_poc_invoice WHERE reference = ?",
+        Long.class,
+        reference(suffix));
+  }
+
+  private StagedInvoice stagedInvoice(long id) {
     return staging.invoices(PROFILE_A, PERIOD).stream()
         .filter(row -> row.id() == id)
         .findFirst()
