@@ -58,7 +58,18 @@ compose exec -T "$DB_SERVICE" sh -ceu "
     --format=plain \
     --no-owner \
     --no-privileges
-} | sed '/^REFRESH MATERIALIZED VIEW /d' > "$OUTPUT"
+} | sed '/^REFRESH MATERIALIZED VIEW /d' | awk '
+  # The shared snapshot excludes accounting_poc_* tables. pg_dump still emits
+  # foreign keys on retained tables that point at those excluded tables, which
+  # makes the snapshot fail before the isolated POC snapshot can be loaded.
+  /^-- Name: accounting_vat_transaction accounting_vat_transaction_(expense_invoice_id|invoice_id)_fkey;/ {
+    skip = 1
+  }
+  skip && /^-- Name: / && $0 !~ /accounting_vat_transaction_(expense_invoice_id|invoice_id)_fkey;/ {
+    skip = 0
+  }
+  !skip { print }
+' > "$OUTPUT"
 
 # pg_dump emits materialized-view refreshes in object/OID order, which is not
 # dependency order. Replay the dependency-aware initial population pipeline
