@@ -53,7 +53,7 @@ class DefaultAccountingMonthCalculatorTest {
   }
 
   @Test
-  void unsupportedRateDoesNotUseFirstInvoiceRate() {
+  void calculatesMixedRyczaltRatesPerRevenueBucket() {
     CurrencyConversion conversion = mock(CurrencyConversion.class);
     List<InvoiceRow> invoices =
         List.of(
@@ -62,10 +62,12 @@ class DefaultAccountingMonthCalculatorTest {
     AccountingCalculationResult result =
         calculator(conversion).calculate(input(invoices, List.of()));
 
-    assertThat(result.complete()).isFalse();
-    assertThat(result.issues())
-        .extracting(AccountingIssue::type)
-        .contains("UNSUPPORTED_RYCZALT_RATE");
+    assertThat(result.complete()).isTrue();
+    assertThat(result.ryczalt().revenueByRate())
+        .containsEntry(new BigDecimal("0.12"), new BigDecimal("100.00"));
+    assertThat(result.ryczalt().revenueByRate())
+        .containsEntry(new BigDecimal("0.08"), new BigDecimal("100.00"));
+    assertThat(result.ryczalt().calculatedTax()).isEqualByComparingTo("20");
   }
 
   @Test

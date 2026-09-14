@@ -26,7 +26,15 @@ public class AccountingFilingService {
     AccountingProfile profile = repository.accountingProfile(profileId);
     AccountingFilingInput filingInput =
         new AccountingFilingService.FilingResult(period, snapshot, profile, "", false, List.of())
-            .filingInput();
+            .filingInput(
+                repository.vatTransactionsForPeriod(profileId, period).stream()
+                    .filter(t -> t.reference() != null)
+                    .filter(t -> t.vatRate() != null)
+                    .collect(
+                        java.util.stream.Collectors.toMap(
+                            AccountingVatTransaction::reference,
+                            AccountingVatTransaction::vatRate,
+                            (left, right) -> left)));
     String hash = AccountingFilingFingerprint.sha256(filingInput);
     AccountingPocRepository.PeriodState state = repository.periodState(profileId, period);
     boolean confirmed = state != null && hash.equals(state.confirmedCalculationHash());
@@ -80,6 +88,11 @@ public class AccountingFilingService {
     if (document.evidence() == null || document.evidence().type() == null) {
       issues.add("MISSING_JPK_EVIDENCE_CLASSIFICATION: " + document.reference());
     }
+    if ((document.treatment() == VatTreatment.DOMESTIC_VAT
+            || document.treatment() == VatTreatment.DOMESTIC_PURCHASE)
+        && document.vatRate() == null) {
+      issues.add("MISSING_EXPLICIT_VAT_RATE: " + document.reference());
+    }
   }
 
   public void confirm(LocalDate period) {
@@ -89,7 +102,7 @@ public class AccountingFilingService {
   public void confirm(long profileId, LocalDate period) {
     FilingResult result = filing(profileId, period);
     if (!result.issues().isEmpty() && !result.onlyNotConfirmed()) {
-      throw new IllegalStateException(
+      throw new AccountingInvalidTransitionException(
           "Cannot confirm month: " + String.join("; ", result.issues()));
     }
     var state = repository.periodState(profileId, period);
@@ -122,11 +135,12 @@ public class AccountingFilingService {
 
   public void markFiled(long profileId, LocalDate period) {
     FilingResult result = filing(profileId, period);
-    if (!result.confirmed()) throw new IllegalStateException("Cannot file an unconfirmed period");
+    if (!result.confirmed())
+      throw new AccountingInvalidTransitionException("Cannot file an unconfirmed period");
     if (!repository.hasFilingArtifact(profileId, period, "JPK_V7M", result.calculationHash())
         || !repository.hasAcceptedConfirmation(
             profileId, period, "JPK_UPO", result.calculationHash())) {
-      throw new IllegalStateException("Accepted JPK filing evidence is required");
+      throw new AccountingInvalidTransitionException("Accepted JPK filing evidence is required");
     }
     boolean vatEuRequired =
         repository.vatTransactionsForPeriod(profileId, period).stream()
@@ -135,12 +149,12 @@ public class AccountingFilingService {
         && (!repository.hasFilingArtifact(profileId, period, "VAT_UE")
             || !repository.hasAcceptedConfirmation(
                 profileId, period, "VAT_UE_UPO", result.calculationHash()))) {
-      throw new IllegalStateException("Accepted VAT-UE filing evidence is required");
+      throw new AccountingInvalidTransitionException("Accepted VAT-UE filing evidence is required");
     }
     if (result.snapshot().zus().totalZus().signum() > 0
         && !repository.hasAcceptedConfirmation(
             profileId, period, "ZUS_DRA_ACCEPTANCE", result.calculationHash())) {
-      throw new IllegalStateException("Accepted ZUS DRA evidence is required");
+      throw new AccountingInvalidTransitionException("Accepted ZUS DRA evidence is required");
     }
     repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.FILED);
   }
@@ -164,7 +178,9 @@ public class AccountingFilingService {
                   .reduce(BigDecimal.ZERO, BigDecimal::add)
                   .compareTo(obligation.amount())
               >= 0;
-      if (!paid) throw new IllegalStateException("Missing payment evidence: " + obligation.type());
+      if (!paid)
+        throw new AccountingInvalidTransitionException(
+            "Missing payment evidence: " + obligation.type());
     }
     repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.PAID);
   }
@@ -188,7 +204,8 @@ public class AccountingFilingService {
           };
       if (!repository.hasAcceptedConfirmationForAmount(
           profileId, period, obligation.type(), confirmationType, obligation.amount()))
-        throw new IllegalStateException("Missing authority posting: " + obligation.type());
+        throw new AccountingInvalidTransitionException(
+            "Missing authority posting: " + obligation.type());
     }
     markPaid(profileId, period);
     repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.SETTLED);
@@ -212,7 +229,7 @@ public class AccountingFilingService {
   public void lock(long profileId, LocalDate period) {
     var state = repository.periodState(profileId, period);
     if (state == null || state.lifecycleStatus() != PeriodLifecycleStatus.SETTLED)
-      throw new IllegalStateException("Only a settled period can be locked");
+      throw new AccountingInvalidTransitionException("Only a settled period can be locked");
     repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.LOCKED);
   }
 
@@ -222,7 +239,8 @@ public class AccountingFilingService {
 
   public byte[] jpk(long profileId, LocalDate period) {
     FilingResult result = filing(profileId, period);
-    if (!result.ready()) throw new IllegalStateException(String.join("; ", result.issues()));
+    if (!result.ready())
+      throw new AccountingInvalidTransitionException(String.join("; ", result.issues()));
     var existing = repository.filingArtifact(profileId, period, "JPK_V7M");
     if (existing.isPresent() && result.calculationHash().equals(existing.get().calculationHash())) {
       return existing.get().payload();
@@ -372,13 +390,18 @@ public class AccountingFilingService {
     }
 
     public AccountingFilingInput filingInput() {
+      return filingInput(java.util.Map.of());
+    }
+
+    public AccountingFilingInput filingInput(java.util.Map<String, BigDecimal> vatRates) {
       var sales =
           snapshot.invoices().stream()
               .filter(
                   invoice ->
                       "SALES_INVOICE".equals(invoice.invoiceKind())
                           || "DOMESTIC_SERVICE".equals(invoice.invoiceKind())
-                          || "EU_SERVICE".equals(invoice.invoiceKind()))
+                          || "EU_SERVICE".equals(invoice.invoiceKind())
+                          || "CREDIT_NOTE".equals(invoice.invoiceKind()))
               .map(
                   invoice ->
                       new AccountingFilingInput.FilingDocument(
@@ -396,7 +419,11 @@ public class AccountingFilingService {
                                   AccountingFilingEvidence.Type.KSEF, invoice.ksefNumber())
                               : invoice.filingEvidence(),
                           filingTreatment(invoice.invoiceKind()),
-                          invoice.counterpartyCountry()))
+                          invoice.counterpartyCountry(),
+                          resolveVatRate(
+                              vatRates.get(invoice.reference()),
+                              invoice.netAmount(),
+                              invoice.vatAmount())))
               .toList();
       var purchases =
           snapshot.expenses().stream()
@@ -417,7 +444,11 @@ public class AccountingFilingService {
                                   AccountingFilingEvidence.Type.KSEF, expense.ksefNumber())
                               : expense.filingEvidence(),
                           VatTreatment.DOMESTIC_PURCHASE,
-                          expense.counterpartyCountry()))
+                          expense.counterpartyCountry(),
+                          resolveVatRate(
+                              vatRates.get(expense.reference()),
+                              expense.netAmount(),
+                              expense.vatAmount())))
               .toList();
       return new AccountingFilingInput(
           period,
@@ -430,10 +461,21 @@ public class AccountingFilingService {
           "JPK_V7M(3)");
     }
 
+    private BigDecimal resolveVatRate(
+        BigDecimal explicitRate, BigDecimal netAmount, BigDecimal vatAmount) {
+      if (explicitRate != null) return explicitRate;
+      if (vatAmount == null || vatAmount.signum() == 0) return BigDecimal.ZERO;
+      if (netAmount == null || netAmount.signum() == 0) return null;
+      return vatAmount
+          .divide(netAmount, 4, java.math.RoundingMode.HALF_UP)
+          .multiply(new BigDecimal("100"))
+          .setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
     private VatTreatment filingTreatment(String invoiceKind) {
       return switch (invoiceKind) {
         case "EU_SERVICE" -> VatTreatment.EU_B2B_REVERSE_CHARGE;
-        case "DOMESTIC_SERVICE", "SALES_INVOICE" -> VatTreatment.DOMESTIC_VAT;
+        case "DOMESTIC_SERVICE", "SALES_INVOICE", "CREDIT_NOTE" -> VatTreatment.DOMESTIC_VAT;
         default -> null;
       };
     }

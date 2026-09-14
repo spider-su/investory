@@ -6,7 +6,7 @@
   <title>Accounting · Investory</title>
   <link href="/css/tabler.min.css" rel="stylesheet">
   <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
-  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const token = document.querySelector('meta[name="_csrf"]')?.content;

@@ -410,7 +410,53 @@ public class AccountingInvoiceIngestionService {
       String counterpartyCountry,
       String ksefNumber,
       AccountingFilingEvidence filingEvidence,
-      LocalDate dueDate) {
+      LocalDate dueDate,
+      BigDecimal vatRate) {
+    public ReviewedInvoice(
+        LocalDate taxPeriod,
+        String documentType,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        String reference,
+        String counterpartyAlias,
+        String category,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal vatDeductionRatio,
+        String sourceQuality,
+        String note,
+        String sourceIdentity,
+        String counterpartyTaxIdentifier,
+        String counterpartyCountry,
+        String ksefNumber,
+        AccountingFilingEvidence filingEvidence,
+        LocalDate dueDate) {
+      this(
+          taxPeriod,
+          documentType,
+          issueDate,
+          saleDate,
+          reference,
+          counterpartyAlias,
+          category,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          vatDeductionRatio,
+          sourceQuality,
+          note,
+          sourceIdentity,
+          counterpartyTaxIdentifier,
+          counterpartyCountry,
+          ksefNumber,
+          filingEvidence,
+          dueDate,
+          null);
+    }
+
     public ReviewedInvoice(
         LocalDate taxPeriod,
         String documentType,
@@ -451,6 +497,7 @@ public class AccountingInvoiceIngestionService {
           counterpartyCountry,
           ksefNumber,
           filingEvidence,
+          null,
           null);
     }
 

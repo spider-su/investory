@@ -39,6 +39,33 @@ class AccountingJpkGeneratorTest {
   }
 
   @Test
+  void generatesByteIdenticalArtifactForIdenticalInput() {
+    AccountingFilingInput input =
+        new AccountingFilingService.FilingResult(
+                snapshot().period(),
+                snapshot(),
+                new AccountingProfile(
+                    true,
+                    "1010000000",
+                    "POC",
+                    "1215",
+                    "a@b",
+                    null,
+                    null,
+                    null,
+                    "Jan",
+                    "Kowalski",
+                    LocalDate.of(1980, 1, 1)),
+                "hash",
+                true,
+                List.of())
+            .filingInput();
+
+    assertThat(new AccountingJpkGenerator().generate(input))
+        .isEqualTo(new AccountingJpkGenerator().generate(input));
+  }
+
+  @Test
   void dueDatesAreDeterministicForMonthlyJdg() {
     AccountingDueDatePolicy policy = new AccountingDueDatePolicy();
     assertThat(policy.dueDate(LocalDate.of(2026, 9, 1), "VAT"))
@@ -103,6 +130,93 @@ class AccountingJpkGeneratorTest {
 
     assertThat(xml).contains("<K_10>100.00</K_10>", "<K_11>200.00</K_11>");
     assertThat(xml).doesNotContain("<K_19>100.00</K_19>", "<K_20>200.00</K_20>");
+  }
+
+  @Test
+  void declarationTotalsMatchNormalizedEvidenceBuckets() {
+    var sales =
+        List.of(
+            document("S23", VatTreatment.DOMESTIC_VAT, "100", "23", "23"),
+            document("S8", VatTreatment.DOMESTIC_VAT, "100", "8", "8"),
+            document("S0", VatTreatment.DOMESTIC_VAT, "100", "0", "0"),
+            document("SE", VatTreatment.VAT_EXEMPT, "100", "0", null),
+            document("SEU", VatTreatment.EU_B2B_REVERSE_CHARGE, "100", "0", null));
+    var purchases =
+        List.of(
+            document("P", VatTreatment.DOMESTIC_PURCHASE, "100", "23", null, "23"),
+            document("PIE", VatTreatment.IMPORT_OF_SERVICES_EU, "200", "46", null),
+            document("PIN", VatTreatment.IMPORT_OF_SERVICES_NON_EU, "300", "69", null));
+    var input =
+        new AccountingFilingInput(
+            LocalDate.of(2026, 9, 1),
+            snapshot().vat(),
+            snapshot().ryczalt(),
+            snapshot().zus(),
+            sales,
+            purchases,
+            taxpayer(),
+            "JPK_V7M(3)");
+
+    String xml = new String(new AccountingJpkGenerator().generate(input));
+
+    assertThat(xml)
+        .contains(
+            "<K_19>100.00</K_19><K_20>23.00</K_20>",
+            "<K_17>100.00</K_17><K_18>8.00</K_18>",
+            "<K_19>100.00</K_19>",
+            "<K_29>200.00</K_29><K_30>46.00</K_30>",
+            "<K_27>300.00</K_27><K_28>69.00</K_28>",
+            "<P_27>300</P_27>",
+            "<P_28>69</P_28>",
+            "<P_29>200</P_29>",
+            "<P_30>46</P_30>",
+            "<P_42>600</P_42>",
+            "<P_43>23</P_43>",
+            "<P_38>146</P_38>");
+    new AccountingJpkXmlValidator().validate(xml.getBytes());
+  }
+
+  private AccountingProfile taxpayer() {
+    return new AccountingProfile(
+        true,
+        "1010000000",
+        "POC",
+        "1215",
+        "a@b",
+        null,
+        null,
+        null,
+        "Jan",
+        "Kowalski",
+        LocalDate.of(1980, 1, 1));
+  }
+
+  private AccountingFilingInput.FilingDocument document(
+      String reference, VatTreatment treatment, String net, String vat, String rate) {
+    return document(reference, treatment, net, vat, rate, "0");
+  }
+
+  private AccountingFilingInput.FilingDocument document(
+      String reference,
+      VatTreatment treatment,
+      String net,
+      String vat,
+      String rate,
+      String deductible) {
+    return new AccountingFilingInput.FilingDocument(
+        reference,
+        LocalDate.of(2026, 9, 2),
+        LocalDate.of(2026, 9, 2),
+        LocalDate.of(2026, 9, 2),
+        "PL123",
+        reference,
+        new BigDecimal(net),
+        new BigDecimal(vat),
+        new BigDecimal(deductible),
+        new AccountingFilingEvidence(AccountingFilingEvidence.Type.OFF, null),
+        treatment,
+        "PL",
+        rate == null ? null : new BigDecimal(rate));
   }
 
   private AccountingMonthSnapshot snapshot() {

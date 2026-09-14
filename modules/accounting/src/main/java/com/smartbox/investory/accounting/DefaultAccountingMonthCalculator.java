@@ -97,11 +97,7 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .multiply(HALF)
                 .setScale(2, RoundingMode.HALF_UP);
-    BigDecimal taxable =
-        revenue
-            .subtract(socialDeduction)
-            .subtract(healthDeduction)
-            .setScale(0, RoundingMode.HALF_UP);
+    BigDecimal totalDeductions = socialDeduction.add(healthDeduction);
     Map<BigDecimal, BigDecimal> buckets = new LinkedHashMap<>();
     BigDecimal effectiveRate = input.periodContext().ryczaltRate();
     if (input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
@@ -114,13 +110,6 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         issues.add(
             issue("UNSUPPORTED_RYCZALT_RATE", invoice.reference(), "Ryczalt rate is missing."));
       } else if (invoice.netAmount() != null) {
-        if (effectiveRate != null && invoice.ryczaltRate().compareTo(effectiveRate) != 0) {
-          issues.add(
-              issue(
-                  "RYCZALT_RATE_MISMATCH",
-                  invoice.reference(),
-                  "Invoice rate differs from the effective tax profile."));
-        }
         BigDecimal amount =
             "PLN".equals(invoice.currency())
                 ? invoice.netAmount()
@@ -132,17 +121,21 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         if (amount != null) buckets.merge(invoice.ryczaltRate(), amount, BigDecimal::add);
       }
     }
-    if (buckets.keySet().stream().anyMatch(rate -> rate.compareTo(new BigDecimal("0.12")) != 0)) {
-      issues.add(
-          issue("UNSUPPORTED_RYCZALT_RATE", null, "Only the 12% ryczalt rate is supported."));
-    }
     if (input.adjustments().revenueNetPln().signum() != 0) {
       buckets.merge(new BigDecimal("0.12"), input.adjustments().revenueNetPln(), BigDecimal::add);
     }
+    BigDecimal taxable = revenue.subtract(totalDeductions).setScale(0, RoundingMode.HALF_UP);
+    Map<BigDecimal, BigDecimal> taxableByRate = allocateDeductions(buckets, totalDeductions);
     BigDecimal tax =
-        taxable
-            .multiply(effectiveRate == null ? new BigDecimal("0.12") : effectiveRate)
-            .setScale(0, RoundingMode.HALF_UP);
+        taxableByRate.entrySet().stream()
+            .map(
+                entry ->
+                    entry
+                        .getValue()
+                        .setScale(0, RoundingMode.HALF_UP)
+                        .multiply(entry.getKey())
+                        .setScale(0, RoundingMode.HALF_UP))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal outputVat;
     BigDecimal deductible;
     if (input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION) {
@@ -298,6 +291,29 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         List.copyOf(issues));
   }
 
+  private Map<BigDecimal, BigDecimal> allocateDeductions(
+      Map<BigDecimal, BigDecimal> revenueByRate, BigDecimal deductions) {
+    Map<BigDecimal, BigDecimal> result = new LinkedHashMap<>();
+    BigDecimal totalRevenue =
+        revenueByRate.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal remaining = deductions;
+    int index = 0;
+    for (var entry : revenueByRate.entrySet()) {
+      BigDecimal allocation;
+      if (++index == revenueByRate.size()) {
+        allocation = remaining;
+      } else if (totalRevenue.signum() == 0) {
+        allocation = BigDecimal.ZERO;
+      } else {
+        allocation =
+            deductions.multiply(entry.getValue()).divide(totalRevenue, 2, RoundingMode.HALF_UP);
+        remaining = remaining.subtract(allocation);
+      }
+      result.put(entry.getKey(), entry.getValue().subtract(allocation));
+    }
+    return result;
+  }
+
   private BigDecimal missingCurrentZusAmount(String contribution, List<AccountingIssue> issues) {
     issues.add(
         issue(
@@ -387,6 +403,8 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         type.startsWith("MISSING_FX")
                 || type.startsWith("INVALID_VAT")
                 || type.startsWith("VAT_CLASSIFICATION")
+                || type.startsWith("MISSING_EFFECTIVE_TAX_PROFILE")
+                || type.startsWith("AMBIGUOUS_VAT_RATE")
             ? "BLOCKING"
             : "INCOMPLETE";
     return new AccountingIssue(type, severity, reference, message);

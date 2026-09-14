@@ -1324,7 +1324,7 @@ public class AccountingPocRepository {
   public List<AccountingVatTransaction> vatTransactionsForPeriod(long profileId, LocalDate period) {
     try {
       return jdbcTemplate.query(
-          "SELECT tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, vat_eu_number, vies_verified_at, vies_status, net_amount, vat_amount, deductible_vat, evidence FROM investory.accounting_vat_transaction WHERE profile_id = ? AND tax_period = ? ORDER BY id",
+          "SELECT tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, vat_eu_number, vies_verified_at, vies_status, net_amount, vat_amount, deductible_vat, evidence, vat_rate FROM investory.accounting_vat_transaction WHERE profile_id = ? AND tax_period = ? ORDER BY id",
           (rs, rowNum) ->
               new AccountingVatTransaction(
                   rs.getObject("tax_date", LocalDate.class),
@@ -1341,7 +1341,8 @@ public class AccountingPocRepository {
                   rs.getBigDecimal("net_amount"),
                   rs.getBigDecimal("vat_amount"),
                   rs.getBigDecimal("deductible_vat"),
-                  rs.getString("evidence")),
+                  rs.getString("evidence"),
+                  rs.getBigDecimal("vat_rate")),
           profileId,
           period);
     } catch (DataAccessException ignored) {
@@ -1375,7 +1376,8 @@ public class AccountingPocRepository {
         netAmount,
         vatAmount,
         deductibleVat,
-        evidence);
+        evidence,
+        null);
   }
 
   public void insertVatTransaction(
@@ -1391,13 +1393,14 @@ public class AccountingPocRepository {
       BigDecimal netAmount,
       BigDecimal vatAmount,
       BigDecimal deductibleVat,
-      String evidence) {
+      String evidence,
+      BigDecimal vatRate) {
     jdbcTemplate.update(
         """
         INSERT INTO investory.accounting_vat_transaction
           (profile_id,tax_period,tax_date,source_document_id,reference,direction,treatment,counterparty_country,
-           counterparty_tax_identifier,net_amount,vat_amount,deductible_vat,evidence)
-        SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?
+           counterparty_tax_identifier,net_amount,vat_amount,deductible_vat,evidence,vat_rate)
+        SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?
          WHERE NOT EXISTS (
            SELECT 1
              FROM investory.accounting_vat_transaction
@@ -1421,6 +1424,7 @@ public class AccountingPocRepository {
         vatAmount,
         deductibleVat,
         evidence,
+        vatRate,
         profileId,
         taxPeriod,
         sourceDocumentId,

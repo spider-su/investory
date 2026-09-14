@@ -23,6 +23,7 @@ public record StagedInvoice(
     BigDecimal vatDeductionRatio,
     BigDecimal deductibleVat,
     String vatTreatment,
+    BigDecimal vatRate,
     String ksefNumber,
     StagingReconciliationStatus status,
     java.util.List<String> reasonCodes,

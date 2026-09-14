@@ -65,6 +65,7 @@ public class AccountingStagingRepository {
         deductionRatio,
         deductibleVat,
         vatTreatment,
+        null,
         ksefNumber);
   }
 
@@ -89,13 +90,59 @@ public class AccountingStagingRepository {
       BigDecimal deductibleVat,
       String vatTreatment,
       String ksefNumber) {
+    return insertInvoice(
+        profileId,
+        taxPeriod,
+        sourceId,
+        sourceType,
+        sourceReference,
+        documentKind,
+        documentDate,
+        dueDate,
+        reference,
+        counterpartyName,
+        counterpartyTaxIdentifier,
+        counterpartyCountry,
+        currency,
+        net,
+        vat,
+        gross,
+        deductionRatio,
+        deductibleVat,
+        vatTreatment,
+        null,
+        ksefNumber);
+  }
+
+  public long insertInvoice(
+      long profileId,
+      LocalDate taxPeriod,
+      long sourceId,
+      String sourceType,
+      String sourceReference,
+      String documentKind,
+      LocalDate documentDate,
+      LocalDate dueDate,
+      String reference,
+      String counterpartyName,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String currency,
+      BigDecimal net,
+      BigDecimal vat,
+      BigDecimal gross,
+      BigDecimal deductionRatio,
+      BigDecimal deductibleVat,
+      String vatTreatment,
+      BigDecimal vatRate,
+      String ksefNumber) {
     jdbc.update(
         """
         INSERT INTO investory.accounting_tmp_invoice
           (profile_id,tax_period,source_id,source_type,source_reference,document_kind,document_date,due_date,
            reference,counterparty_name,counterparty_tax_identifier,counterparty_country,currency,
-           net_amount,vat_amount,gross_amount,vat_deduction_ratio,deductible_vat,vat_treatment,ksef_number)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+           net_amount,vat_amount,gross_amount,vat_deduction_ratio,deductible_vat,vat_treatment,vat_rate,ksef_number)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT (profile_id, source_id, reference) DO NOTHING
         """,
         profileId,
@@ -117,6 +164,7 @@ public class AccountingStagingRepository {
         deductionRatio,
         deductibleVat,
         vatTreatment,
+        vatRate,
         ksefNumber);
     return jdbc.queryForObject(
         "SELECT id FROM investory.accounting_tmp_invoice WHERE profile_id = ? AND source_id = ? AND reference = ? ORDER BY id DESC LIMIT 1",
@@ -240,6 +288,7 @@ public class AccountingStagingRepository {
                 rs.getBigDecimal("vat_deduction_ratio"),
                 rs.getBigDecimal("deductible_vat"),
                 rs.getString("vat_treatment"),
+                rs.getBigDecimal("vat_rate"),
                 rs.getString("ksef_number"),
                 status(rs.getString("reconciliation_status")),
                 strings(rs.getArray("reconciliation_reason_codes")),

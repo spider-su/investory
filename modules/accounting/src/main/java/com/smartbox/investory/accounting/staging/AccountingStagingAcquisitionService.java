@@ -47,6 +47,35 @@ public class AccountingStagingAcquisitionService {
             : null;
     boolean creditNote = "CREDIT_NOTE".equals(invoice.documentType());
     var sign = creditNote ? java.math.BigDecimal.ONE.negate() : java.math.BigDecimal.ONE;
+    var net = (normalized == null ? invoice.netAmount() : normalized.netAmount()).multiply(sign);
+    var vat = (normalized == null ? invoice.vatAmount() : normalized.vatAmount()).multiply(sign);
+    var gross =
+        (normalized == null ? invoice.grossAmount() : normalized.grossAmount()).multiply(sign);
+    var deductionRatio = normalized == null ? null : normalized.vatDeductionRatio();
+    var deductibleVat = normalized == null ? null : normalized.deductibleVat();
+    if (invoice.vatRate() == null) {
+      return repository.insertInvoice(
+          profileId,
+          invoice.taxPeriod(),
+          sourceId,
+          invoice.ksefNumber() == null ? "UPLOAD" : "KSEF",
+          invoice.ksefNumber() == null ? invoice.sourceIdentity() : invoice.ksefNumber(),
+          expense ? "EXPENSE" : invoice.documentType(),
+          expense ? first(invoice.issueDate(), invoice.saleDate()) : invoice.issueDate(),
+          invoice.dueDate(),
+          invoice.reference().trim(),
+          invoice.counterpartyAlias().trim(),
+          invoice.counterpartyTaxIdentifier(),
+          invoice.counterpartyCountry(),
+          invoice.currency().trim().toUpperCase(),
+          net,
+          vat,
+          gross,
+          deductionRatio,
+          deductibleVat,
+          treatment.name(),
+          invoice.ksefNumber());
+    }
     return repository.insertInvoice(
         profileId,
         invoice.taxPeriod(),
@@ -61,12 +90,13 @@ public class AccountingStagingAcquisitionService {
         invoice.counterpartyTaxIdentifier(),
         invoice.counterpartyCountry(),
         invoice.currency().trim().toUpperCase(),
-        (normalized == null ? invoice.netAmount() : normalized.netAmount()).multiply(sign),
-        (normalized == null ? invoice.vatAmount() : normalized.vatAmount()).multiply(sign),
-        (normalized == null ? invoice.grossAmount() : normalized.grossAmount()).multiply(sign),
-        normalized == null ? null : normalized.vatDeductionRatio(),
-        normalized == null ? null : normalized.deductibleVat(),
+        net,
+        vat,
+        gross,
+        deductionRatio,
+        deductibleVat,
         treatment.name(),
+        invoice.vatRate(),
         invoice.ksefNumber());
   }
 

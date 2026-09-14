@@ -58,7 +58,8 @@ public class AccountingStagingPromotionService {
                   : new com.smartbox.investory.accounting.AccountingFilingEvidence(
                       com.smartbox.investory.accounting.AccountingFilingEvidence.Type.KSEF,
                       row.ksefNumber()),
-              row.dueDate());
+              row.dueDate(),
+              row.vatRate());
       invoiceIngestion.ingest(profileId, invoice);
       canonicalRepository.insertVatTransaction(
           row.profileId(),
@@ -77,7 +78,8 @@ public class AccountingStagingPromotionService {
           row.documentKind().equals("EXPENSE")
               ? java.util.Objects.requireNonNullElse(row.deductibleVat(), java.math.BigDecimal.ZERO)
               : java.math.BigDecimal.ZERO,
-          "STAGED_SOURCE:" + row.sourceId());
+          "STAGED_SOURCE:" + row.sourceId(),
+          row.vatRate());
       repository.promoted(row.profileId(), "invoice", row.id(), repository.canonicalInvoiceId(row));
       invoices++;
     }

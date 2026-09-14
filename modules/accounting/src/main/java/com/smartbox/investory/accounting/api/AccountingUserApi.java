@@ -233,5 +233,47 @@ public interface AccountingUserApi {
       BigDecimal vatDeductionRatio,
       String vatTreatment,
       String note,
-      YearMonth taxPeriod) {}
+      YearMonth taxPeriod,
+      BigDecimal vatRate) {
+    public ReviewedDocument(
+        String sourceReference,
+        String documentType,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        LocalDate dueDate,
+        String reference,
+        String counterpartyAlias,
+        String counterpartyTaxIdentifier,
+        String counterpartyCountry,
+        String category,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal vatDeductionRatio,
+        String vatTreatment,
+        String note,
+        YearMonth taxPeriod) {
+      this(
+          sourceReference,
+          documentType,
+          issueDate,
+          saleDate,
+          dueDate,
+          reference,
+          counterpartyAlias,
+          counterpartyTaxIdentifier,
+          counterpartyCountry,
+          category,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          vatDeductionRatio,
+          vatTreatment,
+          note,
+          taxPeriod,
+          null);
+    }
+  }
 }

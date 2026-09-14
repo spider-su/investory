@@ -340,6 +340,10 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public CandidateView recognize(long p, String filename, String contentType, byte[] content) {
     profile(p);
+    if (p != 1L) {
+      throw new IllegalArgumentException(
+          "Document recognition is certified only for the primary Accounting profile.");
+    }
     long id = sources.receiveUpload(p, filename, contentType, content);
     try {
       if (sources.status(id) == AccountingSourceStatus.FAILED) sources.retry(id);
@@ -441,7 +445,8 @@ public class AccountingUserFacade implements AccountingUserApi {
                   ? new AccountingFilingEvidence(
                       AccountingFilingEvidence.Type.KSEF, source.externalReference())
                   : null,
-              d.dueDate()),
+              d.dueDate(),
+              d.vatRate()),
           normalizeVatTreatment(d.documentType(), d.vatTreatment()));
       // Staging is intentionally not reported as canonical IMPORTED data.
     } catch (RuntimeException exception) {

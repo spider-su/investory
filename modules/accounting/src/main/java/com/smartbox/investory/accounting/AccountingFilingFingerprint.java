@@ -56,6 +56,8 @@ public final class AccountingFilingFingerprint {
                     .append('|')
                     .append(d.deductibleVat())
                     .append('|')
+                    .append(d.vatRate())
+                    .append('|')
                     .append(d.treatment())
                     .append('|')
                     .append(d.counterpartyCountry())
