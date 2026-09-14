@@ -1,5 +1,106 @@
 # Accounting Polishing Roadmap
 
+
+found three more bugs doing it. Sources at the end.
+
+1. The 2026 amounts — all correct ✓
+code	law	
+FULL_JDG_SOCIAL = 1788.29	duży ZUS, social without chorobowe	✓
+HEALTH_LOW = 498.35	≤ 60 000 zł, 60% × 9 228,64	✓
+HEALTH_MEDIUM = 830.58	60 000,01–300 000, 100%	✓
+HEALTH = 1495.04	> 300 000, 180%	✓
+thresholds 60 000 / 300 000	✓	
+compareTo(60000) <= 0 → LOW	"do 60 000 zł"	✓ boundary right
+
+But verifying these surfaced three new defects:
+
+1a. Fundusz Pracy is deducted and must not be. FULL_JDG_SOCIAL = 1788.29 includes FP+FS of 138,47 zł. PaidContribution is built with deductibleAmount = obligation.social() — the full 1788,29 — at AccountingPocRepository:1056. FP/FS obligation arises under ustawa o promocji zatrudnienia, not ustawa o systemie ubezpieczeń społecznych, so it falls outside art. 26 ust. 1 pkt 2 and is not deductible from przychód. On ryczałt there is no alternative route either, since there are no costs.
+
+Impact: over-deduction of 138,47 zł/month → 1 661,64 zł/year → roughly 199 zł/year of understated tax at 12%.
+
+The fix is cheap because the model already anticipated it: PaidContribution has separate paidAmount and deductibleAmount fields. Split the constant into SOCIAL_INSURANCE = 1649.82 and LABOUR_FUND = 138.47; pay the sum, deduct only the first.
+
+1b. voluntarySickness is ignored, and it is worth 138,47 zł/month. Social with chorobowe is 1 926,76 zł. ZusCalculator.Input accepts the flag and never reads it, so anyone carrying sickness insurance has their ZUS obligation understated by exactly that amount.
+
+1c. Band change timing is wrong. Law: crossing a threshold changes the band in the month following the crossing. ZusRules2026.healthBand(ytdRevenue) applies it in the crossing month itself. One month early, once or twice a year.
+
+1d. The YTD window is hardcoded to 2026.
+
+WHERE profile_id = ? AND tax_period >= DATE '2026-01-01' AND tax_period <= ?
+
+AccountingPocRepository:485. In January 2027 this still accumulates from January 2026, so the health band is computed on 24 months of revenue.
+
+2. Health band base — the code is wrong ✗
+
+Law: the threshold uses roczny przychód pomniejszony o zapłacone składki społeczne.
+
+Code: yearToDateRevenue is SUM(COALESCE(booked_net_pln, net_amount)) — gross przychód, no reduction.
+
+At roughly 1 650 zł/month of deductible social, the two bases diverge by about 19 800 zł a year. Immaterial mid-band; decisive if annual revenue lands near 60 000 or 300 000, where it moves the monthly contribution by 332 zł or 664 zł.
+
+3. Rounding — the code is right ✓ (one small deviation)
+
+Confirmed sequence under art. 11 ust. 3 + art. 63 Ordynacji:
+
+split revenue by rate
+allocate deductions proportionally (klucz przychodowy)
+round each rate's base to full złoty separately
+base × rate
+sum, round the payable
+
+Your allocateDeductions implements step 2 correctly, and per-rate base rounding at step 3 is explicitly right — "zaokrągla się osobno dla każdej stawki".
+
+The one deviation: the code rounds each rate's tax before summing, rather than summing then rounding. Since declaration positions are themselves per-rate, this is arguable rather than clearly wrong — but make it a deliberate, commented choice. Max divergence is under a złoty per rate.
+
+Bonus confirmation for the carry-forward gap: "nieodliczona część przechodzi do rozliczenia w kolejnych miesiącach roku." Unused deductions carry forward within the tax year. Note your AccountingYearToDateContext already declares deductionsAlreadyConsumed — and nothing ever reads it. The intent was there; the wiring is not.
+
+4. Corrections — the code is wrong by default ✗
+
+Art. 14 ust. 1m, applied to ryczałt:
+
+cause	period
+błąd rachunkowy / oczywista omyłka	retroactive — the original invoice's period
+anything else (zwrot, rabat, skonto, renegotiation)	current — the period the correcting invoice was issued
+
+Code books a CREDIT_NOTE to the staged taxPeriod, which is whatever month the UI had selected. It has no concept of the cause, and no corrects_document_id.
+
+Practical guidance is to default to the issue date when in doubt, so:
+
+default tax_period = the correction's own issue date
+add a correction_cause ∈ (ERROR, COMMERCIAL) flag; ERROR reassigns to the corrected document's period
+excess correction beyond revenue at that rate carries to later periods within the same rate
+
+Your fixture sits right on this. FK 1/2026 is issued in July against FV 4/2026 booked to June. The golden figure books it in July (EXPECTED_REVENUE_PLN 2026-07 = 49 008,87, noted "including July correction") — but the schema stores it as correction_* columns on the June invoice row. The data model and the golden disagree about the period. The corrects_document_id design already proposed resolves this.
+
+Revised fix list
+#	fix	impact
+1a	exclude FP/FS from deductibleAmount	~199 zł/yr understated tax
+2	health band base = przychód − paid social	wrong band near thresholds
+1d	derive the YTD window from the period's year	wrong band from 2027
+1b	read voluntarySickness	138,47 zł/mo understated ZUS
+1c	band changes the month after crossing	one month early
+—	carry unused deductions forward; floor tax at zero	wire up deductionsAlreadyConsumed
+4	correction period from issue date + cause flag	wrong month
+3	comment the per-rate tax rounding choice	under 1 zł
+
+1a and 2 are the two that change money every month. Both are small, contained changes.
+
+Get 1a and 4 sanity-checked by an advisor before shipping — 1a because it changes a number you have been filing, and 4 because the error/commercial distinction is judgement, not arithmetic.
+
+Sources:
+
+Składka zdrowotna 2026 – ryczałt (Symfonia)
+Składka zdrowotna ryczałtowców w 2026 (Poradnik Przedsiębiorcy)
+Składki ZUS 2026 (ifirma)
+Ryczałt: odliczenia gdy różne stawki (eGospodarka)
+Zaokrąglanie podatków i składek ZUS
+Składka na Fundusz Pracy a ryczałt (Streamsoft)
+Faktura korygująca a przychody (Taxe.pl)
+Moment rozliczenia faktury korygującej (Prawo.pl)
+
+
+
+
 Base: `develop`
 
 
