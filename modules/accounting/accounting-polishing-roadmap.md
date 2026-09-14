@@ -237,3 +237,143 @@ Steps 3–6 all hinge on one answer: can a single invoice carry more than one VA
 Me recommend yes — JPK_V7M is built for it, and your own fixtures already mix 8% fuel with 23% services across the same month. If you say no, keep the VAT columns on the header, skip the line table, and the target is 8 tables instead of 9 — but then fix the JPK generator to reject mixed-rate input loudly rather than emitting a row with no K_ columns.
 
 Want me draft steps 1 and 2 as actual migrations? Those are pure cleanup, need no product decision, and clear ~50 columns before the interesting work starts.
+
+Correction to my earlier count: with document_vat_line the target is 10 tables, not 9 — 15 → 10, ~190 → ~125 columns.
+
+Arrows drawn are the real foreign keys: source_evidence → document and → bank_transaction (both source_id), and document → document_vat_line (document_id).
+
+Not drawn, to keep it readable:
+
+document.corrects_document_id → document.id — self-reference, a korygująca pointing at what it corrects
+document.counterparty_id → known_counterparty.id
+every profile_id → portfolios.id
+
+The period-and-filing tier has no FK to document on purpose. Those three are keyed by (profile_id, tax_period) and relate to the facts only through the period. That is already how the code works; the diagram just makes it explicit.
+
+Old → new
+today	becomes
+accounting_poc_invoice + accounting_poc_expense_invoice	document (direction discriminator)
+accounting_poc_invoice.correction_* + the SALES_CORRECTION row in accounting_poc_fact	document row with kind = 'CORRECTION' + corrects_document_id
+accounting_vat_transaction	document_vat_line (+ VIES fields → known_counterparty)
+accounting_tmp_invoice / accounting_tmp_bank_transaction	document.stage / bank_transaction.stage column
+accounting_poc_profile.has_uop, tax_profile_period.jdg_active	derived from employment_period
+accounting_poc_fact, _obligation, _tax_input	retired (self-declared legacy)
+accounting_poc_period_state	period_state, PK unchanged
+
+Four tables vanish by merging, three by retirement, two by becoming a column.
+
+What the shape buys
+document_vat_line with UNIQUE (document_id, treatment, vat_rate) replaces the Java DUPLICATE_VAT_CLASSIFICATION check and unblocks mixed-rate invoices — which JPK_V7M expects, since one <SprzedazWiersz> can fill K_15/K_16 and K_19/K_20 together.
+CHECK (vat_rate IN (0,5,8,23)) closes the hole where an unsupported rate produces a sales row with no K_ columns.
+CHECK (deductible_vat <= vat_amount) moves INVALID_DEDUCTIBLE_VAT into the database.
+One document table deletes the -r.id() negation in AccountingUserFacade:267 and the two-FK provenance on the VAT table.
+employment_period as sole source removes a contradiction that can change the tax through qualifyingUop.
+
+Want me draft the DDL migrations for the retirement steps (1 and 2 from the plan)? Those need no product decision.
+
+explain domain entities we should have
+
+Different layer from the tables. Here what the domain model should be — grounded in what your code already almost does.
+
+Context boundary
+
+Accounting owns: Polish JDG tax compliance — ryczałt PIT, VAT/JPK_V7M, ZUS. It does not own portfolio valuation, FX rate sourcing, or bank transport. Those are upstream suppliers it consumes through ports (CurrencyConversion, BankTransactionSource, AccountingKsefSyncPort) — that part you already got right.
+
+The aggregates
+
+An aggregate is a consistency boundary: the set of things that must change in one transaction and that share invariants. Your current pain is that you have tables but no aggregates, so invariants leak into whichever service happened to touch the row.
+
+1. SourceEvidence — raw immutable payload
+
+Root, no children. Invariant: payload, hash and identity never change after creation; only processingStatus moves. Already enforced in the database by prevent_accounting_source_mutation and prevent_accounting_source_delete. This one is genuinely modelled. Leave it.
+
+2. Document — invoice, expense or correction, with VatLine children
+Document (root)
+ ├─ direction, kind, taxPeriod, reference
+ ├─ counterparty, sourceEvidenceId
+ ├─ corrects → DocumentId
+ └─ VatLine[]  (treatment, vatRate, net, vat, deductibleVat)
+
+Invariants that must hold atomically:
+
+net + vat = gross
+Σ lines.net = header.net, Σ lines.vat = header.vat
+direction constrains legal treatments (a SALE cannot be IMPORT_OF_SERVICES_EU)
+deductibleVat ≤ vat per line
+kind = CORRECTION ⟹ corrects is present
+no two lines share (treatment, vatRate)
+
+Every one of those rules exists in your code today — scattered across AccountingStagingAcquisitionService.validate(), DefaultAccountingMonthCalculator.validateVatInputs(), and AccountingVatClassifier.issues(). Three places, three phases, inconsistently applied. That scattering is the missing aggregate. A document that cannot be constructed in an invalid state removes all three.
+
+This is also where the multi-rate question resolves: VatLine is a child entity, not a separate aggregate, precisely because its consistency is only meaningful relative to its document header.
+
+3. BankTransaction — observed cash
+
+Separate root, deliberately not inside Document. Cash is observed independently of documents, arrives out of order, and may match nothing. Reconciliation is a relationship between two aggregates, not a parent-child link. Your architecture doc already states this ("Bank cash can expose a difference … but never mutates a calculated accounting value") — the model should say it too.
+
+4. AccountingPeriod — the month
+
+Root holding lifecycleStatus, confirmedAt, confirmedCalculationHash, reopenedAt, reopenReason. Invariants: only legal transitions; LOCKED requires explicit reopen; cannot confirm with blocking issues.
+
+Today those rules live in AccountingPeriodLifecycle (a stateless helper) while the state lives in AccountingPocRepository, and AccountingFilingService bypasses the helper for markFiled, settle and lock — which is exactly why those still throw raw IllegalStateException and surface as HTTP 500. An aggregate with the state and the transition rules in the same object makes bypassing it impossible.
+
+5. FilingArtifact — the JPK output
+
+Separate root, immutable once generated, carrying the calculationFingerprint that produced it. Separate from AccountingPeriod because artifacts accumulate over regenerations and must never be rewritten.
+
+6. AuthorityConfirmation — external evidence
+
+Separate root, immutable, idempotent on external identity. Fix the polymorphic obligation_or_artifact_type here: it is really two subtypes — confirmation of a filing and confirmation of a posting/payment.
+
+7. TaxProfile and EmploymentTimeline — effective-dated configuration
+
+Temporal aggregates. TaxProfile carries ryczałt rate, VAT registration, VAT-EU, ZUS regime, voluntary sickness. EmploymentTimeline carries UOP/JDG periods and is the sole answer to "does a qualifying UoP exist" — deleting has_uop and jdg_active removes a contradiction that today can change the tax through qualifyingUop.
+
+8. Counterparty — identity and VIES state
+
+Root. VIES verification is a property of the counterparty, not of each document, so viesStatus / viesVerifiedAt / vatEuNumber belong here rather than copied onto every VAT row.
+
+The value objects — your biggest gap
+
+Everything below is a bare BigDecimal or String today:
+
+value object	today	what it costs you
+Money(amount, currency)	naked BigDecimal	PaymentSummary.totalOutstanding reduces over payments with no currency guard, and you handle EUR
+TaxPeriod	LocalDate first-of-month	date(month) conversions scattered through the facade; YearMonth at the API, LocalDate below
+VatRate	BigDecimal, unconstrained	unsupported rate silently produces a sales row with no K_ columns
+RyczaltRate	BigDecimal	NUMERIC(8,5) vs NUMERIC(7,4) in two tables
+Nip / VatEuNumber	String	normalization done ad hoc — V01.018 does UPPER(REGEXP_REPLACE(…,'[^[:alnum:]]','')) in SQL, nowhere in Java
+CalculationFingerprint	String	nullable in two tables
+DocumentReference	String	trimming done at three call sites
+
+Money alone is worth doing first. It is the single most-repeated concept in the module and the only one where a silent wrong answer is currently possible.
+
+What should not be an entity
+
+Obligation is a computed value object. accounting_poc_obligation is a table, but the RYCZALT/VAT/ZUS amounts are derived from the calculation. Your own code already knows this — AccountingFilingService.payableObligations(snapshot) builds them on the fly, while the table's own comment says "Historical/golden obligation rows retained for compatibility, not new operational ingestion." Two sources of truth for the same number. Persist only the evidence (bank transaction, authority confirmation); compute the obligation.
+
+MonthSnapshot / Readiness / ReconciliationRow are read models, not domain objects. AccountingMonthSnapshot currently mixes calculation, historical comparison, reconciliation and presentation — your architecture doc flags this as the TARGET refactor already.
+
+One caveat, and it cuts the other way: the calculation result should be persisted as an immutable record when a period is confirmed. Right now you store a fingerprint of a number you never stored, so you can detect drift but cannot show what was actually filed. For a tax system that is the wrong trade. Your roadmap already lists this as "reassess whether calculated month snapshots should be persisted" — me would say yes, and make it a first-class ConfirmedCalculation record keyed by fingerprint.
+
+Domain services
+
+Stateless, span aggregates, hold no data:
+
+MonthCalculator — already pure and repository-free. Your best-designed class. Keep it exactly as it is.
+Reconciler — BankTransaction ↔ Document / obligations
+JpkProjector — AccountingPeriod + Document[] → FilingArtifact. Pure projection, no recalculation (your doc already mandates this)
+ZusPolicy — versioned rules. Currently ZusRules2026 hardcodes 2026 constants in Java while TaxProfile is effective-dated in the database; the rules should be effective-dated the same way.
+Where invariants live today vs where they belong
+invariant	today	belongs to
+net + vat = gross	AccountingStagingAcquisitionService	Document
+deductible ≤ vat	DefaultAccountingMonthCalculator	VatLine
+one treatment per document	DUPLICATE_VAT_CLASSIFICATION in the calculator	Document uniqueness on (treatment, vatRate)
+treatment legal for direction	AccountingStagingAcquisitionService	Document
+VIES verified for reverse charge	AccountingVatClassifier	Counterparty
+legal lifecycle transition	AccountingPeriodLifecycle, bypassed by AccountingFilingService	AccountingPeriod
+qualifying UoP	three tables	EmploymentTimeline
+
+The pattern is consistent: validation currently happens at the phase that noticed it, not at the object that owns it. That is why the same rule gets re-checked in staging, in promotion and in calculation — with different strictness each time, which is how MISSING_EXPLICIT_VAT_RATE ended up blockable by a form that cannot supply the field.
+
+Me suggest one concrete first step: build Document + VatLine as a real aggregate with a constructor that refuses invalid state, and have AccountingStagingAcquisitionService construct it instead of validating a parameter list. That single change consolidates six scattered rules, and it is the prerequisite for the accounting_document table anyway.
