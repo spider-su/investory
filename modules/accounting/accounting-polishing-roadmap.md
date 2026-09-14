@@ -377,3 +377,69 @@ qualifying UoP	three tables	EmploymentTimeline
 The pattern is consistent: validation currently happens at the phase that noticed it, not at the object that owns it. That is why the same rule gets re-checked in staging, in promotion and in calculation — with different strictness each time, which is how MISSING_EXPLICIT_VAT_RATE ended up blockable by a form that cannot supply the field.
 
 Me suggest one concrete first step: build Document + VatLine as a real aggregate with a constructor that refuses invalid state, and have AccountingStagingAcquisitionService construct it instead of validating a parameter list. That single change consolidates six scattered rules, and it is the prerequisite for the accounting_document table anyway.
+
+What me changed and why
+
+The answer comes first, not last. Today "10 843 zł" is buried in a metric row below three cards, unformatted (10843.0000). A sole trader opens this page to learn one thing: what do I owe, by when. Put it at the top, formatted, with the deadline.
+
+14 buttons → 1 at a time. The lifecycle OPEN → CONFIRMED → FILED → PAID → SETTLED → LOCKED is your state machine, not the user's mental model. Theirs is: is it all in → is anything wrong → approve → pay. Four steps, only the live one expanded, the rest collapsed with a lock and a one-line reason. overview.allowedActions already computes this — the page just has to obey it instead of rendering every form and hiding some with th:if.
+
+"Reconcile" and "Promote ready data" disappear. Those are pipeline stages. Run reconcile automatically on every import; promote implicitly when the queue is empty. Only ever surface the MISMATCH and AMBIGUOUS rows — those are the only ones a human can help with. NEW rows promoting themselves is not a loss of control, because nothing reaches canonical without the user having answered whatever was ambiguous about it.
+
+The 13-field review form becomes one question at a time. Your extractor already produces a candidate with confidence. Prefill everything; ask only what it could not determine. Most documents need zero questions. A fuel invoice needs one. Framed as a plain question — "Is this fuel for the business car?" — with three tappable answers, not a vatDeductionRatio numeric input where the user must know that 0.50 means mixed use.
+
+This also fixes the bug me found: vatRate and counterpartyCountry are required by validateDocument but absent from the form. In a question-per-unknown model they cannot go missing, because the form is generated from what the validator still needs.
+
+"Settle" and "Lock" stop being buttons. Both are already evidence-derived — markPaid looks for a matching bank payment, settle looks for an authority posting. When the evidence arrives, advance automatically and tell the user. Asking someone to press "Settle month" after the money already left their account is asking them to do the system's bookkeeping.
+
+Jargon table:
+
+today	proposed
+Promote ready data / Reconcile	(gone — automatic)
+Confirm month	Approve
+Generate JPK_V7M / Record UPO	Approve and file
+Record filing / Settle month / Lock month	(gone — evidence-driven)
+Sync KSeF / Sync sales / Review third-party	Add more
+Reference check	(moved to admin)
+
+Reference check leaves the user UI. It compares against the golden oracle. That is a developer regression tool — valuable, but it belongs behind an admin flag, not on the page a taxpayer uses.
+
+What the backend needs
+
+Mostly nothing new — mostly less:
+
+overview.allowedActions drives which step is open. Already exists.
+An issues list where each entry carries a question, options, and the field it sets. Today IssueView is (code, severity, title, message, sourceReference) — a message, not an action. This is the one real addition.
+Auto-reconcile on import; drop POST /staging/reconcile and /staging/promote from the UI surface.
+Auto-advance on evidence for PAID and SETTLED.
+Money with currency on every API field, formatted server-side or with Intl.NumberFormat('pl-PL').
+
+Item 2 is where the design lives. If an issue cannot state itself as a question with answers, it is not ready to show a user — and that constraint will improve the issue set itself.
+
+The 5-minute test
+
+Open → read the number → answer two questions → Approve → copy three account numbers. Nothing else on screen unless asked for. The collapsed "Documents, bank lines, JPK file" row keeps every current view reachable for the one month in twenty when someone needs to dig.
+
+Want me write the Thymeleaf for the step-based page, or spec the IssueView → question model first? Me would do the question model first — it is the load-bearing piece.
+
+visualize the page
+
+Used visualize: show widget
+
+Click the three buttons to walk the month.
+
+What stays constant — the header. Month, deadline, one big number, three tax cards. Same position in every state, so the user always knows where to look. In state 3 the number and label change ("left to pay") but the layout does not move.
+
+What changes — exactly one step is open. States 1 and 2 are the same page; the difference is that the question queue emptied, which unlocked approval. Nothing was navigated to.
+
+State 3 detail worth noting: the payment rows say "We'll tick these off when your bank shows them." That is markPaid doing its job in the background instead of asking the user to press "Settle month". The SETTLED and LOCKED states never appear as words — they happen.
+
+The mono-font account numbers with a copy button are the actual deliverable of the whole month for a sole trader. Today paymentInstructions already computes recipient, account and amount, and MISSING_PAYMENT_CONFIGURATION throws a 500 when the account is unset — worth turning into a one-time setup prompt instead.
+
+Three things this needs from the backend that do not exist yet:
+
+IssueView must carry a question plus answer options, not just a message string.
+Auto-reconcile on import, so "Reconcile" and "Promote" never appear.
+Money with currency, formatted pl-PL.
+
+Me can spec the IssueView question model next — it is the piece the whole design rests on.
