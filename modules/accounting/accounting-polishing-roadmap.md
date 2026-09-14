@@ -2,6 +2,51 @@
 
 Base: `develop`
 
+
+Phase 1 is not "fire the bookkeeper". It is "run in parallel."
+
+With KSeF issuing, PIT-28 and submission all in phase 2, you cannot cancel the contract at the end of phase 1 — and you should not want to. What you can do is run the app every month alongside your bookkeeper and compare the three numbers. Agreement for three to six consecutive months is what actually earns the right to drop them.
+
+That is the same practice as your reference oracle, extended from history to the present. Which means phase 1's success criterion is not "can I file with it" but:
+
+Every month, in under 5 minutes, it produces the same ryczałt / VAT / ZUS my bookkeeper does.
+
+Nice property: that is testable from month one, and it is exactly what the golden matrix already proves for Jan–Aug 2026.
+
+Phase 1 backlog
+
+Blockers — it cannot complete a month today
+
+vatRate and counterpartyCountry missing from review.html while validateDocument requires them. Any UI-reviewed domestic document blocks its month permanently. This is the one hard stop.
+Reconcile the schema snapshot against the migration chain — the snapshot has zero accounting_poc tables, the chain creates eleven. Until that is settled you cannot trust the fast test tier, and trust is the whole product.
+Floor ryczałt tax at zero. A low-revenue month with full ZUS currently yields a negative obligation.
+The last two IllegalStateException in AccountingFilingService (:296 readiness, :329 missing payment config) still surface as 500s.
+
+The actual phase 1 work
+
+IssueKind + Resolution — the question model, with the classification table. Additive, nothing breaks.
+Map the three issue producers onto it; add the answer endpoint and the "every Choice is answerable" test. That test is what structurally prevents blocker 1 recurring.
+The month page — four steps, one open, formatted pl-PL money.
+Auto-reconcile on import; drop "Reconcile" and "Promote" from the UI.
+Extend beyond 12%: delete the hardcoded bucket at DefaultAccountingMonthCalculator:125 and drive the rate from accounting_tax_profile_period.
+
+Cheap, do while you are in there
+
+Retire the four self-declared legacy tables — 38 columns, 7 read-only references.
+One money precision; created_at on the ledger.
+
+Item 9 is a one-liner and it is the difference between "my tool" and "a tool for IT JDGs on ryczałt". Worth doing in phase 1 even though nobody needs it yet.
+
+One thing you did not place
+
+Submission. You moved KSeF issuing, PIT-28 and multi-profile to phase 2 but did not mention it. Me would put it in phase 2 as well, and for a good reason: during a parallel run you must not submit — your bookkeeper is already filing. Manual download-and-upload is correct behaviour for phase 1, not a gap.
+
+Worth confirming that is your intent, because it changes whether phase 1 needs the JPK download path polished or merely working.
+
+What phase 1 explicitly does not include
+
+Multi-profile certification, staging pipeline simplification, the accounting_document merge, the VAT line model, API versioning, naming cleanup. All real, none of them block a parallel run by one user. The schema work in particular gets cheaper to defer, not more expensive, as long as you are the only user — which is the one time that is true.
+
 Me spec the question model. First let me inventory every issue the system can actually raise.
 
 Ran 2 commands
