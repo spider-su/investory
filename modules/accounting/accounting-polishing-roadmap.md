@@ -2,6 +2,108 @@
 
 Base: `develop`
 
+Me spec the question model. First let me inventory every issue the system can actually raise.
+
+Ran 2 commands
+
+Full vocabulary is 11 calculator types + 5 filing types + 13 staging reason codes + source states. Today all of them render identically — a <li> with title and message. So "set up your tax office code once" looks exactly like "is this fuel business use?".
+
+That is the actual problem. Here the spec.
+
+The three-way split
+kind	who can resolve it	where it shows	blocks?
+NEEDS_ANSWER	the user, right now, from the document	the question queue	yes
+SETUP	the user, once, in settings	one banner above the queue	yes, until done
+BLOCKED	nobody — data or system fault	collapsed "needs attention" list	yes
+INFO	nobody, no action needed	collapsed details	no
+
+Classifying the real codes:
+
+NEEDS_ANSWER — MISSING_VAT_CLASSIFICATION, MISSING_EXPLICIT_VAT_RATE, MISSING_COUNTERPARTY_IDENTIFIER, MISSING_JPK_EVIDENCE_CLASSIFICATION, SOURCE_REVIEW_REQUIRED (unknown direction), staging MULTIPLE_CANONICAL_MATCHES, all *_MISMATCH, unmatched bank line.
+
+SETUP — MISSING_TAXPAYER_CONFIGURATION, MISSING_PAYMENT_CONFIGURATION, MISSING_EFFECTIVE_TAX_PROFILE, MISSING_ZUS_RULE_INPUT. These are once-per-account, not once-per-month, and today they repeat every month forever.
+
+BLOCKED — MISSING_FX, INVALID_VAT_SIGN, INVALID_DEDUCTIBLE_VAT, INVALID_VAT_TRANSACTION, DUPLICATE_VAT_CLASSIFICATION, UNSUPPORTED_RYCZALT_RATE, SOURCE_FAILED.
+
+The contract
+record IssueView(
+    String id,
+    String code,
+    IssueKind kind,
+    String question,
+    String context,
+    SubjectRef subject,
+    Resolution resolution) {}
+
+enum IssueKind { NEEDS_ANSWER, SETUP, BLOCKED, INFO }
+
+record SubjectRef(String type, long id, String reference) {}
+
+sealed interface Resolution {
+  record Choice(String field, List<Option> options) implements Resolution {}
+  record Match(String field, List<Option> candidates) implements Resolution {}
+  record Setup(String settingsPath, String actionLabel) implements Resolution {}
+  record None(String why) implements Resolution {}
+}
+
+record Option(String value, String label, boolean recommended) {}
+
+Worked examples, straight from your current codes:
+
+new IssueView("a1f3", "MISSING_EXPLICIT_VAT_RATE", NEEDS_ANSWER,
+    "What VAT rate was on this invoice?",
+    "SalSoft · 366,54 zł · 29 May",
+    new SubjectRef("DOCUMENT", 412, "752/5/2026"),
+    new Choice("vatRate", List.of(
+        new Option("23", "23%", true),
+        new Option("8",  "8%",  false),
+        new Option("5",  "5%",  false),
+        new Option("0",  "0%",  false))));
+
+new IssueView("b7c2", "MISSING_PAYMENT_CONFIGURATION", SETUP,
+    "Add your ZUS payment account",
+    "Needed once, before the first payment",
+    null,
+    new Setup("/settings/taxpayer", "Add account"));
+
+new IssueView("d0e9", "MISSING_FX", BLOCKED,
+    "No exchange rate for 30 July",
+    "EU-SERVICE-2026-07 · 7 636,00 EUR",
+    new SubjectRef("DOCUMENT", 418, "EU-SERVICE-2026-07"),
+    new None("NBP rate for that date hasn't been published yet. Retry after 12:00."));
+One endpoint
+POST /api/v1/profiles/{profileId}/accounting/months/{month}/issues/{id}/answer
+{ "value": "23" }
+
+Returns the refreshed MonthOverview, so the UI re-renders the queue and the numbers in one round trip. No separate review page, no POST /documents with 18 fields.
+
+Four rules that make it hold
+
+1. A Choice must be answerable. The field it names has to be a real, settable field on its subject. Enforce with a test that walks every Resolution.Choice the system can emit and asserts the answer endpoint accepts that field. This is what structurally prevents the current bug where validateDocument demands vatRate and the form has no input for it.
+
+2. Stable ids across recomputation. id = hash(code + subject.reference). Answering issue 3 must not renumber issues 4 and 5 under the user's cursor.
+
+3. Only NEEDS_ANSWER, SETUP and BLOCKED gate the step. Today allowedActions returns List.of() if any issue exists — which is why one stale source could freeze every month. INFO must never block.
+
+4. SETUP deduplicates to one banner. Not one row per affected document.
+
+What it replaces
+
+AccountingUserFacade.issues() currently concatenates three differently-shaped lists and stringly-types the severity. It becomes one mapper per source with an explicit classification table — which also gives you somewhere to put title(), currently code.replace('_',' '), i.e. the user reads MISSING EXPLICIT VAT RATE.
+
+Staging rows stop being a table. A MULTIPLE_CANONICAL_MATCHES row becomes a Match question with the candidate invoices as options; a clean NEW row becomes nothing at all, because it promotes itself.
+
+Me can implement this now. Suggested order:
+
+IssueKind + Resolution in AccountingUserApi, with the classification table
+Map the existing three producers onto it, no behaviour change yet
+The answer endpoint + the Choice-is-answerable test
+Then the UI, which becomes mostly a loop over overview.issues
+
+Step 1 and 2 are additive and safe — nothing breaks while the old message field stays. Say the word and me start there.
+
+
+
 Purpose: post-POC-freeze cleanup and architectural polishing. Items here are explicitly **not required to block the Accounting POC freeze** unless implementation work uncovers a correctness or data-safety defect.
 
 ## Architecture and module structure
