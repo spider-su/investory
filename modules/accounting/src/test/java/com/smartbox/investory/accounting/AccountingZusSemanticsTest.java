@@ -6,8 +6,10 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ComparisonRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
-import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ZusCalculation;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingFactRepository;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
+import com.smartbox.investory.accounting.service.AccountingFactService;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -65,12 +67,8 @@ class AccountingZusSemanticsTest {
                     LocalDate.of(2026, 2, 18),
                     "MATCHED",
                     "Historical qualifying-UoP health-only golden.")));
-    when(repository.taxInputsForPeriod(JANUARY))
-        .thenReturn(
-            List.of(
-                new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("1495.04"), "fixture"),
-                new TaxInputRow(
-                    "JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("1788.29"), "fixture")));
+    // ZUS must be calculated from the profile/rules. wFirma/ZUS evidence is comparison-only.
+    when(repository.taxInputsForPeriod(JANUARY)).thenReturn(List.of());
 
     return new AccountingFactService(factRepository, repository, fx).snapshot(JANUARY);
   }

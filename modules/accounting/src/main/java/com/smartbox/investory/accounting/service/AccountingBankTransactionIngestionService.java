@@ -1,5 +1,8 @@
-package com.smartbox.investory.accounting;
+package com.smartbox.investory.accounting.service;
 
+import com.smartbox.investory.accounting.*;
+import com.smartbox.investory.accounting.infrastructure.persistence.*;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
 import com.smartbox.investory.integrations.bank.ExternalBankTransaction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

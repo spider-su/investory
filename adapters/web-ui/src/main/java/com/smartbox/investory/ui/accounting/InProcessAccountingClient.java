@@ -87,6 +87,11 @@ public final class InProcessAccountingClient implements AccountingRestClient {
   }
 
   @Override
+  public KsefSyncResult reimportKsef(long p, YearMonth m) {
+    return user.reimportKsef(p, m);
+  }
+
+  @Override
   public KsefSyncResult syncKsefSeller(long p, YearMonth m) {
     return user.syncKsefSeller(p, m);
   }

@@ -421,8 +421,10 @@ class InvestmentDashboardFacadeTest {
 
     assertEquals(98.45, result.overview().totalProfit(), 0.001);
     assertEquals(7.25, result.overview().gainPct(), 0.001);
-    assertEquals(new BigDecimal("0.0725"), result.performance().summary().kpiReturn().value());
-    assertEquals(result.performance().summary().annualizedReturn(), profileKpi.annualizedReturn());
+    assertEquals(new BigDecimal("0.0725"), result.performance().summary().totalReturn().value());
+    assertEquals(
+        result.performance().summary().historicalAnnualizedReturn(),
+        profileKpi.historicalAnnualizedReturn());
     assertEquals(result.performance().summary().kpiStartDate(), profileKpi.startDate());
   }
 

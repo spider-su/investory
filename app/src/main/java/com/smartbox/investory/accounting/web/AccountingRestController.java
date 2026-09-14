@@ -191,6 +191,13 @@ public class AccountingRestController {
     return accounting.syncKsef(profileId, month);
   }
 
+  @PostMapping("/ksef/reimport")
+  public AccountingUserApi.KsefSyncResult reimportKsef(
+      @PathVariable long profileId, @RequestParam YearMonth month, Authentication a) {
+    write(profileId, a);
+    return accounting.reimportKsef(profileId, month);
+  }
+
   @PostMapping("/ksef/sync-seller")
   public AccountingUserApi.KsefSyncResult syncKsefSeller(
       @PathVariable long profileId, @RequestParam YearMonth month, Authentication a) {

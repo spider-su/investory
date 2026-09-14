@@ -32,7 +32,16 @@ class InvestmentProfileControllerTest {
     when(investment.loadPerformanceKpi(7L))
         .thenReturn(
             new InvestmentDashboardApi.PerformanceKpiView(
-                true, new BigDecimal("0.281"), "+28.1%", "2026-01-01"));
+                true,
+                new BigDecimal("0.173"),
+                "+17.3%",
+                "2026-01-01",
+                null,
+                "Unavailable",
+                new BigDecimal("0.281"),
+                "+28.1%",
+                null,
+                "Benchmark estimate"));
     when(investment.investmentResultYtd(7L))
         .thenReturn(
             new InvestmentDashboardApi.InvestmentResultView(

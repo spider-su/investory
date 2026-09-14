@@ -5,12 +5,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
-import com.smartbox.investory.accounting.AccountingPocRepository;
-import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.accounting.AccountingSourceType;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService.ReviewedInvoice;
+import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import com.smartbox.investory.integrations.ksef.KsefClient;
 import com.smartbox.investory.integrations.ksef.KsefClient.KsefAccess;
 import com.smartbox.investory.integrations.ksef.KsefEnvironment;

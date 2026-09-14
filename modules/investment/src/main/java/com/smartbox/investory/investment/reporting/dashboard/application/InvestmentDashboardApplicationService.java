@@ -32,28 +32,31 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
   public InvestmentDashboardApi.PerformanceKpiView loadPerformanceKpi(Long portfolioId) {
     requirePortfolio(portfolioId);
     var performanceKpi = dashboard.loadPerformanceKpi(portfolioId);
-    ReturnMetric annualized = performanceKpi.annualizedReturn();
-    boolean available = annualized.status() == ReturnMetric.Status.AVAILABLE;
-    String display =
+    ReturnMetric totalReturn = performanceKpi.totalReturn();
+    boolean available = totalReturn.status() == ReturnMetric.Status.AVAILABLE;
+    String totalReturnDisplay =
         available
-            ? DashboardPercentageFormatter.signedPercent(annualized.value().doubleValue() * 100)
+            ? DashboardPercentageFormatter.signedPercent(totalReturn.value().doubleValue() * 100)
             : "Unavailable";
-    ReturnMetric ytdReturn = performanceKpi.totalReturn();
+    ReturnMetric historical = performanceKpi.historicalAnnualizedReturn();
+    String historicalDisplay =
+        historical.status() == ReturnMetric.Status.AVAILABLE
+            ? DashboardPercentageFormatter.signedPercent(historical.value().doubleValue() * 100)
+            : "Unavailable";
+    String expectedDisplay =
+        performanceKpi.expectedAnnualReturn() == null
+            ? "Unavailable"
+            : DashboardPercentageFormatter.signedPercent(
+                performanceKpi.expectedAnnualReturn().doubleValue() * 100);
     return new InvestmentDashboardApi.PerformanceKpiView(
         available,
-        available ? annualized.value() : null,
-        display,
+        available ? totalReturn.value() : null,
+        totalReturnDisplay,
         performanceKpi.startDate(),
-        ytdReturn.status() == ReturnMetric.Status.AVAILABLE ? ytdReturn.value() : null,
-        performanceKpi.historicalAnnualizedReturn().status() == ReturnMetric.Status.AVAILABLE
-            ? performanceKpi.historicalAnnualizedReturn().value()
-            : null,
-        performanceKpi.historicalAnnualizedReturn().status() == ReturnMetric.Status.AVAILABLE
-            ? DashboardPercentageFormatter.signedPercent(
-                performanceKpi.historicalAnnualizedReturn().value().doubleValue() * 100)
-            : "Unavailable",
+        historical.status() == ReturnMetric.Status.AVAILABLE ? historical.value() : null,
+        historicalDisplay,
         performanceKpi.expectedAnnualReturn(),
-        display,
+        expectedDisplay,
         performanceKpi.historyYears(),
         performanceKpi.historyContext());
   }

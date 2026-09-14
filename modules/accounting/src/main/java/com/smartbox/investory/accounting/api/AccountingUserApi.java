@@ -35,6 +35,8 @@ public interface AccountingUserApi {
 
   KsefSyncResult syncKsef(long profileId, YearMonth month);
 
+  KsefSyncResult reimportKsef(long profileId, YearMonth month);
+
   KsefSyncResult syncKsefSeller(long profileId, YearMonth month);
 
   KsefSyncResult syncKsefThirdParty(long profileId, YearMonth month);
@@ -201,7 +203,33 @@ public interface AccountingUserApi {
       BigDecimal grossAmount,
       String currency,
       String status,
-      String sourceReference) {}
+      String sourceReference,
+      String counterparty,
+      String category,
+      LocalDate saleDate) {
+    public DocumentView(
+        long id,
+        String reference,
+        String direction,
+        LocalDate date,
+        BigDecimal grossAmount,
+        String currency,
+        String status,
+        String sourceReference) {
+      this(
+          id,
+          reference,
+          direction,
+          date,
+          grossAmount,
+          currency,
+          status,
+          sourceReference,
+          null,
+          null,
+          null);
+    }
+  }
 
   record BankTransactionView(
       long id,

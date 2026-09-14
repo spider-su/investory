@@ -2,14 +2,17 @@ package com.smartbox.investory.poc.accounting.ksef;
 
 import com.smartbox.investory.accounting.AccountingDateRules;
 import com.smartbox.investory.accounting.AccountingFilingEvidence;
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
-import com.smartbox.investory.accounting.AccountingPocRepository;
-import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.accounting.AccountingSourceType;
 import com.smartbox.investory.accounting.api.AccountingKsefSyncPort;
 import com.smartbox.investory.accounting.api.AccountingUserApi;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService.ReviewedInvoice;
+import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
+import com.smartbox.investory.accounting.staging.AccountingStagingAcquisitionService;
+import com.smartbox.investory.accounting.staging.AccountingStagingPromotionService;
+import com.smartbox.investory.accounting.staging.AccountingStagingReconciliationService;
 import com.smartbox.investory.integrations.ksef.KsefClient.KsefAccess;
 import com.smartbox.investory.integrations.ksef.KsefEnvironment;
 import java.nio.charset.StandardCharsets;
@@ -42,6 +45,9 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
   private final ObjectMapper objectMapper;
   private final AccountingSourceEvidenceService sourceEvidenceService;
   private final AccountingPocRepository canonicalRepository;
+  @Autowired private AccountingStagingAcquisitionService stagingAcquisition;
+  @Autowired private AccountingStagingReconciliationService stagingReconciliation;
+  @Autowired private AccountingStagingPromotionService stagingPromotion;
 
   @Autowired
   public KsefConnectionController(
@@ -167,6 +173,8 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
       List<String> numbers = new ArrayList<>();
       queryIncomingPages(access.accessToken(), cursor)
           .forEach(page -> numbers.addAll(extractKsefNumbers(page)));
+      queryPages(access.accessToken(), cursor, "Subject1")
+          .forEach(page -> numbers.addAll(extractKsefNumbers(page)));
       Set<String> uniqueNumbers = new LinkedHashSet<>(numbers);
       boolean alreadyLoaded =
           !uniqueNumbers.isEmpty() && uniqueNumbers.stream().allMatch(this::canonicalExists);
@@ -185,6 +193,200 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
         result.reviewRequired(),
         result.failed(),
         importSummary("KSeF sync finished", result));
+  }
+
+  @Override
+  public AccountingUserApi.KsefSyncResult syncAll(java.time.YearMonth startMonth) {
+    validateToken();
+    KsefAccess access = client.authenticateWithToken(environment, nip, token);
+    ImportResult result = new ImportResult(0, 0, 0, 0, 0);
+    java.time.YearMonth cursor = startMonth;
+    while (cursor != null && !cursor.isBefore(java.time.YearMonth.of(2000, 1))) {
+      Set<String> incoming = new LinkedHashSet<>();
+      queryIncomingPages(access.accessToken(), cursor)
+          .forEach(page -> incoming.addAll(extractKsefNumbers(page)));
+      Set<String> seller = new LinkedHashSet<>();
+      queryPages(access.accessToken(), cursor, "Subject1")
+          .forEach(page -> seller.addAll(extractKsefNumbers(page)));
+      Set<String> thirdParty = new LinkedHashSet<>();
+      queryPages(access.accessToken(), cursor, "Subject3")
+          .forEach(page -> thirdParty.addAll(extractKsefNumbers(page)));
+
+      Set<String> all = new LinkedHashSet<>(incoming);
+      all.addAll(seller);
+      all.addAll(thirdParty);
+      // A quiet current month is normal. Keep walking backwards; the stop condition is
+      // an already-loaded discovered set (or the bounded historical floor below).
+      if (all.isEmpty()) {
+        cursor = cursor.minusMonths(1);
+        continue;
+      }
+      boolean alreadyLoaded = all.stream().allMatch(this::canonicalExists);
+      result =
+          result.plus(
+              importIncomingInvoices(
+                  access.accessToken(), cursor.atDay(1), new ArrayList<>(incoming)));
+      result = result.plus(importSellerInvoices(access.accessToken(), seller));
+      result = result.plus(importThirdPartyEvidence(access.accessToken(), thirdParty));
+      if (alreadyLoaded) break;
+      cursor = cursor.minusMonths(1);
+    }
+    return new AccountingUserApi.KsefSyncResult(
+        "COMPLETED",
+        result.received(),
+        result.imported(),
+        result.duplicates(),
+        result.reviewRequired(),
+        result.failed(),
+        importSummary(
+            "KSeF history sync finished (sales, purchases, corrections, and third-party evidence)",
+            result));
+  }
+
+  /**
+   * Re-imports KSeF documents through source evidence -> staging -> reconciliation -> promotion.
+   */
+  @Override
+  public AccountingUserApi.KsefSyncResult reimport(java.time.YearMonth month) {
+    validateToken();
+    if (invoiceParser == null
+        || sourceEvidenceService == null
+        || stagingAcquisition == null
+        || stagingReconciliation == null
+        || stagingPromotion == null) {
+      return new AccountingUserApi.KsefSyncResult(
+          "NOT_SUPPORTED", 0, 0, 0, 0, 0, "Staging re-import is not configured.");
+    }
+    KsefAccess access = client.authenticateWithToken(environment, nip, token);
+    ImportResult result = new ImportResult(0, 0, 0, 0, 0);
+    Set<java.time.LocalDate> periods = new java.util.LinkedHashSet<>();
+    for (java.time.YearMonth cursor = month;
+        !cursor.isBefore(java.time.YearMonth.of(month.getYear(), 1));
+        cursor = cursor.minusMonths(1)) {
+      List<String> numbers = new ArrayList<>();
+      queryIncomingPages(access.accessToken(), cursor)
+          .forEach(page -> numbers.addAll(extractKsefNumbers(page)));
+      result =
+          result.plus(
+              reimportIncoming(
+                  access.accessToken(), cursor, new LinkedHashSet<>(numbers), periods));
+    }
+    periods.stream()
+        .sorted()
+        .forEach(
+            period -> {
+              stagingReconciliation.reconcile(1L, period);
+              stagingPromotion.promoteNew(1L, period);
+            });
+    return new AccountingUserApi.KsefSyncResult(
+        "COMPLETED",
+        result.received(),
+        result.imported(),
+        result.duplicates(),
+        result.reviewRequired(),
+        result.failed(),
+        importSummary("KSeF evidence-backed re-import finished", result));
+  }
+
+  private ImportResult reimportIncoming(
+      String accessToken,
+      java.time.YearMonth discoveryMonth,
+      Set<String> ksefNumbers,
+      Set<java.time.LocalDate> periods) {
+    int imported = 0;
+    int reviewRequired = 0;
+    int failed = 0;
+    for (String ksefNumber : ksefNumbers) {
+      try {
+        String xml = client.downloadInvoice(environment, accessToken, ksefNumber);
+        byte[] payload = xml.getBytes(StandardCharsets.UTF_8);
+        var invoice = invoiceParser.parse(payload);
+        long sourceId =
+            sourceEvidenceService.receiveKsef(1L, ksefNumber, invoice.issueDate(), payload);
+        sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
+        boolean sale = nip != null && nip.equals(invoice.sellerNip());
+        if (!isSupportedAutomaticType(invoice.invoiceType(), sale)
+            || (!sale && (invoice.category() == null || invoice.vatDeductionRatio() == null))) {
+          sourceEvidenceService.status(
+              sourceId,
+              AccountingSourceStatus.REVIEW_REQUIRED,
+              "KSeF document requires tax classification before staging");
+          reviewRequired++;
+          continue;
+        }
+        String counterparty =
+            sale
+                ? firstNonBlank(invoice.buyerName(), invoice.buyerNip())
+                : firstNonBlank(invoice.sellerName(), invoice.sellerNip());
+        String currency = invoice.currency() == null ? "PLN" : invoice.currency();
+        String documentType =
+            "KOR".equalsIgnoreCase(invoice.invoiceType())
+                ? "CREDIT_NOTE"
+                : (sale ? "SALES_INVOICE" : "PURCHASE_INVOICE");
+        var taxPeriod =
+            AccountingDateRules.accountingPeriod(
+                invoice.saleDate(), invoice.issueDate(), null, false);
+        var reviewed =
+            new ReviewedInvoice(
+                taxPeriod,
+                documentType,
+                invoice.issueDate(),
+                invoice.saleDate(),
+                invoice.reference(),
+                counterparty,
+                sale ? null : invoice.category(),
+                currency,
+                invoice.netAmount(),
+                invoice.vatAmount(),
+                invoice.grossAmount(),
+                sale ? null : invoice.vatDeductionRatio(),
+                "KSEF_SOURCE_DOCUMENT",
+                "KSeF " + ksefNumber + "; counterparty " + counterparty,
+                Long.toString(sourceId),
+                sale ? invoice.buyerNip() : invoice.sellerNip(),
+                "PL",
+                ksefNumber,
+                new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, ksefNumber),
+                null,
+                invoice.vatRate());
+        String treatment =
+            sale
+                ? ("PLN".equalsIgnoreCase(currency) ? "DOMESTIC_VAT" : "EU_B2B_REVERSE_CHARGE")
+                : ("PLN".equalsIgnoreCase(currency)
+                    ? "DOMESTIC_PURCHASE"
+                    : "IMPORT_OF_SERVICES_EU");
+        canonicalRepository.enrichLegacyDocumentFromKsef(
+            1L,
+            sale ? "SALE" : "PURCHASE",
+            invoice.reference(),
+            sale ? invoice.issueDate() : firstNonBlankDate(invoice.issueDate(), invoice.saleDate()),
+            currency.trim().toUpperCase(),
+            sale && "CREDIT_NOTE".equals(documentType)
+                ? invoice.netAmount().negate()
+                : invoice.netAmount(),
+            sale && "CREDIT_NOTE".equals(documentType)
+                ? invoice.vatAmount().negate()
+                : invoice.vatAmount(),
+            sale && "CREDIT_NOTE".equals(documentType)
+                ? invoice.grossAmount().negate()
+                : invoice.grossAmount(),
+            sourceId,
+            ksefNumber,
+            sale ? invoice.buyerNip() : invoice.sellerNip(),
+            "PL",
+            reviewed.note());
+        stagingAcquisition.stageInvoice(1L, reviewed, treatment);
+        periods.add(taxPeriod);
+        imported++;
+      } catch (RuntimeException exception) {
+        failed++;
+      }
+    }
+    return new ImportResult(ksefNumbers.size(), imported, 0, reviewRequired, failed);
+  }
+
+  private LocalDate firstNonBlankDate(LocalDate first, LocalDate second) {
+    return first != null ? first : second;
   }
 
   @Override

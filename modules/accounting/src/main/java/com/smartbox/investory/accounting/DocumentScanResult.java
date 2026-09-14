@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting;
 
+import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService;
 import java.util.List;
 
 public record DocumentScanResult(

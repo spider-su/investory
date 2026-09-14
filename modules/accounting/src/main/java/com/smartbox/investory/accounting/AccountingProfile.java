@@ -18,7 +18,24 @@ public record AccountingProfile(
     String firstName,
     String surname,
     java.time.LocalDate dateOfBirth,
-    String taxMicroAccount) {
+    String taxMicroAccount,
+    boolean autoApproveKnownCounterparties) {
+  public AccountingProfile(
+      boolean hasUop,
+      String nip,
+      String fullName,
+      String taxOfficeCode,
+      String email,
+      String vatPaymentAccount,
+      String ryczaltPaymentAccount,
+      String zusPaymentAccount,
+      String firstName,
+      String surname,
+      java.time.LocalDate dateOfBirth,
+      String taxMicroAccount) {
+    this(hasUop, nip, fullName, taxOfficeCode, email, vatPaymentAccount, ryczaltPaymentAccount,
+        zusPaymentAccount, firstName, surname, dateOfBirth, taxMicroAccount, true);
+  }
   public AccountingProfile(
       boolean hasUop,
       String nip,
@@ -43,7 +60,8 @@ public record AccountingProfile(
         firstName,
         surname,
         dateOfBirth,
-        null);
+        null,
+        true);
   }
 
   public AccountingProfile(
@@ -67,11 +85,12 @@ public record AccountingProfile(
         null,
         null,
         null,
-        null);
+        null,
+        true);
   }
 
   public AccountingProfile(boolean hasUop) {
-    this(hasUop, null, null, null, null, null, null, null, null, null, null, null);
+    this(hasUop, null, null, null, null, null, null, null, null, null, null, null, true);
   }
 
   public static AccountingProfile defaultProfile() {

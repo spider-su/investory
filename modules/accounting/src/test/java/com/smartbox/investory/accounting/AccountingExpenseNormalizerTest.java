@@ -25,6 +25,21 @@ class AccountingExpenseNormalizerTest {
   }
 
   @Test
+  void fuelCannotBeOverriddenToFullVatDeductionByGenericFormDefault() {
+    var normalized =
+        normalizer.normalize(
+            new ExpenseImportCandidate(
+                "VEHICLE_FUEL",
+                new BigDecimal("311.61"),
+                new BigDecimal("253.34"),
+                new BigDecimal("58.27"),
+                new BigDecimal("1.00")));
+
+    assertThat(normalized.vatDeductionRatio()).isEqualByComparingTo("0.50");
+    assertThat(normalized.deductibleVat()).isEqualByComparingTo("29.14");
+  }
+
+  @Test
   void derivesTwentyThreePercentServiceVatWithFullDeduction() {
     var normalized =
         normalizer.normalize(

@@ -5,6 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ComparisonRow;
+import com.smartbox.investory.accounting.service.AccountingBankImportService;
+import com.smartbox.investory.accounting.service.AccountingFactService;
+import com.smartbox.investory.accounting.service.AccountingFilingService;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService;
+import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
@@ -188,15 +193,16 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
 
   @Test
   void completeOperationalMonthConfirmsAndProjectsJpkAndPayments() {
-    LocalDate july = LocalDate.of(2026, 10, 1);
+    LocalDate september = LocalDate.of(2026, 9, 1);
     long sourceId =
-        sourceEvidence.receiveKsef("E2E-FILING-SEPTEMBER", july.plusDays(10), "filing".getBytes());
+        sourceEvidence.receiveKsef(
+            "E2E-FILING-SEPTEMBER", september.plusDays(10), "filing".getBytes());
     ingestion.ingest(
         new AccountingInvoiceIngestionService.ReviewedInvoice(
-            july,
+            september,
             "SALES_INVOICE",
-            july.plusDays(10),
-            july.plusDays(10),
+            september.plusDays(10),
+            september.plusDays(10),
             "E2E-FILING-SALE",
             "FILING CUSTOMER",
             "SERVICE",
@@ -210,15 +216,15 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             Long.toString(sourceId),
             "PL1234567890",
             "PL",
-            "M123456789-20261010-ABCDEF-123456-78",
+            "M123456789-20260910-ABCDEF-123456-78",
             new AccountingFilingEvidence(
-                AccountingFilingEvidence.Type.KSEF, "M123456789-20261010-ABCDEF-123456-78")));
+                AccountingFilingEvidence.Type.KSEF, "M123456789-20260910-ABCDEF-123456-78")));
     ingestion.ingest(
         new AccountingInvoiceIngestionService.ReviewedInvoice(
-            july,
+            september,
             "PURCHASE_INVOICE",
-            july.plusDays(11),
-            july.plusDays(11),
+            september.plusDays(11),
+            september.plusDays(11),
             "E2E-FILING-PURCHASE",
             "FILING SUPPLIER",
             "ACCOUNTING_SERVICE",
@@ -232,21 +238,21 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             Long.toString(sourceId),
             "PL0987654321",
             "PL",
-            "M123456789-20261011-ABCDEF-123456-79",
+            "M123456789-20260911-ABCDEF-123456-79",
             new AccountingFilingEvidence(
-                AccountingFilingEvidence.Type.KSEF, "M123456789-20261011-ABCDEF-123456-79")));
+                AccountingFilingEvidence.Type.KSEF, "M123456789-20260911-ABCDEF-123456-79")));
     sourceEvidence.status(sourceId, AccountingSourceStatus.IMPORTED, null);
-    insertOperationalProfile(july);
-    insertOperationalVatTransactions(july, "E2E-FILING-SALE", "E2E-FILING-PURCHASE");
+    insertOperationalProfile(september);
+    insertOperationalVatTransactions(september, "E2E-FILING-SALE", "E2E-FILING-PURCHASE");
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) VALUES (1, ?, ?, ?, ?) ON CONFLICT (profile_id, tax_period, input_type) DO NOTHING",
-        july,
+        september,
         "HEALTH_CONTRIBUTION_PAID",
         new BigDecimal("100.00"),
         "E2E_TEST");
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) VALUES (1, ?, ?, ?, ?) ON CONFLICT (profile_id, tax_period, input_type) DO NOTHING",
-        july,
+        september,
         "JDG_COMPULSORY_SOCIAL_ZUS",
         new BigDecimal("200.00"),
         "E2E_TEST");
@@ -266,12 +272,16 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         "PL00123456789012345678901234",
         "PL00123456789012345678901234");
 
-    filingService.confirm(july);
-    AccountingFilingService.FilingResult filing = filingService.filing(july);
+    filingService.confirm(september);
+    AccountingFilingService.FilingResult filing = filingService.filing(september);
 
     assertThat(filing.ready()).isTrue();
-    assertThat(new String(filingService.jpk(july))).contains("JPK_V7M (3)", "<P_51>207</P_51>");
-    var instructions = filingService.paymentInstructions(july);
+    assertThat(new String(filingService.jpk(september)))
+        .contains("JPK_V7M (3)", "<P_51>207</P_51>");
+    assertThat(filing.snapshot().zus().totalZus())
+        .as("calculated ZUS for %s", september)
+        .isPositive();
+    var instructions = filingService.paymentInstructions(september);
     assertThat(instructions)
         .extracting(AccountingPaymentInstruction::obligationType)
         .containsExactly("VAT", "RYCZALT", "ZUS");
@@ -280,20 +290,20 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
       jdbcTemplate.update(
           "INSERT INTO investory.accounting_poc_bank_transaction (profile_id, booking_date, related_period, reference, counterparty_alias, currency, amount, transaction_type, scope, note, provider, external_account_id, external_transaction_id) VALUES (1, ?, ?, ?, 'TAX_AUTHORITY', 'PLN', ?, ?, 'BUSINESS', 'operational settlement payment', 'TEST', 'TEST_ACCOUNT', ?)",
           instruction.dueDate().minusDays(1),
-          july,
+          september,
           "SETTLE-" + instruction.obligationType(),
           instruction.amount(),
           instruction.obligationType() + "_PAYMENT",
           "SETTLE-" + instruction.obligationType());
     }
-    var snapshot = service.snapshot(july);
+    var snapshot = service.snapshot(september);
     var reconciliations =
         instructions.stream()
             .map(
                 instruction ->
                     AccountingObligationReconciliation.compare(
                         instruction.obligationType(),
-                        july,
+                        september,
                         instruction.amount(),
                         instruction.amount(),
                         instruction.amount(),
@@ -305,7 +315,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         new AuthorityConfirmation(
             "TAX_OFFICE",
             "JPK_V7M",
-            july,
+            september,
             "UPO-JPK-OPERATIONAL",
             AuthorityConfirmation.ConfirmationType.JPK_UPO,
             AuthorityConfirmation.ConfirmationStatus.ACCEPTED,
@@ -316,7 +326,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         new AuthorityConfirmation(
             "TAX_OFFICE",
             "VAT",
-            july,
+            september,
             "POST-VAT-OPERATIONAL",
             AuthorityConfirmation.ConfirmationType.TAX_ACCOUNT_POSTING,
             AuthorityConfirmation.ConfirmationStatus.POSTED,
@@ -332,7 +342,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         new AuthorityConfirmation(
             "TAX_OFFICE",
             "RYCZALT",
-            july,
+            september,
             "POST-PPE-OPERATIONAL",
             AuthorityConfirmation.ConfirmationType.TAX_ACCOUNT_POSTING,
             AuthorityConfirmation.ConfirmationStatus.POSTED,
@@ -348,7 +358,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         new AuthorityConfirmation(
             "ZUS",
             "ZUS",
-            july,
+            september,
             "DRA-OPERATIONAL",
             AuthorityConfirmation.ConfirmationType.ZUS_DRA_ACCEPTANCE,
             AuthorityConfirmation.ConfirmationStatus.ACCEPTED,
@@ -359,7 +369,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         new AuthorityConfirmation(
             "ZUS",
             "ZUS",
-            july,
+            september,
             "POST-ZUS-OPERATIONAL",
             AuthorityConfirmation.ConfirmationType.ZUS_ACCOUNT_POSTING,
             AuthorityConfirmation.ConfirmationStatus.POSTED,
@@ -375,17 +385,17 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM investory.accounting_authority_confirmation WHERE tax_period = ?",
                 Integer.class,
-                july))
+                september))
         .isEqualTo(5);
-    filingService.markFiled(july);
-    filingService.markPaid(july);
-    filingService.settle(july);
-    filingService.lock(july);
+    filingService.markFiled(september);
+    filingService.markPaid(september);
+    filingService.settle(september);
+    filingService.lock(september);
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT lifecycle_status FROM investory.accounting_poc_period_state WHERE tax_period = ?",
                 String.class,
-                july))
+                september))
         .isEqualTo("LOCKED");
   }
 
@@ -494,9 +504,11 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         "DELETE FROM investory.employment_period WHERE profile_id = 1 AND employment_type = 'JDG' AND date_from = DATE '2026-01-01'");
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_tax_profile_period WHERE profile_id = 1 AND valid_from >= DATE '2026-09-01'");
+    jdbcTemplate.update("UPDATE investory.accounting_poc_profile SET has_uop = TRUE WHERE id = 1");
   }
 
   private void insertOperationalProfile(LocalDate period) {
+    jdbcTemplate.update("UPDATE investory.accounting_poc_profile SET has_uop = FALSE WHERE id = 1");
     jdbcTemplate.update(
         "UPDATE investory.accounting_tax_profile_period SET valid_to = ? WHERE profile_id = 1 AND valid_from < ? AND (valid_to IS NULL OR valid_to >= ?)",
         period.minusDays(1),

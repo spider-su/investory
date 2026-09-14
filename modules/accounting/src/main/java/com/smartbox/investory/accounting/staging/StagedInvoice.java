@@ -8,6 +8,7 @@ public record StagedInvoice(
     long profileId,
     LocalDate taxPeriod,
     long sourceId,
+    String sourceType,
     String sourceReference,
     String documentKind,
     LocalDate documentDate,

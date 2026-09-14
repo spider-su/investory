@@ -1,8 +1,9 @@
 package com.smartbox.investory.accounting.staging;
 
 import com.smartbox.investory.accounting.AccountingExpenseNormalizer;
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
 import com.smartbox.investory.accounting.VatTreatment;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingStagingRepository;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService.ReviewedInvoice;
 import com.smartbox.investory.integrations.bank.ExternalBankTransaction;
 import java.time.LocalDate;
 import java.util.Set;

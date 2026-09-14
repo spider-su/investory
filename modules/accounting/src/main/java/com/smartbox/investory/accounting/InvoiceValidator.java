@@ -1,15 +1,16 @@
 package com.smartbox.investory.accounting;
 
+import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
-class InvoiceValidator {
+public class InvoiceValidator {
   private static final BigDecimal TOLERANCE = new BigDecimal("0.02");
 
-  List<String> validate(AccountingInvoiceRecognitionService.RecognizedInvoice invoice) {
+  public List<String> validate(AccountingInvoiceRecognitionService.RecognizedInvoice invoice) {
     List<String> issues = new ArrayList<>();
     if (blank(invoice.reference())) issues.add("missing invoice number");
     if (invoice.issueDate() == null) issues.add("missing issue date");
@@ -35,7 +36,7 @@ class InvoiceValidator {
     return List.copyOf(issues);
   }
 
-  List<String> validate(AccountingDocumentCandidate candidate) {
+  public List<String> validate(AccountingDocumentCandidate candidate) {
     return validate(
         new AccountingInvoiceRecognitionService.RecognizedInvoice(
             candidate.documentType(),
@@ -56,7 +57,7 @@ class InvoiceValidator {
             List.of()));
   }
 
-  AccountingDocumentCandidate resolveDirection(
+  public AccountingDocumentCandidate resolveDirection(
       AccountingDocumentCandidate candidate, String ownNip) {
     if ("CREDIT_NOTE".equals(candidate.documentType()) || ownNip == null || ownNip.isBlank()) {
       return candidate;
@@ -88,7 +89,7 @@ class InvoiceValidator {
         candidate.parserVersion());
   }
 
-  AccountingInvoiceRecognitionService.RecognizedInvoice resolveDirection(
+  public AccountingInvoiceRecognitionService.RecognizedInvoice resolveDirection(
       AccountingInvoiceRecognitionService.RecognizedInvoice invoice, String ownNip) {
     if ("CREDIT_NOTE".equals(invoice.documentType()) || ownNip == null || ownNip.isBlank())
       return invoice;

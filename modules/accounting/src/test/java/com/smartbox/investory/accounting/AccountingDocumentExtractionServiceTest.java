@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.accounting.service.AccountingDocumentExtractionService;
+import com.smartbox.investory.accounting.service.AccountingFactService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;

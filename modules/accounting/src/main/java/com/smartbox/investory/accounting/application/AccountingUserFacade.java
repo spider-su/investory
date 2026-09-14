@@ -1,13 +1,21 @@
 package com.smartbox.investory.accounting.application;
 
 import com.smartbox.investory.accounting.*;
-import com.smartbox.investory.accounting.AccountingInvoiceRecognitionService.RecognizedInvoice;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.BankRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ReconciliationRow;
 import com.smartbox.investory.accounting.api.AccountingKsefSyncPort;
 import com.smartbox.investory.accounting.api.AccountingUserApi;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingSourceRepository;
+import com.smartbox.investory.accounting.service.AccountingDocumentExtractionService;
+import com.smartbox.investory.accounting.service.AccountingFactService;
+import com.smartbox.investory.accounting.service.AccountingFilingService;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService;
+import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService;
+import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService.RecognizedInvoice;
+import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Objects;
@@ -322,7 +330,10 @@ public class AccountingUserFacade implements AccountingUserApi {
         row.grossAmount(),
         row.currency(),
         "IMPORTED",
-        row.sourceId() == null ? null : row.sourceId().toString());
+        row.sourceId() == null ? null : row.sourceId().toString(),
+        row.counterparty(),
+        row.category(),
+        row.saleDate());
   }
 
   private DocumentView document(InvoiceRow r) {
@@ -334,7 +345,10 @@ public class AccountingUserFacade implements AccountingUserApi {
         r.grossAmount(),
         r.currency(),
         "IMPORTED",
-        r.ksefNumber());
+        r.ksefNumber(),
+        r.customerAlias(),
+        null,
+        r.saleDate());
   }
 
   private DocumentView document(ExpenseRow r) {
@@ -346,7 +360,10 @@ public class AccountingUserFacade implements AccountingUserApi {
         r.grossAmount(),
         r.currency(),
         "IMPORTED",
-        r.ksefNumber());
+        r.ksefNumber(),
+        r.supplierAlias(),
+        r.category(),
+        null);
   }
 
   @Override
@@ -426,6 +443,7 @@ public class AccountingUserFacade implements AccountingUserApi {
       if (r == null) {
         throw new IllegalStateException("Invoice recognition returned no result");
       }
+      r = enforceProfileDirection(p, r);
       boolean requiresReview = "UNKNOWN".equals(r.documentType());
       sources.status(
           id,
@@ -453,6 +471,38 @@ public class AccountingUserFacade implements AccountingUserApi {
       sources.status(id, AccountingSourceStatus.FAILED, e.getMessage());
       throw e;
     }
+  }
+
+  private RecognizedInvoice enforceProfileDirection(long profileId, RecognizedInvoice invoice) {
+    String ownNip = facts.accountingProfile().nip();
+    if (ownNip == null || ownNip.isBlank() || "CREDIT_NOTE".equals(invoice.documentType())) {
+      return invoice;
+    }
+    String own = ownNip.replaceAll("\\D", "");
+    String seller = invoice.sellerNip() == null ? "" : invoice.sellerNip().replaceAll("\\D", "");
+    String buyer = invoice.buyerNip() == null ? "" : invoice.buyerNip().replaceAll("\\D", "");
+    String direction =
+        own.equals(seller)
+            ? "SALES_INVOICE"
+            : own.equals(buyer) ? "PURCHASE_INVOICE" : invoice.documentType();
+    if (direction.equals(invoice.documentType())) return invoice;
+    return new RecognizedInvoice(
+        direction,
+        invoice.issueDate(),
+        invoice.saleDate(),
+        invoice.dueDate(),
+        invoice.reference(),
+        invoice.seller(),
+        invoice.buyer(),
+        invoice.category(),
+        invoice.currency(),
+        invoice.netAmount(),
+        invoice.vatAmount(),
+        invoice.grossAmount(),
+        invoice.note(),
+        invoice.sellerNip(),
+        invoice.buyerNip(),
+        invoice.evidence());
   }
 
   @Override
@@ -597,7 +647,17 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public AccountingUserApi.KsefSyncResult syncKsef(long p, YearMonth m) {
     profile(p);
-    return ksef.map(adapter -> adapter.sync(m))
+    return ksef.map(adapter -> adapter.syncAll(java.time.YearMonth.now()))
+        .orElseGet(
+            () ->
+                new AccountingUserApi.KsefSyncResult(
+                    "NOT_CONFIGURED", 0, 0, 0, 0, 0, "KSeF is not configured."));
+  }
+
+  @Override
+  public AccountingUserApi.KsefSyncResult reimportKsef(long p, YearMonth m) {
+    profile(p);
+    return ksef.map(adapter -> adapter.reimport(m))
         .orElseGet(
             () ->
                 new AccountingUserApi.KsefSyncResult(

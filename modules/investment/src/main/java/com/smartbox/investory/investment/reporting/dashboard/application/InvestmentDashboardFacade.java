@@ -139,8 +139,10 @@ public class InvestmentDashboardFacade {
     DashboardPeriod selectedPeriod = query.period();
     Portfolio calculatedPortfolio =
         portfolioMetricsService.calculateTotalProfitLoss(query.portfolioId());
-    PerformanceResult kpiPerformance =
+    PerformanceResult historicalPerformance =
         canonicalKpiPerformance(calculatedPortfolio.getMonthlyPerformance(), query.portfolioId());
+    PerformanceResult totalReturnPerformance =
+        canonicalCurrentPeriodPerformance(calculatedPortfolio.getMonthlyPerformance(), query.portfolioId());
     Portfolio portfolio = periodFilterService.filter(calculatedPortfolio, selectedPeriod);
 
     Benchmark benchmarkInput =
@@ -169,8 +171,9 @@ public class InvestmentDashboardFacade {
         overview,
         new PerformanceView(
             benchmark(benchmark),
-            performanceSummary(
-                benchmark, portfolio.getMonthlyPerformance(), canonical, kpiPerformance),
+                performanceSummary(
+                benchmark, portfolio.getMonthlyPerformance(), canonical, historicalPerformance,
+                totalReturnPerformance),
             topGainers(portfolio),
             topLosers(portfolio),
             performanceKpiStart),
@@ -185,28 +188,18 @@ public class InvestmentDashboardFacade {
 
   public PerformanceKpi loadPerformanceKpi(Long portfolioId) {
     Portfolio portfolio = portfolioMetricsService.calculateTotalProfitLoss(portfolioId);
-    return performanceKpi(canonicalKpiPerformance(portfolio.getMonthlyPerformance(), portfolioId));
+    return performanceKpi(
+        canonicalKpiPerformance(portfolio.getMonthlyPerformance(), portfolioId),
+        canonicalCurrentPeriodPerformance(portfolio.getMonthlyPerformance(), portfolioId));
   }
 
   public record PerformanceKpi(
       ReturnMetric totalReturn,
-      ReturnMetric annualizedReturn,
       String startDate,
       ReturnMetric historicalAnnualizedReturn,
       BigDecimal expectedAnnualReturn,
       BigDecimal historyYears,
       String historyContext) {
-    public PerformanceKpi(
-        ReturnMetric totalReturn, ReturnMetric annualizedReturn, String startDate) {
-      this(
-          totalReturn,
-          annualizedReturn,
-          startDate,
-          annualizedReturn,
-          annualizedReturn == null ? null : annualizedReturn.value(),
-          null,
-          null);
-    }
   }
 
   private static String yearMonth(String value) {
@@ -241,7 +234,8 @@ public class InvestmentDashboardFacade {
       Benchmark benchmark,
       Performance performance,
       PerformanceResult canonical,
-      PerformanceResult kpiPerformance) {
+      PerformanceResult historicalPerformance,
+      PerformanceResult totalReturnPerformance) {
     String best = "—", worst = "—";
     double bestValue = 0, worstValue = 0;
     if (performance != null
@@ -260,7 +254,7 @@ public class InvestmentDashboardFacade {
       worst = worstEntry.getKey();
       worstValue = worstEntry.getValue();
     }
-    PerformanceKpi performanceKpi = performanceKpi(kpiPerformance);
+    PerformanceKpi performanceKpi = performanceKpi(historicalPerformance, totalReturnPerformance);
     return new PerformanceSummary(
         benchmark.getPortfolioReturnPct(),
         benchmark.getBenchmarkReturnPct(),
@@ -276,35 +270,35 @@ public class InvestmentDashboardFacade {
         metric(canonical, false),
         canonical == null ? null : canonical.attribution(),
         performanceKpi.totalReturn(),
-        performanceKpi.annualizedReturn(),
+        performanceKpi.historicalAnnualizedReturn(),
         performanceKpi.startDate(),
         ReturnMetric.available(performanceKpi.expectedAnnualReturn()),
-        performanceKpi.historicalAnnualizedReturn(),
         performanceKpi.historyContext());
   }
 
-  private PerformanceKpi performanceKpi(PerformanceResult result) {
-    ReturnMetric totalReturn = metric(result, true);
-    if (result == null || result.period() == null) {
+  private PerformanceKpi performanceKpi(
+      PerformanceResult historicalPerformance, PerformanceResult totalReturnPerformance) {
+    ReturnMetric totalReturn = metric(totalReturnPerformance, true);
+    if (historicalPerformance == null || historicalPerformance.period() == null) {
       return new PerformanceKpi(
           totalReturn,
-          ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No KPI history"),
           null,
           ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No portfolio history"),
-          null,
+          benchmarkExpectedReturn,
           BigDecimal.ZERO,
           "Benchmark estimate");
     }
     var estimate =
         ReturnEstimateCalculator.calculate(
-            totalReturn,
-            result.period().startDate(),
-            result.period().endDate(),
+            metric(historicalPerformance, true),
+            historicalPerformance.period().startDate(),
+            historicalPerformance.period().endDate(),
             benchmarkExpectedReturn);
     return new PerformanceKpi(
         totalReturn,
-        ReturnMetric.available(estimate.expected()),
-        result.period().startDate().toString(),
+        totalReturnPerformance == null || totalReturnPerformance.period() == null
+            ? null
+            : totalReturnPerformance.period().startDate().toString(),
         estimate.historical(),
         estimate.expected(),
         estimate.historyYears(),
@@ -424,6 +418,24 @@ public class InvestmentDashboardFacade {
     return first == null || last == null || first.isAfter(last)
         ? null
         : performanceQuery.forPortfolioMonths(portfolioId, first, last);
+  }
+
+  private PerformanceResult canonicalCurrentPeriodPerformance(
+      Performance performance, Long portfolioId) {
+    if (performanceQuery == null
+        || performance == null
+        || performance.getCalculateMonthlyPerformance() == null
+        || performance.getCalculateMonthlyPerformance().isEmpty()) {
+      return null;
+    }
+    YearMonth last =
+        performance.getCalculateMonthlyPerformance().keySet().stream()
+            .map(YearMonth::parse)
+            .max(YearMonth::compareTo)
+            .orElse(null);
+    YearMonth configuredStart = YearMonth.parse(performanceKpiStart);
+    if (last == null || configuredStart.isAfter(last)) return null;
+    return performanceQuery.forPortfolioMonths(portfolioId, configuredStart, last);
   }
 
   private ReturnMetric metric(PerformanceResult result, boolean twr) {

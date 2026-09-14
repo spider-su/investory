@@ -72,9 +72,14 @@ public class EmploymentPeriodController {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
   }
 
-  public record Request(EmploymentType type, LocalDate from, LocalDate to) {
+  public record Request(
+      EmploymentType type,
+      LocalDate from,
+      LocalDate to,
+      Boolean qualifiesAsPrimarySocialInsuranceTitle) {
     EmploymentPeriod toPeriod(Long id) {
-      return new EmploymentPeriod(id, type, from, to);
+      return new EmploymentPeriod(
+          id, type, from, to, Boolean.TRUE.equals(qualifiesAsPrimarySocialInsuranceTitle));
     }
   }
 }

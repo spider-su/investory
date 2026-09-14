@@ -1,7 +1,10 @@
-package com.smartbox.investory.accounting;
+package com.smartbox.investory.accounting.service;
 
+import com.smartbox.investory.accounting.*;
 import com.smartbox.investory.accounting.AccountingExpenseNormalizer.ExpenseImportCandidate;
 import com.smartbox.investory.accounting.AccountingExpenseNormalizer.NormalizedExpense;
+import com.smartbox.investory.accounting.infrastructure.persistence.*;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ public class AccountingInvoiceIngestionService {
 
   public boolean ingest(ReviewedInvoice invoice) {
     validate(invoice);
+    rememberCounterparty(1L, invoice);
     invoice = canonicalizeCounterparty(1L, invoice);
     if ("SALES_INVOICE".equals(invoice.documentType())) return ingestSalesLegacy(invoice);
     if ("CREDIT_NOTE".equals(invoice.documentType())) return ingestCreditNoteLegacy(invoice);
@@ -94,6 +98,7 @@ public class AccountingInvoiceIngestionService {
   @Transactional
   public boolean ingest(long profileId, ReviewedInvoice invoice) {
     validate(invoice);
+    rememberCounterparty(profileId, invoice);
     invoice = canonicalizeCounterparty(profileId, invoice);
     boolean inserted;
     if ("SALES_INVOICE".equals(invoice.documentType())) {
@@ -106,6 +111,31 @@ public class AccountingInvoiceIngestionService {
     } else {
       throw new IllegalArgumentException(
           "Credit-note persistence is intentionally parked; review the document without saving it yet.");
+    }
+    if (!inserted && invoice.hasFilingProvenance()) {
+      repository.enrichLegacyDocumentFromKsef(
+          profileId,
+          "PURCHASE_INVOICE".equals(invoice.documentType())
+                  || "RECEIPT".equals(invoice.documentType())
+              ? "PURCHASE"
+              : "SALE",
+          invoice.reference().trim(),
+          firstNonNull(invoice.issueDate(), invoice.saleDate()),
+          invoice.currency().trim().toUpperCase(),
+          "CREDIT_NOTE".equals(invoice.documentType())
+              ? negative(invoice.netAmount())
+              : invoice.netAmount(),
+          "CREDIT_NOTE".equals(invoice.documentType())
+              ? negative(invoice.vatAmount())
+              : invoice.vatAmount(),
+          "CREDIT_NOTE".equals(invoice.documentType())
+              ? negative(invoice.grossAmount())
+              : invoice.grossAmount(),
+          sourceIdOrNull(invoice.sourceIdentity()),
+          invoice.ksefNumber(),
+          invoice.counterpartyTaxIdentifier(),
+          invoice.counterpartyCountry(),
+          invoice.note());
     }
     upsertCanonicalDocument(profileId, invoice);
     return inserted;
@@ -222,7 +252,16 @@ public class AccountingInvoiceIngestionService {
         known.country(),
         invoice.ksefNumber(),
         invoice.filingEvidence(),
-        invoice.dueDate());
+        invoice.dueDate(),
+        invoice.vatRate());
+  }
+
+  private void rememberCounterparty(long profileId, ReviewedInvoice invoice) {
+    repository.rememberKnownCounterparty(
+        profileId,
+        invoice.counterpartyTaxIdentifier(),
+        invoice.counterpartyCountry(),
+        invoice.counterpartyAlias());
   }
 
   private boolean ingestPurchase(long profileId, ReviewedInvoice invoice) {

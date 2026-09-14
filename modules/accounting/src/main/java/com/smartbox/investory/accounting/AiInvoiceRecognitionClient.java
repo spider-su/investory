@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting;
 
+import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService;
 import com.smartbox.investory.integrations.ai.openai.OpenAiIntegrationPlugin;
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.application.IntegrationConfigurationService;

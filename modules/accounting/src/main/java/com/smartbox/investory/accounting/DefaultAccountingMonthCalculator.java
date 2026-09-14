@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 public class DefaultAccountingMonthCalculator implements AccountingMonthCalculator {
   private static final BigDecimal HALF = new BigDecimal("0.50");
   private final CurrencyConversion currencyConversion;
+  private final RyczaltCalculator ryczaltCalculator = new RyczaltCalculator();
+  private final VatCalculator vatCalculator = new VatCalculator();
 
   public DefaultAccountingMonthCalculator(CurrencyConversion currencyConversion) {
     this.currencyConversion = currencyConversion;
@@ -32,6 +34,8 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
     List<AccountingIssue> issues = new ArrayList<>();
     validateVatInputs(input, issues);
     AccountingCalculationResult.FxCalculation fx = calculateFx(input, issues);
+    var extractedRyczalt = ryczaltCalculator.calculate(input, fx, issues);
+    var extractedVat = vatCalculator.calculate(input, issues);
     BigDecimal domestic =
         input.invoices().stream()
             .filter(i -> "PLN".equals(i.currency()))
@@ -278,8 +282,8 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         input.period(),
         new AccountingCalculationResult.RevenueCalculation(domestic, fx.convertedRevenuePln()),
         fx,
-        ryczalt,
-        vat,
+        extractedRyczalt,
+        extractedVat,
         zus,
         List.of(
             new CalculatedObligation("RYCZALT", tax, input.period()),
@@ -414,6 +418,19 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
     List<String> unavailable = new ArrayList<>();
     for (InvoiceRow invoice : input.invoices()) {
       if ("PLN".equals(invoice.currency())) continue;
+      // Historical accounting already stores the month-end/booked PLN amount. Use that
+      // source-backed value for the tax result; live FX is still used for current months and
+      // for historical invoices where the booked value is genuinely missing.
+      if (input.calculationMode() != AccountingCalculationMode.CURRENT_CALCULATION
+          && invoice.bookedNetPln() != null) {
+        entries.add(
+            new Conversion(
+                invoice.reference(),
+                invoice.currency(),
+                invoice.netAmount(),
+                invoice.bookedNetPln()));
+        continue;
+      }
       try {
         CurrencyType source = CurrencyType.valueOf(invoice.currency());
         BigDecimal converted =

@@ -39,10 +39,10 @@ class InvestmentIncomeCalculatorTest {
   @Test
   void projectsAndReportsFiniteProgressForZeroExpectation() {
     assertThat(
-            InvestmentIncomeCalculator.projectedAnnualIncome(
+            InvestmentIncomeCalculator.projectedAnnualInvestmentResult(
                 new BigDecimal("107000"), new BigDecimal("0.169")))
         .isEqualByComparingTo("18083.00000000");
-    assertThat(InvestmentIncomeCalculator.expectedIncomeYtd(new BigDecimal("18083"), 9))
+    assertThat(InvestmentIncomeCalculator.expectedInvestmentResultYtd(new BigDecimal("18083"), 9))
         .isEqualByComparingTo("13562.25000000");
     assertThat(
             InvestmentIncomeCalculator.expectationProgress(
@@ -50,5 +50,13 @@ class InvestmentIncomeCalculatorTest {
         .isEqualByComparingTo("0.67636270");
     assertThat(InvestmentIncomeCalculator.expectationProgress(new BigDecimal("1"), BigDecimal.ZERO))
         .isZero();
+  }
+
+  @Test
+  void calculatesExpectedInvestmentResultFromTotalReturnAssumption() {
+    assertThat(
+            InvestmentIncomeCalculator.projectedAnnualInvestmentResult(
+                new BigDecimal("143900"), new BigDecimal("0.07")))
+        .isEqualByComparingTo("10073.00000000");
   }
 }

@@ -69,9 +69,11 @@ history is missing. A database failure while reading portfolio projections or SP
 operational reporting failure: the application logs and propagates it. It must not be represented as
 an empty benchmark, which would make a broken data path look like valid missing history.
 
-The performance board scopes its plotted series to the configured KPI start. The long-term return KPI
-uses the separate historical/expected model below, so a current-year chart window cannot masquerade
-as a long-term annualized assumption.
+The performance board scopes its plotted series to the configured KPI start. The dashboard's
+`totalReturn` is the actual cash-flow-neutral return over that current KPI period. Historical
+annualized return and expected annual return are separate values calculated from the canonical
+recent historical observation window, so neither the selected chart period nor the current-year
+return can masquerade as a long-term planning assumption.
 
 ## Historical and expected investment returns
 
@@ -96,4 +98,3 @@ portfolio performance.
 
 Forward projections and expected annual investment results use expected annual return. Historical
 annualized TWR is displayed as context only and does not drive those projections.
-

@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <body>
-<header th:fragment="appHeader(title, subtitle, activePage, portfolioId, kpi1Label, kpi1Value, kpi2Label, kpi2Value, kpi3Label, kpi3Value, kpi1Meta, kpi2Meta, kpi3Meta)"
-        class="iv-topbar iv-shared-topbar">
+<header th:fragment="appHeader(title, subtitle, activePage, portfolioId, kpi1Label, kpi1Value, kpi2Label, kpi2Value, kpi3Label, kpi3Value, kpi1Meta, kpi2Meta, kpi3Meta, actions, brandDetails, railRight)"
+        class="iv-topbar iv-shared-topbar"
+        th:classappend="${actions != null} ? ' iv-shared-topbar--with-actions'">
     <div class="iv-brand">
         <div class="iv-brand__content">
             <div class="iv-brand__title-row">
@@ -16,6 +17,7 @@
                 </button>
             </div>
             <p class="iv-shared-topbar__subtitle" th:if="${subtitle != null}" th:text="${subtitle}">Investory</p>
+            <div th:if="${brandDetails != null}" th:insert="${brandDetails}"></div>
         </div>
     </div>
     <div class="iv-topbar-summary iv-shared-topbar__summary">
@@ -35,10 +37,12 @@
             <small class="iv-shared-topbar__meta" th:if="${kpi3Meta != null}" th:text="${kpi3Meta}"></small>
         </div>
     </div>
+    <div class="iv-shared-topbar__actions" th:if="${actions != null}" th:insert="${actions}"></div>
     <div class="iv-header-rail iv-shared-topbar__rail">
         <div class="iv-header-rail__left"></div>
         <div th:replace="~{fragments/app-header :: appNavigation(${activePage}, ${portfolioId})}"></div>
-        <div class="iv-header-rail__right"></div>
+        <div class="iv-header-rail__right" th:if="${railRight == null}"></div>
+        <div class="iv-header-rail__right" th:unless="${railRight == null}" th:insert="${railRight}"></div>
     </div>
 </header>
 

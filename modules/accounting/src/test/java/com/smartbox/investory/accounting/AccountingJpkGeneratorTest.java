@@ -2,6 +2,7 @@ package com.smartbox.investory.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.accounting.service.AccountingFilingService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;

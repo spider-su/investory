@@ -7,7 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.accounting.AccountingExpenseNormalizer;
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingStagingRepository;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService.ReviewedInvoice;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -68,7 +69,8 @@ class AccountingStagingAcquisitionServiceTest {
 
   @Test
   void bankFileRoutesRowsByBookingMonthAndKeepsProviderIdentity() {
-    var sources = mock(com.smartbox.investory.accounting.AccountingSourceEvidenceService.class);
+    var sources =
+        mock(com.smartbox.investory.accounting.service.AccountingSourceEvidenceService.class);
     var bank = new AccountingBankStagingImportService(sources, service, "JDG_MAIN_ACCOUNT");
     when(sources.receiveBank(any(), any(), any(), any())).thenReturn(7L);
 

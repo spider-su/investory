@@ -1,5 +1,6 @@
-package com.smartbox.investory.accounting;
+package com.smartbox.investory.accounting.service;
 
+import com.smartbox.investory.accounting.*;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.BankRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ComparisonRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ExpenseRow;
@@ -11,6 +12,9 @@ import com.smartbox.investory.accounting.AccountingMonthSnapshot.RyczaltCalculat
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.VatCalculation;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ZusCalculation;
+import com.smartbox.investory.accounting.infrastructure.persistence.*;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingFactRepository;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableException;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -119,7 +123,10 @@ public class AccountingFactService {
             ? pocRepository.taxInputsForPeriod(period)
             : pocRepository.taxInputsForPeriod(profileId, period);
     AccountingProfile profile =
-        profileId == 1 ? accountingProfile() : pocRepository.accountingProfile(profileId);
+        profileId == 1
+            ? accountingProfile()
+            : java.util.Objects.requireNonNullElse(
+                pocRepository.accountingProfile(profileId), AccountingProfile.defaultProfile());
 
     BigDecimal domesticRevenue =
         invoices.stream()
@@ -162,23 +169,11 @@ public class AccountingFactService {
             taxInputs);
     VatCalculation vat =
         calculateVat(period, invoices, legacyJulyCorrectionSources, expenses, obligations);
-    ZusCalculation zus = calculateZus(profile, taxInputs);
-    var activityPeriods =
-        profileId == 1
-            ? pocRepository.businessActivityPeriods()
-            : pocRepository.businessActivityPeriods(profileId);
-    var employmentPeriods =
-        profileId == 1
-            ? pocRepository.employmentPeriods()
-            : pocRepository.employmentPeriods(profileId);
+    var activityPeriods = pocRepository.businessActivityPeriods(profileId);
+    var employmentPeriods = pocRepository.employmentPeriods(profileId);
+    var taxProfilePeriods = pocRepository.taxProfilePeriods(profileId);
     var resolved =
-        profileResolver.resolve(
-            period,
-            activityPeriods,
-            employmentPeriods,
-            profileId == 1
-                ? pocRepository.taxProfilePeriods()
-                : pocRepository.taxProfilePeriods(profileId));
+        profileResolver.resolve(period, activityPeriods, employmentPeriods, taxProfilePeriods);
     var vatTransactions =
         profileId == 1
             ? pocRepository.vatTransactionsForPeriod(period)
@@ -192,10 +187,49 @@ public class AccountingFactService {
             null,
             null,
             List.of());
+    boolean hasAccountingRecord =
+        !invoices.isEmpty()
+            || !expenses.isEmpty()
+            || !bankTransactions.isEmpty()
+            || !obligations.isEmpty();
+    if (hasAccountingRecord
+        && (activityPeriods.isEmpty()
+            || employmentPeriods.isEmpty()
+            || taxProfilePeriods.isEmpty())) {
+      // Legacy POC profiles may have only a subset of effective-dated rows. Fill only the missing
+      // dimensions from the saved profile-level assumptions; never let a missing UoP row imply JDG
+      // social insurance when the profile says the qualifying UoP flag is enabled.
+      resolved =
+          new AccountingProfileResolver.ResolvedProfile(
+              activityPeriods.isEmpty() || resolved.jdgActive(),
+              employmentPeriods.isEmpty() ? profile.hasUop() : resolved.qualifyingUop(),
+              taxProfilePeriods.isEmpty() ? new BigDecimal("0.12") : resolved.ryczaltRate(),
+              taxProfilePeriods.isEmpty() || resolved.vatRegistered(),
+              taxProfilePeriods.isEmpty() || resolved.vatEuRegistered(),
+              taxProfilePeriods.isEmpty() ? "JDG" : resolved.zusRegime(),
+              taxProfilePeriods.isEmpty() ? false : resolved.voluntarySickness());
+    }
+    if (calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION) {
+      // Historical reconstruction keeps the legacy profile assumptions where no dated history
+      // exists. When a UoP timeline is present, use it for the requested month so starting UoP
+      // does not waive JDG social ZUS in earlier historical months. A historical sales or expense
+      // document is evidence that the JDG was active for its tax period.
+      resolved =
+          new AccountingProfileResolver.ResolvedProfile(
+              resolved.jdgActive() || !invoices.isEmpty() || !expenses.isEmpty(),
+              employmentPeriods.isEmpty() ? profile.hasUop() : resolved.qualifyingUop(),
+              resolved.ryczaltRate() == null ? new BigDecimal("0.12") : resolved.ryczaltRate(),
+              resolved.vatRegistered(),
+              resolved.vatEuRegistered(),
+              resolved.zusRegime() == null ? "JDG" : resolved.zusRegime(),
+              resolved.voluntarySickness());
+    }
+    boolean useCalculatedZus =
+        hasAccountingRecord
+            && (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+                || (resolved.zusRegime() != null && resolved.ryczaltRate() != null));
     var zusCalculation =
-        calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
-                && resolved.zusRegime() != null
-                && resolved.ryczaltRate() != null
+        useCalculatedZus
             ? new ZusCalculator()
                 .calculate(
                     new ZusCalculator.Input(
@@ -204,7 +238,10 @@ public class AccountingFactService {
                         resolved.zusRegime(),
                         resolved.voluntarySickness(),
                         yearToDate.taxableRyczaltRevenue(),
-                        ZusRules2026.FULL_JDG_SOCIAL))
+                        ZusRules2026.FULL_JDG_SOCIAL,
+                        calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+                            ? ZusRules2026.HealthBand.HIGH
+                            : null))
             : null;
     var paidContributionProjection =
         calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
@@ -214,7 +251,8 @@ public class AccountingFactService {
       paidContributionProjection =
           new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
     }
-    if (zusCalculation != null) {
+    if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+        && zusCalculation != null) {
       BigDecimal paidSocialThisYear =
           paidContributionProjection.contributions().stream()
               .filter(contribution -> "SOCIAL".equals(contribution.contributionType()))
@@ -258,10 +296,20 @@ public class AccountingFactService {
             new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
       }
     }
+    ZusCalculation zus =
+        zusCalculation == null
+            ? calculateZus(profile, taxInputs)
+            : new ZusCalculation(
+                zusCalculation.socialContribution(),
+                zusCalculation.healthContribution(),
+                zusCalculation.totalObligation(),
+                resolved.qualifyingUop(),
+                zusCalculation.reason());
     var context =
         calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
                 && activityPeriods.isEmpty()
                 && employmentPeriods.isEmpty()
+                && !hasAccountingRecord
             ? AccountingPeriodContext.compatibility(period, profile)
             : new AccountingPeriodContext(
                 period,
@@ -310,6 +358,12 @@ public class AccountingFactService {
                 context,
                 vatTransactions,
                 calculationMode));
+    // The tax calculation must consume the calculated ZUS health amount. Historical wFirma/ZUS
+    // rows are comparison evidence only and may be absent after operational-data cleanup.
+    if (calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+        && zusCalculation != null) {
+      ryczalt = calculatedHistoricalRyczalt(calculated, ryczalt, zusCalculation);
+    }
     if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
       domesticRevenue = calculated.revenue().domesticPln();
       foreignBookedRevenue = calculated.revenue().convertedForeignPln();
@@ -393,23 +447,14 @@ public class AccountingFactService {
       LocalDate period,
       AccountingProfileResolver.ResolvedProfile resolved,
       ZusCalculator.ZusCalculation currentZus) {
-    var activityPeriods =
-        profileId == 1
-            ? pocRepository.businessActivityPeriods()
-            : pocRepository.businessActivityPeriods(profileId);
-    var employmentPeriods =
-        profileId == 1
-            ? pocRepository.employmentPeriods()
-            : pocRepository.employmentPeriods(profileId);
-    var taxPeriods =
-        profileId == 1
-            ? pocRepository.taxProfilePeriods()
-            : pocRepository.taxProfilePeriods(profileId);
+    var activityPeriods = pocRepository.businessActivityPeriods(profileId);
+    var employmentPeriods = pocRepository.employmentPeriods(profileId);
+    var taxPeriods = pocRepository.taxProfilePeriods(profileId);
     var obligations = new java.util.LinkedHashMap<LocalDate, AccountingPocRepository.ZusAmounts>();
     for (LocalDate contributionPeriod :
-        profileId == 1
+        (profileId == 1
             ? pocRepository.zusPaymentPeriodsUpTo(period)
-            : pocRepository.zusPaymentPeriodsUpTo(profileId, period)) {
+            : pocRepository.zusPaymentPeriodsUpTo(profileId, period))) {
       var effective =
           profileResolver.resolve(
               contributionPeriod, activityPeriods, employmentPeriods, taxPeriods);
@@ -475,6 +520,33 @@ public class AccountingFactService {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         result.complete() ? "CALCULATED" : "INPUTS_INCOMPLETE");
+  }
+
+  private RyczaltCalculation calculatedHistoricalRyczalt(
+      AccountingCalculationResult result,
+      RyczaltCalculation comparison,
+      com.smartbox.investory.accounting.ZusCalculator.ZusCalculation zusCalculation) {
+    BigDecimal health = ZusRules2026.HEALTH;
+    BigDecimal healthDeduction = health.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
+    BigDecimal taxableBase =
+        comparison
+            .revenueBeforeDeductions()
+            .subtract(healthDeduction)
+            .setScale(0, RoundingMode.HALF_UP);
+    BigDecimal calculatedTax =
+        taxableBase.multiply(comparison.rate()).setScale(0, RoundingMode.HALF_UP);
+    BigDecimal difference = calculatedTax.subtract(comparison.expectedTax());
+    return new RyczaltCalculation(
+        comparison.revenueBeforeDeductions(),
+        comparison.julyOnlyCorrectionNetAdjustment(),
+        health,
+        healthDeduction,
+        taxableBase,
+        comparison.rate(),
+        calculatedTax,
+        comparison.expectedTax(),
+        difference,
+        comparison.status());
   }
 
   private VatCalculation currentVat(AccountingCalculationResult result) {

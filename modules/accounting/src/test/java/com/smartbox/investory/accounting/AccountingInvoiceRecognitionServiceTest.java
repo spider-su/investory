@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService;
 import org.junit.jupiter.api.Test;
 
 class AccountingInvoiceRecognitionServiceTest {

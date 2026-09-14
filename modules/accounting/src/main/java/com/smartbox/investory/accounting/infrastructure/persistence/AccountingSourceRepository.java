@@ -1,5 +1,7 @@
-package com.smartbox.investory.accounting;
+package com.smartbox.investory.accounting.infrastructure.persistence;
 
+import com.smartbox.investory.accounting.*;
+import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;

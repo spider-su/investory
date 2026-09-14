@@ -4,13 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
-import com.smartbox.investory.accounting.AccountingPocRepository;
-import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
-import com.smartbox.investory.accounting.AccountingSourceRepository;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.accounting.AccountingSourceType;
 import com.smartbox.investory.accounting.api.AccountingUserApi.ReviewedDocument;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingSourceRepository;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService;
+import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.staging.AccountingStagingAcquisitionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -38,14 +38,16 @@ class AccountingUserFacadeReviewedDocumentTest {
               com.smartbox.investory.accounting.staging.AccountingBankStagingImportService.class);
   private final AccountingUserFacade facade =
       new AccountingUserFacade(
-          org.mockito.Mockito.mock(com.smartbox.investory.accounting.AccountingFactService.class),
-          org.mockito.Mockito.mock(com.smartbox.investory.accounting.AccountingFilingService.class),
+          org.mockito.Mockito.mock(
+              com.smartbox.investory.accounting.service.AccountingFactService.class),
+          org.mockito.Mockito.mock(
+              com.smartbox.investory.accounting.service.AccountingFilingService.class),
           repository,
           sources,
           org.mockito.Mockito.mock(
-              com.smartbox.investory.accounting.AccountingInvoiceRecognitionService.class),
+              com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService.class),
           org.mockito.Mockito.mock(
-              com.smartbox.investory.accounting.AccountingDocumentExtractionService.class),
+              com.smartbox.investory.accounting.service.AccountingDocumentExtractionService.class),
           staging,
           stagingReconciliation,
           bankImport,

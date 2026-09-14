@@ -2,9 +2,10 @@ package com.smartbox.investory.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingSourceRepository;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingStagingRepository;
 import com.smartbox.investory.accounting.staging.AccountingStagingPromotionService;
 import com.smartbox.investory.accounting.staging.AccountingStagingReconciliationService;
-import com.smartbox.investory.accounting.staging.AccountingStagingRepository;
 import com.smartbox.investory.accounting.staging.StagedInvoice;
 import com.smartbox.investory.accounting.staging.StagingReconciliationStatus;
 import com.smartbox.investory.testsupport.FastDatabase;

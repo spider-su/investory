@@ -10,6 +10,9 @@ import com.smartbox.investory.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingFactRepository;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
+import com.smartbox.investory.accounting.service.AccountingFactService;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableException;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -44,6 +47,90 @@ class AccountingFactServiceTest {
     assertThat(snapshot.zus().totalZus()).isEqualByComparingTo("1495.04");
     assertThat(snapshot.zus().hasUop()).isTrue();
     assertThat(snapshot.zus().socialZusReason()).contains("Qualifying UoP");
+  }
+
+  @Test
+  void historicalUopStartDateChangesSocialZusForEachMonth() {
+    LocalDate historical = LocalDate.of(2025, 6, 1);
+    AccountingFactRepository facts = mock(AccountingFactRepository.class);
+    AccountingPocRepository repository = mock(AccountingPocRepository.class);
+    CurrencyConversion fx = mock(CurrencyConversion.class);
+    when(repository.accountingProfile()).thenReturn(new AccountingProfile(true));
+    when(repository.invoicesForPeriod(historical))
+        .thenReturn(
+            List.of(
+                invoice(
+                    historical,
+                    historical.plusDays(14),
+                    null,
+                    "SALE-2025-06",
+                    "CUSTOMER",
+                    "PLN",
+                    "10000.00",
+                    "2300.00",
+                    "12300.00",
+                    "0",
+                    "0",
+                    "0",
+                    "12300.00",
+                    "10000.00")));
+    when(repository.invoicesForPeriod(historical.minusMonths(1))).thenReturn(List.of());
+    when(repository.expensesForPeriod(historical)).thenReturn(List.of());
+    when(repository.bankTransactionsForPeriod(historical)).thenReturn(List.of());
+    when(repository.obligationsForPeriod(historical)).thenReturn(List.of());
+    when(repository.taxInputsForPeriod(historical)).thenReturn(List.of());
+    when(repository.yearToDateRevenue(historical)).thenReturn(new BigDecimal("10000.00"));
+    when(repository.businessActivityPeriods(1L))
+        .thenReturn(List.of(new BusinessActivityPeriod(LocalDate.of(2026, 1, 1), null)));
+    when(repository.employmentPeriods(1L))
+        .thenReturn(List.of(new EmploymentInsurancePeriod(LocalDate.of(2025, 8, 1), null, true)));
+    when(repository.taxProfilePeriods(1L))
+        .thenReturn(
+            List.of(
+                new AccountingTaxProfilePeriod(
+                    LocalDate.of(2026, 1, 1),
+                    null,
+                    true,
+                    new BigDecimal("0.12"),
+                    true,
+                    true,
+                    "JDG",
+                    false)));
+
+    LocalDate uopStartMonth = LocalDate.of(2025, 8, 1);
+    when(repository.invoicesForPeriod(uopStartMonth))
+        .thenReturn(
+            List.of(
+                invoice(
+                    uopStartMonth,
+                    uopStartMonth.plusDays(14),
+                    null,
+                    "SALE-2025-08",
+                    "CUSTOMER",
+                    "PLN",
+                    "10000.00",
+                    "2300.00",
+                    "12300.00",
+                    "0",
+                    "0",
+                    "0",
+                    "12300.00",
+                    "10000.00")));
+    when(repository.invoicesForPeriod(uopStartMonth.minusMonths(1))).thenReturn(List.of());
+    when(repository.expensesForPeriod(uopStartMonth)).thenReturn(List.of());
+    when(repository.bankTransactionsForPeriod(uopStartMonth)).thenReturn(List.of());
+    when(repository.obligationsForPeriod(uopStartMonth)).thenReturn(List.of());
+    when(repository.taxInputsForPeriod(uopStartMonth)).thenReturn(List.of());
+    when(repository.yearToDateRevenue(uopStartMonth)).thenReturn(new BigDecimal("20000.00"));
+
+    var service = new AccountingFactService(facts, repository, fx);
+    AccountingMonthSnapshot beforeUop = service.snapshot(historical);
+    AccountingMonthSnapshot withUop = service.snapshot(uopStartMonth);
+
+    assertThat(beforeUop.zus().totalZus()).isEqualByComparingTo("3283.33");
+    assertThat(beforeUop.zus().socialZus()).isEqualByComparingTo("1788.29");
+    assertThat(withUop.zus().totalZus()).isEqualByComparingTo("1495.04");
+    assertThat(withUop.zus().socialZus()).isZero();
   }
 
   @Test
@@ -292,7 +379,7 @@ class AccountingFactServiceTest {
                 new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("100.00"), "operator"),
                 new TaxInputRow(
                     "JDG_COMPULSORY_SOCIAL_ZUS", new BigDecimal("200.00"), "operator")));
-    when(repository.taxProfilePeriods())
+    when(repository.taxProfilePeriods(1L))
         .thenReturn(
             List.of(
                 new AccountingTaxProfilePeriod(

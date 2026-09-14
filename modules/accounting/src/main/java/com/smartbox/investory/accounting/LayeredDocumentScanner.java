@@ -5,7 +5,7 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-class LayeredDocumentScanner {
+public class LayeredDocumentScanner {
   private final PdfDocumentScanner pdfScanner;
   private final ImageDocumentScanner imageScanner;
   private final AiDocumentScanner aiScanner;
@@ -22,7 +22,7 @@ class LayeredDocumentScanner {
     this.properties = properties;
   }
 
-  DocumentScanResult scan(DocumentInput input) {
+  public DocumentScanResult scan(DocumentInput input) {
     DocumentScanner deterministic = select(input);
     if (deterministic != null) {
       log.info("document scanner selected: {}", scannerName(deterministic));

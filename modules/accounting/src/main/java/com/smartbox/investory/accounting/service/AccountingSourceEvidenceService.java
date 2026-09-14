@@ -1,5 +1,8 @@
-package com.smartbox.investory.accounting;
+package com.smartbox.investory.accounting.service;
 
+import com.smartbox.investory.accounting.*;
+import com.smartbox.investory.accounting.infrastructure.persistence.*;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingSourceRepository;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;

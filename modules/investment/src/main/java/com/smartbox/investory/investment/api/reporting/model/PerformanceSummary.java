@@ -16,50 +16,11 @@ public record PerformanceSummary(
     ReturnMetric timeWeightedReturn,
     ReturnMetric moneyWeightedReturn,
     PerformanceAttribution attribution,
-    ReturnMetric kpiReturn,
-    ReturnMetric annualizedReturn,
+    ReturnMetric totalReturn,
+    ReturnMetric historicalAnnualizedReturn,
     String kpiStartDate,
     ReturnMetric expectedAnnualReturn,
-    ReturnMetric historicalAnnualizedReturn,
     String historyContext) {
-  public PerformanceSummary(
-      double portfolioReturnPct,
-      Double benchmarkReturnPct,
-      Double excessReturnPct,
-      double portfolioPl,
-      double currentDrawdownPct,
-      double maxDrawdownPct,
-      String bestPeriod,
-      double bestPeriodPl,
-      String worstPeriod,
-      double worstPeriodPl,
-      ReturnMetric timeWeightedReturn,
-      ReturnMetric moneyWeightedReturn,
-      PerformanceAttribution attribution,
-      ReturnMetric kpiReturn,
-      ReturnMetric annualizedReturn,
-      String kpiStartDate) {
-    this(
-        portfolioReturnPct,
-        benchmarkReturnPct,
-        excessReturnPct,
-        portfolioPl,
-        currentDrawdownPct,
-        maxDrawdownPct,
-        bestPeriod,
-        bestPeriodPl,
-        worstPeriod,
-        worstPeriodPl,
-        timeWeightedReturn,
-        moneyWeightedReturn,
-        attribution,
-        kpiReturn,
-        annualizedReturn,
-        kpiStartDate,
-        annualizedReturn,
-        annualizedReturn,
-        null);
-  }
 
   public String formatPercent(Double value) {
     return DashboardPercentageFormatter.percent(value);

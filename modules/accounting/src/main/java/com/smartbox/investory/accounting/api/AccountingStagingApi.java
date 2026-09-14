@@ -35,7 +35,41 @@ public interface AccountingStagingApi {
       Long canonicalMatchId,
       BigDecimal amount,
       String currency,
-      boolean promoted) {}
+      boolean promoted,
+      String sourceType,
+      String documentKind,
+      java.time.LocalDate documentDate,
+      String counterparty,
+      String category) {
+    public Row(
+        String type,
+        long id,
+        String reference,
+        String source,
+        String status,
+        List<String> reasonCodes,
+        Long canonicalMatchId,
+        BigDecimal amount,
+        String currency,
+        boolean promoted) {
+      this(
+          type,
+          id,
+          reference,
+          source,
+          status,
+          reasonCodes,
+          canonicalMatchId,
+          amount,
+          currency,
+          promoted,
+          null,
+          null,
+          null,
+          null,
+          null);
+    }
+  }
 
   record Promotion(int invoices, int bankTransactions) {}
 }

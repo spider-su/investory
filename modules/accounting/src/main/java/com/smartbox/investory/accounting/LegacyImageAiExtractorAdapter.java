@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting;
 
+import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;

@@ -8,6 +8,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
@@ -280,6 +282,71 @@ class AccountingInvoiceIngestionServiceTest {
             any(),
             any(),
             any());
+  }
+
+  @Test
+  void enrichesExistingLegacySalesWhenKsefEvidenceMatches() {
+    var invoice =
+        new AccountingInvoiceIngestionService.ReviewedInvoice(
+            LocalDate.of(2026, 7, 1),
+            "SALES_INVOICE",
+            LocalDate.of(2026, 7, 10),
+            LocalDate.of(2026, 7, 10),
+            "LEGACY-SALE-1",
+            "Customer",
+            null,
+            "PLN",
+            new BigDecimal("100.00"),
+            new BigDecimal("23.00"),
+            new BigDecimal("123.00"),
+            null,
+            "KSEF_SOURCE_DOCUMENT",
+            "KSeF K-1",
+            "77",
+            "PL1234567890",
+            "PL",
+            "K-1",
+            new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, "K-1"),
+            null,
+            new BigDecimal("23.00"));
+    when(repository.insertSalesInvoice(
+            any(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            any(),
+            any(),
+            any(),
+            anyString(),
+            any(),
+            any(),
+            any(),
+            any(),
+            any()))
+        .thenReturn(false);
+
+    assertThat(service.ingest(1L, invoice)).isFalse();
+
+    verify(repository)
+        .enrichLegacyDocumentFromKsef(
+            eq(1L),
+            eq("SALE"),
+            eq("LEGACY-SALE-1"),
+            eq(LocalDate.of(2026, 7, 10)),
+            eq("PLN"),
+            eq(new BigDecimal("100.00")),
+            eq(new BigDecimal("23.00")),
+            eq(new BigDecimal("123.00")),
+            eq(77L),
+            eq("K-1"),
+            eq("PL1234567890"),
+            eq("PL"),
+            eq("KSeF K-1"));
   }
 
   @Test

@@ -39,10 +39,14 @@ public class AccountingExpenseNormalizer {
       sourceQuality = vatRate.compareTo(VAT_08) == 0 ? "DERIVED_RULE_8" : "DERIVED_RULE_23";
     }
 
+    // The POC policy treats vehicle fuel as mixed-use: only 50% of input VAT is deductible.
+    // Do not let a generic form default of 100% override this category rule.
     BigDecimal deductionRatio =
-        candidate.vatDeductionRatio() == null
-            ? defaultDeductionRatio(candidate.category())
-            : candidate.vatDeductionRatio().setScale(2, RoundingMode.HALF_UP);
+        "VEHICLE_FUEL".equals(candidate.category())
+            ? HALF
+            : candidate.vatDeductionRatio() == null
+                ? defaultDeductionRatio(candidate.category())
+                : candidate.vatDeductionRatio().setScale(2, RoundingMode.HALF_UP);
     validateDeductionRatio(deductionRatio);
 
     return new NormalizedExpense(

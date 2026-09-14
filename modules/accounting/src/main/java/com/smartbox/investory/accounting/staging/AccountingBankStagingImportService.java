@@ -1,7 +1,7 @@
 package com.smartbox.investory.accounting.staging;
 
-import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
+import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import com.smartbox.investory.integrations.bank.BankDataProvider;
 import com.smartbox.investory.integrations.bank.BankTransactionQuery;
 import com.smartbox.investory.integrations.bank.CsvBankTransactionSource;

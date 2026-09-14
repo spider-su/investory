@@ -1,5 +1,6 @@
-package com.smartbox.investory.accounting;
+package com.smartbox.investory.accounting.infrastructure.persistence;
 
+import com.smartbox.investory.accounting.*;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;

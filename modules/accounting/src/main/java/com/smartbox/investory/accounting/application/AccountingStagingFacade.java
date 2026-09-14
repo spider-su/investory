@@ -1,9 +1,9 @@
 package com.smartbox.investory.accounting.application;
 
 import com.smartbox.investory.accounting.api.AccountingStagingApi;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingStagingRepository;
 import com.smartbox.investory.accounting.staging.AccountingStagingPromotionService;
 import com.smartbox.investory.accounting.staging.AccountingStagingReconciliationService;
-import com.smartbox.investory.accounting.staging.AccountingStagingRepository;
 import java.time.YearMonth;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -46,7 +46,12 @@ public class AccountingStagingFacade implements AccountingStagingApi {
                         row.canonicalId(),
                         row.grossAmount(),
                         row.currency(),
-                        row.status().name().equals("PROMOTED"))));
+                        row.status().name().equals("PROMOTED"),
+                        row.sourceType(),
+                        row.documentKind(),
+                        row.documentDate(),
+                        row.counterpartyName(),
+                        null)));
     repository
         .bankTransactions(profileId, period)
         .forEach(

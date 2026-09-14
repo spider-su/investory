@@ -3,11 +3,12 @@ package com.smartbox.investory.accounting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
 import com.smartbox.investory.accounting.api.AccountingStagingApi;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingStagingRepository;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService.ReviewedInvoice;
+import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.staging.AccountingBankStagingImportService;
 import com.smartbox.investory.accounting.staging.AccountingStagingAcquisitionService;
-import com.smartbox.investory.accounting.staging.AccountingStagingRepository;
 import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;

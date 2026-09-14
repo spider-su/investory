@@ -1,12 +1,13 @@
 package com.smartbox.investory.accounting.staging;
 
-import com.smartbox.investory.accounting.AccountingBankTransactionIngestionService;
-import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
-import com.smartbox.investory.accounting.AccountingPocRepository;
-import com.smartbox.investory.accounting.AccountingSourceEvidenceService;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.accounting.AccountingVatTransaction;
 import com.smartbox.investory.accounting.VatTreatment;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingPocRepository;
+import com.smartbox.investory.accounting.infrastructure.persistence.AccountingStagingRepository;
+import com.smartbox.investory.accounting.service.AccountingBankTransactionIngestionService;
+import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionService;
+import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import com.smartbox.investory.integrations.bank.BankDataProvider;
 import com.smartbox.investory.integrations.bank.ExternalBankTransaction;
 import java.time.LocalDate;

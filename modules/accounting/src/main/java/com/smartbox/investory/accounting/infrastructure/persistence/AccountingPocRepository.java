@@ -1,5 +1,6 @@
-package com.smartbox.investory.accounting;
+package com.smartbox.investory.accounting.infrastructure.persistence;
 
+import com.smartbox.investory.accounting.*;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.BankRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
@@ -21,7 +22,7 @@ import org.springframework.stereotype.Repository;
 public class AccountingPocRepository {
   private final JdbcTemplate jdbcTemplate;
 
-  /** True only when the KSeF source has already produced a canonical document. */
+  /** True only when this exact KSeF identity has already produced a canonical document. */
   public boolean canonicalDocumentExists(
       long profileId, long sourceId, String ksefNumber, String reference) {
     return Boolean.TRUE.equals(
@@ -29,21 +30,130 @@ public class AccountingPocRepository {
             """
             SELECT EXISTS (
               SELECT 1 FROM investory.accounting_poc_invoice
-               WHERE profile_id = ? AND (source_id = ? OR ksef_number = ? OR reference = ?)
+               WHERE profile_id = ? AND ksef_number = ?
             ) OR EXISTS (
               SELECT 1 FROM investory.accounting_poc_expense_invoice
-               WHERE profile_id = ? AND (source_id = ? OR ksef_number = ? OR reference = ?)
+               WHERE profile_id = ? AND ksef_number = ?
             )
             """,
             Boolean.class,
             profileId,
-            sourceId,
             ksefNumber,
-            reference,
             profileId,
-            sourceId,
-            ksefNumber,
-            reference));
+            ksefNumber));
+  }
+
+  /**
+   * Attaches trusted KSeF provenance to one matching legacy row without changing its accounting
+   * values. A match must be exact on the stable document fields; invoice reference alone is not
+   * sufficient because legacy references were not globally unique across source systems.
+   */
+  public int enrichLegacyDocumentFromKsef(
+      long profileId,
+      String direction,
+      String reference,
+      LocalDate documentDate,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      Long sourceId,
+      String ksefNumber,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String note) {
+    String table =
+        "SALE".equals(direction) ? "accounting_poc_invoice" : "accounting_poc_expense_invoice";
+    String datePredicate =
+        "SALE".equals(direction) ? "(issue_date = ? OR sale_date = ?)" : "invoice_date = ?";
+    Object[] args =
+        "SALE".equals(direction)
+            ? new Object[] {
+              sourceId,
+              counterpartyTaxIdentifier,
+              counterpartyCountry,
+              ksefNumber,
+              note,
+              profileId,
+              reference,
+              currency,
+              netAmount,
+              vatAmount,
+              grossAmount,
+              documentDate,
+              documentDate
+            }
+            : new Object[] {
+              sourceId,
+              counterpartyTaxIdentifier,
+              counterpartyCountry,
+              ksefNumber,
+              note,
+              profileId,
+              reference,
+              currency,
+              netAmount,
+              vatAmount,
+              grossAmount,
+              documentDate
+            };
+    int legacyRows =
+        jdbcTemplate.update(
+            "UPDATE investory."
+                + table
+                + " SET source_id=?, counterparty_tax_identifier=?, "
+                + "counterparty_country=?, ksef_number=?, filing_evidence='KSEF', "
+                + "source_quality=COALESCE(source_quality, 'KSEF_SOURCE_DOCUMENT'), "
+                + "note=COALESCE(note, ?) WHERE profile_id=? AND reference=? AND currency=? "
+                + "AND net_amount=? AND vat_amount=? AND gross_amount=? AND ksef_number IS NULL AND "
+                + datePredicate,
+            args);
+    String canonicalDatePredicate =
+        "SALE".equals(direction) ? "(issue_date = ? OR supply_date = ?)" : "issue_date = ?";
+    Object[] canonicalArgs =
+        "SALE".equals(direction)
+            ? new Object[] {
+              sourceId,
+              counterpartyTaxIdentifier,
+              counterpartyCountry,
+              ksefNumber,
+              note,
+              profileId,
+              "SALE",
+              reference,
+              currency,
+              netAmount,
+              vatAmount,
+              grossAmount,
+              documentDate,
+              documentDate
+            }
+            : new Object[] {
+              sourceId,
+              counterpartyTaxIdentifier,
+              counterpartyCountry,
+              ksefNumber,
+              note,
+              profileId,
+              "PURCHASE",
+              reference,
+              currency,
+              netAmount,
+              vatAmount,
+              grossAmount,
+              documentDate
+            };
+    int canonicalRows =
+        jdbcTemplate.update(
+            "UPDATE investory.accounting_document SET source_id=?, counterparty_tax_identifier=?, "
+                + "counterparty_country=?, ksef_number=?, filing_evidence='KSEF', "
+                + "source_quality=COALESCE(source_quality, 'KSEF_SOURCE_DOCUMENT'), "
+                + "note=COALESCE(note, ?) WHERE profile_id=? AND direction=? AND reference=? "
+                + "AND currency=? AND net_amount=? AND vat_amount=? AND gross_amount=? "
+                + "AND ksef_number IS NULL AND "
+                + canonicalDatePredicate,
+            canonicalArgs);
+    return legacyRows + canonicalRows;
   }
 
   public boolean profileExists(long profileId) {
@@ -74,6 +184,30 @@ public class AccountingPocRepository {
         profileId,
         normalizedCountry,
         normalizedTaxIdentifier);
+  }
+
+  /**
+   * Remembers the first reviewed identity; later documents must reuse it instead of overwriting it.
+   */
+  public void rememberKnownCounterparty(
+      long profileId, String taxIdentifier, String country, String canonicalName) {
+    if (taxIdentifier == null
+        || taxIdentifier.isBlank()
+        || country == null
+        || country.isBlank()
+        || canonicalName == null
+        || canonicalName.isBlank()) return;
+    jdbcTemplate.update(
+        """
+        INSERT INTO investory.accounting_known_counterparty
+            (profile_id, tax_identifier, country, canonical_name)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (profile_id, country, tax_identifier) DO NOTHING
+        """,
+        profileId,
+        normalizeCounterpartyTaxIdentifier(taxIdentifier),
+        country.trim().toUpperCase(),
+        canonicalName.trim());
   }
 
   private String normalizeCounterpartyTaxIdentifier(String value) {
@@ -364,7 +498,7 @@ public class AccountingPocRepository {
 
   public AccountingProfile accountingProfile(long profileId) {
     return jdbcTemplate.queryForObject(
-        "SELECT COALESCE(legacy.has_uop, false) AS has_uop, p.taxpayer_nip AS nip, p.taxpayer_full_name AS full_name, p.taxpayer_tax_office_code AS tax_office_code, p.taxpayer_email AS email, legacy.vat_payment_account, legacy.ryczalt_payment_account, p.zus_payment_account AS zus_payment_account, p.taxpayer_first_name AS first_name, p.taxpayer_surname AS surname, p.taxpayer_date_of_birth AS date_of_birth, p.tax_micro_account AS tax_micro_account FROM investory.portfolios p LEFT JOIN investory.accounting_poc_profile legacy ON legacy.profile_id = p.id WHERE p.id = ?",
+        "SELECT COALESCE(legacy.has_uop, false) AS has_uop, COALESCE(legacy.auto_approve_known_counterparties, TRUE) AS auto_approve_known_counterparties, p.taxpayer_nip AS nip, p.taxpayer_full_name AS full_name, p.taxpayer_tax_office_code AS tax_office_code, p.taxpayer_email AS email, legacy.vat_payment_account, legacy.ryczalt_payment_account, p.zus_payment_account AS zus_payment_account, p.taxpayer_first_name AS first_name, p.taxpayer_surname AS surname, p.taxpayer_date_of_birth AS date_of_birth, p.tax_micro_account AS tax_micro_account FROM investory.portfolios p LEFT JOIN investory.accounting_poc_profile legacy ON legacy.profile_id = p.id WHERE p.id = ?",
         (rs, rowNum) ->
             new AccountingProfile(
                 rs.getBoolean("has_uop"),
@@ -378,7 +512,8 @@ public class AccountingPocRepository {
                 rs.getString("first_name"),
                 rs.getString("surname"),
                 rs.getObject("date_of_birth", LocalDate.class),
-                rs.getString("tax_micro_account")),
+                rs.getString("tax_micro_account"),
+                rs.getBoolean("auto_approve_known_counterparties")),
         profileId);
   }
 
@@ -389,6 +524,13 @@ public class AccountingPocRepository {
     if (updated != 1) {
       throw new IllegalStateException("Accounting POC profile is missing");
     }
+  }
+
+  public void updateAutoApproveKnownCounterparties(long profileId, boolean enabled) {
+    int updated = jdbcTemplate.update(
+        "UPDATE investory.accounting_poc_profile SET auto_approve_known_counterparties = ? WHERE profile_id = ?",
+        enabled, profileId);
+    if (updated != 1) throw new IllegalStateException("Accounting profile is missing");
   }
 
   public List<LocalDate> availablePeriods() {
@@ -440,7 +582,7 @@ public class AccountingPocRepository {
       return jdbcTemplate.query(
           """
           SELECT id, reference, direction, COALESCE(issue_date, supply_date, tax_period) AS document_date,
-                 gross_amount, currency, source_id
+                 gross_amount, currency, source_id, counterparty_name, category, supply_date
             FROM investory.accounting_document
            WHERE profile_id = ? AND tax_period = ?
            ORDER BY COALESCE(issue_date, supply_date, tax_period), id
@@ -453,7 +595,10 @@ public class AccountingPocRepository {
                   rs.getObject("document_date", LocalDate.class),
                   rs.getBigDecimal("gross_amount"),
                   rs.getString("currency"),
-                  rs.getObject("source_id", Long.class)),
+                  rs.getObject("source_id", Long.class),
+                  rs.getString("counterparty_name"),
+                  rs.getString("category"),
+                  rs.getObject("supply_date", LocalDate.class)),
           profileId,
           period);
     } catch (DataAccessException ignored) {
@@ -468,7 +613,10 @@ public class AccountingPocRepository {
       LocalDate documentDate,
       BigDecimal grossAmount,
       String currency,
-      Long sourceId) {}
+      Long sourceId,
+      String counterparty,
+      String category,
+      LocalDate saleDate) {}
 
   /**
    * Filing projection from canonical documents. Empty means this period still uses legacy fixtures.

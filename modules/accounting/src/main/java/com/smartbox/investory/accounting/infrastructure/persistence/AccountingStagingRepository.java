@@ -1,5 +1,7 @@
-package com.smartbox.investory.accounting.staging;
+package com.smartbox.investory.accounting.infrastructure.persistence;
 
+import com.smartbox.investory.accounting.*;
+import com.smartbox.investory.accounting.staging.*;
 import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.Timestamp;
@@ -273,6 +275,7 @@ public class AccountingStagingRepository {
                 rs.getLong("profile_id"),
                 rs.getObject("tax_period", LocalDate.class),
                 rs.getLong("source_id"),
+                rs.getString("source_type"),
                 rs.getString("source_reference"),
                 rs.getString("document_kind"),
                 rs.getObject("document_date", LocalDate.class),

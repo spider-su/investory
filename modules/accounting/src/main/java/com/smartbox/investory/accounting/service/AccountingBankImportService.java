@@ -1,5 +1,7 @@
-package com.smartbox.investory.accounting;
+package com.smartbox.investory.accounting.service;
 
+import com.smartbox.investory.accounting.*;
+import com.smartbox.investory.accounting.infrastructure.persistence.*;
 import com.smartbox.investory.integrations.bank.BankTransactionQuery;
 import com.smartbox.investory.integrations.bank.CsvBankTransactionSource;
 import java.time.LocalDate;

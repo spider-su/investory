@@ -44,20 +44,20 @@ final class ProfileIncomeCalculator {
       BigDecimal longTermIncome,
       BigDecimal longTermInvestmentValue,
       BigDecimal totalInvestmentValue) {
-    BigDecimal combined = market.projectedAnnualIncome().add(longTermIncome);
+    BigDecimal combined = market.expectedAnnualInvestmentResult().add(longTermIncome);
     return new ProfileIncomeSummary(
         market.investmentResultYtd(),
-        market.projectedAnnualIncome(),
-        market.annualizedYield(),
+        market.expectedAnnualInvestmentResult(),
+        market.expectedAnnualReturn(),
         longTermIncome,
         ProfileIncomeSummary.ratio(longTermIncome, longTermInvestmentValue),
         combined,
         ProfileIncomeSummary.ratio(combined, totalInvestmentValue),
-        market.incomeBase(),
-        market.projectedAnnualIncome(),
-        market.annualizedYield(),
+        market.investmentBase(),
+        market.expectedAnnualInvestmentResult(),
+        market.expectedAnnualReturn(),
         market.investmentResultYtd(),
-        market.expectedIncomeYtd(),
+        market.expectedInvestmentResultYtd(),
         market.expectationProgress(),
         market.available());
   }

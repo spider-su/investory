@@ -163,7 +163,7 @@ class InvestmentProfilePageViewTest {
         InvestmentProfilePageView.from(
             profile,
             new InvestmentDashboardApi.PerformanceKpiView(
-                true, new BigDecimal("0.281"), "28.1%", "2026-01-01", new BigDecimal("0.083")),
+                true, new BigDecimal("0.083"), "8.3%", "2026-01-01"),
             new InvestmentDashboardApi.InvestmentResultView(
                 true, new BigDecimal("12000"), CurrencyType.USD),
             com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
@@ -250,7 +250,16 @@ class InvestmentProfilePageViewTest {
     return InvestmentProfilePageView.from(
         profile,
         new InvestmentDashboardApi.PerformanceKpiView(
-            true, new BigDecimal(value), "ignored", "2025-01-01"),
+            true,
+            null,
+            "Unavailable",
+            "2025-01-01",
+            null,
+            "Unavailable",
+            new BigDecimal(value),
+            "ignored",
+            null,
+            null),
         InvestmentDashboardApi.InvestmentResultView.unavailable(CurrencyType.USD),
         com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
             CurrencyType.USD, 2026),

@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting;
 
+import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;

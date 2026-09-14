@@ -2,25 +2,47 @@ package com.smartbox.investory.poc.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.accounting.AccountingBankImportService;
-import com.smartbox.investory.accounting.AccountingFactService;
-import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
+import com.smartbox.investory.accounting.service.AccountingBankImportService;
+import com.smartbox.investory.accounting.service.AccountingFactService;
+import com.smartbox.investory.testsupport.WorkerDatabase;
+import com.smartbox.investory.testsupport.accounting.AccountingDatabase;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class BankTransactionProviderNeutralIT extends AccountingDatabaseTest {
+@ActiveProfiles("test-fast")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class BankTransactionProviderNeutralIT {
+  private static final WorkerDatabase DATABASE =
+      AccountingDatabase.scopedPocDatabase("bank_transaction_provider_neutral");
   private static final LocalDate PERIOD = LocalDate.of(2026, 9, 1);
 
   @Autowired private AccountingBankImportService bankImport;
   @Autowired private AccountingFactService factService;
   @Autowired private JdbcTemplate jdbcTemplate;
+
+  @AfterAll
+  static void closeDatabase() {
+    DATABASE.close();
+  }
+
+  @DynamicPropertySource
+  protected static void providerDatabaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", DATABASE::jdbcUrl);
+    registry.add("spring.datasource.username", DATABASE::username);
+    registry.add("spring.datasource.password", DATABASE::password);
+  }
 
   @BeforeEach
   void insertOperationalProfile() {

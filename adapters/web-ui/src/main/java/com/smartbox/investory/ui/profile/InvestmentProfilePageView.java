@@ -84,9 +84,9 @@ record InvestmentProfilePageView(
                 : investmentResult.available() ? investmentResult.amount() : null),
         hasInvestmentIncome
             ? UiPresentation.percentage(income.investmentExpectationProgress()) + " of expected"
-            : performance.ytdReturn() == null
+            : performance.totalReturn() == null
                 ? ""
-                : UiPresentation.percentage(performance.ytdReturn()),
+                : UiPresentation.percentage(performance.totalReturn()),
         money(profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth)),
         ytdProgress(
             profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth),

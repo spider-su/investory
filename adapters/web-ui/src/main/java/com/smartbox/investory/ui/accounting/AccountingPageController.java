@@ -1,7 +1,16 @@
 package com.smartbox.investory.ui.accounting;
 
+import com.smartbox.investory.accounting.api.AccountingUserApi.IssueView;
+import com.smartbox.investory.accounting.api.AccountingUserApi.ReconciliationView;
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,11 +42,32 @@ public class AccountingPageController {
       @RequestParam(required = false) YearMonth month,
       Model model,
       jakarta.servlet.http.HttpServletRequest request) {
-    var months = client.months(profileId);
-    YearMonth selected =
-        month != null
-            ? month
-            : (months.isEmpty() ? YearMonth.now() : months.get(months.size() - 1).month());
+    YearMonth currentMonth = YearMonth.now();
+    var months = new ArrayList<>(client.months(profileId));
+    if (months.stream().noneMatch(period -> period.month().equals(currentMonth))) {
+      months.add(
+          new AccountingRestClient.MonthRef(
+              currentMonth,
+              currentMonth.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+                  + " "
+                  + currentMonth.getYear(),
+              "OPEN",
+              "Open"));
+      months.sort(Comparator.comparing(AccountingRestClient.MonthRef::month));
+    }
+    YearMonth selected = month != null ? month : currentMonth;
+    int selectedMonthIndex =
+        java.util.stream.IntStream.range(0, months.size())
+            .filter(index -> months.get(index).month().equals(selected))
+            .findFirst()
+            .orElse(-1);
+    model.addAttribute(
+        "previousMonth", selectedMonthIndex > 0 ? months.get(selectedMonthIndex - 1) : null);
+    model.addAttribute(
+        "nextMonth",
+        selectedMonthIndex >= 0 && selectedMonthIndex + 1 < months.size()
+            ? months.get(selectedMonthIndex + 1)
+            : null);
     var overview = client.overview(profileId, selected);
     var stagingSummary = client.summary(profileId, selected);
     var stagingRows = client.rows(profileId, selected);
@@ -50,11 +80,14 @@ public class AccountingPageController {
         hasOperationalData
             ? client.documents(profileId, selected)
             : java.util.List.<AccountingRestClient.DocumentView>of();
+    var reconciliation =
+        hasOperationalData
+            ? client.reconciliation(profileId, selected)
+            : List.<ReconciliationView>of();
     var payments =
         hasOperationalData
             ? client.payments(profileId, selected)
             : java.util.List.<AccountingRestClient.PaymentView>of();
-    var filing = hasOperationalData ? client.filings(profileId, selected) : null;
     boolean hasReviewIssues =
         overview.sources().reviewRequired() > 0
             || overview.sources().failed() > 0
@@ -67,31 +100,6 @@ public class AccountingPageController {
                 : overview.filingSummary().ready() && stagingRows.isEmpty()
                     ? "Ready to file"
                     : "In progress";
-    String workspaceNextAction =
-        !hasAcquiredData
-            ? "Add source data"
-            : hasReviewIssues
-                ? "Review issues"
-                : stagingSummary.readyToPromote() > 0
-                    ? "Promote ready data"
-                    : !stagingRows.isEmpty() ? "Reconcile staged data" : overview.nextActionLabel();
-
-    int referenceHeadlineMatchCount = 0;
-    if (hasOperationalData && overview.reference().available()) {
-      if (same(overview.summary().revenue(), overview.reference().revenue())) {
-        referenceHeadlineMatchCount++;
-      }
-      if (same(overview.summary().vat(), overview.reference().vatPayable())) {
-        referenceHeadlineMatchCount++;
-      }
-      if (same(overview.summary().ryczalt(), overview.reference().ryczalt())) {
-        referenceHeadlineMatchCount++;
-      }
-      if (same(overview.summary().zus(), overview.reference().zus())) {
-        referenceHeadlineMatchCount++;
-      }
-    }
-
     model.addAttribute("profileId", profileId);
     model.addAttribute("months", months);
     model.addAttribute("selectedMonth", selected);
@@ -104,21 +112,301 @@ public class AccountingPageController {
     model.addAttribute("documents", documents);
     model.addAttribute(
         "incomeDocuments",
-        documents.stream().filter(d -> "SALE".equalsIgnoreCase(d.direction())).toList());
+        documents.stream().filter(d -> isIncomeDirection(d.direction())).toList());
     model.addAttribute(
         "costDocuments",
-        documents.stream().filter(d -> !"SALE".equalsIgnoreCase(d.direction())).toList());
+        documents.stream().filter(d -> !isIncomeDirection(d.direction())).toList());
     model.addAttribute("payments", payments);
-    model.addAttribute("filing", filing);
+    model.addAttribute(
+        "incomeBankMatched",
+        reconciliation.stream()
+            .filter(row -> "INVOICE_PAYMENT".equals(row.kind()))
+            .filter(row -> "MATCHED".equals(row.status()))
+            .map(ReconciliationView::matchedAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add));
+    model.addAttribute(
+        "costBankMatched",
+        reconciliation.stream()
+            .filter(row -> "EXPENSE_PAYMENT".equals(row.kind()))
+            .filter(row -> "MATCHED".equals(row.status()))
+            .map(ReconciliationView::matchedAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add));
     model.addAttribute(
         "totalToPay",
         overview.summary().vat().add(overview.summary().ryczalt()).add(overview.summary().zus()));
     model.addAttribute("workspaceStatus", workspaceStatus);
-    model.addAttribute("workspaceNextAction", workspaceNextAction);
-    model.addAttribute("referenceHeadlineMatchCount", referenceHeadlineMatchCount);
+    model.addAttribute(
+        "totalToPayDisplay",
+        money(
+            overview
+                .summary()
+                .ryczalt()
+                .add(overview.summary().vat())
+                .add(overview.summary().zus()),
+            "PLN"));
+    model.addAttribute("ryczaltDisplay", money(overview.summary().ryczalt(), "PLN"));
+    model.addAttribute("vatDisplay", money(overview.summary().vat(), "PLN"));
+    model.addAttribute("zusDisplay", money(overview.summary().zus(), "PLN"));
+    model.addAttribute("referenceRyczaltDisplay", money(overview.reference().ryczalt(), "PLN"));
+    model.addAttribute("referenceVatDisplay", money(overview.reference().vatPayable(), "PLN"));
+    model.addAttribute("referenceZusDisplay", money(overview.reference().zus(), "PLN"));
+    model.addAttribute("revenueDisplay", money(overview.summary().revenue(), "PLN"));
+    var documentPresentations = new ArrayList<DocumentPresentation>();
+    documents.stream()
+        .map(d -> documentView(d, profileId, selected))
+        .forEach(documentPresentations::add);
+    stagingRows.stream()
+        .filter(row -> "INVOICE".equals(row.type()))
+        .filter(row -> "KSEF".equalsIgnoreCase(row.sourceType()))
+        .filter(row -> !row.promoted() && row.canonicalMatchId() == null)
+        .map(row -> stagedDocumentView(profileId, selected, row))
+        .forEach(documentPresentations::add);
+    model.addAttribute(
+        "incomeDocumentsView",
+        documentPresentations.stream().filter(d -> isIncomeDirection(d.direction())).toList());
+    model.addAttribute(
+        "costDocumentsView",
+        documentPresentations.stream().filter(d -> !isIncomeDirection(d.direction())).toList());
+    model.addAttribute("filingStatusLabel", filingState(overview.filingSummary().lifecycle()));
+    model.addAttribute(
+        "jpkStatusLabel", artifactState(overview.filingSummary().jpkStatus(), "JPK"));
+    model.addAttribute(
+        "upoStatusLabel", artifactState(overview.filingSummary().upoStatus(), "UPO"));
+    String filingState = filingState(overview.filingSummary().lifecycle());
+    model.addAttribute(
+        "submissionStatusLabel",
+        "Filed".equals(filingState)
+            ? "Submitted"
+            : "Failed".equals(filingState)
+                ? "Failed"
+                : "Pending".equals(filingState) ? "Pending" : "Not submitted");
+    model.addAttribute(
+        "reviewIssues",
+        overview.issues().stream()
+            .filter(
+                issue ->
+                    issue.kind()
+                        != com.smartbox.investory.accounting.api.AccountingUserApi.IssueKind.INFO)
+            .map(AccountingPageController::issueView)
+            .toList());
+    model.addAttribute("sourcesStep", !hasAcquiredData ? "pending" : "complete");
+    model.addAttribute(
+        "reviewStep", hasReviewIssues ? "attention" : hasAcquiredData ? "complete" : "pending");
+    model.addAttribute(
+        "jpkStep", artifactDone(overview.filingSummary().jpkStatus()) ? "complete" : "pending");
+    if ("Failed".equals(artifactState(overview.filingSummary().jpkStatus(), "JPK")))
+      model.addAttribute("jpkStep", "attention");
+    model.addAttribute(
+        "fileStep",
+        "Filed".equals(filingState(overview.filingSummary().lifecycle()))
+            ? "complete"
+            : "Failed".equals(filingState(overview.filingSummary().lifecycle()))
+                ? "attention"
+                : "pending");
+    model.addAttribute(
+        "payStep",
+        overview.paymentSummary().outstandingCount() == 0
+                && overview.paymentSummary().expectedCount() > 0
+            ? "complete"
+            : "pending");
+    model.addAttribute(
+        "sourcesStepClass", "accounting-workflow__step--" + model.getAttribute("sourcesStep"));
+    model.addAttribute(
+        "reviewStepClass", "accounting-workflow__step--" + model.getAttribute("reviewStep"));
+    model.addAttribute(
+        "jpkStepClass", "accounting-workflow__step--" + model.getAttribute("jpkStep"));
+    model.addAttribute(
+        "fileStepClass", "accounting-workflow__step--" + model.getAttribute("fileStep"));
+    model.addAttribute(
+        "payStepClass", "accounting-workflow__step--" + model.getAttribute("payStep"));
     model.addAttribute("canWrite", canWrite(request));
     return "accounting/accounting";
   }
+
+  private static DocumentPresentation documentView(
+      AccountingRestClient.DocumentView document, long profileId, YearMonth month) {
+    String status =
+        document.status() == null
+            ? "Imported"
+            : switch (document.status().toUpperCase(Locale.ROOT)) {
+              case "REVIEW_REQUIRED", "NEEDS_REVIEW", "FAILED" -> "Needs review";
+              case "READY", "PROMOTED", "ACCEPTED" -> "Ready";
+              default -> "Imported";
+            };
+    return new DocumentPresentation(
+        document.id(),
+        document.reference(),
+        document.date() == null
+            ? "—"
+            : document.date().format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)),
+        money(document.grossAmount(), document.currency()),
+        status,
+        document.direction(),
+        safeReference(document.sourceReference()),
+        "REVIEW_REQUIRED".equalsIgnoreCase(document.status()) && document.sourceReference() != null,
+        document.counterparty() == null ? "—" : document.counterparty(),
+        document.category() == null ? "—" : document.category(),
+        formatDate(document.saleDate()),
+        "/profiles/" + profileId + "/accounting/documents/" + document.id() + "?month=" + month);
+  }
+
+  private static DocumentPresentation stagedDocumentView(
+      long profileId,
+      YearMonth month,
+      com.smartbox.investory.accounting.api.AccountingStagingApi.Row row) {
+    boolean income =
+        !"EXPENSE".equalsIgnoreCase(row.documentKind())
+            && !"PURCHASE_INVOICE".equalsIgnoreCase(row.documentKind())
+            && !"RECEIPT".equalsIgnoreCase(row.documentKind());
+    String label =
+        row.status() == null
+            ? "Imported"
+            : switch (row.status().toUpperCase(Locale.ROOT)) {
+              case "REVIEW_REQUIRED", "MISMATCH", "AMBIGUOUS" -> "Needs review";
+              case "READY", "PROMOTED" -> "Ready";
+              default -> "Imported";
+            };
+    String href =
+        "REVIEW_REQUIRED".equalsIgnoreCase(row.status()) && row.source() != null
+            ? "/profiles/"
+                + profileId
+                + "/accounting/documents/review?month="
+                + month
+                + "&sourceReference="
+                + java.net.URLEncoder.encode(row.source(), java.nio.charset.StandardCharsets.UTF_8)
+            : null;
+    return new DocumentPresentation(
+        row.id(),
+        row.reference(),
+        formatDate(row.documentDate()),
+        money(row.amount(), row.currency()),
+        label,
+        income ? "SALES" : "PURCHASE",
+        row.source(),
+        href != null,
+        row.counterparty() == null ? "—" : row.counterparty(),
+        row.category() == null ? "—" : row.category(),
+        "—",
+        href);
+  }
+
+  private static String formatDate(java.time.LocalDate date) {
+    return date == null ? "—" : date.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH));
+  }
+
+  private static boolean isIncomeDirection(String direction) {
+    return "SALE".equalsIgnoreCase(direction) || "SALES".equalsIgnoreCase(direction);
+  }
+
+  private static String safeReference(String reference) {
+    return reference != null && reference.matches("(?i)[a-f0-9]{64}")
+        ? "Source document"
+        : reference;
+  }
+
+  private static String money(BigDecimal value, String currency) {
+    if (value == null) return "—";
+    NumberFormat format = NumberFormat.getNumberInstance(Locale.forLanguageTag("pl-PL"));
+    format.setMinimumFractionDigits(0);
+    format.setMaximumFractionDigits(2);
+    String amount = format.format(value);
+    return switch (currency == null ? "PLN" : currency.toUpperCase(Locale.ROOT)) {
+      case "PLN", "ZŁ" -> amount + " zł";
+      default -> amount + " " + currency.toUpperCase(Locale.ROOT);
+    };
+  }
+
+  private static String filingState(String value) {
+    if (value == null) return "Not started";
+    return switch (value.toUpperCase(Locale.ROOT)) {
+      case "OPEN" -> "Open";
+      case "FILED", "PAID", "SETTLED", "LOCKED", "CLOSED" -> "Filed";
+      case "CONFIRMED", "READY_FOR_REVIEW" -> "Ready to file";
+      case "SOURCES_INCOMPLETE" -> "Sources incomplete";
+      case "ISSUES" -> "Review needed";
+      case "FAILED" -> "Failed";
+      case "PENDING", "SUBMITTING" -> "Pending";
+      default -> "In progress";
+    };
+  }
+
+  private static String artifactState(String value, String name) {
+    if (value == null
+        || value.isBlank()
+        || "MISSING".equalsIgnoreCase(value)
+        || "NOT_GENERATED".equalsIgnoreCase(value)) return name + " not generated";
+    return switch (value.toUpperCase(Locale.ROOT)) {
+      case "PENDING", "SUBMITTING" -> "Pending";
+      case "FAILED", "ERROR", "INVALID", "REJECTED" -> "Failed";
+      case "COMPLETED",
+          "GENERATED",
+          "VALID",
+          "SUBMITTED",
+          "RECEIVED",
+          "AVAILABLE",
+          "ACCEPTED",
+          "POSTED" ->
+          "Available";
+      default -> "Status unavailable";
+    };
+  }
+
+  private static boolean artifactDone(String value) {
+    return value != null
+        && ("GENERATED".equalsIgnoreCase(value)
+            || "VALID".equalsIgnoreCase(value)
+            || "SUBMITTED".equalsIgnoreCase(value)
+            || "COMPLETED".equalsIgnoreCase(value)
+            || "AVAILABLE".equalsIgnoreCase(value));
+  }
+
+  record DocumentPresentation(
+      long id,
+      String reference,
+      String date,
+      String amount,
+      String status,
+      String direction,
+      String sourceReference,
+      boolean canReview,
+      String counterparty,
+      String category,
+      String saleDate,
+      String href) {}
+
+  private static IssuePresentation issueView(IssueView issue) {
+    String title =
+        switch (issue.code() == null ? "" : issue.code().toUpperCase(Locale.ROOT)) {
+          case "MISSING_JPK_EVIDENCE_CLASSIFICATION" -> "JPK category required";
+          case "SOURCE_REVIEW_REQUIRED" -> "Tax treatment needs review";
+          case "SOURCE_PARSED" -> "Document ready for review";
+          default ->
+              issue.title() == null ? "Accounting review needed" : issue.title().replace('_', ' ');
+        };
+    String message = issue.message();
+    if ("MISSING_JPK_EVIDENCE_CLASSIFICATION".equalsIgnoreCase(issue.code()))
+      message = "Choose the JPK category for this document.";
+    if ("SOURCE_REVIEW_REQUIRED".equalsIgnoreCase(issue.code()))
+      message = "Confirm the tax treatment and document details.";
+    String referenceLabel = issue.sourceReference();
+    if (referenceLabel != null && referenceLabel.matches("(?i)[a-f0-9]{64}"))
+      referenceLabel = "Source document";
+    return new IssuePresentation(
+        title,
+        message,
+        referenceLabel,
+        issue.sourceReference(),
+        issue.kind()
+                == com.smartbox.investory.accounting.api.AccountingUserApi.IssueKind.NEEDS_ANSWER
+            && issue.sourceReference() != null);
+  }
+
+  record IssuePresentation(
+      String title,
+      String message,
+      String sourceLabel,
+      String sourceReference,
+      boolean canReview) {}
 
   @PostMapping(BASE + "/actions/confirm")
   public String confirm(
@@ -205,6 +493,28 @@ public class AccountingPageController {
       redirect.addFlashAttribute("accountingError", safeMessage(exception));
       return redirect(profileId, month);
     }
+  }
+
+  @GetMapping(BASE + "/documents/{documentId}")
+  public String documentDetails(
+      @PathVariable("profileId") long profileId,
+      @PathVariable long documentId,
+      @RequestParam YearMonth month,
+      Model model,
+      jakarta.servlet.http.HttpServletRequest request) {
+    var document =
+        client.documents(profileId, month).stream()
+            .filter(candidate -> candidate.id() == documentId)
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND));
+    model.addAttribute("profileId", profileId);
+    model.addAttribute("selectedMonth", month);
+    model.addAttribute("document", documentView(document, profileId, month));
+    model.addAttribute("canWrite", canWrite(request));
+    return "accounting/document";
   }
 
   @PostMapping(BASE + "/documents/save")
@@ -405,10 +715,6 @@ public class AccountingPageController {
 
   private boolean canWrite(jakarta.servlet.http.HttpServletRequest request) {
     return request.isUserInRole("ADMIN") || request.isUserInRole("PROFILE_OWNER");
-  }
-
-  private boolean same(BigDecimal actual, BigDecimal expected) {
-    return actual != null && expected != null && actual.compareTo(expected) == 0;
   }
 
   private String safeMessage(RuntimeException exception) {

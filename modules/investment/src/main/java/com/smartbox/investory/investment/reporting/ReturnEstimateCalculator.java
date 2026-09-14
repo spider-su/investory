@@ -22,23 +22,21 @@ public final class ReturnEstimateCalculator {
       LocalDate end,
       BigDecimal benchmarkExpectedReturn) {
     BigDecimal years = years(start, end);
-    if (years != null
-        && end.compareTo(start.plusYears(1)) >= 0
-        && years.compareTo(BigDecimal.ONE) < 0) {
-      years = BigDecimal.ONE;
-    }
-    ReturnMetric calculatedHistorical =
-        PortfolioReturnCalculator.annualized(cumulativeTwr, start, end);
-    boolean usablePortfolioHistory = years != null && years.compareTo(BigDecimal.ONE) >= 0;
+    // Eligibility uses the actual anniversary boundary. Decimal years are used only for blending;
+    // a partial year must never become eligible through rounding or extrapolation.
+    boolean usablePortfolioHistory =
+        years != null && end.compareTo(start.plusYears(1)) >= 0;
+    BigDecimal usableHistoryYears =
+        usablePortfolioHistory ? years.max(BigDecimal.ONE) : years;
     ReturnMetric historical =
         usablePortfolioHistory
-            ? calculatedHistorical
+            ? PortfolioReturnCalculator.annualized(cumulativeTwr, start, end)
             : ReturnMetric.unavailable(
                 ReturnMetric.Status.INSUFFICIENT_DATA,
                 "At least one year of portfolio history is required");
     BigDecimal portfolioWeight =
         usablePortfolioHistory
-            ? years
+            ? usableHistoryYears
                 .min(BigDecimal.valueOf(TARGET_YEARS))
                 .divide(BigDecimal.valueOf(TARGET_YEARS), CONTEXT)
             : BigDecimal.ZERO;
@@ -53,7 +51,7 @@ public final class ReturnEstimateCalculator {
             .add(benchmark.multiply(benchmarkWeight, CONTEXT));
     return new Result(
         historical,
-        years == null ? BigDecimal.ZERO : years,
+        usableHistoryYears == null ? BigDecimal.ZERO : usableHistoryYears,
         expected,
         portfolioWeight,
         benchmarkWeight,
