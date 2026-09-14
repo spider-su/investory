@@ -1,6 +1,7 @@
 package com.smartbox.investory.accounting;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -35,16 +36,20 @@ public class AccountingJdgExporter {
         ",",
         csv(snapshot.period().format(MONTH_FORMAT)),
         csv(snapshot.zus().hasUop()),
-        csv(snapshot.domesticRevenueNetPln()),
-        csv(snapshot.foreignBookedRevenuePln()),
-        csv(snapshot.totalBookedRevenuePln()),
-        csv(snapshot.ryczalt().calculatedTax()),
-        csv(snapshot.vat().outputVatAfterSalesCorrection()),
-        csv(snapshot.vat().deductibleInputVat()),
-        csv(snapshot.vat().calculatedVat()),
-        csv(snapshot.zus().socialZus()),
-        csv(snapshot.zus().healthZus()),
-        csv(snapshot.zus().totalZus()));
+        csvMoney(snapshot.domesticRevenueNetPln(), 4),
+        csvMoney(snapshot.foreignBookedRevenuePln(), 4),
+        csvMoney(snapshot.ryczalt().revenueBeforeDeductions(), 4),
+        csvMoney(snapshot.ryczalt().calculatedTax(), 0),
+        csvMoney(snapshot.vat().outputVatAfterSalesCorrection(), 4),
+        csvMoney(snapshot.vat().deductibleInputVat(), 2),
+        csvMoney(snapshot.vat().calculatedVat(), 0),
+        csvMoney(snapshot.zus().socialZus(), 2),
+        csvMoney(snapshot.zus().healthZus(), 2),
+        csvMoney(snapshot.zus().totalZus(), 2));
+  }
+
+  private String csvMoney(BigDecimal value, int scale) {
+    return value == null ? "" : csv(value.setScale(scale, RoundingMode.HALF_UP));
   }
 
   private String csv(Object value) {

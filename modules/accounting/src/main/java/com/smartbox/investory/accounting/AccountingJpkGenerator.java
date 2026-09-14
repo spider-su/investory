@@ -16,6 +16,7 @@ public class AccountingJpkGenerator {
   }
 
   public byte[] generate(AccountingFilingInput input) {
+    validateSupportedVatRates(input);
     AccountingMonthSnapshot.VatCalculation vat = input.vat();
     AccountingProfile p = input.taxpayer();
     JpkTotals totals = totals(input);
@@ -29,7 +30,7 @@ public class AccountingJpkGenerator {
         .append(generationTimestamp(input.period()))
         .append(
             "</DataWytworzeniaJPK><NazwaSystemu>Investory Accounting POC</NazwaSystemu><CelZlozenia poz=\"P_7\">1</CelZlozenia><KodUrzedu>")
-        .append(escape(p.taxOfficeCode()))
+        .append(escape(validTaxOfficeCode(p.taxOfficeCode())))
         .append("</KodUrzedu><Rok>")
         .append(input.period().getYear())
         .append("</Rok><Miesiac>")
@@ -165,32 +166,58 @@ public class AccountingJpkGenerator {
     return value == null ? "0" : value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
   }
 
+  private String validTaxOfficeCode(String configuredCode) {
+    return configuredCode != null && configuredCode.matches("\\d{4}") ? configuredCode : "1215";
+  }
+
   private String declarationMoney(java.math.BigDecimal value) {
     return value == null ? "0" : value.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString();
   }
 
   private String salesVatColumns(AccountingFilingInput.FilingDocument row) {
-    String net = money(row.netAmount());
-    String vat = money(row.vatAmount());
-    if (row.treatment() == VatTreatment.VAT_EXEMPT) return "<K_10>" + net + "</K_10>";
-    if (row.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE
-        || row.treatment() == VatTreatment.NON_EU_B2B_OUTSIDE_POLAND)
+    return vatBuckets(row).stream()
+        .sorted(java.util.Comparator.comparingInt(this::salesColumnOrder))
+        .map(this::salesVatColumns)
+        .collect(java.util.stream.Collectors.joining());
+  }
+
+  private int salesColumnOrder(AccountingFilingInput.FilingVatBucket bucket) {
+    if (bucket.treatment() == VatTreatment.VAT_EXEMPT) return 10;
+    if (bucket.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE
+        || bucket.treatment() == VatTreatment.NON_EU_B2B_OUTSIDE_POLAND) return 11;
+    if (bucket.treatment() != VatTreatment.DOMESTIC_VAT || bucket.vatRate() == null) return 99;
+    if (bucket.vatRate().signum() == 0) return 13;
+    if (bucket.vatRate().compareTo(new java.math.BigDecimal("5")) == 0) return 15;
+    if (bucket.vatRate().compareTo(new java.math.BigDecimal("8")) == 0) return 17;
+    if (bucket.vatRate().compareTo(new java.math.BigDecimal("23")) == 0) return 19;
+    return 99;
+  }
+
+  private String salesVatColumns(AccountingFilingInput.FilingVatBucket bucket) {
+    String net = money(bucket.netAmount());
+    String vat = money(bucket.vatAmount());
+    if (bucket.treatment() == VatTreatment.VAT_EXEMPT) return "<K_10>" + net + "</K_10>";
+    if (bucket.treatment() == VatTreatment.EU_B2B_REVERSE_CHARGE
+        || bucket.treatment() == VatTreatment.NON_EU_B2B_OUTSIDE_POLAND)
       return "<K_11>" + net + "</K_11>";
-    if (row.treatment() != VatTreatment.DOMESTIC_VAT) return "";
-    if (row.vatRate() == null) return "";
-    if (row.vatRate().compareTo(new java.math.BigDecimal("8")) == 0)
+    if (bucket.treatment() != VatTreatment.DOMESTIC_VAT) return "";
+    if (bucket.vatRate() == null) return "";
+    if (bucket.vatRate().compareTo(new java.math.BigDecimal("8")) == 0)
       return "<K_17>" + net + "</K_17><K_18>" + vat + "</K_18>";
-    if (row.vatRate().compareTo(new java.math.BigDecimal("5")) == 0)
+    if (bucket.vatRate().compareTo(new java.math.BigDecimal("5")) == 0)
       return "<K_15>" + net + "</K_15><K_16>" + vat + "</K_16>";
-    if (row.vatRate().signum() == 0) return "<K_13>" + net + "</K_13>";
-    if (row.vatRate().compareTo(new java.math.BigDecimal("23")) == 0)
+    if (bucket.vatRate().signum() == 0) return "<K_13>" + net + "</K_13>";
+    if (bucket.vatRate().compareTo(new java.math.BigDecimal("23")) == 0)
       return "<K_19>" + net + "</K_19><K_20>" + vat + "</K_20>";
     return "";
   }
 
   private boolean isImportOfServices(AccountingFilingInput.FilingDocument row) {
-    return row.treatment() == VatTreatment.IMPORT_OF_SERVICES_EU
-        || row.treatment() == VatTreatment.IMPORT_OF_SERVICES_NON_EU;
+    return vatBuckets(row).stream()
+        .anyMatch(
+            bucket ->
+                bucket.treatment() == VatTreatment.IMPORT_OF_SERVICES_EU
+                    || bucket.treatment() == VatTreatment.IMPORT_OF_SERVICES_NON_EU);
   }
 
   private int importServiceCount(java.util.List<AccountingFilingInput.FilingDocument> purchases) {
@@ -198,11 +225,28 @@ public class AccountingJpkGenerator {
   }
 
   private String importServiceColumns(AccountingFilingInput.FilingDocument row) {
-    String net = money(row.netAmount());
-    String vat = money(row.vatAmount());
-    return row.treatment() == VatTreatment.IMPORT_OF_SERVICES_EU
-        ? "<K_29>" + net + "</K_29><K_30>" + vat + "</K_30>"
-        : "<K_27>" + net + "</K_27><K_28>" + vat + "</K_28>";
+    return vatBuckets(row).stream()
+        .filter(
+            bucket ->
+                bucket.treatment() == VatTreatment.IMPORT_OF_SERVICES_EU
+                    || bucket.treatment() == VatTreatment.IMPORT_OF_SERVICES_NON_EU)
+        .sorted(
+            java.util.Comparator.comparingInt(
+                bucket -> bucket.treatment() == VatTreatment.IMPORT_OF_SERVICES_NON_EU ? 27 : 29))
+        .map(
+            bucket ->
+                bucket.treatment() == VatTreatment.IMPORT_OF_SERVICES_EU
+                    ? "<K_29>"
+                        + money(bucket.netAmount())
+                        + "</K_29><K_30>"
+                        + money(bucket.vatAmount())
+                        + "</K_30>"
+                    : "<K_27>"
+                        + money(bucket.netAmount())
+                        + "</K_27><K_28>"
+                        + money(bucket.vatAmount())
+                        + "</K_28>")
+        .collect(java.util.stream.Collectors.joining());
   }
 
   private java.math.BigDecimal purchaseNet(
@@ -211,6 +255,21 @@ public class AccountingJpkGenerator {
         .map(this::deductiblePurchaseNet)
         .filter(java.util.Objects::nonNull)
         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+  }
+
+  private void validateSupportedVatRates(AccountingFilingInput input) {
+    java.util.stream.Stream.concat(input.sales().stream(), input.purchases().stream())
+        .flatMap(document -> vatBuckets(document).stream())
+        .filter(
+            bucket ->
+                bucket.treatment() == VatTreatment.DOMESTIC_VAT
+                    || bucket.treatment() == VatTreatment.DOMESTIC_PURCHASE)
+        .filter(bucket -> !AccountingVatRate.isSupported(bucket.vatRate()))
+        .findFirst()
+        .ifPresent(
+            bucket -> {
+              throw new IllegalArgumentException("UNSUPPORTED_VAT_RATE: " + bucket.vatRate());
+            });
   }
 
   private java.math.BigDecimal deductiblePurchaseNet(AccountingFilingInput.FilingDocument row) {
@@ -222,14 +281,15 @@ public class AccountingJpkGenerator {
   private java.math.BigDecimal salesNet(
       java.util.List<AccountingFilingInput.FilingDocument> sales, java.math.BigDecimal rate) {
     return sales.stream()
-        .filter(row -> row.treatment() == VatTreatment.DOMESTIC_VAT)
+        .flatMap(row -> vatBuckets(row).stream())
+        .filter(bucket -> bucket.treatment() == VatTreatment.DOMESTIC_VAT)
         .filter(
-            row ->
+            bucket ->
                 rate.compareTo(
                         java.util.Objects.requireNonNullElse(
-                            row.vatRate(), new java.math.BigDecimal("-1")))
+                            bucket.vatRate(), new java.math.BigDecimal("-1")))
                     == 0)
-        .map(AccountingFilingInput.FilingDocument::netAmount)
+        .map(AccountingFilingInput.FilingVatBucket::netAmount)
         .filter(java.util.Objects::nonNull)
         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
   }
@@ -237,14 +297,15 @@ public class AccountingJpkGenerator {
   private java.math.BigDecimal salesVat(
       java.util.List<AccountingFilingInput.FilingDocument> sales, java.math.BigDecimal rate) {
     return sales.stream()
-        .filter(row -> row.treatment() == VatTreatment.DOMESTIC_VAT)
+        .flatMap(row -> vatBuckets(row).stream())
+        .filter(bucket -> bucket.treatment() == VatTreatment.DOMESTIC_VAT)
         .filter(
-            row ->
+            bucket ->
                 rate.compareTo(
                         java.util.Objects.requireNonNullElse(
-                            row.vatRate(), new java.math.BigDecimal("-1")))
+                            bucket.vatRate(), new java.math.BigDecimal("-1")))
                     == 0)
-        .map(AccountingFilingInput.FilingDocument::vatAmount)
+        .map(AccountingFilingInput.FilingVatBucket::vatAmount)
         .filter(java.util.Objects::nonNull)
         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
   }
@@ -252,8 +313,9 @@ public class AccountingJpkGenerator {
   private JpkTotals totals(AccountingFilingInput input) {
     java.math.BigDecimal outputVat =
         input.sales().stream()
-            .filter(row -> row.treatment() == VatTreatment.DOMESTIC_VAT)
-            .map(AccountingFilingInput.FilingDocument::vatAmount)
+            .flatMap(row -> vatBuckets(row).stream())
+            .filter(bucket -> bucket.treatment() == VatTreatment.DOMESTIC_VAT)
+            .map(AccountingFilingInput.FilingVatBucket::vatAmount)
             .filter(java.util.Objects::nonNull)
             .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
             .add(importVat(input.purchases(), VatTreatment.IMPORT_OF_SERVICES_EU))
@@ -261,7 +323,8 @@ public class AccountingJpkGenerator {
     java.math.BigDecimal purchaseNet = purchaseNet(input.purchases());
     java.math.BigDecimal deductible =
         input.purchases().stream()
-            .map(AccountingFilingInput.FilingDocument::deductibleVat)
+            .flatMap(row -> vatBuckets(row).stream())
+            .map(AccountingFilingInput.FilingVatBucket::deductibleVat)
             .filter(java.util.Objects::nonNull)
             .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
     if (input.sales().isEmpty() && input.purchases().isEmpty()) {
@@ -279,8 +342,9 @@ public class AccountingJpkGenerator {
   private java.math.BigDecimal importNet(
       java.util.List<AccountingFilingInput.FilingDocument> purchases, VatTreatment treatment) {
     return purchases.stream()
-        .filter(row -> row.treatment() == treatment)
-        .map(AccountingFilingInput.FilingDocument::netAmount)
+        .flatMap(row -> vatBuckets(row).stream())
+        .filter(bucket -> bucket.treatment() == treatment)
+        .map(AccountingFilingInput.FilingVatBucket::netAmount)
         .filter(java.util.Objects::nonNull)
         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
   }
@@ -288,10 +352,16 @@ public class AccountingJpkGenerator {
   private java.math.BigDecimal importVat(
       java.util.List<AccountingFilingInput.FilingDocument> purchases, VatTreatment treatment) {
     return purchases.stream()
-        .filter(row -> row.treatment() == treatment)
-        .map(AccountingFilingInput.FilingDocument::vatAmount)
+        .flatMap(row -> vatBuckets(row).stream())
+        .filter(bucket -> bucket.treatment() == treatment)
+        .map(AccountingFilingInput.FilingVatBucket::vatAmount)
         .filter(java.util.Objects::nonNull)
         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+  }
+
+  private java.util.List<AccountingFilingInput.FilingVatBucket> vatBuckets(
+      AccountingFilingInput.FilingDocument row) {
+    return row.vatBuckets();
   }
 
   private String generationTimestamp(LocalDate period) {

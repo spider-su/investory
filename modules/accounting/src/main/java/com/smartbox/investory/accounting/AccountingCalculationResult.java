@@ -42,8 +42,12 @@ public record AccountingCalculationResult(
       BigDecimal socialContributionDeduction,
       BigDecimal healthContributionPaid,
       BigDecimal healthDeduction,
+      BigDecimal availableDeduction,
+      BigDecimal deductionUsed,
+      BigDecimal deductionCarryForward,
       BigDecimal taxableBase,
       Map<BigDecimal, BigDecimal> revenueByRate,
+      Map<BigDecimal, BigDecimal> taxableByRate,
       BigDecimal calculatedTax) {}
 
   public record VatCalculation(

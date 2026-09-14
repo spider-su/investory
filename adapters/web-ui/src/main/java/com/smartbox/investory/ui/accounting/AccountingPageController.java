@@ -46,6 +46,15 @@ public class AccountingPageController {
         overview.summary().documents() > 0 || overview.summary().bankTransactions() > 0;
     boolean hasAcquiredData =
         hasOperationalData || overview.sources().evidenceCount() > 0 || !stagingRows.isEmpty();
+    var documents =
+        hasOperationalData
+            ? client.documents(profileId, selected)
+            : java.util.List.<AccountingRestClient.DocumentView>of();
+    var payments =
+        hasOperationalData
+            ? client.payments(profileId, selected)
+            : java.util.List.<AccountingRestClient.PaymentView>of();
+    var filing = hasOperationalData ? client.filings(profileId, selected) : null;
     boolean hasReviewIssues =
         overview.sources().reviewRequired() > 0
             || overview.sources().failed() > 0
@@ -92,6 +101,18 @@ public class AccountingPageController {
     model.addAttribute("hasAcquiredData", hasAcquiredData);
     model.addAttribute("hasOperationalData", hasOperationalData);
     model.addAttribute("hasReviewIssues", hasReviewIssues);
+    model.addAttribute("documents", documents);
+    model.addAttribute(
+        "incomeDocuments",
+        documents.stream().filter(d -> "SALE".equalsIgnoreCase(d.direction())).toList());
+    model.addAttribute(
+        "costDocuments",
+        documents.stream().filter(d -> !"SALE".equalsIgnoreCase(d.direction())).toList());
+    model.addAttribute("payments", payments);
+    model.addAttribute("filing", filing);
+    model.addAttribute(
+        "totalToPay",
+        overview.summary().vat().add(overview.summary().ryczalt()).add(overview.summary().zus()));
     model.addAttribute("workspaceStatus", workspaceStatus);
     model.addAttribute("workspaceNextAction", workspaceNextAction);
     model.addAttribute("referenceHeadlineMatchCount", referenceHeadlineMatchCount);

@@ -66,7 +66,8 @@ class KsefConnectionControllerTest {
     when(client.downloadInvoice(KsefEnvironment.PRODUCTION, "access-token", "KSEF-SALE-1"))
         .thenReturn("<Invoice/>");
     when(sources.findId(AccountingSourceType.KSEF, "KSEF-SALE-1")).thenReturn(Optional.empty());
-    when(sources.receiveKsef(eq("KSEF-SALE-1"), eq(null), org.mockito.ArgumentMatchers.any()))
+    when(sources.receiveKsef(
+            eq("KSEF-SALE-1"), eq(LocalDate.of(2026, 7, 10)), org.mockito.ArgumentMatchers.any()))
         .thenReturn(42L);
     when(parser.parse(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
@@ -123,7 +124,7 @@ class KsefConnectionControllerTest {
   }
 
   @Test
-  void sellerCreditNoteUsesSaleMonthForAccounting() {
+  void sellerCreditNoteUsesIssueMonthForAccounting() {
     KsefClient client = org.mockito.Mockito.mock(KsefClient.class);
     KsefInvoiceXmlParser parser = org.mockito.Mockito.mock(KsefInvoiceXmlParser.class);
     AccountingInvoiceIngestionService ingestion =
@@ -144,7 +145,8 @@ class KsefConnectionControllerTest {
     when(client.downloadInvoice(KsefEnvironment.PRODUCTION, "access-token", "KSEF-CREDIT-1"))
         .thenReturn("<Invoice/>");
     when(sources.findId(AccountingSourceType.KSEF, "KSEF-CREDIT-1")).thenReturn(Optional.empty());
-    when(sources.receiveKsef(eq("KSEF-CREDIT-1"), eq(null), org.mockito.ArgumentMatchers.any()))
+    when(sources.receiveKsef(
+            eq("KSEF-CREDIT-1"), eq(LocalDate.of(2026, 7, 11)), org.mockito.ArgumentMatchers.any()))
         .thenReturn(43L);
     when(parser.parse(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
@@ -184,7 +186,7 @@ class KsefConnectionControllerTest {
     ArgumentCaptor<ReviewedInvoice> invoice = ArgumentCaptor.forClass(ReviewedInvoice.class);
     verify(ingestion).ingest(invoice.capture());
     assertThat(invoice.getValue().documentType()).isEqualTo("CREDIT_NOTE");
-    assertThat(invoice.getValue().taxPeriod()).isEqualTo(LocalDate.of(2026, 6, 1));
+    assertThat(invoice.getValue().taxPeriod()).isEqualTo(LocalDate.of(2026, 7, 1));
     assertThat(invoice.getValue().issueDate()).isEqualTo(LocalDate.of(2026, 7, 11));
     assertThat(invoice.getValue().saleDate()).isEqualTo(LocalDate.of(2026, 6, 30));
   }
@@ -212,7 +214,10 @@ class KsefConnectionControllerTest {
         .thenReturn("<Invoice/>");
     when(sources.findId(AccountingSourceType.KSEF, "KSEF-NO-SALE-DATE"))
         .thenReturn(Optional.empty());
-    when(sources.receiveKsef(eq("KSEF-NO-SALE-DATE"), eq(null), org.mockito.ArgumentMatchers.any()))
+    when(sources.receiveKsef(
+            eq("KSEF-NO-SALE-DATE"),
+            eq(LocalDate.of(2026, 7, 10)),
+            org.mockito.ArgumentMatchers.any()))
         .thenReturn(44L);
     when(parser.parse(org.mockito.ArgumentMatchers.any()))
         .thenReturn(

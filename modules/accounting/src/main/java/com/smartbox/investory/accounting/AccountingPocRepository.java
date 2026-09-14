@@ -401,15 +401,12 @@ public class AccountingPocRepository {
                 UNION
                 SELECT DISTINCT tax_period AS period
                   FROM investory.accounting_poc_invoice
-                 WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2027-01-01'
                 UNION
                 SELECT DISTINCT tax_period AS period
                   FROM investory.accounting_poc_obligation
-                 WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2027-01-01'
                 UNION
                 SELECT DISTINCT tax_period AS period
                   FROM investory.accounting_poc_expense_invoice
-                 WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2027-01-01'
                ) months
          ORDER BY period
         """,
@@ -428,7 +425,6 @@ public class AccountingPocRepository {
             UNION SELECT tax_period FROM investory.accounting_poc_obligation WHERE profile_id = ?
             UNION SELECT tax_period FROM investory.accounting_poc_period_state WHERE profile_id = ?
           ) periods
-         WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2027-01-01'
          ORDER BY tax_period
         """,
         LocalDate.class,
@@ -437,6 +433,105 @@ public class AccountingPocRepository {
         profileId,
         profileId,
         profileId);
+  }
+
+  public List<CanonicalDocumentRow> canonicalDocumentsForPeriod(long profileId, LocalDate period) {
+    try {
+      return jdbcTemplate.query(
+          """
+          SELECT id, reference, direction, COALESCE(issue_date, supply_date, tax_period) AS document_date,
+                 gross_amount, currency, source_id
+            FROM investory.accounting_document
+           WHERE profile_id = ? AND tax_period = ?
+           ORDER BY COALESCE(issue_date, supply_date, tax_period), id
+          """,
+          (rs, rowNum) ->
+              new CanonicalDocumentRow(
+                  rs.getLong("id"),
+                  rs.getString("reference"),
+                  rs.getString("direction"),
+                  rs.getObject("document_date", LocalDate.class),
+                  rs.getBigDecimal("gross_amount"),
+                  rs.getString("currency"),
+                  rs.getObject("source_id", Long.class)),
+          profileId,
+          period);
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
+  }
+
+  public record CanonicalDocumentRow(
+      long id,
+      String reference,
+      String direction,
+      LocalDate documentDate,
+      BigDecimal grossAmount,
+      String currency,
+      Long sourceId) {}
+
+  /**
+   * Filing projection from canonical documents. Empty means this period still uses legacy fixtures.
+   */
+  public List<AccountingFilingInput.FilingDocument> canonicalFilingDocumentsForPeriod(
+      long profileId, LocalDate period) {
+    try {
+      return jdbcTemplate.query(
+          """
+          SELECT id, reference, direction, issue_date, supply_date, counterparty_tax_identifier,
+                 counterparty_country, counterparty_name, net_amount, vat_amount, currency, vat_deduction_ratio,
+                 filing_evidence, ksef_number
+            FROM investory.accounting_document
+           WHERE profile_id = ? AND tax_period = ?
+           ORDER BY id
+          """,
+          (rs, rowNum) -> {
+            long documentId = rs.getLong("id");
+            List<AccountingFilingInput.FilingVatBucket> buckets =
+                jdbcTemplate.query(
+                    """
+                    SELECT treatment, vat_rate, net_amount, vat_amount, deductible_vat
+                      FROM investory.accounting_document_vat_bucket
+                     WHERE document_id = ?
+                     ORDER BY id
+                    """,
+                    (bucket, bucketRow) ->
+                        new AccountingFilingInput.FilingVatBucket(
+                            VatTreatment.valueOf(bucket.getString("treatment")),
+                            bucket.getBigDecimal("vat_rate"),
+                            bucket.getBigDecimal("net_amount"),
+                            bucket.getBigDecimal("vat_amount"),
+                            bucket.getBigDecimal("deductible_vat")),
+                    documentId);
+            AccountingFilingInput.FilingVatBucket first = buckets.getFirst();
+            return new AccountingFilingInput.FilingDocument(
+                rs.getString("reference"),
+                rs.getObject("issue_date", LocalDate.class),
+                "SALE".equals(rs.getString("direction"))
+                    ? rs.getObject("supply_date", LocalDate.class)
+                    : null,
+                "PURCHASE".equals(rs.getString("direction"))
+                    ? rs.getObject("supply_date", LocalDate.class)
+                    : null,
+                rs.getString("counterparty_tax_identifier"),
+                rs.getString("counterparty_name"),
+                rs.getBigDecimal("net_amount"),
+                rs.getBigDecimal("vat_amount"),
+                buckets.stream()
+                    .map(AccountingFilingInput.FilingVatBucket::deductibleVat)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add),
+                filingEvidence(rs.getString("filing_evidence"), rs.getString("ksef_number")),
+                first.treatment(),
+                rs.getString("counterparty_country"),
+                first.vatRate(),
+                rs.getBigDecimal("vat_deduction_ratio"),
+                buckets);
+          },
+          profileId,
+          period);
+    } catch (DataAccessException ignored) {
+      return List.of();
+    }
   }
 
   public Optional<ReferenceMonth> referenceMonth(long profileId, LocalDate period) {
@@ -482,11 +577,12 @@ public class AccountingPocRepository {
         """
         SELECT COALESCE(SUM(COALESCE(booked_net_pln, net_amount)), 0)
          FROM investory.accounting_poc_invoice
-         WHERE profile_id = ? AND tax_period >= DATE '2026-01-01' AND tax_period <= ?
+         WHERE profile_id = ? AND tax_period >= DATE_TRUNC('year', ?::date)::date AND tax_period <= ?
            AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
         """,
         BigDecimal.class,
         profileId,
+        period,
         period);
   }
 
@@ -1034,7 +1130,7 @@ public class AccountingPocRepository {
             SELECT id, booking_date, related_period, amount, reference
              FROM investory.accounting_poc_bank_transaction
              WHERE profile_id = ? AND transaction_type = 'ZUS_PAYMENT'
-               AND booking_date <= ?
+               AND booking_date <= ? AND related_period IS NOT NULL
              ORDER BY id
             """,
         (rs, rowNum) -> {
@@ -1045,8 +1141,10 @@ public class AccountingPocRepository {
           String reference = rs.getString("reference");
           ZusAmounts obligation = obligationsByPeriod.get(contributionPeriod);
           if (obligation == null) {
-            issues.add(
-                reviewIssue(reference, "No calculated ZUS obligation for contribution period."));
+            if (period.equals(contributionPeriod)) {
+              issues.add(
+                  reviewIssue(reference, "No calculated ZUS obligation for contribution period."));
+            }
             return null;
           }
           BigDecimal total = obligation.social().add(obligation.health()).setScale(2);
@@ -1058,7 +1156,7 @@ public class AccountingPocRepository {
                       contributionPeriod,
                       paymentDate,
                       obligation.social(),
-                      obligation.social(),
+                      obligation.deductibleSocial(),
                       id));
             if (obligation.health().signum() > 0)
               contributions.add(
@@ -1097,7 +1195,7 @@ public class AccountingPocRepository {
         "PAID_CONTRIBUTION_REVIEW_REQUIRED", "REVIEW_REQUIRED", reference, message);
   }
 
-  public record ZusAmounts(BigDecimal social, BigDecimal health) {}
+  public record ZusAmounts(BigDecimal social, BigDecimal deductibleSocial, BigDecimal health) {}
 
   public record PaidContributionProjection(
       List<PaidContribution> contributions, List<AccountingIssue> issues) {}
@@ -1266,10 +1364,12 @@ public class AccountingPocRepository {
   public List<EmploymentInsurancePeriod> employmentPeriods(long profileId) {
     try {
       return jdbcTemplate.query(
-          "SELECT date_from, date_to FROM investory.employment_period WHERE profile_id = ? AND employment_type = 'UOP' ORDER BY date_from, id",
+          "SELECT date_from, date_to, qualifies_as_primary_social_insurance FROM investory.employment_period WHERE profile_id = ? AND employment_type = 'UOP' ORDER BY date_from, id",
           (rs, rowNum) ->
               new EmploymentInsurancePeriod(
-                  rs.getObject(1, LocalDate.class), rs.getObject(2, LocalDate.class), true),
+                  rs.getObject(1, LocalDate.class),
+                  rs.getObject(2, LocalDate.class),
+                  rs.getBoolean(3)),
           profileId);
     } catch (DataAccessException ignored) {
       return List.of();
@@ -1378,6 +1478,123 @@ public class AccountingPocRepository {
         deductibleVat,
         evidence,
         null);
+  }
+
+  public void upsertCanonicalDocument(
+      long profileId,
+      String direction,
+      String documentKind,
+      LocalDate taxPeriod,
+      LocalDate issueDate,
+      LocalDate supplyDate,
+      LocalDate dueDate,
+      String reference,
+      String counterpartyName,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      LocalDate fxRateDate,
+      BigDecimal bookedNetPln,
+      BigDecimal ryczaltRate,
+      String category,
+      BigDecimal vatDeductionRatio,
+      String sourceQuality,
+      Long sourceId,
+      String ksefNumber,
+      AccountingFilingEvidence filingEvidence,
+      String note,
+      VatTreatment vatTreatment,
+      BigDecimal vatRate,
+      BigDecimal deductibleVat) {
+    jdbcTemplate.update(
+        """
+        INSERT INTO investory.accounting_document
+            (profile_id, direction, document_kind, tax_period, issue_date, supply_date, due_date,
+             reference, counterparty_name, counterparty_tax_identifier, counterparty_country, currency,
+             net_amount, vat_amount, gross_amount, fx_rate_date, booked_net_pln, ryczalt_rate,
+             category, vat_deduction_ratio, source_quality, source_id, ksef_number, filing_evidence, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (profile_id, direction, reference) DO NOTHING
+        """,
+        profileId,
+        direction,
+        documentKind,
+        taxPeriod,
+        issueDate,
+        supplyDate,
+        dueDate,
+        reference,
+        counterpartyName,
+        counterpartyTaxIdentifier,
+        counterpartyCountry,
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        fxRateDate,
+        bookedNetPln,
+        ryczaltRate,
+        category,
+        vatDeductionRatio,
+        sourceQuality,
+        sourceId,
+        ksefNumber,
+        filingEvidence == null ? null : filingEvidence.type().name(),
+        note);
+    jdbcTemplate.update(
+        """
+        INSERT INTO investory.accounting_document_vat_bucket
+            (document_id, treatment, vat_rate, net_amount, vat_amount, deductible_vat)
+        SELECT id, ?, ?, ?, ?, ?
+          FROM investory.accounting_document
+         WHERE profile_id = ? AND direction = ? AND reference = ?
+        ON CONFLICT (document_id, treatment, vat_rate)
+            DO UPDATE SET net_amount = EXCLUDED.net_amount,
+                          vat_amount = EXCLUDED.vat_amount,
+                          deductible_vat = EXCLUDED.deductible_vat
+        """,
+        vatTreatment.name(),
+        vatRate,
+        netAmount,
+        vatAmount,
+        deductibleVat,
+        profileId,
+        direction,
+        reference);
+  }
+
+  public void upsertCanonicalVatBucket(
+      long profileId,
+      AccountingVatTransaction.Direction direction,
+      String reference,
+      VatTreatment treatment,
+      BigDecimal vatRate,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal deductibleVat) {
+    jdbcTemplate.update(
+        """
+        INSERT INTO investory.accounting_document_vat_bucket
+            (document_id, treatment, vat_rate, net_amount, vat_amount, deductible_vat)
+        SELECT id, ?, ?, ?, ?, ?
+          FROM investory.accounting_document
+         WHERE profile_id = ? AND direction = ? AND reference = ?
+        ON CONFLICT (document_id, treatment, vat_rate)
+            DO UPDATE SET net_amount = EXCLUDED.net_amount,
+                          vat_amount = EXCLUDED.vat_amount,
+                          deductible_vat = EXCLUDED.deductible_vat
+        """,
+        treatment.name(),
+        vatRate,
+        netAmount,
+        vatAmount,
+        deductibleVat,
+        profileId,
+        direction.name(),
+        reference);
   }
 
   public void insertVatTransaction(

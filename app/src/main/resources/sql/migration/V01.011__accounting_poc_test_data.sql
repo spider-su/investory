@@ -218,6 +218,37 @@ CREATE TABLE investory.accounting_reference_month (
 
 COMMENT ON TABLE investory.accounting_reference_month IS
     'Immutable Jan-Aug 2026 verification oracle. Never used as operational calculation input.';
+
+-- Branch oracle: a second, non-UoP taxpayer case. This is intentionally
+-- separate from accounting_poc_profile, whose singleton is the live POC
+-- profile. Each month carries both policy variants and the date edge cases.
+CREATE TABLE investory.accounting_reference_zus_branch (
+    case_key VARCHAR(32) NOT NULL,
+    tax_period DATE NOT NULL,
+    has_uop BOOLEAN NOT NULL,
+    voluntary_sickness BOOLEAN NOT NULL,
+    ytd_revenue NUMERIC(19,4) NOT NULL,
+    paid_social NUMERIC(19,4) NOT NULL,
+    expected_health_band VARCHAR(16) NOT NULL,
+    expected_social NUMERIC(19,4) NOT NULL,
+    expected_deductible_social NUMERIC(19,4) NOT NULL,
+    expected_health NUMERIC(19,4) NOT NULL,
+    correction_sale_date DATE NOT NULL,
+    correction_issue_date DATE NOT NULL,
+    expected_correction_period DATE NOT NULL,
+    foreign_document_date DATE NOT NULL,
+    expected_fx_rate_date DATE NOT NULL,
+    PRIMARY KEY (case_key, tax_period),
+    CONSTRAINT chk_accounting_reference_zus_branch_period
+        CHECK (tax_period >= DATE '2026-01-01' AND tax_period < DATE '2026-09-01'),
+    CONSTRAINT chk_accounting_reference_zus_branch_band
+        CHECK (expected_health_band IN ('LOW','MEDIUM','HIGH')),
+    CONSTRAINT chk_accounting_reference_zus_branch_dates
+        CHECK (expected_correction_period = DATE_TRUNC('month', correction_issue_date)::date)
+);
+
+COMMENT ON TABLE investory.accounting_reference_zus_branch IS
+    'Immutable monthly ZUS branch oracle, including the non-UoP social path. Never used by calculations.';
 -- A provider transaction is one operational staging row per profile, even when
 -- the same transaction is present in overlapping exports.
 CREATE UNIQUE INDEX uq_accounting_tmp_bank_profile_external_transaction
@@ -234,6 +265,66 @@ ALTER TABLE investory.accounting_tmp_bank_transaction
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_tmp_bank_profile_identity
     ON investory.accounting_tmp_bank_transaction(profile_id, source_id, external_transaction_id);
+
+ALTER TABLE investory.accounting_tmp_invoice
+    ADD CONSTRAINT chk_accounting_tmp_invoice_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_tmp_bank_transaction
+    ADD CONSTRAINT chk_accounting_tmp_bank_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_tmp_vat_transaction
+    ADD CONSTRAINT chk_accounting_tmp_vat_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_invoice
+    ADD CONSTRAINT chk_accounting_reference_invoice_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_expense_invoice
+    ADD CONSTRAINT chk_accounting_reference_expense_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_bank_transaction
+    ADD CONSTRAINT chk_accounting_reference_bank_related_period_month_start
+    CHECK (related_period IS NULL OR EXTRACT(DAY FROM related_period) = 1);
+
+ALTER TABLE investory.accounting_reference_obligation
+    ADD CONSTRAINT chk_accounting_reference_obligation_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_tax_input
+    ADD CONSTRAINT chk_accounting_reference_tax_input_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_month
+    ADD CONSTRAINT chk_accounting_reference_month_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_tmp_invoice
+    DROP CONSTRAINT IF EXISTS accounting_tmp_invoice_source_id_fkey;
+
+ALTER TABLE investory.accounting_tmp_invoice
+    ADD CONSTRAINT fk_accounting_tmp_invoice_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
+
+ALTER TABLE investory.accounting_tmp_bank_transaction
+    DROP CONSTRAINT IF EXISTS accounting_tmp_bank_transaction_source_id_fkey;
+
+ALTER TABLE investory.accounting_tmp_bank_transaction
+    ADD CONSTRAINT fk_accounting_tmp_bank_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
+
+ALTER TABLE investory.accounting_tmp_vat_transaction
+    DROP CONSTRAINT IF EXISTS accounting_tmp_vat_transaction_source_id_fkey;
+
+ALTER TABLE investory.accounting_tmp_vat_transaction
+    ADD CONSTRAINT fk_accounting_tmp_vat_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
 
 
 ALTER TABLE investory.accounting_tmp_invoice ALTER COLUMN profile_id DROP DEFAULT;
@@ -268,11 +359,11 @@ VALUES
      'Payment matches the corrected receivable for FV 4/2026.' , 1),
     (NULL, 'SALES_INVOICE', 'FV 5/2026', 'CUSTOMER_PL_002', 'PLN', 19987.5000, 0.1200,
      'Domestic sales invoice historical fixture.' , 1),
-    ('2026-08-20', 'RYCZALT_DUE', '2026-07', 'TAX_OFFICE', 'PLN', 5791.0000, 0.1200,
+    ('2026-08-20', 'RYCZALT_DUE', '2026-07', 'TAX_OFFICE', 'PLN', 5809.0000, 0.1200,
      'Known wFirma result for July 2026 business ryczalt.' , 1),
     ('2026-08-20', 'ZUS_DUE', '2026-07', 'ZUS', 'PLN', 1495.0400, NULL,
      'Known monthly health contribution obligation for the visible 2026 periods.' , 1),
-    (NULL, 'VAT_PAYMENT', '2026-07', 'TAX_OFFICE', 'PLN', 3557.0000, NULL,
+    (NULL, 'VAT_PAYMENT', '2026-07', 'TAX_OFFICE', 'PLN', 3592.0000, NULL,
      'Historical VAT payment from the PLN bank statement.' , 1),
     ('2026-08-25', 'VAT_UE_DECLARATION', '2026-07', 'TAX_OFFICE', 'PLN', 0.0000, NULL,
      'VAT-UE reporting obligation; reporting event only, not an additional tax amount.' , 1);
@@ -309,8 +400,8 @@ VALUES
     ('2026-07-16', NULL, 'Transfer of funds', 'OWN_ACCOUNT', 'PLN', -20000.0000, 'INTERNAL_TRANSFER', 'EXCLUDED_INTERNAL', 'Own-account transfer.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-04', NULL),
     ('2026-08-05', '2026-07-01', 'Service Agreements', 'CUSTOMER_EU_001', 'EUR', 7636.0000, 'CUSTOMER_RECEIPT', 'BUSINESS', 'SEPA receipt matched to the July EU service fixture.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-05', NULL),
     ('2026-08-13', '2026-07-01', 'FV 5/2026', 'CUSTOMER_PL_002', 'PLN', 19987.5000, 'CUSTOMER_RECEIPT', 'BUSINESS', 'Payment received for FV 5/2026.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-06', NULL),
-    ('2026-08-18', '2026-07-01', '26M07 PPE business', 'TAX_OFFICE', 'PLN', -5791.0000, 'RYCZALT_PAYMENT', 'BUSINESS', 'Business ryczalt payment for 2026-07.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-07', NULL),
-    ('2026-08-18', '2026-07-01', '26M07 VAT-7', 'TAX_OFFICE', 'PLN', -3557.0000, 'VAT_PAYMENT', 'BUSINESS', 'VAT payment for 2026-07.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-08', NULL),
+    ('2026-08-18', '2026-07-01', '26M07 PPE business', 'TAX_OFFICE', 'PLN', -5809.0000, 'RYCZALT_PAYMENT', 'BUSINESS', 'Business ryczalt payment for 2026-07.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-07', NULL),
+    ('2026-08-18', '2026-07-01', '26M07 VAT-7', 'TAX_OFFICE', 'PLN', -3592.0000, 'VAT_PAYMENT', 'BUSINESS', 'VAT payment for 2026-07.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-08', NULL),
     ('2026-08-18', '2026-07-01', '26M07 ZUS', 'ZUS', 'PLN', -1495.0000, 'ZUS_PAYMENT', 'BUSINESS', 'Bank payment for the 2026-07 ZUS obligation.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-09', NULL),
     ('2026-08-18', '2026-07-01', '26M07 PPE rental', 'TAX_OFFICE', 'PLN', -740.0000, 'RENTAL_TAX_PAYMENT', 'EXCLUDED_PRIVATE', 'Private rental ryczalt; deliberately outside the business POC.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-10', NULL),
     ('2026-08-18', NULL, 'Transfer of funds', 'OWN_ACCOUNT', 'PLN', -8000.0000, 'INTERNAL_TRANSFER', 'EXCLUDED_INTERNAL', 'Own-account transfer.' , 1, 'CSV', 'LEGACY_SOURCE', 'legacy-11', NULL),
@@ -327,8 +418,8 @@ VALUES
 INSERT INTO investory.accounting_poc_obligation
     (tax_period, obligation_type, due_date, expected_amount, paid_amount, payment_date, status, note, profile_id)
 VALUES
-    ('2026-07-01', 'RYCZALT', '2026-08-20', 5791.0000, 5791.0000, '2026-08-18', 'MATCHED', 'Golden wFirma/business-tax amount confirmed by bank payment.', 1),
-    ('2026-07-01', 'VAT', NULL, 3557.0000, 3557.0000, '2026-08-18', 'MATCHED', 'Golden VAT amount confirmed by bank payment. Detailed JPK calculation is a later POC step.', 1),
+    ('2026-07-01', 'RYCZALT', '2026-08-20', 5791.0000, 5791.0000, '2026-08-18', 'MATCHED', 'Golden wFirma/business-tax amount after the July cross-period correction.', 1),
+    ('2026-07-01', 'VAT', NULL, 3557.0000, 3557.0000, '2026-08-18', 'MATCHED', 'Golden VAT amount after the July cross-period correction.', 1),
     ('2026-07-01', 'VAT_UE', '2026-08-25', 0.0000, 0.0000, NULL, 'REPORTING_ONLY', 'VAT-UE reporting obligation; no additional tax payment.' , 1),
     ('2026-01-01', 'RYCZALT', '2026-02-20', 7323.0000, 7323.0000, NULL, 'GOLDEN', 'January ryczałt recomputed after restoring source document 015.' , 1),
     ('2026-01-01', 'VAT', NULL, 6714.0000, 6714.0000, NULL, 'GOLDEN', 'Known January VAT payment.' , 1),
@@ -365,7 +456,7 @@ VALUES
     ('2026-04-01', 'EXPECTED_REVENUE_PLN', 63561.2500, 'wFirma analytics monthly revenue golden.' , 1),
     ('2026-05-01', 'EXPECTED_REVENUE_PLN', 61917.0800, 'wFirma analytics monthly revenue golden.' , 1),
     ('2026-06-01', 'EXPECTED_REVENUE_PLN', 65310.8000, 'wFirma analytics monthly revenue golden.' , 1),
-    ('2026-07-01', 'EXPECTED_REVENUE_PLN', 49008.8700, 'wFirma analytics monthly revenue golden including July correction.' , 1),
+    ('2026-07-01', 'EXPECTED_REVENUE_PLN', 49008.8700, 'Reference revenue includes the July cross-period correction represented by the canonical accounting calculation.' , 1),
     ('2026-08-01', 'EXPECTED_REVENUE_PLN', 26250.0000, 'wFirma analytics monthly revenue golden; no foreign revenue is booked in August.' , 1),
     ('2026-01-01', 'EXPECTED_INPUT_VAT', 93.5400, 'wFirma VAT analytics purchase VAT.' , 1),
     ('2026-02-01', 'EXPECTED_INPUT_VAT', 100.5500, 'wFirma VAT analytics purchase VAT.' , 1),
@@ -505,8 +596,8 @@ SELECT m.profile_id,m.tax_period,
        COALESCE((SELECT SUM(COALESCE(i.booked_net_pln,i.net_amount)) FROM investory.accounting_reference_invoice i
                   WHERE i.profile_id=m.profile_id AND i.tax_period=m.tax_period AND i.invoice_kind IN ('SALES_INVOICE','DOMESTIC_SERVICE','EU_SERVICE')),0),
        COALESCE((SELECT SUM(e.net_amount) FROM investory.accounting_reference_expense_invoice e WHERE e.profile_id=m.profile_id AND e.tax_period=m.tax_period),0),
-       COALESCE((SELECT SUM(i.vat_amount + i.correction_vat_amount) FROM investory.accounting_reference_invoice i WHERE i.profile_id=m.profile_id AND i.tax_period=m.tax_period),0),
-       COALESCE((SELECT SUM(e.vat_amount * e.vat_deduction_ratio) FROM investory.accounting_reference_expense_invoice e WHERE e.profile_id=m.profile_id AND e.tax_period=m.tax_period),0),
+       COALESCE((SELECT SUM(i.vat_amount) FROM investory.accounting_reference_invoice i WHERE i.profile_id=m.profile_id AND i.tax_period=m.tax_period),0),
+       COALESCE((SELECT SUM(ROUND(e.vat_amount * e.vat_deduction_ratio, 2)) FROM investory.accounting_reference_expense_invoice e WHERE e.profile_id=m.profile_id AND e.tax_period=m.tax_period),0),
        0, COALESCE((SELECT SUM(o.expected_amount) FROM investory.accounting_reference_obligation o WHERE o.profile_id=m.profile_id AND o.tax_period=m.tax_period AND o.obligation_type='RYCZALT'),0),
        COALESCE((SELECT SUM(o.expected_amount) FROM investory.accounting_reference_obligation o WHERE o.profile_id=m.profile_id AND o.tax_period=m.tax_period AND o.obligation_type='ZUS'),0),
        (SELECT COUNT(*) FROM investory.accounting_reference_invoice i WHERE i.profile_id=m.profile_id AND i.tax_period=m.tax_period)
@@ -520,6 +611,28 @@ SELECT m.profile_id,m.tax_period,
 
 UPDATE investory.accounting_reference_month
    SET vat_payable = output_vat - deductible_input_vat;
+
+INSERT INTO investory.accounting_reference_zus_branch
+    (case_key,tax_period,has_uop,voluntary_sickness,ytd_revenue,paid_social,expected_health_band,
+     expected_social,expected_deductible_social,expected_health,correction_sale_date,
+     correction_issue_date,expected_correction_period,foreign_document_date,expected_fx_rate_date)
+VALUES
+ ('UOP','2026-01-01',TRUE,FALSE,0.00,0.00,'LOW',0.00,0.00,498.35,'2026-01-31','2026-02-02','2026-02-01','2026-01-31','2026-01-30'),
+ ('JDG_SICKNESS','2026-01-01',FALSE,TRUE,1649.82,1649.82,'LOW',1926.76,1788.29,498.35,'2026-01-31','2026-02-02','2026-02-01','2026-01-31','2026-01-30'),
+ ('UOP','2026-02-01',TRUE,FALSE,60000.00,0.00,'LOW',0.00,0.00,498.35,'2026-02-28','2026-03-02','2026-03-01','2026-02-28','2026-02-27'),
+ ('JDG_SICKNESS','2026-02-01',FALSE,TRUE,61649.82,1649.82,'LOW',1926.76,1788.29,498.35,'2026-02-28','2026-03-02','2026-03-01','2026-02-28','2026-02-27'),
+ ('UOP','2026-03-01',TRUE,FALSE,60000.01,0.00,'MEDIUM',0.00,0.00,830.58,'2026-03-31','2026-04-02','2026-04-01','2026-03-31','2026-03-30'),
+ ('JDG_SICKNESS','2026-03-01',FALSE,TRUE,61649.83,1649.82,'MEDIUM',1926.76,1788.29,830.58,'2026-03-31','2026-04-02','2026-04-01','2026-03-31','2026-03-30'),
+ ('UOP','2026-04-01',TRUE,FALSE,300000.00,0.00,'MEDIUM',0.00,0.00,830.58,'2026-04-30','2026-05-02','2026-05-01','2026-04-30','2026-04-29'),
+ ('JDG_SICKNESS','2026-04-01',FALSE,TRUE,301649.82,1649.82,'MEDIUM',1926.76,1788.29,830.58,'2026-04-30','2026-05-02','2026-05-01','2026-04-30','2026-04-29'),
+ ('UOP','2026-05-01',TRUE,FALSE,300000.01,0.00,'HIGH',0.00,0.00,1495.04,'2026-05-31','2026-06-02','2026-06-01','2026-05-31','2026-05-29'),
+ ('JDG_SICKNESS','2026-05-01',FALSE,TRUE,301649.83,1649.82,'HIGH',1926.76,1788.29,1495.04,'2026-05-31','2026-06-02','2026-06-01','2026-05-31','2026-05-29'),
+ ('UOP','2026-06-01',TRUE,FALSE,500000.00,0.00,'HIGH',0.00,0.00,1495.04,'2026-06-30','2026-07-02','2026-07-01','2026-06-30','2026-06-29'),
+ ('JDG_SICKNESS','2026-06-01',FALSE,TRUE,501649.82,1649.82,'HIGH',1926.76,1788.29,1495.04,'2026-06-30','2026-07-02','2026-07-01','2026-06-30','2026-06-29'),
+ ('UOP','2026-07-01',TRUE,FALSE,59999.99,0.00,'LOW',0.00,0.00,498.35,'2026-07-31','2026-08-03','2026-08-01','2026-07-31','2026-07-30'),
+ ('JDG_SICKNESS','2026-07-01',FALSE,TRUE,61649.81,1649.82,'LOW',1926.76,1788.29,498.35,'2026-07-31','2026-08-03','2026-08-01','2026-07-31','2026-07-30'),
+ ('UOP','2026-08-01',TRUE,FALSE,300000.01,0.00,'HIGH',0.00,0.00,1495.04,'2026-08-31','2026-09-02','2026-09-01','2026-08-31','2026-08-28'),
+ ('JDG_SICKNESS','2026-08-01',FALSE,TRUE,301649.83,1649.82,'HIGH',1926.76,1788.29,1495.04,'2026-08-31','2026-09-02','2026-09-01','2026-08-31','2026-08-28');
 
 
 -- Historical rows are now reference-only. Operational acquisition starts empty.
@@ -574,3 +687,84 @@ SELECT DISTINCT profile_id,
    AND counterparty_country IS NOT NULL
    AND customer_alias IS NOT NULL
 ON CONFLICT (profile_id, country, tax_identifier) DO NOTHING;
+
+
+-- Backfill retained operational documents. Source evidence remains nullable during this expand phase:
+-- historical fixture rows may predate immutable source ingestion.
+INSERT INTO investory.accounting_document (
+    profile_id, direction, document_kind, tax_period, issue_date, supply_date, due_date,
+    reference, counterparty_name, counterparty_tax_identifier, counterparty_country, currency,
+    net_amount, vat_amount, gross_amount, fx_rate_date, booked_net_pln, ryczalt_rate, source_id,
+    ksef_number, filing_evidence, note)
+SELECT profile_id,
+       'SALE',
+       CASE WHEN invoice_kind = 'CREDIT_NOTE' THEN 'CREDIT_NOTE' ELSE 'INVOICE' END,
+       tax_period, issue_date, sale_date, due_date, reference, customer_alias,
+       counterparty_tax_identifier, counterparty_country, currency,
+       net_amount, vat_amount, gross_amount, fx_rate_date, booked_net_pln, ryczalt_rate, source_id,
+       ksef_number, filing_evidence, note
+  FROM investory.accounting_poc_invoice
+ON CONFLICT (profile_id, direction, reference) DO NOTHING;
+
+INSERT INTO investory.accounting_document (
+    profile_id, direction, document_kind, tax_period, issue_date, supply_date, due_date,
+    reference, counterparty_name, counterparty_tax_identifier, counterparty_country, currency,
+    net_amount, vat_amount, gross_amount, category, vat_deduction_ratio, source_quality, source_id,
+    ksef_number, filing_evidence, note)
+SELECT profile_id, 'PURCHASE', 'INVOICE', tax_period, invoice_date, invoice_date, due_date,
+       reference, supplier_alias, counterparty_tax_identifier, counterparty_country, currency,
+       net_amount, vat_amount, gross_amount, category, vat_deduction_ratio, source_quality, source_id,
+       ksef_number, filing_evidence, note
+  FROM investory.accounting_poc_expense_invoice
+ON CONFLICT (profile_id, direction, reference) DO NOTHING;
+
+UPDATE investory.accounting_document document
+   SET counterparty_id = counterpart.id
+  FROM investory.accounting_known_counterparty counterpart
+ WHERE document.profile_id = counterpart.profile_id
+   AND document.counterparty_country = counterpart.country
+   AND UPPER(REGEXP_REPLACE(document.counterparty_tax_identifier, '[^[:alnum:]]', '', 'g')) = counterpart.tax_identifier
+   AND document.counterparty_id IS NULL;
+
+-- Retained rows without an explicit VAT classification get the same default treatment used by
+-- the existing filing projection. Explicit historical VAT classifications below take precedence.
+INSERT INTO investory.accounting_document_vat_bucket
+    (document_id, treatment, vat_rate, net_amount, vat_amount, deductible_vat)
+SELECT document.id,
+       CASE
+           WHEN document.direction = 'PURCHASE' THEN 'DOMESTIC_PURCHASE'
+           WHEN document.currency = 'PLN' THEN 'DOMESTIC_VAT'
+           ELSE 'EU_B2B_REVERSE_CHARGE'
+       END,
+       CASE
+           WHEN document.currency = 'PLN' AND document.net_amount <> 0
+               THEN ROUND(document.vat_amount * 100 / document.net_amount, 2)
+           ELSE NULL
+       END,
+       document.net_amount,
+       document.vat_amount,
+       CASE WHEN document.direction = 'PURCHASE'
+           THEN ROUND(document.vat_amount * COALESCE(document.vat_deduction_ratio, 1), 2)
+           ELSE 0
+       END
+  FROM investory.accounting_document document
+ WHERE NOT EXISTS (
+           SELECT 1
+             FROM investory.accounting_vat_transaction vat
+            WHERE vat.profile_id = document.profile_id
+              AND vat.reference = document.reference
+              AND vat.direction = document.direction)
+ON CONFLICT (document_id, treatment, vat_rate) DO NOTHING;
+
+INSERT INTO investory.accounting_document_vat_bucket
+    (document_id, treatment, vat_rate, net_amount, vat_amount, deductible_vat)
+SELECT document.id, vat.treatment, vat.vat_rate, vat.net_amount, vat.vat_amount, vat.deductible_vat
+  FROM investory.accounting_vat_transaction vat
+  JOIN investory.accounting_document document
+    ON document.profile_id = vat.profile_id
+   AND document.reference = vat.reference
+   AND document.direction = vat.direction
+ON CONFLICT (document_id, treatment, vat_rate)
+    DO UPDATE SET net_amount = EXCLUDED.net_amount,
+                  vat_amount = EXCLUDED.vat_amount,
+                  deductible_vat = EXCLUDED.deductible_vat;

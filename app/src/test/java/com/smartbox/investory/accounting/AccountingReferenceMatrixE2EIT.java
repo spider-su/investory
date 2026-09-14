@@ -86,6 +86,68 @@ class AccountingReferenceMatrixE2EIT {
     softly.assertAll();
   }
 
+  @Test
+  void referenceOracleExercisesEveryMonthlyZusAndDateBranch() {
+    var rows =
+        jdbc.query(
+            "SELECT case_key, tax_period, has_uop, voluntary_sickness, ytd_revenue, paid_social, "
+                + "expected_health_band, expected_social, expected_deductible_social, expected_health, "
+                + "correction_sale_date, correction_issue_date, expected_correction_period, "
+                + "foreign_document_date, expected_fx_rate_date "
+                + "FROM investory.accounting_reference_zus_branch ORDER BY tax_period, case_key",
+            (rs, rowNum) -> ReferenceZusBranch.from(rs));
+
+    assertThat(rows).hasSize(16);
+    var byMonth = rows.stream().collect(Collectors.groupingBy(ReferenceZusBranch::taxPeriod));
+    assertThat(byMonth).hasSize(8);
+    for (int month = 1; month <= 8; month++) {
+      LocalDate period = LocalDate.of(2026, month, 1);
+      var monthly = byMonth.get(period);
+      assertThat(monthly).as("reference rows for %s", period).hasSize(2);
+      assertThat(monthly.stream().map(ReferenceZusBranch::caseKey).collect(Collectors.toSet()))
+          .as("insurance branches for %s", period)
+          .containsExactlyInAnyOrder("UOP", "JDG_SICKNESS");
+      monthly.forEach(this::assertReferenceBranch);
+    }
+
+    assertThat(rows.stream().map(row -> row.expectedHealthBand()).collect(Collectors.toSet()))
+        .containsExactlyInAnyOrder("LOW", "MEDIUM", "HIGH");
+    assertThat(
+            rows.stream()
+                .map(ReferenceZusBranch::paidSocial)
+                .map(value -> value.stripTrailingZeros().toPlainString())
+                .distinct())
+        .containsExactlyInAnyOrder("0", "1649.82");
+  }
+
+  private void assertReferenceBranch(ReferenceZusBranch row) {
+    var band = ZusRules2026.healthBandAfterPaidSocial(row.ytdRevenue(), row.paidSocial());
+    assertThat(band.name())
+        .as("health band %s/%s", row.caseKey(), row.taxPeriod())
+        .isEqualTo(row.expectedHealthBand());
+    var result =
+        new ZusCalculator()
+            .calculate(
+                new ZusCalculator.Input(
+                    true,
+                    row.hasUop(),
+                    "JDG",
+                    row.voluntarySickness(),
+                    row.ytdRevenue(),
+                    null,
+                    band));
+    assertThat(result.socialContribution()).isEqualByComparingTo(row.expectedSocial());
+    assertThat(result.deductibleSocialContribution())
+        .isEqualByComparingTo(row.expectedDeductibleSocial());
+    assertThat(result.healthContribution()).isEqualByComparingTo(row.expectedHealth());
+    assertThat(
+            AccountingDateRules.accountingPeriod(
+                row.correctionSaleDate(), row.correctionIssueDate(), null, true))
+        .isEqualTo(row.expectedCorrectionPeriod());
+    assertThat(AccountingDateRules.priorBusinessDay(row.foreignDocumentDate()))
+        .isEqualTo(row.expectedFxRateDate());
+  }
+
   private void prepareNonDocumentCalculationInputs() {
     jdbc.update(
         "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) "
@@ -103,12 +165,25 @@ class AccountingReferenceMatrixE2EIT {
             row.reference(), row.issueDate(), row.reference().getBytes(StandardCharsets.UTF_8));
     staging.stageInvoice(
         PROFILE_ID, row.reviewedInvoice(Long.toString(sourceId)), row.vatTreatment());
+    if (row.correctionNet() != null && row.correctionNet().signum() != 0) {
+      long correctionSource =
+          sources.receiveKsef(
+              row.reference() + "-CORRECTION",
+              row.period().plusMonths(1).withDayOfMonth(1),
+              (row.reference() + "-CORRECTION").getBytes(StandardCharsets.UTF_8));
+      staging.stageInvoice(
+          PROFILE_ID, row.correctionInvoice(Long.toString(correctionSource)), "DOMESTIC_VAT");
+    }
   }
 
   private void compareMonth(LocalDate period, SoftAssertions softly) {
     var expected =
         jdbc.queryForObject(
-            "SELECT revenue, expenses, output_vat, deductible_input_vat, vat_payable, ryczalt, zus, document_count, bank_count, "
+            "SELECT revenue + COALESCE((SELECT SUM(i2.correction_net_amount) FROM investory.accounting_reference_invoice i2 WHERE i2.profile_id=? AND i2.tax_period=?), 0), expenses, "
+                + "output_vat + COALESCE((SELECT SUM(i2.correction_vat_amount) FROM investory.accounting_reference_invoice i2 WHERE i2.profile_id=? AND i2.tax_period=?), 0), deductible_input_vat, "
+                + "output_vat + COALESCE((SELECT SUM(i2.correction_vat_amount) FROM investory.accounting_reference_invoice i2 WHERE i2.profile_id=? AND i2.tax_period=?), 0) - deductible_input_vat, "
+                + "(SELECT COALESCE(SUM(o2.expected_amount), 0) FROM investory.accounting_reference_obligation o2 WHERE o2.profile_id=? AND o2.tax_period=? AND o2.obligation_type='RYCZALT'), zus, "
+                + "document_count + CASE WHEN EXISTS (SELECT 1 FROM investory.accounting_reference_invoice i2 WHERE i2.profile_id=? AND i2.tax_period=? AND COALESCE(i2.correction_net_amount, 0) <> 0) THEN 1 ELSE 0 END, bank_count, "
                 + "EXISTS (SELECT 1 FROM investory.accounting_reference_obligation o WHERE o.profile_id=? AND o.tax_period=? AND o.obligation_type='VAT'), "
                 + "EXISTS (SELECT 1 FROM investory.accounting_reference_obligation o WHERE o.profile_id=? AND o.tax_period=? AND o.obligation_type='RYCZALT'), "
                 + "EXISTS (SELECT 1 FROM investory.accounting_reference_obligation o WHERE o.profile_id=? AND o.tax_period=? AND o.obligation_type='ZUS') "
@@ -117,8 +192,8 @@ class AccountingReferenceMatrixE2EIT {
                 new ExpectedMonth(
                     money(rs.getBigDecimal(1)),
                     money(rs.getBigDecimal(2)),
-                    tax(rs.getBigDecimal(3)),
-                    tax(rs.getBigDecimal(4)),
+                    money(rs.getBigDecimal(3)),
+                    money(rs.getBigDecimal(4)),
                     tax(rs.getBigDecimal(3)).subtract(tax(rs.getBigDecimal(4))),
                     tax(rs.getBigDecimal(6)),
                     money(rs.getBigDecimal(7)),
@@ -127,6 +202,16 @@ class AccountingReferenceMatrixE2EIT {
                     rs.getBoolean(10),
                     rs.getBoolean(11),
                     rs.getBoolean(12)),
+            PROFILE_ID,
+            period.minusMonths(1),
+            PROFILE_ID,
+            period.minusMonths(1),
+            PROFILE_ID,
+            period.minusMonths(1),
+            PROFILE_ID,
+            period,
+            PROFILE_ID,
+            period.minusMonths(1),
             PROFILE_ID,
             period,
             PROFILE_ID,
@@ -193,9 +278,9 @@ class AccountingReferenceMatrixE2EIT {
   private Map<String, InvoiceInput> referenceDocuments() {
     return jdbc
         .query(
-            "SELECT tax_period, issue_date, sale_date, reference, counterparty_alias, invoice_kind, currency, net_amount, vat_amount, gross_amount, "
+            "SELECT tax_period, issue_date, sale_date, reference, counterparty_alias, invoice_kind, currency, net_amount, vat_amount, gross_amount, correction_net_amount, correction_vat_amount, correction_gross_amount, "
                 + "NULL::numeric AS vat_deduction_ratio, counterparty_tax_identifier, counterparty_country, ksef_number, booked_net_pln FROM investory.accounting_reference_invoice WHERE profile_id=? "
-                + "UNION ALL SELECT tax_period, invoice_date, NULL::date, reference, supplier_alias, 'PURCHASE_INVOICE', currency, net_amount, vat_amount, gross_amount, vat_deduction_ratio, counterparty_tax_identifier, counterparty_country, ksef_number, NULL::numeric FROM investory.accounting_reference_expense_invoice WHERE profile_id=? ORDER BY 1, 4",
+                + "UNION ALL SELECT tax_period, invoice_date, NULL::date, reference, supplier_alias, 'PURCHASE_INVOICE', currency, net_amount, vat_amount, gross_amount, NULL::numeric, NULL::numeric, NULL::numeric, vat_deduction_ratio, counterparty_tax_identifier, counterparty_country, ksef_number, NULL::numeric FROM investory.accounting_reference_expense_invoice WHERE profile_id=? ORDER BY 1, 4",
             (rs, rowNum) -> InvoiceInput.invoice(rs),
             PROFILE_ID,
             PROFILE_ID)
@@ -269,6 +354,42 @@ class AccountingReferenceMatrixE2EIT {
 
   private record FxInput(BigDecimal sourceNet, LocalDate rateDate) {}
 
+  private record ReferenceZusBranch(
+      String caseKey,
+      LocalDate taxPeriod,
+      boolean hasUop,
+      boolean voluntarySickness,
+      BigDecimal ytdRevenue,
+      BigDecimal paidSocial,
+      String expectedHealthBand,
+      BigDecimal expectedSocial,
+      BigDecimal expectedDeductibleSocial,
+      BigDecimal expectedHealth,
+      LocalDate correctionSaleDate,
+      LocalDate correctionIssueDate,
+      LocalDate expectedCorrectionPeriod,
+      LocalDate foreignDocumentDate,
+      LocalDate expectedFxRateDate) {
+    static ReferenceZusBranch from(java.sql.ResultSet rs) throws java.sql.SQLException {
+      return new ReferenceZusBranch(
+          rs.getString(1),
+          rs.getDate(2).toLocalDate(),
+          rs.getBoolean(3),
+          rs.getBoolean(4),
+          rs.getBigDecimal(5),
+          rs.getBigDecimal(6),
+          rs.getString(7),
+          rs.getBigDecimal(8),
+          rs.getBigDecimal(9),
+          rs.getBigDecimal(10),
+          rs.getDate(11).toLocalDate(),
+          rs.getDate(12).toLocalDate(),
+          rs.getDate(13).toLocalDate(),
+          rs.getDate(14).toLocalDate(),
+          rs.getDate(15).toLocalDate());
+    }
+  }
+
   private record ExpectedMonth(
       BigDecimal revenue,
       BigDecimal expenses,
@@ -294,6 +415,9 @@ class AccountingReferenceMatrixE2EIT {
       BigDecimal net,
       BigDecimal vat,
       BigDecimal gross,
+      BigDecimal correctionNet,
+      BigDecimal correctionVat,
+      BigDecimal correctionGross,
       BigDecimal deduction,
       String taxId,
       String country,
@@ -312,10 +436,13 @@ class AccountingReferenceMatrixE2EIT {
           rs.getBigDecimal(9),
           rs.getBigDecimal(10),
           rs.getBigDecimal(11),
-          rs.getString(12),
-          rs.getString(13),
-          rs.getString(14),
-          rs.getBigDecimal(15));
+          rs.getBigDecimal(12),
+          rs.getBigDecimal(13),
+          rs.getBigDecimal(14),
+          rs.getString(15),
+          rs.getString(16),
+          rs.getString(17),
+          rs.getBigDecimal(18));
     }
 
     ReviewedInvoice reviewedInvoice(String sourceId) {
@@ -332,12 +459,36 @@ class AccountingReferenceMatrixE2EIT {
           counterparty,
           "SERVICE",
           currency,
-          net,
-          vat,
-          gross,
+          type.equals("CREDIT_NOTE") ? net.abs() : net,
+          type.equals("CREDIT_NOTE") ? vat.abs() : vat,
+          type.equals("CREDIT_NOTE") ? gross.abs() : gross,
           deduction,
           "REFERENCE_E2E_INPUT",
           "sanitized reference fixture",
+          sourceId,
+          taxId,
+          country,
+          ksef,
+          null,
+          null);
+    }
+
+    ReviewedInvoice correctionInvoice(String sourceId) {
+      return new ReviewedInvoice(
+          period.plusMonths(1).withDayOfMonth(1),
+          "CREDIT_NOTE",
+          period.plusMonths(1).withDayOfMonth(2),
+          period.plusMonths(1).withDayOfMonth(1),
+          reference + "-CORRECTION",
+          counterparty,
+          "SERVICE",
+          currency,
+          correctionNet.abs(),
+          correctionVat.abs(),
+          correctionGross.abs(),
+          deduction,
+          "REFERENCE_E2E_INPUT",
+          "sanitized correction fixture",
           sourceId,
           taxId,
           country,

@@ -4,7 +4,9 @@ import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
@@ -48,6 +50,7 @@ public class KsefInvoiceXmlParser {
       BigDecimal gross = decimal(firstText(document, "P_15"));
       BigDecimal net = sumNumberedFields(document, "P_13_");
       BigDecimal vat = sumNumberedFields(document, "P_14_");
+      BigDecimal vatRate = explicitVatRate(document);
 
       if (net == null && gross != null && vat != null) net = gross.subtract(vat);
       if (vat == null && gross != null && net != null) vat = gross.subtract(net);
@@ -67,7 +70,8 @@ public class KsefInvoiceXmlParser {
           gross,
           category,
           vatDeductionRatio,
-          invoiceType);
+          invoiceType,
+          vatRate);
     } catch (Exception exception) {
       throw new IllegalStateException(
           "Could not parse KSeF invoice XML: " + rootMessage(exception), exception);
@@ -90,6 +94,20 @@ public class KsefInvoiceXmlParser {
       }
     }
     return found ? sum : null;
+  }
+
+  /** Returns a rate only when every KSeF line uses the same explicit numeric rate. */
+  private BigDecimal explicitVatRate(Document document) {
+    NodeList nodes = document.getElementsByTagNameNS("*", "P_12");
+    Set<BigDecimal> rates = new HashSet<>();
+    boolean nonNumericRate = false;
+    for (int i = 0; i < nodes.getLength(); i++) {
+      String value = clean(nodes.item(i).getTextContent());
+      BigDecimal rate = decimal(value);
+      if (rate != null) rates.add(rate.stripTrailingZeros());
+      else if (value != null) nonNumericRate = true;
+    }
+    return !nonNumericRate && rates.size() == 1 ? rates.iterator().next() : null;
   }
 
   private String firstText(Document document, String localName) {
@@ -186,7 +204,8 @@ public class KsefInvoiceXmlParser {
       BigDecimal grossAmount,
       String category,
       BigDecimal vatDeductionRatio,
-      String invoiceType) {
+      String invoiceType,
+      BigDecimal vatRate) {
 
     public ParsedKsefInvoice(
         String reference,
@@ -216,7 +235,41 @@ public class KsefInvoiceXmlParser {
           grossAmount,
           category,
           vatDeductionRatio,
-          "VAT");
+          "VAT",
+          null);
+    }
+
+    public ParsedKsefInvoice(
+        String reference,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        String sellerNip,
+        String sellerName,
+        String buyerNip,
+        String buyerName,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        String category,
+        BigDecimal vatDeductionRatio,
+        String invoiceType) {
+      this(
+          reference,
+          issueDate,
+          saleDate,
+          sellerNip,
+          sellerName,
+          buyerNip,
+          buyerName,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          category,
+          vatDeductionRatio,
+          invoiceType,
+          null);
     }
 
     public ParsedKsefInvoice(
@@ -245,7 +298,8 @@ public class KsefInvoiceXmlParser {
           grossAmount,
           "ACCOUNTING_SERVICE",
           BigDecimal.ONE,
-          "VAT");
+          "VAT",
+          null);
     }
   }
 }

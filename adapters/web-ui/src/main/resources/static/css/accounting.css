@@ -1,0 +1,38 @@
+.accounting-shell { width: min(100% - 32px, 1180px); margin: 0 auto; padding: 28px 0 56px; }
+.accounting-page-header, .accounting-section-head, .accounting-payment-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.accounting-page-header { margin-bottom: 20px; }
+.accounting-page-header h2, .accounting-section h3, .accounting-actions h3 { margin: 0; }
+.accounting-eyebrow { color: var(--iv-text-muted); font-size: .7rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.accounting-month-picker { display: flex; align-items: center; gap: 10px; color: var(--iv-text-muted); font-size: .8rem; }
+.accounting-month-picker select { min-width: 150px; }
+.accounting-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px; background: linear-gradient(135deg, var(--iv-surface), var(--iv-surface-muted)); }
+.accounting-total { margin-top: 5px; font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 800; letter-spacing: -.06em; line-height: 1; font-variant-numeric: tabular-nums; }
+.accounting-total-label, .accounting-due span, .accounting-section-head span, .accounting-document-row span, .accounting-payment-row span { color: var(--iv-text-muted); font-size: .78rem; }
+.accounting-due { display: grid; gap: 4px; text-align: right; }
+.accounting-obligations { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 12px 0; }
+.accounting-obligation { display: grid; gap: 8px; padding: 18px; }
+.accounting-obligation strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.accounting-obligation span { color: var(--iv-text-muted); font-size: .75rem; }
+.accounting-section, .accounting-actions { margin-top: 12px; padding: 20px; }
+.accounting-section-head { padding-bottom: 14px; border-bottom: 1px solid var(--iv-border); }
+.accounting-section-head h3 { font-size: 1.05rem; }
+.accounting-section-head div > span { display: block; margin-top: 3px; }
+.accounting-status { white-space: nowrap; }
+.accounting-document-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--iv-border); }
+.accounting-document-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.accounting-document-row div, .accounting-payment-row div:first-child { display: grid; gap: 3px; }
+.accounting-document-row > strong, .accounting-payment-amount { font-variant-numeric: tabular-nums; text-align: right; }
+.accounting-empty { padding: 16px 0 2px; color: var(--iv-text-muted); font-size: .85rem; }
+.accounting-attention { border-color: rgba(245, 158, 11, .45); }
+.accounting-issue { display: flex; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--iv-border); }
+.accounting-issue:last-child { border-bottom: 0; padding-bottom: 0; }
+.accounting-issue-mark { display: grid; place-items: center; flex: 0 0 22px; height: 22px; border-radius: 50%; color: #92400e; background: #fef3c7; font-weight: 800; }
+.accounting-issue p { margin: 3px 0 0; color: var(--iv-text-muted); font-size: .82rem; }
+.accounting-issue small { color: var(--iv-text-muted); }
+.accounting-payment-row { padding: 14px 0; border-bottom: 1px solid var(--iv-border); }
+.accounting-payment-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.accounting-payment-amount { display: flex; align-items: center; gap: 12px; }
+.accounting-actions > div:first-child span { display: block; margin-top: 4px; color: var(--iv-text-muted); font-size: .8rem; }
+.accounting-details { margin-top: 12px; padding: 16px 20px; color: var(--iv-text-muted); font-size: .82rem; }
+.accounting-details summary { cursor: pointer; color: var(--iv-text); font-weight: 700; }
+@media (max-width: 640px) { .accounting-shell { width: min(100% - 20px, 1180px); padding-top: 18px; } .accounting-page-header, .accounting-hero { align-items: flex-start; flex-direction: column; } .accounting-due { text-align: left; } .accounting-obligations { grid-template-columns: 1fr; } .accounting-month-picker { width: 100%; justify-content: space-between; } .accounting-month-picker select { flex: 1; } }

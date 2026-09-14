@@ -795,3 +795,288 @@ ALTER TABLE investory.accounting_vat_transaction
 
 COMMENT ON COLUMN investory.accounting_vat_transaction.vat_rate IS
     'Explicit normalized domestic VAT rate; never reconstructed from net and VAT amounts.';
+
+
+-- Canonical reviewed documents. Staging tables remain separate: an ambiguous import is not a
+-- valid accounting document and must not share this aggregate's invariants.
+CREATE TABLE investory.accounting_document (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    direction VARCHAR(16) NOT NULL,
+    document_kind VARCHAR(32) NOT NULL,
+    corrects_document_id BIGINT REFERENCES investory.accounting_document(id),
+    tax_period DATE NOT NULL,
+    issue_date DATE,
+    supply_date DATE,
+    due_date DATE,
+    reference VARCHAR(128) NOT NULL,
+    counterparty_id BIGINT REFERENCES investory.accounting_known_counterparty(id),
+    counterparty_name VARCHAR(256) NOT NULL,
+    counterparty_tax_identifier VARCHAR(64),
+    counterparty_country VARCHAR(2),
+    currency CHAR(3) NOT NULL,
+    net_amount NUMERIC(19,4) NOT NULL,
+    vat_amount NUMERIC(19,4) NOT NULL,
+    gross_amount NUMERIC(19,4) NOT NULL,
+    fx_rate_date DATE,
+    booked_net_pln NUMERIC(19,4),
+    ryczalt_rate NUMERIC(8,5),
+    category VARCHAR(64),
+    vat_deduction_ratio NUMERIC(3,2),
+    source_quality VARCHAR(32),
+    source_id BIGINT REFERENCES investory.accounting_source_evidence(id),
+    ksef_number VARCHAR(256),
+    filing_evidence VARCHAR(8),
+    note VARCHAR(512),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_accounting_document_direction CHECK (direction IN ('SALE', 'PURCHASE')),
+    CONSTRAINT chk_accounting_document_kind CHECK (document_kind IN ('INVOICE', 'CREDIT_NOTE')),
+    CONSTRAINT chk_accounting_document_amounts CHECK (net_amount + vat_amount = gross_amount),
+    CONSTRAINT chk_accounting_document_sale_fields
+        CHECK (direction = 'SALE' OR (fx_rate_date IS NULL AND booked_net_pln IS NULL AND ryczalt_rate IS NULL)),
+    CONSTRAINT chk_accounting_document_purchase_fields
+        CHECK (direction = 'PURCHASE' OR (category IS NULL AND vat_deduction_ratio IS NULL)),
+    CONSTRAINT chk_accounting_document_deduction_ratio
+        CHECK (vat_deduction_ratio IS NULL OR vat_deduction_ratio IN (0.00, 0.50, 1.00)),
+    CONSTRAINT chk_accounting_document_correction_direction
+        CHECK (corrects_document_id IS NULL OR document_kind = 'CREDIT_NOTE'),
+    CONSTRAINT uq_accounting_document_profile_direction_reference
+        UNIQUE (profile_id, direction, reference)
+);
+
+CREATE INDEX ix_accounting_document_profile_period
+    ON investory.accounting_document(profile_id, tax_period, id);
+
+CREATE INDEX ix_accounting_document_source
+    ON investory.accounting_document(source_id);
+
+CREATE INDEX ix_accounting_document_correction
+    ON investory.accounting_document(corrects_document_id)
+    WHERE corrects_document_id IS NOT NULL;
+
+CREATE TABLE investory.accounting_document_vat_bucket (
+    id BIGSERIAL PRIMARY KEY,
+    document_id BIGINT NOT NULL REFERENCES investory.accounting_document(id) ON DELETE CASCADE,
+    treatment VARCHAR(48) NOT NULL,
+    vat_rate NUMERIC(5,2),
+    net_amount NUMERIC(19,4) NOT NULL,
+    vat_amount NUMERIC(19,4) NOT NULL,
+    deductible_vat NUMERIC(19,4) NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_accounting_document_vat_bucket_treatment
+        CHECK (treatment IN ('DOMESTIC_VAT', 'EU_B2B_REVERSE_CHARGE',
+                             'NON_EU_B2B_OUTSIDE_POLAND', 'VAT_EXEMPT',
+                             'DOMESTIC_PURCHASE', 'IMPORT_OF_SERVICES_EU',
+                             'IMPORT_OF_SERVICES_NON_EU')),
+    CONSTRAINT chk_accounting_document_vat_bucket_rate
+        CHECK (vat_rate IS NULL OR vat_rate IN (0, 5, 8, 23)),
+    CONSTRAINT chk_accounting_document_vat_bucket_deductible
+        CHECK (deductible_vat >= 0 AND deductible_vat <= GREATEST(vat_amount, 0)),
+    CONSTRAINT uq_accounting_document_vat_bucket
+        UNIQUE NULLS NOT DISTINCT (document_id, treatment, vat_rate)
+);
+
+CREATE INDEX ix_accounting_document_vat_bucket_document
+    ON investory.accounting_document_vat_bucket(document_id, id);
+
+ALTER TABLE investory.accounting_known_counterparty
+    ADD COLUMN IF NOT EXISTS identifier_type VARCHAR(16),
+    ADD COLUMN IF NOT EXISTS vat_eu_number VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS vies_status VARCHAR(24),
+    ADD COLUMN IF NOT EXISTS vies_verified_at DATE;
+
+ALTER TABLE investory.accounting_known_counterparty
+    ADD CONSTRAINT chk_accounting_known_counterparty_identifier_type
+    CHECK (identifier_type IS NULL OR identifier_type IN ('NIP', 'VAT_EU', 'NONE'));
+
+-- Employment type and dates alone do not establish primary social-insurance eligibility.
+ALTER TABLE investory.employment_period
+    ADD COLUMN IF NOT EXISTS qualifies_as_primary_social_insurance BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE investory.employment_period
+    ALTER COLUMN qualifies_as_primary_social_insurance DROP DEFAULT;
+
+-- Final POC contract hardening. Periods are represented by the first day of their month.
+ALTER TABLE investory.accounting_poc_invoice
+    ADD CONSTRAINT chk_accounting_poc_invoice_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_poc_expense_invoice
+    ADD CONSTRAINT chk_accounting_poc_expense_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_poc_bank_transaction
+    ADD CONSTRAINT chk_accounting_poc_bank_related_period_month_start
+    CHECK (related_period IS NULL OR EXTRACT(DAY FROM related_period) = 1);
+
+ALTER TABLE investory.accounting_poc_obligation
+    ADD CONSTRAINT chk_accounting_poc_obligation_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_poc_tax_input
+    ADD CONSTRAINT chk_accounting_poc_tax_input_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_poc_period_state
+    ADD CONSTRAINT chk_accounting_poc_period_state_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_tax_profile_period
+    ADD CONSTRAINT chk_accounting_tax_profile_period_month_start
+    CHECK (EXTRACT(DAY FROM valid_from) = 1 AND (valid_to IS NULL OR EXTRACT(DAY FROM valid_to) = 1));
+
+ALTER TABLE investory.accounting_document
+    ADD CONSTRAINT chk_accounting_document_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_vat_transaction
+    ADD CONSTRAINT chk_accounting_vat_transaction_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_filing_artifact
+    ADD CONSTRAINT chk_accounting_filing_artifact_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_authority_confirmation
+    ADD CONSTRAINT chk_accounting_authority_confirmation_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_poc_invoice
+    ADD CONSTRAINT chk_accounting_poc_invoice_amounts
+    CHECK (net_amount + vat_amount = gross_amount);
+
+ALTER TABLE investory.accounting_poc_expense_invoice
+    ADD CONSTRAINT chk_accounting_poc_expense_amounts
+    CHECK (net_amount + vat_amount = gross_amount);
+
+-- Source identity must remain in the same application profile as the normalized row.
+CREATE UNIQUE INDEX uq_accounting_source_evidence_profile_id
+    ON investory.accounting_source_evidence (profile_id, id);
+
+CREATE UNIQUE INDEX uq_accounting_poc_invoice_profile_id
+    ON investory.accounting_poc_invoice (profile_id, id);
+
+CREATE UNIQUE INDEX uq_accounting_poc_expense_profile_id
+    ON investory.accounting_poc_expense_invoice (profile_id, id);
+
+ALTER TABLE investory.accounting_poc_invoice
+    DROP CONSTRAINT IF EXISTS accounting_poc_invoice_source_id_fkey;
+
+ALTER TABLE investory.accounting_poc_invoice
+    ADD CONSTRAINT fk_accounting_poc_invoice_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
+
+ALTER TABLE investory.accounting_poc_expense_invoice
+    DROP CONSTRAINT IF EXISTS accounting_poc_expense_invoice_source_id_fkey;
+
+ALTER TABLE investory.accounting_poc_expense_invoice
+    ADD CONSTRAINT fk_accounting_poc_expense_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
+
+ALTER TABLE investory.accounting_poc_bank_transaction
+    DROP CONSTRAINT IF EXISTS accounting_poc_bank_transaction_source_id_fkey;
+
+ALTER TABLE investory.accounting_poc_bank_transaction
+    ADD CONSTRAINT fk_accounting_poc_bank_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
+
+-- The original trigger predates profile scoping. Recreate it so ownership is immutable too.
+CREATE OR REPLACE FUNCTION investory.prevent_accounting_source_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.id IS DISTINCT FROM OLD.id
+       OR NEW.profile_id IS DISTINCT FROM OLD.profile_id
+       OR NEW.source_type IS DISTINCT FROM OLD.source_type
+       OR NEW.external_reference IS DISTINCT FROM OLD.external_reference
+       OR NEW.original_filename IS DISTINCT FROM OLD.original_filename
+       OR NEW.content_type IS DISTINCT FROM OLD.content_type
+       OR NEW.received_at IS DISTINCT FROM OLD.received_at
+       OR NEW.document_date IS DISTINCT FROM OLD.document_date
+       OR NEW.content_hash IS DISTINCT FROM OLD.content_hash
+       OR NEW.payload IS DISTINCT FROM OLD.payload
+    THEN
+        RAISE EXCEPTION 'Accounting source evidence is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- All relational accounting references must stay inside the owning profile.
+CREATE UNIQUE INDEX uq_accounting_known_counterparty_profile_id
+    ON investory.accounting_known_counterparty (profile_id, id);
+
+CREATE UNIQUE INDEX uq_accounting_document_profile_id
+    ON investory.accounting_document (profile_id, id);
+
+ALTER TABLE investory.accounting_document
+    DROP CONSTRAINT IF EXISTS accounting_document_source_id_fkey,
+    DROP CONSTRAINT IF EXISTS accounting_document_counterparty_id_fkey;
+
+ALTER TABLE investory.accounting_document
+    ADD CONSTRAINT fk_accounting_document_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id),
+    ADD CONSTRAINT fk_accounting_document_profile_counterparty
+    FOREIGN KEY (profile_id, counterparty_id)
+    REFERENCES investory.accounting_known_counterparty (profile_id, id);
+
+ALTER TABLE investory.accounting_vat_transaction
+    DROP CONSTRAINT IF EXISTS accounting_vat_transaction_source_id_fkey,
+    DROP CONSTRAINT IF EXISTS accounting_vat_transaction_invoice_id_fkey,
+    DROP CONSTRAINT IF EXISTS accounting_vat_transaction_expense_invoice_id_fkey;
+
+ALTER TABLE investory.accounting_vat_transaction
+    ADD CONSTRAINT fk_accounting_vat_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id),
+    ADD CONSTRAINT fk_accounting_vat_profile_invoice
+    FOREIGN KEY (profile_id, invoice_id)
+    REFERENCES investory.accounting_poc_invoice (profile_id, id),
+    ADD CONSTRAINT fk_accounting_vat_profile_expense
+    FOREIGN KEY (profile_id, expense_invoice_id)
+    REFERENCES investory.accounting_poc_expense_invoice (profile_id, id);
+
+ALTER TABLE investory.accounting_authority_confirmation
+    DROP CONSTRAINT IF EXISTS fk_accounting_authority_confirmation_source;
+
+ALTER TABLE investory.accounting_authority_confirmation
+    ADD CONSTRAINT fk_accounting_authority_profile_source
+    FOREIGN KEY (profile_id, source_document_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
+
+CREATE OR REPLACE FUNCTION investory.validate_accounting_document_correction()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    target_profile BIGINT;
+    target_direction VARCHAR(16);
+BEGIN
+    IF NEW.corrects_document_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    SELECT profile_id, direction
+      INTO target_profile, target_direction
+      FROM investory.accounting_document
+     WHERE id = NEW.corrects_document_id;
+    IF target_profile IS NULL
+       OR target_profile IS DISTINCT FROM NEW.profile_id
+       OR target_direction IS DISTINCT FROM NEW.direction
+       OR NEW.document_kind <> 'CREDIT_NOTE'
+    THEN
+        RAISE EXCEPTION 'Accounting correction must target a same-profile, same-direction document';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_accounting_document_correction_profile
+BEFORE INSERT OR UPDATE OF profile_id, direction, document_kind, corrects_document_id
+ON investory.accounting_document
+FOR EACH ROW EXECUTE FUNCTION investory.validate_accounting_document_correction();

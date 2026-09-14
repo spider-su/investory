@@ -180,7 +180,9 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     AccountingMonthSnapshot snapshot = service.snapshot(september);
     assertThat(snapshot.calculationMode()).isEqualTo(AccountingCalculationMode.CURRENT_CALCULATION);
     assertThat(snapshot.comparisons()).isEmpty();
-    assertThat(snapshot.readiness()).isEqualTo(AccountingReadiness.READY);
+    assertThat(snapshot.readiness())
+        .as("readiness=%s issues=%s", snapshot.readiness(), snapshot.issues())
+        .isEqualTo(AccountingReadiness.READY);
     assertThat(snapshot.totalBookedRevenuePln()).isEqualByComparingTo("1000.00");
   }
 
@@ -249,12 +251,18 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         new BigDecimal("200.00"),
         "E2E_TEST");
     jdbcTemplate.update(
-        "UPDATE investory.accounting_poc_profile SET nip = ?, first_name = ?, surname = ?, date_of_birth = ?, vat_payment_account = ?, ryczalt_payment_account = ?, zus_payment_account = ? WHERE id = 1",
+        "UPDATE investory.portfolios SET taxpayer_nip = ?, taxpayer_full_name = ?, taxpayer_first_name = ?, taxpayer_surname = ?, taxpayer_date_of_birth = ?, taxpayer_tax_office_code = ?, taxpayer_email = ?, tax_micro_account = ?, zus_payment_account = ? WHERE id = 1",
         "1010000000",
+        "Jan Testowy",
         "Jan",
         "Testowy",
         LocalDate.of(1980, 1, 1),
+        "TEST",
+        "jan.testowy@example.invalid",
         "PL00123456789012345678901234",
+        "PL00123456789012345678901234");
+    jdbcTemplate.update(
+        "UPDATE investory.accounting_poc_profile SET vat_payment_account = ?, ryczalt_payment_account = ? WHERE id = 1",
         "PL00123456789012345678901234",
         "PL00123456789012345678901234");
 
@@ -270,7 +278,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     assertThat(instructions.getFirst().amount()).isEqualByComparingTo("207");
     for (var instruction : instructions) {
       jdbcTemplate.update(
-          "INSERT INTO investory.accounting_poc_bank_transaction (booking_date, related_period, reference, counterparty_alias, currency, amount, transaction_type, scope, note, provider, external_account_id, external_transaction_id) VALUES (?, ?, ?, 'TAX_AUTHORITY', 'PLN', ?, ?, 'BUSINESS', 'operational settlement payment', 'TEST', 'TEST_ACCOUNT', ?)",
+          "INSERT INTO investory.accounting_poc_bank_transaction (profile_id, booking_date, related_period, reference, counterparty_alias, currency, amount, transaction_type, scope, note, provider, external_account_id, external_transaction_id) VALUES (1, ?, ?, ?, 'TAX_AUTHORITY', 'PLN', ?, ?, 'BUSINESS', 'operational settlement payment', 'TEST', 'TEST_ACCOUNT', ?)",
           instruction.dueDate().minusDays(1),
           july,
           "SETTLE-" + instruction.obligationType(),
@@ -483,14 +491,20 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     jdbcTemplate.update(
         "DELETE FROM investory.employment_period WHERE profile_id = 1 AND date_from >= DATE '2026-09-01'");
     jdbcTemplate.update(
+        "DELETE FROM investory.employment_period WHERE profile_id = 1 AND employment_type = 'JDG' AND date_from = DATE '2026-01-01'");
+    jdbcTemplate.update(
         "DELETE FROM investory.accounting_tax_profile_period WHERE profile_id = 1 AND valid_from >= DATE '2026-09-01'");
   }
 
   private void insertOperationalProfile(LocalDate period) {
     jdbcTemplate.update(
-        "INSERT INTO investory.employment_period (profile_id, employment_type, date_from) VALUES (1, 'JDG', ?)"
-            + " ON CONFLICT DO NOTHING",
+        "UPDATE investory.accounting_tax_profile_period SET valid_to = ? WHERE profile_id = 1 AND valid_from < ? AND (valid_to IS NULL OR valid_to >= ?)",
+        period.minusDays(1),
+        period,
         period);
+    jdbcTemplate.update(
+        "INSERT INTO investory.employment_period (profile_id, employment_type, date_from, qualifies_as_primary_social_insurance) VALUES (1, 'JDG', DATE '2026-01-01', true)"
+            + " ON CONFLICT DO NOTHING");
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_tax_profile_period (profile_id, valid_from, jdg_active, ryczalt_rate, vat_registered, vat_eu_registered, zus_regime, voluntary_sickness) VALUES (1, ?, true, 0.12, true, true, 'JDG', false)"
             + " ON CONFLICT DO NOTHING",
@@ -508,6 +522,22 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         "INSERT INTO investory.accounting_vat_transaction (profile_id, tax_period, tax_date, source_document_id, reference, direction, treatment, counterparty_country, counterparty_tax_identifier, identifier_type, net_amount, vat_amount, deductible_vat, evidence) VALUES (1, ?, ?, 'E2E-SOURCE', ?, 'PURCHASE', 'DOMESTIC_PURCHASE', 'PL', 'PL0987654321', 'NIP', 100.00, 23.00, 23.00, 'OFF')",
         period,
         period.plusDays(11),
+        purchaseReference);
+    jdbcTemplate.update(
+        "UPDATE investory.accounting_document SET counterparty_tax_identifier = 'PL1234567890', counterparty_country = 'PL', filing_evidence = 'KSEF', ksef_number = 'M123456789-20260910-ABCDEF-123456-78' WHERE profile_id = 1 AND tax_period = ? AND reference = ?",
+        period,
+        saleReference);
+    jdbcTemplate.update(
+        "UPDATE investory.accounting_document SET counterparty_tax_identifier = 'PL0987654321', counterparty_country = 'PL', filing_evidence = 'KSEF', ksef_number = 'M123456789-20260911-ABCDEF-123456-78' WHERE profile_id = 1 AND tax_period = ? AND reference = ?",
+        period,
+        purchaseReference);
+    jdbcTemplate.update(
+        "UPDATE investory.accounting_poc_invoice SET counterparty_tax_identifier = 'PL1234567890', counterparty_country = 'PL', filing_evidence = 'KSEF', ksef_number = 'M123456789-20260910-ABCDEF-123456-78' WHERE profile_id = 1 AND tax_period = ? AND reference = ?",
+        period,
+        saleReference);
+    jdbcTemplate.update(
+        "UPDATE investory.accounting_poc_expense_invoice SET counterparty_tax_identifier = 'PL0987654321', counterparty_country = 'PL', filing_evidence = 'KSEF', ksef_number = 'M123456789-20260911-ABCDEF-123456-78' WHERE profile_id = 1 AND tax_period = ? AND reference = ?",
+        period,
         purchaseReference);
   }
 

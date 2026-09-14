@@ -12,6 +12,7 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -78,7 +79,10 @@ public class AccountingUserFacade implements AccountingUserApi {
     int imported = (int) outcomes.stream().filter(o -> "IMPORTED".equals(o.status())).count();
     int review = (int) outcomes.stream().filter(o -> "REVIEW_REQUIRED".equals(o.status())).count();
     int failed = (int) outcomes.stream().filter(o -> "FAILED".equals(o.status())).count();
-    var issues = acquired ? issues(snapshot, outcomes, filingIssues) : List.<IssueView>of();
+    var issues =
+        acquired ? issues(profileId, snapshot, outcomes, filingIssues) : List.<IssueView>of();
+    boolean blockingIssues =
+        issues.stream().anyMatch(issue -> issue.kind() != AccountingUserApi.IssueKind.INFO);
     var payments = paymentInstructions(profileId, date(month));
     var filingResult = filing.filing(profileId, date(month));
     var reconciliations = snapshot.reconciliations();
@@ -91,8 +95,8 @@ public class AccountingUserFacade implements AccountingUserApi {
         month,
         lifecycle.name(),
         label(lifecycle),
-        periodLifecycle.nextAction(lifecycle, acquired, !issues.isEmpty()).name(),
-        nextLabel(periodLifecycle.nextAction(lifecycle, acquired, !issues.isEmpty())),
+        periodLifecycle.nextAction(lifecycle, acquired, blockingIssues).name(),
+        nextLabel(periodLifecycle.nextAction(lifecycle, acquired, blockingIssues)),
         new Summary(
             snapshot.totalBookedRevenuePln(),
             snapshot.vat().calculatedVat(),
@@ -168,7 +172,7 @@ public class AccountingUserFacade implements AccountingUserApi {
                             row.explanation() != null
                                 && row.explanation().toLowerCase().contains("evidence"))
                     .count()),
-        periodLifecycle.allowedActions(lifecycle, acquired, !issues.isEmpty()),
+        periodLifecycle.allowedActions(lifecycle, acquired, blockingIssues),
         repository
             .referenceMonth(profileId, date(month))
             .map(
@@ -199,6 +203,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   }
 
   private List<IssueView> issues(
+      long profileId,
       AccountingMonthSnapshot snapshot,
       List<AccountingSourceEvidenceService.SourceOutcome> outcomes,
       List<String> filingIssues) {
@@ -208,32 +213,86 @@ public class AccountingUserFacade implements AccountingUserApi {
         .forEach(
             i ->
                 result.add(
-                    new IssueView(
-                        i.type(),
-                        i.severity(),
-                        title(i.type()),
-                        i.message(),
-                        i.sourceReference())));
+                    issue(profileId, i.type(), i.severity(), i.message(), i.sourceReference())));
     outcomes.stream()
         .filter(o -> !"IMPORTED".equals(o.status()))
         .forEach(
             o ->
                 result.add(
-                    new IssueView(
+                    issue(
+                        profileId,
                         "SOURCE_" + o.status(),
                         "WARNING",
-                        "Source requires attention",
                         o.error() == null ? "Source was not imported." : o.error(),
                         o.reference())));
     filingIssues.stream()
         .filter(issue -> !issue.startsWith("Month calculation is not confirmed"))
         .filter(issue -> result.stream().noneMatch(existing -> existing.message().equals(issue)))
         .forEach(
-            issue ->
+            filingIssue ->
                 result.add(
-                    new IssueView(
-                        "FILING_READINESS", "BLOCKING", "Filing readiness", issue, null)));
+                    issue(profileId, filingIssueCode(filingIssue), "BLOCKING", filingIssue, null)));
     return result;
+  }
+
+  private IssueView issue(
+      long profileId, String code, String severity, String message, String sourceReference) {
+    String normalized = code == null ? "ACCOUNTING_ISSUE" : code;
+    var kind = issueKind(normalized, severity);
+    return new IssueView(
+        stableIssueId(normalized, sourceReference),
+        normalized,
+        severity,
+        kind,
+        title(normalized),
+        message,
+        sourceReference,
+        resolution(profileId, kind));
+  }
+
+  static String filingIssueCode(String issue) {
+    int separator = issue == null ? -1 : issue.indexOf(':');
+    return separator < 0 ? "FILING_READINESS" : issue.substring(0, separator);
+  }
+
+  static AccountingUserApi.IssueKind issueKind(String code, String severity) {
+    if (code.startsWith("MISSING_PAYMENT_CONFIGURATION")
+        || code.startsWith("MISSING_TAXPAYER_CONFIGURATION")
+        || code.startsWith("MISSING_EFFECTIVE_TAX_PROFILE")
+        || code.startsWith("MISSING_ZUS_RULE_INPUT")) {
+      return AccountingUserApi.IssueKind.SETUP;
+    }
+    if (code.startsWith("MISSING_VAT_CLASSIFICATION")
+        || code.startsWith("MISSING_EXPLICIT_VAT_RATE")
+        || code.startsWith("UNSUPPORTED_VAT_RATE")
+        || code.startsWith("MISSING_COUNTERPARTY_IDENTIFIER")
+        || code.startsWith("MISSING_JPK_EVIDENCE_CLASSIFICATION")
+        || code.startsWith("SOURCE_REVIEW_REQUIRED")) {
+      return AccountingUserApi.IssueKind.NEEDS_ANSWER;
+    }
+    if ("INFO".equalsIgnoreCase(severity)) return AccountingUserApi.IssueKind.INFO;
+    return AccountingUserApi.IssueKind.BLOCKED;
+  }
+
+  private AccountingUserApi.Resolution resolution(
+      long profileId, AccountingUserApi.IssueKind kind) {
+    if (kind == AccountingUserApi.IssueKind.SETUP) {
+      return new AccountingUserApi.Resolution.Setup(
+          "/profiles/" + profileId + "/accounting", "Open accounting workspace");
+    }
+    return new AccountingUserApi.Resolution.None(
+        kind == AccountingUserApi.IssueKind.NEEDS_ANSWER
+            ? "Open the source document and save the missing review data."
+            : "Resolve the reported data or system problem before continuing.");
+  }
+
+  private String stableIssueId(String code, String sourceReference) {
+    return java.util
+        .UUID
+        .nameUUIDFromBytes(
+            (code + "|" + (sourceReference == null ? "account" : sourceReference))
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8))
+        .toString();
   }
 
   @Override
@@ -244,10 +303,26 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<DocumentView> documents(long p, YearMonth m) {
     profile(p);
+    var canonical = repository.canonicalDocumentsForPeriod(p, date(m));
+    if (!canonical.isEmpty()) {
+      return canonical.stream().map(this::document).toList();
+    }
     var s = facts.snapshot(p, date(m));
     return java.util.stream.Stream.concat(
             s.invoices().stream().map(this::document), s.expenses().stream().map(this::document))
         .toList();
+  }
+
+  private DocumentView document(AccountingPocRepository.CanonicalDocumentRow row) {
+    return new DocumentView(
+        row.id(),
+        row.reference(),
+        row.direction(),
+        row.documentDate(),
+        row.grossAmount(),
+        row.currency(),
+        "IMPORTED",
+        row.sourceId() == null ? null : row.sourceId().toString());
   }
 
   private DocumentView document(InvoiceRow r) {
@@ -419,11 +494,16 @@ public class AccountingUserFacade implements AccountingUserApi {
   public void saveReviewed(long p, ReviewedDocument d) {
     profile(p);
     try {
+      validateReviewedDocument(d);
       var source = findReviewedSource(p, d.sourceReference());
+      YearMonth effectiveTaxPeriod =
+          "CREDIT_NOTE".equals(d.documentType()) && d.issueDate() != null
+              ? YearMonth.from(d.issueDate())
+              : d.taxPeriod();
       staging.stageInvoice(
           p,
           new AccountingInvoiceIngestionService.ReviewedInvoice(
-              d.taxPeriod().atDay(1),
+              effectiveTaxPeriod.atDay(1),
               d.documentType(),
               d.issueDate(),
               d.saleDate(),
@@ -439,7 +519,7 @@ public class AccountingUserFacade implements AccountingUserApi {
               d.note(),
               Long.toString(source.id()),
               d.counterpartyTaxIdentifier(),
-              source.type() == AccountingSourceType.KSEF ? "PL" : d.counterpartyCountry(),
+              counterpartyCountry(source, d.counterpartyCountry()),
               source.type() == AccountingSourceType.KSEF ? source.externalReference() : null,
               source.type() == AccountingSourceType.KSEF
                   ? new AccountingFilingEvidence(
@@ -448,6 +528,7 @@ public class AccountingUserFacade implements AccountingUserApi {
               d.dueDate(),
               d.vatRate()),
           normalizeVatTreatment(d.documentType(), d.vatTreatment()));
+      stagingReconciliation.reconcile(p, effectiveTaxPeriod.atDay(1));
       // Staging is intentionally not reported as canonical IMPORTED data.
     } catch (RuntimeException exception) {
       sources
@@ -469,6 +550,27 @@ public class AccountingUserFacade implements AccountingUserApi {
         .orElseThrow(() -> new IllegalArgumentException("Source evidence is missing"));
   }
 
+  private void validateReviewedDocument(ReviewedDocument document) {
+    if (document == null) throw new IllegalArgumentException("Reviewed document is required");
+    if (document.taxPeriod() == null)
+      throw new IllegalArgumentException("Accounting month is required");
+    String treatment = normalizeVatTreatment(document.documentType(), document.vatTreatment());
+    if (("DOMESTIC_VAT".equals(treatment) || "DOMESTIC_PURCHASE".equals(treatment))
+        && document.vatRate() == null) {
+      throw new IllegalArgumentException("VAT rate is required for domestic VAT treatment");
+    }
+    if (Set.of(
+                "EU_B2B_REVERSE_CHARGE",
+                "NON_EU_B2B_OUTSIDE_POLAND",
+                "IMPORT_OF_SERVICES_EU",
+                "IMPORT_OF_SERVICES_NON_EU")
+            .contains(treatment)
+        && (document.counterpartyCountry() == null || document.counterpartyCountry().isBlank())) {
+      throw new IllegalArgumentException(
+          "Counterparty country is required for cross-border VAT treatment");
+    }
+  }
+
   private String normalizeVatTreatment(String documentType, String vatTreatment) {
     if (("PURCHASE_INVOICE".equals(documentType) || "RECEIPT".equals(documentType))
         && "DOMESTIC_VAT".equals(vatTreatment)) {
@@ -477,10 +579,19 @@ public class AccountingUserFacade implements AccountingUserApi {
     return vatTreatment;
   }
 
+  private String counterpartyCountry(AccountingSourceRepository.SourceRow source, String country) {
+    if (country != null && !country.isBlank())
+      return country.trim().toUpperCase(java.util.Locale.ROOT);
+    return source.type() == AccountingSourceType.KSEF ? "PL" : null;
+  }
+
   @Override
   public void importBank(long p, String f, String c, byte[] b, YearMonth m) {
     profile(p);
-    bankImport.stageFile(p, f, c, b, date(m));
+    bankImport
+        .stageFile(p, f, c, b, date(m))
+        .periods()
+        .forEach(period -> stagingReconciliation.reconcile(p, period));
   }
 
   @Override

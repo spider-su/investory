@@ -96,7 +96,15 @@ class AccountingPocUiIT {
       page.getByTestId("review-document-type").selectOption("PURCHASE_INVOICE");
       page.getByTestId("review-vat-treatment").selectOption("DOMESTIC_PURCHASE");
       page.getByTestId("review-category").fill("EQUIPMENT");
+      page.getByTestId("review-counterparty-country").fill("PL");
+      page.getByTestId("review-vat-rate").fill("23");
       page.getByTestId("review-vat-deduction-ratio").selectOption("1.00");
+      String invalidFields =
+          (String)
+              page.locator("[data-testid=accounting-review-form]")
+                  .evaluate(
+                      "form => [...form.elements].filter(field => !field.checkValidity()).map(field => field.name).join(',')");
+      assertThat(invalidFields).isEmpty();
       page.waitForNavigation(() -> page.getByTestId("review-stage-submit").click());
 
       assertThat(page.url()).contains("/profiles/1/accounting?month=2026-02");

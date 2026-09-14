@@ -7,6 +7,8 @@ import com.smartbox.investory.integrations.bank.BankTransactionQuery;
 import com.smartbox.investory.integrations.bank.CsvBankTransactionSource;
 import com.smartbox.investory.integrations.bank.ExternalBankTransaction;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -35,8 +37,10 @@ public class AccountingBankStagingImportService {
               .transactions(new BankTransactionQuery(externalAccountId, null, null, null))
               .transactions();
       int staged = 0;
+      Set<LocalDate> periods = new LinkedHashSet<>();
       for (int index = 0; index < rows.size(); index++) {
         var row = rows.get(index);
+        periods.add(row.bookingDate().withDayOfMonth(1));
         staging.stageBank(
             profileId,
             // The visible month is only navigation context. The bank contract makes the
@@ -63,12 +67,12 @@ public class AccountingBankStagingImportService {
         staged++;
       }
       sources.status(sourceId, AccountingSourceStatus.PARSED, null);
-      return new Result(sourceId, rows.size(), staged);
+      return new Result(sourceId, rows.size(), staged, Set.copyOf(periods));
     } catch (RuntimeException exception) {
       sources.status(sourceId, AccountingSourceStatus.FAILED, exception.getMessage());
       throw exception;
     }
   }
 
-  public record Result(long sourceId, int processedRows, int stagedRows) {}
+  public record Result(long sourceId, int processedRows, int stagedRows, Set<LocalDate> periods) {}
 }

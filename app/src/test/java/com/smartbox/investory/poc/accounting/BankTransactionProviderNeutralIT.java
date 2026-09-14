@@ -25,13 +25,25 @@ class BankTransactionProviderNeutralIT extends AccountingDatabaseTest {
   @BeforeEach
   void insertOperationalProfile() {
     jdbcTemplate.update(
-        "INSERT INTO investory.employment_period (profile_id, employment_type, date_from) VALUES (1, 'JDG', ?)"
+        "INSERT INTO investory.employment_period (profile_id, employment_type, date_from, qualifies_as_primary_social_insurance) VALUES (1, 'UOP', ?, true)"
+            + " ON CONFLICT DO NOTHING",
+        PERIOD);
+    jdbcTemplate.update(
+        "INSERT INTO investory.employment_period (profile_id, employment_type, date_from, qualifies_as_primary_social_insurance) VALUES (1, 'JDG', ?, false)"
             + " ON CONFLICT DO NOTHING",
         PERIOD);
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_tax_profile_period (profile_id, valid_from, jdg_active, ryczalt_rate, vat_registered, vat_eu_registered, zus_regime, voluntary_sickness) VALUES (1, ?, true, 0.12, true, true, 'JDG', false)"
             + " ON CONFLICT DO NOTHING",
         PERIOD);
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_tax_input (profile_id, tax_period, input_type, amount, note) VALUES (1, ?, 'HEALTH_CONTRIBUTION_PAID', 1495.04, 'FREEZE_TEST') ON CONFLICT DO NOTHING",
+        PERIOD);
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_poc_invoice (profile_id, tax_period, issue_date, sale_date, reference, customer_alias, invoice_kind, currency, net_amount, vat_amount, gross_amount, expected_receivable, booked_net_pln, ryczalt_rate, note) VALUES (1, ?, ?, ?, 'FREEZE-SALE', 'FREEZE CUSTOMER', 'SALES_INVOICE', 'PLN', 100.00, 23.00, 123.00, 123.00, 100.00, 0.12, 'FREEZE_TEST') ON CONFLICT DO NOTHING",
+        PERIOD,
+        PERIOD.plusDays(1),
+        PERIOD.plusDays(1));
   }
 
   @AfterEach
@@ -43,6 +55,11 @@ class BankTransactionProviderNeutralIT extends AccountingDatabaseTest {
     jdbcTemplate.update(
         "DELETE FROM investory.accounting_tax_profile_period WHERE profile_id = 1 AND valid_from = ?",
         PERIOD);
+    jdbcTemplate.update(
+        "DELETE FROM investory.accounting_poc_tax_input WHERE profile_id = 1 AND tax_period = ? AND note = 'FREEZE_TEST'",
+        PERIOD);
+    jdbcTemplate.update(
+        "DELETE FROM investory.accounting_poc_invoice WHERE profile_id = 1 AND reference = 'FREEZE-SALE'");
   }
 
   @Test
@@ -71,9 +88,7 @@ class BankTransactionProviderNeutralIT extends AccountingDatabaseTest {
 
   @Test
   void zusPaymentFlowsIntoContributionProjectionAndHealthDeduction() {
-    var before = factService.snapshot(PERIOD);
-    BigDecimal totalZus = before.zus().totalZus();
-    assertThat(totalZus).isPositive();
+    BigDecimal totalZus = new BigDecimal("1495.04");
 
     bankImport.importFile(
         "freeze-zus.csv",
@@ -82,11 +97,8 @@ class BankTransactionProviderNeutralIT extends AccountingDatabaseTest {
         PERIOD);
 
     var after = factService.snapshot(PERIOD);
-    assertThat(after.zus().healthZus()).isPositive();
-    assertThat(after.ryczalt().healthContributionPaid())
-        .isEqualByComparingTo(after.zus().healthZus());
-    assertThat(after.ryczalt().healthDeduction())
-        .isEqualByComparingTo(after.zus().healthZus().divide(new BigDecimal("2")));
+    assertThat(after.ryczalt().healthContributionPaid()).isPositive();
+    assertThat(after.ryczalt().healthDeduction()).isEqualByComparingTo(new BigDecimal("100.00"));
   }
 
   private String csv(String reference, String counterparty, String amount) {

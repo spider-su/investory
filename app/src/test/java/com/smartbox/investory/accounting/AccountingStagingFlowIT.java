@@ -138,7 +138,7 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
   @DisplayName("reconciliation and promotion operate only on the requested staging profile")
   void twoProfilesRemainIsolatedThroughReconciliationAndPromotion() {
     long sourceA = source("profile-a");
-    long sourceB = source("profile-b");
+    long sourceB = source(PROFILE_B, "profile-b");
     long stageA = stageInvoice(PROFILE_A, sourceA, "PROFILE-A");
     long stageB = stageInvoice(PROFILE_B, sourceB, "PROFILE-B");
 
@@ -171,7 +171,7 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
     promotion.promoteNew(PROFILE_A, PERIOD);
     assertThat(canonicalInvoiceCount("CROSS-PROFILE")).isEqualTo(1L);
 
-    long sourceB = source("staged-profile-b");
+    long sourceB = source(PROFILE_B, "staged-profile-b");
     long stageB = stageInvoice(PROFILE_B, sourceB, "CROSS-PROFILE");
 
     var summaryB = reconciliation.reconcile(PROFILE_B, PERIOD);
@@ -185,7 +185,7 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
   @DisplayName("same external invoice reference is independently promotable per profile")
   void sameReferenceCanBePromotedForTwoProfiles() {
     long stageA = stageInvoice(PROFILE_A, source("same-reference-a"), "SAME-REFERENCE");
-    long stageB = stageInvoice(PROFILE_B, source("same-reference-b"), "SAME-REFERENCE");
+    long stageB = stageInvoice(PROFILE_B, source(PROFILE_B, "same-reference-b"), "SAME-REFERENCE");
 
     assertThat(promotion.promoteNew(PROFILE_A, PERIOD).invoices()).isEqualTo(1);
     assertThat(promotion.promoteNew(PROFILE_B, PERIOD).invoices()).isEqualTo(1);
@@ -234,7 +234,7 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
     reconciliation.reconcile(PROFILE_A, PERIOD);
     promotion.promoteNew(PROFILE_A, PERIOD);
     jdbc.update(
-        "UPDATE investory.accounting_poc_invoice SET gross_amount = 9999.99 WHERE reference = ?",
+        "UPDATE investory.accounting_poc_invoice SET net_amount = 999.99, gross_amount = 1229.99 WHERE reference = ?",
         reference("MISMATCH"));
 
     long stagedSource = source("staged-mismatch");
@@ -363,7 +363,7 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
         "hash-a");
     promotion.promoteNew(PROFILE_A, PERIOD);
 
-    long stagedSource = source("bank-profile-b");
+    long stagedSource = source(PROFILE_B, "bank-profile-b");
     long stagedId =
         staging.insertBank(
             PROFILE_B,
@@ -391,9 +391,14 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
   }
 
   private long source(String suffix) {
+    return source(PROFILE_A, suffix);
+  }
+
+  private long source(long profileId, String suffix) {
     String externalReference = SOURCE_PREFIX + suffix;
     byte[] payload = externalReference.getBytes(StandardCharsets.UTF_8);
     return sourceRepository.save(
+        profileId,
         AccountingSourceType.UPLOAD,
         externalReference,
         externalReference + ".json",

@@ -43,19 +43,17 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
     var paidContributions = input.periodContext().yearToDate().paidContributions();
     var periodEnd = input.period().withDayOfMonth(input.period().lengthOfMonth());
     var periodStart = input.period().withDayOfMonth(1);
-    BigDecimal paidSocial =
-        paidContributions.stream()
-            .filter(p -> "SOCIAL".equals(p.contributionType()))
-            .filter(
-                p -> !p.paymentDate().isBefore(periodStart) && !p.paymentDate().isAfter(periodEnd))
-            .map(PaidContribution::deductibleAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
     ZusCalculationInput zusInput = input.periodContext().zusCalculationInput();
     BigDecimal health =
         input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
-            ? zusInput != null && zusInput.healthAmount() != null
-                ? zusInput.healthAmount()
-                : missingCurrentZusAmount("health", issues)
+            ? paidContributions.stream()
+                .filter(p -> "HEALTH".equals(p.contributionType()))
+                .filter(
+                    p ->
+                        !p.paymentDate().isBefore(periodStart)
+                            && !p.paymentDate().isAfter(periodEnd))
+                .map(PaidContribution::deductibleAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
             : input.periodContext().jdgActive()
                     && zusInput != null
                     && zusInput.healthAmount() != null
@@ -74,30 +72,7 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         && health.signum() == 0) {
       health = required(input.taxInputs(), "HEALTH_CONTRIBUTION_PAID", issues);
     }
-    BigDecimal socialDeduction = paidSocial;
-    BigDecimal healthDeduction =
-        paidContributions.stream()
-                    .filter(p -> "HEALTH".equals(p.contributionType()))
-                    .filter(
-                        p ->
-                            !p.paymentDate().isBefore(periodStart)
-                                && !p.paymentDate().isAfter(periodEnd))
-                    .map(PaidContribution::deductibleAmount)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add)
-                    .signum()
-                == 0
-            ? BigDecimal.ZERO
-            : paidContributions.stream()
-                .filter(p -> "HEALTH".equals(p.contributionType()))
-                .filter(
-                    p ->
-                        !p.paymentDate().isBefore(periodStart)
-                            && !p.paymentDate().isAfter(periodEnd))
-                .map(PaidContribution::deductibleAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .multiply(HALF)
-                .setScale(2, RoundingMode.HALF_UP);
-    BigDecimal totalDeductions = socialDeduction.add(healthDeduction);
+    DeductionState deductions = deductionState(input, revenue, periodStart, periodEnd);
     Map<BigDecimal, BigDecimal> buckets = new LinkedHashMap<>();
     BigDecimal effectiveRate = input.periodContext().ryczaltRate();
     if (input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
@@ -122,10 +97,21 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
       }
     }
     if (input.adjustments().revenueNetPln().signum() != 0) {
-      buckets.merge(new BigDecimal("0.12"), input.adjustments().revenueNetPln(), BigDecimal::add);
+      if (effectiveRate == null) {
+        issues.add(
+            issue(
+                "MISSING_EFFECTIVE_TAX_PROFILE", null, "No tax profile is active for the period."));
+      } else {
+        buckets.merge(effectiveRate, input.adjustments().revenueNetPln(), BigDecimal::add);
+      }
     }
-    BigDecimal taxable = revenue.subtract(totalDeductions).setScale(0, RoundingMode.HALF_UP);
-    Map<BigDecimal, BigDecimal> taxableByRate = allocateDeductions(buckets, totalDeductions);
+    Map<BigDecimal, BigDecimal> taxableByRate = allocateDeductions(buckets, deductions.used());
+    BigDecimal taxable =
+        taxableByRate.values().stream()
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .setScale(0, RoundingMode.HALF_UP);
+    // Deliberate freeze semantics: round each rate's tax before summing, matching the
+    // separately rounded per-rate bases and keeping each rate independently auditable.
     BigDecimal tax =
         taxableByRate.entrySet().stream()
             .map(
@@ -243,7 +229,8 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
     BigDecimal calculatedVat =
         outputVat
             .setScale(0, RoundingMode.HALF_UP)
-            .subtract(deductible.setScale(0, RoundingMode.HALF_UP));
+            .subtract(deductible.setScale(0, RoundingMode.HALF_UP))
+            .max(BigDecimal.ZERO);
     boolean qualifyingUop = input.periodContext().qualifyingUop();
     BigDecimal social =
         input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
@@ -269,7 +256,17 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
                 : qualifyingUop ? "UOP_PRIMARY_INSURANCE" : "JDG_PRIMARY_INSURANCE");
     var ryczalt =
         new AccountingCalculationResult.RyczaltCalculation(
-            revenue, socialDeduction, health, healthDeduction, taxable, buckets, tax);
+            revenue,
+            deductions.socialUsed(),
+            health,
+            deductions.healthUsed(),
+            deductions.available(),
+            deductions.used(),
+            deductions.carryForward(),
+            taxable,
+            buckets,
+            taxableByRate,
+            tax);
     var vat =
         new AccountingCalculationResult.VatCalculation(
             outputVat.subtract(input.adjustments().salesVat()),
@@ -309,10 +306,66 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
             deductions.multiply(entry.getValue()).divide(totalRevenue, 2, RoundingMode.HALF_UP);
         remaining = remaining.subtract(allocation);
       }
-      result.put(entry.getKey(), entry.getValue().subtract(allocation));
+      result.put(entry.getKey(), entry.getValue().subtract(allocation).max(BigDecimal.ZERO));
     }
     return result;
   }
+
+  private DeductionState deductionState(
+      AccountingCalculationInput input,
+      BigDecimal currentRevenue,
+      java.time.LocalDate periodStart,
+      java.time.LocalDate periodEnd) {
+    var eligible =
+        input.periodContext().yearToDate().paidContributions().stream()
+            .filter(contribution -> contribution.paymentDate().getYear() == periodStart.getYear())
+            .filter(contribution -> !contribution.paymentDate().isAfter(periodEnd))
+            .toList();
+    BigDecimal socialAvailable =
+        eligible.stream()
+            .filter(contribution -> "SOCIAL".equals(contribution.contributionType()))
+            .map(PaidContribution::deductibleAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal healthAvailable =
+        eligible.stream()
+            .filter(contribution -> "HEALTH".equals(contribution.contributionType()))
+            .map(PaidContribution::deductibleAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .multiply(HALF)
+            .setScale(2, RoundingMode.HALF_UP);
+    BigDecimal priorAvailable =
+        eligible.stream()
+            .filter(contribution -> contribution.paymentDate().isBefore(periodStart))
+            .map(
+                contribution ->
+                    "HEALTH".equals(contribution.contributionType())
+                        ? contribution.deductibleAmount().multiply(HALF)
+                        : contribution.deductibleAmount())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal priorRevenue =
+        input
+            .periodContext()
+            .yearToDate()
+            .taxableRyczaltRevenue()
+            .subtract(currentRevenue)
+            .max(BigDecimal.ZERO);
+    BigDecimal derivedPreviouslyUsed = priorAvailable.min(priorRevenue);
+    BigDecimal previouslyUsed =
+        input.periodContext().yearToDate().deductionsAlreadyConsumed().max(derivedPreviouslyUsed);
+    BigDecimal available =
+        socialAvailable.add(healthAvailable).subtract(previouslyUsed).max(BigDecimal.ZERO);
+    BigDecimal used = available.min(currentRevenue.max(BigDecimal.ZERO));
+    BigDecimal socialUsed = socialAvailable.min(used);
+    BigDecimal healthUsed = used.subtract(socialUsed);
+    return new DeductionState(available, used, available.subtract(used), socialUsed, healthUsed);
+  }
+
+  private record DeductionState(
+      BigDecimal available,
+      BigDecimal used,
+      BigDecimal carryForward,
+      BigDecimal socialUsed,
+      BigDecimal healthUsed) {}
 
   private BigDecimal missingCurrentZusAmount(String contribution, List<AccountingIssue> issues) {
     issues.add(
@@ -365,7 +418,13 @@ public class DefaultAccountingMonthCalculator implements AccountingMonthCalculat
         CurrencyType source = CurrencyType.valueOf(invoice.currency());
         BigDecimal converted =
             currencyConversion.convertToBaseCurrency(
-                invoice.netAmount(), CurrencyType.PLN, source, invoice.fxRateDate());
+                invoice.netAmount(),
+                CurrencyType.PLN,
+                source,
+                invoice.fxRateDate() != null
+                    ? invoice.fxRateDate()
+                    : AccountingDateRules.priorBusinessDay(
+                        invoice.saleDate() != null ? invoice.saleDate() : invoice.issueDate()));
         if (converted == null) throw new CurrencyConversionUnavailableException("No FX result");
         converted = converted.setScale(2, RoundingMode.HALF_UP);
         entries.add(

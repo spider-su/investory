@@ -2,6 +2,25 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 <th:block th:fragment="theme">
+    <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
+    <script>
+        (function () {
+            function addCsrfInputs() {
+                const token = document.querySelector('meta[name="_csrf"]')?.content;
+                if (!token) return;
+                document.querySelectorAll('form[method="post"], form[method="POST"]').forEach(function (form) {
+                    if (form.querySelector('input[name="_csrf"]')) return;
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = '_csrf';
+                    input.value = token;
+                    form.appendChild(input);
+                });
+            }
+            document.addEventListener('DOMContentLoaded', addCsrfInputs);
+            document.addEventListener('turbo:load', addCsrfInputs);
+        }());
+    </script>
     <script>
         (function () {
             try {

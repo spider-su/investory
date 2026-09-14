@@ -1,5 +1,6 @@
 package com.smartbox.investory.poc.accounting.ksef;
 
+import com.smartbox.investory.accounting.AccountingDateRules;
 import com.smartbox.investory.accounting.AccountingFilingEvidence;
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService;
 import com.smartbox.investory.accounting.AccountingInvoiceIngestionService.ReviewedInvoice;
@@ -313,8 +314,8 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
         }
         String xml = client.downloadInvoice(environment, accessToken, ksefNumber);
         byte[] payload = xml.getBytes(StandardCharsets.UTF_8);
-        sourceId = sourceEvidenceService.receiveKsef(ksefNumber, null, payload);
         KsefInvoiceXmlParser.ParsedKsefInvoice invoice = invoiceParser.parse(payload);
+        sourceId = sourceEvidenceService.receiveKsef(ksefNumber, invoice.issueDate(), payload);
         validateSellerInvoice(invoice);
         sourceEvidenceService.status(sourceId, AccountingSourceStatus.PARSED, null);
         if (!isSupportedAutomaticType(invoice.invoiceType(), true)) {
@@ -332,9 +333,9 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
                 || (invoice.reference() != null && invoice.reference().startsWith("FK"));
         String documentType = correction ? "CREDIT_NOTE" : "SALES_INVOICE";
         String buyer = firstNonBlank(invoice.buyerName(), invoice.buyerNip());
-        LocalDate accountingPeriodDate =
-            invoice.saleDate() != null ? invoice.saleDate() : invoice.issueDate();
-        LocalDate accountingTaxPeriod = accountingPeriodDate.withDayOfMonth(1);
+        LocalDate accountingTaxPeriod =
+            AccountingDateRules.accountingPeriod(
+                invoice.saleDate(), invoice.issueDate(), null, correction);
         boolean saved =
             invoiceIngestionService.ingest(
                 new ReviewedInvoice(
@@ -356,7 +357,9 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
                     invoice.buyerNip(),
                     "PL",
                     ksefNumber,
-                    new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, ksefNumber)));
+                    new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, ksefNumber),
+                    null,
+                    invoice.vatRate()));
         if (saved) {
           imported++;
           sourceEvidenceService.status(sourceId, AccountingSourceStatus.IMPORTED, null);
@@ -397,8 +400,8 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
             client
                 .downloadInvoice(environment, accessToken, ksefNumber)
                 .getBytes(StandardCharsets.UTF_8);
-        sourceId = sourceEvidenceService.receiveKsef(ksefNumber, null, payload);
         KsefInvoiceXmlParser.ParsedKsefInvoice invoice = invoiceParser.parse(payload);
+        sourceId = sourceEvidenceService.receiveKsef(ksefNumber, invoice.issueDate(), payload);
         validateSellerInvoice(invoice);
         sourceEvidenceService.status(
             sourceId,
@@ -523,7 +526,8 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
         boolean saved =
             invoiceIngestionService.ingest(
                 new ReviewedInvoice(
-                    taxPeriod,
+                    AccountingDateRules.accountingPeriod(
+                        invoice.saleDate(), invoice.issueDate(), null, false),
                     "PURCHASE_INVOICE",
                     invoice.issueDate(),
                     invoice.saleDate(),
@@ -541,7 +545,9 @@ public class KsefConnectionController implements AccountingKsefSyncPort {
                     invoice.sellerNip(),
                     "PL",
                     ksefNumber,
-                    new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, ksefNumber)));
+                    new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, ksefNumber),
+                    null,
+                    invoice.vatRate()));
         if (saved) imported++;
         if (sourceId != 0)
           sourceEvidenceService.status(sourceId, AccountingSourceStatus.IMPORTED, null);

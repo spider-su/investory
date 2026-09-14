@@ -143,7 +143,7 @@ class AccountingJpkGeneratorTest {
             document("SEU", VatTreatment.EU_B2B_REVERSE_CHARGE, "100", "0", null));
     var purchases =
         List.of(
-            document("P", VatTreatment.DOMESTIC_PURCHASE, "100", "23", null, "23"),
+            document("P", VatTreatment.DOMESTIC_PURCHASE, "100", "23", "23", "23"),
             document("PIE", VatTreatment.IMPORT_OF_SERVICES_EU, "200", "46", null),
             document("PIN", VatTreatment.IMPORT_OF_SERVICES_NON_EU, "300", "69", null));
     var input =
@@ -209,6 +209,77 @@ class AccountingJpkGeneratorTest {
 
     assertThat(xml).contains("<K_42>156.91</K_42>", "<K_43>12.56</K_43>", "<P_42>157</P_42>");
     new AccountingJpkXmlValidator().validate(xml.getBytes());
+  }
+
+  @Test
+  void pivotsMultipleVatBucketsIntoOneSalesRow() {
+    var document =
+        new AccountingFilingInput.FilingDocument(
+            "MIXED-1",
+            LocalDate.of(2026, 9, 2),
+            LocalDate.of(2026, 9, 2),
+            null,
+            "PL123",
+            "Mixed customer",
+            new BigDecimal("300"),
+            new BigDecimal("31"),
+            BigDecimal.ZERO,
+            new AccountingFilingEvidence(AccountingFilingEvidence.Type.OFF, null),
+            VatTreatment.DOMESTIC_VAT,
+            "PL",
+            new BigDecimal("23"),
+            BigDecimal.ONE,
+            List.of(
+                new AccountingFilingInput.FilingVatBucket(
+                    VatTreatment.DOMESTIC_VAT,
+                    new BigDecimal("23"),
+                    new BigDecimal("100"),
+                    new BigDecimal("23"),
+                    BigDecimal.ZERO),
+                new AccountingFilingInput.FilingVatBucket(
+                    VatTreatment.DOMESTIC_VAT,
+                    new BigDecimal("8"),
+                    new BigDecimal("200"),
+                    new BigDecimal("8"),
+                    BigDecimal.ZERO)));
+    var input =
+        new AccountingFilingInput(
+            LocalDate.of(2026, 9, 1),
+            snapshot().vat(),
+            snapshot().ryczalt(),
+            snapshot().zus(),
+            List.of(document),
+            List.of(),
+            taxpayer(),
+            "JPK_V7M(3)");
+
+    String xml = new String(new AccountingJpkGenerator().generate(input));
+
+    assertThat(xml)
+        .contains("<LiczbaWierszySprzedazy>1</LiczbaWierszySprzedazy>")
+        .contains("<K_19>100.00</K_19><K_20>23.00</K_20>")
+        .contains("<K_17>200.00</K_17><K_18>8.00</K_18>")
+        .contains("<P_38>31</P_38>");
+    new AccountingJpkXmlValidator().validate(xml.getBytes());
+  }
+
+  @Test
+  void refusesUnsupportedDomesticVatRateBeforeGeneratingJpk() {
+    var input =
+        new AccountingFilingInput(
+            LocalDate.of(2026, 9, 1),
+            snapshot().vat(),
+            snapshot().ryczalt(),
+            snapshot().zus(),
+            List.of(document("S7", VatTreatment.DOMESTIC_VAT, "100", "7", "7")),
+            List.of(),
+            taxpayer(),
+            "JPK_V7M(3)");
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> new AccountingJpkGenerator().generate(input))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("UNSUPPORTED_VAT_RATE: 7");
   }
 
   private AccountingProfile taxpayer() {

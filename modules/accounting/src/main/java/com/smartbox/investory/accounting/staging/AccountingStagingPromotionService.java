@@ -80,6 +80,19 @@ public class AccountingStagingPromotionService {
               : java.math.BigDecimal.ZERO,
           "STAGED_SOURCE:" + row.sourceId(),
           row.vatRate());
+      canonicalRepository.upsertCanonicalVatBucket(
+          row.profileId(),
+          row.documentKind().equals("EXPENSE")
+              ? AccountingVatTransaction.Direction.PURCHASE
+              : AccountingVatTransaction.Direction.SALE,
+          row.reference(),
+          VatTreatment.valueOf(row.vatTreatment()),
+          row.vatRate(),
+          row.netAmount(),
+          row.vatAmount(),
+          row.documentKind().equals("EXPENSE")
+              ? java.util.Objects.requireNonNullElse(row.deductibleVat(), java.math.BigDecimal.ZERO)
+              : java.math.BigDecimal.ZERO);
       repository.promoted(row.profileId(), "invoice", row.id(), repository.canonicalInvoiceId(row));
       invoices++;
     }

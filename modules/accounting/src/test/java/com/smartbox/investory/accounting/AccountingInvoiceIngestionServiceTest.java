@@ -92,6 +92,30 @@ class AccountingInvoiceIngestionServiceTest {
   }
 
   @Test
+  void keepsExplicitFixedAssetsOutOfThePocUntilTheirJpkTreatmentIsImplemented() {
+    var invoice =
+        new AccountingInvoiceIngestionService.ReviewedInvoice(
+            LocalDate.of(2026, 7, 1),
+            "PURCHASE_INVOICE",
+            LocalDate.of(2026, 7, 10),
+            null,
+            "FIXED-ASSET-1",
+            "Supplier",
+            "FIXED_ASSET",
+            "PLN",
+            new BigDecimal("100.00"),
+            new BigDecimal("23.00"),
+            new BigDecimal("123.00"),
+            BigDecimal.ONE,
+            "SOURCE_DOCUMENT",
+            "source");
+
+    assertThatThrownBy(() -> service.ingest(invoice))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("FIXED_ASSET_UNSUPPORTED");
+  }
+
+  @Test
   void routesSalesWithoutApplyingPurchaseVatDeduction() {
     when(repository.insertSalesInvoice(
             any(),
@@ -256,6 +280,44 @@ class AccountingInvoiceIngestionServiceTest {
             any(),
             any(),
             any());
+  }
+
+  @Test
+  void dualWritesReviewedSalesIntoCanonicalDocumentAndVatBucket() {
+    var invoice = salesWithDueDateAndCountry(LocalDate.of(2026, 7, 31), "DE");
+
+    service.ingest(1L, invoice);
+
+    verify(repository)
+        .upsertCanonicalDocument(
+            eq(1L),
+            eq("SALE"),
+            eq("INVOICE"),
+            eq(invoice.taxPeriod()),
+            eq(invoice.issueDate()),
+            eq(invoice.saleDate()),
+            eq(invoice.dueDate()),
+            eq(invoice.reference()),
+            eq(invoice.counterpartyAlias()),
+            eq(invoice.counterpartyTaxIdentifier()),
+            eq(invoice.counterpartyCountry()),
+            eq("EUR"),
+            eq(invoice.netAmount()),
+            eq(invoice.vatAmount()),
+            eq(invoice.grossAmount()),
+            eq(null),
+            eq(null),
+            eq(new BigDecimal("0.12")),
+            eq(null),
+            eq(null),
+            eq(null),
+            eq(42L),
+            eq(null),
+            eq(null),
+            eq(invoice.note()),
+            eq(VatTreatment.EU_B2B_REVERSE_CHARGE),
+            eq(null),
+            eq(BigDecimal.ZERO));
   }
 
   private AccountingInvoiceIngestionService.ReviewedInvoice salesWithDueDateAndCountry(

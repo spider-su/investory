@@ -23,6 +23,27 @@ from the real broker archive?
 
 Only correctness or data-integrity work that can block private production belongs here.
 
+### Accounting correctness
+
+- [x] Derive ordinary document periods from authoritative dates and correction periods from the
+  correction issue date; do not let the open UI month decide the booked month.
+- [x] Derive a missing FX date from the preceding weekday and keep explicit source dates when
+  supplied.
+- [x] Apply the health contribution band from the month after the threshold is crossed; retain the
+  social-contribution deduction exclusion for Fundusz Pracy.
+- [ ] Add a second non-UoP reference profile and matrix assertions that report the exercised
+  accounting/ZUS branches for every month. The current oracle still has a qualifying-UoP-only
+  golden path.
+- [ ] Validate the accounting migration/snapshot pair after the in-progress schema consolidation;
+  no accounting result is release evidence until both paths load the same contracts.
+- [x] Clean replay of the migration chain, fixture loading, dependency-ordered refreshes, and
+  regeneration of both snapshots now pass. Application-level integration rerun remains pending
+  after the reactor artifacts are rebuilt.
+- [x] Harden accounting schema boundaries: month periods, source-profile ownership, source
+  immutability, and legacy document amount invariants.
+- [ ] Obtain advisor review of the tax-period, ZUS deduction, health-band, correction, and FX
+  semantics before treating the accounting POC as filing-grade.
+
 - [ ] Complete the portfolio-scoped dashboard/read-model review. Fix any remaining path where a
   selected portfolio can receive system-wide metrics or stale data from another scope.
 - [ ] Complete the portfolio-scoped planning aggregation review. The current market aggregation is
@@ -62,6 +83,20 @@ risk. General cleanup is not a release blocker.
   demonstrated scope, correctness, or material performance risk before release.
 - [ ] Validate the production configuration, startup/restart behavior, health endpoint, logging
   needed for diagnosis, and backup/restore procedure in a production-like environment.
+
+## Deferred accounting cleanup
+
+These items do not block the correctness pass and should follow the reference-matrix work:
+
+- [ ] Consolidate invoice/expense concepts and remove the redundant VAT satellite only after the
+  canonical reporting contract is documented and migrated safely.
+- [ ] Remove profile-1 compatibility overloads from `AccountingPocRepository`; compiler-driven
+  cleanup must preserve profile scoping.
+- [ ] Split the repository into acquisition, canonical facts, filing, and reference-query services.
+- [ ] Encrypt or externalize retained source payloads and document the retention/redaction policy.
+- [ ] Add obligation/tax-input acquisition to the real source-to-promotion E2E path.
+- [ ] Add the `IssueKind`/`Resolution` review model and month-page UX after tax semantics are signed
+  off.
 
 ## P2 — Production operations and stabilization
 

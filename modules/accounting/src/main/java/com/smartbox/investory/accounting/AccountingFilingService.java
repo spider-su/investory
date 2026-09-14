@@ -24,17 +24,22 @@ public class AccountingFilingService {
   public FilingResult filing(long profileId, LocalDate period) {
     AccountingMonthSnapshot snapshot = factService.snapshot(profileId, period);
     AccountingProfile profile = repository.accountingProfile(profileId);
+    List<AccountingFilingInput.FilingDocument> canonicalDocuments =
+        repository.canonicalFilingDocumentsForPeriod(profileId, period);
     AccountingFilingInput filingInput =
-        new AccountingFilingService.FilingResult(period, snapshot, profile, "", false, List.of())
-            .filingInput(
-                repository.vatTransactionsForPeriod(profileId, period).stream()
-                    .filter(t -> t.reference() != null)
-                    .filter(t -> t.vatRate() != null)
-                    .collect(
-                        java.util.stream.Collectors.toMap(
-                            AccountingVatTransaction::reference,
-                            AccountingVatTransaction::vatRate,
-                            (left, right) -> left)));
+        canonicalDocuments.isEmpty()
+            ? new AccountingFilingService.FilingResult(
+                    period, snapshot, profile, "", false, List.of())
+                .filingInput(
+                    repository.vatTransactionsForPeriod(profileId, period).stream()
+                        .filter(t -> t.reference() != null)
+                        .filter(t -> t.vatRate() != null)
+                        .collect(
+                            java.util.stream.Collectors.toMap(
+                                AccountingVatTransaction::reference,
+                                AccountingVatTransaction::vatRate,
+                                (left, right) -> left)))
+            : canonicalFilingInput(period, snapshot, profile, canonicalDocuments);
     String hash = AccountingFilingFingerprint.sha256(filingInput);
     AccountingPocRepository.PeriodState state = repository.periodState(profileId, period);
     boolean confirmed = state != null && hash.equals(state.confirmedCalculationHash());
@@ -80,6 +85,22 @@ public class AccountingFilingService {
     return new FilingResult(period, snapshot, profile, hash, confirmed, issues);
   }
 
+  private AccountingFilingInput canonicalFilingInput(
+      LocalDate period,
+      AccountingMonthSnapshot snapshot,
+      AccountingProfile profile,
+      List<AccountingFilingInput.FilingDocument> documents) {
+    return new AccountingFilingInput(
+        period,
+        snapshot.vat(),
+        snapshot.ryczalt(),
+        snapshot.zus(),
+        documents.stream().filter(document -> document.purchaseDate() == null).toList(),
+        documents.stream().filter(document -> document.purchaseDate() != null).toList(),
+        profile,
+        "JPK_V7M(3)");
+  }
+
   private void validateDocument(
       AccountingFilingInput.FilingDocument document, List<String> issues) {
     if (blank(document.counterpartyIdentifier())) {
@@ -93,6 +114,20 @@ public class AccountingFilingService {
         && document.vatRate() == null) {
       issues.add("MISSING_EXPLICIT_VAT_RATE: " + document.reference());
     }
+    document.vatBuckets().stream()
+        .filter(
+            bucket ->
+                bucket.treatment() == VatTreatment.DOMESTIC_VAT
+                    || bucket.treatment() == VatTreatment.DOMESTIC_PURCHASE)
+        .filter(bucket -> !AccountingVatRate.isSupported(bucket.vatRate()))
+        .forEach(
+            bucket ->
+                issues.add(
+                    "UNSUPPORTED_VAT_RATE: "
+                        + document.reference()
+                        + " ("
+                        + bucket.vatRate()
+                        + ")"));
   }
 
   public void confirm(LocalDate period) {
@@ -293,7 +328,9 @@ public class AccountingFilingService {
 
   public List<AccountingPaymentInstruction> paymentInstructions(long profileId, LocalDate period) {
     FilingResult result = filing(profileId, period);
-    if (!result.ready()) throw new IllegalStateException(String.join("; ", result.issues()));
+    if (!result.ready()) {
+      throw new AccountingInvalidTransitionException(String.join("; ", result.issues()));
+    }
     AccountingMonthSnapshot s = result.snapshot();
     AccountingProfile p = result.profile();
     List<AccountingPaymentInstruction> output = new ArrayList<>();
@@ -326,7 +363,9 @@ public class AccountingFilingService {
       String title,
       List<AccountingMonthSnapshot.ObligationRow> obligations) {
     if (amount == null || amount.signum() <= 0) return;
-    if (blank(account)) throw new IllegalStateException("MISSING_PAYMENT_CONFIGURATION: " + type);
+    if (blank(account)) {
+      throw new AccountingInvalidTransitionException("MISSING_PAYMENT_CONFIGURATION: " + type);
+    }
     AccountingMonthSnapshot.ObligationRow existing =
         obligations.stream().filter(o -> type.equals(o.obligationType())).findFirst().orElse(null);
     BigDecimal paid =
@@ -383,6 +422,9 @@ public class AccountingFilingService {
       if (issue.startsWith("MISSING_JPK_EVIDENCE_CLASSIFICATION"))
         return new AccountingFilingIssue(
             AccountingFilingIssueCode.MISSING_JPK_EVIDENCE_CLASSIFICATION, null, issue);
+      if (issue.startsWith("UNSUPPORTED_VAT_RATE"))
+        return new AccountingFilingIssue(
+            AccountingFilingIssueCode.UNSUPPORTED_VAT_RATE, null, issue);
       if (issue.startsWith("Month calculation"))
         return new AccountingFilingIssue(AccountingFilingIssueCode.NOT_CONFIRMED, null, issue);
       return new AccountingFilingIssue(

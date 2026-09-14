@@ -59,13 +59,14 @@ class MockZusClientIT extends AccountingDatabaseTest {
     jdbcTemplate.update(
         """
         INSERT INTO investory.accounting_poc_bank_transaction
-            (booking_date, related_period, reference, counterparty_alias, currency, amount,
-             transaction_type, scope, note)
-        VALUES (?, NULL, ?, ?, 'PLN', ?, 'UNKNOWN', 'BUSINESS', 'mock ZUS integration test')
+            (profile_id, booking_date, related_period, reference, counterparty_alias, currency, amount,
+             transaction_type, scope, note, provider, external_account_id, external_transaction_id)
+        VALUES (1, ?, NULL, ?, ?, 'PLN', ?, 'UNKNOWN', 'BUSINESS', 'mock ZUS integration test', 'CSV', 'JDG_MAIN_ACCOUNT', ?)
         """,
         LocalDate.parse(date),
         TEST_PREFIX + "-" + date,
         counterparty,
-        new BigDecimal(amount));
+        new BigDecimal(amount),
+        TEST_PREFIX + "-" + date);
   }
 }

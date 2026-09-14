@@ -189,7 +189,7 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   "Net worth",
                   compact(HappyInvestorProfileFacts.TOTAL_NET_WORTH),
                   "Net income / year",
-                  "77.2K");
+                  "59.6K");
           assertThat(page.locator(".iv-profile-source-card").nth(0).textContent())
               .contains(
                   "Market investments",

@@ -9,13 +9,20 @@ public final class ZusCalculator {
     if (input.zusRegime() != null && !"JDG".equals(input.zusRegime())) {
       throw new IllegalArgumentException("Unsupported ZUS regime: " + input.zusRegime());
     }
-    if (input.voluntarySickness()) {
-      throw new IllegalArgumentException(
-          "Voluntary sickness insurance is outside the supported 2026 POC calculation");
-    }
     ZusRules2026.HealthBand band = input.explicitHealthBand();
     BigDecimal social =
-        input.jdgActive() && !input.qualifyingUop() ? input.fullJdgSocial() : BigDecimal.ZERO;
+        input.jdgActive() && !input.qualifyingUop()
+            ? input
+                .fullJdgSocial()
+                .add(input.voluntarySickness() ? ZusRules2026.VOLUNTARY_SICKNESS : BigDecimal.ZERO)
+            : BigDecimal.ZERO;
+    BigDecimal deductibleSocial =
+        input.jdgActive() && !input.qualifyingUop()
+            ? input
+                .fullJdgSocial()
+                .subtract(ZusRules2026.LABOUR_FUND)
+                .add(input.voluntarySickness() ? ZusRules2026.VOLUNTARY_SICKNESS : BigDecimal.ZERO)
+            : BigDecimal.ZERO;
     BigDecimal health = input.jdgActive() ? band.monthlyAmount() : BigDecimal.ZERO;
     return new ZusCalculation(
         social.setScale(2, RoundingMode.HALF_UP),
@@ -23,7 +30,8 @@ public final class ZusCalculator {
         social.add(health).setScale(2, RoundingMode.HALF_UP),
         band,
         input.qualifyingUop() ? "UOP_PRIMARY_INSURANCE" : "JDG_PRIMARY_INSURANCE",
-        ZusRules2026.VERSION);
+        ZusRules2026.VERSION,
+        deductibleSocial.setScale(2, RoundingMode.HALF_UP));
   }
 
   public record Input(
@@ -67,5 +75,6 @@ public final class ZusCalculator {
       BigDecimal totalObligation,
       ZusRules2026.HealthBand healthBand,
       String reason,
-      String ruleVersion) {}
+      String ruleVersion,
+      BigDecimal deductibleSocialContribution) {}
 }

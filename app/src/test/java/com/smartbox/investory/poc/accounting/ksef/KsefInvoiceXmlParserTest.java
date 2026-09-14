@@ -60,6 +60,28 @@ class KsefInvoiceXmlParserTest {
   }
 
   @Test
+  void preservesExplicitVatRateFromKsefLine() {
+    String xml =
+        "<Faktura xmlns=\"urn:test\"><Fa><P_12>23</P_12><P_13_1>100</P_13_1>"
+            + "<P_14_1>23</P_14_1><P_15>123</P_15></Fa></Faktura>";
+
+    var result = parser.parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertThat(result.vatRate()).isEqualByComparingTo("23");
+  }
+
+  @Test
+  void doesNotGuessRateForMixedVatLines() {
+    String xml =
+        "<Faktura xmlns=\"urn:test\"><Fa><P_12>23</P_12><P_12>8</P_12>"
+            + "<P_13_1>100</P_13_1><P_14_1>23</P_14_1><P_15>123</P_15></Fa></Faktura>";
+
+    var result = parser.parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertThat(result.vatRate()).isNull();
+  }
+
+  @Test
   void parsesCorrectionInvoiceTypeForSellerSideImport() {
     String xml =
         "<Faktura xmlns=\"urn:test\"><Podmiot1><NIP>1111111111</NIP></Podmiot1>"

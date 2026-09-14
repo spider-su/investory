@@ -214,6 +214,50 @@ public class AccountingFactService {
       paidContributionProjection =
           new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
     }
+    if (zusCalculation != null) {
+      BigDecimal paidSocialThisYear =
+          paidContributionProjection.contributions().stream()
+              .filter(contribution -> "SOCIAL".equals(contribution.contributionType()))
+              .filter(contribution -> contribution.paymentDate().getYear() == period.getYear())
+              .map(PaidContribution::deductibleAmount)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+      // A band reached in a month applies from the following month.
+      LocalDate previousPeriod = period.minusMonths(1);
+      BigDecimal previousYearToDateRevenue =
+          profileId == 1
+              ? pocRepository.yearToDateRevenue(previousPeriod)
+              : pocRepository.yearToDateRevenue(profileId, previousPeriod);
+      paidSocialThisYear =
+          paidContributionProjection.contributions().stream()
+              .filter(contribution -> "SOCIAL".equals(contribution.contributionType()))
+              .filter(contribution -> contribution.paymentDate().getYear() == period.getYear())
+              .filter(
+                  contribution ->
+                      !contribution
+                          .paymentDate()
+                          .isAfter(previousPeriod.withDayOfMonth(previousPeriod.lengthOfMonth())))
+              .map(PaidContribution::deductibleAmount)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+      var healthBand =
+          ZusRules2026.healthBandAfterPaidSocial(previousYearToDateRevenue, paidSocialThisYear);
+      zusCalculation =
+          new ZusCalculator()
+              .calculate(
+                  new ZusCalculator.Input(
+                      resolved.jdgActive(),
+                      resolved.qualifyingUop(),
+                      resolved.zusRegime(),
+                      resolved.voluntarySickness(),
+                      yearToDate.taxableRyczaltRevenue(),
+                      ZusRules2026.FULL_JDG_SOCIAL,
+                      healthBand));
+      paidContributionProjection =
+          projectPaidContributions(profileId, period, resolved, zusCalculation);
+      if (paidContributionProjection == null) {
+        paidContributionProjection =
+            new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
+      }
+    }
     var context =
         calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
                 && activityPeriods.isEmpty()
@@ -385,13 +429,17 @@ public class AccountingFactService {
       obligations.put(
           contributionPeriod,
           new AccountingPocRepository.ZusAmounts(
-              calculated.socialContribution(), calculated.healthContribution()));
+              calculated.socialContribution(),
+              calculated.deductibleSocialContribution(),
+              calculated.healthContribution()));
     }
     if (currentZus != null) {
       obligations.put(
           period,
           new AccountingPocRepository.ZusAmounts(
-              currentZus.socialContribution(), currentZus.healthContribution()));
+              currentZus.socialContribution(),
+              currentZus.deductibleSocialContribution(),
+              currentZus.healthContribution()));
     }
     return obligations;
   }
@@ -822,7 +870,8 @@ public class AccountingFactService {
     BigDecimal calculatedVat =
         outputVat
             .setScale(0, RoundingMode.HALF_UP)
-            .subtract(deductibleInputVat.setScale(0, RoundingMode.HALF_UP));
+            .subtract(deductibleInputVat.setScale(0, RoundingMode.HALF_UP))
+            .max(BigDecimal.ZERO);
     BigDecimal expectedVat = obligationAmount(obligations, "VAT");
     BigDecimal difference = calculatedVat.subtract(expectedVat);
     boolean hasGolden = hasObligation(obligations, "VAT");

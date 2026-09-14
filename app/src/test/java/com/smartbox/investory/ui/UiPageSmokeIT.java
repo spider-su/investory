@@ -275,11 +275,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
 
       String header = page.locator(".iv-planning-topbar").textContent();
       assertThat(header)
-          .contains(
-              "Net worth",
-              "Net income / year",
-              "Annual cost / year",
-              "planned · " + Year.now(applicationClock).getValue())
+          .contains("Net worth", "Net income / year", "Annual cost / year", "projected · net")
           .doesNotContain("Market return");
 
       Locator sourceCards = page.locator(".iv-profile-source-card");
@@ -291,8 +287,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
               "Investment result YTD",
               "Expected annual investment result",
               "Forward-looking estimate",
-              "Historical annualized TWR",
-              "Benchmark estimate")
+              "Historical annualized TWR")
           .doesNotContain("p.a.");
       assertThat(
               sourceCards

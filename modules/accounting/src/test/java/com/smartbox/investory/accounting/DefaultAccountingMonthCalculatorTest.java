@@ -145,6 +145,205 @@ class DefaultAccountingMonthCalculatorTest {
   }
 
   @Test
+  void neverCreatesNegativeRyczaltTaxWhenPaidContributionsExceedRevenue() {
+    AccountingCalculationInput base =
+        input(List.of(invoice("PLN-LOW", "PLN", "100.00", "0.12")), List.of());
+    AccountingCalculationInput effective =
+        new AccountingCalculationInput(
+            base.period(),
+            base.invoices(),
+            base.expenses(),
+            base.taxInputs(),
+            base.profile(),
+            base.adjustments(),
+            new AccountingPeriodContext(
+                PERIOD,
+                true,
+                false,
+                "JDG",
+                false,
+                new AccountingYearToDateContext(
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of(
+                        new PaidContribution(
+                            "SOCIAL", PERIOD, PERIOD, new BigDecimal("200.00"), null, 7L)))),
+            List.of(),
+            AccountingCalculationMode.HISTORICAL_RECONSTRUCTION);
+
+    AccountingCalculationResult result =
+        calculator(mock(CurrencyConversion.class)).calculate(effective);
+
+    assertThat(result.ryczalt().taxableBase()).isZero();
+    assertThat(result.ryczalt().calculatedTax()).isZero();
+    assertThat(result.ryczalt().deductionCarryForward()).isEqualByComparingTo("100.00");
+  }
+
+  @Test
+  void carriesUnusedDeductionToTheNextMonthWithinTheSameTaxYear() {
+    AccountingCalculationInput base =
+        input(List.of(invoice("PLN-CARRY", "PLN", "50.00", "0.12")), List.of());
+    AccountingCalculationInput effective =
+        new AccountingCalculationInput(
+            base.period(),
+            base.invoices(),
+            base.expenses(),
+            base.taxInputs(),
+            base.profile(),
+            base.adjustments(),
+            new AccountingPeriodContext(
+                PERIOD,
+                true,
+                false,
+                "JDG",
+                false,
+                new AccountingYearToDateContext(
+                    new BigDecimal("150.00"),
+                    null,
+                    null,
+                    null,
+                    List.of(
+                        new PaidContribution(
+                            "SOCIAL",
+                            PERIOD.minusMonths(1),
+                            PERIOD.minusMonths(1),
+                            new BigDecimal("200.00"),
+                            null,
+                            7L)))));
+
+    AccountingCalculationResult result =
+        calculator(mock(CurrencyConversion.class)).calculate(effective);
+
+    assertThat(result.ryczalt().deductionUsed()).isEqualByComparingTo("50.00");
+    assertThat(result.ryczalt().deductionCarryForward()).isEqualByComparingTo("50.00");
+    assertThat(result.ryczalt().taxableBase()).isZero();
+  }
+
+  @Test
+  void allocatesOnlyUsedDeductionAcrossMixedRatesAndKeepsCanonicalTaxableBuckets() {
+    AccountingCalculationInput base =
+        input(
+            List.of(
+                invoice("PLN-12", "PLN", "100.00", "0.12"),
+                invoice("PLN-8", "PLN", "100.00", "0.08")),
+            List.of());
+    AccountingCalculationInput effective =
+        new AccountingCalculationInput(
+            base.period(),
+            base.invoices(),
+            base.expenses(),
+            base.taxInputs(),
+            base.profile(),
+            base.adjustments(),
+            new AccountingPeriodContext(
+                PERIOD,
+                true,
+                false,
+                "JDG",
+                false,
+                new AccountingYearToDateContext(
+                    new BigDecimal("200.00"),
+                    null,
+                    null,
+                    null,
+                    List.of(
+                        new PaidContribution(
+                            "SOCIAL", PERIOD, PERIOD, new BigDecimal("250.00"), null, 7L)))));
+
+    AccountingCalculationResult result =
+        calculator(mock(CurrencyConversion.class)).calculate(effective);
+
+    assertThat(result.ryczalt().deductionUsed()).isEqualByComparingTo("200.00");
+    assertThat(result.ryczalt().taxableByRate().values()).allMatch(value -> value.signum() >= 0);
+    assertThat(result.ryczalt().taxableByRate().values())
+        .allMatch(value -> value.compareTo(BigDecimal.ZERO) == 0);
+    assertThat(result.ryczalt().taxableBase()).isZero();
+    assertThat(result.ryczalt().deductionCarryForward()).isEqualByComparingTo("50.00");
+  }
+
+  @Test
+  void deductsContributionInTheMonthItWasPaidNotItsContributionMonth() {
+    AccountingCalculationInput base =
+        input(List.of(invoice("PLN-PAID-LATE", "PLN", "100.00", "0.12")), List.of());
+    AccountingCalculationInput effective =
+        new AccountingCalculationInput(
+            base.period().plusMonths(1),
+            base.invoices(),
+            base.expenses(),
+            base.taxInputs(),
+            base.profile(),
+            base.adjustments(),
+            new AccountingPeriodContext(
+                PERIOD.plusMonths(1),
+                true,
+                false,
+                "JDG",
+                false,
+                new AccountingYearToDateContext(
+                    new BigDecimal("100.00"),
+                    null,
+                    null,
+                    null,
+                    List.of(
+                        new PaidContribution(
+                            "SOCIAL",
+                            PERIOD,
+                            PERIOD.plusMonths(1),
+                            new BigDecimal("100.00"),
+                            null,
+                            7L)))));
+
+    AccountingCalculationResult result =
+        calculator(mock(CurrencyConversion.class)).calculate(effective);
+
+    assertThat(result.ryczalt().deductionUsed()).isEqualByComparingTo("100.00");
+    assertThat(result.ryczalt().taxableBase()).isZero();
+  }
+
+  @Test
+  void doesNotCarryPaidDeductionsAcrossTaxYears() {
+    LocalDate january = LocalDate.of(2027, 1, 1);
+    InvoiceRow invoice = invoice("PLN-YEAR", "PLN", "100.00", "0.12");
+    AccountingCalculationInput base = input(List.of(invoice), List.of());
+    AccountingCalculationInput effective =
+        new AccountingCalculationInput(
+            january,
+            base.invoices(),
+            base.expenses(),
+            base.taxInputs(),
+            base.profile(),
+            base.adjustments(),
+            new AccountingPeriodContext(
+                january,
+                true,
+                false,
+                "JDG",
+                false,
+                new AccountingYearToDateContext(
+                    new BigDecimal("100.00"),
+                    null,
+                    null,
+                    null,
+                    List.of(
+                        new PaidContribution(
+                            "SOCIAL",
+                            LocalDate.of(2026, 12, 1),
+                            LocalDate.of(2026, 12, 31),
+                            new BigDecimal("200.00"),
+                            null,
+                            7L)))));
+
+    AccountingCalculationResult result =
+        calculator(mock(CurrencyConversion.class)).calculate(effective);
+
+    assertThat(result.ryczalt().deductionUsed()).isZero();
+    assertThat(result.ryczalt().taxableBase()).isEqualByComparingTo("100");
+    assertThat(result.ryczalt().calculatedTax()).isEqualByComparingTo("12");
+  }
+
+  @Test
   void explicitVatTreatmentControlsOutputInsteadOfCurrency() {
     CurrencyConversion conversion = mock(CurrencyConversion.class);
     InvoiceRow invoice = invoice("EU-1", "PLN", "100.00", "0.12");

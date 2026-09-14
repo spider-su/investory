@@ -147,8 +147,51 @@ public interface AccountingUserApi {
       int bankCount,
       String filingStatus) {}
 
+  /**
+   * Stable user-facing issue. The legacy fields stay present while callers migrate to the explicit
+   * kind and resolution contract.
+   */
   record IssueView(
-      String code, String severity, String title, String message, String sourceReference) {}
+      String id,
+      String code,
+      String severity,
+      IssueKind kind,
+      String title,
+      String message,
+      String sourceReference,
+      Resolution resolution) {
+    public IssueView(
+        String code, String severity, String title, String message, String sourceReference) {
+      this(
+          code + ":" + (sourceReference == null ? "account" : sourceReference),
+          code,
+          severity,
+          IssueKind.BLOCKED,
+          title,
+          message,
+          sourceReference,
+          new Resolution.None("No safe action is available yet."));
+    }
+  }
+
+  enum IssueKind {
+    NEEDS_ANSWER,
+    SETUP,
+    BLOCKED,
+    INFO
+  }
+
+  sealed interface Resolution {
+    record Choice(String command, List<Option> options) implements Resolution {}
+
+    record Match(String command, List<Option> candidates) implements Resolution {}
+
+    record Setup(String settingsPath, String actionLabel) implements Resolution {}
+
+    record None(String reason) implements Resolution {}
+  }
+
+  record Option(String value, String label, boolean recommended) {}
 
   record DocumentView(
       long id,

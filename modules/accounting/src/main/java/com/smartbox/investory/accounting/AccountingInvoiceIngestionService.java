@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /** Normalizes reviewed invoice facts before they enter the Accounting POC tables. */
 @Service
@@ -90,21 +91,110 @@ public class AccountingInvoiceIngestionService {
         invoice.note());
   }
 
+  @Transactional
   public boolean ingest(long profileId, ReviewedInvoice invoice) {
     validate(invoice);
     invoice = canonicalizeCounterparty(profileId, invoice);
+    boolean inserted;
     if ("SALES_INVOICE".equals(invoice.documentType())) {
-      return ingestSales(profileId, invoice);
-    }
-    if ("CREDIT_NOTE".equals(invoice.documentType())) {
-      return ingestCreditNote(profileId, invoice);
-    }
-    if ("PURCHASE_INVOICE".equals(invoice.documentType())
+      inserted = ingestSales(profileId, invoice);
+    } else if ("CREDIT_NOTE".equals(invoice.documentType())) {
+      inserted = ingestCreditNote(profileId, invoice);
+    } else if ("PURCHASE_INVOICE".equals(invoice.documentType())
         || "RECEIPT".equals(invoice.documentType())) {
-      return ingestPurchase(profileId, invoice);
+      inserted = ingestPurchase(profileId, invoice);
+    } else {
+      throw new IllegalArgumentException(
+          "Credit-note persistence is intentionally parked; review the document without saving it yet.");
     }
-    throw new IllegalArgumentException(
-        "Credit-note persistence is intentionally parked; review the document without saving it yet.");
+    upsertCanonicalDocument(profileId, invoice);
+    return inserted;
+  }
+
+  private void upsertCanonicalDocument(long profileId, ReviewedInvoice invoice) {
+    boolean purchase =
+        "PURCHASE_INVOICE".equals(invoice.documentType())
+            || "RECEIPT".equals(invoice.documentType());
+    boolean creditNote = "CREDIT_NOTE".equals(invoice.documentType());
+    String direction = purchase ? "PURCHASE" : "SALE";
+    String currency = invoice.currency().trim().toUpperCase();
+    BigDecimal netAmount = creditNote ? negative(invoice.netAmount()) : invoice.netAmount();
+    BigDecimal vatAmount = creditNote ? negative(invoice.vatAmount()) : invoice.vatAmount();
+    BigDecimal grossAmount = creditNote ? negative(invoice.grossAmount()) : invoice.grossAmount();
+    BigDecimal deductionRatio =
+        purchase
+            ? (invoice.vatDeductionRatio() == null
+                ? defaultDeductionRatio(invoice.category())
+                : invoice.vatDeductionRatio())
+            : null;
+    VatTreatment treatment =
+        purchase
+            ? VatTreatment.DOMESTIC_PURCHASE
+            : "PLN".equals(currency)
+                ? VatTreatment.DOMESTIC_VAT
+                : VatTreatment.EU_B2B_REVERSE_CHARGE;
+    BigDecimal vatRate =
+        invoice.vatRate() != null
+            ? invoice.vatRate()
+            : inferredVatRate(netAmount, vatAmount, treatment);
+    BigDecimal deductibleVat = purchase ? vatAmount.multiply(deductionRatio) : BigDecimal.ZERO;
+    CanonicalAccountingDocument canonical =
+        new CanonicalAccountingDocument(
+            purchase
+                ? CanonicalAccountingDocument.Direction.PURCHASE
+                : CanonicalAccountingDocument.Direction.SALE,
+            creditNote
+                ? CanonicalAccountingDocument.Kind.CREDIT_NOTE
+                : CanonicalAccountingDocument.Kind.INVOICE,
+            AccountingTaxPeriod.of(invoice.taxPeriod()),
+            AccountingDocumentReference.of(invoice.reference()),
+            currency,
+            netAmount,
+            vatAmount,
+            grossAmount,
+            java.util.List.of(
+                new CanonicalAccountingDocument.VatBucket(
+                    treatment, vatRate, netAmount, vatAmount, deductibleVat)));
+    repository.upsertCanonicalDocument(
+        profileId,
+        canonical.direction().name(),
+        canonical.kind().name(),
+        canonical.taxPeriod().start(),
+        invoice.issueDate(),
+        invoice.saleDate(),
+        invoice.dueDate(),
+        canonical.reference().value(),
+        invoice.counterpartyAlias().trim(),
+        invoice.counterpartyTaxIdentifier(),
+        invoice.counterpartyCountry(),
+        currency,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        null,
+        !purchase && "PLN".equals(currency) ? netAmount : null,
+        !purchase ? RYCZALT_RATE : null,
+        purchase ? invoice.category().trim() : null,
+        deductionRatio,
+        purchase ? invoice.sourceQuality() : null,
+        sourceIdOrNull(invoice.sourceIdentity()),
+        invoice.ksefNumber(),
+        invoice.filingEvidence(),
+        invoice.note(),
+        treatment,
+        vatRate,
+        deductibleVat);
+  }
+
+  private BigDecimal inferredVatRate(
+      BigDecimal netAmount, BigDecimal vatAmount, VatTreatment treatment) {
+    if (treatment != VatTreatment.DOMESTIC_VAT && treatment != VatTreatment.DOMESTIC_PURCHASE) {
+      return null;
+    }
+    if (netAmount.signum() == 0) return BigDecimal.ZERO;
+    return vatAmount
+        .multiply(new BigDecimal("100"))
+        .divide(netAmount, 2, java.math.RoundingMode.HALF_UP);
   }
 
   private ReviewedInvoice canonicalizeCounterparty(long profileId, ReviewedInvoice invoice) {
@@ -355,6 +445,10 @@ public class AccountingInvoiceIngestionService {
         && (invoice.category() == null || invoice.category().isBlank())) {
       throw new IllegalArgumentException("Purchase category is required before saving");
     }
+    if (isUnsupportedFixedAssetCategory(invoice.category())) {
+      throw new IllegalArgumentException(
+          "FIXED_ASSET_UNSUPPORTED: capitalised purchases are outside the Accounting POC");
+    }
     if (invoice.netAmount() == null
         || invoice.vatAmount() == null
         || invoice.grossAmount() == null) {
@@ -367,6 +461,14 @@ public class AccountingInvoiceIngestionService {
 
   private BigDecimal defaultDeductionRatio(String category) {
     return "VEHICLE_FUEL".equals(category) ? new BigDecimal("0.50") : BigDecimal.ONE;
+  }
+
+  private boolean isUnsupportedFixedAssetCategory(String category) {
+    if (category == null) return false;
+    return switch (category.trim().toUpperCase(java.util.Locale.ROOT)) {
+      case "FIXED_ASSET", "CAPITAL_ASSET" -> true;
+      default -> false;
+    };
   }
 
   private BigDecimal negative(BigDecimal value) {
