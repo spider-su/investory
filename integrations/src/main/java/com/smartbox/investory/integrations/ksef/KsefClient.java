@@ -156,6 +156,76 @@ public class KsefClient {
         environment.baseUrl() + "/invoices/ksef/" + ksefNumber, accessToken, "application/xml");
   }
 
+  /** Return the current status of an online or batch session as the API JSON response. */
+  public String getSessionStatus(
+      KsefEnvironment environment, String accessToken, String sessionReferenceNumber) {
+    requireReference(sessionReferenceNumber, "KSeF session reference number");
+    return get(
+        environment.baseUrl() + "/sessions/" + sessionReferenceNumber,
+        accessToken,
+        "application/json");
+  }
+
+  /** List historical online or batch sessions, returning the paginated API JSON unchanged. */
+  public String listSessions(
+      KsefEnvironment environment,
+      String accessToken,
+      String sessionType,
+      int pageSize,
+      String continuationToken) {
+    if (!List.of("Online", "Batch").contains(sessionType)) {
+      throw new IllegalArgumentException("Invalid KSeF session type");
+    }
+    if (pageSize < 1 || pageSize > 1000) {
+      throw new IllegalArgumentException("Invalid KSeF session page size");
+    }
+    String url =
+        environment.baseUrl() + "/sessions?sessionType=" + sessionType + "&pageSize=" + pageSize;
+    if (continuationToken != null && !continuationToken.isBlank()) {
+      url += "&continuationToken=" + continuationToken;
+    }
+    return get(url, accessToken, "application/json");
+  }
+
+  /** Download the signed UPO for an accepted invoice sent in a KSeF session. */
+  public byte[] downloadSessionInvoiceUpoByKsefNumber(
+      KsefEnvironment environment,
+      String accessToken,
+      String sessionReferenceNumber,
+      String ksefNumber) {
+    requireReference(sessionReferenceNumber, "KSeF session reference number");
+    if (ksefNumber == null || ksefNumber.isBlank()) {
+      throw new IllegalArgumentException("KSeF number is required");
+    }
+    return getBytes(
+        environment.baseUrl()
+            + "/sessions/"
+            + sessionReferenceNumber
+            + "/invoices/ksef/"
+            + ksefNumber
+            + "/upo",
+        accessToken,
+        "application/xml");
+  }
+
+  /** Download a collective UPO using the reference returned by the closed session status. */
+  public byte[] downloadSessionUpo(
+      KsefEnvironment environment,
+      String accessToken,
+      String sessionReferenceNumber,
+      String upoReferenceNumber) {
+    requireReference(sessionReferenceNumber, "KSeF session reference number");
+    requireReference(upoReferenceNumber, "KSeF UPO reference number");
+    return getBytes(
+        environment.baseUrl()
+            + "/sessions/"
+            + sessionReferenceNumber
+            + "/upo/"
+            + upoReferenceNumber,
+        accessToken,
+        "application/xml");
+  }
+
   public OnlineSession openOnlineSession(KsefEnvironment environment, String accessToken) {
     PublicKeyCertificate publicKey =
         currentPublicKey(environment.baseUrl(), "SymmetricKeyEncryption");
@@ -341,6 +411,16 @@ public class KsefClient {
     return send(builder.build());
   }
 
+  private byte[] getBytes(String url, String bearerToken, String accept) {
+    HttpRequest.Builder builder =
+        HttpRequest.newBuilder(URI.create(url))
+            .timeout(TIMEOUT)
+            .header("Accept", accept == null ? "application/octet-stream" : accept)
+            .GET();
+    bearer(builder, bearerToken);
+    return sendBytes(builder.build());
+  }
+
   private String post(String url, String body, String bearerToken) {
     HttpRequest.Builder builder =
         HttpRequest.newBuilder(URI.create(url))
@@ -384,7 +464,30 @@ public class KsefClient {
     }
   }
 
-  private void sleepAfterRateLimit(HttpResponse<String> response, int attempt)
+  private byte[] sendBytes(HttpRequest request) {
+    try {
+      for (int attempt = 0; attempt < 5; attempt++) {
+        HttpResponse<byte[]> response =
+            httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        if (response.statusCode() / 100 == 2) return response.body();
+        if (response.statusCode() == 429 && attempt < 4) {
+          sleepAfterRateLimit(response, attempt);
+          continue;
+        }
+        throw new KsefException("KSeF returned HTTP " + response.statusCode());
+      }
+      throw new KsefException("KSeF request retry limit reached");
+    } catch (KsefException e) {
+      throw e;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new KsefException("Interrupted while calling KSeF", e);
+    } catch (Exception e) {
+      throw new KsefException("Failed to call KSeF", e);
+    }
+  }
+
+  private void sleepAfterRateLimit(HttpResponse<?> response, int attempt)
       throws InterruptedException {
     long seconds =
         response
@@ -422,6 +525,12 @@ public class KsefClient {
   private void requireNip(String nip) {
     if (nip == null || !nip.matches("\\d{10}")) {
       throw new IllegalArgumentException("NIP must contain exactly 10 digits");
+    }
+  }
+
+  private void requireReference(String reference, String label) {
+    if (reference == null || reference.isBlank()) {
+      throw new IllegalArgumentException(label + " is required");
     }
   }
 

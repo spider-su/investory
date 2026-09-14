@@ -29,6 +29,37 @@ public class KsefInvoiceService {
     return client.downloadInvoice(plugin.environment(config), access.accessToken(), ksefNumber);
   }
 
+  public String getSessionStatus(String sessionReferenceNumber) {
+    PluginConfig config = configuration();
+    KsefClient.KsefAccess access = authenticate(config);
+    return client.getSessionStatus(
+        plugin.environment(config), access.accessToken(), sessionReferenceNumber);
+  }
+
+  public String listSessions(String sessionType, int pageSize, String continuationToken) {
+    PluginConfig config = configuration();
+    KsefClient.KsefAccess access = authenticate(config);
+    return client.listSessions(
+        plugin.environment(config), access.accessToken(), sessionType, pageSize, continuationToken);
+  }
+
+  public byte[] downloadInvoiceUpo(String sessionReferenceNumber, String ksefNumber) {
+    PluginConfig config = configuration();
+    KsefClient.KsefAccess access = authenticate(config);
+    return client.downloadSessionInvoiceUpoByKsefNumber(
+        plugin.environment(config), access.accessToken(), sessionReferenceNumber, ksefNumber);
+  }
+
+  public byte[] downloadSessionUpo(String sessionReferenceNumber, String upoReferenceNumber) {
+    PluginConfig config = configuration();
+    KsefClient.KsefAccess access = authenticate(config);
+    return client.downloadSessionUpo(
+        plugin.environment(config),
+        access.accessToken(),
+        sessionReferenceNumber,
+        upoReferenceNumber);
+  }
+
   private KsefClient.KsefAccess authenticate(PluginConfig config) {
     return client.authenticateWithToken(
         plugin.environment(config),

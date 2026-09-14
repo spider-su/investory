@@ -32,7 +32,39 @@ public record AccountingFilingInput(
       AccountingFilingEvidence evidence,
       VatTreatment treatment,
       String counterpartyCountry,
-      BigDecimal vatRate) {
+      BigDecimal vatRate,
+      BigDecimal vatDeductionRatio) {
+    public FilingDocument(
+        String reference,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        LocalDate purchaseDate,
+        String counterpartyIdentifier,
+        String counterpartyName,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal deductibleVat,
+        AccountingFilingEvidence evidence,
+        VatTreatment treatment,
+        String counterpartyCountry,
+        BigDecimal vatRate) {
+      this(
+          reference,
+          issueDate,
+          saleDate,
+          purchaseDate,
+          counterpartyIdentifier,
+          counterpartyName,
+          netAmount,
+          vatAmount,
+          deductibleVat,
+          evidence,
+          treatment,
+          counterpartyCountry,
+          vatRate,
+          BigDecimal.ONE);
+    }
+
     public FilingDocument(
         String reference,
         LocalDate issueDate,
@@ -59,7 +91,8 @@ public record AccountingFilingInput(
           evidence,
           treatment,
           counterpartyCountry,
-          null);
+          null,
+          BigDecimal.ONE);
     }
   }
 }

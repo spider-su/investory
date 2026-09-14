@@ -411,7 +411,7 @@ public class AccountingFilingService {
                           null,
                           invoice.counterpartyTaxIdentifier(),
                           invoice.customerAlias(),
-                          invoice.netAmount(),
+                          filingNetAmount(invoice),
                           invoice.vatAmount(),
                           invoice.vatAmount(),
                           invoice.filingEvidence() == null && invoice.ksefNumber() != null
@@ -422,8 +422,9 @@ public class AccountingFilingService {
                           invoice.counterpartyCountry(),
                           resolveVatRate(
                               vatRates.get(invoice.reference()),
-                              invoice.netAmount(),
-                              invoice.vatAmount())))
+                              filingNetAmount(invoice),
+                              invoice.vatAmount()),
+                          BigDecimal.ONE))
               .toList();
       var purchases =
           snapshot.expenses().stream()
@@ -448,7 +449,8 @@ public class AccountingFilingService {
                           resolveVatRate(
                               vatRates.get(expense.reference()),
                               expense.netAmount(),
-                              expense.vatAmount())))
+                              expense.vatAmount()),
+                          expense.vatDeductionRatio()))
               .toList();
       return new AccountingFilingInput(
           period,
@@ -459,6 +461,13 @@ public class AccountingFilingService {
           purchases,
           profile,
           "JPK_V7M(3)");
+    }
+
+    private BigDecimal filingNetAmount(AccountingMonthSnapshot.InvoiceRow invoice) {
+      if (!"PLN".equalsIgnoreCase(invoice.currency()) && invoice.bookedNetPln() != null) {
+        return invoice.bookedNetPln();
+      }
+      return invoice.netAmount();
     }
 
     private BigDecimal resolveVatRate(

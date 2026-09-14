@@ -176,6 +176,41 @@ class AccountingJpkGeneratorTest {
     new AccountingJpkXmlValidator().validate(xml.getBytes());
   }
 
+  @Test
+  void appliesVatDeductionRatioToPurchaseNetBase() {
+    var purchase =
+        new AccountingFilingInput.FilingDocument(
+            "BP-1",
+            LocalDate.of(2026, 4, 3),
+            null,
+            LocalDate.of(2026, 4, 3),
+            "9720865431",
+            "BP",
+            new BigDecimal("313.81"),
+            new BigDecimal("25.11"),
+            new BigDecimal("12.56"),
+            new AccountingFilingEvidence(AccountingFilingEvidence.Type.OFF, null),
+            VatTreatment.DOMESTIC_PURCHASE,
+            "PL",
+            new BigDecimal("8"),
+            new BigDecimal("0.50"));
+    var input =
+        new AccountingFilingInput(
+            LocalDate.of(2026, 4, 1),
+            snapshot().vat(),
+            snapshot().ryczalt(),
+            snapshot().zus(),
+            List.of(document("S-1", VatTreatment.DOMESTIC_VAT, "100", "23", "23")),
+            List.of(purchase),
+            taxpayer(),
+            "JPK_V7M(3)");
+
+    String xml = new String(new AccountingJpkGenerator().generate(input));
+
+    assertThat(xml).contains("<K_42>156.91</K_42>", "<K_43>12.56</K_43>", "<P_42>157</P_42>");
+    new AccountingJpkXmlValidator().validate(xml.getBytes());
+  }
+
   private AccountingProfile taxpayer() {
     return new AccountingProfile(
         true,

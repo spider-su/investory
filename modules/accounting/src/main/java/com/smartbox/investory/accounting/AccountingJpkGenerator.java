@@ -149,7 +149,7 @@ public class AccountingJpkGenerator {
           .append("</DataZakupu>")
           .append(evidence(row.evidence()))
           .append("<K_42>")
-          .append(money(row.netAmount()))
+          .append(money(deductiblePurchaseNet(row)))
           .append("</K_42><K_43>")
           .append(money(row.deductibleVat()))
           .append("</K_43></ZakupWiersz>");
@@ -208,9 +208,15 @@ public class AccountingJpkGenerator {
   private java.math.BigDecimal purchaseNet(
       java.util.List<AccountingFilingInput.FilingDocument> purchases) {
     return purchases.stream()
-        .map(AccountingFilingInput.FilingDocument::netAmount)
+        .map(this::deductiblePurchaseNet)
         .filter(java.util.Objects::nonNull)
         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+  }
+
+  private java.math.BigDecimal deductiblePurchaseNet(AccountingFilingInput.FilingDocument row) {
+    if (row.netAmount() == null) return null;
+    java.math.BigDecimal ratio = row.vatDeductionRatio();
+    return ratio == null ? row.netAmount() : row.netAmount().multiply(ratio);
   }
 
   private java.math.BigDecimal salesNet(
@@ -290,9 +296,7 @@ public class AccountingJpkGenerator {
 
   private String generationTimestamp(LocalDate period) {
     LocalDate generationDate =
-        period
-            .withDayOfMonth(period.lengthOfMonth())
-            .isBefore(LocalDate.of(2026, 2, 1))
+        period.withDayOfMonth(period.lengthOfMonth()).isBefore(LocalDate.of(2026, 2, 1))
             ? LocalDate.of(2026, 2, 1)
             : period.withDayOfMonth(period.lengthOfMonth());
     return generationDate
