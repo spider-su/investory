@@ -1,6 +1,7 @@
 package com.smartbox.investory.retirement.planning.application;
 
-import com.smartbox.investory.investment.api.reporting.TrailingPortfolioReturnReader;
+import com.smartbox.investory.investment.api.reporting.PortfolioYtdTwrReader;
+import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.longterm.api.BondReturnObservationReader;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
@@ -23,7 +24,6 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.YearMonth;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -38,14 +38,14 @@ public class RetirementScenarioObservationService implements RetirementScenarioO
   private final LongTermAssetAnnualSnapshotReader historicalLongTerm;
   private final LongTermAssetProfileReader currentLongTerm;
   private final BondReturnObservationReader bonds;
-  private final TrailingPortfolioReturnReader performance;
+  private final PortfolioYtdTwrReader performance;
   private final Clock clock;
 
   public RetirementScenarioObservationService(
       LongTermAssetAnnualSnapshotReader historicalLongTerm,
       LongTermAssetProfileReader currentLongTerm,
       BondReturnObservationReader bonds,
-      TrailingPortfolioReturnReader performance,
+      PortfolioYtdTwrReader performance,
       Clock clock) {
     this.historicalLongTerm = historicalLongTerm;
     this.currentLongTerm = currentLongTerm;
@@ -77,18 +77,32 @@ public class RetirementScenarioObservationService implements RetirementScenarioO
             ? unavailable()
             : available(bondReturn, "Weighted effective return", "as of " + today));
 
-    YearMonth to = YearMonth.from(today).minusMonths(1);
-    BigDecimal actual = performance.returnPercentage(portfolioId, to.minusMonths(11), to);
-    result.put(
-        "Equity return",
-        actual == null
-            ? unavailable()
-            : new ScenarioObservation(
-                actual.movePointLeft(2),
-                "Observed annualized",
-                "trailing 12 months",
-                ScenarioObservationAvailability.AVAILABLE));
+    boolean liveCurrentYear =
+        timeline != null
+            && timeline.years().stream()
+                .anyMatch(
+                    year ->
+                        year.state() == PlanningTimelineState.LIVE
+                            && year.year() == today.getYear());
+    result.put("Equity return", equityReturn(portfolioId, today, liveCurrentYear));
     return Map.copyOf(result);
+  }
+
+  private ScenarioObservation equityReturn(
+      Long portfolioId, LocalDate today, boolean liveCurrentYear) {
+    if (!liveCurrentYear) return unavailable();
+    ReturnMetric actual = performance.ytdTwr(portfolioId);
+    if (actual == null || actual.status() == ReturnMetric.Status.CALCULATION_FAILED) {
+      return unavailable();
+    }
+    if (actual.status() == ReturnMetric.Status.INSUFFICIENT_DATA || actual.value() == null) {
+      return new ScenarioObservation(
+          null,
+          "Actual YTD TWR",
+          today.getYear() + " YTD",
+          ScenarioObservationAvailability.INSUFFICIENT_HISTORY);
+    }
+    return available(actual.value(), "Actual YTD TWR", today.getYear() + " YTD");
   }
 
   private LongTermAssetAnnualSnapshotModel safeCurrentSnapshot(Long portfolioId, LocalDate date) {

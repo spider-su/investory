@@ -64,31 +64,13 @@ jobs:
       - name: Compile, run unit tests, and package reactor
         run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" clean -DskipITs install
 
-      - name: Upload packaged reactor outputs
-        uses: actions/upload-artifact@v7
-        with:
-          name: packaged-reactor
-          include-hidden-files: true
-          path: |
-            .m2/repository/com/smartbox/**
-            app/target/classes/**
-            app/target/test-classes/**
-            modules/*/target/classes/**
-            modules/*/target/test-classes/**
-            integrations/target/classes/**
-            integrations/target/test-classes/**
-            adapters/web-ui/target/classes/**
-            adapters/web-ui/target/test-classes/**
-            test-support/target/classes/**
-            test-support/target/test-classes/**
-          if-no-files-found: error
-
       - name: Upload coverage reports
         uses: actions/upload-artifact@v7
         with:
           name: jacoco-module-reports
           path: '**/target/site/jacoco/'
           if-no-files-found: error
+          retention-days: 1
 
       - name: Upload unit execution data
         uses: actions/upload-artifact@v7
@@ -96,6 +78,7 @@ jobs:
           name: jacoco-unit-exec
           path: '**/target/jacoco.exec'
           if-no-files-found: error
+          retention-days: 1
 
   composition:
     name: App Startup
@@ -115,13 +98,6 @@ jobs:
             initialize test-compile failsafe:integration-test failsafe:verify \
             "-Dit.test=ApplicationContextIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
 
-      - name: Upload application composition execution data
-        uses: actions/upload-artifact@v7
-        with:
-          name: jacoco-application-composition
-          path: '**/target/jacoco.exec'
-          if-no-files-found: error
-
   backendIt:
     name: BE_IT (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
@@ -133,7 +109,10 @@ jobs:
         suite:
           - name: contracts
             project: app
-            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT
+            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AccountingGoldenIT,AccountingGoldenMatrixIT,AccountingInvoiceFolderRecognitionIT,AccountingKsefImportIT,AccountingJdgExporterIT,AccountingRestControllerIT,AccountingStagingFlowIT,AccountingStagingFlowCurrentIT,BankTransactionProviderNeutralIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT,MockZusClientIT
+          - name: accounting-reference-matrix
+            project: app
+            tests: AccountingReferenceMatrixE2EIT
           - name: imports
             project: app
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT
@@ -157,12 +136,6 @@ jobs:
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
 
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
-
       - name: BE_IT
         run: |
           sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl "${{ matrix.suite.project }}" -am initialize test-compile failsafe:integration-test failsafe:verify \
@@ -174,11 +147,13 @@ jobs:
           name: jacoco-backend-${{ matrix.suite.name }}
           path: '**/target/jacoco.exec'
           if-no-files-found: error
+          retention-days: 1
 
   uiSetup:
     name: UI browser setup
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: unit
 
     steps:
       - name: Check out repository
@@ -200,6 +175,7 @@ jobs:
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright
         run: |
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am -DskipTests -DskipITs install
           sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app exec:java -Dexec.classpathScope=test -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install --with-deps chromium"
 
       - name: Publish Playwright browser for UI matrix
@@ -208,6 +184,7 @@ jobs:
           name: playwright-chromium
           path: ${{ runner.temp }}/playwright
           if-no-files-found: error
+          retention-days: 1
 
   uiIt:
     name: FE_IT (${{ matrix.suite.name }})
@@ -228,6 +205,8 @@ jobs:
             test: PlanSimulationCrudUiIT
           - name: investment-dashboard
             test: InvestmentDashboardGoldenUiIT
+          - name: accounting-poc-ui
+            test: AccountingPocUiIT
 
     steps:
       - name: Check out repository
@@ -235,12 +214,6 @@ jobs:
 
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
-
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
 
       - name: Download Playwright browser
         uses: actions/download-artifact@v8
@@ -277,6 +250,7 @@ jobs:
             app/target/failsafe-reports/
             app/target/surefire-reports/
           if-no-files-found: warn
+          retention-days: 1
 
       - name: Upload UI integration execution data
         uses: actions/upload-artifact@v7
@@ -284,6 +258,7 @@ jobs:
           name: jacoco-ui-${{ matrix.suite.name }}
           path: '**/target/jacoco.exec'
           if-no-files-found: ignore
+          retention-days: 1
 
   goldenPath:
     name: Golden path
@@ -298,12 +273,6 @@ jobs:
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
 
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
-
       - name: Run offline golden gate
         run: |
           sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am \
@@ -316,6 +285,7 @@ jobs:
           name: jacoco-golden-path
           path: '**/target/jacoco.exec'
           if-no-files-found: ignore
+          retention-days: 1
 
   aggregateCoverage:
     name: Aggregate coverage gate
@@ -372,6 +342,7 @@ jobs:
           name: jacoco-aggregate-report
           path: app/target/site/jacoco-aggregate/
           if-no-files-found: error
+          retention-days: 1
   schema:
     name: DB_IT
     runs-on: ubuntu-latest
@@ -384,12 +355,6 @@ jobs:
 
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
-
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
 
       - name: Calculate schema fingerprint
         id: fingerprint
@@ -440,3 +405,4 @@ jobs:
           name: jacoco-backend-schema
           path: app/target/jacoco.exec
           if-no-files-found: error
+          retention-days: 1

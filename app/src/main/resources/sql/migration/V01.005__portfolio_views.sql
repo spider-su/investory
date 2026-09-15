@@ -1036,7 +1036,9 @@ WITH account_rows AS (
         a.portfolio_id,
         p.base_currency::varchar(3) AS base_currency,
         ad.snapshot_date,
+        ad.account_id,
         ad.equity,
+        ad.market_value,
         ad.deposits,
         ad.withdrawals,
         ad.dividends,
@@ -1056,8 +1058,9 @@ WITH account_rows AS (
     WHERE NOT a.cash_only
 ), converted AS (
     SELECT
-        portfolio_id, base_currency, snapshot_date,
+        portfolio_id, base_currency, snapshot_date, account_id,
         CASE WHEN investory.fx_status_usable(conversion_status) THEN equity * valuation_to_base_rate END AS equity,
+        CASE WHEN investory.fx_status_usable(conversion_status) THEN market_value * valuation_to_base_rate END AS market_value,
         CASE WHEN investory.fx_status_usable(conversion_status) THEN deposits * valuation_to_base_rate END AS deposits,
         CASE WHEN investory.fx_status_usable(conversion_status) THEN withdrawals * valuation_to_base_rate END AS withdrawals,
         CASE WHEN investory.fx_status_usable(conversion_status) THEN dividends * valuation_to_base_rate END AS dividends,
@@ -1068,6 +1071,21 @@ WITH account_rows AS (
         CASE WHEN investory.fx_status_usable(conversion_status) THEN daily_profit_amount * valuation_to_base_rate END AS total_profit,
         conversion_status
     FROM account_rows
+), account_boundaries AS (
+    SELECT
+        converted.*,
+        LAG(equity) OVER (PARTITION BY account_id ORDER BY snapshot_date) AS previous_equity,
+        LAG(market_value) OVER (PARTITION BY account_id ORDER BY snapshot_date) AS previous_market_value,
+        CASE
+            WHEN market_value > 0
+             AND COALESCE(LAG(market_value) OVER (PARTITION BY account_id ORDER BY snapshot_date), 0) = 0
+            THEN GREATEST(
+                equity - COALESCE(LAG(equity) OVER (PARTITION BY account_id ORDER BY snapshot_date), 0)
+                    - COALESCE(deposits, 0) + COALESCE(withdrawals, 0),
+                0::numeric)
+            ELSE 0::numeric
+        END AS initialization_adjustment
+    FROM converted
 ), performance_flows AS (
     SELECT
         a.portfolio_id,
@@ -1106,21 +1124,24 @@ SELECT
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(taxes) END AS taxes,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL ELSE SUM(realized_profit) END AS realized_profit,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL
-         ELSE SUM(total_profit) END AS total_profit,
+         ELSE SUM(total_profit - initialization_adjustment) END AS total_profit,
+    CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0 THEN NULL
+         ELSE SUM(initialization_adjustment) END AS initialization_adjustment,
     CASE WHEN COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(conversion_status)) > 0
               OR MAX(COALESCE(ef.missing_flow_fx_count, 0)) > 0 THEN NULL
          WHEN LAG(SUM(equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date) IS NULL THEN NULL
-         ELSE SUM(total_profit)
+         ELSE SUM(total_profit - initialization_adjustment)
              / NULLIF(LAG(SUM(equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date)
-             + COALESCE(MAX(ef.deposits), 0) - COALESCE(MAX(ef.withdrawals), 0), 0) END AS daily_return_pct
-FROM converted
+             + COALESCE(MAX(ef.deposits), 0) - COALESCE(MAX(ef.withdrawals), 0)
+             + SUM(initialization_adjustment), 0) END AS daily_return_pct
+FROM account_boundaries converted
 LEFT JOIN performance_flows ef
   ON ef.portfolio_id = converted.portfolio_id
  AND ef.snapshot_date = converted.snapshot_date
 GROUP BY converted.portfolio_id, converted.snapshot_date, converted.base_currency;
 
 COMMENT ON VIEW investory.app_v_portfolio_performance_daily IS
-    'Investment-performance projection for non-cash-only accounts. Total profit comes from account_daily daily_profit_amount; account flows scope return denominators to tracked accounts.';
+    'Investment-performance projection for non-cash-only accounts. Pre-existing market value first observed after an empty valuation boundary is an initialization adjustment, not return or investor flow; account flows scope return denominators to tracked accounts.';
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS investory.app_v_portfolio_monthly AS
 WITH month_rows AS (

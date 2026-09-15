@@ -10,7 +10,6 @@ import org.testcontainers.utility.MountableFile;
 public final class FastDatabase {
 
   private static final String SNAPSHOT = "db/snapshot/schema.sql";
-
   private static final WorkerDatabase DATABASE = startDatabase();
 
   private FastDatabase() {}
@@ -46,15 +45,21 @@ public final class FastDatabase {
   private static WorkerDatabase startDatabase(String scope) {
     WorkerDatabase database = SharedPostgres.database(scope);
 
+    loadSnapshot(database);
+    return database;
+  }
+
+  private static void loadSnapshot(WorkerDatabase database) {
+
     if (!resourceExists(SNAPSHOT)) {
       throw new IllegalStateException(
           "Missing fast test database snapshot "
               + SNAPSHOT
               + ". Run bash scripts/update-test-db-snapshot.sh and commit the result.");
     }
-    if (!snapshotLoaded(database)) executeResource(database, SNAPSHOT, "/tmp/investory-schema.sql");
-
-    return database;
+    if (!snapshotLoaded(database)) {
+      executeResource(database, SNAPSHOT, "/tmp/investory-schema.sql");
+    }
   }
 
   private static boolean resourceExists(String resource) {

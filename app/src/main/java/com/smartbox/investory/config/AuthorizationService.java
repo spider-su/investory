@@ -1,6 +1,8 @@
 package com.smartbox.investory.config;
 
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -9,17 +11,30 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthorizationService {
   private final JdbcTemplate jdbc;
+  private final boolean profileOwnershipRequired;
 
   public AuthorizationService(JdbcTemplate jdbc) {
+    this(jdbc, true);
+  }
+
+  @Autowired
+  public AuthorizationService(
+      JdbcTemplate jdbc,
+      @Value("${app.security.profile-ownership-required:true}") boolean profileOwnershipRequired) {
     this.jdbc = jdbc;
+    this.profileOwnershipRequired = profileOwnershipRequired;
   }
 
   public boolean canRead(Long profileId, Authentication authentication) {
-    return isAdmin(authentication) || hasMembership(profileId, authentication, null);
+    return isAdmin(authentication)
+        || (!profileOwnershipRequired && authenticated(authentication))
+        || hasMembership(profileId, authentication, null);
   }
 
   public boolean canWrite(Long profileId, Authentication authentication) {
-    return isAdmin(authentication) || hasMembership(profileId, authentication, ProfileRole.OWNER);
+    return isAdmin(authentication)
+        || (!profileOwnershipRequired && authenticated(authentication))
+        || hasMembership(profileId, authentication, ProfileRole.OWNER);
   }
 
   public boolean canManageIntegrations(Authentication authentication) {
@@ -50,10 +65,13 @@ public class AuthorizationService {
   }
 
   private static boolean isAdmin(Authentication authentication) {
-    return authentication != null
-        && authentication.isAuthenticated()
+    return authenticated(authentication)
         && authentication.getAuthorities().stream()
             .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+  }
+
+  private static boolean authenticated(Authentication authentication) {
+    return authentication != null && authentication.isAuthenticated();
   }
 
   /** Normalizes Spring's ROLE_ prefix for capability consumers. */

@@ -1,6 +1,5 @@
 package com.smartbox.investory.investment.reporting;
 
-import com.smartbox.investory.investment.api.reporting.TrailingPortfolioReturnReader;
 import com.smartbox.investory.investment.api.reporting.model.PerformanceAttribution;
 import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
@@ -21,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** Application query over the canonical SQL portfolio-monthly reporting projection. */
 @Service
 @Transactional(readOnly = true)
-public class PortfolioPerformanceQuery implements TrailingPortfolioReturnReader {
+public class PortfolioPerformanceQuery {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
 
   private final PortfolioMonthlyPerformanceRepository repository;
@@ -102,11 +101,6 @@ public class PortfolioPerformanceQuery implements TrailingPortfolioReturnReader 
                 "Shared multi-portfolio return is not defined"),
             null);
     return withAttribution(result);
-  }
-
-  @Override
-  public BigDecimal returnPercentage(Long portfolioId, YearMonth from, YearMonth to) {
-    return forPortfolioMonths(portfolioId, from, to).returnPercentage();
   }
 
   /** Returns the exact aggregate for one portfolio and inclusive monthly range. */
@@ -257,7 +251,13 @@ public class PortfolioPerformanceQuery implements TrailingPortfolioReturnReader 
         .map(
             row ->
                 new DailyPortfolioValue(
-                    row.getDate(), row.getEndValue(), row.getContributions(), row.getWithdrawals()))
+                    row.getDate(),
+                    row.getEndValue(),
+                    row.getContributions(),
+                    row.getWithdrawals(),
+                    row.getInitializationAdjustment() == null
+                        ? ZERO
+                        : row.getInitializationAdjustment()))
         .toList();
   }
 

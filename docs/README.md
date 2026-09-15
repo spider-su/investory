@@ -51,6 +51,8 @@ resolved by changing the documentation.
   CSRF/session behavior, secret handling, and the current single-owner isolation boundary.
 - [`architecture/dashboard-application.md`](architecture/dashboard-application.md): dashboard facade,
   query flow, immutable view models, and server-rendered UI boundary.
+- [`architecture/accounting.md`](architecture/accounting.md): current accounting source, extraction,
+  validation, calculation, reconciliation, filing and payment boundaries, plus target refactoring.
 - [`architecture/reporting-pipeline.md`](architecture/reporting-pipeline.md): raw ledger ->
   `account_daily` -> reporting layers -> UI/adapters.
 

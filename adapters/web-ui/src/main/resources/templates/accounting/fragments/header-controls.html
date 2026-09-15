@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="accountingHeaderActions">
+  <div class="accounting-header-actions" th:if="${canWrite}" aria-label="Accounting actions">
+    <form method="post" th:action="@{/profiles/{profileId}/accounting/ksef/sync(profileId=${profileId})}">
+      <input type="hidden" name="month" th:value="${selectedMonth}">
+      <button class="btn btn-primary" data-testid="ksef-sync-all" type="submit">Sync KSeF</button>
+    </form>
+    <form method="post" enctype="multipart/form-data" th:action="@{/profiles/{profileId}/accounting/bank/import(profileId=${profileId})}">
+      <input type="hidden" name="month" th:value="${selectedMonth}">
+      <input id="accounting-bank-file" class="accounting-bank-file-input" data-testid="accounting-bank-file" type="file" name="file" accept=".csv,text/csv" required onchange="this.form.requestSubmit()">
+      <label class="btn btn-outline-secondary accounting-bank-file-label" for="accounting-bank-file" data-testid="accounting-bank-import">Import bank</label>
+    </form>
+    <form class="accounting-document-form" method="post" enctype="multipart/form-data" th:action="@{/profiles/{profileId}/accounting/documents/recognize(profileId=${profileId})}">
+      <input type="hidden" name="month" th:value="${selectedMonth}">
+      <input id="accounting-document-file" class="accounting-bank-file-input" data-testid="accounting-document-file" type="file" name="file" accept="application/pdf,image/*" required onchange="this.form.requestSubmit()">
+      <label class="btn btn-primary accounting-bank-file-label" for="accounting-document-file" data-testid="accounting-document-upload">Import document</label>
+    </form>
+  </div>
+</th:block>
+<th:block th:fragment="accountingHeaderDetails">
+  <div class="accounting-brand-summary">
+    <div class="accounting-brand-summary__period" th:text="${'For ' + selectedMonth}">For 2025-01</div>
+    <div class="accounting-brand-summary__total" th:text="${totalToPayDisplay}">0 zł</div>
+    <div class="accounting-brand-summary__label" th:text="${totalToPayLabel ?: 'to pay'}">to pay</div>
+    <div class="accounting-brand-summary__facts">
+      <div><span>Due date</span><strong th:text="${payments.isEmpty() ? '—' : payments.get(0).dueDate}">2025-01-20</strong></div>
+      <div><span>Status</span><strong class="accounting-status-badge" th:text="${workspaceStatus}">In progress</strong></div>
+    </div>
+  </div>
+</th:block>
+<th:block th:fragment="accountingMonthSelector">
+  <form method="get" th:action="@{/profiles/{profileId}/accounting(profileId=${profileId})}" class="accounting-month-picker" role="group" aria-label="Accounting month"><a th:if="${previousMonth != null}" class="btn btn-sm btn-outline-secondary" data-testid="accounting-month-prev" aria-label="Previous month" title="Previous month" th:href="@{/profiles/{profileId}/accounting(profileId=${profileId},month=${previousMonth.month})}">‹</a><button th:unless="${previousMonth != null}" class="btn btn-sm btn-outline-secondary" type="button" aria-label="Previous month" disabled>‹</button><label class="visually-hidden" for="accounting-month">Selected month</label><select id="accounting-month" class="form-select" data-testid="accounting-month" name="month" onchange="this.form.submit()"><option th:each="m : ${months}" th:value="${m.month}" th:text="${m.label}" th:selected="${m.month == selectedMonth}">July 2026</option></select><a th:if="${nextMonth != null}" class="btn btn-sm btn-outline-secondary" data-testid="accounting-month-next" aria-label="Next month" title="Next month" th:href="@{/profiles/{profileId}/accounting(profileId=${profileId},month=${nextMonth.month})}">›</a><button th:unless="${nextMonth != null}" class="btn btn-sm btn-outline-secondary" type="button" aria-label="Next month" disabled>›</button></form>
+</th:block>
+</body>
+</html>

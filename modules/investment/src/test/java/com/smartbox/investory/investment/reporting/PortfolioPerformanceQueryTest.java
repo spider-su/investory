@@ -246,24 +246,6 @@ class PortfolioPerformanceQueryTest {
             1L, LocalDate.parse("2026-07-01"), LocalDate.parse("2026-07-31"));
   }
 
-  @DisplayName("trailing Return Reader Does Not Leak Another Portfolios Observation")
-  @Test
-  void trailingReturnReaderDoesNotLeakAnotherPortfoliosObservation() {
-    PortfolioMonthlyPerformanceEntity requested = row("2026-07-01", "2026-07-31");
-    requested.setReturnPct(new BigDecimal("0.0"));
-    PortfolioMonthlyPerformanceEntity other = row("2026-07-01", "2026-07-31");
-    other.setPortfolioId(2L);
-    other.setReturnPct(new BigDecimal("12.5"));
-    when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
-        .thenAnswer(
-            invocation ->
-                invocation.getArgument(0, Long.class) == 1L ? List.of(requested) : List.of());
-
-    assertThat(query.returnPercentage(1L, YearMonth.of(2026, 7), YearMonth.of(2026, 7)))
-        .isEqualByComparingTo("0.0");
-    assertThat(query.returnPercentage(3L, YearMonth.of(2026, 7), YearMonth.of(2026, 7))).isNull();
-  }
-
   private static PortfolioPerformanceDailyRow daily(
       String date, BigDecimal endValue, BigDecimal contributions, BigDecimal withdrawals) {
     PortfolioPerformanceDailyRow row = mock();

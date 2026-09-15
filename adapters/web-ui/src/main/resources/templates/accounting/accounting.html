@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accounting · Investory</title>
+  <link href="/css/tabler.min.css" rel="stylesheet"><link href="/css/accounting.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+  <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
+</head>
+<body>
+<main class="iv-app iv-report-page accounting-page" data-testid="accounting-page">
+  <div th:replace="~{fragments/app-header :: appHeader('Accounting', null, 'accounting', ${profileId}, 'Ryczałt', ${ryczaltDisplay}, 'VAT', ${vatDisplay}, 'ZUS', ${zusDisplay}, ${overview.reference.available ? 'Reference · ' + referenceRyczaltDisplay : null}, ${overview.reference.available ? 'Reference · ' + referenceVatDisplay : null}, ${overview.reference.available ? 'Reference · ' + referenceZusDisplay : null}, ${'Bank · ' + bankRyczaltDisplay}, ${'Bank · ' + bankVatDisplay}, ${'Bank · ' + bankZusDisplay}, ${bankRyczaltStatus}, ${bankVatStatus}, ${bankZusStatus}, ${bankRyczaltStatusClass}, ${bankVatStatusClass}, ${bankZusStatusClass}, ~{accounting/fragments/header-controls :: accountingHeaderActions}, ~{accounting/fragments/header-controls :: accountingHeaderDetails}, ~{accounting/fragments/header-controls :: accountingMonthSelector})}"></div>
+  <div class="accounting-shell">
+    <div class="alert alert-success" th:if="${accountingMessage}" th:text="${accountingMessage}"></div><div class="alert alert-warning" th:if="${accountingWarning}" th:text="${accountingWarning}"></div><div class="alert alert-danger" th:if="${accountingError}" th:text="${accountingError}"></div>
+
+    <nav class="accounting-workflow" aria-label="Month readiness">
+      <span class="accounting-status-badge" th:text="${workspaceStatus}">In progress</span>
+      <span class="accounting-workflow__step" th:classappend="${sourcesStepClass}">Sources <b th:text="${sourcesStep == 'complete' ? '✓' : '○'}">✓</b></span>
+      <span class="accounting-workflow__step" th:classappend="${reviewStepClass}">Review <b th:text="${reviewStep == 'complete' ? '✓' : reviewStep == 'attention' ? '!' : '○'}">○</b></span>
+      <span class="accounting-workflow__step" th:classappend="${jpkStepClass}">JPK <b th:text="${jpkStep == 'complete' ? '✓' : jpkStep == 'attention' ? '!' : '○'}">○</b></span>
+      <span class="accounting-workflow__step" th:classappend="${fileStepClass}">File <b th:text="${fileStep == 'complete' ? '✓' : fileStep == 'attention' ? '!' : '○'}">○</b></span>
+      <span class="accounting-workflow__step" th:classappend="${payStepClass}">Pay <b th:text="${payStep == 'complete' ? '✓' : '○'}">○</b></span>
+    </nav>
+
+    <section class="iv-planning-section iv-card card accounting-section" data-testid="accounting-income">
+      <div class="iv-planning-section__details-row">
+        <details class="iv-planning-section__details">
+          <summary class="iv-planning-section__header">
+            <h2>Income</h2>
+            <span class="iv-planning-section__count" th:text="${incomeDocumentsView.size() == 1 ? '1 document' : incomeDocumentsView.size() + ' documents'}">0 documents</span>
+          </summary>
+          <div class="accounting-empty iv-planning-section__empty" th:if="${incomeDocumentsView.isEmpty()}">No income documents for this month.</div>
+          <div class="accounting-document-row accounting-document-row--income accounting-document-header" aria-hidden="true"><span>Counterparty</span><span>Invoice</span><span>Date</span><span>Amount</span><span>Status</span></div>
+          <a class="accounting-document-row accounting-document-row--income accounting-document-row--link" data-testid="accounting-income-document" th:each="document : ${incomeDocumentsView}" th:href="${document.href}" th:title="${document.counterparty}" th:aria-label="${'Open income document ' + document.reference}"><span class="accounting-document-cell accounting-document-counterparty" th:text="${document.counterparty}">Counterparty</span><strong class="accounting-document-cell" th:text="${document.reference}">Invoice</strong><span class="accounting-document-date" th:text="${document.date}">31 Jan</span><strong class="accounting-document-amount" th:text="${document.amount}">7 636 EUR</strong><span class="accounting-document-status" th:classappend="${document.status == 'To review' ? ' is-attention' : document.status == 'Paid' ? ' is-success' : ' is-ready'}" th:text="${document.status}">Issued</span></a>
+        </details>
+      </div>
+      <div class="iv-collapsed-summary" aria-label="Collapsed income summary">
+        <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Revenue</span><strong class="iv-collapsed-summary__value" th:text="${revenueDisplay}">0 zł</strong></div>
+        <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Reference</span><strong class="iv-collapsed-summary__value" th:text="${overview.reference.available ? #numbers.formatDecimal(overview.reference.revenue, 1, 2) + ' zł' : '—'}">—</strong></div>
+        <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Bank</span><strong class="iv-collapsed-summary__value" th:text="${#numbers.formatDecimal(incomeBankMatched, 1, 2) + ' zł'}">0.00 zł</strong></div>
+      </div>
+    </section>
+
+    <section class="iv-planning-section iv-card card accounting-section" data-testid="accounting-costs">
+      <div class="iv-planning-section__details-row">
+        <details class="iv-planning-section__details">
+          <summary class="iv-planning-section__header">
+            <h2>Costs</h2>
+            <span class="iv-planning-section__count" th:text="${costDocumentsView.size() + ' documents'}">0 documents</span>
+          </summary>
+          <div class="accounting-empty iv-planning-section__empty" th:if="${costDocumentsView.isEmpty()}">No cost documents for this month.</div>
+          <div class="accounting-document-row accounting-document-row--cost accounting-document-header" aria-hidden="true"><span>Counterparty</span><span>Invoice</span><span>Date</span><span>Category</span><span>Amount</span><span>Status</span></div>
+          <a class="accounting-document-row accounting-document-row--cost accounting-document-row--link" data-testid="accounting-cost-document" th:each="document : ${costDocumentsView}" th:href="${document.href}" th:title="${document.counterparty}" th:aria-label="${'Open cost document ' + document.reference}"><span class="accounting-document-cell accounting-document-counterparty" th:text="${document.counterparty}">Counterparty</span><strong class="accounting-document-cell" th:text="${document.reference}">Invoice</strong><span class="accounting-document-date" th:text="${document.date}">31 Jan</span><span class="accounting-document-cell" th:text="${document.category}">Category</span><strong class="accounting-document-amount" th:text="${document.amount}">363 PLN</strong><span class="accounting-document-status" th:classappend="${document.status == 'To review' ? ' is-attention' : ' is-success'}" th:text="${document.status}">Approved</span></a>
+        </details>
+      </div>
+      <div class="iv-collapsed-summary" aria-label="Collapsed costs summary">
+        <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Documents</span><strong class="iv-collapsed-summary__value" th:text="${costDocumentsView.size()}">0</strong></div>
+        <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Reference</span><strong class="iv-collapsed-summary__value" th:text="${overview.reference.available ? #numbers.formatDecimal(overview.reference.expenses, 1, 2) + ' zł' : '—'}">—</strong></div>
+        <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Bank</span><strong class="iv-collapsed-summary__value" th:text="${#numbers.formatDecimal(costBankMatched, 1, 2) + ' zł'}">0.00 zł</strong></div>
+      </div>
+    </section>
+
+    <section class="accounting-section accounting-attention iv-card" data-testid="accounting-attention" th:if="${!reviewIssues.isEmpty() || stagingSummary.blockingCount > 0}"><div class="accounting-section-head"><div><h3>Needs attention</h3><span>Review these items before filing or promotion.</span></div><span class="badge bg-warning-lt" th:text="${reviewIssues.size() + stagingSummary.blockingCount + ' items'}">1 item</span></div><div class="accounting-issue" th:each="issue : ${reviewIssues}"><span class="accounting-issue-mark">!</span><div><strong th:text="${issue.title}">Issue</strong><p th:text="${issue.message}">Details</p><small th:if="${issue.sourceLabel != null}" th:text="${issue.sourceLabel}">Document reference</small><a class="btn btn-sm btn-outline-secondary accounting-issue-action" th:if="${issue.canReview}" th:href="@{/profiles/{profileId}/accounting/documents/review(profileId=${profileId},month=${selectedMonth},sourceReference=${issue.sourceReference})}">Review document</a></div></div><div class="accounting-issue" th:each="row : ${stagingRows}" th:if="${row.status != 'NEW' and row.status != 'MATCH' and row.status != 'PROMOTED'}"><span class="accounting-issue-mark">!</span><div><strong th:text="${row.reference}">Document reference</strong><p th:text="${row.status == 'MISMATCH' ? 'Document and bank details do not match.' : 'This item needs review before promotion.'}">This item needs review before promotion.</p></div></div></section>
+
+    <section class="accounting-filing iv-card" data-testid="accounting-filing"><div class="accounting-section-head"><div><h3>Filing</h3><span>Current month submission status</span></div><span class="accounting-status-badge" th:text="${filingStatusLabel}">Open</span></div><div class="accounting-filing__states"><div><span>JPK</span><strong th:text="${jpkStatusLabel}">JPK not generated</strong></div><div><span>Submission</span><strong th:text="${submissionStatusLabel}">Not submitted</strong></div><div><span>UPO</span><strong th:text="${upoStatusLabel}">UPO not generated</strong></div></div></section>
+
+    <details class="iv-card accounting-details" data-testid="accounting-advanced-details"><summary>Details and diagnostics</summary><div class="pt-3"><p><strong th:text="${overview.sources.evidenceCount}">0</strong> source evidence · <strong th:text="${overview.bankSummary.transactionCount}">0</strong> bank transactions · <strong th:text="${overview.reconciliationSummary.rowCount}">0</strong> reconciliation rows</p><p>Source status: <strong th:text="${overview.ksefStatus}">—</strong> · Filing: <strong th:text="${overview.filingSummary.lifecycle}">OPEN</strong> · JPK: <strong th:text="${overview.filingSummary.jpkStatus}">MISSING</strong> · UPO: <strong th:text="${overview.filingSummary.upoStatus}">MISSING</strong></p><div th:each="issue : ${overview.issues}" class="accounting-diagnostic-row"><code th:text="${issue.code}">ISSUE_CODE</code><span th:text="${issue.sourceReference}">source reference</span></div><div th:each="row : ${stagingRows}" class="accounting-diagnostic-row"><span th:text="${row.reference}">reference</span><code th:text="${#strings.listJoin(row.reasonCodes, ', ')}">reason</code></div></div></details>
+  </div>
+</main>
+</body>
+</html>

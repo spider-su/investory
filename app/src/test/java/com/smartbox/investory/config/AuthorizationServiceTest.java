@@ -66,6 +66,15 @@ class AuthorizationServiceTest {
     assertFalse(authorization.canManageIntegrations(user));
   }
 
+  @Test
+  void ownershipCanBeRelaxedForTrustedNonProduction() {
+    authorization = new AuthorizationService(jdbc, false);
+    Authentication user = authentication("user-a", "ROLE_USER");
+
+    assertTrue(authorization.canRead(1L, user));
+    assertTrue(authorization.canWrite(1L, user));
+  }
+
   private static Authentication authentication(String name, String role) {
     return new UsernamePasswordAuthenticationToken(
         name, "n/a", java.util.List.of(new SimpleGrantedAuthority(role)));

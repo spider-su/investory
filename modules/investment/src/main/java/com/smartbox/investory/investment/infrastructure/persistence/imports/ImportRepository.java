@@ -20,6 +20,8 @@ public interface ImportRepository extends JpaRepository<ImportHistoryEntity, Lon
 
   Optional<ImportHistoryEntity> findFirstByOrderByIdDesc();
 
+  Optional<ImportHistoryEntity> findFirstByPortfolioIdOrderByIdDesc(Long portfolioId);
+
   Optional<ImportHistoryEntity> findFirstByStatusOrderByFinishedAtDesc(ImportBatchStatus status);
 
   Optional<ImportHistoryEntity> findFirstByPortfolioIdAndStatusOrderByFinishedAtDesc(

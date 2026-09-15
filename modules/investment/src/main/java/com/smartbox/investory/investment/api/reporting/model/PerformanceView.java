@@ -39,6 +39,8 @@ public record PerformanceView(
                     false),
                 ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No performance"),
                 ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No performance"),
+                null,
+                ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No performance"),
                 null)
             : summary;
     topGainers =

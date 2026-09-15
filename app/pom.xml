@@ -46,6 +46,11 @@
     </dependency>
     <dependency>
       <groupId>com.smartbox</groupId>
+      <artifactId>accounting</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.smartbox</groupId>
       <artifactId>test-support</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
@@ -53,6 +58,10 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.reactivestreams</groupId>
+      <artifactId>reactive-streams</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springdoc</groupId>

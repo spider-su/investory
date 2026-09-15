@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
+import com.smartbox.investory.investment.api.reporting.InvestmentIncomeSummaryReader.InvestmentIncomeSummary;
 import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -14,6 +15,29 @@ import org.junit.jupiter.api.Test;
 
 class ProfileIncomeCalculatorTest {
   private static final LocalDate AS_OF = LocalDate.of(2026, 6, 1);
+
+  @Test
+  void passesInvestmentOwnedProjectionAndAssumptionThroughUnchanged() {
+    var market =
+        new InvestmentIncomeSummary(
+            true,
+            CurrencyType.USD,
+            new BigDecimal("143900"),
+            new BigDecimal("10073"),
+            new BigDecimal("0.07"),
+            new BigDecimal("1200"),
+            new BigDecimal("5036.50"),
+            new BigDecimal("0.238"));
+
+    var result =
+        new ProfileIncomeCalculator(new ProfileCurrencyNormalizer(mock()))
+            .calculate(market, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("143900"));
+
+    assertThat(result.investmentIncomeBase()).isEqualByComparingTo("143900");
+    assertThat(result.expectedAnnualInvestmentResult()).isEqualByComparingTo("10073");
+    assertThat(result.expectedAnnualReturn()).isEqualByComparingTo("0.07");
+    assertThat(result.investmentResultYtd()).isEqualByComparingTo("1200");
+  }
 
   @Test
   void annualizesCalendarIncomeAndCombinesLongTermIncome() {

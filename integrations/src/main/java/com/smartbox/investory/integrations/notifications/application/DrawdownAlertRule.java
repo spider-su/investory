@@ -30,7 +30,7 @@ public class DrawdownAlertRule implements AlertRule {
 
   @Override
   public Optional<String> evaluate() {
-    var p = investment.portfolio();
+    var p = investment.portfolio(properties.getPortfolioId());
     double equity = p.balance().doubleValue();
     DrawdownAlertStateEntity state =
         stateRepository

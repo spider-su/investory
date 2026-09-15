@@ -421,9 +421,14 @@ class InvestmentDashboardFacadeTest {
 
     assertEquals(98.45, result.overview().totalProfit(), 0.001);
     assertEquals(7.25, result.overview().gainPct(), 0.001);
-    assertEquals(new BigDecimal("0.0725"), result.performance().summary().kpiReturn().value());
-    assertEquals(result.performance().summary().annualizedReturn(), profileKpi.annualizedReturn());
-    assertEquals(result.performance().summary().kpiStartDate(), profileKpi.startDate());
+    assertEquals(new BigDecimal("0.0725"), result.performance().summary().totalReturn().value());
+    assertEquals(
+        result.performance().summary().historicalAnnualizedReturn(),
+        profileKpi.historicalAnnualizedReturn());
+    assertEquals(
+        result.performance().summary().expectedAnnualReturn().value(),
+        profileKpi.expectedAnnualReturn());
+    assertEquals(result.performance().summary().totalReturnStartDate(), profileKpi.startDate());
   }
 
   @DisplayName("calculates Drawdown Income Yield And Concentration Warning")

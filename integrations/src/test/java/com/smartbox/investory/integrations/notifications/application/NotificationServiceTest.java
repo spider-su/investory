@@ -36,6 +36,7 @@ class NotificationServiceTest {
   @BeforeEach
   void setUp() {
     properties = new NotificationProperties();
+    properties.setPortfolioId(1L);
     properties.setEnabled(true);
     service =
         new NotificationService(
@@ -56,7 +57,7 @@ class NotificationServiceTest {
 
   @Test
   void dailyDigestUsesStablePeriodFingerprintAndOutbox() {
-    when(investment.portfolio()).thenReturn(portfolio(12345, 678, 100, 578, 50, 12.5));
+    when(investment.portfolio(1L)).thenReturn(portfolio(12345, 678, 100, 578, 50, 12.5));
     service.sendDailyDigest();
     ArgumentCaptor<NotificationCandidate> candidate =
         ArgumentCaptor.forClass(NotificationCandidate.class);

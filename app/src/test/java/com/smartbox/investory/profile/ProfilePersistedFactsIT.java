@@ -2,6 +2,7 @@ package com.smartbox.investory.profile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
@@ -54,6 +55,7 @@ class ProfilePersistedFactsIT {
   @Autowired private PortfolioProjectionService projections;
   @Autowired private PortfolioProjectionRefreshService projectionRefresh;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private InvestmentDashboardApi investmentDashboard;
 
   @BeforeEach
   void loadCanonicalHappyInvestorFixture() throws Exception {
@@ -225,6 +227,28 @@ class ProfilePersistedFactsIT {
     assertThat(profile.longTermPlanningState()).isNotNull();
     org.assertj.core.api.Assertions.assertThatThrownBy(() -> profiles.loadProfile(999999L))
         .isInstanceOf(RuntimeException.class);
+  }
+
+  @Test
+  void historicalMarketValueInitializationIsNotReturn() {
+    var boundary =
+        jdbc.queryForMap(
+            """
+            SELECT initialization_adjustment, total_profit, daily_return_pct
+            FROM investory.app_v_portfolio_performance_daily
+            WHERE portfolio_id = ? AND snapshot_date = DATE '2025-01-01'
+            """,
+            HappyInvestorTestData.PORTFOLIO_ID);
+
+    assertThat((BigDecimal) boundary.get("initialization_adjustment"))
+        .isEqualByComparingTo("142857.93602600");
+    assertThat((BigDecimal) boundary.get("total_profit")).isEqualByComparingTo("0");
+    assertThat((BigDecimal) boundary.get("daily_return_pct")).isEqualByComparingTo("0");
+
+    var kpi = investmentDashboard.loadPerformanceKpi(HappyInvestorTestData.PORTFOLIO_ID);
+    assertThat(kpi.historicalAnnualizedReturn()).isNotNull();
+    assertThat(kpi.historicalAnnualizedReturn().abs()).isLessThan(BigDecimal.ONE);
+    assertThat(kpi.expectedAnnualReturn().abs()).isLessThan(BigDecimal.ONE);
   }
 
   @ParameterizedTest(name = "{0}")

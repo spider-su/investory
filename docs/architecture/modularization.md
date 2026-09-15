@@ -13,6 +13,7 @@ app
 ├── longterm
 ├── profile
 ├── retirement
+├── accounting
 ├── integrations
 ├── adapters/web-ui
 └── test-support (test scope)
@@ -22,6 +23,7 @@ longterm -> shared
 profile -> shared + investment public API + longterm public API
 retirement -> shared + investment/longterm/profile public APIs
 integrations -> investment public/integration contracts
+accounting -> shared + integrations
 adapters/web-ui -> investment/longterm/profile/retirement/integrations public APIs
 test-support -> shared + investment + profile (fixtures and PostgreSQL test infrastructure only)
 ```

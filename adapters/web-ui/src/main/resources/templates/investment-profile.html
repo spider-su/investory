@@ -10,7 +10,7 @@
 </head>
 <body>
 <main class="iv-app iv-planning-page iv-profile-page">
-  <div th:replace="~{fragments/app-header :: planningHeader('profile', ${profile.portfolioId}, 'Profile summary', 'Net worth', ${profile.totalNetWorthCompactDisplay}, 'all assets', 'Net income / year', ${profile.incomeSummary.combinedAnnualIncomeCompactDisplay}, 'projected · net', 'Annual cost / year', ${profile.annualCostDisplay}, ${profile.annualCostMeta}, ${profile.currency}, 'profile', null, null)}"></div>
+  <div th:replace="~{fragments/app-header :: planningHeader('profile', ${profile.portfolioId}, 'Profile summary', 'Net worth', ${profile.totalNetWorthCompactDisplay}, 'whole portfolio', 'Projected annual result + income', ${profile.incomeSummary.combinedAnnualIncomeCompactDisplay}, 'projected', 'Annual cost / year', ${profile.annualCostDisplay}, ${profile.annualCostMeta}, ${profile.currency}, 'profile', null, null)}"></div>
 
   <section class="card iv-profile-section iv-profile-sources" aria-labelledby="sources-title">
     <div class="iv-card-section-header"><span id="sources-title" class="iv-card-section-header__title">Income sources</span></div>
@@ -18,10 +18,10 @@
       <a class="iv-profile-source-card" th:href="@{/portfolios/{portfolioId}/dashboard(portfolioId=${profile.portfolioId})}" href="/portfolios/1/dashboard">
         <div class="iv-profile-source-card__heading"><span>Market investments</span><small th:text="${profile.marketPortfolioMeta}">0.0% of net worth</small></div>
         <div class="iv-profile-source-card__metrics">
-          <div><span>Income base</span><strong th:text="${profile.incomeSummary.incomeBaseCompactDisplay}">0</strong></div>
-          <div><span>Projected annual income (net)</span><strong th:text="${profile.marketAnnualIncomeDisplay}">0</strong><small>projected</small></div>
-          <div><span>Annualized return</span><strong th:text="${profile.marketAnnualizedReturnDisplay}">Unavailable</strong><small>Forward-looking estimate</small></div>
-          <div><span>Historical annualized return</span><strong th:text="${profile.marketHistoricalAnnualizedReturnDisplay}">Unavailable</strong><small th:text="${profile.marketHistoricalReturnMeta}">Portfolio history</small></div>
+          <div><span>Investment base</span><strong th:text="${profile.incomeSummary.incomeBaseCompactDisplay}">0</strong></div>
+          <div><span>Expected annual investment result</span><strong th:text="${profile.expectedAnnualInvestmentResultDisplay}">0</strong><small>capital base × expected total return</small></div>
+          <div><span>Expected annual return</span><strong th:text="${profile.expectedAnnualReturnDisplay}">Unavailable</strong><small>Forward-looking estimate</small></div>
+          <div><span>Historical annualized TWR</span><strong th:text="${profile.historicalAnnualizedTwrDisplay}">Unavailable</strong><small th:text="${profile.historicalTwrMeta}">Cash-flow-neutral portfolio history</small></div>
         </div>
         <div class="iv-profile-source-card__footer"><span>Investment result YTD</span><strong><span th:text="${profile.marketInvestmentResultYtdDisplay}">—</span> <small class="iv-ytd-return" th:if="${profile.marketYtdReturnDisplay != null and !profile.marketYtdReturnDisplay.isEmpty()}" th:text="${'· ' + profile.marketYtdReturnDisplay}">· 0.0%</small></strong></div>
       </a>

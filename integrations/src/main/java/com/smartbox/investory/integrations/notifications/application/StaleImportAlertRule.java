@@ -27,7 +27,8 @@ public class StaleImportAlertRule implements AlertRule {
 
   @Override
   public Optional<String> evaluate() {
-    Optional<ImportOperationsSnapshot> latest = investment.latestImport();
+    Optional<ImportOperationsSnapshot> latest =
+        investment.latestImport(properties.getPortfolioId());
     if (latest.isEmpty()) {
       return Optional.of("No broker imports recorded yet.");
     }

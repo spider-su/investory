@@ -4,10 +4,19 @@ This module owns external-system adapters and their runtime management. Package 
 
 - `management`: integration metadata, base plugin SPI, configuration, persistence, and scheduling;
 - `market`, `fx`, `export`, and `importing`: external provider/file adapters grouped by provider;
+- `ksef`: KSeF 2.0 e-invoicing authentication, invoice metadata query, and structured invoice download;
 - `telegram`: Telegram bot, commands, and notification delivery;
 - `notifications`: provider-neutral notification application and persistence;
 - `ai.openai`: OpenAI client and portfolio-analysis orchestration;
 - `health`: integration-related health indicators.
+- `zus`: provider-neutral ZUS contract with a mock payment provider. The mock simulates a future
+  ZUS API lookup from canonical persisted bank transaction history and is replaceable by a real ZUS
+  adapter behind `ZusClient`.
+
+The mock currently supports the singleton POC profile (`profileId = 1`) because the persisted bank
+transaction table has no profile column. It reads the half-open range `[from, to)`, accepts only
+outgoing PLN transactions, classifies strong ZUS counterparty names, and exposes a positive settled
+amount with a stable `BANK-TX-{id}` external ID.
 
 Dependency direction:
 
@@ -17,12 +26,22 @@ management application -> management SPI/model + persistence
 notification application -> notification delivery interface
 telegram delivery -> notification delivery interface
 integrations -> investment.api / investment.port
+```
 
 Broker file adapters (`importing.ibkr` and `importing.xtb`) are registered here and implement the
 `investment.port.importing.BrokerImportParser` port. Investment retains import orchestration,
 import audit, and canonical ledger writes; the adapter boundary keeps those responsibilities out
 of the integrations module.
-```
+
+KSeF is deliberately isolated in `integrations.ksef`. Accounting must not depend on KSeF transport,
+authentication, or MF API DTOs. `KsefInvoiceService` exposes the managed integration boundary for
+incoming invoice discovery and canonical structured-invoice download. Mapping FA(3) into accounting
+facts belongs to accounting/import orchestration, not the KSeF transport.
+
+The KSeF plugin currently supports KSeF 2.0 TEST, DEMO, and PRODUCTION endpoints and 2026 KSeF-token
+authentication. The token is stored through the normal encrypted integration-secret persistence.
+Certificate/XAdES authentication should replace token authentication before token retirement; keep
+that change behind the same `ksef` boundary.
 
 Management contracts must not depend on persistence or provider implementations. Notification
 application code must not depend directly on Telegram.
@@ -51,3 +70,19 @@ The management UI exposes connection tests as transient, read-only probes. Test
 payloads and secrets are never persisted by the test operation. Persisted jobs are
 currently deliberately scoped to the executable `refresh-prices` and
 `refresh-rates` handlers; new jobs must add a handler before being declared.
+# Integrations
+
+Provider adapters expose neutral application-facing ports. Bank acquisition currently has one
+implementation:
+
+```text
+BankTransactionSource
+    ├── CsvBankTransactionSource       CURRENT
+    └── EnableBankingTransactionSource FUTURE
+```
+
+The CSV adapter produces `ExternalBankTransaction` values only. It does not classify tax or bank
+semantics. Accounting receives the normalized values, retains provider metadata for dedupe/audit,
+and performs classification, reconciliation, PaidContribution projection and settlement.
+
+CSV is the deterministic offline provider used for POC and CI, not a separate accounting path.
