@@ -6,7 +6,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.api.reporting.TrailingPortfolioReturnReader;
+import com.smartbox.investory.investment.api.reporting.PortfolioYtdTwrReader;
+import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.longterm.api.BondReturnObservationReader;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
@@ -23,7 +24,6 @@ import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableExcep
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -32,11 +32,11 @@ import org.junit.jupiter.api.Test;
 class RetirementScenarioObservationServiceTest {
 
   @Test
-  void liveObservationsUseCurrentAnnualizedFactsAndTrailingPerformance() {
+  void liveObservationsUseCurrentAnnualizedFactsAndCanonicalYtdPerformance() {
     LongTermAssetAnnualSnapshotReader longTerm = mock(LongTermAssetAnnualSnapshotReader.class);
     LongTermAssetProfileReader current = mock(LongTermAssetProfileReader.class);
     BondReturnObservationReader bonds = mock(BondReturnObservationReader.class);
-    TrailingPortfolioReturnReader performance = mock(TrailingPortfolioReturnReader.class);
+    PortfolioYtdTwrReader performance = mock(PortfolioYtdTwrReader.class);
     Clock clock = Clock.fixed(Instant.parse("2026-08-29T00:00:00Z"), ZoneOffset.UTC);
     var liveSnapshot =
         snapshot(
@@ -49,8 +49,7 @@ class RetirementScenarioObservationServiceTest {
                 null, new BigDecimal("165.0"), null, null, null, null));
     when(bonds.currentWeightedEffectiveReturn(7L, java.time.LocalDate.of(2026, 8, 29)))
         .thenReturn(new BigDecimal("0.0475"));
-    when(performance.returnPercentage(7L, YearMonth.of(2025, 8), YearMonth.of(2026, 7)))
-        .thenReturn(new BigDecimal("8.5"));
+    when(performance.ytdTwr(7L)).thenReturn(ReturnMetric.available(new BigDecimal("0.173")));
 
     var result =
         new RetirementScenarioObservationService(longTerm, current, bonds, performance, clock)
@@ -78,7 +77,10 @@ class RetirementScenarioObservationServiceTest {
     assertEquals(
         0, new BigDecimal("0.0254545454545454545").compareTo(result.get("Rental growth").value()));
     assertEquals(new BigDecimal("0.0475"), result.get("Bond return").value());
-    assertEquals(new BigDecimal("0.085"), result.get("Equity return").value());
+    assertEquals(new BigDecimal("0.173"), result.get("Equity return").value());
+    assertEquals("Actual YTD TWR", result.get("Equity return").label());
+    assertEquals("2026 YTD", result.get("Equity return").period());
+    verify(performance).ytdTwr(7L);
     assertEquals(
         0,
         new BigDecimal("0.0254545454545454545").compareTo(result.get("Spending growth").value()));
@@ -89,14 +91,12 @@ class RetirementScenarioObservationServiceTest {
     LongTermAssetAnnualSnapshotReader longTerm = mock(LongTermAssetAnnualSnapshotReader.class);
     LongTermAssetProfileReader current = mock(LongTermAssetProfileReader.class);
     BondReturnObservationReader bonds = mock(BondReturnObservationReader.class);
-    TrailingPortfolioReturnReader performance = mock(TrailingPortfolioReturnReader.class);
+    PortfolioYtdTwrReader performance = mock(PortfolioYtdTwrReader.class);
     Clock clock = Clock.fixed(Instant.parse("2026-08-29T00:00:00Z"), ZoneOffset.UTC);
     when(longTerm.historicalAnnualSnapshot(7L, 2025))
         .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
     when(longTerm.historicalAnnualSnapshot(7L, 2024))
         .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
-    when(performance.returnPercentage(7L, YearMonth.of(2025, 8), YearMonth.of(2026, 7)))
-        .thenReturn(new BigDecimal("8.5"));
 
     var result =
         new RetirementScenarioObservationService(longTerm, current, bonds, performance, clock)
@@ -111,7 +111,9 @@ class RetirementScenarioObservationServiceTest {
     assertEquals(
         ScenarioObservationAvailability.AVAILABLE, result.get("Spending growth").availability());
     assertEquals(new BigDecimal("0.1900826446280991736"), result.get("Spending growth").value());
-    assertEquals(new BigDecimal("0.085"), result.get("Equity return").value());
+    assertEquals(
+        ScenarioObservationAvailability.UNAVAILABLE, result.get("Equity return").availability());
+    verify(performance, never()).ytdTwr(7L);
   }
 
   @Test
@@ -119,7 +121,9 @@ class RetirementScenarioObservationServiceTest {
     LongTermAssetAnnualSnapshotReader longTerm = mock(LongTermAssetAnnualSnapshotReader.class);
     LongTermAssetProfileReader current = mock(LongTermAssetProfileReader.class);
     BondReturnObservationReader bonds = mock(BondReturnObservationReader.class);
-    TrailingPortfolioReturnReader performance = mock(TrailingPortfolioReturnReader.class);
+    PortfolioYtdTwrReader performance = mock(PortfolioYtdTwrReader.class);
+    when(performance.ytdTwr(7L))
+        .thenReturn(ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "missing"));
     Clock clock = Clock.fixed(Instant.parse("2026-08-29T00:00:00Z"), ZoneOffset.UTC);
 
     var result =
@@ -147,6 +151,34 @@ class RetirementScenarioObservationServiceTest {
     assertEquals(
         ScenarioObservationAvailability.INSUFFICIENT_HISTORY,
         result.get("Spending growth").availability());
+    assertEquals(
+        ScenarioObservationAvailability.INSUFFICIENT_HISTORY,
+        result.get("Equity return").availability());
+  }
+
+  @Test
+  void validZeroYtdReturnRemainsAvailable() {
+    var performance = mock(PortfolioYtdTwrReader.class);
+    when(performance.ytdTwr(7L)).thenReturn(ReturnMetric.available(BigDecimal.ZERO));
+    var service =
+        new RetirementScenarioObservationService(
+            mock(LongTermAssetAnnualSnapshotReader.class),
+            mock(LongTermAssetProfileReader.class),
+            mock(BondReturnObservationReader.class),
+            performance,
+            Clock.fixed(Instant.parse("2026-08-29T00:00:00Z"), ZoneOffset.UTC));
+
+    var result =
+        service.load(
+            7L,
+            new PlanningTimeline(
+                List.of(
+                    new PlanningTimelineYear(
+                        2026, 43, PlanningTimelineState.LIVE, null, null, null))));
+
+    assertEquals(
+        ScenarioObservationAvailability.AVAILABLE, result.get("Equity return").availability());
+    assertEquals(BigDecimal.ZERO, result.get("Equity return").value());
   }
 
   @Test
@@ -154,13 +186,11 @@ class RetirementScenarioObservationServiceTest {
     LongTermAssetAnnualSnapshotReader longTerm = mock(LongTermAssetAnnualSnapshotReader.class);
     LongTermAssetProfileReader current = mock(LongTermAssetProfileReader.class);
     BondReturnObservationReader bonds = mock(BondReturnObservationReader.class);
-    TrailingPortfolioReturnReader performance = mock(TrailingPortfolioReturnReader.class);
+    PortfolioYtdTwrReader performance = mock(PortfolioYtdTwrReader.class);
     when(longTerm.historicalAnnualSnapshot(7L, 2025))
         .thenThrow(new CurrencyConversionUnavailableException("EUR/PLN missing"));
     when(longTerm.historicalAnnualSnapshot(7L, 2024))
         .thenThrow(new CurrencyConversionUnavailableException("EUR/PLN missing"));
-    when(performance.returnPercentage(7L, YearMonth.of(2025, 8), YearMonth.of(2026, 7)))
-        .thenReturn(null);
 
     var result =
         new RetirementScenarioObservationService(
@@ -186,7 +216,7 @@ class RetirementScenarioObservationServiceTest {
     LongTermAssetAnnualSnapshotReader longTerm = mock(LongTermAssetAnnualSnapshotReader.class);
     LongTermAssetProfileReader current = mock(LongTermAssetProfileReader.class);
     BondReturnObservationReader bonds = mock(BondReturnObservationReader.class);
-    TrailingPortfolioReturnReader performance = mock(TrailingPortfolioReturnReader.class);
+    PortfolioYtdTwrReader performance = mock(PortfolioYtdTwrReader.class);
     Clock clock = Clock.fixed(Instant.parse("2026-08-29T00:00:00Z"), ZoneOffset.UTC);
     var currentSnapshot =
         snapshot(
@@ -195,8 +225,6 @@ class RetirementScenarioObservationServiceTest {
     when(longTerm.historicalAnnualSnapshot(7L, 2025))
         .thenReturn(
             new LongTermAssetAnnualSnapshotModel(null, BigDecimal.ONE, null, null, null, null));
-    when(performance.returnPercentage(7L, YearMonth.of(2025, 8), YearMonth.of(2026, 7)))
-        .thenReturn(null);
 
     var result =
         new RetirementScenarioObservationService(longTerm, current, bonds, performance, clock)
@@ -208,6 +236,7 @@ class RetirementScenarioObservationServiceTest {
     assertEquals(BigDecimal.ZERO, result.get("Rental growth").value());
     verify(longTerm).historicalAnnualSnapshot(7L, 2025);
     verify(longTerm, never()).historicalAnnualSnapshot(7L, 2026);
+    verify(performance, never()).ytdTwr(7L);
   }
 
   private static PlanningTimelineYear closedYear(int year, String spending) {

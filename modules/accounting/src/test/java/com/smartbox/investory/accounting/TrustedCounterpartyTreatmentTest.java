@@ -53,7 +53,13 @@ class TrustedCounterpartyTreatmentTest {
             "KSEF"));
     assertFalse(
         treatment.matches(
-            "PURCHASE", "INVOICE", "FUEL", "DOMESTIC_PURCHASE", null, new BigDecimal("23"), "KSEF"));
+            "PURCHASE",
+            "INVOICE",
+            "FUEL",
+            "DOMESTIC_PURCHASE",
+            null,
+            new BigDecimal("23"),
+            "KSEF"));
     assertFalse(
         treatment.matches(
             "PURCHASE",

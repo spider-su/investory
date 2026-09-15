@@ -141,8 +141,6 @@ public class InvestmentDashboardFacade {
         portfolioMetricsService.calculateTotalProfitLoss(query.portfolioId());
     PerformanceResult historicalPerformance =
         canonicalKpiPerformance(calculatedPortfolio.getMonthlyPerformance(), query.portfolioId());
-    PerformanceResult totalReturnPerformance =
-        canonicalCurrentPeriodPerformance(calculatedPortfolio.getMonthlyPerformance(), query.portfolioId());
     Portfolio portfolio = periodFilterService.filter(calculatedPortfolio, selectedPeriod);
 
     Benchmark benchmarkInput =
@@ -163,6 +161,7 @@ public class InvestmentDashboardFacade {
 
     PerformanceResult canonical =
         canonicalPerformance(portfolio.getMonthlyPerformance(), query.portfolioId());
+    PerformanceResult totalReturnPerformance = canonical;
     PeriodPerformance periodPerformance =
         periodPerformance(benchmark, portfolio.getMonthlyPerformance(), canonical);
     OverviewView overview =
@@ -171,8 +170,11 @@ public class InvestmentDashboardFacade {
         overview,
         new PerformanceView(
             benchmark(benchmark),
-                performanceSummary(
-                benchmark, portfolio.getMonthlyPerformance(), canonical, historicalPerformance,
+            performanceSummary(
+                benchmark,
+                portfolio.getMonthlyPerformance(),
+                canonical,
+                historicalPerformance,
                 totalReturnPerformance),
             topGainers(portfolio),
             topLosers(portfolio),
@@ -199,8 +201,7 @@ public class InvestmentDashboardFacade {
       ReturnMetric historicalAnnualizedReturn,
       BigDecimal expectedAnnualReturn,
       BigDecimal historyYears,
-      String historyContext) {
-  }
+      String historyContext) {}
 
   private static String yearMonth(String value) {
     if (value == null || value.isBlank()) {

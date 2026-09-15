@@ -42,8 +42,8 @@ class ScenarioObservationServiceTest {
                 "Equity return",
                 new com.smartbox.investory.retirement.api.model.ScenarioObservation(
                     BigDecimal.ZERO,
-                    "Observed annualized",
-                    "trailing 12 months",
+                    "Actual YTD TWR",
+                    "2026 YTD",
                     com.smartbox.investory.retirement.api.model.ScenarioObservationAvailability
                         .AVAILABLE)));
     ScenarioObservation zero = service.load(7L, null).get("Equity return");

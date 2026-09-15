@@ -127,10 +127,12 @@ class AccountingFactServiceTest {
     AccountingMonthSnapshot beforeUop = service.snapshot(historical);
     AccountingMonthSnapshot withUop = service.snapshot(uopStartMonth);
 
-    assertThat(beforeUop.zus().totalZus()).isEqualByComparingTo("3283.33");
-    assertThat(beforeUop.zus().socialZus()).isEqualByComparingTo("1788.29");
-    assertThat(withUop.zus().totalZus()).isEqualByComparingTo("1495.04");
+    assertThat(beforeUop.zus().totalZus()).isEqualByComparingTo("3031.44");
+    assertThat(beforeUop.zus().socialZus()).isEqualByComparingTo("1646.47");
+    assertThat(beforeUop.zus().healthZus()).isEqualByComparingTo("1384.97");
+    assertThat(withUop.zus().totalZus()).isEqualByComparingTo("1384.97");
     assertThat(withUop.zus().socialZus()).isZero();
+    assertThat(withUop.zus().healthZus()).isEqualByComparingTo("1384.97");
   }
 
   @Test

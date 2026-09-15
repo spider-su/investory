@@ -527,9 +527,11 @@ public class AccountingPocRepository {
   }
 
   public void updateAutoApproveKnownCounterparties(long profileId, boolean enabled) {
-    int updated = jdbcTemplate.update(
-        "UPDATE investory.accounting_poc_profile SET auto_approve_known_counterparties = ? WHERE profile_id = ?",
-        enabled, profileId);
+    int updated =
+        jdbcTemplate.update(
+            "UPDATE investory.accounting_poc_profile SET auto_approve_known_counterparties = ? WHERE profile_id = ?",
+            enabled,
+            profileId);
     if (updated != 1) throw new IllegalStateException("Accounting profile is missing");
   }
 

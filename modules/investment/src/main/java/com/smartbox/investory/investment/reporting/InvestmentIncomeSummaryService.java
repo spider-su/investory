@@ -48,8 +48,10 @@ public class InvestmentIncomeSummaryService implements InvestmentIncomeSummaryRe
         InvestmentIncomeCalculator.weightedIncomeBase(
             rows.getFirst().getStartEquityDecimal(), flows);
     var projected =
-        InvestmentIncomeCalculator.projectedAnnualInvestmentResult(base, kpi.expectedAnnualReturn());
-    var expected = InvestmentIncomeCalculator.expectedInvestmentResultYtd(projected, current.getMonthValue());
+        InvestmentIncomeCalculator.projectedAnnualInvestmentResult(
+            base, kpi.expectedAnnualReturn());
+    var expected =
+        InvestmentIncomeCalculator.expectedInvestmentResultYtd(projected, current.getMonthValue());
     var ytd =
         performance
             .forPortfolioMonths(portfolioId, current.withMonth(1), current)

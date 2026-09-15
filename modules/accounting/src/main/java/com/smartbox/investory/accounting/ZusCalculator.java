@@ -3,9 +3,23 @@ package com.smartbox.investory.accounting;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
-/** Pure 2026 ZUS policy for the supported JDG case. */
+/** Pure ZUS calculation for the supported JDG case with current-rule defaults. */
 public final class ZusCalculator {
   public ZusCalculation calculate(Input input) {
+    return calculate(
+        input,
+        ZusRules2026.LABOUR_FUND,
+        ZusRules2026.VOLUNTARY_SICKNESS,
+        ZusRules2026.HEALTH,
+        ZusRules2026.VERSION);
+  }
+
+  public ZusCalculation calculate(
+      Input input,
+      BigDecimal labourFund,
+      BigDecimal voluntarySicknessAmount,
+      BigDecimal highBandHealthAmount,
+      String ruleVersion) {
     if (input.zusRegime() != null && !"JDG".equals(input.zusRegime())) {
       throw new IllegalArgumentException("Unsupported ZUS regime: " + input.zusRegime());
     }
@@ -14,23 +28,26 @@ public final class ZusCalculator {
         input.jdgActive() && !input.qualifyingUop()
             ? input
                 .fullJdgSocial()
-                .add(input.voluntarySickness() ? ZusRules2026.VOLUNTARY_SICKNESS : BigDecimal.ZERO)
+                .add(input.voluntarySickness() ? voluntarySicknessAmount : BigDecimal.ZERO)
             : BigDecimal.ZERO;
     BigDecimal deductibleSocial =
         input.jdgActive() && !input.qualifyingUop()
             ? input
                 .fullJdgSocial()
-                .subtract(ZusRules2026.LABOUR_FUND)
-                .add(input.voluntarySickness() ? ZusRules2026.VOLUNTARY_SICKNESS : BigDecimal.ZERO)
+                .subtract(labourFund)
+                .add(input.voluntarySickness() ? voluntarySicknessAmount : BigDecimal.ZERO)
             : BigDecimal.ZERO;
-    BigDecimal health = input.jdgActive() ? band.monthlyAmount() : BigDecimal.ZERO;
+    BigDecimal health =
+        input.jdgActive()
+            ? band == ZusRules2026.HealthBand.HIGH ? highBandHealthAmount : band.monthlyAmount()
+            : BigDecimal.ZERO;
     return new ZusCalculation(
         social.setScale(2, RoundingMode.HALF_UP),
         health.setScale(2, RoundingMode.HALF_UP),
         social.add(health).setScale(2, RoundingMode.HALF_UP),
         band,
         input.qualifyingUop() ? "UOP_PRIMARY_INSURANCE" : "JDG_PRIMARY_INSURANCE",
-        ZusRules2026.VERSION,
+        ruleVersion,
         deductibleSocial.setScale(2, RoundingMode.HALF_UP));
   }
 

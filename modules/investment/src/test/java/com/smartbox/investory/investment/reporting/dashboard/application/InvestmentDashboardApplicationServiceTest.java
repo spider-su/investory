@@ -60,6 +60,25 @@ class InvestmentDashboardApplicationServiceTest {
   }
 
   @Test
+  void ytdTwrReaderReturnsTheSameAvailabilityAwareCanonicalDashboardMetric() {
+    when(portfolios.findById(7L))
+        .thenReturn(Optional.of(org.mockito.Mockito.mock(PortfolioContext.class)));
+    ReturnMetric canonical = ReturnMetric.available(new BigDecimal("0.173"));
+    when(dashboard.loadPerformanceKpi(7L))
+        .thenReturn(
+            new InvestmentDashboardFacade.PerformanceKpi(
+                canonical,
+                "2026-01-01",
+                ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "history"),
+                null,
+                null,
+                null));
+
+    assertThat(service().ytdTwr(7L)).isSameAs(canonical);
+    verify(dashboard).loadPerformanceKpi(7L);
+  }
+
+  @Test
   void returnsOnlyCurrentCalendarYearInvestmentResult() {
     when(portfolios.findById(7L))
         .thenReturn(Optional.of(org.mockito.Mockito.mock(PortfolioContext.class)));

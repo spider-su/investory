@@ -228,20 +228,32 @@ public class AccountingFactService {
         hasAccountingRecord
             && (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
                 || (resolved.zusRegime() != null && resolved.ryczaltRate() != null));
+    ZusCalculator.Input zusInput =
+        new ZusCalculator.Input(
+            resolved.jdgActive(),
+            resolved.qualifyingUop(),
+            resolved.zusRegime(),
+            resolved.voluntarySickness(),
+            yearToDate.taxableRyczaltRevenue(),
+            calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+                    && period.getYear() == 2025
+                ? ZusRules2025.FULL_JDG_SOCIAL
+                : ZusRules2026.FULL_JDG_SOCIAL,
+            calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+                ? ZusRules2026.HealthBand.HIGH
+                : null);
     var zusCalculation =
         useCalculatedZus
-            ? new ZusCalculator()
-                .calculate(
-                    new ZusCalculator.Input(
-                        resolved.jdgActive(),
-                        resolved.qualifyingUop(),
-                        resolved.zusRegime(),
-                        resolved.voluntarySickness(),
-                        yearToDate.taxableRyczaltRevenue(),
-                        ZusRules2026.FULL_JDG_SOCIAL,
-                        calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
-                            ? ZusRules2026.HealthBand.HIGH
-                            : null))
+            ? calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+                    && period.getYear() == 2025
+                ? new ZusCalculator()
+                    .calculate(
+                        zusInput,
+                        ZusRules2025.LABOUR_FUND,
+                        ZusRules2025.VOLUNTARY_SICKNESS,
+                        ZusRules2025.HEALTH_HIGH,
+                        ZusRules2025.VERSION)
+                : new ZusCalculator().calculate(zusInput)
             : null;
     var paidContributionProjection =
         calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
@@ -697,15 +709,11 @@ public class AccountingFactService {
             ? "NO_GOLDEN"
             : zusCalculated.signum() == 0
                 ? "INPUTS_INCOMPLETE"
-                : zusDifference.signum() == 0
-                    ? "MATCH"
-                    : zus.hasUop() ? "DIFF" : "HISTORICAL_PROFILE_DIFF";
+                : zusDifference.signum() == 0 ? "MATCH" : "DIFF";
     String zusComparisonNote =
         !hasZusGolden
             ? "No captured historical ZUS obligation is available for this month."
-            : zus.hasUop()
-                ? "Captured 2026 ZUS golden is the historical health-only obligation under the qualifying-UoP profile; cash reconciliation is checked separately."
-                : "Captured 2026 ZUS golden is health-only under the historical qualifying-UoP profile. The current profile disables UoP, so calculated total JDG ZUS also includes compulsory social ZUS; this difference is expected and is not a reconstruction failure.";
+            : "Captured ZUS obligation is comparison evidence; calculation uses the effective-dated UoP profile and year-specific contribution rules.";
 
     return List.of(
         new ComparisonRow(

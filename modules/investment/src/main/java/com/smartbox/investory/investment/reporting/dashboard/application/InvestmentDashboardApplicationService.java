@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
+import com.smartbox.investory.investment.api.reporting.PortfolioYtdTwrReader;
 import com.smartbox.investory.investment.api.reporting.model.DashboardPercentageFormatter;
 import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
@@ -15,7 +16,8 @@ import org.springframework.stereotype.Service;
 @Service
 @Primary
 @RequiredArgsConstructor
-public class InvestmentDashboardApplicationService implements InvestmentDashboardApi {
+public class InvestmentDashboardApplicationService
+    implements InvestmentDashboardApi, PortfolioYtdTwrReader {
   private final InvestmentDashboardFacade dashboard;
   private final PortfolioPerformanceQuery performance;
   private final PortfolioContextReader portfolios;
@@ -59,6 +61,12 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
         expectedDisplay,
         performanceKpi.historyYears(),
         performanceKpi.historyContext());
+  }
+
+  @Override
+  public ReturnMetric ytdTwr(Long portfolioId) {
+    requirePortfolio(portfolioId);
+    return dashboard.loadPerformanceKpi(portfolioId).totalReturn();
   }
 
   @Override

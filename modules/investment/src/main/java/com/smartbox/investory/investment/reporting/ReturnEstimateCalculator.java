@@ -24,10 +24,8 @@ public final class ReturnEstimateCalculator {
     BigDecimal years = years(start, end);
     // Eligibility uses the actual anniversary boundary. Decimal years are used only for blending;
     // a partial year must never become eligible through rounding or extrapolation.
-    boolean usablePortfolioHistory =
-        years != null && end.compareTo(start.plusYears(1)) >= 0;
-    BigDecimal usableHistoryYears =
-        usablePortfolioHistory ? years.max(BigDecimal.ONE) : years;
+    boolean usablePortfolioHistory = years != null && end.compareTo(start.plusYears(1)) >= 0;
+    BigDecimal usableHistoryYears = usablePortfolioHistory ? years.max(BigDecimal.ONE) : years;
     ReturnMetric historical =
         usablePortfolioHistory
             ? PortfolioReturnCalculator.annualized(cumulativeTwr, start, end)

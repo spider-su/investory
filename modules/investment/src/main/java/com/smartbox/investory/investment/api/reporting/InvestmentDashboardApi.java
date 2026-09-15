@@ -39,8 +39,17 @@ public interface InvestmentDashboardApi {
       String historyContext) {
     public PerformanceKpiView(
         boolean available, BigDecimal totalReturn, String totalReturnDisplay, String kpiStartDate) {
-      this(available, totalReturn, totalReturnDisplay, kpiStartDate, null, "Unavailable", null,
-          "Unavailable", null, null);
+      this(
+          available,
+          totalReturn,
+          totalReturnDisplay,
+          kpiStartDate,
+          null,
+          "Unavailable",
+          null,
+          "Unavailable",
+          null,
+          null);
     }
 
     public PerformanceKpiView {

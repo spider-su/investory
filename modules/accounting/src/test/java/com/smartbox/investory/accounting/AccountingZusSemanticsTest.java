@@ -20,18 +20,18 @@ class AccountingZusSemanticsTest {
   private static final LocalDate JANUARY = LocalDate.of(2026, 1, 1);
 
   @Test
-  void exposesStableUopReasonCodeAndMatchesHistoricalHealthOnlyGolden() {
+  void exposesStableUopReasonCodeAndMatchesCapturedUopReference() {
     AccountingMonthSnapshot snapshot = snapshot(new AccountingProfile(true));
 
     assertThat(snapshot.zus().socialZusReasonCode())
         .isEqualTo(ZusCalculation.UOP_PRIMARY_INSURANCE);
     assertThat(snapshot.zus().socialZusReason()).contains("primary social-insurance title");
     assertThat(zusComparison(snapshot).status()).isEqualTo("MATCH");
-    assertThat(zusComparison(snapshot).note()).contains("health-only");
+    assertThat(zusComparison(snapshot).note()).contains("effective-dated UoP profile");
   }
 
   @Test
-  void marksNonUopComparisonAsHistoricalProfileDifferenceInsteadOfGenericDiff() {
+  void reportsNonUopDifferenceAgainstCapturedHealthOnlyReference() {
     AccountingMonthSnapshot snapshot = snapshot(new AccountingProfile(false));
 
     assertThat(snapshot.zus().socialZusReasonCode())
@@ -41,10 +41,10 @@ class AccountingZusSemanticsTest {
     assertThat(snapshot.zus().totalZus()).isEqualByComparingTo("3283.33");
 
     ComparisonRow comparison = zusComparison(snapshot);
-    assertThat(comparison.status()).isEqualTo("HISTORICAL_PROFILE_DIFF");
+    assertThat(comparison.status()).isEqualTo("DIFF");
     assertThat(comparison.note())
-        .contains("historical qualifying-UoP profile")
-        .contains("not a reconstruction failure");
+        .contains("effective-dated UoP profile")
+        .contains("year-specific contribution rules");
   }
 
   private AccountingMonthSnapshot snapshot(AccountingProfile profile) {

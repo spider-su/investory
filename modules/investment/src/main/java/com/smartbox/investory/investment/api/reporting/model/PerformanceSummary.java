@@ -18,7 +18,7 @@ public record PerformanceSummary(
     PerformanceAttribution attribution,
     ReturnMetric totalReturn,
     ReturnMetric historicalAnnualizedReturn,
-    String kpiStartDate,
+    String totalReturnStartDate,
     ReturnMetric expectedAnnualReturn,
     String historyContext) {
 

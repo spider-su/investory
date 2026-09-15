@@ -29,6 +29,30 @@ class ZusCalculatorTest {
   }
 
   @Test
+  void applies2025SocialAndHighHealthContributionAmounts() {
+    var result =
+        calculator.calculate(
+            new ZusCalculator.Input(
+                true,
+                false,
+                "JDG",
+                false,
+                new BigDecimal("400000"),
+                ZusRules2025.FULL_JDG_SOCIAL,
+                ZusRules2026.HealthBand.HIGH),
+            ZusRules2025.LABOUR_FUND,
+            ZusRules2025.VOLUNTARY_SICKNESS,
+            ZusRules2025.HEALTH_HIGH,
+            ZusRules2025.VERSION);
+
+    assertThat(result.socialContribution()).isEqualByComparingTo("1646.47");
+    assertThat(result.deductibleSocialContribution()).isEqualByComparingTo("1518.98");
+    assertThat(result.healthContribution()).isEqualByComparingTo("1384.97");
+    assertThat(result.totalObligation()).isEqualByComparingTo("3031.44");
+    assertThat(result.ruleVersion()).isEqualTo("ZUS_2025_POC_V1");
+  }
+
+  @Test
   void includesVoluntarySicknessInPayableZUSButNotLabourFundInDeduction() {
     var result = calculator.calculate(input(true, false, true, new BigDecimal("100000")));
 

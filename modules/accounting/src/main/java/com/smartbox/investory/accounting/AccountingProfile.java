@@ -33,9 +33,22 @@ public record AccountingProfile(
       String surname,
       java.time.LocalDate dateOfBirth,
       String taxMicroAccount) {
-    this(hasUop, nip, fullName, taxOfficeCode, email, vatPaymentAccount, ryczaltPaymentAccount,
-        zusPaymentAccount, firstName, surname, dateOfBirth, taxMicroAccount, true);
+    this(
+        hasUop,
+        nip,
+        fullName,
+        taxOfficeCode,
+        email,
+        vatPaymentAccount,
+        ryczaltPaymentAccount,
+        zusPaymentAccount,
+        firstName,
+        surname,
+        dateOfBirth,
+        taxMicroAccount,
+        true);
   }
+
   public AccountingProfile(
       boolean hasUop,
       String nip,

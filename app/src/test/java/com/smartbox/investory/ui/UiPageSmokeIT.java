@@ -276,10 +276,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
       String header = page.locator(".iv-planning-topbar").textContent();
       assertThat(header)
           .contains(
-              "Net worth",
-              "Projected annual result + income",
-              "Annual cost / year",
-              "projected")
+              "Net worth", "Projected annual result + income", "Annual cost / year", "projected")
           .doesNotContain("Market return");
 
       Locator sourceCards = page.locator(".iv-profile-source-card");

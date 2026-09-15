@@ -14,7 +14,8 @@ class AccountingProfileResolverTest {
   private final List<EmploymentInsurancePeriod> uop =
       List.of(
           new EmploymentInsurancePeriod(LocalDate.of(2022, 1, 1), LocalDate.of(2024, 6, 30), true),
-          new EmploymentInsurancePeriod(LocalDate.of(2025, 1, 1), null, true));
+          new EmploymentInsurancePeriod(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 31), true),
+          new EmploymentInsurancePeriod(LocalDate.of(2025, 8, 1), null, true));
   private final List<AccountingTaxProfilePeriod> tax =
       List.of(
           new AccountingTaxProfilePeriod(
@@ -32,7 +33,10 @@ class AccountingProfileResolverTest {
     assertThat(resolver.resolve(LocalDate.of(2023, 6, 1), jdg, uop, tax).qualifyingUop()).isTrue();
     assertThat(resolver.resolve(LocalDate.of(2024, 12, 1), jdg, uop, tax).qualifyingUop())
         .isFalse();
-    assertThat(resolver.resolve(LocalDate.of(2025, 6, 1), jdg, uop, tax).qualifyingUop()).isTrue();
+    assertThat(resolver.resolve(LocalDate.of(2025, 1, 1), jdg, uop, tax).qualifyingUop()).isTrue();
+    assertThat(resolver.resolve(LocalDate.of(2025, 2, 1), jdg, uop, tax).qualifyingUop()).isFalse();
+    assertThat(resolver.resolve(LocalDate.of(2025, 7, 1), jdg, uop, tax).qualifyingUop()).isFalse();
+    assertThat(resolver.resolve(LocalDate.of(2025, 8, 1), jdg, uop, tax).qualifyingUop()).isTrue();
   }
 
   @Test
