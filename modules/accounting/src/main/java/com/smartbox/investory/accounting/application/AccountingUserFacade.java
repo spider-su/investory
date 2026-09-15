@@ -16,6 +16,7 @@ import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionServi
 import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService;
 import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService.RecognizedInvoice;
 import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
+import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Objects;
@@ -111,7 +112,8 @@ public class AccountingUserFacade implements AccountingUserApi {
             snapshot.ryczalt().calculatedTax(),
             snapshot.zus().totalZus(),
             snapshot.invoices().size() + snapshot.expenses().size(),
-            snapshot.bankTransactions().size()),
+            snapshot.bankTransactions().size(),
+            snapshot.totalCalculatedObligations()),
         issues,
         new SourceSummary(outcomes.size(), imported, review, failed),
         ksef.map(AccountingKsefSyncPort::providerStatus).orElse("NOT_CONFIGURED"),
@@ -134,7 +136,8 @@ public class AccountingUserFacade implements AccountingUserApi {
             payments.stream()
                 .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
                 .map(com.smartbox.investory.accounting.AccountingPaymentInstruction::amount)
-                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)),
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add),
+            payments(profileId, month)),
         new FilingSummary(
             lifecycle.name(),
             label(lifecycle),
@@ -330,10 +333,19 @@ public class AccountingUserFacade implements AccountingUserApi {
         row.grossAmount(),
         row.currency(),
         "IMPORTED",
-        row.sourceId() == null ? null : row.sourceId().toString(),
+        row.sourceReference(),
         row.counterparty(),
         row.category(),
-        row.saleDate());
+        row.saleDate(),
+        row.counterpartyTaxIdentifier(),
+        row.counterpartyCountry(),
+        row.sourceType(),
+        row.sourceName(),
+        sourceLabel(row.sourceType()),
+        categoryLabel(row.category()),
+        importStatus(row.sourceType()),
+        null,
+        null);
   }
 
   private DocumentView document(InvoiceRow r) {
@@ -341,14 +353,23 @@ public class AccountingUserFacade implements AccountingUserApi {
         r.id(),
         r.reference(),
         "SALES",
-        r.issueDate(),
+        r.issueDate() == null ? r.saleDate() : r.issueDate(),
         r.grossAmount(),
         r.currency(),
         "IMPORTED",
         r.ksefNumber(),
         r.customerAlias(),
         null,
-        r.saleDate());
+        r.saleDate(),
+        r.counterpartyTaxIdentifier(),
+        r.counterpartyCountry(),
+        r.ksefNumber() == null ? null : "KSEF",
+        null,
+        sourceLabel(r.ksefNumber() == null ? null : "KSEF"),
+        null,
+        importStatus(r.ksefNumber() == null ? null : "KSEF"),
+        null,
+        null);
   }
 
   private DocumentView document(ExpenseRow r) {
@@ -363,7 +384,41 @@ public class AccountingUserFacade implements AccountingUserApi {
         r.ksefNumber(),
         r.supplierAlias(),
         r.category(),
+        null,
+        r.counterpartyTaxIdentifier(),
+        r.counterpartyCountry(),
+        r.ksefNumber() == null ? null : "KSEF",
+        null,
+        sourceLabel(r.ksefNumber() == null ? null : "KSEF"),
+        categoryLabel(r.category()),
+        importStatus(r.ksefNumber() == null ? null : "KSEF"),
+        null,
         null);
+  }
+
+  /** Import status is known only when a retained source evidence record identifies the source. */
+  private String importStatus(String sourceType) {
+    return sourceType == null ? null : "IMPORTED";
+  }
+
+  private String sourceLabel(String sourceType) {
+    return switch (sourceType == null ? "" : sourceType) {
+      case "UPLOAD" -> "File import";
+      case "KSEF" -> "KSeF";
+      case "BANK" -> "Bank import";
+      default -> null;
+    };
+  }
+
+  private String categoryLabel(String category) {
+    return switch (category == null ? "" : category) {
+      case "VEHICLE_FUEL" -> "Fuel";
+      case "ACCOUNTING_SERVICE" -> "Accounting service";
+      case "BUSINESS_SERVICE", "SERVICE" -> "Service";
+      case "EQUIPMENT" -> "Equipment";
+      case "OTHER" -> "Other";
+      default -> null;
+    };
   }
 
   @Override
@@ -380,16 +435,29 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<PaymentView> payments(long p, YearMonth m) {
     profile(p);
+    var reconciliation = facts.snapshot(p, date(m)).reconciliations();
     return paymentInstructions(p, date(m)).stream()
         .map(
-            x ->
-                new PaymentView(
-                    x.obligationType(),
-                    x.amount(),
-                    x.dueDate(),
-                    x.recipient(),
-                    x.account(),
-                    x.status()))
+            x -> {
+              var matched =
+                  reconciliation.stream()
+                      .filter(r -> "OBLIGATION_PAYMENT".equals(r.kind()))
+                      .filter(r -> x.obligationType().equals(r.reference()))
+                      .findFirst();
+              var reference = matched.map(r -> r.expectedAmount()).orElse(null);
+              var paid = matched.map(r -> r.matchedAmount()).orElse(x.matchedBankPayment());
+              BigDecimal difference = reference == null ? null : paid.subtract(reference);
+              return new PaymentView(
+                  x.obligationType(),
+                  x.amount(),
+                  reference,
+                  paid,
+                  difference,
+                  x.dueDate(),
+                  x.recipient(),
+                  x.account(),
+                  matched.map(r -> r.status()).orElse(x.status()));
+            })
         .toList();
   }
 
@@ -426,7 +494,9 @@ public class AccountingUserFacade implements AccountingUserApi {
         r.expectedAmount(),
         r.matchedAmount(),
         r.status(),
-        r.explanation());
+        r.explanation(),
+        r.currency(),
+        r.paymentDate());
   }
 
   @Override
@@ -547,9 +617,9 @@ public class AccountingUserFacade implements AccountingUserApi {
       validateReviewedDocument(d);
       var source = findReviewedSource(p, d.sourceReference());
       YearMonth effectiveTaxPeriod =
-          "CREDIT_NOTE".equals(d.documentType()) && d.issueDate() != null
-              ? YearMonth.from(d.issueDate())
-              : d.taxPeriod();
+          YearMonth.from(
+              AccountingDateRules.accountingPeriod(
+                  d.saleDate(), d.issueDate(), null, "CREDIT_NOTE".equals(d.documentType())));
       staging.stageInvoice(
           p,
           new AccountingInvoiceIngestionService.ReviewedInvoice(
@@ -602,8 +672,6 @@ public class AccountingUserFacade implements AccountingUserApi {
 
   private void validateReviewedDocument(ReviewedDocument document) {
     if (document == null) throw new IllegalArgumentException("Reviewed document is required");
-    if (document.taxPeriod() == null)
-      throw new IllegalArgumentException("Accounting month is required");
     String treatment = normalizeVatTreatment(document.documentType(), document.vatTreatment());
     if (("DOMESTIC_VAT".equals(treatment) || "DOMESTIC_PURCHASE".equals(treatment))
         && document.vatRate() == null) {

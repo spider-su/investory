@@ -173,7 +173,7 @@ class AccountingGoldenIT extends AccountingDatabaseTest {
         .singleElement()
         .satisfies(
             row -> {
-              assertThat(row.status()).isEqualTo("DIFF");
+              assertThat(row.status()).isEqualTo("MATCHED");
               assertThat(row.expectedAmount()).isEqualByComparingTo("1495.04");
               assertThat(row.matchedAmount()).isEqualByComparingTo("1495.00");
             });

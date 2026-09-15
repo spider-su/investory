@@ -86,6 +86,9 @@ public class AccountingBankTransactionIngestionService {
                 + " "
                 + (row.remittanceInformation() == null ? "" : row.remittanceInformation()))
             .toUpperCase();
+    if (contains(text, "PERSONAL", "PRIVATE", "RENTAL TAX")
+        || (contains(text, "PPE") && contains(text, "RENTAL")))
+      return new Classification("PRIVATE_PAYMENT", "EXCLUDED_PRIVATE", false);
     if (contains(text, "OWN_ACCOUNT", "INTERNAL", "TRANSFER", "TRANSFER OF FUNDS"))
       return new Classification("INTERNAL_TRANSFER", "EXCLUDED_INTERNAL", false);
     if (contains(text, "VAT", "VAT-7")) return new Classification("VAT_PAYMENT", "BUSINESS", false);
@@ -96,6 +99,7 @@ public class AccountingBankTransactionIngestionService {
       return new Classification("CUSTOMER_RECEIPT", "BUSINESS", false);
     if (row.amount().signum() < 0 && contains(text, "SUPPLIER", "VENDOR", "PAYMENT", "PURCHASE"))
       return new Classification("SUPPLIER_PAYMENT", "BUSINESS", false);
+    if (row.amount().signum() > 0) return new Classification("CUSTOMER_RECEIPT", "BUSINESS", false);
     return new Classification("UNKNOWN", "REVIEW_REQUIRED", true);
   }
 

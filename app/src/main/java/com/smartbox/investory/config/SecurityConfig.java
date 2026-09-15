@@ -20,10 +20,28 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+  @Bean
+  public CorsConfigurationSource corsConfigurationSource(
+      @Value("${app.security.mobile-api-allowed-origins:http://localhost:8081}")
+          String mobileApiAllowedOrigins) {
+    var configuration = new CorsConfiguration();
+    configuration.setAllowedOrigins(java.util.List.of(mobileApiAllowedOrigins.split(",")));
+    configuration.setAllowedMethods(java.util.List.of("GET", "OPTIONS"));
+    configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type"));
+    configuration.setAllowCredentials(true);
+
+    var source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/api/v1/**", configuration);
+    return source;
+  }
 
   @Bean
   public SecurityFilterChain securityFilterChain(
@@ -45,6 +63,7 @@ public class SecurityConfig {
                 })
             .sessionManagement(
                 session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .cors(Customizer.withDefaults())
             .authorizeHttpRequests(
                 auth ->
                     auth.requestMatchers(

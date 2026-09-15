@@ -334,6 +334,7 @@ CREATE TABLE investory.accounting_poc_profile (
     surname character varying(160),
     date_of_birth date,
     profile_id bigint NOT NULL,
+    auto_approve_known_counterparties boolean DEFAULT true CONSTRAINT accounting_poc_profile_auto_approve_known_counterparti_not_null NOT NULL,
     CONSTRAINT chk_accounting_poc_profile_singleton CHECK ((id = 1))
 );
 
@@ -487,8 +488,8 @@ COPY investory.accounting_poc_period_state (tax_period, confirmed_at, confirmed_
 -- Data for Name: accounting_poc_profile; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.accounting_poc_profile (id, has_uop, nip, full_name, tax_office_code, email, vat_payment_account, ryczalt_payment_account, zus_payment_account, first_name, surname, date_of_birth, profile_id) FROM stdin;
-1	t	1010000000	Investory Accounting POC	1215	accounting@example.invalid	\N	\N	\N	\N	\N	\N	1
+COPY investory.accounting_poc_profile (id, has_uop, nip, full_name, tax_office_code, email, vat_payment_account, ryczalt_payment_account, zus_payment_account, first_name, surname, date_of_birth, profile_id, auto_approve_known_counterparties) FROM stdin;
+1	t	1010000000	Investory Accounting POC	1215	accounting@example.invalid	\N	\N	\N	\N	\N	\N	1	t
 \.
 
 
@@ -497,6 +498,26 @@ COPY investory.accounting_poc_profile (id, has_uop, nip, full_name, tax_office_c
 --
 
 COPY investory.accounting_poc_tax_input (id, tax_period, input_type, amount, note, profile_id) FROM stdin;
+42	2025-03-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+32	2025-03-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
+43	2025-04-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+33	2025-04-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
+44	2025-05-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+34	2025-05-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
+45	2025-06-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+35	2025-06-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
+46	2025-07-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+36	2025-07-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
+47	2025-08-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+37	2025-08-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
+48	2025-09-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+38	2025-09-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
+49	2025-10-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+39	2025-10-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
+50	2025-11-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+40	2025-11-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
+51	2025-12-01	HEALTH_CONTRIBUTION_PAID	1384.9700	External-system paid health contribution fact; ryczałt uses the statutory 50% deductible portion.	1
+41	2025-12-01	SOCIAL_CONTRIBUTION_PAID	1518.9800	External-system paid deductible social contribution fact; retained independently from UoP/ZUS accrual resolution.	1
 \.
 
 
@@ -539,7 +560,7 @@ SELECT pg_catalog.setval('investory.accounting_poc_obligation_id_seq', 22, true)
 -- Name: accounting_poc_tax_input_id_seq; Type: SEQUENCE SET; Schema: investory; Owner: -
 --
 
-SELECT pg_catalog.setval('investory.accounting_poc_tax_input_id_seq', 31, true);
+SELECT pg_catalog.setval('investory.accounting_poc_tax_input_id_seq', 51, true);
 
 
 --

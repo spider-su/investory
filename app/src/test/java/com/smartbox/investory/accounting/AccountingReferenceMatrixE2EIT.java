@@ -99,16 +99,16 @@ class AccountingReferenceMatrixE2EIT {
                 + "FROM investory.accounting_reference_zus_branch ORDER BY tax_period, case_key",
             (rs, rowNum) -> ReferenceZusBranch.from(rs));
 
-    assertThat(rows).hasSize(16);
+    assertThat(rows).hasSize(17);
     var byMonth = rows.stream().collect(Collectors.groupingBy(ReferenceZusBranch::taxPeriod));
     assertThat(byMonth).hasSize(8);
     for (int month = 1; month <= 8; month++) {
       LocalDate period = LocalDate.of(2026, month, 1);
       var monthly = byMonth.get(period);
-      assertThat(monthly).as("reference rows for %s", period).hasSize(2);
-      assertThat(monthly.stream().map(ReferenceZusBranch::caseKey).collect(Collectors.toSet()))
-          .as("insurance branches for %s", period)
-          .containsExactlyInAnyOrder("UOP", "JDG_SICKNESS");
+      assertThat(monthly).as("reference rows for %s", period).hasSize(month == 1 ? 3 : 2);
+      var branches = monthly.stream().map(ReferenceZusBranch::caseKey).collect(Collectors.toSet());
+      assertThat(branches).as("insurance branches for %s", period).contains("UOP", "JDG_SICKNESS");
+      if (month == 1) assertThat(branches).contains("JDG_PLAIN");
       monthly.forEach(this::assertReferenceBranch);
     }
 

@@ -1,6 +1,7 @@
 package com.smartbox.investory.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -78,8 +79,21 @@ class AccountingFactServiceTest {
     when(repository.expensesForPeriod(historical)).thenReturn(List.of());
     when(repository.bankTransactionsForPeriod(historical)).thenReturn(List.of());
     when(repository.obligationsForPeriod(historical)).thenReturn(List.of());
-    when(repository.taxInputsForPeriod(historical)).thenReturn(List.of());
+    when(repository.taxInputsForPeriod(historical))
+        .thenReturn(
+            List.of(
+                new TaxInputRow(
+                    "HEALTH_CONTRIBUTION_PAID", new BigDecimal("1384.97"), "TMP test fixture"),
+                new TaxInputRow(
+                    "SOCIAL_CONTRIBUTION_PAID", new BigDecimal("1518.98"), "TMP test fixture")));
     when(repository.yearToDateRevenue(historical)).thenReturn(new BigDecimal("10000.00"));
+    when(repository.taxInputsUpTo(1L, historical))
+        .thenReturn(
+            List.of(
+                new TaxInputRow(
+                    "HEALTH_CONTRIBUTION_PAID", new BigDecimal("1384.97"), "external fact"),
+                new TaxInputRow(
+                    "SOCIAL_CONTRIBUTION_PAID", new BigDecimal("1518.98"), "external fact")));
     when(repository.businessActivityPeriods(1L))
         .thenReturn(List.of(new BusinessActivityPeriod(LocalDate.of(2026, 1, 1), null)));
     when(repository.employmentPeriods(1L))
@@ -120,8 +134,30 @@ class AccountingFactServiceTest {
     when(repository.expensesForPeriod(uopStartMonth)).thenReturn(List.of());
     when(repository.bankTransactionsForPeriod(uopStartMonth)).thenReturn(List.of());
     when(repository.obligationsForPeriod(uopStartMonth)).thenReturn(List.of());
-    when(repository.taxInputsForPeriod(uopStartMonth)).thenReturn(List.of());
+    when(repository.taxInputsForPeriod(uopStartMonth))
+        .thenReturn(
+            List.of(
+                new TaxInputRow(
+                    "HEALTH_CONTRIBUTION_PAID", new BigDecimal("1384.97"), "external fact"),
+                new TaxInputRow(
+                    "SOCIAL_CONTRIBUTION_PAID", new BigDecimal("1518.98"), "external fact")));
     when(repository.yearToDateRevenue(uopStartMonth)).thenReturn(new BigDecimal("20000.00"));
+    when(repository.yearToDateRevenue(uopStartMonth.minusMonths(1)))
+        .thenReturn(new BigDecimal("10000.00"));
+    when(repository.taxInputsUpTo(1L, uopStartMonth))
+        .thenReturn(
+            List.of(
+                new TaxInputRow(
+                    "HEALTH_CONTRIBUTION_PAID", new BigDecimal("1384.97"), "external fact"),
+                new TaxInputRow(
+                    "SOCIAL_CONTRIBUTION_PAID", new BigDecimal("1518.98"), "external fact")));
+    when(repository.taxInputsUpTo(1L, uopStartMonth.minusMonths(1)))
+        .thenReturn(
+            List.of(
+                new TaxInputRow(
+                    "HEALTH_CONTRIBUTION_PAID", new BigDecimal("1384.97"), "external fact"),
+                new TaxInputRow(
+                    "SOCIAL_CONTRIBUTION_PAID", new BigDecimal("1518.98"), "external fact")));
 
     var service = new AccountingFactService(facts, repository, fx);
     AccountingMonthSnapshot beforeUop = service.snapshot(historical);
@@ -133,6 +169,10 @@ class AccountingFactServiceTest {
     assertThat(withUop.zus().totalZus()).isEqualByComparingTo("1384.97");
     assertThat(withUop.zus().socialZus()).isZero();
     assertThat(withUop.zus().healthZus()).isEqualByComparingTo("1384.97");
+    assertThat(beforeUop.ryczalt().taxableBase()).isEqualByComparingTo("7789");
+    assertThat(beforeUop.ryczalt().calculatedTax()).isEqualByComparingTo("935");
+    assertThat(withUop.ryczalt().taxableBase()).isEqualByComparingTo("7789");
+    assertThat(withUop.ryczalt().calculatedTax()).isEqualByComparingTo("1200");
   }
 
   @Test
@@ -161,6 +201,26 @@ class AccountingFactServiceTest {
     assertThat(snapshot.comparisons()).isEmpty();
     assertThat(snapshot.readiness()).isEqualTo(AccountingReadiness.READY);
     assertThat(snapshot.totalBookedRevenuePln()).isEqualByComparingTo("1000.00");
+    assertThat(snapshot.zus().healthZus()).isEqualByComparingTo(ZusRules2026.HEALTH_LOW);
+  }
+
+  @Test
+  void currentZusbasisUsesPriorYtdRevenueAfterSocialPaidThroughPriorMonth() {
+    LocalDate september = LocalDate.of(2026, 9, 1);
+    var paidSocial =
+        new PaidContribution(
+            "SOCIAL",
+            LocalDate.of(2026, 8, 1),
+            LocalDate.of(2026, 8, 31),
+            new BigDecimal("1649.82"),
+            new BigDecimal("1649.82"),
+            42L);
+
+    AccountingMonthSnapshot snapshot =
+        currentMonthService(List.of(), new BigDecimal("61649.82"), List.of(paidSocial))
+            .snapshot(september);
+
+    assertThat(snapshot.zus().healthZus()).isEqualByComparingTo("498.35");
   }
 
   @Test
@@ -288,6 +348,13 @@ class AccountingFactServiceTest {
             List.of(
                 new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("1495.04"), "golden"),
                 new TaxInputRow("EXPECTED_REVENUE_PLN", new BigDecimal("49008.87"), "wFirma")));
+    when(repository.yearToDateRevenue(JULY)).thenReturn(new BigDecimal("49158.87"));
+    when(repository.yearToDateRevenue(JUNE)).thenReturn(BigDecimal.ZERO);
+    when(repository.taxInputsUpTo(1L, JULY))
+        .thenReturn(
+            List.of(
+                new TaxInputRow("HEALTH_CONTRIBUTION_PAID", new BigDecimal("1495.04"), "golden")));
+    when(repository.taxInputsUpTo(1L, JUNE)).thenReturn(List.of());
     when(fx.convertToBaseCurrency(
             new BigDecimal("7636.00"),
             CurrencyType.PLN,
@@ -348,6 +415,13 @@ class AccountingFactServiceTest {
   }
 
   private AccountingFactService currentMonthService(List<AccountingIssue> issues) {
+    return currentMonthService(issues, BigDecimal.ZERO, List.of());
+  }
+
+  private AccountingFactService currentMonthService(
+      List<AccountingIssue> issues,
+      BigDecimal previousYearToDateRevenue,
+      List<PaidContribution> paidContributions) {
     LocalDate september = LocalDate.of(2026, 9, 1);
     AccountingFactRepository factRepository = mock(AccountingFactRepository.class);
     AccountingPocRepository repository = mock(AccountingPocRepository.class);
@@ -386,6 +460,13 @@ class AccountingFactServiceTest {
             List.of(
                 new AccountingTaxProfilePeriod(
                     september, null, true, new BigDecimal("0.12"), true, true, "JDG", false)));
+    when(repository.yearToDateRevenue(september)).thenReturn(previousYearToDateRevenue);
+    when(repository.yearToDateRevenue(september.minusMonths(1)))
+        .thenReturn(previousYearToDateRevenue);
+    when(repository.paidContributionsUpTo(
+            org.mockito.ArgumentMatchers.eq(september), org.mockito.ArgumentMatchers.anyMap()))
+        .thenReturn(
+            new AccountingPocRepository.PaidContributionProjection(paidContributions, List.of()));
     when(repository.vatTransactionsForPeriod(september))
         .thenReturn(
             List.of(
@@ -715,6 +796,121 @@ class AccountingFactServiceTest {
         .containsExactly("MATCHED", "UNMATCHED");
   }
 
+  @Test
+  void matchesLegacyKnownCustomerReceiptAndFactoringReceiptOnce() {
+    AccountingFactRepository factRepository = mock(AccountingFactRepository.class);
+    AccountingPocRepository repository = mock(AccountingPocRepository.class);
+    CurrencyConversion fx = mock(CurrencyConversion.class);
+    when(fx.convertToBaseCurrency(any(), any(), any(), any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    AccountingFactService service = new AccountingFactService(factRepository, repository, fx);
+    InvoiceRow platform =
+        invoice(
+            JANUARY,
+            JANUARY.plusDays(10),
+            null,
+            "PLATFORM-1",
+            "IT PLATFORM SOLUTIONS LIMITED",
+            "EUR",
+            "7636",
+            "0",
+            "7636",
+            "0",
+            "0",
+            "0",
+            "7636",
+            "35000");
+    InvoiceRow factoring =
+        invoice(
+            JANUARY,
+            JANUARY.plusDays(10),
+            null,
+            "RITS-1",
+            "RITS_RELYON",
+            "PLN",
+            "34000",
+            "7820",
+            "41770.80",
+            "0",
+            "0",
+            "0",
+            "41770.80",
+            "41770.80");
+    when(repository.accountingProfile()).thenReturn(new AccountingProfile(true));
+    when(repository.invoicesForPeriod(JANUARY)).thenReturn(List.of(platform, factoring));
+    when(repository.invoicesForPeriod(JANUARY.minusMonths(1))).thenReturn(List.of());
+    when(repository.expensesForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.obligationsForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.taxInputsForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.bankTransactionsForPeriod(JANUARY))
+        .thenReturn(
+            List.of(
+                new BankRow(
+                    1,
+                    JANUARY.plusDays(20),
+                    null,
+                    "service",
+                    "IT PLATFORM SOLUTIONS LIMITED",
+                    "EUR",
+                    new BigDecimal("7636"),
+                    "UNKNOWN",
+                    "REVIEW_REQUIRED",
+                    "Service Agreement"),
+                new BankRow(
+                    2,
+                    JANUARY.plusDays(21),
+                    null,
+                    "factoring",
+                    "PKO FAKTORING S.A.",
+                    "PLN",
+                    new BigDecimal("41157.80"),
+                    "UNKNOWN",
+                    "REVIEW_REQUIRED",
+                    "RITS factoring")));
+
+    var rows = service.snapshot(JANUARY).reconciliations();
+    assertThat(rows)
+        .filteredOn(row -> "INVOICE_PAYMENT".equals(row.kind()))
+        .extracting(AccountingMonthSnapshot.ReconciliationRow::status)
+        .containsExactly("MATCHED", "MATCHED");
+    assertThat(rows)
+        .filteredOn(row -> "RITS-1".equals(row.reference()))
+        .singleElement()
+        .extracting(AccountingMonthSnapshot.ReconciliationRow::matchedAmount)
+        .isEqualTo(new BigDecimal("41157.80"));
+  }
+
+  @Test
+  void vatBankPaymentUsesOnlyOutboundTaxAuthorityTransfer() {
+    AccountingFactRepository factRepository = mock(AccountingFactRepository.class);
+    AccountingPocRepository repository = mock(AccountingPocRepository.class);
+    CurrencyConversion fx = mock(CurrencyConversion.class);
+    AccountingFactService service = new AccountingFactService(factRepository, repository, fx);
+    ObligationRow vat = obligation(JANUARY, "VAT", "13682.00");
+
+    when(repository.accountingProfile()).thenReturn(new AccountingProfile(true));
+    when(repository.invoicesForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.invoicesForPeriod(JANUARY.minusMonths(1))).thenReturn(List.of());
+    when(repository.expensesForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.obligationsForPeriod(JANUARY)).thenReturn(List.of(vat));
+    when(repository.taxInputsForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.bankTransactionsForPeriod(JANUARY))
+        .thenReturn(
+            List.of(
+                bankWithType(1L, JANUARY, "inbound-reversal", "URZĄD SKARBOWY", "13682.00"),
+                bankWithType(2L, JANUARY, "outbound-other", "OLEKSII SIROBABA", "-13682.00"),
+                bankWithType(3L, JANUARY, "outbound-tax", "URZĄD SKARBOWY", "-13682.00")));
+
+    var row =
+        service.snapshot(JANUARY).reconciliations().stream()
+            .filter(reconciliation -> "VAT".equals(reconciliation.reference()))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(row.status()).isEqualTo("MATCHED");
+    assertThat(row.matchedAmount()).isEqualByComparingTo("13682.00");
+  }
+
   private InvoiceRow invoice(
       LocalDate period,
       LocalDate saleDate,
@@ -786,6 +982,21 @@ class AccountingFactServiceTest {
         currency,
         new BigDecimal(amount),
         "CUSTOMER_RECEIPT",
+        "BUSINESS",
+        "fixture");
+  }
+
+  private BankRow bankWithType(
+      long id, LocalDate relatedPeriod, String reference, String counterparty, String amount) {
+    return new BankRow(
+        id,
+        relatedPeriod.plusMonths(1).withDayOfMonth(15),
+        relatedPeriod,
+        reference,
+        counterparty,
+        "PLN",
+        new BigDecimal(amount),
+        "VAT_PAYMENT",
         "BUSINESS",
         "fixture");
   }

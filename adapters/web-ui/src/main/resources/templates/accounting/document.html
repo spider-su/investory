@@ -15,11 +15,18 @@
     <section class="iv-card accounting-document-detail" data-testid="accounting-document-detail">
       <div class="row g-3">
         <div class="col-md-6"><label class="form-label">Document type</label><input class="form-control" readonly th:value="${document.direction + ' document'}" value="Income document"></div>
-        <div class="col-md-6"><label class="form-label">Status</label><input class="form-control" readonly th:value="${document.status}" value="Imported"></div>
-        <div class="col-md-6"><label class="form-label">Reference</label><input class="form-control" readonly th:value="${document.reference}" value="INV-020"></div>
+        <div class="col-md-6"><label class="form-label">Status</label><input class="form-control" readonly th:value="${document.status}" value="Issued"></div>
+        <div class="col-md-6"><label class="form-label">Invoice</label><input class="form-control" readonly th:value="${document.reference}" value="INV-020"></div>
         <div class="col-md-6"><label class="form-label">Date</label><input class="form-control" readonly th:value="${document.date}" value="30 Jun"></div>
         <div class="col-md-6"><label class="form-label">Amount</label><input class="form-control" readonly th:value="${document.amount}" value="7 636 EUR"></div>
-        <div class="col-md-6" th:if="${document.sourceReference != null}"><label class="form-label">Source</label><input class="form-control" readonly th:value="${document.sourceReference}" value="Source"></div>
+        <div class="col-md-6"><label class="form-label">Counterparty</label><input class="form-control" readonly th:value="${document.counterparty}" value="Counterparty"></div>
+        <div class="col-md-6" th:if="${document.counterpartyTaxIdentifier != null}"><label class="form-label">Tax ID</label><input class="form-control" readonly th:value="${document.counterpartyTaxIdentifier}" value="Tax ID"></div>
+        <div class="col-md-6" th:if="${document.counterpartyCountry != null}"><label class="form-label">Country</label><input class="form-control" readonly th:value="${document.counterpartyCountry}" value="PL"></div>
+        <div class="col-md-6" th:if="${document.category != '—'}"><label class="form-label">Category</label><input class="form-control" readonly th:value="${document.category}" value="Services"></div>
+        <div class="col-md-6" th:if="${document.saleDate != '—'}"><label class="form-label">Sale date</label><input class="form-control" readonly th:value="${document.saleDate}" value="30 Jun"></div>
+        <div class="col-md-6" th:if="${document.acquisitionSource != null}"><label class="form-label">Acquisition source</label><input class="form-control" readonly th:value="${document.acquisitionSource}" value="KSeF"></div>
+        <div class="col-md-6" th:if="${document.sourceName != null}"><label class="form-label">Source file</label><input class="form-control" readonly th:value="${document.sourceName}" value="invoice.xml"></div>
+        <div class="col-md-6" th:if="${document.sourceReference != null}"><label class="form-label">Source reference</label><input class="form-control" readonly th:value="${document.sourceReferenceDisplay}" value="Source"></div>
       </div>
       <div class="accounting-document-detail__actions">
         <a class="btn btn-primary" data-testid="accounting-document-review" th:if="${canWrite and document.canReview}" th:href="@{/profiles/{profileId}/accounting/documents/review(profileId=${profileId},month=${selectedMonth},sourceReference=${document.sourceReference})}">Review document</a>

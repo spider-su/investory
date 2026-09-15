@@ -74,8 +74,12 @@ public class AccountingFilingService {
         || profile.dateOfBirth() == null) {
       issues.add("MISSING_TAXPAYER_CONFIGURATION");
     }
-    filingInput.sales().forEach(document -> validateDocument(document, issues));
-    filingInput.purchases().forEach(document -> validateDocument(document, issues));
+    filingInput
+        .sales()
+        .forEach(document -> validateDocument(document, filingInput.schemaVersion(), issues));
+    filingInput
+        .purchases()
+        .forEach(document -> validateDocument(document, filingInput.schemaVersion(), issues));
     if (positive(snapshot.vat().calculatedVat()) && blank(profile.taxMicroAccount())) {
       issues.add("MISSING_PAYMENT_CONFIGURATION: VAT");
     }
@@ -101,15 +105,16 @@ public class AccountingFilingService {
         documents.stream().filter(document -> document.purchaseDate() == null).toList(),
         documents.stream().filter(document -> document.purchaseDate() != null).toList(),
         profile,
-        "JPK_V7M(3)");
+        AccountingJpkSchemaVersion.forPeriod(period));
   }
 
   private void validateDocument(
-      AccountingFilingInput.FilingDocument document, List<String> issues) {
+      AccountingFilingInput.FilingDocument document, String schemaVersion, List<String> issues) {
     if (blank(document.counterpartyIdentifier())) {
       issues.add("MISSING_COUNTERPARTY_IDENTIFIER: " + document.reference());
     }
-    if (document.evidence() == null || document.evidence().type() == null) {
+    if (AccountingJpkSchemaVersion.requiresEvidenceClassification(schemaVersion)
+        && (document.evidence() == null || document.evidence().type() == null)) {
       issues.add("MISSING_JPK_EVIDENCE_CLASSIFICATION: " + document.reference());
     }
     if ((document.treatment() == VatTreatment.DOMESTIC_VAT
@@ -284,13 +289,13 @@ public class AccountingFilingService {
       return existing.get().payload();
     }
     byte[] payload = jpkGenerator.generate(result);
-    jpkXmlValidator.validate(payload);
+    jpkXmlValidator.validate(payload, result.filingInput().schemaVersion());
     repository.saveFilingArtifact(
         profileId,
         new AccountingFilingArtifact(
             AccountingFilingArtifact.Type.JPK_V7M,
             period,
-            "JPK_V7M_3",
+            result.filingInput().schemaVersion().replace('(', '_').replace(")", ""),
             payload,
             AccountingFilingFingerprint.sha256(payload),
             result.calculationHash(),
@@ -505,7 +510,7 @@ public class AccountingFilingService {
           sales,
           purchases,
           profile,
-          "JPK_V7M(3)");
+          AccountingJpkSchemaVersion.forPeriod(period));
     }
 
     private BigDecimal filingNetAmount(AccountingMonthSnapshot.InvoiceRow invoice) {

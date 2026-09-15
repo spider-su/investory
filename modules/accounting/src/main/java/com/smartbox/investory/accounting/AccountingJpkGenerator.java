@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import org.springframework.stereotype.Service;
 
-/** JPK_V7M(3) projection. It consumes a filing-only input and performs no tax calculation. */
+/** JPK_V7M projection. It consumes a filing-only input and performs no tax calculation. */
 @Service
 public class AccountingJpkGenerator {
   static final String NS = "http://crd.gov.pl/wzor/2025/12/19/14090/";
@@ -22,12 +22,22 @@ public class AccountingJpkGenerator {
     AccountingProfile p = input.taxpayer();
     JpkTotals totals = totals(input);
     StringBuilder xml = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    int variant = AccountingJpkSchemaVersion.variant(input.schemaVersion());
+    String namespace = variant == 2 ? "http://crd.gov.pl/wzor/2021/12/27/11148/" : NS;
     xml.append("<JPK xmlns=\"")
-        .append(NS)
+        .append(namespace)
+        .append("\" xmlns:etd=\"")
         .append(
-            "\" xmlns:etd=\"http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2022/09/13/eD/DefinicjeTypy/\">\n");
+            variant == 2
+                ? "http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2021/06/08/eD/DefinicjeTypy/"
+                : "http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2022/09/13/eD/DefinicjeTypy/")
+        .append("\">\n");
     xml.append(
-            "<Naglowek><KodFormularza kodSystemowy=\"JPK_V7M (3)\" wersjaSchemy=\"1-0E\">JPK_VAT</KodFormularza><WariantFormularza>3</WariantFormularza><DataWytworzeniaJPK>")
+            "<Naglowek><KodFormularza kodSystemowy=\"JPK_V7M ("
+                + variant
+                + ")\" wersjaSchemy=\"1-0E\">JPK_VAT</KodFormularza><WariantFormularza>"
+                + variant
+                + "</WariantFormularza><DataWytworzeniaJPK>")
         .append(generationTimestamp(input.period()))
         .append(
             "</DataWytworzeniaJPK><NazwaSystemu>Investory Accounting POC</NazwaSystemu><CelZlozenia poz=\"P_7\">1</CelZlozenia><KodUrzedu>")
@@ -53,7 +63,11 @@ public class AccountingJpkGenerator {
         .append("</Email>")
         .append("</OsobaFizyczna></Podmiot1>\n");
     xml.append(
-            "<Deklaracja><Naglowek><KodFormularzaDekl kodSystemowy=\"VAT-7 (23)\" kodPodatku=\"VAT\" rodzajZobowiazania=\"Z\" wersjaSchemy=\"1-0E\">VAT-7</KodFormularzaDekl><WariantFormularzaDekl>23</WariantFormularzaDekl></Naglowek><PozycjeSzczegolowe><P_13>")
+            "<Deklaracja><Naglowek><KodFormularzaDekl kodSystemowy=\"VAT-7 ("
+                + (variant == 2 ? "22" : "23")
+                + ")\" kodPodatku=\"VAT\" rodzajZobowiazania=\"Z\" wersjaSchemy=\"1-0E\">VAT-7</KodFormularzaDekl><WariantFormularzaDekl>"
+                + (variant == 2 ? "22" : "23")
+                + "</WariantFormularzaDekl></Naglowek><PozycjeSzczegolowe><P_13>")
         .append(declarationMoney(salesNet(input.sales(), BigDecimal.ZERO)))
         .append("</P_13><P_15>")
         .append(declarationMoney(salesNet(input.sales(), new BigDecimal("5"))))
@@ -108,7 +122,7 @@ public class AccountingJpkGenerator {
           .append("</DataWystawienia>")
           .append(
               row.saleDate() == null ? "" : "<DataSprzedazy>" + row.saleDate() + "</DataSprzedazy>")
-          .append(evidence(row.evidence()))
+          .append(evidence(row.evidence(), variant))
           .append(salesVatColumns(row))
           .append("</SprzedazWiersz>");
     }
@@ -127,7 +141,7 @@ public class AccountingJpkGenerator {
           .append("</DataWystawienia>")
           .append(
               row.saleDate() == null ? "" : "<DataSprzedazy>" + row.saleDate() + "</DataSprzedazy>")
-          .append(evidence(row.evidence()))
+          .append(evidence(row.evidence(), variant))
           .append(importServiceColumns(row))
           .append("</SprzedazWiersz>");
     }
@@ -149,7 +163,7 @@ public class AccountingJpkGenerator {
           .append("</DowodZakupu><DataZakupu>")
           .append(row.purchaseDate())
           .append("</DataZakupu>")
-          .append(evidence(row.evidence()))
+          .append(evidence(row.evidence(), variant))
           .append("<K_42>")
           .append(money(deductiblePurchaseNet(row)))
           .append("</K_42><K_43>")
@@ -385,7 +399,8 @@ public class AccountingJpkGenerator {
         .replace("\"", "&quot;");
   }
 
-  private String evidence(AccountingFilingEvidence evidence) {
+  private String evidence(AccountingFilingEvidence evidence, int variant) {
+    if (variant == 2) return "";
     if (evidence == null || evidence.type() == null) return "";
     return switch (evidence.type()) {
       case KSEF -> "<NrKSeF>" + escape(evidence.ksefNumber()) + "</NrKSeF>";

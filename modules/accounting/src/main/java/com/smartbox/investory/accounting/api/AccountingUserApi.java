@@ -77,13 +77,25 @@ public interface AccountingUserApi {
       List<String> allowedActions,
       ReferenceSummary reference) {}
 
+  /** Monthly accounting facts; totalObligations is calculated before recorded payments. */
   record Summary(
       BigDecimal revenue,
       BigDecimal vat,
       BigDecimal ryczalt,
       BigDecimal zus,
       int documents,
-      int bankTransactions) {}
+      int bankTransactions,
+      BigDecimal totalObligations) {
+    public Summary(
+        BigDecimal revenue,
+        BigDecimal vat,
+        BigDecimal ryczalt,
+        BigDecimal zus,
+        int documents,
+        int bankTransactions) {
+      this(revenue, vat, ryczalt, zus, documents, bankTransactions, null);
+    }
+  }
 
   record SourceSummary(int evidenceCount, int imported, int reviewRequired, int failed) {}
 
@@ -120,7 +132,16 @@ public interface AccountingUserApi {
 
   record BankSummary(int transactionCount, int unmatchedCount, String importStatus) {}
 
-  record PaymentSummary(int expectedCount, int outstandingCount, BigDecimal totalOutstanding) {}
+  /** Issued payment instructions only; excludes obligations when instructions are not issued. */
+  record PaymentSummary(
+      int expectedCount,
+      int outstandingCount,
+      BigDecimal totalOutstanding,
+      List<PaymentView> payments) {
+    public PaymentSummary(int expectedCount, int outstandingCount, BigDecimal totalOutstanding) {
+      this(expectedCount, outstandingCount, totalOutstanding, List.of());
+    }
+  }
 
   record FilingSummary(
       String lifecycle,
@@ -206,7 +227,55 @@ public interface AccountingUserApi {
       String sourceReference,
       String counterparty,
       String category,
-      LocalDate saleDate) {
+      LocalDate saleDate,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String acquisitionSource,
+      String sourceName,
+      String acquisitionSourceLabel,
+      String categoryLabel,
+      String importStatus,
+      String reviewStatus,
+      String paymentStatus) {
+    public DocumentView(
+        long id,
+        String reference,
+        String direction,
+        LocalDate date,
+        BigDecimal grossAmount,
+        String currency,
+        String status,
+        String sourceReference,
+        String counterparty,
+        String category,
+        LocalDate saleDate,
+        String counterpartyTaxIdentifier,
+        String counterpartyCountry,
+        String acquisitionSource,
+        String sourceName) {
+      this(
+          id,
+          reference,
+          direction,
+          date,
+          grossAmount,
+          currency,
+          status,
+          sourceReference,
+          counterparty,
+          category,
+          saleDate,
+          counterpartyTaxIdentifier,
+          counterpartyCountry,
+          acquisitionSource,
+          sourceName,
+          null,
+          null,
+          null,
+          null,
+          null);
+    }
+
     public DocumentView(
         long id,
         String reference,
@@ -227,6 +296,15 @@ public interface AccountingUserApi {
           sourceReference,
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null);
     }
   }
@@ -242,6 +320,9 @@ public interface AccountingUserApi {
   record PaymentView(
       String type,
       BigDecimal amount,
+      BigDecimal referenceAmount,
+      BigDecimal paidAmount,
+      BigDecimal difference,
       LocalDate dueDate,
       String recipient,
       String account,
@@ -265,7 +346,19 @@ public interface AccountingUserApi {
       BigDecimal expectedAmount,
       BigDecimal matchedAmount,
       String status,
-      String explanation) {}
+      String explanation,
+      String currency,
+      LocalDate paymentDate) {
+    public ReconciliationView(
+        String reference,
+        String kind,
+        BigDecimal expectedAmount,
+        BigDecimal matchedAmount,
+        String status,
+        String explanation) {
+      this(reference, kind, expectedAmount, matchedAmount, status, explanation, "PLN", null);
+    }
+  }
 
   record CandidateView(
       String sourceReference,

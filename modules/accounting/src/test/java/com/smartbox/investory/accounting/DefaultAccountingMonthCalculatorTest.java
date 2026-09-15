@@ -12,11 +12,121 @@ import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableExcep
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class DefaultAccountingMonthCalculatorTest {
   private static final LocalDate PERIOD = LocalDate.of(2026, 9, 1);
+
+  @Test
+  void orchestratedTaxResultsAndObligationsComeFromAuthoritativeCalculators() {
+    var base =
+        input(
+            List.of(
+                invoice("PLN-12", "PLN", "1000.00", "0.12"),
+                invoice("PLN-8", "PLN", "2000.00", "0.08")),
+            List.of());
+    var saleVat =
+        new AccountingVatTransaction(
+            PERIOD,
+            "source-PLN-12",
+            "PLN-12",
+            AccountingVatTransaction.Direction.SALE,
+            VatTreatment.DOMESTIC_VAT,
+            "PL",
+            "PL1234567890",
+            "NIP",
+            null,
+            null,
+            null,
+            new BigDecimal("1000.00"),
+            new BigDecimal("230.00"),
+            BigDecimal.ZERO,
+            "reviewed",
+            new BigDecimal("23"));
+    var calculationInput =
+        new AccountingCalculationInput(
+            base.period(),
+            base.invoices(),
+            base.expenses(),
+            base.taxInputs(),
+            base.profile(),
+            base.adjustments(),
+            base.periodContext(),
+            List.of(saleVat),
+            AccountingCalculationMode.HISTORICAL_RECONSTRUCTION);
+    var result = calculator(mock(CurrencyConversion.class)).calculate(calculationInput);
+    var directRyczalt =
+        new RyczaltCalculator().calculate(calculationInput, result.fx(), new ArrayList<>());
+    var directVat = new VatCalculator().calculate(calculationInput, new ArrayList<>());
+
+    assertThat(result.ryczalt()).isEqualTo(directRyczalt);
+    assertThat(result.vat()).isEqualTo(directVat);
+    assertThat(result.ryczalt().calculatedTax())
+        .isEqualByComparingTo(directRyczalt.calculatedTax());
+    assertThat(result.vat().calculatedVat()).isEqualByComparingTo(directVat.calculatedVat());
+    assertThat(result.calculatedObligations())
+        .extracting(AccountingCalculationResult.CalculatedObligation::amount)
+        .containsExactly(
+            directRyczalt.calculatedTax(), directVat.calculatedVat(), result.zus().totalZus());
+  }
+
+  @Test
+  void ryczaltDeductionAllocationIsIndependentOfInvoiceInputOrder() {
+    var base =
+        input(
+            List.of(
+                invoice("PLN-12", "PLN", "100.00", "0.12"),
+                invoice("PLN-8", "PLN", "100.00", "0.08")),
+            List.of());
+    var context =
+        new AccountingPeriodContext(
+            PERIOD,
+            true,
+            false,
+            "JDG",
+            false,
+            new BigDecimal("0.12"),
+            true,
+            false,
+            new AccountingYearToDateContext(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                List.of(
+                    new PaidContribution(
+                        "SOCIAL", PERIOD, PERIOD, new BigDecimal("0.01"), null, 1L))),
+            null);
+    var forward =
+        new AccountingCalculationInput(
+            base.period(),
+            base.invoices(),
+            base.expenses(),
+            base.taxInputs(),
+            base.profile(),
+            base.adjustments(),
+            context,
+            List.of(),
+            AccountingCalculationMode.HISTORICAL_RECONSTRUCTION);
+    var reversed =
+        new AccountingCalculationInput(
+            base.period(),
+            List.of(base.invoices().get(1), base.invoices().get(0)),
+            base.expenses(),
+            base.taxInputs(),
+            base.profile(),
+            base.adjustments(),
+            context,
+            List.of(),
+            AccountingCalculationMode.HISTORICAL_RECONSTRUCTION);
+
+    var first = calculator(mock(CurrencyConversion.class)).calculate(forward);
+    var second = calculator(mock(CurrencyConversion.class)).calculate(reversed);
+
+    assertThat(first.ryczalt().taxableByRate()).isEqualTo(second.ryczalt().taxableByRate());
+  }
 
   @Test
   void calculatesForeignRevenueThroughSharedConverterAndCreatesObligations() {

@@ -4,9 +4,9 @@ import com.smartbox.investory.accounting.AccountingCalculationResult.FxCalculati
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /** Calculates the supported ryczałt/PIT-28 result from normalized facts. */
 final class RyczaltCalculator {
@@ -27,7 +27,7 @@ final class RyczaltCalculator {
     var periodStart = input.period().withDayOfMonth(1);
     var periodEnd = input.period().withDayOfMonth(input.period().lengthOfMonth());
     var deductions = deductionState(input, revenue, periodStart, periodEnd);
-    Map<BigDecimal, BigDecimal> buckets = new LinkedHashMap<>();
+    Map<BigDecimal, BigDecimal> buckets = new TreeMap<>();
     BigDecimal effectiveRate = input.periodContext().ryczaltRate();
     if (input.calculationMode() == AccountingCalculationMode.CURRENT_CALCULATION
         && (input.periodContext().zusRegime() == null || effectiveRate == null)) {
@@ -131,6 +131,7 @@ final class RyczaltCalculator {
             .taxableRyczaltRevenue()
             .subtract(currentRevenue)
             .max(BigDecimal.ZERO);
+    // An explicit context checkpoint takes precedence over a lower derived prior-use estimate.
     BigDecimal previouslyUsed =
         input.periodContext().yearToDate().deductionsAlreadyConsumed().max(prior.min(priorRevenue));
     BigDecimal available = social.add(health).subtract(previouslyUsed).max(BigDecimal.ZERO);
@@ -145,7 +146,8 @@ final class RyczaltCalculator {
 
   private Map<BigDecimal, BigDecimal> allocateDeductions(
       Map<BigDecimal, BigDecimal> revenue, BigDecimal deductions) {
-    Map<BigDecimal, BigDecimal> result = new LinkedHashMap<>();
+    // Numeric rate order makes rounding residue independent of invoice input order.
+    Map<BigDecimal, BigDecimal> result = new TreeMap<>();
     BigDecimal total = revenue.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal remaining = deductions;
     int index = 0;

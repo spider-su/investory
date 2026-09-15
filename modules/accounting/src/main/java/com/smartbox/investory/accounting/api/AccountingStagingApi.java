@@ -40,7 +40,9 @@ public interface AccountingStagingApi {
       String documentKind,
       java.time.LocalDate documentDate,
       String counterparty,
-      String category) {
+      String category,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry) {
     public Row(
         String type,
         long id,
@@ -63,6 +65,8 @@ public interface AccountingStagingApi {
           amount,
           currency,
           promoted,
+          null,
+          null,
           null,
           null,
           null,

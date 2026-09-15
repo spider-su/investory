@@ -7,10 +7,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.smartbox.investory.accounting.api.AccountingUserApi;
 import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
+import java.time.YearMonth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.mock.web.MockMultipartFile;
@@ -22,6 +25,82 @@ import org.springframework.test.web.servlet.MockMvc;
 @DisplayName("Accounting user REST boundary")
 class AccountingRestControllerIT extends AccountingDatabaseTest {
   @Autowired private MockMvc mvc;
+
+  @Autowired
+  @Qualifier("accountingUserFacade")
+  private AccountingUserApi accounting;
+
+  @Test
+  @DisplayName("versioned mobile reads expose mapped operational accounting data")
+  void mobileReadsMapOperationalDataWithoutReferenceOracle() throws Exception {
+    var admin = user("admin").roles("ADMIN");
+    var expected = accounting.overview(1, YearMonth.of(2026, 1));
+
+    mvc.perform(get("/api/v1/profiles/1/accounting/months/2026-01").with(admin))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.month").value("2026-01"))
+        .andExpect(jsonPath("$.summary.revenue").value(expected.summary().revenue().doubleValue()))
+        .andExpect(
+            jsonPath("$.summary.totalObligations")
+                .value(expected.summary().totalObligations().doubleValue()))
+        .andExpect(
+            jsonPath("$.paymentSummary.totalOutstanding")
+                .value(expected.paymentSummary().totalOutstanding().doubleValue()))
+        .andExpect(jsonPath("$.paymentSummary.payments").isArray())
+        .andExpect(jsonPath("$.reference").doesNotExist());
+
+    mvc.perform(get("/api/v1/profiles/1/accounting/months/2026-01/documents").with(admin))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(jsonPath("$[?(@.type == 'SALE')]").isNotEmpty())
+        .andExpect(jsonPath("$[?(@.type == 'PURCHASE')]").isNotEmpty())
+        .andExpect(jsonPath("$[?(@.category == 'VEHICLE_FUEL')].categoryLabel").isNotEmpty());
+  }
+
+  @Test
+  @DisplayName("May obligations remain available when payment instructions are not yet issued")
+  void mayExposesCalculatedObligationsSeparatelyFromOutstandingPayments() throws Exception {
+    var admin = user("admin").roles("ADMIN");
+    var overview = accounting.overview(1, YearMonth.of(2026, 5));
+
+    org.assertj.core.api.Assertions.assertThat(overview.summary().totalObligations())
+        .isEqualByComparingTo(
+            overview
+                .summary()
+                .vat()
+                .add(overview.summary().ryczalt())
+                .add(overview.summary().zus()));
+    org.assertj.core.api.Assertions.assertThat(overview.paymentSummary().totalOutstanding())
+        .isZero();
+
+    mvc.perform(get("/api/v1/profiles/1/accounting/months/2026-05").with(admin))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$.summary.totalObligations")
+                .value(overview.summary().totalObligations().doubleValue()))
+        .andExpect(jsonPath("$.paymentSummary.totalOutstanding").value(0));
+  }
+
+  @Test
+  @DisplayName("versioned mobile reads preserve issue details and profile/month boundaries")
+  void mobileReadsValidateMonthAndProfile() throws Exception {
+    var admin = user("admin").roles("ADMIN");
+
+    mvc.perform(get("/api/v1/profiles/1/accounting/months/not-a-month").with(admin))
+        .andExpect(status().isBadRequest());
+    mvc.perform(get("/api/v1/profiles/999/accounting/months/2026-01").with(admin))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("versioned mobile reads do not change the MVC accounting page")
+  void mvcAccountingPageStillWorks() throws Exception {
+    mvc.perform(
+            get("/profiles/1/accounting")
+                .param("month", "2026-01")
+                .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+  }
 
   @Test
   @DisplayName("admin can read the monthly overview and detail resources")
