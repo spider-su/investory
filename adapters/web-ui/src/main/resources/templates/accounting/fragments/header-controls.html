@@ -23,7 +23,7 @@
   <div class="accounting-brand-summary">
     <div class="accounting-brand-summary__period" th:text="${'For ' + selectedMonth}">For 2025-01</div>
     <div class="accounting-brand-summary__total" th:text="${totalToPayDisplay}">0 zł</div>
-    <div class="accounting-brand-summary__label">to pay</div>
+    <div class="accounting-brand-summary__label" th:text="${totalToPayLabel ?: 'to pay'}">to pay</div>
     <div class="accounting-brand-summary__facts">
       <div><span>Due date</span><strong th:text="${payments.isEmpty() ? '—' : payments.get(0).dueDate}">2025-01-20</strong></div>
       <div><span>Status</span><strong class="accounting-status-badge" th:text="${workspaceStatus}">In progress</strong></div>

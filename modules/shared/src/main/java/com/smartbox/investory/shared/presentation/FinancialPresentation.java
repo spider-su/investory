@@ -106,6 +106,16 @@ public final class FinancialPresentation {
     return moneyWhole(value) + (currency == null ? "" : " " + currency);
   }
 
+  /** Whole-unit money for compact tables, rounded for display only. */
+  public static String moneyWhole(BigDecimal value, Object currency, Locale locale) {
+    NumberFormat format = NumberFormat.getNumberInstance(locale == null ? Locale.US : locale);
+    format.setMinimumFractionDigits(0);
+    format.setMaximumFractionDigits(0);
+    format.setRoundingMode(RoundingMode.HALF_UP);
+    String amount = format.format(zeroIfNull(value));
+    return currency == null ? amount : amount + " " + currency;
+  }
+
   public static String money(BigDecimal value, Object currency) {
     return money(value) + (currency == null ? "" : " " + currency);
   }

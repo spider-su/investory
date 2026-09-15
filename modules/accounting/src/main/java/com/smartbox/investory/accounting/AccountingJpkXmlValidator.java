@@ -10,23 +10,28 @@ import org.springframework.stereotype.Component;
 import org.w3c.dom.ls.LSInput;
 import org.w3c.dom.ls.LSResourceResolver;
 
-/** Validates generated JPK_V7M(3) XML against the locally bundled official schema. */
+/** Validates generated JPK_V7M XML against the locally bundled official schema. */
 @Component
 public class AccountingJpkXmlValidator {
-  private static final String SCHEMA = "/jpk/jpk-v7m-3/schemat.xsd";
-
   public void validate(byte[] payload) {
+    validate(payload, "JPK_V7M(3)");
+  }
+
+  public void validate(byte[] payload, String schemaVersion) {
     try {
+      int variant = AccountingJpkSchemaVersion.variant(schemaVersion);
+      String schemaPath = "/jpk/jpk-v7m-" + variant + "/schemat.xsd";
       SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
       factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
       factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
       // Imports resolve only to the bundled sibling XSDs; network and nested-jar access remain
       // blocked.
       factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-      factory.setResourceResolver(new BundledSchemaResolver());
-      var schemaUrl = getClass().getResource(SCHEMA);
-      try (InputStream schema = getClass().getResourceAsStream(SCHEMA)) {
-        if (schema == null) throw new IllegalStateException("Bundled JPK_V7M(3) schema is missing");
+      factory.setResourceResolver(new BundledSchemaResolver(variant));
+      var schemaUrl = getClass().getResource(schemaPath);
+      try (InputStream schema = getClass().getResourceAsStream(schemaPath)) {
+        if (schema == null)
+          throw new IllegalStateException("Bundled " + schemaVersion + " schema is missing");
         var source = new StreamSource(schema);
         source.setSystemId(schemaUrl.toExternalForm());
         factory
@@ -40,11 +45,18 @@ public class AccountingJpkXmlValidator {
   }
 
   private static final class BundledSchemaResolver implements LSResourceResolver {
+    private final int variant;
+
+    private BundledSchemaResolver(int variant) {
+      this.variant = variant;
+    }
+
     @Override
     public LSInput resolveResource(
         String type, String namespaceURI, String publicId, String systemId, String baseURI) {
       String name = systemId.substring(systemId.lastIndexOf('/') + 1);
-      String resource = "/jpk/jpk-v7m-3/" + name;
+      String versionDirectory = "jpk-v7m-" + variant;
+      String resource = "/jpk/" + versionDirectory + "/" + name;
       InputStream stream = AccountingJpkXmlValidator.class.getResourceAsStream(resource);
       if (stream == null) return null;
       return new BundledSchemaInput(publicId, systemId, stream);

@@ -23,6 +23,24 @@ final class VatCalculator {
           .map(ExpenseRow::reference)
           .filter(this::present)
           .forEach(required::add);
+      input.invoices().stream()
+          .filter(i -> !present(i.reference()))
+          .forEach(
+              i ->
+                  issues.add(
+                      issue(
+                          "MISSING_VAT_CLASSIFICATION",
+                          null,
+                          "Document reference is missing; VAT treatment cannot be matched to this document.")));
+      input.expenses().stream()
+          .filter(e -> !present(e.reference()))
+          .forEach(
+              e ->
+                  issues.add(
+                      issue(
+                          "MISSING_VAT_CLASSIFICATION",
+                          null,
+                          "Document reference is missing; VAT treatment cannot be matched to this document.")));
       var classified = new HashSet<String>();
       var duplicate = new HashSet<String>();
       input.vatTransactions().stream()
@@ -76,7 +94,9 @@ final class VatCalculator {
             .anyMatch(
                 i ->
                     i.type().equals("MISSING_VAT_CLASSIFICATION")
-                        || i.type().equals("DUPLICATE_VAT_CLASSIFICATION"))) {
+                        || i.type().equals("DUPLICATE_VAT_CLASSIFICATION")
+                        || (i.type().equals("MISSING_VAT_CLASSIFICATION")
+                            && i.sourceReference() == null))) {
       outputVat = BigDecimal.ZERO;
       deductible = BigDecimal.ZERO;
     } else {
@@ -84,16 +104,17 @@ final class VatCalculator {
       input
           .vatTransactions()
           .forEach(
-              t ->
-                  classifier
-                      .issues(t)
-                      .forEach(
-                          message ->
-                              issues.add(
-                                  issue(
-                                      "VAT_CLASSIFICATION",
-                                      t == null ? null : t.reference(),
-                                      message))));
+              t -> {
+                if (t == null) {
+                  issues.add(issue("INVALID_VAT_TRANSACTION", null, "VAT transaction is missing."));
+                  return;
+                }
+                classifier
+                    .issues(t)
+                    .forEach(
+                        message -> issues.add(issue("VAT_CLASSIFICATION", t.reference(), message)));
+                validateSigns(t, issues);
+              });
       outputVat =
           input.vatTransactions().stream()
               .filter(
@@ -130,6 +151,39 @@ final class VatCalculator {
 
   private boolean present(String value) {
     return value != null && !value.isBlank();
+  }
+
+  private void validateSigns(AccountingVatTransaction t, List<AccountingIssue> issues) {
+    if (t.netAmount() == null || t.vatAmount() == null) return;
+    if (t.direction() == AccountingVatTransaction.Direction.PURCHASE
+        && t.deductibleVat() != null
+        && t.deductibleVat().compareTo(t.vatAmount()) > 0) {
+      issues.add(
+          issue(
+              "INVALID_DEDUCTIBLE_VAT",
+              t.reference(),
+              "Deductible VAT cannot exceed document VAT."));
+    }
+    if (t.vatAmount().signum() != 0 && t.netAmount().signum() != t.vatAmount().signum()) {
+      issues.add(
+          issue(
+              "INVALID_VAT_SIGN",
+              t.reference(),
+              "Net and VAT amounts must have consistent direction."));
+    } else if (t.netAmount().signum() < 0
+        && t.vatAmount().signum() == 0
+        && t.vatRate() != null
+        && t.vatRate().signum() > 0
+        && (t.treatment() == VatTreatment.DOMESTIC_VAT
+            || t.treatment() == VatTreatment.DOMESTIC_PURCHASE
+            || t.treatment() == VatTreatment.IMPORT_OF_SERVICES_EU
+            || t.treatment() == VatTreatment.IMPORT_OF_SERVICES_NON_EU)) {
+      issues.add(
+          issue(
+              "INVALID_VAT_SIGN",
+              t.reference(),
+              "Taxable negative net amount requires negative VAT."));
+    }
   }
 
   private AccountingIssue issue(String type, String reference, String message) {

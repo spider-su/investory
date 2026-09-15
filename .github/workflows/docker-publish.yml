@@ -47,6 +47,7 @@ jobs:
           test -f "${{ github.workspace }}/pom.xml"
 
       - name: Build and push
+        id: image
         uses: docker/build-push-action@v7
         with:
           context: ${{ github.workspace }}
@@ -56,3 +57,28 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_COMMIT=${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Scan published image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/investory@${{ steps.image.outputs.digest }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Generate image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/investory@${{ steps.image.outputs.digest }}
+          artifact-name: investory-image.spdx.json
+          output-file: investory.spdx.json
+
+      - name: Upload image SBOM
+        uses: actions/upload-artifact@v7
+        with:
+          name: investory-image-sbom
+          path: investory.spdx.json
+          if-no-files-found: error
+          retention-days: 7

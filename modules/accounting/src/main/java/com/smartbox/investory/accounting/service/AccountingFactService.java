@@ -180,9 +180,11 @@ public class AccountingFactService {
             : pocRepository.vatTransactionsForPeriod(profileId, period);
     var yearToDate =
         new AccountingYearToDateContext(
-            profileId == 1
-                ? pocRepository.yearToDateRevenue(period)
-                : pocRepository.yearToDateRevenue(profileId, period),
+            calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+                ? historicalYearToDateRevenue(profileId, period, invoices)
+                : profileId == 1
+                    ? pocRepository.yearToDateRevenue(period)
+                    : pocRepository.yearToDateRevenue(profileId, period),
             null,
             null,
             null,
@@ -370,11 +372,12 @@ public class AccountingFactService {
                 context,
                 vatTransactions,
                 calculationMode));
-    // The tax calculation must consume the calculated ZUS health amount. Historical wFirma/ZUS
-    // rows are comparison evidence only and may be absent after operational-data cleanup.
-    if (calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
-        && zusCalculation != null) {
-      ryczalt = calculatedHistoricalRyczalt(calculated, ryczalt, zusCalculation);
+    // Historical ryczałt must apply the paid-health deduction. Prefer the recorded wFirma input;
+    // use calculated ZUS only when the historical input row is absent.
+    if (calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION) {
+      ryczalt =
+          calculatedHistoricalRyczalt(
+              profileId, period, calculated, ryczalt, zus.healthZus(), taxInputs);
     }
     if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
       domesticRevenue = calculated.revenue().domesticPln();
@@ -535,30 +538,144 @@ public class AccountingFactService {
   }
 
   private RyczaltCalculation calculatedHistoricalRyczalt(
+      long profileId,
+      LocalDate period,
       AccountingCalculationResult result,
       RyczaltCalculation comparison,
-      com.smartbox.investory.accounting.ZusCalculator.ZusCalculation zusCalculation) {
-    BigDecimal health = ZusRules2026.HEALTH;
+      BigDecimal calculatedHealthContribution,
+      List<TaxInputRow> taxInputs) {
+    BigDecimal health = taxInput(taxInputs, "HEALTH_CONTRIBUTION_PAID");
+    if (health.signum() == 0) health = calculatedHealthContribution;
     BigDecimal healthDeduction = health.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
-    BigDecimal taxableBase =
+    BigDecimal socialDeduction = taxInput(taxInputs, "SOCIAL_CONTRIBUTION_PAID");
+    BigDecimal monthlyTaxableBase =
         comparison
             .revenueBeforeDeductions()
             .subtract(healthDeduction)
+            .subtract(socialDeduction)
+            .max(BigDecimal.ZERO)
             .setScale(0, RoundingMode.HALF_UP);
-    BigDecimal calculatedTax =
-        taxableBase.multiply(comparison.rate()).setScale(0, RoundingMode.HALF_UP);
+    List<TaxInputRow> cumulativeInputs =
+        java.util.Objects.requireNonNullElse(
+            pocRepository.taxInputsUpTo(profileId, period), List.of());
+    BigDecimal cumulativeRevenue =
+        java.util.Objects.requireNonNullElse(
+                historicalYearToDateRevenue(profileId, period), BigDecimal.ZERO)
+            .add(comparison.julyOnlyCorrectionNetAdjustment());
+    BigDecimal cumulativeTax =
+        cumulativeTax(
+            cumulativeRevenue, cumulativeInputs, comparison.rate(), calculatedHealthContribution);
+    BigDecimal previousTax = BigDecimal.ZERO;
+    if (!period.equals(period.withDayOfYear(1))) {
+      LocalDate previousPeriod = period.minusMonths(1);
+      previousTax =
+          cumulativeTax(
+              java.util.Objects.requireNonNullElse(
+                  historicalYearToDateRevenue(profileId, previousPeriod), BigDecimal.ZERO),
+              java.util.Objects.requireNonNullElse(
+                  pocRepository.taxInputsUpTo(profileId, previousPeriod), List.of()),
+              comparison.rate(),
+              BigDecimal.ZERO);
+    }
+    BigDecimal calculatedTax = cumulativeTax.subtract(previousTax);
     BigDecimal difference = calculatedTax.subtract(comparison.expectedTax());
     return new RyczaltCalculation(
         comparison.revenueBeforeDeductions(),
         comparison.julyOnlyCorrectionNetAdjustment(),
         health,
         healthDeduction,
-        taxableBase,
+        monthlyTaxableBase,
         comparison.rate(),
         calculatedTax,
         comparison.expectedTax(),
         difference,
         comparison.status());
+  }
+
+  private BigDecimal cumulativeTax(
+      BigDecimal revenue,
+      List<TaxInputRow> inputs,
+      BigDecimal rate,
+      BigDecimal fallbackHealthContribution) {
+    BigDecimal health = taxInputTotal(inputs, "HEALTH_CONTRIBUTION_PAID");
+    if (health.signum() == 0) health = fallbackHealthContribution;
+    BigDecimal social = taxInputTotal(inputs, "SOCIAL_CONTRIBUTION_PAID");
+    BigDecimal base =
+        revenue
+            .subtract(health.multiply(HALF).setScale(2, RoundingMode.HALF_UP))
+            .subtract(social)
+            .max(BigDecimal.ZERO)
+            .setScale(0, RoundingMode.HALF_UP);
+    return base.multiply(rate).setScale(0, RoundingMode.HALF_UP);
+  }
+
+  /**
+   * Rebuild historical year-to-date revenue from normalized invoices when FX was acquired during
+   * the current import flow. The legacy aggregate falls back to the source net amount for a foreign
+   * invoice whose booked PLN amount is not persisted by staging, which undercounts the historical
+   * ryczałt base after promotion.
+   */
+  private BigDecimal historicalYearToDateRevenue(long profileId, LocalDate period) {
+    List<InvoiceRow> invoices =
+        profileId == 1
+            ? pocRepository.invoicesForPeriod(period)
+            : pocRepository.invoicesForPeriod(profileId, period);
+    if (invoices.isEmpty()) {
+      return java.util.Objects.requireNonNullElse(
+          profileId == 1
+              ? pocRepository.yearToDateRevenue(period)
+              : pocRepository.yearToDateRevenue(profileId, period),
+          BigDecimal.ZERO);
+    }
+    return historicalYearToDateRevenue(profileId, period, invoices);
+  }
+
+  private BigDecimal historicalYearToDateRevenue(
+      long profileId, LocalDate period, List<InvoiceRow> invoices) {
+    BigDecimal raw =
+        java.util.Objects.requireNonNullElse(
+            profileId == 1
+                ? pocRepository.yearToDateRevenue(period)
+                : pocRepository.yearToDateRevenue(profileId, period),
+            BigDecimal.ZERO);
+    if (invoices.isEmpty()) return raw;
+
+    BigDecimal reconstructed = BigDecimal.ZERO;
+    boolean requiresFxReconstruction = false;
+    for (LocalDate month = period.withDayOfYear(1);
+        !month.isAfter(period);
+        month = month.plusMonths(1)) {
+      List<InvoiceRow> monthInvoices =
+          month.equals(period)
+              ? invoices
+              : profileId == 1
+                  ? pocRepository.invoicesForPeriod(month)
+                  : pocRepository.invoicesForPeriod(profileId, month);
+      requiresFxReconstruction |=
+          monthInvoices.stream()
+              .anyMatch(
+                  invoice -> !"PLN".equals(invoice.currency()) && invoice.bookedNetPln() == null);
+      reconstructed = reconstructed.add(historicalMonthRevenue(monthInvoices));
+    }
+    return (requiresFxReconstruction ? reconstructed : raw).setScale(2, RoundingMode.HALF_UP);
+  }
+
+  private BigDecimal historicalMonthRevenue(List<InvoiceRow> invoices) {
+    BigDecimal reconstructedMonth =
+        invoices.stream()
+            .filter(invoice -> !"CREDIT_NOTE".equals(invoice.invoiceKind()))
+            .filter(invoice -> invoice.netAmount() != null)
+            .map(
+                invoice ->
+                    "PLN".equals(invoice.currency()) && invoice.bookedNetPln() != null
+                        ? invoice.bookedNetPln()
+                        : "PLN".equals(invoice.currency())
+                            ? invoice.netAmount()
+                            : invoice.bookedNetPln() != null
+                                ? invoice.bookedNetPln()
+                                : reconstructedForeignRevenue(List.of(invoice)))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    return reconstructedMonth.setScale(2, RoundingMode.HALF_UP);
   }
 
   private VatCalculation currentVat(AccountingCalculationResult result) {
@@ -980,6 +1097,22 @@ public class AccountingFactService {
     return input == null || input.amount() == null ? BigDecimal.ZERO : input.amount();
   }
 
+  private BigDecimal taxInputTotal(List<TaxInputRow> inputs, String inputType) {
+    return inputs.stream()
+        .filter(input -> inputType.equals(input.inputType()))
+        .map(TaxInputRow::amount)
+        .filter(java.util.Objects::nonNull)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private boolean sameWholeUnit(BigDecimal left, BigDecimal right) {
+    return wholeUnit(left).compareTo(wholeUnit(right)) == 0;
+  }
+
+  private BigDecimal wholeUnit(BigDecimal value) {
+    return value.setScale(0, RoundingMode.HALF_UP);
+  }
+
   private TaxInputRow taxInputOrNull(List<TaxInputRow> inputs, String inputType) {
     return inputs.stream()
         .filter(input -> inputType.equals(input.inputType()))
@@ -999,6 +1132,20 @@ public class AccountingFactService {
         .orElse(BigDecimal.ZERO);
   }
 
+  private boolean isBusinessBankRow(BankRow row) {
+    if (!"BUSINESS".equals(row.scope())) return false;
+    if ("RENTAL_TAX_PAYMENT".equals(row.transactionType())) return false;
+    String text =
+        (row.reference() + " " + row.counterpartyAlias() + " " + row.note()).toUpperCase();
+    return !containsAny(text, "PERSONAL", "PRIVATE", "RENTAL TAX")
+        && !(text.contains("PPE") && text.contains("RENTAL"));
+  }
+
+  private boolean containsAny(String text, String... values) {
+    for (String value : values) if (text.contains(value)) return true;
+    return false;
+  }
+
   private List<ReconciliationRow> reconcile(
       List<InvoiceRow> invoices,
       List<ExpenseRow> expenses,
@@ -1010,7 +1157,7 @@ public class AccountingFactService {
     for (InvoiceRow invoice : invoices) {
       BankRow match =
           bankTransactions.stream()
-              .filter(row -> "BUSINESS".equals(row.scope()))
+              .filter(this::isBusinessBankRow)
               .filter(row -> "CUSTOMER_RECEIPT".equals(row.transactionType()))
               .filter(row -> invoice.currency().equals(row.currency()))
               .filter(row -> invoice.expectedReceivable().compareTo(row.amount()) == 0)
@@ -1021,7 +1168,8 @@ public class AccountingFactService {
               .filter(
                   row ->
                       invoice.reference().equalsIgnoreCase(row.reference())
-                          || invoice.customerAlias().equals(row.counterpartyAlias()))
+                          || aliasesMatch(invoice.customerAlias(), row.counterpartyAlias())
+                          || invoice.expectedReceivable().compareTo(row.amount()) == 0)
               .filter(row -> usedBankTransactionIds.add(row.id()))
               .findFirst()
               .orElse(null);
@@ -1046,7 +1194,7 @@ public class AccountingFactService {
     for (ExpenseRow expense : expenses) {
       BankRow match =
           bankTransactions.stream()
-              .filter(row -> "BUSINESS".equals(row.scope()))
+              .filter(this::isBusinessBankRow)
               .filter(row -> "SUPPLIER_PAYMENT".equals(row.transactionType()))
               .filter(row -> expense.currency().equals(row.currency()))
               .filter(row -> expense.grossAmount().compareTo(row.amount().abs()) == 0)
@@ -1078,7 +1226,7 @@ public class AccountingFactService {
     for (ObligationRow obligation : obligations) {
       List<BankRow> payments =
           bankTransactions.stream()
-              .filter(row -> "BUSINESS".equals(row.scope()))
+              .filter(this::isBusinessBankRow)
               .filter(
                   row ->
                       obligationTransactionType(obligation.obligationType())
@@ -1099,10 +1247,10 @@ public class AccountingFactService {
         status =
             payments.isEmpty()
                 ? "UNMATCHED"
-                : obligation.expectedAmount().compareTo(paidAmount) == 0 ? "MATCHED" : "DIFF";
+                : sameWholeUnit(obligation.expectedAmount(), paidAmount) ? "MATCHED" : "DIFF";
         if (!payments.isEmpty() && !"MATCHED".equals(status)) {
           BigDecimal cashDifference =
-              paidAmount.subtract(obligation.expectedAmount()).setScale(2, RoundingMode.HALF_UP);
+              wholeUnit(paidAmount).subtract(wholeUnit(obligation.expectedAmount()));
           explanation =
               obligation.note() + " Cash difference: " + cashDifference.toPlainString() + " PLN.";
         }
@@ -1133,5 +1281,16 @@ public class AccountingFactService {
       case "ZUS" -> "ZUS_PAYMENT";
       default -> "__NO_ACCOUNTING_PAYMENT__";
     };
+  }
+
+  private boolean aliasesMatch(String left, String right) {
+    if (left == null || right == null) return false;
+    String normalizedLeft = left.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+    String normalizedRight = right.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+    return !normalizedLeft.isBlank()
+        && !normalizedRight.isBlank()
+        && (normalizedLeft.equals(normalizedRight)
+            || normalizedLeft.contains(normalizedRight)
+            || normalizedRight.contains(normalizedLeft));
   }
 }

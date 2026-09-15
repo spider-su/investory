@@ -2,8 +2,6 @@ package com.smartbox.investory.accounting;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.util.Objects;
-import java.util.stream.Stream;
 
 /** Shared date rules for accounting acquisition and calculation. */
 public final class AccountingDateRules {
@@ -12,11 +10,14 @@ public final class AccountingDateRules {
   public static LocalDate accountingPeriod(
       LocalDate saleDate, LocalDate issueDate, LocalDate paymentDate, boolean correction) {
     if (correction && issueDate != null) return issueDate.withDayOfMonth(1);
-    return Stream.of(saleDate, issueDate, paymentDate)
-        .filter(Objects::nonNull)
-        .min(LocalDate::compareTo)
-        .orElseThrow(() -> new IllegalArgumentException("At least one accounting date is required"))
-        .withDayOfMonth(1);
+    LocalDate invoiceDate =
+        saleDate == null
+            ? issueDate
+            : issueDate == null ? saleDate : saleDate.isBefore(issueDate) ? saleDate : issueDate;
+    if (invoiceDate == null) {
+      throw new IllegalArgumentException("Sale or issue date is required");
+    }
+    return invoiceDate.withDayOfMonth(1);
   }
 
   public static LocalDate priorBusinessDay(LocalDate date) {

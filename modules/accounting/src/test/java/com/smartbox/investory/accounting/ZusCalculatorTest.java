@@ -73,6 +73,58 @@ class ZusCalculatorTest {
   }
 
   @Test
+  void classifiesBoth2026HealthBandThresholdsInclusively() {
+    assertThat(ZusRules2026.healthBand(new BigDecimal("59999.99")))
+        .isEqualTo(ZusRules2026.HealthBand.LOW);
+    assertThat(ZusRules2026.healthBand(new BigDecimal("60000.00")))
+        .isEqualTo(ZusRules2026.HealthBand.LOW);
+    assertThat(ZusRules2026.healthBand(new BigDecimal("60000.01")))
+        .isEqualTo(ZusRules2026.HealthBand.MEDIUM);
+    assertThat(ZusRules2026.healthBand(new BigDecimal("299999.99")))
+        .isEqualTo(ZusRules2026.HealthBand.MEDIUM);
+    assertThat(ZusRules2026.healthBand(new BigDecimal("300000.00")))
+        .isEqualTo(ZusRules2026.HealthBand.MEDIUM);
+    assertThat(ZusRules2026.healthBand(new BigDecimal("300000.01")))
+        .isEqualTo(ZusRules2026.HealthBand.HIGH);
+  }
+
+  @Test
+  void paidSocialCanMoveYtdBasisAcrossEachHealthBandThreshold() {
+    assertThat(
+            ZusRules2026.healthBandAfterPaidSocial(
+                new BigDecimal("61649.82"), new BigDecimal("1649.82")))
+        .isEqualTo(ZusRules2026.HealthBand.LOW);
+    assertThat(
+            ZusRules2026.healthBandAfterPaidSocial(
+                new BigDecimal("61649.83"), new BigDecimal("1649.82")))
+        .isEqualTo(ZusRules2026.HealthBand.MEDIUM);
+    assertThat(
+            ZusRules2026.healthBandAfterPaidSocial(
+                new BigDecimal("301649.82"), new BigDecimal("1649.82")))
+        .isEqualTo(ZusRules2026.HealthBand.MEDIUM);
+    assertThat(
+            ZusRules2026.healthBandAfterPaidSocial(
+                new BigDecimal("301649.83"), new BigDecimal("1649.82")))
+        .isEqualTo(ZusRules2026.HealthBand.HIGH);
+  }
+
+  @Test
+  void calculatorUsesTheSelectedHealthBandAmountAtEveryBoundary() {
+    assertThat(resultForBasis("59999.99").healthContribution())
+        .isEqualByComparingTo(ZusRules2026.HEALTH_LOW);
+    assertThat(resultForBasis("60000.00").healthContribution())
+        .isEqualByComparingTo(ZusRules2026.HEALTH_LOW);
+    assertThat(resultForBasis("60000.01").healthContribution())
+        .isEqualByComparingTo(ZusRules2026.HEALTH_MEDIUM);
+    assertThat(resultForBasis("299999.99").healthContribution())
+        .isEqualByComparingTo(ZusRules2026.HEALTH_MEDIUM);
+    assertThat(resultForBasis("300000.00").healthContribution())
+        .isEqualByComparingTo(ZusRules2026.HEALTH_MEDIUM);
+    assertThat(resultForBasis("300000.01").healthContribution())
+        .isEqualByComparingTo(ZusRules2026.HEALTH);
+  }
+
+  @Test
   void derivesAccountingDatesAndPriorWeekdayFxDate() {
     assertThat(
             AccountingDateRules.accountingPeriod(
@@ -108,6 +160,19 @@ class ZusCalculatorTest {
 
   private ZusCalculator.Input input(boolean jdg, boolean uop, BigDecimal revenue) {
     return input(jdg, uop, false, revenue);
+  }
+
+  private ZusCalculator.ZusCalculation resultForBasis(String revenue) {
+    BigDecimal basis = new BigDecimal(revenue);
+    return calculator.calculate(
+        new ZusCalculator.Input(
+            true,
+            false,
+            "JDG",
+            false,
+            basis,
+            null,
+            ZusRules2026.healthBandAfterPaidSocial(basis, BigDecimal.ZERO)));
   }
 
   private ZusCalculator.Input input(

@@ -51,7 +51,9 @@ public class AccountingStagingFacade implements AccountingStagingApi {
                         row.documentKind(),
                         row.documentDate(),
                         row.counterpartyName(),
-                        null)));
+                        null,
+                        row.counterpartyTaxIdentifier(),
+                        row.counterpartyCountry())));
     repository
         .bankTransactions(profileId, period)
         .forEach(

@@ -583,11 +583,18 @@ public class AccountingPocRepository {
     try {
       return jdbcTemplate.query(
           """
-          SELECT id, reference, direction, COALESCE(issue_date, supply_date, tax_period) AS document_date,
-                 gross_amount, currency, source_id, counterparty_name, category, supply_date
-            FROM investory.accounting_document
-           WHERE profile_id = ? AND tax_period = ?
-           ORDER BY COALESCE(issue_date, supply_date, tax_period), id
+          SELECT d.id, d.reference, d.direction,
+                 COALESCE(d.issue_date, d.supply_date, d.tax_period) AS document_date,
+                 d.gross_amount, d.currency, d.source_id, s.external_reference,
+                 s.source_type, s.original_filename,
+                 COALESCE(NULLIF(k.canonical_name, ''), NULLIF(d.counterparty_name, '')) AS counterparty_name,
+                 d.category, d.supply_date, d.counterparty_tax_identifier, d.counterparty_country
+            FROM investory.accounting_document d
+            LEFT JOIN investory.accounting_known_counterparty k
+              ON k.id = d.counterparty_id AND k.profile_id = d.profile_id
+            LEFT JOIN investory.accounting_source_evidence s ON s.id = d.source_id
+           WHERE d.profile_id = ? AND d.tax_period = ?
+           ORDER BY COALESCE(d.issue_date, d.supply_date, d.tax_period), d.id
           """,
           (rs, rowNum) ->
               new CanonicalDocumentRow(
@@ -598,9 +605,14 @@ public class AccountingPocRepository {
                   rs.getBigDecimal("gross_amount"),
                   rs.getString("currency"),
                   rs.getObject("source_id", Long.class),
+                  rs.getString("external_reference"),
+                  rs.getString("source_type"),
+                  rs.getString("original_filename"),
                   rs.getString("counterparty_name"),
                   rs.getString("category"),
-                  rs.getObject("supply_date", LocalDate.class)),
+                  rs.getObject("supply_date", LocalDate.class),
+                  rs.getString("counterparty_tax_identifier"),
+                  rs.getString("counterparty_country")),
           profileId,
           period);
     } catch (DataAccessException ignored) {
@@ -616,9 +628,14 @@ public class AccountingPocRepository {
       BigDecimal grossAmount,
       String currency,
       Long sourceId,
+      String sourceReference,
+      String sourceType,
+      String sourceName,
       String counterparty,
       String category,
-      LocalDate saleDate) {}
+      LocalDate saleDate,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry) {}
 
   /**
    * Filing projection from canonical documents. Empty means this period still uses legacy fixtures.
@@ -1232,6 +1249,8 @@ public class AccountingPocRepository {
           FROM investory.accounting_poc_bank_transaction
          WHERE profile_id = ? AND (related_period = ?
             OR (related_period IS NULL AND booking_date >= ? AND booking_date < ?)
+            OR (related_period IS NULL AND transaction_type = 'CUSTOMER_RECEIPT'
+                AND booking_date >= ? AND booking_date <= CURRENT_DATE)
          )
          ORDER BY booking_date, id
         """,
@@ -1250,7 +1269,8 @@ public class AccountingPocRepository {
         profileId,
         period,
         period,
-        period.plusMonths(1));
+        period.plusMonths(1),
+        period);
   }
 
   public List<LocalDate> zusPaymentPeriodsUpTo(LocalDate period) {
@@ -1472,7 +1492,16 @@ public class AccountingPocRepository {
         SELECT tax_period, obligation_type, due_date, expected_amount, paid_amount, payment_date, status, note
           FROM investory.accounting_poc_obligation
          WHERE profile_id = ? AND tax_period = ?
-         ORDER BY obligation_type
+        UNION ALL
+        SELECT tax_period, obligation_type, due_date, expected_amount, paid_amount, payment_date, status, note
+          FROM investory.accounting_reference_obligation reference
+         WHERE reference.profile_id = ? AND reference.tax_period = ?
+           AND NOT EXISTS (
+                 SELECT 1
+                   FROM investory.accounting_poc_obligation operational
+                  WHERE operational.profile_id = reference.profile_id
+                    AND operational.tax_period = reference.tax_period)
+        ORDER BY obligation_type
         """,
         (rs, rowNum) ->
             new ObligationRow(
@@ -1484,6 +1513,8 @@ public class AccountingPocRepository {
                 rs.getObject("payment_date", LocalDate.class),
                 rs.getString("status"),
                 rs.getString("note")),
+        profileId,
+        period,
         profileId,
         period);
   }
@@ -1504,6 +1535,24 @@ public class AccountingPocRepository {
             new TaxInputRow(
                 rs.getString("input_type"), rs.getBigDecimal("amount"), rs.getString("note")),
         profileId,
+        period);
+  }
+
+  public List<TaxInputRow> taxInputsUpTo(long profileId, LocalDate period) {
+    return jdbcTemplate.query(
+        """
+        SELECT tax_period, input_type, amount, note
+          FROM investory.accounting_poc_tax_input
+         WHERE profile_id = ?
+           AND tax_period >= DATE_TRUNC('year', ?::date)::date
+           AND tax_period <= ?
+         ORDER BY tax_period, input_type
+        """,
+        (rs, rowNum) ->
+            new TaxInputRow(
+                rs.getString("input_type"), rs.getBigDecimal("amount"), rs.getString("note")),
+        profileId,
+        period,
         period);
   }
 

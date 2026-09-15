@@ -2,6 +2,7 @@ package com.smartbox.investory.ui.accounting;
 
 import com.smartbox.investory.accounting.api.AccountingUserApi.IssueView;
 import com.smartbox.investory.accounting.api.AccountingUserApi.ReconciliationView;
+import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.YearMonth;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -116,7 +118,16 @@ public class AccountingPageController {
     model.addAttribute(
         "costDocuments",
         documents.stream().filter(d -> !isIncomeDirection(d.direction())).toList());
+    var paymentRows =
+        reconciliation.stream()
+            .filter(row -> "OBLIGATION_PAYMENT".equals(row.kind()))
+            .filter(row -> Set.of("VAT", "RYCZALT", "ZUS").contains(row.reference()))
+            .toList();
     model.addAttribute("payments", payments);
+    model.addAttribute("paymentRows", paymentRows);
+    addPaymentHeaderModel(model, paymentRows, "RYCZALT", "Ryczalt");
+    addPaymentHeaderModel(model, paymentRows, "VAT", "Vat");
+    addPaymentHeaderModel(model, paymentRows, "ZUS", "Zus");
     model.addAttribute(
         "incomeBankMatched",
         reconciliation.stream()
@@ -131,19 +142,16 @@ public class AccountingPageController {
             .filter(row -> "MATCHED".equals(row.status()))
             .map(ReconciliationView::matchedAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
+    model.addAttribute("totalToPay", totalToPay(overview, paymentRows, selected));
     model.addAttribute(
-        "totalToPay",
-        overview.summary().vat().add(overview.summary().ryczalt()).add(overview.summary().zus()));
+        "totalToPayLabel",
+        selected.isBefore(YearMonth.now())
+                && totalToPay(overview, paymentRows, selected).signum() == 0
+            ? "paid"
+            : "to pay");
     model.addAttribute("workspaceStatus", workspaceStatus);
     model.addAttribute(
-        "totalToPayDisplay",
-        money(
-            overview
-                .summary()
-                .ryczalt()
-                .add(overview.summary().vat())
-                .add(overview.summary().zus()),
-            "PLN"));
+        "totalToPayDisplay", money(totalToPay(overview, paymentRows, selected), "PLN"));
     model.addAttribute("ryczaltDisplay", money(overview.summary().ryczalt(), "PLN"));
     model.addAttribute("vatDisplay", money(overview.summary().vat(), "PLN"));
     model.addAttribute("zusDisplay", money(overview.summary().zus(), "PLN"));
@@ -153,11 +161,10 @@ public class AccountingPageController {
     model.addAttribute("revenueDisplay", money(overview.summary().revenue(), "PLN"));
     var documentPresentations = new ArrayList<DocumentPresentation>();
     documents.stream()
-        .map(d -> documentView(d, profileId, selected))
+        .map(d -> documentView(d, profileId, selected, overview.issues(), reconciliation))
         .forEach(documentPresentations::add);
     stagingRows.stream()
         .filter(row -> "INVOICE".equals(row.type()))
-        .filter(row -> "KSEF".equalsIgnoreCase(row.sourceType()))
         .filter(row -> !row.promoted() && row.canonicalMatchId() == null)
         .map(row -> stagedDocumentView(profileId, selected, row))
         .forEach(documentPresentations::add);
@@ -223,30 +230,89 @@ public class AccountingPageController {
     return "accounting/accounting";
   }
 
+  private void addPaymentHeaderModel(
+      Model model, List<ReconciliationView> paymentRows, String reference, String key) {
+    var payment = paymentRows.stream().filter(row -> reference.equals(row.reference())).findFirst();
+    model.addAttribute(
+        "bank" + key + "Display",
+        payment.map(row -> money(row.matchedAmount(), "PLN")).orElse("—"));
+    model.addAttribute(
+        "bank" + key + "Status",
+        payment.map(AccountingPageController::paymentStatusLabel).orElse("Unpaid"));
+    model.addAttribute(
+        "bank" + key + "StatusClass",
+        payment.map(AccountingPageController::paymentStatusClass).orElse("is-unpaid"));
+  }
+
+  private BigDecimal totalToPay(
+      AccountingRestClient.MonthOverview overview,
+      List<ReconciliationView> paymentRows,
+      YearMonth selected) {
+    if (!selected.isBefore(YearMonth.now()))
+      return overview
+          .summary()
+          .vat()
+          .add(overview.summary().ryczalt())
+          .add(overview.summary().zus());
+    return paymentRows.stream()
+        .filter(row -> !"MATCHED".equalsIgnoreCase(row.status()))
+        .map(row -> row.expectedAmount().subtract(row.matchedAmount()).max(BigDecimal.ZERO))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private static String paymentStatusLabel(ReconciliationView row) {
+    return switch (row.status()) {
+      case "MATCHED" -> "✓ Paid";
+      case "DIFF" -> "⚠ Difference";
+      default -> "○ Unpaid";
+    };
+  }
+
+  private static String paymentStatusClass(ReconciliationView row) {
+    return switch (row.status()) {
+      case "MATCHED" -> "is-paid";
+      case "DIFF" -> "is-diff";
+      default -> "is-unpaid";
+    };
+  }
+
   private static DocumentPresentation documentView(
-      AccountingRestClient.DocumentView document, long profileId, YearMonth month) {
+      AccountingRestClient.DocumentView document,
+      long profileId,
+      YearMonth month,
+      List<IssueView> issues,
+      List<ReconciliationView> reconciliation) {
+    boolean income = isIncomeDirection(document.direction());
+    boolean review = hasDocumentReview(document.reference(), document.sourceReference(), issues);
     String status =
-        document.status() == null
-            ? "Imported"
-            : switch (document.status().toUpperCase(Locale.ROOT)) {
-              case "REVIEW_REQUIRED", "NEEDS_REVIEW", "FAILED" -> "Needs review";
-              case "READY", "PROMOTED", "ACCEPTED" -> "Ready";
-              default -> "Imported";
-            };
+        income
+            ? review
+                ? "To review"
+                : isPaid(document.reference(), reconciliation) ? "Paid" : "Issued"
+            : review || document.category() == null || document.category().isBlank()
+                ? "To review"
+                : "Approved";
     return new DocumentPresentation(
         document.id(),
         document.reference(),
         document.date() == null
             ? "—"
             : document.date().format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)),
-        money(document.grossAmount(), document.currency()),
+        wholeMoney(document.grossAmount(), document.currency()),
         status,
         document.direction(),
+        document.sourceReference(),
         safeReference(document.sourceReference()),
-        "REVIEW_REQUIRED".equalsIgnoreCase(document.status()) && document.sourceReference() != null,
-        document.counterparty() == null ? "—" : document.counterparty(),
-        document.category() == null ? "—" : document.category(),
+        review && document.sourceReference() != null,
+        document.counterparty() == null || document.counterparty().isBlank()
+            ? "—"
+            : document.counterparty(),
+        category(document.category()),
         formatDate(document.saleDate()),
+        document.counterpartyTaxIdentifier(),
+        document.counterpartyCountry(),
+        acquisitionSource(document.acquisitionSource()),
+        document.sourceName(),
         "/profiles/" + profileId + "/accounting/documents/" + document.id() + "?month=" + month);
   }
 
@@ -258,16 +324,9 @@ public class AccountingPageController {
         !"EXPENSE".equalsIgnoreCase(row.documentKind())
             && !"PURCHASE_INVOICE".equalsIgnoreCase(row.documentKind())
             && !"RECEIPT".equalsIgnoreCase(row.documentKind());
-    String label =
-        row.status() == null
-            ? "Imported"
-            : switch (row.status().toUpperCase(Locale.ROOT)) {
-              case "REVIEW_REQUIRED", "MISMATCH", "AMBIGUOUS" -> "Needs review";
-              case "READY", "PROMOTED" -> "Ready";
-              default -> "Imported";
-            };
+    String label = "To review";
     String href =
-        "REVIEW_REQUIRED".equalsIgnoreCase(row.status()) && row.source() != null
+        row.source() != null
             ? "/profiles/"
                 + profileId
                 + "/accounting/documents/review?month="
@@ -279,15 +338,86 @@ public class AccountingPageController {
         row.id(),
         row.reference(),
         formatDate(row.documentDate()),
-        money(row.amount(), row.currency()),
+        wholeMoney(row.amount(), row.currency()),
         label,
         income ? "SALES" : "PURCHASE",
         row.source(),
+        safeReference(row.source()),
         href != null,
-        row.counterparty() == null ? "—" : row.counterparty(),
-        row.category() == null ? "—" : row.category(),
+        row.counterparty() == null || row.counterparty().isBlank() ? "—" : row.counterparty(),
+        category(row.category()),
         "—",
+        row.counterpartyTaxIdentifier(),
+        row.counterpartyCountry(),
+        acquisitionSource(row.sourceType()),
+        null,
         href);
+  }
+
+  private static String category(String value) {
+    if (value == null || value.isBlank()) return "—";
+    return switch (value.toUpperCase(Locale.ROOT)) {
+      case "VEHICLE_FUEL" -> "Fuel";
+      case "PRODUCT" -> "Products";
+      case "ACCOUNTING_SERVICE" -> "Accounting";
+      case "BUSINESS_SERVICE", "SERVICE" -> "Services";
+      case "EQUIPMENT" -> "Equipment";
+      case "OTHER" -> "Other";
+      default -> "—";
+    };
+  }
+
+  private static boolean hasDocumentReview(
+      String reference, String sourceReference, List<IssueView> issues) {
+    if (issues == null) return false;
+    return issues.stream()
+        .filter(
+            issue ->
+                issue.kind()
+                    == com.smartbox.investory.accounting.api.AccountingUserApi.IssueKind
+                        .NEEDS_ANSWER)
+        .map(IssueView::sourceReference)
+        .anyMatch(
+            value -> value != null && (value.equals(reference) || value.equals(sourceReference)));
+  }
+
+  private static boolean isPaid(String reference, List<ReconciliationView> rows) {
+    return rows != null
+        && rows.stream()
+            .anyMatch(
+                row ->
+                    "INVOICE_PAYMENT".equals(row.kind())
+                        && "MATCHED".equals(row.status())
+                        && reference.equalsIgnoreCase(row.reference()));
+  }
+
+  private static String acquisitionSource(String source) {
+    if (source == null || source.isBlank()) return null;
+    return switch (source.toUpperCase(Locale.ROOT)) {
+      case "KSEF" -> "KSeF";
+      case "UPLOAD", "FILE", "FILE_IMPORT" -> "File import";
+      case "MANUAL" -> "Manual";
+      case "BANK" -> "Bank";
+      default -> source;
+    };
+  }
+
+  private static String wholeMoney(BigDecimal value, String currency) {
+    if (value == null) return "—";
+    String code =
+        currency == null || currency.isBlank() ? "PLN" : currency.toUpperCase(Locale.ROOT);
+    return FinancialPresentation.moneyWhole(value, code, Locale.forLanguageTag("pl-PL"));
+  }
+
+  private static String money(BigDecimal value, String currency) {
+    if (value == null) return "—";
+    NumberFormat format = NumberFormat.getNumberInstance(Locale.forLanguageTag("pl-PL"));
+    format.setMinimumFractionDigits(0);
+    format.setMaximumFractionDigits(2);
+    String amount = format.format(value);
+    return currency == null || "PLN".equalsIgnoreCase(currency)
+        ? amount + " zł"
+        : amount + " " + currency;
   }
 
   private static String formatDate(java.time.LocalDate date) {
@@ -302,18 +432,6 @@ public class AccountingPageController {
     return reference != null && reference.matches("(?i)[a-f0-9]{64}")
         ? "Source document"
         : reference;
-  }
-
-  private static String money(BigDecimal value, String currency) {
-    if (value == null) return "—";
-    NumberFormat format = NumberFormat.getNumberInstance(Locale.forLanguageTag("pl-PL"));
-    format.setMinimumFractionDigits(0);
-    format.setMaximumFractionDigits(2);
-    String amount = format.format(value);
-    return switch (currency == null ? "PLN" : currency.toUpperCase(Locale.ROOT)) {
-      case "PLN", "ZŁ" -> amount + " zł";
-      default -> amount + " " + currency.toUpperCase(Locale.ROOT);
-    };
   }
 
   private static String filingState(String value) {
@@ -368,10 +486,15 @@ public class AccountingPageController {
       String status,
       String direction,
       String sourceReference,
+      String sourceReferenceDisplay,
       boolean canReview,
       String counterparty,
       String category,
       String saleDate,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String acquisitionSource,
+      String sourceName,
       String href) {}
 
   private static IssuePresentation issueView(IssueView issue) {
@@ -510,9 +633,12 @@ public class AccountingPageController {
                 () ->
                     new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.NOT_FOUND));
+    var overview = client.overview(profileId, month);
+    var reconciliation = client.reconciliation(profileId, month);
     model.addAttribute("profileId", profileId);
     model.addAttribute("selectedMonth", month);
-    model.addAttribute("document", documentView(document, profileId, month));
+    model.addAttribute(
+        "document", documentView(document, profileId, month, overview.issues(), reconciliation));
     model.addAttribute("canWrite", canWrite(request));
     return "accounting/document";
   }

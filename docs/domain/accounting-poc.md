@@ -65,11 +65,13 @@ Accounting obligations and observed bank payments are separate facts. A payment 
 
 January through July are historical reconstruction months. August is intentionally an open/partial trailing month.
 
-The golden matrix is enforced by `AccountingGoldenMatrixIT` and the focused scenarios in `AccountingGoldenIT`.
+The month-calculation golden matrix is enforced by `AccountingGoldenMatrixIT`, with focused historical cases in `AccountingGoldenIT`. The source-to-staging-to-reconciliation-to-promotion flow is covered by `AccountingReferenceMatrixE2EIT`.
 
 - January: recurring EUR service source restored; NBP rate date 2026-01-30; revenue/ryczalt/VAT/ZUS/FX reconstruct from source facts.
 - February: clean ordinary reference month.
 - March: JPK confirms declaration rounding: sales VAT 7,488.80 becomes 7,489, deductible purchase VAT 238.38 becomes 238, and VAT payable is 7,251. The model rounds these two components independently before subtraction.
+
+The result preserves output and deductible VAT separately; the calculated VAT obligation is floored at zero. It does not currently represent excess input VAT as a separate refund or carry-forward balance.
 - April: BP fuel reconstructed at 8% invoice VAT with 50% mixed-use vehicle deduction.
 - May: source invoices prove 8% fuel VAT; purchase VAT reconstructs to 207.42 PLN.
 - June: original FV4 revenue remains in June; the later correction does not rewrite June revenue. Purchase VAT reconstructs to 196.10 PLN.
@@ -104,7 +106,7 @@ source evidence.
 ### Manual JPK filing verification
 
 1. Confirm the accounting month in Investory.
-2. Generate `JPK_V7M(3)` from the month filing section.
+2. Generate the JPK_V7M schema version applicable to the selected filing period (version 2 through January 2026; version 3 from February 2026).
 3. Investory validates the XML against the bundled official MF XSD.
 4. Download `JPK_V7M_YYYY-MM.xml` and inspect it with the official JPK viewer/editor.
 5. Submit manually with Klient JPK WEB when appropriate and obtain the UPO.
@@ -205,6 +207,11 @@ auditable while the confirmation becomes stale.
 Ryczałt deductions use eligible contributions actually paid by the applicable payment-date rule.
 An unpaid ZUS obligation is not a PIT deduction. The operational calculator supports the guaranteed
 12% rate and reports unsupported rates instead of silently applying 12%.
+The calculation context also has an optional `deductionsAlreadyConsumed` checkpoint. The current
+fact-service path does not load a persisted checkpoint; it supplies zero and derives prior use from
+paid contributions and prior taxable revenue. The calculator conservatively takes the greater of an
+explicit checkpoint and that derived amount. No separate persistence or historical-edit policy is
+implemented for the checkpoint yet.
 
 When only a gross list value is available, provenance must say that the split is derived (for example `WFIRMA_LIST_DERIVED_8` or `WFIRMA_LIST_DERIVED_23`). Source-backed rows use `SOURCE_DOCUMENT`.
 
@@ -213,6 +220,7 @@ When only a gross list value is available, provenance must say that the split is
 Foreign-source EUR revenue is kept separately from its booked PLN accounting value.
 
 The calculation goes through the shared `CurrencyConversion` boundary. Historical fixtures retain the rate date that reproduced the booked accounting amount. For January, document 015 is 7,636 EUR with sale date 2026-01-31 and rate date 2026-01-30, producing 32,171.23 PLN.
+The database FX resolver selects the latest available observation on or before the requested date and exposes its `sourceRateDate`; weekends and Polish publication holidays therefore use the previous actual table observation, not a hardcoded holiday calendar.
 
 Do not silently replace a failed conversion with a fabricated rate. If the conversion provider is unavailable, the fallback golden must remain explicitly labelled.
 

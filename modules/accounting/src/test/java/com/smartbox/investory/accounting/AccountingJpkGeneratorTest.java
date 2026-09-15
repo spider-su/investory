@@ -10,6 +10,35 @@ import org.junit.jupiter.api.Test;
 
 class AccountingJpkGeneratorTest {
   @Test
+  void selectsAndValidatesJpkV7m2For2025Periods() {
+    assertThat(AccountingJpkSchemaVersion.forPeriod(LocalDate.of(2025, 12, 1)))
+        .isEqualTo("JPK_V7M(2)");
+    assertThat(AccountingJpkSchemaVersion.forPeriod(LocalDate.of(2026, 1, 1)))
+        .isEqualTo("JPK_V7M(2)");
+    assertThat(AccountingJpkSchemaVersion.forPeriod(LocalDate.of(2026, 2, 1)))
+        .isEqualTo("JPK_V7M(3)");
+    assertThat(AccountingJpkSchemaVersion.requiresEvidenceClassification("JPK_V7M(2)")).isFalse();
+    assertThat(AccountingJpkSchemaVersion.requiresEvidenceClassification("JPK_V7M(3)")).isTrue();
+    var snap = snapshot();
+    var input =
+        new AccountingFilingInput(
+            LocalDate.of(2025, 12, 1),
+            snap.vat(),
+            snap.ryczalt(),
+            snap.zus(),
+            List.of(),
+            List.of(),
+            taxpayer(),
+            "JPK_V7M(2)");
+
+    byte[] xml = new AccountingJpkGenerator().generate(input);
+    assertThat(new String(xml))
+        .contains("JPK_V7M (2)", "http://crd.gov.pl/wzor/2021/12/27/11148/")
+        .doesNotContain("JPK_V7M (3)", "<WariantFormularza>3</WariantFormularza>");
+    new AccountingJpkXmlValidator().validate(xml, "JPK_V7M(2)");
+  }
+
+  @Test
   void projectsCanonicalVatTotalsIntoCurrentJpkV7mSchema() {
     AccountingMonthSnapshot snapshot = snapshot();
     AccountingFilingService.FilingResult result =

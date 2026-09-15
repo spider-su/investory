@@ -215,6 +215,8 @@ class AccountingPageControllerTest {
                     "SALES_INVOICE",
                     java.time.LocalDate.of(2026, 6, 20),
                     "Acme",
+                    null,
+                    null,
                     null)));
     when(client.documents(1, month))
         .thenReturn(
@@ -229,15 +231,40 @@ class AccountingPageControllerTest {
                     "REVIEW_REQUIRED",
                     "source-1"),
                 new AccountingRestClient.DocumentView(
+                    3,
+                    "INV-ISSUED",
+                    "SALE",
+                    java.time.LocalDate.of(2026, 6, 12),
+                    new BigDecimal("41770.8"),
+                    "PLN",
+                    "IMPORTED",
+                    "source-3"),
+                new AccountingRestClient.DocumentView(
                     2,
                     "EXP-26394",
                     "PURCHASE",
                     java.time.LocalDate.of(2026, 6, 26),
-                    new BigDecimal("363"),
+                    new BigDecimal("363.5"),
                     "PLN",
                     "READY",
-                    "source-2")));
-    when(client.reconciliation(1, month)).thenReturn(List.of());
+                    "source-2",
+                    "Supplier sp. z o.o.",
+                    "BUSINESS_SERVICE",
+                    null,
+                    "1234567890",
+                    "PL",
+                    "UPLOAD",
+                    "invoice.pdf")));
+    when(client.reconciliation(1, month))
+        .thenReturn(
+            List.of(
+                new AccountingUserApi.ReconciliationView(
+                    "INV-020",
+                    "INVOICE_PAYMENT",
+                    new BigDecimal("7636"),
+                    new BigDecimal("7636"),
+                    "MATCHED",
+                    "Exact business receipt")));
     when(client.payments(1, month)).thenReturn(List.of());
 
     var model = new ExtendedModelMap();
@@ -245,7 +272,7 @@ class AccountingPageControllerTest {
 
     assertThat(model.get("ryczaltDisplay")).isEqualTo("7 754 zł");
     assertThat(model.get("zusDisplay")).isEqualTo("1 495,04 zł");
-    assertThat(model.get("incomeDocumentsView")).asList().hasSize(2);
+    assertThat(model.get("incomeDocumentsView")).asList().hasSize(3);
     assertThat(model.get("incomeDocumentsView"))
         .asList()
         .filteredOn(
@@ -256,7 +283,29 @@ class AccountingPageControllerTest {
         .satisfies(
             document -> {
               assertThat(document).extracting("counterparty").isEqualTo("Acme");
+              assertThat(document).extracting("status").isEqualTo("To review");
+              assertThat(document).extracting("amount").isEqualTo("250 PLN");
               assertThat(document).extracting("href").asString().contains("sourceReference=");
+            });
+    assertThat(model.get("incomeDocumentsView"))
+        .asList()
+        .filteredOn(
+            document ->
+                "INV-020"
+                    .equals(((AccountingPageController.DocumentPresentation) document).reference()))
+        .singleElement()
+        .satisfies(document -> assertThat(document).extracting("status").isEqualTo("Paid"));
+    assertThat(model.get("incomeDocumentsView"))
+        .asList()
+        .filteredOn(
+            document ->
+                "INV-ISSUED"
+                    .equals(((AccountingPageController.DocumentPresentation) document).reference()))
+        .singleElement()
+        .satisfies(
+            document -> {
+              assertThat(document).extracting("status").isEqualTo("Issued");
+              assertThat(document).extracting("amount").isEqualTo("41 771 PLN");
             });
     assertThat(model.get("costDocumentsView"))
         .asList()
@@ -264,11 +313,58 @@ class AccountingPageControllerTest {
         .satisfies(
             document -> {
               assertThat(document).extracting("date").isEqualTo("26 Jun");
-              assertThat(document).extracting("amount").isEqualTo("363 zł");
-              assertThat(document).extracting("status").isEqualTo("Ready");
+              assertThat(document).extracting("amount").isEqualTo("364 PLN");
+              assertThat(document).extracting("category").isEqualTo("Services");
+              assertThat(document).extracting("status").isEqualTo("Approved");
             });
     assertThat(model.get("jpkStatusLabel")).isEqualTo("JPK not generated");
     assertThat(model.get("upoStatusLabel")).isEqualTo("UPO not generated");
+  }
+
+  @Test
+  void missingCostClassificationAndCounterpartyAreSafeAndRequireReview() {
+    when(client.months(1))
+        .thenReturn(
+            List.of(new AccountingRestClient.MonthRef(month, "March 2026", "OPEN", "Open")));
+    when(client.overview(1, month)).thenReturn(overview(1, 0, 1, 0, 0, false));
+    when(client.summary(1, month))
+        .thenReturn(new AccountingStagingApi.Summary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+    when(client.rows(1, month)).thenReturn(List.of());
+    when(client.documents(1, month))
+        .thenReturn(
+            List.of(
+                new AccountingRestClient.DocumentView(
+                    8,
+                    "EXP-UNKNOWN",
+                    "PURCHASE",
+                    null,
+                    new BigDecimal("100.25"),
+                    "PLN",
+                    "IMPORTED",
+                    "source-8",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "UPLOAD",
+                    "invoice.pdf")));
+    when(client.reconciliation(1, month)).thenReturn(List.of());
+    when(client.payments(1, month)).thenReturn(List.of());
+
+    var model = new ExtendedModelMap();
+    controller.page(1, month, model, new MockHttpServletRequest());
+
+    assertThat(model.get("costDocumentsView"))
+        .asList()
+        .singleElement()
+        .satisfies(
+            document -> {
+              assertThat(document).extracting("counterparty").isEqualTo("—");
+              assertThat(document).extracting("category").isEqualTo("—");
+              assertThat(document).extracting("date").isEqualTo("—");
+              assertThat(document).extracting("status").isEqualTo("To review");
+            });
   }
 
   @Test

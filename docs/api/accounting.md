@@ -5,6 +5,18 @@ The user-facing accounting boundary is profile-scoped under `/api/profiles/{prof
 `/profiles/{profileId}/accounting` page; issues, documents, bank transactions, payments, filings, and
 reconciliation have separate detail reads.
 
+The versioned read-only mobile boundary is `/api/v1/profiles/{profileId}/accounting`:
+`GET /months/{month}` returns the operational month overview and
+`GET /months/{month}/documents` returns profile/month-scoped sale and purchase documents. These
+responses are explicit REST DTOs; the internal `ReferenceSummary` is intentionally omitted. The
+mobile boundary reuses the same profile authorization and `AccountingUserFacade` as the existing
+web/API routes. `Summary.totalObligations` is the domain-calculated VAT + ryczałt + ZUS obligation before recorded payments. It is available even when filing is not ready. `PaymentSummary.totalOutstanding` is narrower: it sums unpaid amounts from issued payment instructions, after applying recorded payments; when instructions cannot yet be issued (for example an unconfirmed month), it is zero. These fields must not be conflated.
+
+Document `sourceType`/`sourceTypeLabel` identify acquisition evidence (`KSEF` or `UPLOAD`); they do not classify a PL versus EU invoice. `categoryLabel` is the backend presentation mapping for purchase categories. `importStatus` is populated only when source evidence identifies the import; `reviewStatus` and `paymentStatus` remain null where the domain has no authoritative value. The legacy `status` field is retained for compatibility and must not be interpreted as approval.
+
+
+Payment rows in the mobile overview are issued obligations. Each row carries obligation type, expected amount, paid amount, outstanding amount, due date, and domain payment status. The headline obligation total remains independent of these rows and can exist before payment instructions are issued.
+
 Writes are explicit action endpoints (`confirm`, `file`, `settle`, `lock`, `reopen`). Document recognition returns a review candidate; `POST /documents` is the user-reviewed persistence step. Upload and bank multipart requests are preserved as source evidence before processing.
 
 The API returns stable view DTOs. Accounting calculation snapshots, JDBC rows, and repositories are internal implementation details.

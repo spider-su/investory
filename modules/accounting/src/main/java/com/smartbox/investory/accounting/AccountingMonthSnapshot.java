@@ -58,6 +58,11 @@ public record AccountingMonthSnapshot(
     return vat.deductibleInputVat();
   }
 
+  /** Calculated monthly obligations before applying any recorded payments. */
+  public BigDecimal totalCalculatedObligations() {
+    return vat.calculatedVat().add(ryczalt.calculatedTax()).add(zus.totalZus());
+  }
+
   public long matchedPaymentCount() {
     return reconciliations.stream()
         .filter(row -> "MATCHED".equals(row.status()) || "PAID".equals(row.status()))
