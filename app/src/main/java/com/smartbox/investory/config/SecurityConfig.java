@@ -8,7 +8,9 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -18,6 +20,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
@@ -29,12 +32,26 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
   @Bean
+  public TokenAuthenticationService tokenAuthenticationService(
+      @Value("${app.security.token-secret:change-me-token-secret-change-me-token-secret}")
+          String secret,
+      @Value("${app.security.token-lifetime:PT12H}") java.time.Duration lifetime) {
+    return new TokenAuthenticationService(secret, lifetime);
+  }
+
+  @Bean
+  public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration)
+      throws Exception {
+    return configuration.getAuthenticationManager();
+  }
+
+  @Bean
   public CorsConfigurationSource corsConfigurationSource(
       @Value("${app.security.mobile-api-allowed-origins:http://localhost:8081}")
           String mobileApiAllowedOrigins) {
     var configuration = new CorsConfiguration();
     configuration.setAllowedOrigins(java.util.List.of(mobileApiAllowedOrigins.split(",")));
-    configuration.setAllowedMethods(java.util.List.of("GET", "OPTIONS"));
+    configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "OPTIONS"));
     configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type"));
     configuration.setAllowCredentials(true);
 
@@ -50,13 +67,18 @@ public class SecurityConfig {
           boolean readAuthenticationRequired,
       @Value("${app.security.csrf-protection-required:true}") boolean csrfProtectionRequired,
       @Value("${app.security.legacy-accounting-write-enabled:false}")
-          boolean legacyAccountingWriteEnabled) {
+          boolean legacyAccountingWriteEnabled,
+      TokenAuthenticationService tokens,
+      UserDetailsService users,
+      @Value("${app.security.token-login-enabled:true}") boolean tokenLoginEnabled) {
     var authorization =
         http.csrf(
                 csrf -> {
                   if (csrfProtectionRequired) {
                     csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler());
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                        .ignoringRequestMatchers(
+                            "/api/v1/auth/login", "/api/v1/profiles/*/accounting/auto-approval");
                   } else {
                     csrf.disable();
                   }
@@ -78,6 +100,9 @@ public class SecurityConfig {
                             "/swagger-ui.html",
                             "/swagger-ui/**",
                             "/v3/api-docs/**")
+                        .permitAll()
+                        .requestMatchers(
+                            tokenLoginEnabled ? "/api/v1/auth/login" : "/disabled-token-login")
                         .permitAll()
                         .requestMatchers("/settings/**", "/api/v1/admin/**")
                         .hasRole("ADMIN")
@@ -108,6 +133,9 @@ public class SecurityConfig {
         .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
         .httpBasic(Customizer.withDefaults())
         .formLogin(AbstractHttpConfigurer::disable);
+
+    authorization.addFilterBefore(
+        new BearerTokenAuthenticationFilter(tokens, users), BasicAuthenticationFilter.class);
 
     return authorization.build();
   }

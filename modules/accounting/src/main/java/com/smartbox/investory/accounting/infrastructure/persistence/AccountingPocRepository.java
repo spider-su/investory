@@ -16,12 +16,39 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.SqlArrayValue;
 import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
 public class AccountingPocRepository {
   private final JdbcTemplate jdbcTemplate;
+
+  public AccountingUserApi.AutoApprovalSettings autoApprovalSettings(long profileId) {
+    return jdbcTemplate.query(
+        "SELECT enabled, max_amount, trusted_categories FROM investory.accounting_auto_approval_policy WHERE profile_id = ?",
+        rs ->
+            rs.next()
+                ? new AccountingUserApi.AutoApprovalSettings(
+                    rs.getBoolean("enabled"),
+                    rs.getBigDecimal("max_amount"),
+                    java.util.Arrays.asList(
+                        (String[]) rs.getArray("trusted_categories").getArray()))
+                : new AccountingUserApi.AutoApprovalSettings(false, BigDecimal.ZERO, List.of()),
+        profileId);
+  }
+
+  public void updateAutoApprovalSettings(
+      long profileId, AccountingUserApi.AutoApprovalSettings settings) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_auto_approval_policy (profile_id, enabled, max_amount, trusted_categories) VALUES (?, ?, ?, ?) "
+            + "ON CONFLICT (profile_id) DO UPDATE SET enabled = EXCLUDED.enabled, max_amount = EXCLUDED.max_amount, "
+            + "trusted_categories = EXCLUDED.trusted_categories, updated_at = CURRENT_TIMESTAMP",
+        profileId,
+        settings.enabled(),
+        settings.maxAmount(),
+        new SqlArrayValue("text", settings.trustedCategories().toArray(String[]::new)));
+  }
 
   /** True only when this exact KSeF identity has already produced a canonical document. */
   public boolean canonicalDocumentExists(

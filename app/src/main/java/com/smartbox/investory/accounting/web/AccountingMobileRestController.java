@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -40,6 +42,32 @@ public class AccountingMobileRestController {
         .map(AccountingMobileResponse.Document::from)
         .toList();
   }
+
+  @GetMapping("/auto-approval")
+  public AccountingUserApi.AutoApprovalSettings autoApproval(
+      @PathVariable long profileId, Authentication authentication) {
+    read(profileId, authentication);
+    return accounting.autoApprovalSettings(profileId);
+  }
+
+  @PutMapping("/auto-approval")
+  public AccountingUserApi.AutoApprovalSettings updateAutoApproval(
+      @PathVariable long profileId,
+      @RequestBody AutoApprovalRequest request,
+      Authentication authentication) {
+    if (!authorization.canWrite(profileId, authentication)) {
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.FORBIDDEN);
+    }
+    var settings =
+        new AccountingUserApi.AutoApprovalSettings(
+            request.enabled(), request.maxAmount(), request.trustedCategories());
+    accounting.updateAutoApprovalSettings(profileId, settings);
+    return settings;
+  }
+
+  public record AutoApprovalRequest(
+      boolean enabled, java.math.BigDecimal maxAmount, List<String> trustedCategories) {}
 
   private void read(long profileId, Authentication authentication) {
     if (!authorization.canRead(profileId, authentication)) {
