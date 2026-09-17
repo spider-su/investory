@@ -371,40 +371,6 @@ public class AccountingPocRepository {
         period);
   }
 
-  public Optional<String> calculationSnapshot(long profileId, LocalDate period) {
-    return jdbcTemplate.query(
-        "SELECT payload::text FROM investory.accounting_calculation_snapshot WHERE profile_id = ? AND tax_period = ?",
-        rs -> rs.next() ? Optional.ofNullable(rs.getString(1)) : Optional.empty(),
-        profileId,
-        period);
-  }
-
-  public void saveCalculationSnapshot(
-      long profileId, LocalDate period, String payload, String calculationHash) {
-    jdbcTemplate.update(
-        """
-        INSERT INTO investory.accounting_calculation_snapshot
-            (profile_id, tax_period, schema_version, payload, calculation_hash, calculated_at)
-        VALUES (?, ?, 1, ?::jsonb, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT (profile_id, tax_period) DO UPDATE SET
-            schema_version = EXCLUDED.schema_version,
-            payload = EXCLUDED.payload,
-            calculation_hash = EXCLUDED.calculation_hash,
-            calculated_at = EXCLUDED.calculated_at
-        """,
-        profileId,
-        period,
-        payload,
-        calculationHash);
-  }
-
-  public void invalidateCalculationSnapshotsFrom(long profileId, LocalDate period) {
-    jdbcTemplate.update(
-        "DELETE FROM investory.accounting_calculation_snapshot WHERE profile_id = ? AND tax_period >= ?",
-        profileId,
-        period);
-  }
-
   public Map<LocalDate, PeriodState> periodStates(long profileId) {
     return jdbcTemplate.query(
         "SELECT tax_period, confirmed_at, confirmed_calculation_hash, lifecycle_status FROM investory.accounting_poc_period_state WHERE profile_id = ?",
@@ -462,7 +428,6 @@ public class AccountingPocRepository {
         period,
         java.sql.Timestamp.from(reopenedAt),
         reason);
-    invalidateCalculationSnapshotsFrom(profileId, period);
   }
 
   public void saveFilingArtifact(long profileId, AccountingFilingArtifact artifact) {

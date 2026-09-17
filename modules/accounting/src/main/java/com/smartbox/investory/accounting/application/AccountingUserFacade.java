@@ -26,7 +26,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +34,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class AccountingUserFacade implements AccountingUserApi {
   private static final String REQUEST_SNAPSHOT_CACHE =
       AccountingUserFacade.class.getName() + ".snapshots";
@@ -131,20 +129,15 @@ public class AccountingUserFacade implements AccountingUserApi {
 
   @Override
   public MonthOverview overview(long profileId, YearMonth month) {
-    long started = System.nanoTime();
     profile(profileId);
-    long authorizationNanos = System.nanoTime();
     facts.warmMonthFx(month);
-    long fxWarmNanos = System.nanoTime();
     var snapshotCache = new java.util.HashMap<LocalDate, AccountingMonthSnapshot>();
     var snapshot = snapshot(profileId, date(month));
-    long snapshotNanos = System.nanoTime();
     snapshotCache.put(date(month), snapshot);
     var state = repository.periodState(profileId, date(month));
     var lifecycle = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
     var outcomes = sources.outcomes(profileId, date(month));
     var filingResult = filing.filing(profileId, date(month), snapshot);
-    long filingNanos = System.nanoTime();
     var filingIssues = filingResult.issues();
     var stagingState = stagingReconciliation.summary(profileId, date(month));
     boolean acquired =
@@ -159,7 +152,6 @@ public class AccountingUserFacade implements AccountingUserApi {
     int failed = (int) outcomes.stream().filter(o -> "FAILED".equals(o.status())).count();
     var issues =
         acquired ? issues(profileId, snapshot, outcomes, filingIssues) : List.<IssueView>of();
-    long issueNanos = System.nanoTime();
     boolean blockingIssues =
         issues.stream().anyMatch(issue -> issue.kind() != AccountingUserApi.IssueKind.INFO);
     List<AccountingPaymentInstruction> payments;
@@ -176,150 +168,120 @@ public class AccountingUserFacade implements AccountingUserApi {
                 .count();
     var ryczalt = snapshot.ryczalt();
     var vat = snapshot.vat();
-    long auditStarted = System.nanoTime();
-    var cumulativeTax = cumulativeRyczaltTax(profileId, month, snapshotCache);
-    long auditFinished = System.nanoTime();
-    var result =
-        new MonthOverview(
-            month,
-            lifecycle.name(),
-            label(lifecycle),
-            periodLifecycle.nextAction(lifecycle, acquired, blockingIssues).name(),
-            nextLabel(periodLifecycle.nextAction(lifecycle, acquired, blockingIssues)),
-            new Summary(
-                snapshot.totalBookedRevenuePln(),
-                snapshot.vat().calculatedVat(),
-                snapshot.ryczalt().calculatedTax(),
-                snapshot.zus().totalZus(),
-                snapshot.invoices().size() + snapshot.expenses().size(),
-                snapshot.bankTransactions().size(),
-                snapshot.totalCalculatedObligations()),
-            issues,
-            new SourceSummary(outcomes.size(), imported, review, failed),
-            ksef.map(AccountingKsefSyncPort::providerStatus).orElse("NOT_CONFIGURED"),
-            new DocumentSummary(
-                snapshot.invoices().size(),
-                snapshot.expenses().size(),
-                snapshot.invoices().size() + snapshot.expenses().size(),
-                review,
-                failed),
-            new BankSummary(
-                snapshot.bankTransactions().size(),
-                unmatched,
-                snapshot.bankTransactions().isEmpty() ? "NO_IMPORT" : "IMPORTED"),
-            new PaymentSummary(
-                payments.size(),
-                (int)
-                    payments.stream()
-                        .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
-                        .count(),
+    return new MonthOverview(
+        month,
+        lifecycle.name(),
+        label(lifecycle),
+        periodLifecycle.nextAction(lifecycle, acquired, blockingIssues).name(),
+        nextLabel(periodLifecycle.nextAction(lifecycle, acquired, blockingIssues)),
+        new Summary(
+            snapshot.totalBookedRevenuePln(),
+            snapshot.vat().calculatedVat(),
+            snapshot.ryczalt().calculatedTax(),
+            snapshot.zus().totalZus(),
+            snapshot.invoices().size() + snapshot.expenses().size(),
+            snapshot.bankTransactions().size(),
+            snapshot.totalCalculatedObligations()),
+        issues,
+        new SourceSummary(outcomes.size(), imported, review, failed),
+        ksef.map(AccountingKsefSyncPort::providerStatus).orElse("NOT_CONFIGURED"),
+        new DocumentSummary(
+            snapshot.invoices().size(),
+            snapshot.expenses().size(),
+            snapshot.invoices().size() + snapshot.expenses().size(),
+            review,
+            failed),
+        new BankSummary(
+            snapshot.bankTransactions().size(),
+            unmatched,
+            snapshot.bankTransactions().isEmpty() ? "NO_IMPORT" : "IMPORTED"),
+        new PaymentSummary(
+            payments.size(),
+            (int)
                 payments.stream()
                     .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
-                    .map(com.smartbox.investory.accounting.AccountingPaymentInstruction::amount)
-                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add),
-                paymentViews(snapshot.reconciliations(), payments)),
-            new FilingSummary(
-                lifecycle.name(),
-                label(lifecycle),
-                filingResult.ready(),
-                filingResult.issues(),
-                repository
-                    .filingArtifact(profileId, date(month), "JPK_V7M")
-                    .map(a -> a.status().name())
-                    .orElse("MISSING"),
-                repository
-                    .filingArtifact(profileId, date(month), "JPK_V7M")
-                    .map(a -> a.generatedAt().toString())
-                    .orElse(null),
-                repository
-                    .authorityConfirmation(profileId, date(month), "JPK_UPO")
-                    .map(a -> a.status().name())
-                    .orElse("MISSING"),
-                repository
-                    .authorityConfirmation(profileId, date(month), "JPK_UPO")
-                    .map(AuthorityConfirmation::externalReference)
-                    .orElse(null),
-                repository
-                    .authorityConfirmation(profileId, date(month), "JPK_UPO")
-                    .map(a -> a.receivedAt().toString())
-                    .orElse(null)),
-            new ReconciliationSummary(
-                reconciliations.size(),
-                (int)
-                    reconciliations.stream()
-                        .filter(row -> "MATCHED".equalsIgnoreCase(row.status()))
-                        .count(),
-                (int)
-                    reconciliations.stream()
-                        .filter(
-                            row ->
-                                "DIFF".equalsIgnoreCase(row.status())
-                                    || "UNMATCHED".equalsIgnoreCase(row.status()))
-                        .count(),
-                (int)
-                    reconciliations.stream()
-                        .filter(
-                            row ->
-                                row.explanation() != null
-                                    && row.explanation().toLowerCase().contains("evidence"))
-                        .count()),
-            periodLifecycle.allowedActions(lifecycle, acquired, blockingIssues),
+                    .count(),
+            payments.stream()
+                .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
+                .map(com.smartbox.investory.accounting.AccountingPaymentInstruction::amount)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add),
+            paymentViews(snapshot.reconciliations(), payments)),
+        new FilingSummary(
+            lifecycle.name(),
+            label(lifecycle),
+            filingResult.ready(),
+            filingResult.issues(),
             repository
-                .referenceMonth(profileId, date(month))
-                .map(
-                    r ->
-                        new ReferenceSummary(
-                            true,
-                            r.revenue(),
-                            r.expenses(),
-                            r.outputVat(),
-                            r.deductibleInputVat(),
-                            r.vatPayable(),
-                            r.ryczalt(),
-                            r.zus(),
-                            r.documentCount(),
-                            r.bankCount(),
-                            r.filingStatus()))
-                .orElse(
+                .filingArtifact(profileId, date(month), "JPK_V7M")
+                .map(a -> a.status().name())
+                .orElse("MISSING"),
+            repository
+                .filingArtifact(profileId, date(month), "JPK_V7M")
+                .map(a -> a.generatedAt().toString())
+                .orElse(null),
+            repository
+                .authorityConfirmation(profileId, date(month), "JPK_UPO")
+                .map(a -> a.status().name())
+                .orElse("MISSING"),
+            repository
+                .authorityConfirmation(profileId, date(month), "JPK_UPO")
+                .map(AuthorityConfirmation::externalReference)
+                .orElse(null),
+            repository
+                .authorityConfirmation(profileId, date(month), "JPK_UPO")
+                .map(a -> a.receivedAt().toString())
+                .orElse(null)),
+        new ReconciliationSummary(
+            reconciliations.size(),
+            (int)
+                reconciliations.stream()
+                    .filter(row -> "MATCHED".equalsIgnoreCase(row.status()))
+                    .count(),
+            (int)
+                reconciliations.stream()
+                    .filter(
+                        row ->
+                            "DIFF".equalsIgnoreCase(row.status())
+                                || "UNMATCHED".equalsIgnoreCase(row.status()))
+                    .count(),
+            (int)
+                reconciliations.stream()
+                    .filter(
+                        row ->
+                            row.explanation() != null
+                                && row.explanation().toLowerCase().contains("evidence"))
+                    .count()),
+        periodLifecycle.allowedActions(lifecycle, acquired, blockingIssues),
+        repository
+            .referenceMonth(profileId, date(month))
+            .map(
+                r ->
                     new ReferenceSummary(
-                        false, null, null, null, null, null, null, null, 0, 0, null)),
-            new MonthlyAudit(
-                ryczalt.revenueBeforeDeductions(),
-                ryczalt.socialContributionDeduction(),
-                ryczalt.healthDeduction(),
-                BigDecimal.ZERO,
-                ryczalt.taxableBase(),
-                cumulativeTax,
-                ryczalt.calculatedTax(),
-                vat.outputVatAfterSalesCorrection(),
-                vat.deductibleInputVat(),
-                vat.explicitVatAdjustments(),
-                vat.calculatedVat()));
-    log.info(
-        "accounting month performance profile={} month={} totalMs={} authMs={} fxWarmMs={} snapshotMs={} filingMs={} issuesMs={} cumulativeMs={} cumulativeSnapshotCount={} invoices={} expenses={} bankTransactions={} issues={}",
-        profileId,
-        month,
-        millisSince(started),
-        millisBetween(started, authorizationNanos),
-        millisBetween(authorizationNanos, fxWarmNanos),
-        millisBetween(fxWarmNanos, snapshotNanos),
-        millisBetween(snapshotNanos, filingNanos),
-        millisBetween(filingNanos, issueNanos),
-        millisBetween(auditStarted, auditFinished),
-        snapshotCache.size(),
-        snapshot.invoices().size(),
-        snapshot.expenses().size(),
-        snapshot.bankTransactions().size(),
-        result.issues().size());
-    return result;
-  }
-
-  private static long millisSince(long started) {
-    return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
-  }
-
-  private static long millisBetween(long started, long finished) {
-    return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(finished - started);
+                        true,
+                        r.revenue(),
+                        r.expenses(),
+                        r.outputVat(),
+                        r.deductibleInputVat(),
+                        r.vatPayable(),
+                        r.ryczalt(),
+                        r.zus(),
+                        r.documentCount(),
+                        r.bankCount(),
+                        r.filingStatus()))
+            .orElse(
+                new ReferenceSummary(false, null, null, null, null, null, null, null, 0, 0, null)),
+        new MonthlyAudit(
+            ryczalt.revenueBeforeDeductions(),
+            ryczalt.socialContributionDeduction(),
+            ryczalt.healthDeduction(),
+            BigDecimal.ZERO,
+            ryczalt.taxableBase(),
+            cumulativeRyczaltTax(profileId, month, snapshotCache),
+            ryczalt.calculatedTax(),
+            vat.outputVatAfterSalesCorrection(),
+            vat.deductibleInputVat(),
+            vat.explicitVatAdjustments(),
+            vat.calculatedVat()));
   }
 
   private BigDecimal cumulativeRyczaltTax(
