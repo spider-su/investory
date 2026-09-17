@@ -50,11 +50,13 @@ public record AccountingCalculationResult(
       Map<BigDecimal, BigDecimal> taxableByRate,
       BigDecimal calculatedTax) {}
 
+  /** VAT adjustment is signed and is rounded independently before payable calculation. */
   public record VatCalculation(
       BigDecimal outputVatBeforeCorrection,
       BigDecimal salesCorrectionVat,
       BigDecimal outputVat,
       BigDecimal deductibleInputVat,
+      BigDecimal explicitVatAdjustments,
       BigDecimal calculatedVat) {}
 
   public record ZusCalculation(

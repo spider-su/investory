@@ -139,6 +139,7 @@ final class VatCalculator {
     BigDecimal calculated =
         outputVat
             .setScale(0, RoundingMode.HALF_UP)
+            .add(explicitVatAdjustments(input).setScale(0, RoundingMode.HALF_UP))
             .subtract(deductible.setScale(0, RoundingMode.HALF_UP))
             .max(BigDecimal.ZERO);
     return new AccountingCalculationResult.VatCalculation(
@@ -146,7 +147,16 @@ final class VatCalculator {
         input.adjustments().salesVat(),
         outputVat,
         deductible,
+        explicitVatAdjustments(input),
         calculated);
+  }
+
+  private BigDecimal explicitVatAdjustments(AccountingCalculationInput input) {
+    return input.vatAdjustments().stream()
+        .filter(adjustment -> input.period().equals(adjustment.taxPeriod()))
+        .map(AccountingVatAdjustment::amount)
+        .reduce(BigDecimal.ZERO, BigDecimal::add)
+        .setScale(2, RoundingMode.HALF_UP);
   }
 
   private boolean present(String value) {

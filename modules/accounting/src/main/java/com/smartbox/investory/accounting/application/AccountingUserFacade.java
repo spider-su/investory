@@ -70,6 +70,21 @@ public class AccountingUserFacade implements AccountingUserApi {
   }
 
   @Override
+  public List<AccountingUserApi.CounterpartyView> counterparties(long profileId) {
+    profile(profileId);
+    return repository.counterparties(profileId);
+  }
+
+  @Override
+  public void updateCounterpartyAlias(long profileId, long counterpartyId, String alias) {
+    profile(profileId);
+    if (alias != null && alias.trim().length() > 128) {
+      throw new IllegalArgumentException("Alias must be at most 128 characters");
+    }
+    repository.updateCounterpartyAlias(profileId, counterpartyId, alias);
+  }
+
+  @Override
   public MonthOverview overview(long profileId, YearMonth month) {
     profile(profileId);
     var snapshot = facts.snapshot(profileId, date(month));
@@ -100,6 +115,8 @@ public class AccountingUserFacade implements AccountingUserApi {
             reconciliations.stream()
                 .filter(row -> !"MATCHED".equalsIgnoreCase(row.status()))
                 .count();
+    var ryczalt = snapshot.ryczalt();
+    var vat = snapshot.vat();
     return new MonthOverview(
         month,
         lifecycle.name(),
@@ -201,7 +218,29 @@ public class AccountingUserFacade implements AccountingUserApi {
                         r.bankCount(),
                         r.filingStatus()))
             .orElse(
-                new ReferenceSummary(false, null, null, null, null, null, null, null, 0, 0, null)));
+                new ReferenceSummary(false, null, null, null, null, null, null, null, 0, 0, null)),
+        new MonthlyAudit(
+            ryczalt.revenueBeforeDeductions(),
+            ryczalt.socialContributionDeduction(),
+            ryczalt.healthDeduction(),
+            BigDecimal.ZERO,
+            ryczalt.taxableBase(),
+            cumulativeRyczaltTax(profileId, month),
+            ryczalt.calculatedTax(),
+            vat.outputVatAfterSalesCorrection(),
+            vat.deductibleInputVat(),
+            vat.explicitVatAdjustments(),
+            vat.calculatedVat()));
+  }
+
+  private BigDecimal cumulativeRyczaltTax(long profileId, YearMonth month) {
+    BigDecimal total = BigDecimal.ZERO;
+    for (YearMonth cursor = YearMonth.of(month.getYear(), 1);
+        !cursor.isAfter(month);
+        cursor = cursor.plusMonths(1)) {
+      total = total.add(facts.snapshot(profileId, date(cursor)).ryczalt().calculatedTax());
+    }
+    return total;
   }
 
   private List<AccountingPaymentInstruction> paymentInstructions(

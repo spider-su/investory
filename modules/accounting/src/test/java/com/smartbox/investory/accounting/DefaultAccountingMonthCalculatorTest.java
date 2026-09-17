@@ -255,6 +255,38 @@ class DefaultAccountingMonthCalculatorTest {
   }
 
   @Test
+  void uopStopsZusSocialAccrualButDoesNotRemoveExplicitPaidSocialDeduction() {
+    var base = input(List.of(invoice("PLN-UOP", "PLN", "1000.00", "0.12")), List.of());
+    var effective =
+        new AccountingCalculationInput(
+            base.period(),
+            base.invoices(),
+            base.expenses(),
+            List.of(new TaxInputRow("SOCIAL_CONTRIBUTION_PAID", new BigDecimal("100.00"), "paid")),
+            base.profile(),
+            base.adjustments(),
+            new AccountingPeriodContext(
+                PERIOD,
+                true,
+                true,
+                "JDG",
+                false,
+                new BigDecimal("0.12"),
+                true,
+                true,
+                AccountingYearToDateContext.empty(),
+                null),
+            List.of(),
+            AccountingCalculationMode.HISTORICAL_RECONSTRUCTION);
+
+    var result = calculator(mock(CurrencyConversion.class)).calculate(effective);
+
+    assertThat(result.zus().socialZus()).isZero();
+    assertThat(result.ryczalt().socialContributionDeduction()).isEqualByComparingTo("100.00");
+    assertThat(result.ryczalt().taxableBase()).isEqualByComparingTo("900");
+  }
+
+  @Test
   void neverCreatesNegativeRyczaltTaxWhenPaidContributionsExceedRevenue() {
     AccountingCalculationInput base =
         input(List.of(invoice("PLN-LOW", "PLN", "100.00", "0.12")), List.of());

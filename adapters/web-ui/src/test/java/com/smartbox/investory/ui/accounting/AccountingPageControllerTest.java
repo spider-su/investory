@@ -40,6 +40,33 @@ class AccountingPageControllerTest {
   }
 
   @Test
+  void rendersCounterpartiesPageAndLinksToEdit() throws Exception {
+    when(client.counterparties(1))
+        .thenReturn(
+            List.of(
+                new AccountingUserApi.CounterpartyView(
+                    7L, "1234567890", "PL", "Legal Company", "Short name", 3)));
+
+    var resolver = new ThymeleafViewResolver();
+    resolver.setTemplateEngine(templateEngine());
+    resolver.setViewNames(new String[] {"accounting/*", "fragments/*"});
+    MockMvc renderingMvc =
+        MockMvcBuilders.standaloneSetup(controller).setViewResolvers(resolver).build();
+
+    renderingMvc
+        .perform(get("/profiles/1/accounting/counterparties"))
+        .andExpect(status().isOk())
+        .andExpect(view().name("accounting/counterparties"))
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("Short name")))
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("Legal Company")))
+        .andExpect(
+            content()
+                .string(
+                    org.hamcrest.Matchers.containsString(
+                        "/profiles/1/accounting/counterparties/7")));
+  }
+
+  @Test
   void untouchedMonthIsPresentedAsWaitingForSourceData() {
     when(client.months(1))
         .thenReturn(
@@ -190,7 +217,8 @@ class AccountingPageControllerTest {
             base.filingSummary(),
             base.reconciliationSummary(),
             base.allowedActions(),
-            base.reference());
+            base.reference(),
+            base.audit());
     when(client.months(1))
         .thenReturn(
             List.of(new AccountingRestClient.MonthRef(month, "March 2026", "OPEN", "Open")));
@@ -407,7 +435,8 @@ class AccountingPageControllerTest {
             base.filingSummary(),
             base.reconciliationSummary(),
             base.allowedActions(),
-            base.reference());
+            base.reference(),
+            base.audit());
     when(client.months(1))
         .thenReturn(
             List.of(new AccountingRestClient.MonthRef(month, "March 2026", "OPEN", "Open")));
@@ -424,10 +453,10 @@ class AccountingPageControllerTest {
         .singleElement()
         .satisfies(
             issue -> {
-              assertThat(issue).extracting("title").isEqualTo("JPK category required");
+              assertThat(issue).extracting("title").isEqualTo("JPK evidence required");
               assertThat(issue)
                   .extracting("message")
-                  .isEqualTo("Choose the JPK category for this document.");
+                  .isEqualTo("Choose the JPK evidence type for this document.");
             });
   }
 
@@ -475,6 +504,8 @@ class AccountingPageControllerTest {
         .andExpect(status().isOk())
         .andExpect(view().name("accounting/accounting"))
         .andExpect(content().string(org.hamcrest.Matchers.containsString("Month readiness")))
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("Monthly audit")))
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("Cumulative tax")))
         .andExpect(content().string(org.hamcrest.Matchers.containsString("JPK not generated")))
         .andExpect(content().string(org.hamcrest.Matchers.containsString("UPO not generated")))
         .andExpect(
@@ -653,6 +684,8 @@ class AccountingPageControllerTest {
         new AccountingRestClient.ReconciliationSummary(0, 0, 0, 0),
         List.of(),
         new AccountingRestClient.ReferenceSummary(
-            true, zero, zero, zero, zero, zero, zero, zero, 0, 0, "OPEN"));
+            true, zero, zero, zero, zero, zero, zero, zero, 0, 0, "OPEN"),
+        new AccountingRestClient.MonthlyAudit(
+            zero, zero, zero, zero, zero, zero, zero, zero, zero, zero, zero));
   }
 }

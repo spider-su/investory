@@ -1,5 +1,6 @@
 package com.smartbox.investory.ui.accounting;
 
+import com.smartbox.investory.accounting.api.AccountingStagingApi;
 import com.smartbox.investory.accounting.api.AccountingUserApi.IssueView;
 import com.smartbox.investory.accounting.api.AccountingUserApi.ReconciliationView;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -153,22 +154,25 @@ public class AccountingPageController {
             .filter(row -> "MATCHED".equals(row.status()))
             .map(row -> matchedBankAmountPln(row, selected))
             .reduce(BigDecimal.ZERO, BigDecimal::add));
-    model.addAttribute("totalToPay", totalToPay(overview, paymentRows, selected));
-    model.addAttribute(
-        "totalToPayLabel",
-        selected.isBefore(YearMonth.now())
-                && totalToPay(overview, paymentRows, selected).signum() == 0
-            ? "paid"
-            : "to pay");
+    BigDecimal paidAmount = paidAmount(paymentRows);
+    BigDecimal toPayAmount = totalToPay(overview, paymentRows, selected);
+    model.addAttribute("paidAmountDisplay", money(paidAmount, "PLN"));
+    model.addAttribute("toPayAmountDisplay", money(toPayAmount, "PLN"));
     model.addAttribute("workspaceStatus", workspaceStatus);
-    model.addAttribute(
-        "totalToPayDisplay", money(totalToPay(overview, paymentRows, selected), "PLN"));
+    model.addAttribute("totalToPayDisplay", money(toPayAmount, "PLN"));
     model.addAttribute("ryczaltDisplay", money(overview.summary().ryczalt(), "PLN"));
     model.addAttribute("vatDisplay", money(overview.summary().vat(), "PLN"));
     model.addAttribute("zusDisplay", money(overview.summary().zus(), "PLN"));
     model.addAttribute("referenceRyczaltDisplay", money(overview.reference().ryczalt(), "PLN"));
     model.addAttribute("referenceVatDisplay", money(overview.reference().vatPayable(), "PLN"));
     model.addAttribute("referenceZusDisplay", money(overview.reference().zus(), "PLN"));
+    model.addAttribute(
+        "ryczaltDiffDisplay",
+        diffLabel(overview.summary().ryczalt(), overview.reference().ryczalt()));
+    model.addAttribute(
+        "vatDiffDisplay", diffLabel(overview.summary().vat(), overview.reference().vatPayable()));
+    model.addAttribute(
+        "zusDiffDisplay", diffLabel(overview.summary().zus(), overview.reference().zus()));
     model.addAttribute("revenueDisplay", money(overview.summary().revenue(), "PLN"));
     var documentPresentations = new ArrayList<DocumentPresentation>();
     documents.stream()
@@ -223,8 +227,8 @@ public class AccountingPageController {
                 : "pending");
     model.addAttribute(
         "payStep",
-        overview.paymentSummary().outstandingCount() == 0
-                && overview.paymentSummary().expectedCount() > 0
+        !paymentRows.isEmpty()
+                && paymentRows.stream().allMatch(row -> "MATCHED".equals(row.status()))
             ? "complete"
             : "pending");
     model.addAttribute(
@@ -239,6 +243,91 @@ public class AccountingPageController {
         "payStepClass", "accounting-workflow__step--" + model.getAttribute("payStep"));
     model.addAttribute("canWrite", canWrite(request));
     return "accounting/accounting";
+  }
+
+  @GetMapping(BASE + "/counterparties")
+  public String counterparties(
+      @PathVariable("profileId") long profileId,
+      Model model,
+      jakarta.servlet.http.HttpServletRequest request) {
+    model.addAttribute("profileId", profileId);
+    model.addAttribute("counterparties", client.counterparties(profileId));
+    model.addAttribute("canWrite", canWrite(request));
+    return "accounting/counterparties";
+  }
+
+  @GetMapping(BASE + "/counterparties/{counterpartyId}")
+  public String counterparty(
+      @PathVariable("profileId") long profileId,
+      @PathVariable long counterpartyId,
+      Model model,
+      jakarta.servlet.http.HttpServletRequest request) {
+    var counterparty =
+        client.counterparties(profileId).stream()
+            .filter(item -> item.id() == counterpartyId)
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND));
+    model.addAttribute("profileId", profileId);
+    model.addAttribute("counterparty", counterparty);
+    var invoices =
+        client.months(profileId).stream()
+            .flatMap(
+                period -> {
+                  var month = period.month();
+                  var matchingDocuments =
+                      client.documents(profileId, month).stream()
+                          .filter(document -> belongsTo(document, counterparty))
+                          .toList();
+                  if (matchingDocuments.isEmpty()) return java.util.stream.Stream.empty();
+                  var issues = client.issues(profileId, month);
+                  var reconciliation = client.reconciliation(profileId, month);
+                  return matchingDocuments.stream()
+                      .map(
+                          document ->
+                              documentView(document, profileId, month, issues, reconciliation));
+                })
+            .toList();
+    model.addAttribute("counterpartyInvoices", invoices);
+    model.addAttribute("canWrite", canWrite(request));
+    return "accounting/counterparty";
+  }
+
+  private static boolean belongsTo(
+      AccountingRestClient.DocumentView document,
+      com.smartbox.investory.accounting.api.AccountingUserApi.CounterpartyView counterparty) {
+    if (document.counterpartyTaxIdentifier() != null
+        && counterparty.taxIdentifier() != null
+        && normalizeIdentifier(document.counterpartyTaxIdentifier())
+            .equals(normalizeIdentifier(counterparty.taxIdentifier()))
+        && equalText(document.counterpartyCountry(), counterparty.country())) return true;
+    return equalText(document.counterparty(), counterparty.name())
+        || equalText(document.counterparty(), counterparty.displayName());
+  }
+
+  private static String normalizeIdentifier(String value) {
+    return value.replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT);
+  }
+
+  private static boolean equalText(String left, String right) {
+    return left != null && right != null && left.trim().equalsIgnoreCase(right.trim());
+  }
+
+  @PostMapping(BASE + "/counterparties/{counterpartyId}/alias")
+  public String updateCounterpartyAlias(
+      @PathVariable("profileId") long profileId,
+      @PathVariable long counterpartyId,
+      @RequestParam(required = false) String alias,
+      RedirectAttributes redirect) {
+    try {
+      client.updateCounterpartyAlias(profileId, counterpartyId, alias);
+      redirect.addFlashAttribute("accountingMessage", "Counterparty alias saved.");
+    } catch (RuntimeException exception) {
+      redirect.addFlashAttribute("accountingError", safeMessage(exception));
+    }
+    return "redirect:/profiles/" + profileId + "/accounting/counterparties/" + counterpartyId;
   }
 
   private void addPaymentHeaderModel(
@@ -269,15 +358,24 @@ public class AccountingPageController {
       AccountingRestClient.MonthOverview overview,
       List<ReconciliationView> paymentRows,
       YearMonth selected) {
-    if (!selected.isBefore(YearMonth.now()))
+    if (paymentRows.isEmpty())
       return overview
           .summary()
           .vat()
           .add(overview.summary().ryczalt())
           .add(overview.summary().zus());
     return paymentRows.stream()
-        .filter(row -> !"MATCHED".equalsIgnoreCase(row.status()))
-        .map(row -> row.expectedAmount().subtract(row.matchedAmount()).max(BigDecimal.ZERO))
+        .map(
+            row ->
+                row.expectedAmount()
+                    .subtract(row.matchedAmount() == null ? BigDecimal.ZERO : row.matchedAmount())
+                    .max(BigDecimal.ZERO))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private static BigDecimal paidAmount(List<ReconciliationView> paymentRows) {
+    return paymentRows.stream()
+        .map(row -> row.matchedAmount() == null ? BigDecimal.ZERO : row.matchedAmount())
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
@@ -305,6 +403,7 @@ public class AccountingPageController {
       List<ReconciliationView> reconciliation) {
     boolean income = isIncomeDirection(document.direction());
     boolean review = hasDocumentReview(document.reference(), document.sourceReference(), issues);
+    String issueSummary = documentIssueSummary(document, review, issues);
     String status =
         income
             ? review
@@ -321,6 +420,7 @@ public class AccountingPageController {
             : document.date().format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)),
         wholeMoney(document.grossAmount(), document.currency()),
         status,
+        issueSummary,
         document.direction(),
         document.sourceReference(),
         safeReference(document.sourceReference()),
@@ -346,6 +446,7 @@ public class AccountingPageController {
             && !"PURCHASE_INVOICE".equalsIgnoreCase(row.documentKind())
             && !"RECEIPT".equalsIgnoreCase(row.documentKind());
     String label = "To review";
+    String issueSummary = stagedIssueSummary(row);
     String href =
         row.source() != null
             ? "/profiles/"
@@ -361,6 +462,7 @@ public class AccountingPageController {
         formatDate(row.documentDate()),
         wholeMoney(row.amount(), row.currency()),
         label,
+        issueSummary,
         income ? "SALES" : "PURCHASE",
         row.source(),
         safeReference(row.source()),
@@ -386,6 +488,58 @@ public class AccountingPageController {
       case "OTHER" -> "Other";
       default -> "—";
     };
+  }
+
+  private static String documentIssueSummary(
+      AccountingRestClient.DocumentView document, boolean review, List<IssueView> issues) {
+    var reasons = new ArrayList<String>();
+    boolean purchase = !isIncomeDirection(document.direction());
+    if (purchase && (document.category() == null || document.category().isBlank())) {
+      reasons.add("Category required");
+    }
+    if (issues != null) {
+      issues.stream()
+          .filter(
+              issue ->
+                  issue.sourceReference() != null
+                      && (issue.sourceReference().equals(document.reference())
+                          || issue.sourceReference().equals(document.sourceReference())))
+          .map(AccountingPageController::issueReason)
+          .filter(reason -> !reason.isBlank())
+          .forEach(reasons::add);
+    }
+    if (review && reasons.isEmpty()) reasons.add("Review required");
+    return String.join(" · ", reasons.stream().distinct().toList());
+  }
+
+  private static String stagedIssueSummary(AccountingStagingApi.Row row) {
+    if (row.reasonCodes() == null || row.reasonCodes().isEmpty()) {
+      return row.category() == null || row.category().isBlank()
+          ? "Category required"
+          : "Review required";
+    }
+    return row.reasonCodes().stream()
+        .map(AccountingPageController::reasonLabel)
+        .distinct()
+        .collect(java.util.stream.Collectors.joining(" · "));
+  }
+
+  private static String issueReason(IssueView issue) {
+    return reasonLabel(issue.code());
+  }
+
+  private static String reasonLabel(String code) {
+    if (code == null) return "Review required";
+    String normalized = code.toUpperCase(Locale.ROOT);
+    if (normalized.startsWith("MISSING_VAT_CLASSIFICATION")) return "VAT treatment required";
+    if (normalized.startsWith("MISSING_EXPLICIT_VAT_RATE")) return "VAT rate uncertain";
+    if (normalized.startsWith("MISSING_JPK_EVIDENCE_CLASSIFICATION"))
+      return "JPK evidence required";
+    if (normalized.startsWith("MISSING_COUNTERPARTY_IDENTIFIER")) return "Counterparty ID missing";
+    if (normalized.startsWith("SOURCE_REVIEW_REQUIRED")) return "Source review required";
+    if (normalized.startsWith("UNSUPPORTED_VAT_RATE")) return "VAT rate unsupported";
+    if (normalized.startsWith("CATEGORY")) return "Category required";
+    return "Review required";
   }
 
   private static boolean hasDocumentReview(
@@ -439,6 +593,13 @@ public class AccountingPageController {
     return currency == null || "PLN".equalsIgnoreCase(currency)
         ? amount + " zł"
         : amount + " " + currency;
+  }
+
+  private static String diffLabel(BigDecimal calculated, BigDecimal reference) {
+    if (calculated == null || reference == null) return "Diff vs reference: —";
+    BigDecimal diff = calculated.subtract(reference);
+    String sign = diff.signum() > 0 ? "+" : "";
+    return "Diff vs reference: " + sign + money(diff, "PLN");
   }
 
   private static String formatDate(java.time.LocalDate date) {
@@ -505,6 +666,7 @@ public class AccountingPageController {
       String date,
       String amount,
       String status,
+      String issueSummary,
       String direction,
       String sourceReference,
       String sourceReferenceDisplay,
@@ -521,7 +683,7 @@ public class AccountingPageController {
   private static IssuePresentation issueView(IssueView issue) {
     String title =
         switch (issue.code() == null ? "" : issue.code().toUpperCase(Locale.ROOT)) {
-          case "MISSING_JPK_EVIDENCE_CLASSIFICATION" -> "JPK category required";
+          case "MISSING_JPK_EVIDENCE_CLASSIFICATION" -> "JPK evidence required";
           case "SOURCE_REVIEW_REQUIRED" -> "Tax treatment needs review";
           case "SOURCE_PARSED" -> "Document ready for review";
           default ->
@@ -529,7 +691,7 @@ public class AccountingPageController {
         };
     String message = issue.message();
     if ("MISSING_JPK_EVIDENCE_CLASSIFICATION".equalsIgnoreCase(issue.code()))
-      message = "Choose the JPK category for this document.";
+      message = "Choose the JPK evidence type for this document.";
     if ("SOURCE_REVIEW_REQUIRED".equalsIgnoreCase(issue.code()))
       message = "Confirm the tax treatment and document details.";
     String referenceLabel = issue.sourceReference();

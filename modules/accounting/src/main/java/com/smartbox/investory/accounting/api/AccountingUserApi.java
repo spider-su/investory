@@ -24,6 +24,10 @@ public interface AccountingUserApi {
 
   List<ReconciliationView> reconciliation(long profileId, YearMonth month);
 
+  List<CounterpartyView> counterparties(long profileId);
+
+  void updateCounterpartyAlias(long profileId, long counterpartyId, String alias);
+
   CandidateView recognize(long profileId, String filename, String contentType, byte[] content);
 
   CandidateView reviewSource(long profileId, String sourceReference);
@@ -59,6 +63,13 @@ public interface AccountingUserApi {
 
   record MonthRef(YearMonth month, String label, String lifecycle, String lifecycleLabel) {}
 
+  record CounterpartyView(
+      long id, String taxIdentifier, String country, String name, String alias, int documentCount) {
+    public String displayName() {
+      return alias == null || alias.isBlank() ? name : alias;
+    }
+  }
+
   record MonthOverview(
       YearMonth month,
       String lifecycle,
@@ -75,7 +86,63 @@ public interface AccountingUserApi {
       FilingSummary filingSummary,
       ReconciliationSummary reconciliationSummary,
       List<String> allowedActions,
-      ReferenceSummary reference) {}
+      ReferenceSummary reference,
+      MonthlyAudit audit) {
+    public MonthOverview(
+        YearMonth month,
+        String lifecycle,
+        String lifecycleLabel,
+        String nextAction,
+        String nextActionLabel,
+        Summary summary,
+        List<IssueView> issues,
+        SourceSummary sources,
+        String ksefStatus,
+        DocumentSummary documentSummary,
+        BankSummary bankSummary,
+        PaymentSummary paymentSummary,
+        FilingSummary filingSummary,
+        ReconciliationSummary reconciliationSummary,
+        List<String> allowedActions,
+        ReferenceSummary reference) {
+      this(
+          month,
+          lifecycle,
+          lifecycleLabel,
+          nextAction,
+          nextActionLabel,
+          summary,
+          issues,
+          sources,
+          ksefStatus,
+          documentSummary,
+          bankSummary,
+          paymentSummary,
+          filingSummary,
+          reconciliationSummary,
+          allowedActions,
+          reference,
+          MonthlyAudit.empty());
+    }
+  }
+
+  record MonthlyAudit(
+      BigDecimal revenue,
+      BigDecimal socialDeduction,
+      BigDecimal healthDeduction,
+      BigDecimal otherDeduction,
+      BigDecimal taxableBase,
+      BigDecimal cumulativeTax,
+      BigDecimal monthlyAdvance,
+      BigDecimal outputVat,
+      BigDecimal inputVat,
+      BigDecimal vatAdjustments,
+      BigDecimal finalPayable) {
+    public static MonthlyAudit empty() {
+      var zero = BigDecimal.ZERO;
+      return new MonthlyAudit(zero, zero, zero, zero, zero, zero, zero, zero, zero, zero, zero);
+    }
+  }
 
   /** Monthly accounting facts; totalObligations is calculated before recorded payments. */
   record Summary(

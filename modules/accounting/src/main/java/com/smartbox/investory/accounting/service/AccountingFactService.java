@@ -32,8 +32,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AccountingFactService {
-  private static final LocalDate JULY_2026 = LocalDate.of(2026, 7, 1);
-  private static final LocalDate OPERATIONAL_MONTH = LocalDate.of(2026, 9, 1);
   private static final BigDecimal HALF = new BigDecimal("0.50");
 
   private final AccountingFactRepository factRepository;
@@ -98,15 +96,9 @@ public class AccountingFactService {
         profileId == 1
             ? pocRepository.invoicesForPeriod(period)
             : pocRepository.invoicesForPeriod(profileId, period);
-    // The immutable pre-KSeF fixture stores FK1 as correction_* fields on FV4. Keep this
-    // compatibility path explicit and isolated. New KSeF CREDIT_NOTE rows are signed rows in
-    // their own sale-date tax period and must not be moved to July by this legacy adjustment.
-    List<InvoiceRow> legacyJulyCorrectionSources =
-        JULY_2026.equals(period)
-            ? (profileId == 1
-                ? pocRepository.invoicesForPeriod(period.minusMonths(1))
-                : pocRepository.invoicesForPeriod(profileId, period.minusMonths(1)))
-            : List.of();
+    // Legacy rows keep a correction amount on the original invoice. Apply it to the
+    // following tax period, without naming a specific month.
+    List<InvoiceRow> correctionSources = correctionSourcesForPeriod(profileId, period);
     List<ExpenseRow> expenses =
         profileId == 1
             ? pocRepository.expensesForPeriod(period)
@@ -123,6 +115,8 @@ public class AccountingFactService {
         profileId == 1
             ? pocRepository.taxInputsForPeriod(period)
             : pocRepository.taxInputsForPeriod(profileId, period);
+    List<AccountingVatAdjustment> vatAdjustments =
+        pocRepository.vatAdjustmentsForPeriod(profileId, period);
     AccountingProfile profile =
         profileId == 1
             ? accountingProfile()
@@ -149,10 +143,11 @@ public class AccountingFactService {
             .map(InvoiceRow::netAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+    List<AccountingTaxProfilePeriod> taxProfilePeriods = pocRepository.taxProfilePeriods(profileId);
     AccountingCalculationMode calculationMode =
-        period.isBefore(OPERATIONAL_MONTH)
-            ? AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
-            : AccountingCalculationMode.CURRENT_CALCULATION;
+        taxProfilePeriods.stream().anyMatch(profilePeriod -> profilePeriod.activeOn(period))
+            ? AccountingCalculationMode.CURRENT_CALCULATION
+            : AccountingCalculationMode.HISTORICAL_RECONSTRUCTION;
     FxCalculation fx = calculateFx(invoices, foreignBookedRevenue, foreignSourceEur);
     if (calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION) {
       foreignBookedRevenue = reconstructedForeignRevenue(invoices);
@@ -162,17 +157,16 @@ public class AccountingFactService {
             period,
             calculationMode,
             invoices,
-            legacyJulyCorrectionSources,
+            correctionSources,
             domesticRevenue,
             foreignBookedRevenue,
             fx,
             obligations,
             taxInputs);
     VatCalculation vat =
-        calculateVat(period, invoices, legacyJulyCorrectionSources, expenses, obligations);
+        calculateVat(period, invoices, correctionSources, expenses, obligations, vatAdjustments);
     var activityPeriods = pocRepository.businessActivityPeriods(profileId);
     var employmentPeriods = pocRepository.employmentPeriods(profileId);
-    var taxProfilePeriods = pocRepository.taxProfilePeriods(profileId);
     var resolved =
         profileResolver.resolve(period, activityPeriods, employmentPeriods, taxProfilePeriods);
     var vatTransactions =
@@ -360,19 +354,16 @@ public class AccountingFactService {
                 taxInputs,
                 profile,
                 new AccountingCalculationInput.CalculationAdjustments(
-                    JULY_2026.equals(period)
-                        ? legacyJulyCorrectionSources.stream()
-                            .map(InvoiceRow::correctionNetAmount)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add)
-                        : BigDecimal.ZERO,
-                    JULY_2026.equals(period)
-                        ? legacyJulyCorrectionSources.stream()
-                            .map(InvoiceRow::correctionVatAmount)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add)
-                        : BigDecimal.ZERO),
+                    correctionSources.stream()
+                        .map(InvoiceRow::correctionNetAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add),
+                    correctionSources.stream()
+                        .map(InvoiceRow::correctionVatAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add)),
                 context,
                 vatTransactions,
-                calculationMode));
+                calculationMode,
+                vatAdjustments));
     // Historical ryczałt must apply the paid-health deduction. Prefer the recorded wFirma input;
     // use calculated ZUS only when the historical input row is absent.
     if (calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION) {
@@ -527,6 +518,7 @@ public class AccountingFactService {
             : BigDecimal.ZERO;
     return new RyczaltCalculation(
         result.ryczalt().revenueBeforeDeductions(),
+        result.ryczalt().socialContributionDeduction(),
         BigDecimal.ZERO,
         result.ryczalt().healthContributionPaid(),
         result.ryczalt().healthDeduction(),
@@ -582,6 +574,7 @@ public class AccountingFactService {
     BigDecimal difference = calculatedTax.subtract(comparison.expectedTax());
     return new RyczaltCalculation(
         comparison.revenueBeforeDeductions(),
+        socialDeduction,
         comparison.julyOnlyCorrectionNetAdjustment(),
         health,
         healthDeduction,
@@ -686,6 +679,7 @@ public class AccountingFactService {
         result.vat().outputVat(),
         result.vat().deductibleInputVat(),
         BigDecimal.ZERO,
+        result.vat().explicitVatAdjustments(),
         result.vat().calculatedVat(),
         BigDecimal.ZERO,
         BigDecimal.ZERO,
@@ -975,28 +969,45 @@ public class AccountingFactService {
     return total.setScale(2, RoundingMode.HALF_UP);
   }
 
+  private List<InvoiceRow> correctionSourcesForPeriod(long profileId, LocalDate period) {
+    LocalDate sourcePeriod = period.minusMonths(1);
+    List<InvoiceRow> candidates =
+        profileId == 1
+            ? pocRepository.invoicesForPeriod(sourcePeriod)
+            : pocRepository.invoicesForPeriod(profileId, sourcePeriod);
+    return candidates.stream()
+        .filter(
+            invoice ->
+                nonZero(invoice.correctionNetAmount())
+                    || nonZero(invoice.correctionVatAmount())
+                    || nonZero(invoice.correctionGrossAmount()))
+        .toList();
+  }
+
+  private boolean nonZero(BigDecimal value) {
+    return value != null && value.signum() != 0;
+  }
+
   private RyczaltCalculation calculateRyczalt(
       LocalDate period,
       AccountingCalculationMode calculationMode,
       List<InvoiceRow> invoices,
-      List<InvoiceRow> legacyJulyCorrectionSources,
+      List<InvoiceRow> correctionSources,
       BigDecimal domesticRevenue,
       BigDecimal foreignRevenuePln,
       FxCalculation fx,
       List<ObligationRow> obligations,
       List<TaxInputRow> taxInputs) {
-    BigDecimal julyOnlyCorrectionNet =
-        JULY_2026.equals(period)
-            ? legacyJulyCorrectionSources.stream()
-                .map(InvoiceRow::correctionNetAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-            : BigDecimal.ZERO;
+    BigDecimal correctionNet =
+        correctionSources.stream()
+            .map(InvoiceRow::correctionNetAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal foreignRevenueForTax =
         calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
             ? foreignRevenuePln
             : fx.calculatedPln();
     BigDecimal revenueBeforeDeductions =
-        domesticRevenue.add(foreignRevenueForTax).add(julyOnlyCorrectionNet);
+        domesticRevenue.add(foreignRevenueForTax).add(correctionNet);
 
     BigDecimal healthPaid = taxInput(taxInputs, "HEALTH_CONTRIBUTION_PAID");
     BigDecimal healthDeduction = healthPaid.multiply(HALF).setScale(2, RoundingMode.HALF_UP);
@@ -1028,7 +1039,8 @@ public class AccountingFactService {
 
     return new RyczaltCalculation(
         revenueBeforeDeductions,
-        julyOnlyCorrectionNet,
+        BigDecimal.ZERO,
+        correctionNet,
         healthPaid,
         healthDeduction,
         taxableBase,
@@ -1042,32 +1054,38 @@ public class AccountingFactService {
   private VatCalculation calculateVat(
       LocalDate period,
       List<InvoiceRow> invoices,
-      List<InvoiceRow> legacyJulyCorrectionSources,
+      List<InvoiceRow> correctionSources,
       List<ExpenseRow> expenses,
-      List<ObligationRow> obligations) {
+      List<ObligationRow> obligations,
+      List<AccountingVatAdjustment> vatAdjustments) {
     BigDecimal outputBeforeCorrection =
         invoices.stream()
             .filter(invoice -> "PLN".equals(invoice.currency()))
             .map(InvoiceRow::vatAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-    BigDecimal julyOnlySalesCorrectionVat =
-        JULY_2026.equals(period)
-            ? legacyJulyCorrectionSources.stream()
-                .map(InvoiceRow::correctionVatAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-            : BigDecimal.ZERO;
-    BigDecimal outputVat = outputBeforeCorrection.add(julyOnlySalesCorrectionVat);
+    BigDecimal correctionVat =
+        correctionSources.stream()
+            .map(InvoiceRow::correctionVatAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal outputVat = outputBeforeCorrection.add(correctionVat);
 
     BigDecimal deductibleInputVat =
         expenses.stream()
             .map(ExpenseRow::deductibleVat)
             .reduce(BigDecimal.ZERO, BigDecimal::add)
             .setScale(2, RoundingMode.HALF_UP);
+    BigDecimal explicitVatAdjustments =
+        vatAdjustments.stream()
+            .filter(adjustment -> period.equals(adjustment.taxPeriod()))
+            .map(AccountingVatAdjustment::amount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .setScale(2, RoundingMode.HALF_UP);
 
     BigDecimal calculatedVat =
         outputVat
             .setScale(0, RoundingMode.HALF_UP)
+            .add(explicitVatAdjustments.setScale(0, RoundingMode.HALF_UP))
             .subtract(deductibleInputVat.setScale(0, RoundingMode.HALF_UP))
             .max(BigDecimal.ZERO);
     BigDecimal expectedVat = obligationAmount(obligations, "VAT");
@@ -1083,10 +1101,11 @@ public class AccountingFactService {
 
     return new VatCalculation(
         outputBeforeCorrection,
-        julyOnlySalesCorrectionVat,
+        correctionVat,
         outputVat,
         deductibleInputVat,
         BigDecimal.ZERO,
+        explicitVatAdjustments,
         calculatedVat,
         expectedVat,
         difference,

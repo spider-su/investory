@@ -376,6 +376,23 @@ public class AccountingStagingRepository {
     promoted(1L, table, id, canonicalId);
   }
 
+  /**
+   * Link a staging row that already matches an existing canonical row.
+   *
+   * <p>A MATCH is not a new document to promote. Keeping the canonical id on the staging row is
+   * nevertheless required so the UI does not render the same document as an unclassified second
+   * document.
+   */
+  public void matched(long profileId, String table, long id, long canonicalId) {
+    jdbc.update(
+        "UPDATE investory.accounting_tmp_"
+            + table
+            + " SET reconciliation_status='MATCH', canonical_id=? WHERE profile_id=? AND id=?",
+        canonicalId,
+        profileId,
+        id);
+  }
+
   public Long canonicalInvoiceId(StagedInvoice row) {
     String table =
         row.documentKind().equals("EXPENSE")

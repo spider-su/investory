@@ -6,6 +6,7 @@ import com.smartbox.investory.accounting.AccountingMonthSnapshot.ExpenseRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
+import com.smartbox.investory.accounting.api.AccountingUserApi;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -153,6 +154,23 @@ public class AccountingPocRepository {
                 + "AND ksef_number IS NULL AND "
                 + canonicalDatePredicate,
             canonicalArgs);
+    if (canonicalRows > 0) {
+      jdbcTemplate.update(
+          """
+          UPDATE investory.accounting_document d
+             SET counterparty_id = (
+                   SELECT k.id
+                     FROM investory.accounting_known_counterparty k
+                    WHERE k.profile_id = d.profile_id
+                      AND k.country = UPPER(d.counterparty_country)
+                      AND k.tax_identifier = CASE WHEN UPPER(d.counterparty_country) = 'PL'
+                                                  THEN REGEXP_REPLACE(regexp_replace(UPPER(d.counterparty_tax_identifier), '[^A-Z0-9]', '', 'g'), '^PL', '')
+                                                  ELSE regexp_replace(UPPER(d.counterparty_tax_identifier), '[^A-Z0-9]', '', 'g') END)
+           WHERE d.profile_id = ? AND d.ksef_number = ?
+          """,
+          profileId,
+          ksefNumber);
+    }
     return legacyRows + canonicalRows;
   }
 
@@ -169,8 +187,9 @@ public class AccountingPocRepository {
     if (taxIdentifier == null || taxIdentifier.isBlank() || country == null || country.isBlank()) {
       return null;
     }
-    String normalizedTaxIdentifier = normalizeCounterpartyTaxIdentifier(taxIdentifier);
     String normalizedCountry = country.trim().toUpperCase();
+    String normalizedTaxIdentifier =
+        normalizeCounterpartyTaxIdentifier(taxIdentifier, normalizedCountry);
     return jdbcTemplate.query(
         """
         SELECT tax_identifier, country, canonical_name
@@ -205,13 +224,53 @@ public class AccountingPocRepository {
         ON CONFLICT (profile_id, country, tax_identifier) DO NOTHING
         """,
         profileId,
-        normalizeCounterpartyTaxIdentifier(taxIdentifier),
+        normalizeCounterpartyTaxIdentifier(taxIdentifier, country),
         country.trim().toUpperCase(),
         canonicalName.trim());
   }
 
-  private String normalizeCounterpartyTaxIdentifier(String value) {
-    return value.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+  public List<AccountingUserApi.CounterpartyView> counterparties(long profileId) {
+    return jdbcTemplate.query(
+        """
+        SELECT k.id, k.tax_identifier, k.country, k.canonical_name, k.alias, COUNT(d.id) AS document_count
+          FROM investory.accounting_known_counterparty k
+          LEFT JOIN investory.accounting_document d
+            ON d.profile_id = k.profile_id AND d.counterparty_id = k.id
+         WHERE k.profile_id = ?
+         GROUP BY k.id, k.tax_identifier, k.country, k.canonical_name, k.alias
+         ORDER BY COALESCE(NULLIF(k.alias, ''), k.canonical_name), k.id
+        """,
+        (rs, rowNum) ->
+            new AccountingUserApi.CounterpartyView(
+                rs.getLong("id"),
+                rs.getString("tax_identifier"),
+                rs.getString("country"),
+                rs.getString("canonical_name"),
+                rs.getString("alias"),
+                rs.getInt("document_count")),
+        profileId);
+  }
+
+  public void updateCounterpartyAlias(long profileId, long counterpartyId, String alias) {
+    int updated =
+        jdbcTemplate.update(
+            """
+            UPDATE investory.accounting_known_counterparty
+               SET alias = NULLIF(TRIM(?), '')
+             WHERE profile_id = ? AND id = ?
+            """,
+            alias,
+            profileId,
+            counterpartyId);
+    if (updated != 1) throw new IllegalArgumentException("Unknown accounting counterparty");
+  }
+
+  private String normalizeCounterpartyTaxIdentifier(String value, String country) {
+    String normalized = value.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+    if ("PL".equalsIgnoreCase(country) && normalized.startsWith("PL")) {
+      return normalized.substring(2);
+    }
+    return normalized;
   }
 
   private AccountingFilingEvidence filingEvidence(String value, String ksefNumber) {
@@ -587,7 +646,7 @@ public class AccountingPocRepository {
                  COALESCE(d.issue_date, d.supply_date, d.tax_period) AS document_date,
                  d.gross_amount, d.currency, d.source_id, s.external_reference,
                  s.source_type, s.original_filename,
-                 COALESCE(NULLIF(k.canonical_name, ''), NULLIF(d.counterparty_name, '')) AS counterparty_name,
+                 COALESCE(NULLIF(k.alias, ''), NULLIF(k.canonical_name, ''), NULLIF(d.counterparty_name, '')) AS counterparty_name,
                  d.category, d.supply_date, d.counterparty_tax_identifier, d.counterparty_country
             FROM investory.accounting_document d
             LEFT JOIN investory.accounting_known_counterparty k
@@ -760,13 +819,28 @@ public class AccountingPocRepository {
   public List<InvoiceRow> invoicesForPeriod(long profileId, LocalDate period) {
     return jdbcTemplate.query(
         """
-        SELECT id, tax_period, issue_date, sale_date, fx_rate_date, reference, customer_alias, invoice_kind,
-               currency, net_amount, vat_amount, gross_amount, correction_net_amount,
-               correction_vat_amount, correction_gross_amount, expected_receivable,
-               booked_net_pln, ryczalt_rate, note, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence
-          FROM investory.accounting_poc_invoice
-         WHERE profile_id = ? AND tax_period = ?
-         ORDER BY id
+        SELECT i.id, i.tax_period, i.issue_date, i.sale_date, i.fx_rate_date, i.reference,
+               COALESCE(NULLIF(linked.alias, ''), linked.canonical_name,
+                        NULLIF(k.alias, ''), k.canonical_name, i.customer_alias) AS customer_alias, i.invoice_kind,
+               i.currency, i.net_amount, i.vat_amount, i.gross_amount, i.correction_net_amount,
+               i.correction_vat_amount, i.correction_gross_amount, i.expected_receivable,
+               i.booked_net_pln, i.ryczalt_rate, i.note, i.counterparty_tax_identifier, i.counterparty_country, i.ksef_number, i.filing_evidence
+          FROM investory.accounting_poc_invoice i
+          LEFT JOIN investory.accounting_document d
+            ON d.profile_id = i.profile_id
+           AND d.source_id = i.source_id
+           AND d.reference = i.reference
+          LEFT JOIN investory.accounting_known_counterparty linked
+            ON linked.profile_id = d.profile_id
+           AND linked.id = d.counterparty_id
+          LEFT JOIN investory.accounting_known_counterparty k
+            ON k.profile_id = i.profile_id
+           AND k.country = UPPER(i.counterparty_country)
+           AND k.tax_identifier = CASE WHEN UPPER(i.counterparty_country) = 'PL'
+                                       THEN REGEXP_REPLACE(UPPER(REGEXP_REPLACE(i.counterparty_tax_identifier, '[^[:alnum:]]', '', 'g')), '^PL', '')
+                                       ELSE UPPER(REGEXP_REPLACE(i.counterparty_tax_identifier, '[^[:alnum:]]', '', 'g')) END
+         WHERE i.profile_id = ? AND i.tax_period = ?
+         ORDER BY i.id
         """,
         (rs, rowNum) ->
             new InvoiceRow(
@@ -1010,12 +1084,19 @@ public class AccountingPocRepository {
   public List<ExpenseRow> expensesForPeriod(long profileId, LocalDate period) {
     return jdbcTemplate.query(
         """
-        SELECT id, tax_period, invoice_date, reference, supplier_alias, category, currency,
+        SELECT i.id, i.tax_period, i.invoice_date, i.reference,
+               COALESCE(NULLIF(k.alias, ''), k.canonical_name, i.supplier_alias) AS supplier_alias, i.category, i.currency,
                net_amount, vat_amount, gross_amount, vat_deduction_ratio,
                ROUND(vat_amount * vat_deduction_ratio, 2) AS deductible_vat,
                source_quality, note, counterparty_tax_identifier, counterparty_country, ksef_number, filing_evidence
-          FROM investory.accounting_poc_expense_invoice
-         WHERE profile_id = ? AND tax_period = ?
+          FROM investory.accounting_poc_expense_invoice i
+          LEFT JOIN investory.accounting_known_counterparty k
+            ON k.profile_id = i.profile_id
+           AND k.country = UPPER(i.counterparty_country)
+           AND k.tax_identifier = CASE WHEN UPPER(i.counterparty_country) = 'PL'
+                                       THEN REGEXP_REPLACE(UPPER(REGEXP_REPLACE(i.counterparty_tax_identifier, '[^[:alnum:]]', '', 'g')), '^PL', '')
+                                       ELSE UPPER(REGEXP_REPLACE(i.counterparty_tax_identifier, '[^[:alnum:]]', '', 'g')) END
+         WHERE i.profile_id = ? AND i.tax_period = ?
          ORDER BY invoice_date NULLS LAST, id
         """,
         (rs, rowNum) ->
@@ -1556,6 +1637,26 @@ public class AccountingPocRepository {
         period);
   }
 
+  public List<AccountingVatAdjustment> vatAdjustmentsForPeriod(long profileId, LocalDate period) {
+    return jdbcTemplate.query(
+        """
+        SELECT tax_period, adjustment_type, amount, source_system, source_reference, affects
+          FROM investory.accounting_vat_adjustment
+         WHERE profile_id = ? AND tax_period = ?
+         ORDER BY id
+        """,
+        (rs, rowNum) ->
+            new AccountingVatAdjustment(
+                rs.getObject("tax_period", LocalDate.class),
+                rs.getString("adjustment_type"),
+                rs.getBigDecimal("amount"),
+                rs.getString("source_system"),
+                rs.getString("source_reference"),
+                rs.getString("affects")),
+        profileId,
+        period);
+  }
+
   public List<EmploymentInsurancePeriod> employmentPeriods() {
     return employmentPeriods(1L);
   }
@@ -1712,10 +1813,15 @@ public class AccountingPocRepository {
         """
         INSERT INTO investory.accounting_document
             (profile_id, direction, document_kind, tax_period, issue_date, supply_date, due_date,
-             reference, counterparty_name, counterparty_tax_identifier, counterparty_country, currency,
+             reference, counterparty_id, counterparty_name, counterparty_tax_identifier, counterparty_country, currency,
              net_amount, vat_amount, gross_amount, fx_rate_date, booked_net_pln, ryczalt_rate,
              category, vat_deduction_ratio, source_quality, source_id, ksef_number, filing_evidence, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+                (SELECT id FROM investory.accounting_known_counterparty
+                  WHERE profile_id = ?
+                    AND country = UPPER(?)
+                    AND tax_identifier = regexp_replace(UPPER(?), '[^A-Z0-9]', '', 'g')),
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (profile_id, direction, reference) DO NOTHING
         """,
         profileId,
@@ -1726,6 +1832,9 @@ public class AccountingPocRepository {
         supplyDate,
         dueDate,
         reference,
+        profileId,
+        counterpartyCountry,
+        counterpartyTaxIdentifier,
         counterpartyName,
         counterpartyTaxIdentifier,
         counterpartyCountry,

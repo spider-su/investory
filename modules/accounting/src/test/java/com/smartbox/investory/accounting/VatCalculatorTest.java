@@ -69,6 +69,34 @@ class VatCalculatorTest {
   }
 
   @Test
+  void addsSignedHistoricalVatAdjustmentBeforePayableRounding() {
+    var input =
+        new AccountingCalculationInput(
+            PERIOD,
+            List.of(),
+            List.of(),
+            List.of(),
+            new AccountingProfile(false),
+            AccountingCalculationInput.CalculationAdjustments.none(),
+            AccountingPeriodContext.compatibility(PERIOD, new AccountingProfile(false)),
+            List.of(),
+            AccountingCalculationMode.HISTORICAL_RECONSTRUCTION,
+            List.of(
+                new AccountingVatAdjustment(
+                    PERIOD,
+                    "JPK_CORRECTION",
+                    new BigDecimal("12.50"),
+                    "wFirma",
+                    "VAT-1",
+                    "PAYABLE_VAT")));
+
+    var result = new VatCalculator().calculate(input, new ArrayList<>());
+
+    assertThat(result.explicitVatAdjustments()).isEqualByComparingTo("12.50");
+    assertThat(result.calculatedVat()).isEqualByComparingTo("13");
+  }
+
+  @Test
   void excessDeductibleVatRemainsVisibleWhilePayableIsFlooredAtZero() {
     var result =
         calculate(

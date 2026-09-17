@@ -379,6 +379,7 @@ class AccountingJpkGeneratorTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             BigDecimal.ZERO,
+            BigDecimal.ZERO,
             "MATCH"),
         new AccountingMonthSnapshot.VatCalculation(
             new BigDecimal("230"),

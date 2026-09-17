@@ -15,7 +15,7 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.WebContext;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
-import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
+import org.thymeleaf.templateresolver.FileTemplateResolver;
 import org.thymeleaf.templateresolver.StringTemplateResolver;
 import org.thymeleaf.web.servlet.JakartaServletWebApplication;
 
@@ -47,6 +47,8 @@ class AccountingHeaderRenderTest {
     int detailsEnd = controls.indexOf("</th:block>", detailsStart) + "</th:block>".length();
     int monthStart = controls.indexOf("<th:block th:fragment=\"accountingMonthSelector\">");
     int monthEnd = controls.indexOf("</th:block>", monthStart) + "</th:block>".length();
+    int emptyRailStart = controls.indexOf("<th:block th:fragment=\"accountingEmptyRail\">");
+    int emptyRailEnd = controls.indexOf("</th:block>", emptyRailStart) + "</th:block>".length();
     String template =
         source
                 .substring(headerStart, headerEnd)
@@ -54,9 +56,11 @@ class AccountingHeaderRenderTest {
                 .replace(" :: accountingHeaderActions", "::accountingHeaderActions")
                 .replace(" :: accountingHeaderDetails", "::accountingHeaderDetails")
                 .replace(" :: accountingMonthSelector", "::accountingMonthSelector")
+                .replace(" :: accountingEmptyRail", "::accountingEmptyRail")
             + controls.substring(actionsStart, actionsEnd)
             + controls.substring(detailsStart, detailsEnd)
-            + controls.substring(monthStart, monthEnd);
+            + controls.substring(monthStart, monthEnd)
+            + controls.substring(emptyRailStart, emptyRailEnd);
 
     String html = templateEngine().process(template, context());
 
@@ -68,12 +72,7 @@ class AccountingHeaderRenderTest {
             "200.00 zł",
             "ZUS",
             "300.00 zł",
-            "Bank · 100.00 PLN",
-            "✓ Paid",
-            "Bank · 200.00 PLN",
-            "⚠ Difference",
             "For 2026-09",
-            "600.00 zł",
             "Due date",
             "2026-08-20",
             "Status",
@@ -156,8 +155,9 @@ class AccountingHeaderRenderTest {
   }
 
   private static TemplateEngine templateEngine() {
-    ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
-    resolver.setPrefix("templates/");
+    FileTemplateResolver resolver = new FileTemplateResolver();
+    resolver.setPrefix(
+        Path.of("../adapters/web-ui/src/main/resources/templates").toAbsolutePath() + "/");
     resolver.setSuffix(".html");
     resolver.setTemplateMode(TemplateMode.HTML);
     resolver.setCharacterEncoding(StandardCharsets.UTF_8.name());

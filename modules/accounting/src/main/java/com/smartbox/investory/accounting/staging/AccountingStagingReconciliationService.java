@@ -119,15 +119,17 @@ public class AccountingStagingReconciliationService {
             },
             row.profileId(),
             id);
-    repository.result(
-        row.profileId(),
-        "invoice",
-        row.id(),
-        differences.isEmpty()
-            ? StagingReconciliationStatus.MATCH
-            : StagingReconciliationStatus.MISMATCH,
-        differences,
-        differences.isEmpty() ? "Canonical invoice matches" : "Canonical invoice differs");
+    if (differences.isEmpty()) {
+      repository.matched(row.profileId(), "invoice", row.id(), id);
+    } else {
+      repository.result(
+          row.profileId(),
+          "invoice",
+          row.id(),
+          StagingReconciliationStatus.MISMATCH,
+          differences,
+          "Canonical invoice differs");
+    }
   }
 
   private void reconcileBank(StagedBankTransaction row) {

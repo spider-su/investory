@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
+<th:block th:fragment="accountingEmptyRail"></th:block>
 <th:block th:fragment="accountingHeaderActions">
+  <a class="btn btn-outline-secondary accounting-counterparties-link" data-testid="accounting-counterparties" th:href="@{/profiles/{profileId}/accounting/counterparties(profileId=${profileId})}">Counterparties</a>
   <div class="accounting-header-actions" th:if="${canWrite}" aria-label="Accounting actions">
     <form method="post" th:action="@{/profiles/{profileId}/accounting/ksef/sync(profileId=${profileId})}">
       <input type="hidden" name="month" th:value="${selectedMonth}">
@@ -22,8 +24,9 @@
 <th:block th:fragment="accountingHeaderDetails">
   <div class="accounting-brand-summary">
     <div class="accounting-brand-summary__period" th:text="${'For ' + selectedMonth}">For 2025-01</div>
-    <div class="accounting-brand-summary__total" th:text="${totalToPayDisplay}">0 zł</div>
-    <div class="accounting-brand-summary__label" th:text="${totalToPayLabel ?: 'to pay'}">to pay</div>
+    <div class="accounting-brand-summary__total" th:text="${toPayAmountDisplay}">0 zł</div>
+    <div class="accounting-brand-summary__label">to pay</div>
+    <div class="accounting-brand-summary__paid"><span>Paid</span><strong th:text="${paidAmountDisplay}">0 zł</strong></div>
     <div class="accounting-brand-summary__facts">
       <div><span>Due date</span><strong th:text="${payments.isEmpty() ? '—' : payments.get(0).dueDate}">2025-01-20</strong></div>
       <div><span>Status</span><strong class="accounting-status-badge" th:text="${workspaceStatus}">In progress</strong></div>

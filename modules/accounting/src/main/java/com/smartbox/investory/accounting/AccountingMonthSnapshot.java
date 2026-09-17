@@ -323,6 +323,7 @@ public record AccountingMonthSnapshot(
 
   public record RyczaltCalculation(
       BigDecimal revenueBeforeDeductions,
+      BigDecimal socialContributionDeduction,
       BigDecimal julyOnlyCorrectionNetAdjustment,
       BigDecimal healthContributionPaid,
       BigDecimal healthDeduction,
@@ -339,10 +340,34 @@ public record AccountingMonthSnapshot(
       BigDecimal outputVatAfterSalesCorrection,
       BigDecimal deductibleInputVat,
       BigDecimal julyOnlyVatCorrectionAdjustment,
+      BigDecimal explicitVatAdjustments,
       BigDecimal calculatedVat,
       BigDecimal expectedVat,
       BigDecimal difference,
-      String status) {}
+      String status) {
+    public VatCalculation(
+        BigDecimal outputVatBeforeJulyCorrection,
+        BigDecimal julyOnlySalesCorrectionVat,
+        BigDecimal outputVatAfterSalesCorrection,
+        BigDecimal deductibleInputVat,
+        BigDecimal julyOnlyVatCorrectionAdjustment,
+        BigDecimal calculatedVat,
+        BigDecimal expectedVat,
+        BigDecimal difference,
+        String status) {
+      this(
+          outputVatBeforeJulyCorrection,
+          julyOnlySalesCorrectionVat,
+          outputVatAfterSalesCorrection,
+          deductibleInputVat,
+          julyOnlyVatCorrectionAdjustment,
+          BigDecimal.ZERO,
+          calculatedVat,
+          expectedVat,
+          difference,
+          status);
+    }
+  }
 
   public record ZusCalculation(
       BigDecimal socialZus,

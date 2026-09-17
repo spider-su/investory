@@ -234,6 +234,18 @@ class AccountingFactServiceTest {
     when(repository.bankTransactionsForPeriod(LocalDate.of(2026, 9, 1))).thenReturn(List.of());
     when(repository.obligationsForPeriod(LocalDate.of(2026, 9, 1))).thenReturn(List.of());
     when(repository.taxInputsForPeriod(LocalDate.of(2026, 9, 1))).thenReturn(List.of());
+    when(repository.taxProfilePeriods(1L))
+        .thenReturn(
+            List.of(
+                new AccountingTaxProfilePeriod(
+                    LocalDate.of(2026, 9, 1),
+                    null,
+                    true,
+                    new BigDecimal("0.12"),
+                    true,
+                    true,
+                    "JDG",
+                    false)));
 
     AccountingMonthSnapshot snapshot =
         new AccountingFactService(facts, repository, fx).snapshot(LocalDate.of(2026, 9, 1));

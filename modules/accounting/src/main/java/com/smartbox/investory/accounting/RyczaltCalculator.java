@@ -2,6 +2,7 @@ package com.smartbox.investory.accounting;
 
 import com.smartbox.investory.accounting.AccountingCalculationResult.FxCalculation.Conversion;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.InvoiceRow;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -98,11 +99,23 @@ final class RyczaltCalculator {
       BigDecimal currentRevenue,
       java.time.LocalDate periodStart,
       java.time.LocalDate periodEnd) {
+    var explicitSocial = explicitAmount(input, "SOCIAL_CONTRIBUTION_PAID");
     var eligible =
         input.periodContext().yearToDate().paidContributions().stream()
             .filter(c -> c.paymentDate().getYear() == periodStart.getYear())
             .filter(c -> !c.paymentDate().isAfter(periodEnd))
+            .filter(
+                c ->
+                    !(c.contributionPeriod().equals(periodStart)
+                        && "SOCIAL".equals(c.contributionType())
+                        && explicitSocial != null))
             .toList();
+    var withExplicit = new java.util.ArrayList<>(eligible);
+    if (explicitSocial != null && explicitSocial.signum() > 0)
+      withExplicit.add(
+          new PaidContribution(
+              "SOCIAL", periodStart, periodStart, explicitSocial, explicitSocial, null));
+    eligible = withExplicit;
     BigDecimal social =
         eligible.stream()
             .filter(c -> "SOCIAL".equals(c.contributionType()))
@@ -162,6 +175,15 @@ final class RyczaltCalculator {
       result.put(entry.getKey(), entry.getValue().subtract(allocation).max(BigDecimal.ZERO));
     }
     return result;
+  }
+
+  private BigDecimal explicitAmount(AccountingCalculationInput input, String type) {
+    return input.taxInputs().stream()
+        .filter(row -> type.equals(row.inputType()))
+        .map(TaxInputRow::amount)
+        .filter(java.util.Objects::nonNull)
+        .reduce(BigDecimal::add)
+        .orElse(null);
   }
 
   private AccountingIssue issue(String type, String reference, String message) {
