@@ -41,10 +41,12 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 
 /** Verifies the single-transaction whole-wealth composition boundary. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("test-fast")
+@TestPropertySource(properties = "app.portfolio.performance-kpi-start=2024-01-01")
 @Import(ProfilePersistedFactsIT.FixedClockConfig.class)
 class ProfilePersistedFactsIT {
   private static final WorkerDatabase DATABASE =

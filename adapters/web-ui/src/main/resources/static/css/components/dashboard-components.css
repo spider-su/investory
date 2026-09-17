@@ -975,6 +975,10 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
 }
 
 @media (max-width: 1200px) {
+    .iv-planning-topbar--assets .iv-planning-topbar__primary {
+        grid-template-columns: 1fr;
+    }
+
     .iv-topbar__secondary {
         display: grid;
         grid-template-columns: 1fr;
@@ -1151,6 +1155,15 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
 @media (max-width: 1200px) and (min-width: 901px) {
     .iv-planning-topbar__primary {
         grid-template-columns: minmax(180px, .75fr) minmax(360px, 1.45fr) minmax(260px, 1fr);
+    }
+
+    .iv-planning-topbar--assets .iv-planning-topbar__primary {
+        grid-template-columns: minmax(180px, .75fr) minmax(360px, 1.45fr) minmax(280px, 1fr);
+    }
+
+    .iv-planning-topbar--assets .iv-planning-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(2, 38px);
     }
 
     .iv-planning-context-slot .iv-planning-scenario-selector {

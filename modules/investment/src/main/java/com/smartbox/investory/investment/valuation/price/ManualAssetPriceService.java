@@ -46,26 +46,34 @@ public class ManualAssetPriceService {
           "AssetEntity is excluded from Investory calculations: " + symbol);
     }
 
+    BigDecimal normalizedPrice = normalizePrice(asset, marketPrice);
     CurrencyType currency = asset.getCurrency() != null ? asset.getCurrency() : BASE_CURRENCY;
     BigDecimal marketPriceUsd =
         currency == BASE_CURRENCY
-            ? marketPrice
+            ? normalizedPrice
             : currencyRateService.convertToBaseCurrency(
-                marketPrice, BASE_CURRENCY, currency, applicationTime.today());
+                normalizedPrice, BASE_CURRENCY, currency, applicationTime.today());
 
     ZonedDateTime updatedAt = applicationTime.now(applicationTime.businessZone());
-    asset.setMarketPrice(marketPrice);
+    asset.setMarketPrice(normalizedPrice);
     asset.setMarketPriceUsd(marketPriceUsd);
     asset.setPriceSource("Manual");
     asset.setPriceUpdatedAt(updatedAt);
     assetRepository.save(asset);
     return new ManualAssetPrice(
         asset.getSymbol(),
-        marketPrice,
+        normalizedPrice,
         marketPriceUsd,
         currency,
         asset.getPriceSource(),
         updatedAt);
+  }
+
+  private static BigDecimal normalizePrice(AssetEntity asset, BigDecimal quotedPrice) {
+    return "BOND".equalsIgnoreCase(asset.getAssetType())
+            && quotedPrice.compareTo(BigDecimal.TEN) > 0
+        ? quotedPrice.movePointLeft(2)
+        : quotedPrice;
   }
 
   public record ManualAssetPrice(

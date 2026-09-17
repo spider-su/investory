@@ -12,6 +12,7 @@ import com.smartbox.investory.accounting.staging.AccountingStagingAcquisitionSer
 import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -33,6 +34,18 @@ class AccountingStagingFlowCurrentIT extends AccountingDatabaseTest {
   private AccountingStagingApi staging;
 
   @Autowired private JdbcTemplate jdbc;
+
+  @AfterEach
+  void removeOperationalFixtures() {
+    jdbc.update(
+        "DELETE FROM investory.accounting_vat_transaction WHERE reference LIKE 'STAGING-FLOW-%'");
+    jdbc.update(
+        "DELETE FROM investory.accounting_poc_invoice WHERE reference LIKE 'STAGING-FLOW-%'");
+    jdbc.update(
+        "DELETE FROM investory.accounting_tmp_invoice WHERE reference LIKE 'STAGING-FLOW-%'");
+    jdbc.update(
+        "DELETE FROM investory.accounting_tmp_bank_transaction WHERE source_reference IN ('multi-month.csv', 'overlap.csv')");
+  }
 
   @Test
   void reviewedInvoiceStagesReconcilesPromotesAndWritesVatFact() {

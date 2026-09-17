@@ -16,12 +16,39 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.SqlArrayValue;
 import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
 public class AccountingPocRepository {
   private final JdbcTemplate jdbcTemplate;
+
+  public AccountingUserApi.AutoApprovalSettings autoApprovalSettings(long profileId) {
+    return jdbcTemplate.query(
+        "SELECT enabled, max_amount, trusted_categories FROM investory.accounting_auto_approval_policy WHERE profile_id = ?",
+        rs ->
+            rs.next()
+                ? new AccountingUserApi.AutoApprovalSettings(
+                    rs.getBoolean("enabled"),
+                    rs.getBigDecimal("max_amount"),
+                    java.util.Arrays.asList(
+                        (String[]) rs.getArray("trusted_categories").getArray()))
+                : new AccountingUserApi.AutoApprovalSettings(false, BigDecimal.ZERO, List.of()),
+        profileId);
+  }
+
+  public void updateAutoApprovalSettings(
+      long profileId, AccountingUserApi.AutoApprovalSettings settings) {
+    jdbcTemplate.update(
+        "INSERT INTO investory.accounting_auto_approval_policy (profile_id, enabled, max_amount, trusted_categories) VALUES (?, ?, ?, ?) "
+            + "ON CONFLICT (profile_id) DO UPDATE SET enabled = EXCLUDED.enabled, max_amount = EXCLUDED.max_amount, "
+            + "trusted_categories = EXCLUDED.trusted_categories, updated_at = CURRENT_TIMESTAMP",
+        profileId,
+        settings.enabled(),
+        settings.maxAmount(),
+        new SqlArrayValue("text", (Object[]) settings.trustedCategories().toArray(String[]::new)));
+  }
 
   /** True only when this exact KSeF identity has already produced a canonical document. */
   public boolean canonicalDocumentExists(
@@ -812,6 +839,30 @@ public class AccountingPocRepository {
         period);
   }
 
+  public BigDecimal oldestAvailableYearRevenue(long profileId) {
+    return jdbcTemplate.queryForObject(
+        """
+        SELECT SUM(COALESCE(booked_net_pln, net_amount))
+          FROM investory.accounting_poc_invoice
+         WHERE profile_id = ?
+           AND tax_period >= (
+                 SELECT DATE_TRUNC('year', MIN(tax_period))::date
+                   FROM investory.accounting_poc_invoice
+                  WHERE profile_id = ?
+                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE'))
+           AND tax_period < (
+                 SELECT DATE_TRUNC('year', MIN(tax_period))::date + INTERVAL '1 year'
+                   FROM investory.accounting_poc_invoice
+                  WHERE profile_id = ?
+                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE'))
+           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
+        """,
+        BigDecimal.class,
+        profileId,
+        profileId,
+        profileId);
+  }
+
   public List<InvoiceRow> invoicesForPeriod(LocalDate period) {
     return invoicesForPeriod(1L, period);
   }
@@ -1399,7 +1450,10 @@ public class AccountingPocRepository {
             return null;
           }
           BigDecimal total = obligation.social().add(obligation.health()).setScale(2);
-          if (paid.compareTo(total) == 0 && total.signum() > 0) {
+          if (paid.setScale(0, java.math.RoundingMode.HALF_UP)
+                      .compareTo(total.setScale(0, java.math.RoundingMode.HALF_UP))
+                  == 0
+              && total.signum() > 0) {
             if (obligation.social().signum() > 0)
               contributions.add(
                   new PaidContribution(
@@ -1419,7 +1473,9 @@ public class AccountingPocRepository {
                       obligation.health(),
                       id));
           } else if (obligation.social().signum() == 0
-              && paid.compareTo(obligation.health()) == 0
+              && paid.setScale(0, java.math.RoundingMode.HALF_UP)
+                      .compareTo(obligation.health().setScale(0, java.math.RoundingMode.HALF_UP))
+                  == 0
               && obligation.health().signum() > 0) {
             contributions.add(
                 new PaidContribution(

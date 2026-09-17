@@ -15,6 +15,8 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 /** Owns provider fetching and persistence of benchmark market history. */
@@ -38,6 +40,7 @@ class BenchmarkMarketDataService {
     this.applicationTime = applicationTime;
   }
 
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   synchronized NavigableMap<String, Double> monthlyCloses(List<String> requiredLabels) {
     NavigableMap<String, Double> cached = loadCachedCloses();
     if (!hasRequiredCloses(cached, requiredLabels)

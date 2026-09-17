@@ -15,6 +15,7 @@ import com.smartbox.investory.retirement.planning.reconciliation.*;
 import com.smartbox.investory.retirement.planning.review.*;
 import com.smartbox.investory.retirement.planning.timeline.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -46,5 +47,35 @@ class RetirementProfileApplicationServiceTest {
     assertThat(result.amount()).isNull();
     assertThat(result.year()).isEqualTo(2026);
     verifyNoInteractions(presentation);
+  }
+
+  @DisplayName("reports Full Current-Year Plan Spending")
+  @Test
+  void reportsFullCurrentYearPlanSpending() {
+    RetirementPlanApi plans = mock(RetirementPlanApi.class);
+    RetirementProjectionService projections = mock(RetirementProjectionService.class);
+    PlanningCurrencyPresentationService presentation =
+        mock(PlanningCurrencyPresentationService.class);
+    SimulationAssumptions assumptions = mock(SimulationAssumptions.class);
+    RetirementProjection projection = mock(RetirementProjection.class);
+    when(plans.resolvePlanId(3L, null)).thenReturn(Optional.of(9L));
+    when(projections.load(3L, 9L)).thenReturn(projection);
+    when(projection.assumptions()).thenReturn(assumptions);
+    when(presentation.currentYearAnnualCosts(assumptions, 2026))
+        .thenReturn(new BigDecimal("258300"));
+    when(presentation.toDisplay(new BigDecimal("258300"), CurrencyType.USD))
+        .thenReturn(new BigDecimal("258300"));
+
+    var service =
+        new RetirementProfileApplicationService(
+            plans,
+            projections,
+            presentation,
+            Clock.fixed(Instant.parse("2026-08-26T00:00:00Z"), ZoneOffset.UTC));
+
+    var result = service.currentYearAnnualCost(3L, CurrencyType.USD);
+
+    assertThat(result.amount()).isEqualByComparingTo("258300");
+    assertThat(result.year()).isEqualTo(2026);
   }
 }

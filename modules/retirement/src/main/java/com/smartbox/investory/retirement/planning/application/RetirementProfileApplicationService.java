@@ -33,8 +33,8 @@ public class RetirementProfileApplicationService implements RetirementProfileApi
     int year = LocalDate.now(clock).getYear();
     var planId = plans.resolvePlanId(portfolioId, null);
     if (planId.isEmpty()) return AnnualCostView.unavailable(reportingCurrency, year);
-    var spending = projections.currentYearSpending(portfolioId, planId.get());
-    var cost = spending.annualSpending();
+    var projection = projections.load(portfolioId, planId.get());
+    var cost = presentation.currentYearAnnualCosts(projection.assumptions(), year);
     return new AnnualCostView(
         true,
         presentation.toDisplay(cost, reportingCurrency),

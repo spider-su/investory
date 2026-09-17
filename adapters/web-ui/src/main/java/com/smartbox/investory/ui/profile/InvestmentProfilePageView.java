@@ -7,6 +7,7 @@ import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.api.model.ProfileAllocation;
 import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -49,10 +50,17 @@ record InvestmentProfilePageView(
     BigDecimal marketAnnualIncome = profile.incomeSummary().marketAnnualIncome();
     var income = profile.incomeSummary();
     boolean hasInvestmentIncome = income.investmentIncomeAvailable();
-    BigDecimal expectedAnnualInvestmentResult =
-        hasInvestmentIncome && income.expectedAnnualInvestmentResult() != null
-            ? income.expectedAnnualInvestmentResult()
-            : marketAnnualIncome;
+    BigDecimal investmentResultYtd =
+        hasInvestmentIncome && income.investmentResultYtd() != null
+            ? income.investmentResultYtd()
+            : investmentResult.available() ? investmentResult.amount() : null;
+    BigDecimal investmentBase =
+        income.investmentIncomeBase() != null
+            ? income.investmentIncomeBase()
+            : profile.marketPortfolioValue();
+    BigDecimal annualizedInvestmentResult = annualize(investmentResultYtd, currentMonth);
+    BigDecimal annualizedInvestmentReturn = ratio(annualizedInvestmentResult, investmentBase);
+    boolean hasAnnualizedInvestmentResult = annualizedInvestmentResult != null;
     return new InvestmentProfilePageView(
         profile.portfolioId(),
         profile.currency(),
@@ -61,16 +69,18 @@ record InvestmentProfilePageView(
         UiPresentation.compactMoney(profile.marketPortfolioValue()),
         UiPresentation.percentage(profile.longTermAssetPercentage()) + " of net worth",
         UiPresentation.compactMoney(profile.longTermAssetValue()),
-        UiPresentation.compactMoney(expectedAnnualInvestmentResult),
+        hasAnnualizedInvestmentResult
+            ? UiPresentation.compactMoney(annualizedInvestmentResult)
+            : UiPresentation.compactMoney(marketAnnualIncome),
         UiPresentation.percentage(profile.marketPortfolioPercentage()),
         UiPresentation.percentage(profile.longTermAssetPercentage()),
-        hasInvestmentIncome
-            ? UiPresentation.percentage(income.expectedAnnualReturn())
+        hasAnnualizedInvestmentResult && investmentBase != null && investmentBase.signum() != 0
+            ? UiPresentation.percentage(annualizedInvestmentReturn)
             : performance.expectedAnnualReturn() != null
                 ? UiPresentation.percentage(performance.expectedAnnualReturn())
                 : "Unavailable",
-        hasInvestmentIncome
-            ? "Forward-looking estimate"
+        hasAnnualizedInvestmentResult
+            ? "Annualized current result"
             : performance.kpiStartDate() == null
                 ? "Total return"
                 : "Since " + performance.kpiStartDate(),
@@ -82,8 +92,9 @@ record InvestmentProfilePageView(
             hasInvestmentIncome
                 ? income.investmentResultYtd()
                 : investmentResult.available() ? investmentResult.amount() : null),
-        hasInvestmentIncome
-            ? UiPresentation.percentage(income.investmentExpectationProgress()) + " of expected"
+        hasAnnualizedInvestmentResult
+            ? UiPresentation.percentage(ratio(investmentResultYtd, annualizedInvestmentResult))
+                + " of annualized current result"
             : performance.totalReturn() == null
                 ? ""
                 : UiPresentation.percentage(performance.totalReturn()),
@@ -97,7 +108,9 @@ record InvestmentProfilePageView(
             currentMonth),
         availableMoney(annualCost.available(), annualCost.amount()),
         annualCost.available() ? "planned · " + annualCost.year() : "No retirement plan",
-        IncomeView.from(profile.incomeSummary(), marketAnnualIncome),
+        IncomeView.from(
+            profile.incomeSummary(),
+            hasAnnualizedInvestmentResult ? annualizedInvestmentResult : marketAnnualIncome),
         profile.allocations().stream()
             .map(AllocationView::from)
             .sorted(Comparator.comparing(AllocationView::percentage).reversed())
@@ -110,6 +123,18 @@ record InvestmentProfilePageView(
 
   private static String money(BigDecimal amount) {
     return amount == null ? "—" : UiPresentation.compactMoney(amount);
+  }
+
+  private static BigDecimal annualize(BigDecimal amount, int currentMonth) {
+    if (amount == null || currentMonth < 1 || currentMonth > 12) return null;
+    return amount
+        .multiply(BigDecimal.valueOf(12))
+        .divide(BigDecimal.valueOf(currentMonth), 8, java.math.RoundingMode.HALF_UP);
+  }
+
+  private static BigDecimal ratio(BigDecimal amount, BigDecimal denominator) {
+    if (amount == null || denominator == null || denominator.signum() == 0) return BigDecimal.ZERO;
+    return amount.divide(denominator, 8, java.math.RoundingMode.HALF_UP);
   }
 
   private static String ytdProgress(BigDecimal amount, BigDecimal annualReference) {
@@ -147,18 +172,25 @@ record InvestmentProfilePageView(
       String combinedNetYieldDisplay) {
 
     static IncomeView from(ProfileIncomeSummary income, BigDecimal marketAnnualIncome) {
-      BigDecimal combinedAnnualIncome = marketAnnualIncome.add(income.longTermAnnualIncome());
+      BigDecimal netMarketAnnualIncome = netOfProfitTax(marketAnnualIncome);
+      BigDecimal netMarketIncomeYtd = netOfProfitTax(income.marketIncomeYtd());
+      BigDecimal combinedAnnualIncome = netMarketAnnualIncome.add(income.longTermAnnualIncome());
       return new IncomeView(
           income.investmentIncomeBase() == null
               ? "—"
               : UiPresentation.compactMoney(income.investmentIncomeBase()),
-          UiPresentation.compactMoney(income.marketIncomeYtd()),
-          UiPresentation.compactMoney(marketAnnualIncome),
+          UiPresentation.compactMoney(netMarketIncomeYtd),
+          UiPresentation.compactMoney(netMarketAnnualIncome),
           UiPresentation.percentage(income.marketNetYield()),
           UiPresentation.compactMoney(income.longTermAnnualIncome()),
           UiPresentation.percentage(income.longTermNetYield()),
           UiPresentation.compactMoney(combinedAnnualIncome),
           UiPresentation.percentage(income.combinedNetYield()));
+    }
+
+    private static BigDecimal netOfProfitTax(BigDecimal gross) {
+      return (gross == null ? BigDecimal.ZERO : gross)
+          .multiply(BigDecimal.ONE.subtract(FinancialPolicyDefaults.GLOBAL_PROFIT_TAX_RATE));
     }
   }
 

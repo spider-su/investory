@@ -72,6 +72,16 @@ public final class InProcessAccountingClient implements AccountingRestClient {
   }
 
   @Override
+  public AutoApprovalSettings autoApprovalSettings(long p) {
+    return user.autoApprovalSettings(p);
+  }
+
+  @Override
+  public void updateAutoApprovalSettings(long p, AutoApprovalSettings settings) {
+    user.updateAutoApprovalSettings(p, settings);
+  }
+
+  @Override
   public CandidateView recognize(long p, String f, String c, byte[] b) {
     return user.recognize(p, f, c, b);
   }

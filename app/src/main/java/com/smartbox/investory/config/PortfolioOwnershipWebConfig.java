@@ -29,7 +29,7 @@ public class PortfolioOwnershipWebConfig implements WebMvcConfigurer {
     registry
         .addMapping("/api/v1/**")
         .allowedOrigins(mobileApiAllowedOrigins.split(","))
-        .allowedMethods("GET", "OPTIONS")
+        .allowedMethods("GET", "POST", "PUT", "OPTIONS")
         .allowedHeaders("Authorization", "Content-Type")
         .allowCredentials(true);
   }

@@ -51,6 +51,66 @@ class AccountingFactServiceTest {
   }
 
   @Test
+  void keeps2025OnLegacyReconstructionWhenAnInvalidTaxProfileRowIsPresent() {
+    LocalDate august2025 = LocalDate.of(2025, 8, 1);
+    AccountingFactRepository factRepository = mock(AccountingFactRepository.class);
+    AccountingPocRepository repository = mock(AccountingPocRepository.class);
+    CurrencyConversion fx = mock(CurrencyConversion.class);
+    when(repository.accountingProfile()).thenReturn(new AccountingProfile(true));
+    when(repository.invoicesForPeriod(august2025))
+        .thenReturn(
+            List.of(
+                invoice(
+                    august2025,
+                    august2025.plusDays(14),
+                    null,
+                    "SALE-2025-08",
+                    "CUSTOMER",
+                    "PLN",
+                    "1000.00",
+                    "230.00",
+                    "1230.00",
+                    "0",
+                    "0",
+                    "0",
+                    "1230.00",
+                    "1000.00")));
+    when(repository.expensesForPeriod(august2025)).thenReturn(List.of());
+    when(repository.bankTransactionsForPeriod(august2025)).thenReturn(List.of());
+    when(repository.obligationsForPeriod(august2025)).thenReturn(List.of());
+    when(repository.taxInputsForPeriod(august2025))
+        .thenReturn(
+            List.of(
+                new TaxInputRow(
+                    "HEALTH_CONTRIBUTION_PAID", new BigDecimal("1384.97"), "legacy fact"),
+                new TaxInputRow(
+                    "SOCIAL_CONTRIBUTION_PAID", new BigDecimal("1518.98"), "legacy fact")));
+    when(repository.taxProfilePeriods(1L))
+        .thenReturn(
+            List.of(
+                new AccountingTaxProfilePeriod(
+                    LocalDate.of(2025, 1, 1),
+                    LocalDate.of(2025, 12, 1),
+                    true,
+                    new BigDecimal("0.12"),
+                    true,
+                    true,
+                    "JDG",
+                    false)));
+    when(repository.yearToDateRevenue(august2025)).thenReturn(new BigDecimal("400000.00"));
+
+    AccountingMonthSnapshot snapshot =
+        new AccountingFactService(factRepository, repository, fx).snapshot(august2025);
+
+    assertThat(snapshot.calculationMode())
+        .isEqualTo(AccountingCalculationMode.HISTORICAL_RECONSTRUCTION);
+    assertThat(snapshot.zus().socialZus()).isZero();
+    assertThat(snapshot.zus().healthZus()).isEqualByComparingTo("1384.97");
+    assertThat(snapshot.zus().totalZus()).isEqualByComparingTo("1384.97");
+    assertThat(snapshot.ryczalt().healthDeduction()).isEqualByComparingTo("692.49");
+  }
+
+  @Test
   void historicalUopStartDateChangesSocialZusForEachMonth() {
     LocalDate historical = LocalDate.of(2025, 6, 1);
     AccountingFactRepository facts = mock(AccountingFactRepository.class);
@@ -205,7 +265,7 @@ class AccountingFactServiceTest {
   }
 
   @Test
-  void currentZusbasisUsesPriorYtdRevenueAfterSocialPaidThroughPriorMonth() {
+  void currentZusBandUsesCompletedPriorCalendarYearRevenue() {
     LocalDate september = LocalDate.of(2026, 9, 1);
     var paidSocial =
         new PaidContribution(
@@ -220,7 +280,7 @@ class AccountingFactServiceTest {
         currentMonthService(List.of(), new BigDecimal("61649.82"), List.of(paidSocial))
             .snapshot(september);
 
-    assertThat(snapshot.zus().healthZus()).isEqualByComparingTo("498.35");
+    assertThat(snapshot.zus().healthZus()).isEqualByComparingTo("830.58");
   }
 
   @Test
@@ -411,6 +471,8 @@ class AccountingFactServiceTest {
     when(repository.bankTransactionsForPeriod(FEBRUARY)).thenReturn(List.of());
     when(repository.obligationsForPeriod(JANUARY)).thenReturn(List.of());
     when(repository.obligationsForPeriod(FEBRUARY)).thenReturn(List.of());
+    when(repository.yearToDateRevenue(LocalDate.of(2025, 12, 1)))
+        .thenReturn(new BigDecimal("1249240.09"));
     when(repository.taxInputsForPeriod(JANUARY))
         .thenReturn(
             List.of(
@@ -473,7 +535,7 @@ class AccountingFactServiceTest {
                 new AccountingTaxProfilePeriod(
                     september, null, true, new BigDecimal("0.12"), true, true, "JDG", false)));
     when(repository.yearToDateRevenue(september)).thenReturn(previousYearToDateRevenue);
-    when(repository.yearToDateRevenue(september.minusMonths(1)))
+    when(repository.yearToDateRevenue(LocalDate.of(2025, 12, 1)))
         .thenReturn(previousYearToDateRevenue);
     when(repository.paidContributionsUpTo(
             org.mockito.ArgumentMatchers.eq(september), org.mockito.ArgumentMatchers.anyMap()))

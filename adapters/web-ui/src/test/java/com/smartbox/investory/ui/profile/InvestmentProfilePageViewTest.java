@@ -129,7 +129,7 @@ class InvestmentProfilePageViewTest {
     assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("20.5K");
   }
 
-  @DisplayName("shows canonical market YTD return and separate planned-income progress")
+  @DisplayName("shows annualized current result and separate planned-income progress")
   @Test
   void showsYtdProgressAgainstAnnualReference() {
     InvestmentProfile profile =
@@ -152,8 +152,8 @@ class InvestmentProfilePageViewTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
-                new BigDecimal("24000"),
-                new BigDecimal("24000"),
+                new BigDecimal("48000"),
+                new BigDecimal("48000"),
                 new BigDecimal("12000"),
                 new BigDecimal("12000"),
                 new BigDecimal("36000"),
@@ -170,7 +170,11 @@ class InvestmentProfilePageViewTest {
                 CurrencyType.USD, 2026),
             6);
 
-    assertThat(page.marketYtdReturnDisplay()).isEqualTo("8.3%");
+    assertThat(page.expectedAnnualInvestmentResultDisplay()).isEqualTo("24.0K");
+    assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("24.0%");
+    assertThat(page.incomeSummary().marketAnnualIncomeCompactDisplay()).isEqualTo("19.4K");
+    assertThat(page.incomeSummary().combinedAnnualIncomeCompactDisplay()).isEqualTo("31.4K");
+    assertThat(page.marketYtdReturnDisplay()).isEqualTo("50.0% of annualized current result");
     assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("6.00K");
     assertThat(page.longTermYtdProgressDisplay()).isEqualTo("50.0%");
     assertThat(page.longTermYtdProgressClass()).isEqualTo("iv-ytd-progress--positive");

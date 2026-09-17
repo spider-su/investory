@@ -26,8 +26,8 @@
 .iv-planning-topbar__primary > .iv-brand,
 .iv-planning-topbar__primary > .iv-planning-summary,
 .iv-planning-topbar__primary > .iv-planning-actions {
-    height: 84px;
-    min-height: 84px;
+    height: 88px;
+    min-height: 88px;
 }
 .iv-planning-topbar__primary > .iv-brand { align-items: stretch; }
 .iv-planning-topbar__primary .iv-brand__content {
@@ -39,12 +39,12 @@
 .iv-planning-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(2, 34px);
+    grid-template-rows: repeat(2, 38px);
     gap: 6px 8px;
     align-content: center;
     min-width: 0;
-    height: 84px;
-    min-height: 84px;
+    height: 88px;
+    min-height: 88px;
 }
 .iv-planning-actions > * {
     display: inline-flex;
@@ -52,18 +52,25 @@
     justify-content: center;
     gap: 6px;
     width: 100%;
-    height: 34px;
-    min-height: 34px;
-    padding: 0 10px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 12px;
     border: 1px solid var(--iv-border);
     border-radius: 6px;
     background: var(--iv-surface-muted);
     color: var(--iv-text-muted);
-    font-size: .8rem;
+    font-size: .84rem;
     font-weight: 600;
     white-space: nowrap;
 }
 .iv-planning-actions > a { text-decoration: none; }
+.iv-planning-topbar--assets .iv-planning-topbar__primary {
+    grid-template-columns: minmax(220px, .8fr) minmax(480px, 1.65fr) minmax(408px, 1.18fr);
+}
+.iv-planning-topbar--assets .iv-planning-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: 38px;
+}
 .iv-planning-actions--single { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px 8px; }
 .iv-planning-actions--single > * { width: auto; }
 .iv-planning-actions--single .iv-planning-base { width: auto; }
@@ -89,7 +96,7 @@
 .iv-planning-actions__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .iv-planning-actions__row > a,
 .iv-planning-actions__row > form,
-.iv-planning-actions__row button { width: 100%; height: 34px; min-height: 34px; }
+.iv-planning-actions__row button { width: 100%; height: 38px; min-height: 38px; }
 .iv-planning-actions__row > form { margin: 0; }
 .iv-planning-actions--simulation > .iv-planning-scenario-selector {
     position: static;
@@ -1126,6 +1133,10 @@
 
 @media (max-width: 900px) {
     .iv-planning-topbar__primary { grid-template-columns: 1fr; gap: 8px; }
+    .iv-planning-topbar--assets .iv-planning-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(2, 38px);
+    }
     .iv-planning-summary { height: 72px; }
     .iv-composition-grid,
     .iv-income-grid { grid-template-columns: 1fr; }
