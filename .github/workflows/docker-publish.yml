@@ -59,7 +59,7 @@ jobs:
             GIT_COMMIT=${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Scan published image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/investory@${{ steps.image.outputs.digest }}
           format: table
