@@ -47,7 +47,7 @@ public class AccountingPocRepository {
         profileId,
         settings.enabled(),
         settings.maxAmount(),
-        new SqlArrayValue("text", (Object[]) settings.trustedCategories().toArray(String[]::new)));
+        new SqlArrayValue("text", settings.trustedCategories().toArray(String[]::new)));
   }
 
   /** True only when this exact KSeF identity has already produced a canonical document. */
@@ -839,30 +839,6 @@ public class AccountingPocRepository {
         period);
   }
 
-  public BigDecimal oldestAvailableYearRevenue(long profileId) {
-    return jdbcTemplate.queryForObject(
-        """
-        SELECT SUM(COALESCE(booked_net_pln, net_amount))
-          FROM investory.accounting_poc_invoice
-         WHERE profile_id = ?
-           AND tax_period >= (
-                 SELECT DATE_TRUNC('year', MIN(tax_period))::date
-                   FROM investory.accounting_poc_invoice
-                  WHERE profile_id = ?
-                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE'))
-           AND tax_period < (
-                 SELECT DATE_TRUNC('year', MIN(tax_period))::date + INTERVAL '1 year'
-                   FROM investory.accounting_poc_invoice
-                  WHERE profile_id = ?
-                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE'))
-           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
-        """,
-        BigDecimal.class,
-        profileId,
-        profileId,
-        profileId);
-  }
-
   public List<InvoiceRow> invoicesForPeriod(LocalDate period) {
     return invoicesForPeriod(1L, period);
   }
@@ -1450,10 +1426,7 @@ public class AccountingPocRepository {
             return null;
           }
           BigDecimal total = obligation.social().add(obligation.health()).setScale(2);
-          if (paid.setScale(0, java.math.RoundingMode.HALF_UP)
-                      .compareTo(total.setScale(0, java.math.RoundingMode.HALF_UP))
-                  == 0
-              && total.signum() > 0) {
+          if (paid.compareTo(total) == 0 && total.signum() > 0) {
             if (obligation.social().signum() > 0)
               contributions.add(
                   new PaidContribution(
@@ -1473,9 +1446,7 @@ public class AccountingPocRepository {
                       obligation.health(),
                       id));
           } else if (obligation.social().signum() == 0
-              && paid.setScale(0, java.math.RoundingMode.HALF_UP)
-                      .compareTo(obligation.health().setScale(0, java.math.RoundingMode.HALF_UP))
-                  == 0
+              && paid.compareTo(obligation.health()) == 0
               && obligation.health().signum() > 0) {
             contributions.add(
                 new PaidContribution(
