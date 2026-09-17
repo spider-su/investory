@@ -33,6 +33,7 @@ import com.smartbox.investory.investment.reporting.dashboard.service.DashboardOp
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
 import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -171,7 +172,9 @@ public class InvestmentDashboardFacade {
         new PerformanceView(
             benchmark(benchmark),
             performanceSummary(
+                query.portfolioId(),
                 benchmark,
+                benchmarkInput,
                 portfolio.getMonthlyPerformance(),
                 canonical,
                 historicalPerformance,
@@ -190,7 +193,10 @@ public class InvestmentDashboardFacade {
 
   public PerformanceKpi loadPerformanceKpi(Long portfolioId) {
     Portfolio portfolio = portfolioMetricsService.calculateTotalProfitLoss(portfolioId);
+    Benchmark benchmark = benchmarkService.calculate(portfolioId, null);
     return performanceKpi(
+        portfolioId,
+        benchmark,
         canonicalKpiPerformance(portfolio.getMonthlyPerformance(), portfolioId),
         canonicalCurrentPeriodPerformance(portfolio.getMonthlyPerformance(), portfolioId));
   }
@@ -232,7 +238,9 @@ public class InvestmentDashboardFacade {
   }
 
   private PerformanceSummary performanceSummary(
+      Long portfolioId,
       Benchmark benchmark,
+      Benchmark benchmarkHistory,
       Performance performance,
       PerformanceResult canonical,
       PerformanceResult historicalPerformance,
@@ -255,7 +263,9 @@ public class InvestmentDashboardFacade {
       worst = worstEntry.getKey();
       worstValue = worstEntry.getValue();
     }
-    PerformanceKpi performanceKpi = performanceKpi(historicalPerformance, totalReturnPerformance);
+    PerformanceKpi performanceKpi =
+        performanceKpi(
+            portfolioId, benchmarkHistory, historicalPerformance, totalReturnPerformance);
     return new PerformanceSummary(
         benchmark.getPortfolioReturnPct(),
         benchmark.getBenchmarkReturnPct(),
@@ -278,7 +288,10 @@ public class InvestmentDashboardFacade {
   }
 
   private PerformanceKpi performanceKpi(
-      PerformanceResult historicalPerformance, PerformanceResult totalReturnPerformance) {
+      Long portfolioId,
+      Benchmark benchmark,
+      PerformanceResult historicalPerformance,
+      PerformanceResult totalReturnPerformance) {
     ReturnMetric totalReturn = metric(totalReturnPerformance, true);
     if (historicalPerformance == null || historicalPerformance.period() == null) {
       return new PerformanceKpi(
@@ -289,26 +302,84 @@ public class InvestmentDashboardFacade {
           BigDecimal.ZERO,
           "Benchmark estimate");
     }
-    var estimate =
-        ReturnEstimateCalculator.calculate(
+    ReturnMetric linearAnnualized =
+        ReturnEstimateCalculator.linearAnnualized(
             metric(historicalPerformance, true),
             historicalPerformance.period().startDate(),
-            historicalPerformance.period().endDate(),
-            benchmarkExpectedReturn);
+            historicalPerformance.period().endDate());
+    ReturnMetric fiveYearAverage =
+        ReturnEstimateCalculator.fiveYearAverage(
+            historicalPerformance.period().endDate().getYear(),
+            linearAnnualized.status() == ReturnMetric.Status.AVAILABLE
+                ? linearAnnualized.value()
+                : null,
+            annualPortfolioReturns(
+                portfolioId,
+                historicalPerformance.period().endDate().getYear(),
+                YearMonth.parse(performanceKpiStart).atDay(1)),
+            spyAnnualReturns(benchmark));
+    if (fiveYearAverage.status() != ReturnMetric.Status.AVAILABLE) {
+      fiveYearAverage = ReturnMetric.available(benchmarkExpectedReturn);
+    }
     return new PerformanceKpi(
         totalReturn,
         totalReturnPerformance == null || totalReturnPerformance.period() == null
             ? null
             : totalReturnPerformance.period().startDate().toString(),
-        estimate.historical(),
-        estimate.expected(),
-        estimate.historyYears(),
-        estimate.portfolioWeight().signum() == 0
-            ? "Benchmark estimate"
-            : estimate.portfolioWeight().compareTo(BigDecimal.ONE) >= 0
-                ? "5Y portfolio history"
-                : estimate.historyYears().stripTrailingZeros().toPlainString()
-                    + "Y portfolio history + benchmark estimate");
+        fiveYearAverage,
+        fiveYearAverage.value(),
+        BigDecimal.valueOf(
+                historicalPerformance
+                    .period()
+                    .startDate()
+                    .until(
+                        historicalPerformance.period().endDate(),
+                        java.time.temporal.ChronoUnit.MONTHS))
+            .add(BigDecimal.ONE)
+            .divide(BigDecimal.valueOf(12), 8, java.math.RoundingMode.HALF_UP),
+        "Portfolio historical annual average before period start; missing years use SPY");
+  }
+
+  private Map<Integer, BigDecimal> annualPortfolioReturns(
+      Long portfolioId, int currentYear, LocalDate periodStart) {
+    if (performanceQuery == null || portfolioId == null || periodStart == null) return Map.of();
+    Map<Integer, BigDecimal> result = new LinkedHashMap<>();
+    for (int year = currentYear - 4; year < currentYear; year++) {
+      if (!LocalDate.of(year, 1, 1).isBefore(periodStart)) continue;
+      PerformanceResult annual =
+          performanceQuery.forPortfolioMonths(
+              portfolioId, YearMonth.of(year, 1), YearMonth.of(year, 12));
+      ReturnMetric value = metric(annual, true);
+      if (value.status() == ReturnMetric.Status.AVAILABLE) result.put(year, value.value());
+    }
+    return result;
+  }
+
+  private static Map<Integer, BigDecimal> spyAnnualReturns(Benchmark benchmark) {
+    if (benchmark == null || benchmark.getLabels() == null) return Map.of();
+    Map<String, Double> cumulative = new LinkedHashMap<>();
+    for (int i = 0; i < benchmark.getLabels().size(); i++) {
+      Double value =
+          benchmark.getBenchmarkReturnCurve() != null
+                  && i < benchmark.getBenchmarkReturnCurve().size()
+              ? benchmark.getBenchmarkReturnCurve().get(i)
+              : null;
+      if (value != null) cumulative.put(benchmark.getLabels().get(i), value / 100.0);
+    }
+    Map<Integer, BigDecimal> result = new LinkedHashMap<>();
+    cumulative.keySet().stream()
+        .map(YearMonth::parse)
+        .map(YearMonth::getYear)
+        .distinct()
+        .forEach(
+            year -> {
+              Double previous = cumulative.get(YearMonth.of(year - 1, 12).toString());
+              Double closing = cumulative.get(YearMonth.of(year, 12).toString());
+              if (previous != null && closing != null && previous > -1.0) {
+                result.put(year, BigDecimal.valueOf((1.0 + closing) / (1.0 + previous) - 1.0));
+              }
+            });
+    return result;
   }
 
   private PeriodPerformance periodPerformance(
@@ -408,14 +479,7 @@ public class InvestmentDashboardFacade {
             .map(YearMonth::parse)
             .max(YearMonth::compareTo)
             .orElse(null);
-    YearMonth first =
-        last == null
-            ? null
-            : performance.getCalculateMonthlyPerformance().keySet().stream()
-                .map(YearMonth::parse)
-                .filter(month -> !month.isBefore(last.minusYears(5)))
-                .min(YearMonth::compareTo)
-                .orElse(null);
+    YearMonth first = YearMonth.parse(performanceKpiStart);
     return first == null || last == null || first.isAfter(last)
         ? null
         : performanceQuery.forPortfolioMonths(portfolioId, first, last);

@@ -6,7 +6,10 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.Period;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Map;
 
 /** Centralized historical/expected return policy for forward-looking investment projections. */
 public final class ReturnEstimateCalculator {
@@ -15,6 +18,61 @@ public final class ReturnEstimateCalculator {
   private static final MathContext CONTEXT = new MathContext(20, RoundingMode.HALF_UP);
 
   private ReturnEstimateCalculator() {}
+
+  /** Linear year-end extrapolation for a current partial-year return. */
+  public static ReturnMetric linearAnnualized(
+      ReturnMetric currentPeriodReturn, LocalDate start, LocalDate end) {
+    if (currentPeriodReturn == null
+        || currentPeriodReturn.status() != ReturnMetric.Status.AVAILABLE
+        || currentPeriodReturn.value() == null
+        || start == null
+        || end == null
+        || end.isBefore(start)) {
+      return ReturnMetric.unavailable(
+          ReturnMetric.Status.INSUFFICIENT_DATA,
+          "A valid current-period return and date range are required");
+    }
+    long months = ChronoUnit.MONTHS.between(YearMonth.from(start), YearMonth.from(end)) + 1;
+    if (months < 1 || months > 12) {
+      return ReturnMetric.unavailable(
+          ReturnMetric.Status.INSUFFICIENT_DATA,
+          "Linear annualization requires a partial calendar year");
+    }
+    return ReturnMetric.available(
+        currentPeriodReturn
+            .value()
+            .multiply(BigDecimal.valueOf(12))
+            .divide(BigDecimal.valueOf(months), CONTEXT));
+  }
+
+  /**
+   * Arithmetic average of five calendar-year returns, using SPY when prior portfolio data is
+   * missing.
+   */
+  public static ReturnMetric fiveYearAverage(
+      int currentYear,
+      BigDecimal currentYearAnnualizedReturn,
+      Map<Integer, BigDecimal> portfolioReturns,
+      Map<Integer, BigDecimal> spyReturns) {
+    List<BigDecimal> returns =
+        java.util.stream.IntStream.rangeClosed(currentYear - 4, currentYear)
+            .mapToObj(
+                year ->
+                    year == currentYear
+                        ? currentYearAnnualizedReturn
+                        : portfolioReturns.getOrDefault(year, spyReturns.get(year)))
+            .filter(value -> value != null)
+            .toList();
+    if (returns.isEmpty()) {
+      return ReturnMetric.unavailable(
+          ReturnMetric.Status.INSUFFICIENT_DATA,
+          "No annual portfolio or SPY returns are available");
+    }
+    return ReturnMetric.available(
+        returns.stream()
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .divide(BigDecimal.valueOf(returns.size()), CONTEXT));
+  }
 
   public static Result calculate(
       ReturnMetric cumulativeTwr,

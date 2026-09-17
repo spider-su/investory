@@ -85,6 +85,26 @@ public class AccountingUserFacade implements AccountingUserApi {
   }
 
   @Override
+  public AccountingUserApi.AutoApprovalSettings autoApprovalSettings(long profileId) {
+    profile(profileId);
+    return repository.autoApprovalSettings(profileId);
+  }
+
+  @Override
+  public void updateAutoApprovalSettings(
+      long profileId, AccountingUserApi.AutoApprovalSettings settings) {
+    profile(profileId);
+    if (settings == null || settings.maxAmount() == null || settings.maxAmount().signum() < 0) {
+      throw new IllegalArgumentException("Auto-approval maximum amount must be non-negative");
+    }
+    if (settings.trustedCategories() == null
+        || settings.trustedCategories().stream().anyMatch(c -> c == null || c.isBlank())) {
+      throw new IllegalArgumentException("Trusted categories must not be blank");
+    }
+    repository.updateAutoApprovalSettings(profileId, settings);
+  }
+
+  @Override
   public MonthOverview overview(long profileId, YearMonth month) {
     profile(profileId);
     var snapshot = facts.snapshot(profileId, date(month));

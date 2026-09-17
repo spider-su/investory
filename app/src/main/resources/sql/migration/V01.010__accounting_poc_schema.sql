@@ -260,7 +260,7 @@ ALTER TABLE investory.accounting_poc_profile
 
 
 -- Squashed from app/src/main/resources/sql/migration/V01.017__employment_periods.sql
-CREATE TABLE investory.employment_period (
+CREATE TABLE IF NOT EXISTS investory.employment_period (
     id BIGSERIAL PRIMARY KEY,
     profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id) ON DELETE CASCADE,
     employment_type VARCHAR(8) NOT NULL,
@@ -271,7 +271,7 @@ CREATE TABLE investory.employment_period (
 );
 
 
-CREATE INDEX ix_employment_period_profile_dates
+CREATE INDEX IF NOT EXISTS ix_employment_period_profile_dates
     ON investory.employment_period(profile_id, date_from, date_to);
 
 
@@ -494,13 +494,23 @@ ALTER TABLE investory.accounting_tax_profile_period
         daterange(valid_from, COALESCE(valid_to + 1, 'infinity'::date), '[)') WITH &&
     );
 
-ALTER TABLE investory.employment_period
-    ADD CONSTRAINT ex_employment_period_same_type_no_overlap
-    EXCLUDE USING gist (
-        profile_id WITH =,
-        employment_type WITH =,
-        daterange(date_from, COALESCE(date_to + 1, 'infinity'::date), '[)') WITH &&
-    );
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'investory.employment_period'::regclass
+           AND conname = 'ex_employment_period_same_type_no_overlap'
+    ) THEN
+        ALTER TABLE investory.employment_period
+            ADD CONSTRAINT ex_employment_period_same_type_no_overlap
+            EXCLUDE USING gist (
+                profile_id WITH =,
+                employment_type WITH =,
+                daterange(date_from, COALESCE(date_to + 1, 'infinity'::date), '[)') WITH &&
+            );
+    END IF;
+END $$;
 
 
 -- Raw evidence can change processing state, but payload and identity cannot be deleted or altered.
@@ -874,7 +884,7 @@ CREATE TABLE investory.accounting_document_vat_bucket (
     CONSTRAINT chk_accounting_document_vat_bucket_deductible
         CHECK (deductible_vat >= 0 AND deductible_vat <= GREATEST(vat_amount, 0)),
     CONSTRAINT uq_accounting_document_vat_bucket
-        UNIQUE NULLS NOT DISTINCT (document_id, treatment, vat_rate)
+        UNIQUE (document_id, treatment, vat_rate)
 );
 
 CREATE INDEX ix_accounting_document_vat_bucket_document

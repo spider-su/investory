@@ -28,6 +28,10 @@ public interface AccountingUserApi {
 
   void updateCounterpartyAlias(long profileId, long counterpartyId, String alias);
 
+  AutoApprovalSettings autoApprovalSettings(long profileId);
+
+  void updateAutoApprovalSettings(long profileId, AutoApprovalSettings settings);
+
   CandidateView recognize(long profileId, String filename, String contentType, byte[] content);
 
   CandidateView reviewSource(long profileId, String sourceReference);
@@ -69,6 +73,9 @@ public interface AccountingUserApi {
       return alias == null || alias.isBlank() ? name : alias;
     }
   }
+
+  record AutoApprovalSettings(
+      boolean enabled, BigDecimal maxAmount, List<String> trustedCategories) {}
 
   record MonthOverview(
       YearMonth month,

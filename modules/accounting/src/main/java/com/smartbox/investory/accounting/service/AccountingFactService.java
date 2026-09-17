@@ -145,7 +145,9 @@ public class AccountingFactService {
 
     List<AccountingTaxProfilePeriod> taxProfilePeriods = pocRepository.taxProfilePeriods(profileId);
     AccountingCalculationMode calculationMode =
-        taxProfilePeriods.stream().anyMatch(profilePeriod -> profilePeriod.activeOn(period))
+        period.getYear() != 2025
+                && taxProfilePeriods.stream()
+                    .anyMatch(profilePeriod -> profilePeriod.activeOn(period))
             ? AccountingCalculationMode.CURRENT_CALCULATION
             : AccountingCalculationMode.HISTORICAL_RECONSTRUCTION;
     FxCalculation fx = calculateFx(invoices, foreignBookedRevenue, foreignSourceEur);
@@ -225,6 +227,7 @@ public class AccountingFactService {
         hasAccountingRecord
             && (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
                 || (resolved.zusRegime() != null && resolved.ryczaltRate() != null));
+    boolean uses2025ZusRules = period.getYear() == 2025;
     ZusCalculator.Input zusInput =
         new ZusCalculator.Input(
             resolved.jdgActive(),
@@ -232,17 +235,14 @@ public class AccountingFactService {
             resolved.zusRegime(),
             resolved.voluntarySickness(),
             yearToDate.taxableRyczaltRevenue(),
-            calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
-                    && period.getYear() == 2025
-                ? ZusRules2025.FULL_JDG_SOCIAL
-                : ZusRules2026.FULL_JDG_SOCIAL,
-            calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
+            uses2025ZusRules ? ZusRules2025.FULL_JDG_SOCIAL : ZusRules2026.FULL_JDG_SOCIAL,
+            uses2025ZusRules
+                    || calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
                 ? ZusRules2026.HealthBand.HIGH
                 : null);
     var zusCalculation =
         useCalculatedZus
-            ? calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
-                    && period.getYear() == 2025
+            ? uses2025ZusRules
                 ? new ZusCalculator()
                     .calculate(
                         zusInput,
@@ -261,32 +261,23 @@ public class AccountingFactService {
           new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
     }
     if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
+        && !uses2025ZusRules
         && zusCalculation != null) {
-      BigDecimal paidSocialThisYear =
-          paidContributionProjection.contributions().stream()
-              .filter(contribution -> "SOCIAL".equals(contribution.contributionType()))
-              .filter(contribution -> contribution.paymentDate().getYear() == period.getYear())
-              .map(PaidContribution::deductibleAmount)
-              .reduce(BigDecimal.ZERO, BigDecimal::add);
-      // A band reached in a month applies from the following month.
-      LocalDate previousPeriod = period.minusMonths(1);
-      BigDecimal previousYearToDateRevenue =
-          profileId == 1
-              ? pocRepository.yearToDateRevenue(previousPeriod)
-              : pocRepository.yearToDateRevenue(profileId, previousPeriod);
-      paidSocialThisYear =
-          paidContributionProjection.contributions().stream()
-              .filter(contribution -> "SOCIAL".equals(contribution.contributionType()))
-              .filter(contribution -> contribution.paymentDate().getYear() == period.getYear())
-              .filter(
-                  contribution ->
-                      !contribution
-                          .paymentDate()
-                          .isAfter(previousPeriod.withDayOfMonth(previousPeriod.lengthOfMonth())))
-              .map(PaidContribution::deductibleAmount)
-              .reduce(BigDecimal.ZERO, BigDecimal::add);
-      var healthBand =
-          ZusRules2026.healthBandAfterPaidSocial(previousYearToDateRevenue, paidSocialThisYear);
+      // The health contribution band for a calendar year is based on the prior
+      // calendar year's completed revenue, not current-year YTD revenue or paid social.
+      LocalDate priorYearEnd = LocalDate.of(period.getYear() - 1, 12, 1);
+      BigDecimal priorYearRevenue =
+          java.util.Objects.requireNonNullElse(
+              profileId == 1
+                  ? pocRepository.yearToDateRevenue(priorYearEnd)
+                  : pocRepository.yearToDateRevenue(profileId, priorYearEnd),
+              BigDecimal.ZERO);
+      if (priorYearRevenue.signum() == 0) {
+        priorYearRevenue =
+            java.util.Objects.requireNonNullElse(
+                pocRepository.oldestAvailableYearRevenue(profileId), BigDecimal.ZERO);
+      }
+      var healthBand = ZusRules2026.healthBand(priorYearRevenue);
       zusCalculation =
           new ZusCalculator()
               .calculate(
@@ -398,8 +389,7 @@ public class AccountingFactService {
                 obligations,
                 taxInputs)
             : List.of();
-    List<ReconciliationRow> reconciliations =
-        reconcile(invoices, expenses, bankTransactions, obligations);
+    List<ReconciliationRow> reconciliations = reconcile(invoices, bankTransactions, obligations);
     List<AccountingIssue> issues =
         issuesFor(
             calculationMode,
@@ -466,18 +456,28 @@ public class AccountingFactService {
           profileResolver.resolve(
               contributionPeriod, activityPeriods, employmentPeriods, taxPeriods);
       if (effective.zusRegime() == null) continue;
+      boolean rules2025 = contributionPeriod.getYear() == 2025;
+      var input =
+          new ZusCalculator.Input(
+              effective.jdgActive(),
+              effective.qualifyingUop(),
+              effective.zusRegime(),
+              effective.voluntarySickness(),
+              profileId == 1
+                  ? pocRepository.yearToDateRevenue(contributionPeriod)
+                  : pocRepository.yearToDateRevenue(profileId, contributionPeriod),
+              rules2025 ? ZusRules2025.FULL_JDG_SOCIAL : ZusRules2026.FULL_JDG_SOCIAL,
+              ZusRules2026.HealthBand.HIGH);
       var calculated =
-          new ZusCalculator()
-              .calculate(
-                  new ZusCalculator.Input(
-                      effective.jdgActive(),
-                      effective.qualifyingUop(),
-                      effective.zusRegime(),
-                      effective.voluntarySickness(),
-                      profileId == 1
-                          ? pocRepository.yearToDateRevenue(contributionPeriod)
-                          : pocRepository.yearToDateRevenue(profileId, contributionPeriod),
-                      ZusRules2026.FULL_JDG_SOCIAL));
+          rules2025
+              ? new ZusCalculator()
+                  .calculate(
+                      input,
+                      ZusRules2025.LABOUR_FUND,
+                      ZusRules2025.VOLUNTARY_SICKNESS,
+                      ZusRules2025.HEALTH_HIGH,
+                      ZusRules2025.VERSION)
+              : new ZusCalculator().calculate(input);
       obligations.put(
           contributionPeriod,
           new AccountingPocRepository.ZusAmounts(
@@ -1215,10 +1215,7 @@ public class AccountingFactService {
   }
 
   private List<ReconciliationRow> reconcile(
-      List<InvoiceRow> invoices,
-      List<ExpenseRow> expenses,
-      List<BankRow> bankTransactions,
-      List<ObligationRow> obligations) {
+      List<InvoiceRow> invoices, List<BankRow> bankTransactions, List<ObligationRow> obligations) {
     List<ReconciliationRow> result = new ArrayList<>();
     Set<Long> usedBankTransactionIds = new HashSet<>();
 
@@ -1261,38 +1258,6 @@ public class AccountingFactService {
                   : factoringReceipt(invoice, match)
                       ? "Customer receipt matched net of documented factoring deduction."
                       : explanation));
-    }
-
-    for (ExpenseRow expense : expenses) {
-      BankRow match =
-          bankTransactions.stream()
-              .filter(this::isBusinessBankRow)
-              .filter(row -> "SUPPLIER_PAYMENT".equals(row.transactionType()))
-              .filter(row -> expense.currency().equals(row.currency()))
-              .filter(row -> expense.grossAmount().compareTo(row.amount().abs()) == 0)
-              .filter(
-                  row ->
-                      row.relatedPeriod() == null
-                          || expense.taxPeriod().equals(row.relatedPeriod()))
-              .filter(
-                  row ->
-                      expense.reference().equalsIgnoreCase(row.reference())
-                          || expense.supplierAlias().equals(row.counterpartyAlias()))
-              .filter(row -> usedBankTransactionIds.add(row.id()))
-              .findFirst()
-              .orElse(null);
-      result.add(
-          new ReconciliationRow(
-              expense.reference(),
-              "EXPENSE_PAYMENT",
-              expense.grossAmount(),
-              expense.currency(),
-              match == null ? BigDecimal.ZERO : match.amount().abs(),
-              match == null ? null : match.bookingDate(),
-              match == null ? "UNMATCHED" : "MATCHED",
-              match == null
-                  ? "No exact business supplier payment found."
-                  : "Exact supplier payment matched."));
     }
 
     for (ObligationRow obligation : obligations) {

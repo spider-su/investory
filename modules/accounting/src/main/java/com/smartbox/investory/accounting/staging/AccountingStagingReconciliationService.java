@@ -144,6 +144,20 @@ public class AccountingStagingReconciliationService {
                 row.externalAccountId(),
                 row.externalTransactionId());
     if (exact.isEmpty()) {
+      exact =
+          jdbc.queryForList(
+              "SELECT id FROM investory.accounting_poc_bank_transaction WHERE profile_id=? AND provider=? AND external_transaction_id=? AND booking_date=? AND amount=? AND currency=? AND (note=? OR note LIKE ?)",
+              Long.class,
+              row.profileId(),
+              row.provider(),
+              row.externalTransactionId(),
+              row.bookingDate(),
+              row.amount(),
+              row.currency(),
+              row.remittanceInformation(),
+              row.remittanceInformation() == null ? null : row.remittanceInformation() + " [%");
+    }
+    if (exact.isEmpty()) {
       List<Long> fallback =
           jdbc.queryForList(
               "SELECT id FROM investory.accounting_poc_bank_transaction WHERE profile_id=? AND booking_date=? AND amount=? AND currency=? AND (reference=? OR note LIKE ?)",
@@ -183,7 +197,7 @@ public class AccountingStagingReconciliationService {
     }
     var differences =
         jdbc.queryForObject(
-            "SELECT booking_date, amount, currency, reference FROM investory.accounting_poc_bank_transaction WHERE profile_id=? AND id=?",
+            "SELECT booking_date, amount, currency, note FROM investory.accounting_poc_bank_transaction WHERE profile_id=? AND id=?",
             (rs, n) -> {
               var reasons = new ArrayList<String>();
               if (!row.bookingDate().equals(rs.getObject(1, LocalDate.class)))
@@ -191,7 +205,7 @@ public class AccountingStagingReconciliationService {
               if (!equalMoney(row.amount(), rs.getBigDecimal(2))) reasons.add("AMOUNT_MISMATCH");
               if (!equalsText(row.currency(), rs.getString(3))) reasons.add("CURRENCY_MISMATCH");
               if (row.remittanceInformation() != null
-                  && !equalsText(row.remittanceInformation(), rs.getString(4)))
+                  && !bankTextMatches(row.remittanceInformation(), rs.getString(4)))
                 reasons.add("REFERENCE_MISMATCH");
               return reasons;
             },
@@ -216,6 +230,15 @@ public class AccountingStagingReconciliationService {
 
   private static boolean equalsText(String left, String right) {
     return left == null ? right == null : left.equalsIgnoreCase(right);
+  }
+
+  /** Canonical bank notes may append the imported category to the source remittance. */
+  private static boolean bankTextMatches(String sourceRemittance, String canonicalNote) {
+    if (equalsText(sourceRemittance, canonicalNote)) return true;
+    return canonicalNote != null
+        && canonicalNote.regionMatches(true, 0, sourceRemittance, 0, sourceRemittance.length())
+        && canonicalNote.length() > sourceRemittance.length()
+        && canonicalNote.charAt(sourceRemittance.length()) == ' ';
   }
 
   public record Summary(

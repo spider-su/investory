@@ -72,6 +72,25 @@ class ManualAssetPriceServiceTest {
     verify(assetRepository).save(asset);
   }
 
+  @DisplayName("normalizes bond percent Of Par Quotes")
+  @Test
+  void normalizesBondPercentOfParQuotes() {
+    AssetEntity bond =
+        AssetEntity.builder()
+            .symbol("US91282CRC72")
+            .assetType("BOND")
+            .currency(CurrencyType.USD)
+            .build();
+    when(assetRepository.findBySymbol("US91282CRC72")).thenReturn(Optional.of(bond));
+
+    ManualAssetPrice result = service.updatePrice("US91282CRC72", BigDecimal.valueOf(98.81));
+
+    assertEquals(0, result.marketPrice().compareTo(BigDecimal.valueOf(0.9881)));
+    assertEquals(0, bond.getMarketPrice().compareTo(BigDecimal.valueOf(0.9881)));
+    assertEquals(0, bond.getMarketPriceUsd().compareTo(BigDecimal.valueOf(0.9881)));
+    verify(assetRepository).save(bond);
+  }
+
   @DisplayName("update Price Rejects Non Positive Price")
   @Test
   void updatePriceRejectsNonPositivePrice() {
