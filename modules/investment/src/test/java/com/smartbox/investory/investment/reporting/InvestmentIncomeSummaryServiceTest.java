@@ -49,14 +49,17 @@ class InvestmentIncomeSummaryServiceTest {
         .thenReturn(
             new InvestmentDashboardFacade.PerformanceKpi(
                 ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "not enough"),
+                "2026-01-01",
                 ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "not enough"),
-                "2026-01-01"));
+                null,
+                BigDecimal.ZERO,
+                "Benchmark estimate"));
 
     var result = service.load(PORTFOLIO_ID);
 
     assertThat(result.available()).isFalse();
     assertThat(result.currency()).isEqualTo(CurrencyType.USD);
-    assertThat(result.incomeBase()).isNull();
+    assertThat(result.investmentBase()).isNull();
     verifyNoInteractions(performance);
   }
 
@@ -70,8 +73,11 @@ class InvestmentIncomeSummaryServiceTest {
         .thenReturn(
             new InvestmentDashboardFacade.PerformanceKpi(
                 ReturnMetric.available(new BigDecimal("0.10")),
+                "2026-01-01",
                 ReturnMetric.available(new BigDecimal("0.10")),
-                "2026-01-01"));
+                new BigDecimal("0.10"),
+                BigDecimal.ONE,
+                "1Y portfolio history + benchmark estimate"));
     when(performance.forPortfolioMonths(
             PORTFOLIO_ID, java.time.YearMonth.of(2026, 1), java.time.YearMonth.of(2026, 2)))
         .thenReturn(
@@ -98,11 +104,11 @@ class InvestmentIncomeSummaryServiceTest {
     var result = service.load(PORTFOLIO_ID);
 
     assertThat(result.available()).isTrue();
-    assertThat(result.incomeBase()).isEqualByComparingTo("1080.00000000");
-    assertThat(result.projectedAnnualIncome()).isEqualByComparingTo("108.00000000");
-    assertThat(result.annualizedYield()).isEqualByComparingTo("0.10");
+    assertThat(result.investmentBase()).isEqualByComparingTo("1080.00000000");
+    assertThat(result.expectedAnnualInvestmentResult()).isEqualByComparingTo("108.00000000");
+    assertThat(result.expectedAnnualReturn()).isEqualByComparingTo("0.10");
     assertThat(result.investmentResultYtd()).isEqualByComparingTo("9");
-    assertThat(result.expectedIncomeYtd()).isEqualByComparingTo("18.00000000");
+    assertThat(result.expectedInvestmentResultYtd()).isEqualByComparingTo("18.00000000");
     assertThat(result.expectationProgress()).isEqualByComparingTo("0.50000000");
   }
 

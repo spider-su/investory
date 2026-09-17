@@ -36,7 +36,9 @@ class SchemaStructureContractIT {
           "rental_contract_term",
           "retirement_plans",
           "retirement_plan_events",
-          "retirement_planning_years");
+          "retirement_planning_years",
+          "accounting_document",
+          "accounting_document_vat_bucket");
 
   private static final Set<String> REMOVED_RETIREMENT_TABLES =
       Set.of(
@@ -124,6 +126,12 @@ class SchemaStructureContractIT {
               "SELECT 1 FROM information_schema.columns "
                   + "WHERE table_schema = 'investory' AND table_name = 'positions' "
                   + "AND column_name IN ('settlement_model', 'open_conversion_rate', 'close_conversion_rate')"));
+      assertTrue(
+          MigrationTestDatabase.exists(
+              statement,
+              "SELECT 1 FROM information_schema.columns "
+                  + "WHERE table_schema = 'investory' AND table_name = 'employment_period' "
+                  + "AND column_name = 'qualifies_as_primary_social_insurance'"));
     }
   }
 }

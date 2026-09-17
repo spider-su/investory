@@ -115,6 +115,8 @@ app:
   security:
     # Read routes require HTTP Basic by default. Set false only for a trusted local network.
     read-authentication-required: ${APP_SECURITY_READ_AUTHENTICATION_REQUIRED:true}
+    # Disabled during the Accounting POC. Re-enable after the POC is complete.
+    csrf-protection-required: ${APP_SECURITY_CSRF_PROTECTION_REQUIRED:true}
     admin-username: ${APP_SECURITY_ADMIN_USERNAME:admin}
     admin-password: ${APP_SECURITY_ADMIN_PASSWORD:change-me-admin}
     user-username: ${APP_SECURITY_USER_USERNAME:user}
@@ -170,3 +172,7 @@ app:
       # Leave empty (or omit) to export ALL accounts.
       # Example: accounts: 51499241,U17959259
       accounts: ${YAHOO_EXPORT_ACCOUNTS:}
+  ksef:
+    environment: ${INVESTORY_KSEF_ENVIRONMENT:TEST}
+    nip: ${INVESTORY_KSEF_NIP:}
+    token: ${INVESTORY_KSEF_TOKEN:change-me-ksef-token}

@@ -29,7 +29,6 @@ import java.time.ZoneId;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -151,7 +150,6 @@ class RetirementGoldenScenarioIntegrationTest {
   }
 
   @Test
-  @Disabled
   void canonicalHappyInvestorFlowsThroughProfilePlanBridgeSimulationTimelineAndAnalysis() {
     InvestmentProfile profile = profiles.loadProfile(HappyInvestorTestData.PORTFOLIO_ID);
     assertThat(profile.totalNetWorth())

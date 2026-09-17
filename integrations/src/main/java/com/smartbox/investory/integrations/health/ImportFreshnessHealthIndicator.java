@@ -27,7 +27,7 @@ public class ImportFreshnessHealthIndicator implements HealthIndicator {
   @Override
   public Health health() {
     return investment
-        .latestImport()
+        .latestImport(properties.getPortfolioId())
         .map(this::healthFor)
         .orElseGet(
             () -> Health.down().withDetail("reason", "No broker imports recorded yet.").build());

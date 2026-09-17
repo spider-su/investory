@@ -28,10 +28,9 @@ public interface InvestmentDashboardApi {
 
   record PerformanceKpiView(
       boolean available,
-      BigDecimal annualizedReturn,
-      String annualizedReturnDisplay,
+      BigDecimal totalReturn,
+      String totalReturnDisplay,
       String kpiStartDate,
-      BigDecimal ytdReturn,
       BigDecimal historicalAnnualizedReturn,
       String historicalAnnualizedReturnDisplay,
       BigDecimal expectedAnnualReturn,
@@ -39,43 +38,25 @@ public interface InvestmentDashboardApi {
       BigDecimal historyYears,
       String historyContext) {
     public PerformanceKpiView(
-        boolean available,
-        BigDecimal annualizedReturn,
-        String annualizedReturnDisplay,
-        String kpiStartDate) {
-      this(available, annualizedReturn, annualizedReturnDisplay, kpiStartDate, null);
-    }
-
-    public PerformanceKpiView(
-        boolean available, String annualizedReturnDisplay, String kpiStartDate) {
-      this(available, null, annualizedReturnDisplay, kpiStartDate, null);
-    }
-
-    public PerformanceKpiView(
-        boolean available,
-        BigDecimal annualizedReturn,
-        String annualizedReturnDisplay,
-        String kpiStartDate,
-        BigDecimal ytdReturn) {
+        boolean available, BigDecimal totalReturn, String totalReturnDisplay, String kpiStartDate) {
       this(
           available,
-          annualizedReturn,
-          annualizedReturnDisplay,
+          totalReturn,
+          totalReturnDisplay,
           kpiStartDate,
-          ytdReturn,
-          annualizedReturn,
-          annualizedReturnDisplay,
-          annualizedReturn,
-          annualizedReturnDisplay,
+          null,
+          "Unavailable",
+          null,
+          "Unavailable",
           null,
           null);
     }
 
     public PerformanceKpiView {
-      annualizedReturnDisplay =
-          annualizedReturnDisplay == null || annualizedReturnDisplay.isBlank()
+      totalReturnDisplay =
+          totalReturnDisplay == null || totalReturnDisplay.isBlank()
               ? "Unavailable"
-              : annualizedReturnDisplay;
+              : totalReturnDisplay;
     }
   }
 

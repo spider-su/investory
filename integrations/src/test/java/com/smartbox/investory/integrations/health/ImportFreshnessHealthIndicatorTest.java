@@ -30,6 +30,7 @@ class ImportFreshnessHealthIndicatorTest {
   @BeforeEach
   void setUp() {
     NotificationProperties properties = new NotificationProperties();
+    properties.setPortfolioId(1L);
     properties.setStaleImportDays(7);
     indicator =
         new ImportFreshnessHealthIndicator(
@@ -41,7 +42,7 @@ class ImportFreshnessHealthIndicatorTest {
   @DisplayName("reports Up For Recent Completed Import")
   @Test
   void reportsUpForRecentCompletedImport() {
-    when(investment.latestImport())
+    when(investment.latestImport(1L))
         .thenReturn(Optional.of(batch("COMPLETED", "2026-08-10T12:00:00Z")));
 
     assertEquals("UP", indicator.health().getStatus().getCode());
@@ -50,7 +51,7 @@ class ImportFreshnessHealthIndicatorTest {
   @DisplayName("reports Down For Stale Or Failed Import")
   @Test
   void reportsDownForStaleOrFailedImport() {
-    when(investment.latestImport())
+    when(investment.latestImport(1L))
         .thenReturn(Optional.of(batch("FAILED", "2026-08-14T11:00:00Z")));
 
     assertEquals("DOWN", indicator.health().getStatus().getCode());

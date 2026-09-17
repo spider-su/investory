@@ -29,6 +29,7 @@ class StaleImportHistoryAlertRuleTest {
   @BeforeEach
   void setUp() {
     properties = new NotificationProperties();
+    properties.setPortfolioId(1L);
     properties.setStaleImportDays(7);
     rule = new StaleImportAlertRule(investment, properties, TIME);
   }
@@ -36,7 +37,7 @@ class StaleImportHistoryAlertRuleTest {
   @DisplayName("evaluate fires When No Batches Exist")
   @Test
   void evaluate_firesWhenNoBatchesExist() {
-    when(investment.latestImport()).thenReturn(Optional.empty());
+    when(investment.latestImport(1L)).thenReturn(Optional.empty());
 
     Optional<String> result = rule.evaluate();
 
@@ -47,7 +48,7 @@ class StaleImportHistoryAlertRuleTest {
   @DisplayName("evaluate fires When Last Batch Is Older Than Threshold")
   @Test
   void evaluate_firesWhenLastBatchIsOlderThanThreshold() {
-    when(investment.latestImport())
+    when(investment.latestImport(1L))
         .thenReturn(Optional.of(batch("COMPLETED", ZonedDateTime.now().minusDays(30))));
 
     Optional<String> result = rule.evaluate();
@@ -59,7 +60,7 @@ class StaleImportHistoryAlertRuleTest {
   @DisplayName("evaluate fires When Last Batch Failed")
   @Test
   void evaluate_firesWhenLastBatchFailed() {
-    when(investment.latestImport()).thenReturn(Optional.of(batch("FAILED", ZonedDateTime.now())));
+    when(investment.latestImport(1L)).thenReturn(Optional.of(batch("FAILED", ZonedDateTime.now())));
 
     assertTrue(rule.evaluate().isPresent());
   }
@@ -67,7 +68,7 @@ class StaleImportHistoryAlertRuleTest {
   @DisplayName("evaluate is Quiet For Fresh Applied Batch")
   @Test
   void evaluate_isQuietForFreshAppliedBatch() {
-    when(investment.latestImport())
+    when(investment.latestImport(1L))
         .thenReturn(Optional.of(batch("COMPLETED", ZonedDateTime.now())));
 
     assertFalse(rule.evaluate().isPresent());

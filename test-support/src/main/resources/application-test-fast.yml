@@ -15,6 +15,8 @@ springdoc:
     enabled: false
 
 app:
+  security:
+    csrf-protection-required: false
   scheduling:
     enabled: false
   telegram:

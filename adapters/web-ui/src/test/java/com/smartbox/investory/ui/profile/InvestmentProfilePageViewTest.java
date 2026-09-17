@@ -89,10 +89,9 @@ class InvestmentProfilePageViewTest {
   void formatsProfileReturnWithoutSignOrAnnualSuffix() {
     InvestmentProfile profile = emptyProfile();
 
-    assertThat(pageWithReturn(profile, "0.281").marketAnnualizedReturnDisplay()).isEqualTo("28.1%");
-    assertThat(pageWithReturn(profile, "-0.042").marketAnnualizedReturnDisplay())
-        .isEqualTo("-4.2%");
-    assertThat(pageWithReturn(profile, "0").marketAnnualizedReturnDisplay()).isEqualTo("0.0%");
+    assertThat(pageWithReturn(profile, "0.281").expectedAnnualReturnDisplay()).isEqualTo("28.1%");
+    assertThat(pageWithReturn(profile, "-0.042").expectedAnnualReturnDisplay()).isEqualTo("-4.2%");
+    assertThat(pageWithReturn(profile, "0").expectedAnnualReturnDisplay()).isEqualTo("0.0%");
   }
 
   @DisplayName("preserves Unavailable Actuals And Retirement Cost")
@@ -164,7 +163,7 @@ class InvestmentProfilePageViewTest {
         InvestmentProfilePageView.from(
             profile,
             new InvestmentDashboardApi.PerformanceKpiView(
-                true, new BigDecimal("0.281"), "28.1%", "2026-01-01", new BigDecimal("0.083")),
+                true, new BigDecimal("0.083"), "8.3%", "2026-01-01"),
             new InvestmentDashboardApi.InvestmentResultView(
                 true, new BigDecimal("12000"), CurrencyType.USD),
             com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
@@ -251,7 +250,16 @@ class InvestmentProfilePageViewTest {
     return InvestmentProfilePageView.from(
         profile,
         new InvestmentDashboardApi.PerformanceKpiView(
-            true, new BigDecimal(value), "ignored", "2025-01-01"),
+            true,
+            null,
+            "Unavailable",
+            "2025-01-01",
+            null,
+            "Unavailable",
+            new BigDecimal(value),
+            "ignored",
+            null,
+            null),
         InvestmentDashboardApi.InvestmentResultView.unavailable(CurrencyType.USD),
         com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
             CurrencyType.USD, 2026),

@@ -4,6 +4,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
@@ -16,20 +18,52 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
   @Bean
+  public CorsConfigurationSource corsConfigurationSource(
+      @Value("${app.security.mobile-api-allowed-origins:http://localhost:8081}")
+          String mobileApiAllowedOrigins) {
+    var configuration = new CorsConfiguration();
+    configuration.setAllowedOrigins(java.util.List.of(mobileApiAllowedOrigins.split(",")));
+    configuration.setAllowedMethods(java.util.List.of("GET", "OPTIONS"));
+    configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type"));
+    configuration.setAllowCredentials(true);
+
+    var source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/api/v1/**", configuration);
+    return source;
+  }
+
+  @Bean
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       @Value("${app.security.read-authentication-required:true}")
-          boolean readAuthenticationRequired) {
+          boolean readAuthenticationRequired,
+      @Value("${app.security.csrf-protection-required:true}") boolean csrfProtectionRequired,
+      @Value("${app.security.legacy-accounting-write-enabled:false}")
+          boolean legacyAccountingWriteEnabled) {
     var authorization =
-        http.csrf(AbstractHttpConfigurer::disable)
+        http.csrf(
+                csrf -> {
+                  if (csrfProtectionRequired) {
+                    csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler());
+                  } else {
+                    csrf.disable();
+                  }
+                })
             .sessionManagement(
                 session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .cors(Customizer.withDefaults())
             .authorizeHttpRequests(
                 auth ->
                     auth.requestMatchers(
@@ -55,6 +89,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/**")
                         .hasRole("ADMIN"));
 
+    authorization.authorizeHttpRequests(
+        auth -> {
+          var legacyAccounting = auth.requestMatchers(HttpMethod.POST, "/poc/accounting/**");
+          if (legacyAccountingWriteEnabled) legacyAccounting.authenticated();
+          else legacyAccounting.denyAll();
+        });
+
     if (readAuthenticationRequired) {
       authorization.authorizeHttpRequests(
           auth -> auth.requestMatchers(HttpMethod.GET, "/**").authenticated());
@@ -78,7 +119,10 @@ public class SecurityConfig {
       @Value("${app.security.user-username:user}") String userUsername,
       @Value("${app.security.user-password:change-me-user}") String userPassword,
       PasswordEncoder passwordEncoder,
-      ObjectProvider<JdbcTemplate> jdbcTemplates) {
+      ObjectProvider<JdbcTemplate> jdbcTemplates,
+      Environment environment) {
+    boolean allowConfiguredFallback =
+        environment.acceptsProfiles(Profiles.of("local", "test", "test-fast"));
     UserDetailsService configuredFallback =
         username -> {
           if (adminUsername.equals(username)) {
@@ -98,7 +142,8 @@ public class SecurityConfig {
         };
     return username -> {
       JdbcTemplate jdbc = jdbcTemplates.getIfAvailable();
-      if (jdbc == null) return configuredFallback.loadUserByUsername(username);
+      if (jdbc == null)
+        return fallbackOrReject(username, configuredFallback, allowConfiguredFallback);
       try {
         return jdbc.queryForObject(
             "SELECT username, password_hash, role, active FROM investory.app_users WHERE username = ?",
@@ -115,9 +160,15 @@ public class SecurityConfig {
             },
             username);
       } catch (org.springframework.dao.EmptyResultDataAccessException e) {
-        return configuredFallback.loadUserByUsername(username);
+        return fallbackOrReject(username, configuredFallback, allowConfiguredFallback);
       }
     };
+  }
+
+  private org.springframework.security.core.userdetails.UserDetails fallbackOrReject(
+      String username, UserDetailsService configuredFallback, boolean allowConfiguredFallback) {
+    if (allowConfiguredFallback) return configuredFallback.loadUserByUsername(username);
+    throw new org.springframework.security.core.userdetails.UsernameNotFoundException(username);
   }
 
   @Bean

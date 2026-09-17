@@ -15,9 +15,9 @@
               <div><dt>Plan</dt><dd th:text="${format.percentage(row.planRate)}">8.0%</dd></div>
               <div><dt>Scenario effective</dt><dd th:text="${format.percentage(row.effectiveRate)}">8.0%</dd></div>
               <div><dt>Scenario delta</dt><dd th:text="${row.effect.name() == 'NEUTRAL' ? '—' : format.percentagePoints(row.deltaPercentagePoints)}">—</dd></div>
-              <div><dt th:text="${row.observedLabel == null ? 'Observed' : row.observedLabel}">Observed annualized</dt><dd th:text="${row.observedRateDisplay}">7.2%</dd></div>
+              <div><dt th:text="${row.observedLabel == null ? 'Observed' : row.observedLabel}">Actual YTD TWR</dt><dd th:text="${row.observedRateDisplay}">7.2%</dd></div>
               <div th:if="${row.availability.name() == 'AVAILABLE'}"><dt>Observed vs effective</dt><dd th:text="${row.observedEffect.name() == 'NEUTRAL' ? '—' : format.percentagePoints(row.observedDeltaPercentagePoints)}">-0.8 pp</dd></div>
-              <div th:if="${row.observedPeriod != null}"><dt>Period / as of</dt><dd th:text="${row.observedPeriod}">trailing 12 months</dd></div>
+              <div th:if="${row.observedPeriod != null}"><dt>Period / as of</dt><dd th:text="${row.observedPeriod}">2026 YTD</dd></div>
             </dl>
           </div>
         </div>

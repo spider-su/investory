@@ -324,17 +324,17 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(
         html.contains(
             "Cash-flow-neutral profit and return for the selected period, after portfolio adjustments."));
-    assertTrue(html.contains("Return since KPI start"));
-    assertTrue(html.contains("Annualized return"));
-    assertTrue(html.contains("kpiStartDate"));
+    assertTrue(html.contains("Selected-period return"));
+    assertTrue(html.contains("Expected annual return"));
+    assertTrue(html.contains("totalReturnStartDate"));
     int profitStart = html.indexOf("id=\"investment-gain\"");
     int balanceStart = html.indexOf("id=\"balance-cash\"");
     int balanceEnd =
         html.indexOf("class=\"iv-topbar__secondary iv-app-header-shell__secondary\"", balanceStart);
     assertTrue(profitStart >= 0 && balanceStart > profitStart);
-    assertTrue(html.substring(profitStart, balanceStart).contains("Annualized return"));
+    assertTrue(html.substring(profitStart, balanceStart).contains("Expected annual return"));
     assertTrue(balanceEnd > balanceStart);
-    assertFalse(html.substring(balanceStart, balanceEnd).contains("Annualized return"));
+    assertFalse(html.substring(balanceStart, balanceEnd).contains("Expected annual return"));
     assertTrue(html.contains("Portfolio value"));
     assertTrue(html.contains("id=\"cash-flows\" class=\"iv-topbar-metric iv-metric-context\""));
     assertTrue(html.contains("id=\"balance-cash\" class=\"iv-topbar-metric\""));

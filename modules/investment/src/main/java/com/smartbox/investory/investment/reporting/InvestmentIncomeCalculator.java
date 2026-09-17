@@ -24,14 +24,15 @@ public final class InvestmentIncomeCalculator {
     return result.setScale(8, RoundingMode.HALF_UP);
   }
 
-  public static BigDecimal projectedAnnualIncome(
-      BigDecimal incomeBase, BigDecimal annualizedYield) {
-    return nz(incomeBase).multiply(nz(annualizedYield)).setScale(8, RoundingMode.HALF_UP);
+  public static BigDecimal projectedAnnualInvestmentResult(
+      BigDecimal incomeBase, BigDecimal expectedAnnualReturn) {
+    return nz(incomeBase).multiply(nz(expectedAnnualReturn)).setScale(8, RoundingMode.HALF_UP);
   }
 
-  public static BigDecimal expectedIncomeYtd(BigDecimal projectedAnnualIncome, int currentMonth) {
+  public static BigDecimal expectedInvestmentResultYtd(
+      BigDecimal expectedAnnualInvestmentResult, int currentMonth) {
     if (currentMonth < 1 || currentMonth > 12) return BigDecimal.ZERO.setScale(8);
-    return nz(projectedAnnualIncome)
+    return nz(expectedAnnualInvestmentResult)
         .multiply(BigDecimal.valueOf(currentMonth))
         .divide(TWELVE, 8, RoundingMode.HALF_UP);
   }

@@ -13,6 +13,9 @@ public class NotificationProperties {
   @Value("${app.notifications.enabled:true}")
   private boolean enabled;
 
+  @Value("${app.notifications.portfolio-id:1}")
+  private Long portfolioId;
+
   @Value("${app.notifications.drawdown-threshold-pct:10}")
   private double drawdownThresholdPct;
 

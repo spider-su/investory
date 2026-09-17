@@ -324,6 +324,26 @@ class CurrencyRateServiceTest {
   }
 
   @Test
+  void transactionResolverUsesLastAvailableNbpRateAcrossMayHolidayAndWeekend() {
+    LocalDate transactionDate = LocalDate.of(2026, 5, 4);
+    when(currencyRateRepository.resolveFxRatesForDate(transactionDate))
+        .thenReturn(
+            List.of(
+                resolution(
+                    "USD", "PLN", "3.70", "CARRY_FORWARD", "NBP", "2026-04-30", "CARRY_FORWARD")));
+
+    CurrencyRateService.FxRateResolution result =
+        service.resolveTransactionRate(
+            ZonedDateTime.of(2026, 5, 4, 12, 0, 0, 0, ZoneOffset.UTC),
+            CurrencyType.USD,
+            CurrencyType.PLN);
+
+    assertEquals("CARRY_FORWARD", result.conversionStatus());
+    assertEquals(LocalDate.of(2026, 4, 30), result.sourceRateDate());
+    verify(currencyRateRepository).resolveFxRatesForDate(transactionDate);
+  }
+
+  @Test
   void transactionResolverUsesWarsawTransactionDay() {
     when(currencyRateRepository.findExecutionRateAtOrBefore(
             any(), eq(LocalDate.of(2026, 1, 2)), eq("USD"), eq("PLN")))

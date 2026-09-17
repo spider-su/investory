@@ -29,6 +29,7 @@ class ConcentrationAlertRuleTest {
   @BeforeEach
   void setUp() {
     properties = new NotificationProperties();
+    properties.setPortfolioId(1L);
     properties.setConcentrationThresholdPct(25.0);
     rule = new ConcentrationAlertRule(investment, properties);
   }
@@ -36,7 +37,7 @@ class ConcentrationAlertRuleTest {
   @DisplayName("evaluate fires When Symbol Exceeds Threshold")
   @Test
   void evaluate_firesWhenSymbolExceedsThreshold() {
-    when(investment.symbolExposures())
+    when(investment.symbolExposures(1L))
         .thenReturn(
             List.of(
                 exposure("AAPL.US", 1000.0),
@@ -48,12 +49,13 @@ class ConcentrationAlertRuleTest {
     assertTrue(result.isPresent());
     // AAPL is ~83% of total -> must trigger.
     assertTrue(result.get().contains("AAPL.US"));
+    assertTrue(result.get().contains("PLN"));
   }
 
   @DisplayName("evaluate tracks each symbol as its own observation")
   @Test
   void evaluateTracksEachSymbolSeparately() {
-    when(investment.symbolExposures())
+    when(investment.symbolExposures(1L))
         .thenReturn(
             List.of(exposure("NVDA", 600.0), exposure("TSLA", 300.0), exposure("MSFT", 100.0)));
 
@@ -65,7 +67,7 @@ class ConcentrationAlertRuleTest {
   @DisplayName("evaluate is Quiet For Balanced Portfolio")
   @Test
   void evaluate_isQuietForBalancedPortfolio() {
-    when(investment.symbolExposures())
+    when(investment.symbolExposures(1L))
         .thenReturn(
             List.of(
                 exposure("AAPL.US", 100.0),
@@ -80,12 +82,12 @@ class ConcentrationAlertRuleTest {
   @DisplayName("evaluate is Safe When Portfolio Is Empty")
   @Test
   void evaluate_isSafeWhenPortfolioIsEmpty() {
-    when(investment.symbolExposures()).thenReturn(List.of());
+    when(investment.symbolExposures(1L)).thenReturn(List.of());
 
     assertFalse(rule.evaluate().isPresent());
   }
 
   private static SymbolExposure exposure(String symbol, double value) {
-    return new SymbolExposure(symbol, BigDecimal.valueOf(value), "USD");
+    return new SymbolExposure(symbol, BigDecimal.valueOf(value), "PLN");
   }
 }

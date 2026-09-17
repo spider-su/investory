@@ -423,6 +423,7 @@ class LayerDependencyTest {
             "..profile.api..",
             "..retirement.api..",
             "..integrations.management.api..",
+            "..accounting.api..",
             "java..",
             "javax..",
             "jakarta..",
@@ -601,7 +602,7 @@ class LayerDependencyTest {
         .check(MAIN);
   }
 
-  @DisplayName("concrete Web Ui Clients Use In Process Naming")
+  @DisplayName("concrete Web Ui Clients Use Explicit Adapter Naming")
   @Test
   void concreteWebUiClientsUseInProcessNaming() {
     classes()
@@ -613,6 +614,8 @@ class LayerDependencyTest {
         .areNotInterfaces()
         .should()
         .haveSimpleNameStartingWith("InProcess")
+        .orShould()
+        .haveSimpleNameStartingWith("Http")
         .check(MAIN);
   }
 

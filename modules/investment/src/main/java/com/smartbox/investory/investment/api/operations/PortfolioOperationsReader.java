@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 
 /** Current portfolio totals used by operational adapters such as notifications and health jobs. */
 public interface PortfolioOperationsReader {
-  PortfolioOperationsSnapshot portfolio();
+  PortfolioOperationsSnapshot portfolio(Long portfolioId);
 
   record PortfolioOperationsSnapshot(
       String baseCurrency,

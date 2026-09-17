@@ -39,17 +39,43 @@ class InvestmentDashboardApplicationServiceTest {
     when(dashboard.loadPerformanceKpi(7L))
         .thenReturn(
             new InvestmentDashboardFacade.PerformanceKpi(
-                ReturnMetric.available(BigDecimal.ZERO),
-                ReturnMetric.available(new BigDecimal("0.281")),
-                "2026-01-01"));
+                ReturnMetric.available(new BigDecimal("0.173")),
+                "2026-01-01",
+                ReturnMetric.available(new BigDecimal("0.10")),
+                new BigDecimal("0.08"),
+                BigDecimal.ONE,
+                "1Y portfolio history + benchmark estimate"));
 
     var service = service();
 
     var view = service.loadPerformanceKpi(7L);
 
-    assertThat(view.annualizedReturn()).isEqualByComparingTo("0.281");
-    assertThat(view.ytdReturn()).isEqualByComparingTo("0");
+    assertThat(view.totalReturn()).isEqualByComparingTo("0.173");
+    assertThat(view.historicalAnnualizedReturn()).isEqualByComparingTo("0.10");
+    assertThat(view.expectedAnnualReturn()).isEqualByComparingTo("0.08");
+    assertThat(view.totalReturnDisplay()).isEqualTo("+17.3%");
+    assertThat(view.historicalAnnualizedReturnDisplay()).isEqualTo("+10.0%");
+    assertThat(view.expectedAnnualReturnDisplay()).isEqualTo("+8.0%");
     assertThat(view.kpiStartDate()).isEqualTo("2026-01-01");
+  }
+
+  @Test
+  void ytdTwrReaderReturnsTheSameAvailabilityAwareCanonicalDashboardMetric() {
+    when(portfolios.findById(7L))
+        .thenReturn(Optional.of(org.mockito.Mockito.mock(PortfolioContext.class)));
+    ReturnMetric canonical = ReturnMetric.available(new BigDecimal("0.173"));
+    when(dashboard.loadPerformanceKpi(7L))
+        .thenReturn(
+            new InvestmentDashboardFacade.PerformanceKpi(
+                canonical,
+                "2026-01-01",
+                ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "history"),
+                null,
+                null,
+                null));
+
+    assertThat(service().ytdTwr(7L)).isSameAs(canonical);
+    verify(dashboard).loadPerformanceKpi(7L);
   }
 
   @Test

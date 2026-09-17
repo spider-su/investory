@@ -1,7 +1,6 @@
 package com.smartbox.investory.integrations.notifications.application;
 
 import com.smartbox.investory.investment.api.operations.PortfolioExposureReader;
-import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -16,8 +15,6 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class ConcentrationAlertRule implements AlertRule {
-
-  private static final CurrencyType BASE = CurrencyType.USD;
 
   private final PortfolioExposureReader investment;
   private final NotificationProperties properties;
@@ -45,9 +42,11 @@ public class ConcentrationAlertRule implements AlertRule {
 
   @Override
   public List<AlertObservation> evaluateObservations() {
+    List<PortfolioExposureReader.SymbolExposure> exposures =
+        investment.symbolExposures(properties.getPortfolioId());
     Map<String, Double> exposureBySymbol = new TreeMap<>();
     double total = 0.0;
-    for (var exposure : investment.symbolExposures()) {
+    for (var exposure : exposures) {
       double base = exposure.value().doubleValue();
       exposureBySymbol.merge(exposure.symbol(), base, Double::sum);
       total += base;
@@ -55,6 +54,7 @@ public class ConcentrationAlertRule implements AlertRule {
     if (total <= 0.0) {
       return List.of();
     }
+    String reportingCurrency = exposures.getFirst().currency();
     double threshold = properties.getConcentrationThresholdPct();
     List<AlertObservation> observations = new java.util.ArrayList<>();
     for (Map.Entry<String, Double> e : exposureBySymbol.entrySet()) {
@@ -63,7 +63,8 @@ public class ConcentrationAlertRule implements AlertRule {
         observations.add(
             new AlertObservation(
                 e.getKey(),
-                String.format("%s: %.1f%% (%,.0f %s)", e.getKey(), pct, e.getValue(), BASE)));
+                String.format(
+                    "%s: %.1f%% (%,.0f %s)", e.getKey(), pct, e.getValue(), reportingCurrency)));
       }
     }
     return observations;

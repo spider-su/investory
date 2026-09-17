@@ -39,6 +39,41 @@ class FlywayMigrationChainIT {
   }
 
   @Test
+  void installsReferenceBaselineAndLeavesOperationalWorkspaceEmpty() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          1,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM investory.accounting_poc_profile "
+                  + "WHERE id = 1 AND has_uop"));
+      assertEquals(
+          8,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM investory.accounting_reference_month "
+                  + "WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2026-09-01'"));
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement, "SELECT count(*) FROM investory.accounting_poc_invoice"));
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement, "SELECT count(*) FROM investory.accounting_poc_expense_invoice"));
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement, "SELECT count(*) FROM investory.accounting_poc_bank_transaction"));
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement, "SELECT count(*) FROM investory.accounting_tmp_invoice"));
+    }
+  }
+
+  @Test
   void installsTemporalAnomalyContractAndParameters() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {

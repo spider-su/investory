@@ -40,7 +40,7 @@ class ScenarioAssumptionViewTest {
             false,
             bd(".027"),
             "Observed",
-            "trailing 12 months",
+            "2026 YTD",
             ScenarioAssumptionView.Availability.AVAILABLE);
 
     assertEquals(bd("-0.3"), row.observedDeltaPercentagePoints());
@@ -63,11 +63,32 @@ class ScenarioAssumptionViewTest {
   void observedDisplayPreservesZeroPositiveAndNegativeValues() {
     var zero = observed(BigDecimal.ZERO);
     var positive = observed(bd(".051"));
+    var ytd = observed(bd(".173"));
     var negative = observed(bd("-.023"));
 
     assertEquals("0.0%", zero.observedRateDisplay());
     assertEquals("5.1%", positive.observedRateDisplay());
+    assertEquals("17.3%", ytd.observedRateDisplay());
     assertEquals("-2.3%", negative.observedRateDisplay());
+  }
+
+  @Test
+  void actualObservationDoesNotReplaceTheConfiguredPlanRate() {
+    var row =
+        ScenarioAssumptionView.of(
+            "Equity return",
+            bd(".081"),
+            bd(".081"),
+            true,
+            bd(".173"),
+            "Actual YTD TWR",
+            "2026 YTD",
+            ScenarioAssumptionView.Availability.AVAILABLE);
+
+    assertEquals(bd(".081"), row.planRate());
+    assertEquals(bd(".081"), row.effectiveRate());
+    assertEquals(bd(".173"), row.observedRate());
+    assertEquals("17.3%", row.observedRateDisplay());
   }
 
   private static ScenarioAssumptionView observed(BigDecimal value) {
@@ -77,8 +98,8 @@ class ScenarioAssumptionViewTest {
         bd(".06"),
         true,
         value,
-        "Observed annualized",
-        "trailing 12 months",
+        "Actual YTD TWR",
+        "2026 YTD",
         ScenarioAssumptionView.Availability.AVAILABLE);
   }
 

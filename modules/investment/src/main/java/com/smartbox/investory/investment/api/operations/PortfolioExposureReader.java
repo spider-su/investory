@@ -5,7 +5,7 @@ import java.util.List;
 
 /** Base-currency symbol exposure used by concentration monitoring. */
 public interface PortfolioExposureReader {
-  List<SymbolExposure> symbolExposures();
+  List<SymbolExposure> symbolExposures(Long portfolioId);
 
   record SymbolExposure(String symbol, BigDecimal value, String currency) {}
 }

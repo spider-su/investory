@@ -52,6 +52,47 @@ class ReturnEstimateCalculatorTest {
   }
 
   @Test
+  void partialCurrentYearReturnFallsBackToConfiguredBenchmark() {
+    var result = calculate("0.173", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 9, 15));
+
+    assertThat(result.historical().status()).isEqualTo(ReturnMetric.Status.INSUFFICIENT_DATA);
+    assertThat(result.expected()).isEqualByComparingTo(BENCHMARK);
+    assertThat(result.portfolioWeight()).isZero();
+  }
+
+  @Test
+  void partialHistoryUsesDefaultSevenPercentBenchmarkWhenNoOverrideIsConfigured() {
+    var result =
+        ReturnEstimateCalculator.calculate(
+            ReturnMetric.available(new BigDecimal("0.173")),
+            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, 9, 15),
+            null);
+
+    assertThat(result.expected()).isEqualByComparingTo("0.07");
+    assertThat(result.historical().status()).isEqualTo(ReturnMetric.Status.INSUFFICIENT_DATA);
+  }
+
+  @Test
+  void anniversaryMakesHistoryEligibleEvenWhenDecimalYearIsJustBelowOne() {
+    var result = calculate("0.10", LocalDate.of(2024, 3, 1), LocalDate.of(2025, 3, 1));
+
+    assertThat(result.historical().status()).isEqualTo(ReturnMetric.Status.AVAILABLE);
+    assertThat(result.portfolioWeight()).isEqualByComparingTo("0.2");
+  }
+
+  @Test
+  void configuredTargetHistoryLengthCapsPortfolioWeightAtOneHundredPercent() {
+    var fourYears = calculate("0.50", LocalDate.of(2022, 1, 1), LocalDate.of(2026, 1, 1));
+    var fiveYears = calculate("1.61051", LocalDate.of(2021, 1, 1), LocalDate.of(2026, 1, 1));
+
+    assertThat(fourYears.portfolioWeight()).isEqualByComparingTo("0.8");
+    assertThat(fourYears.benchmarkWeight()).isEqualByComparingTo("0.2");
+    assertThat(fiveYears.portfolioWeight()).isEqualByComparingTo("1");
+    assertThat(fiveYears.benchmarkWeight()).isZero();
+  }
+
+  @Test
   void negativePortfolioReturnRemainsNegativeInTheBlend() {
     var result = calculate("-0.19", LocalDate.of(2023, 1, 1), LocalDate.of(2026, 1, 1));
 

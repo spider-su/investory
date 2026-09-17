@@ -10,10 +10,10 @@ public interface InvestmentIncomeSummaryReader {
   record InvestmentIncomeSummary(
       boolean available,
       CurrencyType currency,
-      BigDecimal incomeBase,
-      BigDecimal projectedAnnualIncome,
-      BigDecimal annualizedYield,
+      BigDecimal investmentBase,
+      BigDecimal expectedAnnualInvestmentResult,
+      BigDecimal expectedAnnualReturn,
       BigDecimal investmentResultYtd,
-      BigDecimal expectedIncomeYtd,
+      BigDecimal expectedInvestmentResultYtd,
       BigDecimal expectationProgress) {}
 }

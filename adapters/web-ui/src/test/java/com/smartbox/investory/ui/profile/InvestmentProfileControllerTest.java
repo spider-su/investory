@@ -32,7 +32,16 @@ class InvestmentProfileControllerTest {
     when(investment.loadPerformanceKpi(7L))
         .thenReturn(
             new InvestmentDashboardApi.PerformanceKpiView(
-                true, new BigDecimal("0.281"), "+28.1%", "2026-01-01"));
+                true,
+                new BigDecimal("0.173"),
+                "+17.3%",
+                "2026-01-01",
+                null,
+                "Unavailable",
+                new BigDecimal("0.281"),
+                "+28.1%",
+                null,
+                "Benchmark estimate"));
     when(investment.investmentResultYtd(7L))
         .thenReturn(
             new InvestmentDashboardApi.InvestmentResultView(
@@ -59,7 +68,7 @@ class InvestmentProfileControllerTest {
     assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("8.00K");
     assertThat(page.annualCostDisplay()).isEqualTo("42.0K");
     assertThat(page.annualCostMeta()).isEqualTo("planned · 2026");
-    assertThat(page.marketAnnualizedReturnDisplay()).isEqualTo("28.1%");
+    assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("28.1%");
     assertThat(page.allocationApproximate()).isFalse();
     verify(investment).investmentResultYtd(7L);
     verify(retirement).currentYearAnnualCost(7L, CurrencyType.PLN);

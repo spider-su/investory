@@ -33,7 +33,8 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
               snapshot_date AS "date",
               equity AS "endValue",
               deposits AS contributions,
-              withdrawals AS withdrawals
+              withdrawals AS withdrawals,
+              initialization_adjustment AS "initializationAdjustment"
           FROM investory.app_v_portfolio_performance_daily
           WHERE portfolio_id = :portfolioId
             AND snapshot_date BETWEEN :from AND :to
@@ -63,5 +64,7 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
     BigDecimal getContributions();
 
     BigDecimal getWithdrawals();
+
+    BigDecimal getInitializationAdjustment();
   }
 }

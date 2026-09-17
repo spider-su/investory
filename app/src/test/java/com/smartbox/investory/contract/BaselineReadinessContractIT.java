@@ -242,8 +242,8 @@ class BaselineReadinessContractIT {
       statement.execute(
           "INSERT INTO investory.exchange_rates "
               + "(rate_date, base, to_currency, rate, purpose, source, method, observed_at) VALUES "
-              + "(CURRENT_DATE, 'USD', 'EUR', 0.90, 'EXECUTION', 'XTB', 'XTB_EXECUTION', now()), "
-              + "(CURRENT_DATE, 'PLN', 'EUR', 4.50, 'EXECUTION', 'IBKR', 'IBKR_EXECUTION', now())");
+              + "((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date, 'USD', 'EUR', 0.90, 'EXECUTION', 'XTB', 'XTB_EXECUTION', now()), "
+              + "((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw')::date, 'PLN', 'EUR', 4.50, 'EXECUTION', 'IBKR', 'IBKR_EXECUTION', now())");
       assertEquals(
           "0.90000000|OK",
           singleString(
