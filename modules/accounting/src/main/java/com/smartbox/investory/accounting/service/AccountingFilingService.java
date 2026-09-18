@@ -22,7 +22,10 @@ public class AccountingFilingService {
   private final AccountingJpkXmlValidator jpkXmlValidator;
 
   public FilingResult filing(long profileId, LocalDate period) {
-    AccountingMonthSnapshot snapshot = factService.snapshot(profileId, period);
+    return filing(profileId, period, factService.snapshot(profileId, period));
+  }
+
+  public FilingResult filing(long profileId, LocalDate period, AccountingMonthSnapshot snapshot) {
     AccountingProfile profile = repository.accountingProfile(profileId);
     List<AccountingFilingInput.FilingDocument> canonicalDocuments =
         repository.canonicalFilingDocumentsForPeriod(profileId, period);
@@ -299,11 +302,16 @@ public class AccountingFilingService {
 
   public List<AccountingPaymentInstruction> paymentInstructions(long profileId, LocalDate period) {
     FilingResult result = filing(profileId, period);
+    return paymentInstructions(result);
+  }
+
+  public List<AccountingPaymentInstruction> paymentInstructions(FilingResult result) {
     if (!result.ready()) {
       throw new AccountingInvalidTransitionException(String.join("; ", result.issues()));
     }
     AccountingMonthSnapshot s = result.snapshot();
     AccountingProfile p = result.profile();
+    LocalDate period = result.period();
     List<AccountingPaymentInstruction> output = new ArrayList<>();
     add(
         output,

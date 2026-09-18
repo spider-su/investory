@@ -1,5 +1,6 @@
 package com.smartbox.investory.accounting.web;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.smartbox.investory.accounting.api.AccountingUserApi;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -44,13 +45,13 @@ public record AccountingMobileResponse(
   }
 
   public record Summary(
-      BigDecimal revenue,
-      BigDecimal vat,
-      BigDecimal ryczalt,
-      BigDecimal zus,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal revenue,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal vat,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal ryczalt,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal zus,
       int documents,
       int bankTransactions,
-      BigDecimal totalObligations) {
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal totalObligations) {
     static Summary from(AccountingUserApi.Summary source) {
       return new Summary(
           source.revenue(),
@@ -92,7 +93,7 @@ public record AccountingMobileResponse(
   public record PaymentSummary(
       int expectedCount,
       int outstandingCount,
-      BigDecimal totalOutstanding,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal totalOutstanding,
       List<Payment> payments) {
     static PaymentSummary from(AccountingUserApi.PaymentSummary source) {
       return new PaymentSummary(
@@ -105,21 +106,18 @@ public record AccountingMobileResponse(
 
   public record Payment(
       String obligationType,
-      BigDecimal amount,
-      BigDecimal paidAmount,
-      BigDecimal outstandingAmount,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal amount,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal paidAmount,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal outstandingAmount,
       java.time.LocalDate dueDate,
       String status) {
     static Payment from(AccountingUserApi.PaymentView source) {
-      BigDecimal expected = source.amount() == null ? BigDecimal.ZERO : source.amount();
-      BigDecimal paid = source.paidAmount() == null ? BigDecimal.ZERO : source.paidAmount();
+      BigDecimal expected = source.amount();
+      BigDecimal paid = source.paidAmount();
+      BigDecimal outstanding =
+          expected == null || paid == null ? null : expected.subtract(paid).max(BigDecimal.ZERO);
       return new Payment(
-          source.type(),
-          expected,
-          paid,
-          expected.subtract(paid).max(BigDecimal.ZERO),
-          source.dueDate(),
-          source.status());
+          source.type(), expected, paid, outstanding, source.dueDate(), source.status());
     }
   }
 
@@ -229,7 +227,7 @@ public record AccountingMobileResponse(
       LocalDate saleDate,
       String category,
       String source,
-      BigDecimal amount,
+      @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal amount,
       String currency,
       String status,
       String sourceType,

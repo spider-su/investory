@@ -1,5 +1,7 @@
 package com.smartbox.investory.accounting.api;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -20,6 +22,9 @@ public interface AccountingUserApi {
 
   List<PaymentView> payments(long profileId, YearMonth month);
 
+  List<PaymentHistoryView> paymentHistory(
+      long profileId, YearMonth from, YearMonth to, String obligationType);
+
   FilingView filings(long profileId, YearMonth month);
 
   List<ReconciliationView> reconciliation(long profileId, YearMonth month);
@@ -39,6 +44,20 @@ public interface AccountingUserApi {
   CandidateView reviewSource(long profileId, String sourceReference);
 
   void saveReviewed(long profileId, ReviewedDocument document);
+
+  default DocumentMutationResult saveReviewedResult(long profileId, ReviewedDocument document) {
+    saveReviewed(profileId, document);
+    return new DocumentMutationResult(
+        null, document.reference(), "CREATED", null, false, null, null);
+  }
+
+  default DocumentMutationResult issueInvoice(long profileId, InvoiceIssueRequest request) {
+    throw new UnsupportedOperationException("Invoice issuance is not supported by this client");
+  }
+
+  default DocumentMutationResult recordManualIncome(long profileId, ManualIncomeRequest request) {
+    throw new UnsupportedOperationException("Manual income is not supported by this client");
+  }
 
   void importBank(
       long profileId, String filename, String contentType, byte[] content, YearMonth month);
@@ -79,7 +98,9 @@ public interface AccountingUserApi {
   record CounterpartyDocumentView(YearMonth month, DocumentView document) {}
 
   record AutoApprovalSettings(
-      boolean enabled, BigDecimal maxAmount, List<String> trustedCategories) {}
+      boolean enabled,
+      @JsonSerialize(using = ToStringSerializer.class) BigDecimal maxAmount,
+      List<String> trustedCategories) {}
 
   record MonthOverview(
       YearMonth month,
@@ -415,6 +436,16 @@ public interface AccountingUserApi {
       String account,
       String status) {}
 
+  record PaymentHistoryView(
+      String type,
+      YearMonth period,
+      @JsonSerialize(using = ToStringSerializer.class) BigDecimal amount,
+      @JsonSerialize(using = ToStringSerializer.class) BigDecimal paidAmount,
+      @JsonSerialize(using = ToStringSerializer.class) BigDecimal outstandingAmount,
+      LocalDate dueDate,
+      LocalDate paymentDate,
+      String status) {}
+
   record FilingView(
       String lifecycle,
       String lifecycleLabel,
@@ -460,11 +491,98 @@ public interface AccountingUserApi {
       String buyerNip,
       String category,
       String currency,
+      @JsonSerialize(using = ToStringSerializer.class) BigDecimal netAmount,
+      @JsonSerialize(using = ToStringSerializer.class) BigDecimal vatAmount,
+      @JsonSerialize(using = ToStringSerializer.class) BigDecimal grossAmount,
+      String note,
+      String status,
+      boolean duplicate,
+      Long existingDocumentId,
+      String vatTreatment,
+      @JsonSerialize(using = ToStringSerializer.class) BigDecimal vatRate,
+      List<Option> vatTreatmentOptions,
+      List<RequiredInput> requiredInputs) {
+    public CandidateView(
+        String sourceReference,
+        String documentType,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        LocalDate dueDate,
+        String reference,
+        String seller,
+        String buyer,
+        String sellerNip,
+        String buyerNip,
+        String category,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        String note,
+        String status) {
+      this(
+          sourceReference,
+          documentType,
+          issueDate,
+          saleDate,
+          dueDate,
+          reference,
+          seller,
+          buyer,
+          sellerNip,
+          buyerNip,
+          category,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          note,
+          status,
+          false,
+          null,
+          null,
+          null,
+          List.of(),
+          List.of());
+    }
+  }
+
+  /** Backend-owned review input metadata. Mobile renders this; it does not encode tax rules. */
+  record RequiredInput(
+      String field,
+      String inputType,
+      String label,
+      boolean required,
+      List<Option> options,
+      String dependsOn,
+      List<String> dependsOnValues) {}
+
+  record InvoiceIssueRequest(
+      LocalDate issueDate,
+      LocalDate saleDate,
+      LocalDate dueDate,
+      String reference,
+      String counterpartyAlias,
+      String counterpartyTaxIdentifier,
+      String counterpartyCountry,
+      String currency,
       BigDecimal netAmount,
       BigDecimal vatAmount,
       BigDecimal grossAmount,
-      String note,
-      String status) {}
+      BigDecimal vatRate,
+      String note) {}
+
+  record ManualIncomeRequest(
+      LocalDate date, String description, BigDecimal amount, String currency) {}
+
+  record DocumentMutationResult(
+      Long documentId,
+      String reference,
+      String status,
+      String ksefStatus,
+      boolean duplicate,
+      Long existingDocumentId,
+      String message) {}
 
   record ReviewedDocument(
       String sourceReference,

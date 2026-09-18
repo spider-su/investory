@@ -34,7 +34,9 @@ class AccountingBankImportServiceTest {
     when(sources.receiveBank(1L, "bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1)))
         .thenReturn(7L);
     when(ingestion.ingest(
-            any(ExternalBankTransaction.class), org.mockito.ArgumentMatchers.anyLong()))
+            any(ExternalBankTransaction.class),
+            org.mockito.ArgumentMatchers.anyLong(),
+            org.mockito.ArgumentMatchers.anyLong()))
         .thenReturn(
             new AccountingBankTransactionIngestionService.Result(true, false, "CUSTOMER_RECEIPT"));
 
@@ -47,7 +49,10 @@ class AccountingBankImportServiceTest {
         .receiveBank(1L, "bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
     order
         .verify(ingestion)
-        .ingest(any(ExternalBankTransaction.class), org.mockito.ArgumentMatchers.anyLong());
+        .ingest(
+            any(ExternalBankTransaction.class),
+            org.mockito.ArgumentMatchers.anyLong(),
+            org.mockito.ArgumentMatchers.eq(1L));
     verify(sources).status(7L, AccountingSourceStatus.PARSED, null);
     verify(sources).status(7L, AccountingSourceStatus.IMPORTED, null);
     org.assertj.core.api.Assertions.assertThat(result)
@@ -87,13 +92,18 @@ class AccountingBankImportServiceTest {
             any(LocalDate.class)))
         .thenReturn(9L);
     when(ingestion.ingest(
-            any(ExternalBankTransaction.class), org.mockito.ArgumentMatchers.anyLong()))
+            any(ExternalBankTransaction.class),
+            org.mockito.ArgumentMatchers.anyLong(),
+            org.mockito.ArgumentMatchers.anyLong()))
         .thenReturn(new AccountingBankTransactionIngestionService.Result(true, true, "UNKNOWN"));
 
     service.importFile(1L, "bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
 
     verify(ingestion)
-        .ingest(any(ExternalBankTransaction.class), org.mockito.ArgumentMatchers.anyLong());
+        .ingest(
+            any(ExternalBankTransaction.class),
+            org.mockito.ArgumentMatchers.anyLong(),
+            org.mockito.ArgumentMatchers.eq(1L));
     verify(sources)
         .status(
             9L,

@@ -51,7 +51,7 @@ public class AccountingBankImportService {
       int imported = 0;
       int reviewRequired = 0;
       for (var row : rows) {
-        var result = ingestion.ingest(row, sourceId);
+        var result = ingestion.ingest(row, sourceId, profileId);
         if (result.inserted()) imported++;
         if (result.reviewRequired()) reviewRequired++;
       }

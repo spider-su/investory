@@ -99,6 +99,17 @@ public class AccountingRestController {
     return accounting.payments(profileId, month);
   }
 
+  @GetMapping("/payments/history")
+  public java.util.List<AccountingUserApi.PaymentHistoryView> paymentHistory(
+      @PathVariable long profileId,
+      @RequestParam YearMonth from,
+      @RequestParam YearMonth to,
+      @RequestParam(required = false) String type,
+      Authentication a) {
+    read(profileId, a);
+    return accounting.paymentHistory(profileId, from, to, type);
+  }
+
   @GetMapping("/months/{month}/filings")
   public AccountingUserApi.FilingView filings(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {
@@ -182,12 +193,30 @@ public class AccountingRestController {
   }
 
   @PostMapping("/documents")
-  public void saveDocument(
+  public AccountingUserApi.DocumentMutationResult saveDocument(
       @PathVariable long profileId,
       @RequestBody AccountingUserApi.ReviewedDocument document,
       Authentication a) {
     write(profileId, a);
-    accounting.saveReviewed(profileId, document);
+    return accounting.saveReviewedResult(profileId, document);
+  }
+
+  @PostMapping("/documents/issue")
+  public AccountingUserApi.DocumentMutationResult issueInvoice(
+      @PathVariable long profileId,
+      @RequestBody AccountingUserApi.InvoiceIssueRequest request,
+      Authentication a) {
+    write(profileId, a);
+    return accounting.issueInvoice(profileId, request);
+  }
+
+  @PostMapping("/income")
+  public AccountingUserApi.DocumentMutationResult recordManualIncome(
+      @PathVariable long profileId,
+      @RequestBody AccountingUserApi.ManualIncomeRequest request,
+      Authentication a) {
+    write(profileId, a);
+    return accounting.recordManualIncome(profileId, request);
   }
 
   @PostMapping(value = "/bank/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -43,6 +43,17 @@ public class AccountingMobileRestController {
         .toList();
   }
 
+  @GetMapping("/payments/history")
+  public List<AccountingUserApi.PaymentHistoryView> paymentHistory(
+      @PathVariable long profileId,
+      @org.springframework.web.bind.annotation.RequestParam YearMonth from,
+      @org.springframework.web.bind.annotation.RequestParam YearMonth to,
+      @org.springframework.web.bind.annotation.RequestParam(required = false) String type,
+      Authentication authentication) {
+    read(profileId, authentication);
+    return accounting.paymentHistory(profileId, from, to, type);
+  }
+
   @GetMapping("/auto-approval")
   public AccountingUserApi.AutoApprovalSettings autoApproval(
       @PathVariable long profileId, Authentication authentication) {
