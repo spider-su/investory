@@ -278,6 +278,52 @@ public class AccountingPocRepository {
         profileId);
   }
 
+  public List<CounterpartyDocumentRow> counterpartyDocuments(long profileId, long counterpartyId) {
+    return jdbcTemplate.query(
+        """
+        SELECT d.tax_period, d.id, d.reference, d.direction, d.document_kind,
+               d.corrects_document_id, corrected.reference AS corrects_document_reference,
+               COALESCE(d.issue_date, d.supply_date, d.tax_period) AS document_date,
+               d.gross_amount, d.currency, d.source_id, s.external_reference,
+               s.source_type, s.original_filename,
+               COALESCE(NULLIF(k.alias, ''), NULLIF(k.canonical_name, ''),
+                        NULLIF(d.counterparty_name, '')) AS counterparty_name,
+               d.category, d.supply_date, d.counterparty_tax_identifier,
+               d.counterparty_country
+          FROM investory.accounting_document d
+          JOIN investory.accounting_known_counterparty k
+            ON k.id = d.counterparty_id AND k.profile_id = d.profile_id
+          LEFT JOIN investory.accounting_source_evidence s ON s.id = d.source_id
+          LEFT JOIN investory.accounting_document corrected ON corrected.id = d.corrects_document_id
+         WHERE d.profile_id = ? AND d.counterparty_id = ?
+         ORDER BY COALESCE(d.issue_date, d.supply_date, d.tax_period), d.id
+        """,
+        (rs, rowNum) ->
+            new CounterpartyDocumentRow(
+                rs.getObject("tax_period", LocalDate.class),
+                new CanonicalDocumentRow(
+                    rs.getLong("id"),
+                    rs.getString("reference"),
+                    rs.getString("direction"),
+                    rs.getString("document_kind"),
+                    rs.getObject("corrects_document_id", Long.class),
+                    rs.getString("corrects_document_reference"),
+                    rs.getObject("document_date", LocalDate.class),
+                    rs.getBigDecimal("gross_amount"),
+                    rs.getString("currency"),
+                    rs.getObject("source_id", Long.class),
+                    rs.getString("external_reference"),
+                    rs.getString("source_type"),
+                    rs.getString("original_filename"),
+                    rs.getString("counterparty_name"),
+                    rs.getString("category"),
+                    rs.getObject("supply_date", LocalDate.class),
+                    rs.getString("counterparty_tax_identifier"),
+                    rs.getString("counterparty_country"))),
+        profileId,
+        counterpartyId);
+  }
+
   public void updateCounterpartyAlias(long profileId, long counterpartyId, String alias) {
     int updated =
         jdbcTemplate.update(
@@ -305,10 +351,6 @@ public class AccountingPocRepository {
     return new AccountingFilingEvidence(AccountingFilingEvidence.Type.valueOf(value), ksefNumber);
   }
 
-  public PeriodState periodState(LocalDate period) {
-    return periodState(1L, period);
-  }
-
   public PeriodState periodState(long profileId, LocalDate period) {
     return jdbcTemplate.query(
         "SELECT confirmed_at, confirmed_calculation_hash, lifecycle_status FROM investory.accounting_poc_period_state WHERE profile_id = ? AND tax_period = ?",
@@ -325,10 +367,6 @@ public class AccountingPocRepository {
         period);
   }
 
-  public void confirm(LocalDate period, String hash, Instant confirmedAt) {
-    confirm(1L, period, hash, confirmedAt);
-  }
-
   public void confirm(long profileId, LocalDate period, String hash, Instant confirmedAt) {
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_period_state (profile_id, tax_period, confirmed_at, confirmed_calculation_hash) VALUES (?, ?, ?, ?) ON CONFLICT (profile_id, tax_period) DO UPDATE SET confirmed_at = EXCLUDED.confirmed_at, confirmed_calculation_hash = EXCLUDED.confirmed_calculation_hash",
@@ -336,10 +374,6 @@ public class AccountingPocRepository {
         period,
         java.sql.Timestamp.from(confirmedAt),
         hash);
-  }
-
-  public void updateLifecycleStatus(LocalDate period, PeriodLifecycleStatus status) {
-    updateLifecycleStatus(1L, period, status);
   }
 
   public void updateLifecycleStatus(
@@ -363,10 +397,6 @@ public class AccountingPocRepository {
         status.name());
   }
 
-  public void reopen(LocalDate period, String reason, Instant reopenedAt) {
-    reopen(1L, period, reason, reopenedAt);
-  }
-
   public void reopen(long profileId, LocalDate period, String reason, Instant reopenedAt) {
     jdbcTemplate.update(
         "INSERT INTO investory.accounting_poc_period_state (profile_id, tax_period, lifecycle_status, reopened_at, reopen_reason) VALUES (?, ?, 'OPEN', ?, ?) ON CONFLICT (profile_id, tax_period) DO UPDATE SET lifecycle_status = 'OPEN', confirmed_at = NULL, confirmed_calculation_hash = NULL, reopened_at = EXCLUDED.reopened_at, reopen_reason = EXCLUDED.reopen_reason",
@@ -374,10 +404,6 @@ public class AccountingPocRepository {
         period,
         java.sql.Timestamp.from(reopenedAt),
         reason);
-  }
-
-  public void saveFilingArtifact(AccountingFilingArtifact artifact) {
-    saveFilingArtifact(1L, artifact);
   }
 
   public void saveFilingArtifact(long profileId, AccountingFilingArtifact artifact) {
@@ -392,10 +418,6 @@ public class AccountingPocRepository {
         artifact.calculationHash(),
         java.sql.Timestamp.from(artifact.generatedAt()),
         artifact.status().name());
-  }
-
-  public void saveAuthorityConfirmation(AuthorityConfirmation confirmation) {
-    saveAuthorityConfirmation(1L, confirmation);
   }
 
   public void saveAuthorityConfirmation(long profileId, AuthorityConfirmation confirmation) {
@@ -413,10 +435,6 @@ public class AccountingPocRepository {
         confirmation.note(),
         confirmation.amount(),
         confirmation.calculationHash());
-  }
-
-  public Optional<AccountingFilingArtifact> filingArtifact(LocalDate period, String type) {
-    return filingArtifact(1L, period, type);
   }
 
   public Optional<AccountingFilingArtifact> filingArtifact(
@@ -439,11 +457,6 @@ public class AccountingPocRepository {
         profileId,
         period,
         type);
-  }
-
-  public Optional<AuthorityConfirmation> authorityConfirmation(
-      LocalDate period, String confirmationType) {
-    return authorityConfirmation(1L, period, confirmationType);
   }
 
   public Optional<AuthorityConfirmation> authorityConfirmation(
@@ -578,10 +591,6 @@ public class AccountingPocRepository {
       String confirmedCalculationHash,
       PeriodLifecycleStatus lifecycleStatus) {}
 
-  public AccountingProfile accountingProfile() {
-    return accountingProfile(1L);
-  }
-
   public AccountingProfile accountingProfile(long profileId) {
     return jdbcTemplate.queryForObject(
         "SELECT COALESCE(legacy.has_uop, false) AS has_uop, COALESCE(legacy.auto_approve_known_counterparties, TRUE) AS auto_approve_known_counterparties, p.taxpayer_nip AS nip, p.taxpayer_full_name AS full_name, p.taxpayer_tax_office_code AS tax_office_code, p.taxpayer_email AS email, legacy.vat_payment_account, legacy.ryczalt_payment_account, p.zus_payment_account AS zus_payment_account, p.taxpayer_first_name AS first_name, p.taxpayer_surname AS surname, p.taxpayer_date_of_birth AS date_of_birth, p.tax_micro_account AS tax_micro_account FROM investory.portfolios p LEFT JOIN investory.accounting_poc_profile legacy ON legacy.profile_id = p.id WHERE p.id = ?",
@@ -603,10 +612,12 @@ public class AccountingPocRepository {
         profileId);
   }
 
-  public void updateHasUop(boolean hasUop) {
+  public void updateHasUop(long profileId, boolean hasUop) {
     int updated =
         jdbcTemplate.update(
-            "UPDATE investory.accounting_poc_profile SET has_uop = ? WHERE id = 1", hasUop);
+            "UPDATE investory.accounting_poc_profile SET has_uop = ? WHERE profile_id = ?",
+            hasUop,
+            profileId);
     if (updated != 1) {
       throw new IllegalStateException("Accounting POC profile is missing");
     }
@@ -619,28 +630,6 @@ public class AccountingPocRepository {
             enabled,
             profileId);
     if (updated != 1) throw new IllegalStateException("Accounting profile is missing");
-  }
-
-  public List<LocalDate> availablePeriods() {
-    return jdbcTemplate.queryForList(
-        """
-        SELECT period
-          FROM (
-                SELECT DISTINCT tax_period AS period
-                  FROM investory.accounting_reference_month
-                UNION
-                SELECT DISTINCT tax_period AS period
-                  FROM investory.accounting_poc_invoice
-                UNION
-                SELECT DISTINCT tax_period AS period
-                  FROM investory.accounting_poc_obligation
-                UNION
-                SELECT DISTINCT tax_period AS period
-                  FROM investory.accounting_poc_expense_invoice
-               ) months
-         ORDER BY period
-        """,
-        LocalDate.class);
   }
 
   public List<LocalDate> availablePeriods(long profileId) {
@@ -669,7 +658,8 @@ public class AccountingPocRepository {
     try {
       return jdbcTemplate.query(
           """
-          SELECT d.id, d.reference, d.direction,
+          SELECT d.id, d.reference, d.direction, d.document_kind, d.corrects_document_id,
+                 corrected.reference AS corrects_document_reference,
                  COALESCE(d.issue_date, d.supply_date, d.tax_period) AS document_date,
                  d.gross_amount, d.currency, d.source_id, s.external_reference,
                  s.source_type, s.original_filename,
@@ -679,6 +669,7 @@ public class AccountingPocRepository {
             LEFT JOIN investory.accounting_known_counterparty k
               ON k.id = d.counterparty_id AND k.profile_id = d.profile_id
             LEFT JOIN investory.accounting_source_evidence s ON s.id = d.source_id
+            LEFT JOIN investory.accounting_document corrected ON corrected.id = d.corrects_document_id
            WHERE d.profile_id = ? AND d.tax_period = ?
            ORDER BY COALESCE(d.issue_date, d.supply_date, d.tax_period), d.id
           """,
@@ -687,6 +678,9 @@ public class AccountingPocRepository {
                   rs.getLong("id"),
                   rs.getString("reference"),
                   rs.getString("direction"),
+                  rs.getString("document_kind"),
+                  rs.getObject("corrects_document_id", Long.class),
+                  rs.getString("corrects_document_reference"),
                   rs.getObject("document_date", LocalDate.class),
                   rs.getBigDecimal("gross_amount"),
                   rs.getString("currency"),
@@ -706,10 +700,40 @@ public class AccountingPocRepository {
     }
   }
 
+  public Long canonicalInvoiceId(long profileId, String direction, String reference) {
+    List<Long> ids =
+        jdbcTemplate.queryForList(
+            """
+            SELECT id
+              FROM investory.accounting_document
+             WHERE profile_id = ? AND direction = ? AND document_kind = 'INVOICE' AND reference = ?
+            """,
+            Long.class,
+            profileId,
+            direction,
+            reference);
+    return ids.size() == 1 ? ids.getFirst() : null;
+  }
+
+  public void linkCanonicalCorrection(long profileId, String reference, long correctsDocumentId) {
+    jdbcTemplate.update(
+        """
+        UPDATE investory.accounting_document
+           SET corrects_document_id = ?
+         WHERE profile_id = ? AND document_kind = 'CREDIT_NOTE' AND reference = ?
+        """,
+        correctsDocumentId,
+        profileId,
+        reference);
+  }
+
   public record CanonicalDocumentRow(
       long id,
       String reference,
       String direction,
+      String documentKind,
+      Long correctsDocumentId,
+      String correctsDocumentReference,
       LocalDate documentDate,
       BigDecimal grossAmount,
       String currency,
@@ -722,6 +746,8 @@ public class AccountingPocRepository {
       LocalDate saleDate,
       String counterpartyTaxIdentifier,
       String counterpartyCountry) {}
+
+  public record CounterpartyDocumentRow(LocalDate taxPeriod, CanonicalDocumentRow document) {}
 
   /**
    * Filing projection from canonical documents. Empty means this period still uses legacy fixtures.
@@ -821,17 +847,13 @@ public class AccountingPocRepository {
       int bankCount,
       String filingStatus) {}
 
-  public BigDecimal yearToDateRevenue(LocalDate period) {
-    return yearToDateRevenue(1L, period);
-  }
-
   public BigDecimal yearToDateRevenue(long profileId, LocalDate period) {
     return jdbcTemplate.queryForObject(
         """
         SELECT COALESCE(SUM(COALESCE(booked_net_pln, net_amount)), 0)
          FROM investory.accounting_poc_invoice
          WHERE profile_id = ? AND tax_period >= DATE_TRUNC('year', ?::date)::date AND tax_period <= ?
-           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
+           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE', 'CREDIT_NOTE')
         """,
         BigDecimal.class,
         profileId,
@@ -849,22 +871,18 @@ public class AccountingPocRepository {
                  SELECT DATE_TRUNC('year', MIN(tax_period))::date
                    FROM investory.accounting_poc_invoice
                   WHERE profile_id = ?
-                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE'))
+                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE', 'CREDIT_NOTE'))
            AND tax_period < (
                  SELECT DATE_TRUNC('year', MIN(tax_period))::date + INTERVAL '1 year'
                    FROM investory.accounting_poc_invoice
                   WHERE profile_id = ?
-                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE'))
-           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
+                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE', 'CREDIT_NOTE'))
+           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE', 'CREDIT_NOTE')
         """,
         BigDecimal.class,
         profileId,
         profileId,
         profileId);
-  }
-
-  public List<InvoiceRow> invoicesForPeriod(LocalDate period) {
-    return invoicesForPeriod(1L, period);
   }
 
   public List<InvoiceRow> invoicesForPeriod(long profileId, LocalDate period) {
@@ -920,114 +938,6 @@ public class AccountingPocRepository {
                 filingEvidence(rs.getString("filing_evidence"), rs.getString("ksef_number"))),
         profileId,
         period);
-  }
-
-  public boolean insertSalesInvoice(
-      LocalDate taxPeriod,
-      LocalDate issueDate,
-      LocalDate saleDate,
-      String reference,
-      String customerAlias,
-      String invoiceKind,
-      String currency,
-      BigDecimal netAmount,
-      BigDecimal vatAmount,
-      BigDecimal grossAmount,
-      BigDecimal bookedNetPln,
-      BigDecimal ryczaltRate,
-      String note) {
-    return insertSalesInvoice(
-        taxPeriod,
-        issueDate,
-        saleDate,
-        reference,
-        customerAlias,
-        invoiceKind,
-        currency,
-        netAmount,
-        vatAmount,
-        grossAmount,
-        bookedNetPln,
-        ryczaltRate,
-        note,
-        null);
-  }
-
-  public boolean insertSalesInvoice(
-      LocalDate taxPeriod,
-      LocalDate issueDate,
-      LocalDate saleDate,
-      String reference,
-      String customerAlias,
-      String invoiceKind,
-      String currency,
-      BigDecimal netAmount,
-      BigDecimal vatAmount,
-      BigDecimal grossAmount,
-      BigDecimal bookedNetPln,
-      BigDecimal ryczaltRate,
-      String note,
-      Long sourceId) {
-    return insertSalesInvoice(
-        taxPeriod,
-        issueDate,
-        saleDate,
-        reference,
-        customerAlias,
-        invoiceKind,
-        currency,
-        netAmount,
-        vatAmount,
-        grossAmount,
-        bookedNetPln,
-        ryczaltRate,
-        note,
-        sourceId,
-        null,
-        null,
-        null,
-        null);
-  }
-
-  public boolean insertSalesInvoice(
-      LocalDate taxPeriod,
-      LocalDate issueDate,
-      LocalDate saleDate,
-      String reference,
-      String customerAlias,
-      String invoiceKind,
-      String currency,
-      BigDecimal netAmount,
-      BigDecimal vatAmount,
-      BigDecimal grossAmount,
-      BigDecimal bookedNetPln,
-      BigDecimal ryczaltRate,
-      String note,
-      Long sourceId,
-      String counterpartyTaxIdentifier,
-      String counterpartyCountry,
-      String ksefNumber,
-      AccountingFilingEvidence filingEvidence) {
-    return insertSalesInvoice(
-        1L,
-        taxPeriod,
-        issueDate,
-        saleDate,
-        reference,
-        customerAlias,
-        invoiceKind,
-        currency,
-        netAmount,
-        vatAmount,
-        grossAmount,
-        bookedNetPln,
-        ryczaltRate,
-        note,
-        sourceId,
-        counterpartyTaxIdentifier,
-        counterpartyCountry,
-        ksefNumber,
-        filingEvidence);
   }
 
   public boolean insertSalesInvoice(
@@ -1128,10 +1038,6 @@ public class AccountingPocRepository {
         == 1;
   }
 
-  public List<ExpenseRow> expensesForPeriod(LocalDate period) {
-    return expensesForPeriod(1L, period);
-  }
-
   public List<ExpenseRow> expensesForPeriod(long profileId, LocalDate period) {
     return jdbcTemplate.query(
         """
@@ -1172,109 +1078,6 @@ public class AccountingPocRepository {
                 filingEvidence(rs.getString("filing_evidence"), rs.getString("ksef_number"))),
         profileId,
         period);
-  }
-
-  public boolean insertExpense(
-      LocalDate taxPeriod,
-      LocalDate invoiceDate,
-      String reference,
-      String supplierAlias,
-      String category,
-      String currency,
-      BigDecimal netAmount,
-      BigDecimal vatAmount,
-      BigDecimal grossAmount,
-      BigDecimal vatDeductionRatio,
-      String sourceQuality,
-      String note) {
-    return insertExpense(
-        taxPeriod,
-        invoiceDate,
-        reference,
-        supplierAlias,
-        category,
-        currency,
-        netAmount,
-        vatAmount,
-        grossAmount,
-        vatDeductionRatio,
-        sourceQuality,
-        note,
-        null);
-  }
-
-  public boolean insertExpense(
-      LocalDate taxPeriod,
-      LocalDate invoiceDate,
-      String reference,
-      String supplierAlias,
-      String category,
-      String currency,
-      BigDecimal netAmount,
-      BigDecimal vatAmount,
-      BigDecimal grossAmount,
-      BigDecimal vatDeductionRatio,
-      String sourceQuality,
-      String note,
-      Long sourceId) {
-    return insertExpense(
-        taxPeriod,
-        invoiceDate,
-        reference,
-        supplierAlias,
-        category,
-        currency,
-        netAmount,
-        vatAmount,
-        grossAmount,
-        vatDeductionRatio,
-        sourceQuality,
-        note,
-        sourceId,
-        null,
-        null,
-        null,
-        null);
-  }
-
-  public boolean insertExpense(
-      LocalDate taxPeriod,
-      LocalDate invoiceDate,
-      String reference,
-      String supplierAlias,
-      String category,
-      String currency,
-      BigDecimal netAmount,
-      BigDecimal vatAmount,
-      BigDecimal grossAmount,
-      BigDecimal vatDeductionRatio,
-      String sourceQuality,
-      String note,
-      Long sourceId,
-      String counterpartyTaxIdentifier,
-      String counterpartyCountry,
-      String ksefNumber,
-      AccountingFilingEvidence filingEvidence) {
-    return insertExpense(
-        1L,
-        taxPeriod,
-        invoiceDate,
-        null,
-        reference,
-        supplierAlias,
-        category,
-        currency,
-        netAmount,
-        vatAmount,
-        grossAmount,
-        vatDeductionRatio,
-        sourceQuality,
-        note,
-        sourceId,
-        counterpartyTaxIdentifier,
-        counterpartyCountry,
-        ksefNumber,
-        filingEvidence);
   }
 
   public boolean insertExpense(
@@ -1369,10 +1172,6 @@ public class AccountingPocRepository {
         == 1;
   }
 
-  public List<BankRow> bankTransactionsForPeriod(LocalDate period) {
-    return bankTransactionsForPeriod(1L, period);
-  }
-
   public List<BankRow> bankTransactionsForPeriod(long profileId, LocalDate period) {
     return jdbcTemplate.query(
         """
@@ -1405,10 +1204,6 @@ public class AccountingPocRepository {
         period);
   }
 
-  public List<LocalDate> zusPaymentPeriodsUpTo(LocalDate period) {
-    return zusPaymentPeriodsUpTo(1L, period);
-  }
-
   public List<LocalDate> zusPaymentPeriodsUpTo(long profileId, LocalDate period) {
     return jdbcTemplate.queryForList(
         "SELECT DISTINCT related_period FROM investory.accounting_poc_bank_transaction WHERE profile_id = ? AND transaction_type = 'ZUS_PAYMENT' AND booking_date <= ? AND related_period IS NOT NULL ORDER BY related_period",
@@ -1418,11 +1213,6 @@ public class AccountingPocRepository {
   }
 
   /** Projects persisted ZUS payments against the obligation for their own contribution period. */
-  public PaidContributionProjection paidContributionsUpTo(
-      LocalDate period, java.util.Map<LocalDate, ZusAmounts> obligationsByPeriod) {
-    return paidContributionsUpTo(1L, period, obligationsByPeriod);
-  }
-
   public PaidContributionProjection paidContributionsUpTo(
       long profileId, LocalDate period, java.util.Map<LocalDate, ZusAmounts> obligationsByPeriod) {
     List<PaidContribution> contributions = new java.util.ArrayList<>();
@@ -1597,7 +1387,7 @@ public class AccountingPocRepository {
                 (profile_id, booking_date, related_period, reference, counterparty_alias, currency, amount,
                  transaction_type, scope, note, source_id, source_row_identity,
                  provider, external_account_id, external_transaction_id, source_payload_hash)
-            VALUES (COALESCE(?, 1), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT DO NOTHING
             """,
             profileId,
@@ -1617,10 +1407,6 @@ public class AccountingPocRepository {
             externalTransactionId,
             sourcePayloadHash)
         == 1;
-  }
-
-  public List<ObligationRow> obligationsForPeriod(LocalDate period) {
-    return obligationsForPeriod(1L, period);
   }
 
   public List<ObligationRow> obligationsForPeriod(long profileId, LocalDate period) {
@@ -1654,10 +1440,6 @@ public class AccountingPocRepository {
         period,
         profileId,
         period);
-  }
-
-  public List<TaxInputRow> taxInputsForPeriod(LocalDate period) {
-    return taxInputsForPeriod(1L, period);
   }
 
   public List<TaxInputRow> taxInputsForPeriod(long profileId, LocalDate period) {
@@ -1713,10 +1495,6 @@ public class AccountingPocRepository {
         period);
   }
 
-  public List<EmploymentInsurancePeriod> employmentPeriods() {
-    return employmentPeriods(1L);
-  }
-
   public List<EmploymentInsurancePeriod> employmentPeriods(long profileId) {
     try {
       return jdbcTemplate.query(
@@ -1732,10 +1510,6 @@ public class AccountingPocRepository {
     }
   }
 
-  public List<BusinessActivityPeriod> businessActivityPeriods() {
-    return businessActivityPeriods(1L);
-  }
-
   public List<BusinessActivityPeriod> businessActivityPeriods(long profileId) {
     try {
       return jdbcTemplate.query(
@@ -1747,10 +1521,6 @@ public class AccountingPocRepository {
     } catch (DataAccessException ignored) {
       return List.of();
     }
-  }
-
-  public List<AccountingTaxProfilePeriod> taxProfilePeriods() {
-    return taxProfilePeriods(1L);
   }
 
   public List<AccountingTaxProfilePeriod> taxProfilePeriods(long profileId) {
@@ -1771,10 +1541,6 @@ public class AccountingPocRepository {
     } catch (DataAccessException ignored) {
       return List.of();
     }
-  }
-
-  public List<AccountingVatTransaction> vatTransactionsForPeriod(LocalDate period) {
-    return vatTransactionsForPeriod(1L, period);
   }
 
   public List<AccountingVatTransaction> vatTransactionsForPeriod(long profileId, LocalDate period) {
@@ -1804,36 +1570,6 @@ public class AccountingPocRepository {
     } catch (DataAccessException ignored) {
       return List.of();
     }
-  }
-
-  public void insertVatTransaction(
-      LocalDate taxPeriod,
-      LocalDate taxDate,
-      String sourceDocumentId,
-      String reference,
-      AccountingVatTransaction.Direction direction,
-      VatTreatment treatment,
-      String counterpartyCountry,
-      String counterpartyTaxIdentifier,
-      BigDecimal netAmount,
-      BigDecimal vatAmount,
-      BigDecimal deductibleVat,
-      String evidence) {
-    insertVatTransaction(
-        1L,
-        taxPeriod,
-        taxDate,
-        sourceDocumentId,
-        reference,
-        direction,
-        treatment,
-        counterpartyCountry,
-        counterpartyTaxIdentifier,
-        netAmount,
-        vatAmount,
-        deductibleVat,
-        evidence,
-        null);
   }
 
   public void upsertCanonicalDocument(
@@ -2012,10 +1748,6 @@ public class AccountingPocRepository {
         reference,
         direction.name(),
         treatment.name());
-  }
-
-  public List<AccountingIssue> sourceIssuesForPeriod(LocalDate period) {
-    return sourceIssuesForPeriod(1L, period);
   }
 
   public List<AccountingIssue> sourceIssuesForPeriod(long profileId, LocalDate period) {

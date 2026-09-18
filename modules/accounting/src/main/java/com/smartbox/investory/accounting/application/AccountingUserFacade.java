@@ -17,26 +17,18 @@ import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionSer
 import com.smartbox.investory.accounting.service.AccountingInvoiceRecognitionService.RecognizedInvoice;
 import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestAttributes;
-import org.springframework.web.context.request.RequestContextHolder;
 
 @Service
 @RequiredArgsConstructor
 public class AccountingUserFacade implements AccountingUserApi {
-  private static final String REQUEST_SNAPSHOT_CACHE =
-      AccountingUserFacade.class.getName() + ".snapshots";
   private final AccountingFactService facts;
   private final AccountingFilingService filing;
   private final AccountingPocRepository repository;
@@ -50,7 +42,6 @@ public class AccountingUserFacade implements AccountingUserApi {
   private final com.smartbox.investory.accounting.staging.AccountingBankStagingImportService
       bankImport;
   private final Optional<AccountingKsefSyncPort> ksef;
-  @Autowired private AccountingInvoiceIngestionService invoiceIngestion;
   private final AccountingPeriodLifecycle periodLifecycle = new AccountingPeriodLifecycle();
 
   private void profile(long profileId) {
@@ -65,11 +56,10 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<MonthRef> months(long profileId) {
     profile(profileId);
-    var states = repository.periodStates(profileId);
     return facts.availablePeriods(profileId).stream()
         .map(
             d -> {
-              var state = states.get(d);
+              var state = repository.periodState(profileId, d);
               var status = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
               return new MonthRef(
                   YearMonth.from(d),
@@ -130,14 +120,11 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public MonthOverview overview(long profileId, YearMonth month) {
     profile(profileId);
-    var snapshotCache = new java.util.HashMap<LocalDate, AccountingMonthSnapshot>();
-    var snapshot = snapshot(profileId, date(month));
-    snapshotCache.put(date(month), snapshot);
+    var snapshot = facts.snapshot(profileId, date(month));
     var state = repository.periodState(profileId, date(month));
     var lifecycle = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
     var outcomes = sources.outcomes(profileId, date(month));
-    var filingResult = filing.filing(profileId, date(month), snapshot);
-    var filingIssues = filingResult.issues();
+    var filingIssues = filing.filing(profileId, date(month)).issues();
     var stagingState = stagingReconciliation.summary(profileId, date(month));
     boolean acquired =
         !outcomes.isEmpty()
@@ -153,12 +140,8 @@ public class AccountingUserFacade implements AccountingUserApi {
         acquired ? issues(profileId, snapshot, outcomes, filingIssues) : List.<IssueView>of();
     boolean blockingIssues =
         issues.stream().anyMatch(issue -> issue.kind() != AccountingUserApi.IssueKind.INFO);
-    List<AccountingPaymentInstruction> payments;
-    try {
-      payments = filing.paymentInstructions(filingResult);
-    } catch (RuntimeException ignored) {
-      payments = List.of();
-    }
+    var payments = paymentInstructions(profileId, date(month));
+    var filingResult = filing.filing(profileId, date(month));
     var reconciliations = snapshot.reconciliations();
     int unmatched =
         (int)
@@ -204,7 +187,7 @@ public class AccountingUserFacade implements AccountingUserApi {
                 .filter(payment -> !"PAID".equalsIgnoreCase(payment.status()))
                 .map(com.smartbox.investory.accounting.AccountingPaymentInstruction::amount)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add),
-            paymentViews(snapshot.reconciliations(), payments)),
+            payments(profileId, month)),
         new FilingSummary(
             lifecycle.name(),
             label(lifecycle),
@@ -275,7 +258,7 @@ public class AccountingUserFacade implements AccountingUserApi {
             ryczalt.healthDeduction(),
             BigDecimal.ZERO,
             ryczalt.taxableBase(),
-            cumulativeRyczaltTax(profileId, month, snapshotCache),
+            cumulativeRyczaltTax(profileId, month),
             ryczalt.calculatedTax(),
             vat.outputVatAfterSalesCorrection(),
             vat.deductibleInputVat(),
@@ -283,58 +266,20 @@ public class AccountingUserFacade implements AccountingUserApi {
             vat.calculatedVat()));
   }
 
-  private BigDecimal cumulativeRyczaltTax(
-      long profileId, YearMonth month, Map<LocalDate, AccountingMonthSnapshot> snapshotCache) {
+  private BigDecimal cumulativeRyczaltTax(long profileId, YearMonth month) {
     BigDecimal total = BigDecimal.ZERO;
     for (YearMonth cursor = YearMonth.of(month.getYear(), 1);
         !cursor.isAfter(month);
         cursor = cursor.plusMonths(1)) {
-      total =
-          total.add(
-              snapshotCache
-                  .computeIfAbsent(date(cursor), period -> snapshot(profileId, period))
-                  .ryczalt()
-                  .calculatedTax());
+      total = total.add(facts.snapshot(profileId, date(cursor)).ryczalt().calculatedTax());
     }
     return total;
   }
 
-  private List<PaymentView> paymentViews(
-      List<ReconciliationRow> reconciliation, List<AccountingPaymentInstruction> instructions) {
-    return instructions.stream()
-        .map(
-            x -> {
-              var matched =
-                  reconciliation.stream()
-                      .filter(r -> "OBLIGATION_PAYMENT".equals(r.kind()))
-                      .filter(r -> x.obligationType().equals(r.reference()))
-                      .findFirst();
-              var reference = matched.map(r -> r.expectedAmount()).orElse(null);
-              var paid = matched.map(r -> r.matchedAmount()).orElse(x.matchedBankPayment());
-              BigDecimal difference = reference == null ? null : paid.subtract(reference);
-              return new PaymentView(
-                  x.obligationType(),
-                  x.amount(),
-                  reference,
-                  paid,
-                  difference,
-                  x.dueDate(),
-                  x.recipient(),
-                  x.account(),
-                  matched.map(r -> r.status()).orElse(x.status()));
-            })
-        .toList();
-  }
-
   private List<AccountingPaymentInstruction> paymentInstructions(
       long profileId, java.time.LocalDate period) {
-    return paymentInstructions(filing.filing(profileId, period));
-  }
-
-  private List<AccountingPaymentInstruction> paymentInstructions(
-      AccountingFilingService.FilingResult result) {
     try {
-      return filing.paymentInstructions(result);
+      return filing.paymentInstructions(profileId, period);
     } catch (RuntimeException ignored) {
       return List.of();
     }
@@ -445,7 +390,7 @@ public class AccountingUserFacade implements AccountingUserApi {
     if (!canonical.isEmpty()) {
       return canonical.stream().map(this::document).toList();
     }
-    var s = snapshot(p, date(m));
+    var s = facts.snapshot(p, date(m));
     return java.util.stream.Stream.concat(
             s.invoices().stream().map(this::document), s.expenses().stream().map(this::document))
         .toList();
@@ -560,7 +505,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<BankTransactionView> bankTransactions(long p, YearMonth m) {
     profile(p);
-    return snapshot(p, date(m)).bankTransactions().stream().map(this::bank).toList();
+    return facts.snapshot(p, date(m)).bankTransactions().stream().map(this::bank).toList();
   }
 
   private BankTransactionView bank(BankRow r) {
@@ -571,50 +516,30 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<PaymentView> payments(long p, YearMonth m) {
     profile(p);
-    var snapshot = snapshot(p, date(m));
-    var result = filing.filing(p, date(m), snapshot);
-    return paymentViews(snapshot.reconciliations(), paymentInstructions(result));
-  }
-
-  @Override
-  public List<PaymentHistoryView> paymentHistory(
-      long p, YearMonth from, YearMonth to, String obligationType) {
-    profile(p);
-    if (from == null || to == null || from.isAfter(to)) {
-      throw new IllegalArgumentException("Payment history range is invalid");
-    }
-    String normalizedType =
-        obligationType == null ? null : obligationType.trim().toUpperCase(Locale.ROOT);
-    if (normalizedType != null && !Set.of("RYCZALT", "VAT", "ZUS").contains(normalizedType)) {
-      throw new IllegalArgumentException("Unsupported obligation type");
-    }
-    var result = new java.util.ArrayList<PaymentHistoryView>();
-    for (YearMonth cursor = from; !cursor.isAfter(to); cursor = cursor.plusMonths(1)) {
-      repository.obligationsForPeriod(p, date(cursor)).stream()
-          .filter(row -> normalizedType == null || normalizedType.equals(row.obligationType()))
-          .forEach(
-              row -> {
-                BigDecimal expected = row.expectedAmount();
-                BigDecimal paid = row.paidAmount();
-                BigDecimal outstanding =
-                    expected == null
-                        ? null
-                        : expected
-                            .subtract(paid == null ? BigDecimal.ZERO : paid)
-                            .max(BigDecimal.ZERO);
-                result.add(
-                    new PaymentHistoryView(
-                        row.obligationType(),
-                        YearMonth.from(row.taxPeriod()),
-                        expected,
-                        paid,
-                        outstanding,
-                        row.dueDate(),
-                        row.paymentDate(),
-                        row.status()));
-              });
-    }
-    return List.copyOf(result);
+    var reconciliation = facts.snapshot(p, date(m)).reconciliations();
+    return paymentInstructions(p, date(m)).stream()
+        .map(
+            x -> {
+              var matched =
+                  reconciliation.stream()
+                      .filter(r -> "OBLIGATION_PAYMENT".equals(r.kind()))
+                      .filter(r -> x.obligationType().equals(r.reference()))
+                      .findFirst();
+              var reference = matched.map(r -> r.expectedAmount()).orElse(null);
+              var paid = matched.map(r -> r.matchedAmount()).orElse(x.matchedBankPayment());
+              BigDecimal difference = reference == null ? null : paid.subtract(reference);
+              return new PaymentView(
+                  x.obligationType(),
+                  x.amount(),
+                  reference,
+                  paid,
+                  difference,
+                  x.dueDate(),
+                  x.recipient(),
+                  x.account(),
+                  matched.map(r -> r.status()).orElse(x.status()));
+            })
+        .toList();
   }
 
   @Override
@@ -640,22 +565,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public List<ReconciliationView> reconciliation(long p, YearMonth m) {
     profile(p);
-    return snapshot(p, date(m)).reconciliations().stream().map(this::reconciliation).toList();
-  }
-
-  private AccountingMonthSnapshot snapshot(long profileId, LocalDate period) {
-    RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
-    if (attributes == null) return facts.snapshot(profileId, period);
-    @SuppressWarnings("unchecked")
-    var cache =
-        (Map<String, AccountingMonthSnapshot>)
-            attributes.getAttribute(REQUEST_SNAPSHOT_CACHE, RequestAttributes.SCOPE_REQUEST);
-    if (cache == null) {
-      cache = new java.util.HashMap<>();
-      attributes.setAttribute(REQUEST_SNAPSHOT_CACHE, cache, RequestAttributes.SCOPE_REQUEST);
-    }
-    String key = profileId + ":" + period;
-    return cache.computeIfAbsent(key, ignored -> facts.snapshot(profileId, period));
+    return facts.snapshot(p, date(m)).reconciliations().stream().map(this::reconciliation).toList();
   }
 
   private ReconciliationView reconciliation(ReconciliationRow r) {
@@ -687,7 +597,6 @@ public class AccountingUserFacade implements AccountingUserApi {
           id,
           requiresReview ? AccountingSourceStatus.REVIEW_REQUIRED : AccountingSourceStatus.PARSED,
           requiresReview ? "Invoice direction requires review" : null);
-      Long existing = existingDocumentId(p, r.documentType(), r.reference());
       return new CandidateView(
           "sha256:" + hash(content),
           r.documentType(),
@@ -705,13 +614,7 @@ public class AccountingUserFacade implements AccountingUserApi {
           r.vatAmount(),
           r.grossAmount(),
           r.note(),
-          requiresReview ? "REVIEW_REQUIRED" : "PARSED",
-          existing != null,
-          existing,
-          null,
-          null,
-          vatTreatmentOptions(r.documentType()),
-          requiredInputs(r.documentType()));
+          requiresReview ? "REVIEW_REQUIRED" : "PARSED");
     } catch (RuntimeException e) {
       sources.status(id, AccountingSourceStatus.FAILED, e.getMessage());
       throw e;
@@ -766,7 +669,6 @@ public class AccountingUserFacade implements AccountingUserApi {
     var candidate = result.candidate();
     if (candidate == null)
       throw new IllegalArgumentException("KSeF source could not be parsed for review");
-    Long existing = existingDocumentId(p, candidate.documentType(), candidate.reference());
     return new CandidateView(
         sourceReference,
         candidate.documentType(),
@@ -784,67 +686,7 @@ public class AccountingUserFacade implements AccountingUserApi {
         candidate.vatAmount(),
         candidate.grossAmount(),
         "KSeF source requires accounting review",
-        "REVIEW_REQUIRED",
-        existing != null,
-        existing,
-        null,
-        null,
-        vatTreatmentOptions(candidate.documentType()),
-        requiredInputs(candidate.documentType()));
-  }
-
-  private Long existingDocumentId(long profileId, String documentType, String reference) {
-    if (reference == null || reference.isBlank()) return null;
-    String direction = directionForDocumentType(documentType);
-    return direction == null
-        ? null
-        : repository.canonicalInvoiceId(profileId, direction, reference.trim());
-  }
-
-  private String directionForDocumentType(String documentType) {
-    return switch (documentType == null ? "" : documentType) {
-      case "PURCHASE_INVOICE", "RECEIPT" -> "PURCHASE";
-      case "SALES_INVOICE", "CREDIT_NOTE" -> "SALE";
-      default -> null;
-    };
-  }
-
-  private static List<AccountingUserApi.Option> vatTreatmentOptions(String documentType) {
-    if (!"PURCHASE_INVOICE".equals(documentType) && !"RECEIPT".equals(documentType)) {
-      return List.of();
-    }
-    return List.of(
-        new AccountingUserApi.Option("DOMESTIC_PURCHASE", "Zakup krajowy", false),
-        new AccountingUserApi.Option("IMPORT_OF_SERVICES_EU", "Import usług z UE", false),
-        new AccountingUserApi.Option("IMPORT_OF_SERVICES_NON_EU", "Import usług spoza UE", false));
-  }
-
-  static List<AccountingUserApi.RequiredInput> requiredInputs(String documentType) {
-    List<AccountingUserApi.Option> options = vatTreatmentOptions(documentType);
-    if (options.isEmpty()) return List.of();
-    var inputs = new java.util.ArrayList<AccountingUserApi.RequiredInput>();
-    inputs.add(
-        new AccountingUserApi.RequiredInput(
-            "vatTreatment", "choice", "Sposób rozliczenia VAT", true, options, null, List.of()));
-    inputs.add(
-        new AccountingUserApi.RequiredInput(
-            "vatRate",
-            "decimal",
-            "Stawka VAT",
-            true,
-            List.of(),
-            "vatTreatment",
-            List.of("DOMESTIC_PURCHASE")));
-    inputs.add(
-        new AccountingUserApi.RequiredInput(
-            "counterpartyCountry",
-            "country",
-            "Kraj kontrahenta",
-            true,
-            List.of(),
-            "vatTreatment",
-            List.of("IMPORT_OF_SERVICES_EU", "IMPORT_OF_SERVICES_NON_EU")));
-    return List.copyOf(inputs);
+        "REVIEW_REQUIRED");
   }
 
   @Override
@@ -899,160 +741,6 @@ public class AccountingUserFacade implements AccountingUserApi {
                       id, AccountingSourceStatus.REVIEW_REQUIRED, exception.getMessage()));
       throw exception;
     }
-  }
-
-  @Override
-  @Transactional
-  public AccountingUserApi.DocumentMutationResult saveReviewedResult(long p, ReviewedDocument d) {
-    profile(p);
-    if (d == null || d.reference() == null || d.reference().isBlank()) {
-      throw new IllegalArgumentException("Invoice reference is required");
-    }
-    String direction = directionForDocumentType(d.documentType());
-    if (direction == null) {
-      throw new IllegalArgumentException("Unsupported document type");
-    }
-    Long existing = repository.canonicalInvoiceId(p, direction, d.reference().trim());
-    if (existing != null) {
-      return new AccountingUserApi.DocumentMutationResult(
-          existing,
-          d.reference().trim(),
-          "DUPLICATE",
-          null,
-          true,
-          existing,
-          "This document already exists");
-    }
-    saveReviewed(p, d);
-    return new AccountingUserApi.DocumentMutationResult(
-        null,
-        d.reference().trim(),
-        "STAGED",
-        null,
-        false,
-        null,
-        "Document is waiting for accounting review");
-  }
-
-  @Override
-  @Transactional
-  public AccountingUserApi.DocumentMutationResult issueInvoice(
-      long p, AccountingUserApi.InvoiceIssueRequest request) {
-    profile(p);
-    if (request == null || request.reference() == null || request.reference().isBlank()) {
-      throw new IllegalArgumentException("Invoice reference is required");
-    }
-    validateAmounts(request.netAmount(), request.vatAmount(), request.grossAmount());
-    LocalDate issueDate =
-        request.issueDate() == null ? java.time.LocalDate.now() : request.issueDate();
-    Long existing = repository.canonicalInvoiceId(p, "SALE", request.reference().trim());
-    if (existing != null) {
-      return new AccountingUserApi.DocumentMutationResult(
-          existing,
-          request.reference().trim(),
-          "DUPLICATE",
-          null,
-          true,
-          existing,
-          "This invoice already exists");
-    }
-    var invoice =
-        new AccountingInvoiceIngestionService.ReviewedInvoice(
-            issueDate,
-            "SALES_INVOICE",
-            issueDate,
-            request.saleDate() == null ? issueDate : request.saleDate(),
-            request.reference().trim(),
-            request.counterpartyAlias(),
-            null,
-            request.currency(),
-            request.netAmount(),
-            request.vatAmount(),
-            request.grossAmount(),
-            null,
-            "MOBILE_MANUAL",
-            request.note(),
-            null,
-            request.counterpartyTaxIdentifier(),
-            request.counterpartyCountry(),
-            null,
-            null,
-            request.dueDate(),
-            request.vatRate(),
-            null);
-    invoiceIngestion.ingest(p, invoice);
-    Long id = repository.canonicalInvoiceId(p, "SALE", request.reference().trim());
-    if (id == null) {
-      throw new IllegalStateException("Invoice was not confirmed by the accounting store");
-    }
-    return new AccountingUserApi.DocumentMutationResult(
-        id, request.reference().trim(), "CREATED", ksefStatus(), false, null, "Invoice created");
-  }
-
-  @Override
-  @Transactional
-  public AccountingUserApi.DocumentMutationResult recordManualIncome(
-      long p, AccountingUserApi.ManualIncomeRequest request) {
-    profile(p);
-    if (request == null || request.amount() == null || request.amount().signum() <= 0) {
-      throw new IllegalArgumentException("Income amount must be greater than zero");
-    }
-    if (request.description() == null || request.description().isBlank()) {
-      throw new IllegalArgumentException("Income description is required");
-    }
-    LocalDate date = request.date() == null ? java.time.LocalDate.now() : request.date();
-    String currency =
-        request.currency() == null || request.currency().isBlank()
-            ? "PLN"
-            : request.currency().trim().toUpperCase(java.util.Locale.ROOT);
-    String reference = "MOBILE-INCOME-" + java.util.UUID.randomUUID();
-    var income =
-        new AccountingInvoiceIngestionService.ReviewedInvoice(
-            date,
-            "SALES_INVOICE",
-            date,
-            date,
-            reference,
-            request.description().trim(),
-            null,
-            currency,
-            request.amount(),
-            BigDecimal.ZERO,
-            request.amount(),
-            null,
-            "MOBILE_MANUAL",
-            request.description().trim(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    invoiceIngestion.ingest(p, income);
-    Long id = repository.canonicalInvoiceId(p, "SALE", reference);
-    if (id == null) {
-      throw new IllegalStateException("Income was not confirmed by the accounting store");
-    }
-    return new AccountingUserApi.DocumentMutationResult(
-        id, reference, "CREATED", ksefStatus(), false, null, "Income recorded");
-  }
-
-  private void validateAmounts(BigDecimal net, BigDecimal vat, BigDecimal gross) {
-    if (net == null || vat == null || gross == null) {
-      throw new IllegalArgumentException("Net, VAT and gross amounts are required");
-    }
-    if (net.signum() < 0
-        || vat.signum() < 0
-        || gross.signum() <= 0
-        || net.add(vat).compareTo(gross) != 0) {
-      throw new IllegalArgumentException("Net + VAT must equal gross");
-    }
-  }
-
-  private String ksefStatus() {
-    return ksef.isPresent() ? "NOT_SUBMITTED" : "NOT_CONFIGURED";
   }
 
   private AccountingSourceRepository.SourceRow findReviewedSource(
