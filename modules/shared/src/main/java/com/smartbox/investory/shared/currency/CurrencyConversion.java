@@ -10,4 +10,9 @@ public interface CurrencyConversion {
       CurrencyType targetCurrency,
       CurrencyType sourceCurrency,
       LocalDate rateDate);
+
+  /** Preloads existing valuation-rate evidence for a bounded calendar range when supported. */
+  default void warmValuationMatrices(LocalDate startDate, LocalDate endDate) {
+    // Conversion implementations without a local valuation cache do not need preloading.
+  }
 }
