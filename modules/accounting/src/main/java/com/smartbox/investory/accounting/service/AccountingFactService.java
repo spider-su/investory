@@ -657,7 +657,6 @@ public class AccountingFactService {
   private BigDecimal historicalMonthRevenue(List<InvoiceRow> invoices) {
     BigDecimal reconstructedMonth =
         invoices.stream()
-            .filter(invoice -> !"CREDIT_NOTE".equals(invoice.invoiceKind()))
             .filter(invoice -> invoice.netAmount() != null)
             .map(
                 invoice ->
@@ -1184,6 +1183,46 @@ public class AccountingFactService {
             || "CUSTOMER_RECEIPT".equals(row.transactionType()));
   }
 
+  private boolean explicitInvoicePayment(InvoiceRow invoice, BankRow row) {
+    if (row.amount().signum() <= 0) return false;
+    String invoiceReference = normalized(invoice.reference());
+    if (invoiceReference.isBlank()) return false;
+    String bankText =
+        normalized(row.reference() + " " + row.counterpartyAlias() + " " + row.note());
+    return bankText.contains(invoiceReference);
+  }
+
+  private boolean crossPeriodExactReceipt(InvoiceRow invoice, BankRow row) {
+    return "CUSTOMER_RECEIPT".equals(row.transactionType())
+        && exactReceipt(invoice, row)
+        && row.bookingDate() != null
+        && invoice.saleDate() != null
+        && !row.bookingDate().isBefore(invoice.saleDate());
+  }
+
+  private boolean approximateReceipt(InvoiceRow invoice, BankRow row) {
+    if (row.amount().signum() <= 0
+        || row.bookingDate() == null
+        || invoice.saleDate() == null
+        || !sameCounterparty(invoice, row)) return false;
+    long days =
+        Math.abs(java.time.temporal.ChronoUnit.DAYS.between(invoice.saleDate(), row.bookingDate()));
+    if (days > 60) return false;
+    BigDecimal tolerance = invoice.expectedReceivable().abs().multiply(new BigDecimal("0.03"));
+    tolerance = tolerance.max(new BigDecimal("100.00"));
+    return invoice.expectedReceivable().subtract(row.amount()).abs().compareTo(tolerance) <= 0;
+  }
+
+  private boolean sameCounterparty(InvoiceRow invoice, BankRow row) {
+    String invoiceParty = normalized(invoice.customerAlias());
+    String rowParty = normalized(row.counterpartyAlias());
+    String bankParty = normalized(row.counterpartyAlias() + " " + row.note());
+    return !invoiceParty.isBlank()
+        && (aliasesMatch(invoice.customerAlias(), row.counterpartyAlias())
+            || bankParty.contains(invoiceParty)
+            || (!rowParty.isBlank() && invoiceParty.contains(rowParty)));
+  }
+
   private boolean factoringReceipt(InvoiceRow invoice, BankRow row) {
     boolean sameRitsCustomer =
         normalized(invoice.customerAlias()).contains("RITS") && isFactoringCounterparty(row);
@@ -1222,14 +1261,30 @@ public class AccountingFactService {
     for (InvoiceRow invoice : invoices) {
       BankRow match =
           bankTransactions.stream()
-              .filter(this::isCustomerReceiptCandidate)
-              .filter(this::isBusinessBankRow)
+              .filter(
+                  row ->
+                      isCustomerReceiptCandidate(row)
+                          || explicitInvoicePayment(invoice, row)
+                          || approximateReceipt(invoice, row))
+              .filter(
+                  row ->
+                      isBusinessBankRow(row)
+                          || explicitInvoicePayment(invoice, row)
+                          || approximateReceipt(invoice, row))
               .filter(row -> invoice.currency().equals(row.currency()))
               .filter(
                   row ->
                       row.relatedPeriod() == null
-                          || invoice.taxPeriod().equals(row.relatedPeriod()))
-              .filter(row -> exactReceipt(invoice, row) || factoringReceipt(invoice, row))
+                          || invoice.taxPeriod().equals(row.relatedPeriod())
+                          || explicitInvoicePayment(invoice, row)
+                          || crossPeriodExactReceipt(invoice, row)
+                          || approximateReceipt(invoice, row))
+              .filter(
+                  row ->
+                      explicitInvoicePayment(invoice, row)
+                          || exactReceipt(invoice, row)
+                          || factoringReceipt(invoice, row)
+                          || approximateReceipt(invoice, row))
               .sorted(
                   Comparator.comparingInt((BankRow row) -> receiptMatchRank(invoice, row))
                       .thenComparing(

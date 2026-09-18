@@ -310,7 +310,10 @@ public interface AccountingUserApi {
       String categoryLabel,
       String importStatus,
       String reviewStatus,
-      String paymentStatus) {
+      String paymentStatus,
+      String documentKind,
+      Long correctsDocumentId,
+      String correctsDocumentReference) {
     public DocumentView(
         long id,
         String reference,
@@ -347,6 +350,9 @@ public interface AccountingUserApi {
           null,
           null,
           null,
+          null,
+          null,
+          null,
           null);
     }
 
@@ -368,6 +374,9 @@ public interface AccountingUserApi {
           currency,
           status,
           sourceReference,
+          null,
+          null,
+          null,
           null,
           null,
           null,
@@ -472,7 +481,51 @@ public interface AccountingUserApi {
       String vatTreatment,
       String note,
       YearMonth taxPeriod,
-      BigDecimal vatRate) {
+      BigDecimal vatRate,
+      String correctsDocumentReference) {
+    public ReviewedDocument(
+        String sourceReference,
+        String documentType,
+        LocalDate issueDate,
+        LocalDate saleDate,
+        LocalDate dueDate,
+        String reference,
+        String counterpartyAlias,
+        String counterpartyTaxIdentifier,
+        String counterpartyCountry,
+        String category,
+        String currency,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        BigDecimal vatDeductionRatio,
+        String vatTreatment,
+        String note,
+        YearMonth taxPeriod,
+        BigDecimal vatRate) {
+      this(
+          sourceReference,
+          documentType,
+          issueDate,
+          saleDate,
+          dueDate,
+          reference,
+          counterpartyAlias,
+          counterpartyTaxIdentifier,
+          counterpartyCountry,
+          category,
+          currency,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          vatDeductionRatio,
+          vatTreatment,
+          note,
+          taxPeriod,
+          vatRate,
+          null);
+    }
+
     public ReviewedDocument(
         String sourceReference,
         String documentType,
@@ -511,6 +564,7 @@ public interface AccountingUserApi {
           vatTreatment,
           note,
           taxPeriod,
+          null,
           null);
     }
   }

@@ -68,6 +68,7 @@ public class AccountingStagingAcquisitionService {
           invoice.counterpartyAlias().trim(),
           invoice.counterpartyTaxIdentifier(),
           invoice.counterpartyCountry(),
+          invoice.category(),
           invoice.currency().trim().toUpperCase(),
           net,
           vat,
@@ -75,7 +76,10 @@ public class AccountingStagingAcquisitionService {
           deductionRatio,
           deductibleVat,
           treatment.name(),
-          invoice.ksefNumber());
+          null,
+          invoice.ksefNumber(),
+          invoice.sourceQuality(),
+          invoice.correctsDocumentReference());
     }
     return repository.insertInvoice(
         profileId,
@@ -90,6 +94,7 @@ public class AccountingStagingAcquisitionService {
         invoice.counterpartyAlias().trim(),
         invoice.counterpartyTaxIdentifier(),
         invoice.counterpartyCountry(),
+        invoice.category(),
         invoice.currency().trim().toUpperCase(),
         net,
         vat,
@@ -98,7 +103,9 @@ public class AccountingStagingAcquisitionService {
         deductibleVat,
         treatment.name(),
         invoice.vatRate(),
-        invoice.ksefNumber());
+        invoice.ksefNumber(),
+        invoice.sourceQuality(),
+        invoice.correctsDocumentReference());
   }
 
   public long stageBank(

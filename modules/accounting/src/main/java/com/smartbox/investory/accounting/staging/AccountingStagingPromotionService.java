@@ -34,21 +34,24 @@ public class AccountingStagingPromotionService {
     int bank = 0;
     for (StagedInvoice row : repository.invoices(profileId, taxPeriod)) {
       if (row.status() != StagingReconciliationStatus.NEW) continue;
+      String documentType = documentType(row);
+      Long correctionTarget = correctionTarget(row, documentType);
+      if ("CREDIT_NOTE".equals(documentType) && correctionTarget == null) continue;
       var invoice =
           new AccountingInvoiceIngestionService.ReviewedInvoice(
               row.taxPeriod(),
-              row.documentKind().equals("EXPENSE") ? "PURCHASE_INVOICE" : "SALES_INVOICE",
+              documentType,
               row.documentDate(),
               row.documentDate(),
               row.reference(),
               row.counterpartyName(),
-              "OTHER",
+              java.util.Objects.requireNonNullElse(row.category(), "OTHER"),
               row.currency(),
               row.netAmount(),
               row.vatAmount(),
               row.grossAmount(),
               row.vatDeductionRatio(),
-              "STAGED",
+              java.util.Objects.requireNonNullElse(row.sourceQuality(), "STAGED"),
               row.message(),
               Long.toString(row.sourceId()),
               row.counterpartyTaxIdentifier(),
@@ -60,8 +63,11 @@ public class AccountingStagingPromotionService {
                       com.smartbox.investory.accounting.AccountingFilingEvidence.Type.KSEF,
                       row.ksefNumber()),
               row.dueDate(),
-              row.vatRate());
+              row.vatRate(),
+              row.correctsDocumentReference());
       invoiceIngestion.ingest(profileId, invoice);
+      if (correctionTarget != null)
+        canonicalRepository.linkCanonicalCorrection(profileId, row.reference(), correctionTarget);
       canonicalRepository.insertVatTransaction(
           row.profileId(),
           row.taxPeriod(),
@@ -122,6 +128,42 @@ public class AccountingStagingPromotionService {
     }
     updateSourceStatuses(profileId, taxPeriod);
     return new PromotionResult(invoices, bank);
+  }
+
+  private String documentType(StagedInvoice row) {
+    return switch (row.documentKind()) {
+      case "EXPENSE" -> "PURCHASE_INVOICE";
+      case "INCOME", "SALES_INVOICE" -> "SALES_INVOICE";
+      case "CREDIT_NOTE" -> "CREDIT_NOTE";
+      default ->
+          throw new IllegalArgumentException(
+              "Unsupported staged document type: " + row.documentKind());
+    };
+  }
+
+  private Long correctionTarget(StagedInvoice row, String documentType) {
+    if (!"CREDIT_NOTE".equals(documentType)) return null;
+    String reference = row.correctsDocumentReference();
+    if (reference == null || reference.isBlank()) {
+      repository.result(
+          row.profileId(),
+          "invoice",
+          row.id(),
+          StagingReconciliationStatus.MISMATCH,
+          java.util.List.of("CORRECTION_TARGET_REQUIRED"),
+          "Credit note requires the corrected invoice reference before promotion");
+      return null;
+    }
+    Long target = canonicalRepository.canonicalInvoiceId(row.profileId(), "SALE", reference.trim());
+    if (target != null) return target;
+    repository.result(
+        row.profileId(),
+        "invoice",
+        row.id(),
+        StagingReconciliationStatus.MISMATCH,
+        java.util.List.of("CORRECTION_TARGET_NOT_FOUND"),
+        "Corrected invoice is not a same-profile canonical sales invoice");
+    return null;
   }
 
   private void updateSourceStatuses(long profileId, LocalDate taxPeriod) {

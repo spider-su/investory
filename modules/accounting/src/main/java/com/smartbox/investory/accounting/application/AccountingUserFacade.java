@@ -404,7 +404,10 @@ public class AccountingUserFacade implements AccountingUserApi {
         categoryLabel(row.category()),
         importStatus(row.sourceType()),
         null,
-        null);
+        null,
+        row.documentKind(),
+        row.correctsDocumentId(),
+        row.correctsDocumentReference());
   }
 
   private DocumentView document(InvoiceRow r) {
@@ -427,6 +430,9 @@ public class AccountingUserFacade implements AccountingUserApi {
         sourceLabel(r.ksefNumber() == null ? null : "KSEF"),
         null,
         importStatus(r.ksefNumber() == null ? null : "KSEF"),
+        null,
+        null,
+        "INVOICE",
         null,
         null);
   }
@@ -451,6 +457,9 @@ public class AccountingUserFacade implements AccountingUserApi {
         sourceLabel(r.ksefNumber() == null ? null : "KSEF"),
         categoryLabel(r.category()),
         importStatus(r.ksefNumber() == null ? null : "KSEF"),
+        null,
+        null,
+        "INVOICE",
         null,
         null);
   }
@@ -705,7 +714,8 @@ public class AccountingUserFacade implements AccountingUserApi {
                       AccountingFilingEvidence.Type.KSEF, source.externalReference())
                   : null,
               d.dueDate(),
-              d.vatRate()),
+              d.vatRate(),
+              d.correctsDocumentReference()),
           normalizeVatTreatment(d.documentType(), d.vatTreatment()));
       stagingReconciliation.reconcile(p, effectiveTaxPeriod.atDay(1));
       // Staging is intentionally not reported as canonical IMPORTED data.

@@ -21,37 +21,14 @@ class AccountingStagingAcquisitionServiceTest {
 
   @Test
   void storesExplicitValidVatTreatment() {
-    when(repository.insertInvoice(
-            org.mockito.ArgumentMatchers.anyLong(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyLong(),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.any()))
-        .thenReturn(42L);
-
-    assertThat(service.stageInvoice(1, salesInvoice(), "DOMESTIC_VAT")).isEqualTo(42L);
+    assertThat(service.stageInvoice(1, salesInvoice(), "DOMESTIC_VAT")).isZero();
     Object[] arguments =
         org.mockito.Mockito.mockingDetails(repository)
             .getInvocations()
             .iterator()
             .next()
             .getArguments();
-    assertThat(arguments[18]).isEqualTo("DOMESTIC_VAT");
+    assertThat(arguments[19]).isEqualTo("DOMESTIC_VAT");
   }
 
   @Test

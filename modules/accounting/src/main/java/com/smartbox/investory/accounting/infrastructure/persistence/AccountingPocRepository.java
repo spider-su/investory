@@ -669,7 +669,8 @@ public class AccountingPocRepository {
     try {
       return jdbcTemplate.query(
           """
-          SELECT d.id, d.reference, d.direction,
+          SELECT d.id, d.reference, d.direction, d.document_kind, d.corrects_document_id,
+                 corrected.reference AS corrects_document_reference,
                  COALESCE(d.issue_date, d.supply_date, d.tax_period) AS document_date,
                  d.gross_amount, d.currency, d.source_id, s.external_reference,
                  s.source_type, s.original_filename,
@@ -679,6 +680,7 @@ public class AccountingPocRepository {
             LEFT JOIN investory.accounting_known_counterparty k
               ON k.id = d.counterparty_id AND k.profile_id = d.profile_id
             LEFT JOIN investory.accounting_source_evidence s ON s.id = d.source_id
+            LEFT JOIN investory.accounting_document corrected ON corrected.id = d.corrects_document_id
            WHERE d.profile_id = ? AND d.tax_period = ?
            ORDER BY COALESCE(d.issue_date, d.supply_date, d.tax_period), d.id
           """,
@@ -687,6 +689,9 @@ public class AccountingPocRepository {
                   rs.getLong("id"),
                   rs.getString("reference"),
                   rs.getString("direction"),
+                  rs.getString("document_kind"),
+                  rs.getObject("corrects_document_id", Long.class),
+                  rs.getString("corrects_document_reference"),
                   rs.getObject("document_date", LocalDate.class),
                   rs.getBigDecimal("gross_amount"),
                   rs.getString("currency"),
@@ -706,10 +711,40 @@ public class AccountingPocRepository {
     }
   }
 
+  public Long canonicalInvoiceId(long profileId, String direction, String reference) {
+    List<Long> ids =
+        jdbcTemplate.queryForList(
+            """
+            SELECT id
+              FROM investory.accounting_document
+             WHERE profile_id = ? AND direction = ? AND document_kind = 'INVOICE' AND reference = ?
+            """,
+            Long.class,
+            profileId,
+            direction,
+            reference);
+    return ids.size() == 1 ? ids.getFirst() : null;
+  }
+
+  public void linkCanonicalCorrection(long profileId, String reference, long correctsDocumentId) {
+    jdbcTemplate.update(
+        """
+        UPDATE investory.accounting_document
+           SET corrects_document_id = ?
+         WHERE profile_id = ? AND document_kind = 'CREDIT_NOTE' AND reference = ?
+        """,
+        correctsDocumentId,
+        profileId,
+        reference);
+  }
+
   public record CanonicalDocumentRow(
       long id,
       String reference,
       String direction,
+      String documentKind,
+      Long correctsDocumentId,
+      String correctsDocumentReference,
       LocalDate documentDate,
       BigDecimal grossAmount,
       String currency,
@@ -831,7 +866,7 @@ public class AccountingPocRepository {
         SELECT COALESCE(SUM(COALESCE(booked_net_pln, net_amount)), 0)
          FROM investory.accounting_poc_invoice
          WHERE profile_id = ? AND tax_period >= DATE_TRUNC('year', ?::date)::date AND tax_period <= ?
-           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
+           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE', 'CREDIT_NOTE')
         """,
         BigDecimal.class,
         profileId,
@@ -849,13 +884,13 @@ public class AccountingPocRepository {
                  SELECT DATE_TRUNC('year', MIN(tax_period))::date
                    FROM investory.accounting_poc_invoice
                   WHERE profile_id = ?
-                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE'))
+                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE', 'CREDIT_NOTE'))
            AND tax_period < (
                  SELECT DATE_TRUNC('year', MIN(tax_period))::date + INTERVAL '1 year'
                    FROM investory.accounting_poc_invoice
                   WHERE profile_id = ?
-                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE'))
-           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE')
+                    AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE', 'CREDIT_NOTE'))
+           AND invoice_kind IN ('SALES_INVOICE', 'DOMESTIC_SERVICE', 'EU_SERVICE', 'CREDIT_NOTE')
         """,
         BigDecimal.class,
         profileId,
