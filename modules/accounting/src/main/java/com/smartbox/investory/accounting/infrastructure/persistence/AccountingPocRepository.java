@@ -8,6 +8,8 @@ import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.TaxInputRow;
 import com.smartbox.investory.accounting.api.AccountingUserApi;
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -960,6 +962,67 @@ public class AccountingPocRepository {
                 filingEvidence(rs.getString("filing_evidence"), rs.getString("ksef_number"))),
         profileId,
         period);
+  }
+
+  public List<InvoiceRow> invoicesForYear(long profileId, LocalDate period) {
+    return jdbcTemplate.query(
+        """
+        SELECT i.id, i.tax_period, i.issue_date, i.sale_date, i.fx_rate_date, i.reference,
+               COALESCE(NULLIF(linked.alias, ''), linked.canonical_name,
+                        NULLIF(k.alias, ''), k.canonical_name, i.customer_alias) AS customer_alias, i.invoice_kind,
+               i.currency, i.net_amount, i.vat_amount, i.gross_amount, i.correction_net_amount,
+               i.correction_vat_amount, i.correction_gross_amount, i.expected_receivable,
+               i.booked_net_pln, i.ryczalt_rate, i.note, i.counterparty_tax_identifier, i.counterparty_country, i.ksef_number, i.filing_evidence
+          FROM investory.accounting_poc_invoice i
+          LEFT JOIN investory.accounting_document d
+            ON d.profile_id = i.profile_id
+           AND d.source_id = i.source_id
+           AND d.reference = i.reference
+          LEFT JOIN investory.accounting_known_counterparty linked
+            ON linked.profile_id = d.profile_id
+           AND linked.id = d.counterparty_id
+          LEFT JOIN investory.accounting_known_counterparty k
+            ON k.profile_id = i.profile_id
+           AND k.country = UPPER(i.counterparty_country)
+           AND k.tax_identifier = CASE WHEN UPPER(i.counterparty_country) = 'PL'
+                                       THEN REGEXP_REPLACE(UPPER(REGEXP_REPLACE(i.counterparty_tax_identifier, '[^[:alnum:]]', '', 'g')), '^PL', '')
+                                       ELSE UPPER(REGEXP_REPLACE(i.counterparty_tax_identifier, '[^[:alnum:]]', '', 'g')) END
+         WHERE i.profile_id = ?
+           AND i.tax_period >= DATE_TRUNC('year', ?::date)::date
+           AND i.tax_period < DATE_TRUNC('year', ?::date)::date + INTERVAL '1 year'
+         ORDER BY i.tax_period, i.id
+        """,
+        (rs, rowNum) -> invoiceRow(rs),
+        profileId,
+        period,
+        period);
+  }
+
+  private InvoiceRow invoiceRow(ResultSet rs) throws SQLException {
+    return new InvoiceRow(
+        rs.getLong("id"),
+        rs.getObject("tax_period", LocalDate.class),
+        rs.getObject("issue_date", LocalDate.class),
+        rs.getObject("sale_date", LocalDate.class),
+        rs.getObject("fx_rate_date", LocalDate.class),
+        rs.getString("reference"),
+        rs.getString("customer_alias"),
+        rs.getString("invoice_kind"),
+        rs.getString("currency"),
+        rs.getBigDecimal("net_amount"),
+        rs.getBigDecimal("vat_amount"),
+        rs.getBigDecimal("gross_amount"),
+        rs.getBigDecimal("correction_net_amount"),
+        rs.getBigDecimal("correction_vat_amount"),
+        rs.getBigDecimal("correction_gross_amount"),
+        rs.getBigDecimal("expected_receivable"),
+        rs.getBigDecimal("booked_net_pln"),
+        rs.getBigDecimal("ryczalt_rate"),
+        rs.getString("note"),
+        rs.getString("counterparty_tax_identifier"),
+        rs.getString("counterparty_country"),
+        rs.getString("ksef_number"),
+        filingEvidence(rs.getString("filing_evidence"), rs.getString("ksef_number")));
   }
 
   public boolean insertSalesInvoice(
