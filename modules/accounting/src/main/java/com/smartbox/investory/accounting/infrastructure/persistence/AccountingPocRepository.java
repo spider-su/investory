@@ -10,7 +10,9 @@ import com.smartbox.investory.accounting.api.AccountingUserApi;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -365,6 +367,26 @@ public class AccountingPocRepository {
                 : null,
         profileId,
         period);
+  }
+
+  public Map<LocalDate, PeriodState> periodStates(long profileId) {
+    return jdbcTemplate.query(
+        "SELECT tax_period, confirmed_at, confirmed_calculation_hash, lifecycle_status FROM investory.accounting_poc_period_state WHERE profile_id = ?",
+        rs -> {
+          Map<LocalDate, PeriodState> result = new LinkedHashMap<>();
+          while (rs.next()) {
+            result.put(
+                rs.getObject(1, LocalDate.class),
+                new PeriodState(
+                    rs.getTimestamp(2) == null ? null : rs.getTimestamp(2).toInstant(),
+                    rs.getString(3),
+                    rs.getString(4) == null
+                        ? PeriodLifecycleStatus.OPEN
+                        : PeriodLifecycleStatus.valueOf(rs.getString(4))));
+          }
+          return result;
+        },
+        profileId);
   }
 
   public void confirm(long profileId, LocalDate period, String hash, Instant confirmedAt) {
@@ -1387,7 +1409,7 @@ public class AccountingPocRepository {
                 (profile_id, booking_date, related_period, reference, counterparty_alias, currency, amount,
                  transaction_type, scope, note, source_id, source_row_identity,
                  provider, external_account_id, external_transaction_id, source_payload_hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT DO NOTHING
             """,
             profileId,
