@@ -21,7 +21,6 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -39,7 +38,8 @@ public class AccountingFactService {
   private static final BigDecimal HALF = new BigDecimal("0.50");
   private static final String REQUEST_YEAR_INVOICES_CACHE =
       AccountingFactService.class.getName() + ".yearInvoices";
-  private static final String REQUEST_FACT_CACHE = AccountingFactService.class.getName() + ".facts";
+  private static final String REQUEST_FACT_CACHE =
+      AccountingFactService.class.getName() + ".facts";
 
   private final AccountingFactRepository factRepository;
   private final AccountingPocRepository pocRepository;
@@ -92,15 +92,6 @@ public class AccountingFactService {
 
   public void updateHasUop(long profileId, boolean hasUop) {
     pocRepository.updateHasUop(profileId, hasUop);
-  }
-
-  /**
-   * Loads the existing FX valuation matrices used by the requested accounting month. This is a
-   * cache warm-up only; it neither derives nor persists accounting facts.
-   */
-  public void warmMonthFx(YearMonth month) {
-    if (month == null) return;
-    currencyConversion.warmValuationMatrices(month.atDay(1), month.atEndOfMonth());
   }
 
   public AccountingMonthSnapshot snapshot(long profileId, LocalDate period) {
@@ -349,7 +340,13 @@ public class AccountingFactService {
     if (calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION) {
       ryczalt =
           calculatedHistoricalRyczalt(
-              profileId, period, calculated, ryczalt, zus.healthZus(), taxInputs, yearInvoices);
+              profileId,
+              period,
+              calculated,
+              ryczalt,
+              zus.healthZus(),
+              taxInputs,
+              yearInvoices);
     }
     if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION) {
       domesticRevenue = calculated.revenue().domesticPln();
@@ -590,7 +587,8 @@ public class AccountingFactService {
 
   private List<AccountingTaxProfilePeriod> taxProfilePeriods(long profileId) {
     return requestCached(
-        "tax-profile-periods:" + profileId, () -> pocRepository.taxProfilePeriods(profileId));
+        "tax-profile-periods:" + profileId,
+        () -> pocRepository.taxProfilePeriods(profileId));
   }
 
   private List<BusinessActivityPeriod> businessActivityPeriods(long profileId) {
@@ -601,7 +599,8 @@ public class AccountingFactService {
 
   private List<EmploymentInsurancePeriod> employmentPeriods(long profileId) {
     return requestCached(
-        "employment-periods:" + profileId, () -> pocRepository.employmentPeriods(profileId));
+        "employment-periods:" + profileId,
+        () -> pocRepository.employmentPeriods(profileId));
   }
 
   private BigDecimal yearToDateRevenue(long profileId, LocalDate period) {
@@ -615,8 +614,7 @@ public class AccountingFactService {
     RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
     if (attributes == null) return loader.get();
     Map<String, Object> cache =
-        (Map<String, Object>)
-            attributes.getAttribute(REQUEST_FACT_CACHE, RequestAttributes.SCOPE_REQUEST);
+        (Map<String, Object>) attributes.getAttribute(REQUEST_FACT_CACHE, RequestAttributes.SCOPE_REQUEST);
     if (cache == null) {
       cache = new java.util.HashMap<>();
       attributes.setAttribute(REQUEST_FACT_CACHE, cache, RequestAttributes.SCOPE_REQUEST);
@@ -639,7 +637,10 @@ public class AccountingFactService {
   private BigDecimal historicalYearToDateRevenue(
       long profileId, LocalDate period, Map<LocalDate, List<InvoiceRow>> yearInvoices) {
     return historicalYearToDateRevenue(
-        profileId, period, yearInvoices.getOrDefault(period, List.of()), yearInvoices);
+        profileId,
+        period,
+        yearInvoices.getOrDefault(period, List.of()),
+        yearInvoices);
   }
 
   private BigDecimal historicalYearToDateRevenue(
@@ -648,7 +649,8 @@ public class AccountingFactService {
       List<InvoiceRow> invoices,
       Map<LocalDate, List<InvoiceRow>> yearInvoices) {
     BigDecimal raw =
-        java.util.Objects.requireNonNullElse(yearToDateRevenue(profileId, period), BigDecimal.ZERO);
+        java.util.Objects.requireNonNullElse(
+            yearToDateRevenue(profileId, period), BigDecimal.ZERO);
     if (invoices.isEmpty()) return raw;
 
     BigDecimal reconstructed = BigDecimal.ZERO;
@@ -682,9 +684,7 @@ public class AccountingFactService {
     }
     String key = profileId + ":" + period.getYear();
     return cache.computeIfAbsent(
-        key,
-        ignored ->
-            invoicesByMonth(profileId, period, pocRepository.invoicesForYear(profileId, period)));
+        key, ignored -> invoicesByMonth(profileId, period, pocRepository.invoicesForYear(profileId, period)));
   }
 
   private Map<LocalDate, List<InvoiceRow>> invoicesByMonth(
