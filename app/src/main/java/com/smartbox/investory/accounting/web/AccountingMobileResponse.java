@@ -237,7 +237,10 @@ public record AccountingMobileResponse(
       String categoryLabel,
       String importStatus,
       String reviewStatus,
-      String paymentStatus) {
+      String paymentStatus,
+      String documentKind,
+      Long correctsDocumentId,
+      String correctsDocumentReference) {
     static Document from(AccountingUserApi.DocumentView source) {
       return new Document(
           source.id(),
@@ -256,7 +259,10 @@ public record AccountingMobileResponse(
           source.categoryLabel(),
           source.importStatus(),
           source.reviewStatus(),
-          source.paymentStatus());
+          source.paymentStatus(),
+          source.documentKind(),
+          source.correctsDocumentId(),
+          source.correctsDocumentReference());
     }
 
     private static String type(String direction) {

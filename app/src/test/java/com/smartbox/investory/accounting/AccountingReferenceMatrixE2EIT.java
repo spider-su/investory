@@ -496,7 +496,9 @@ class AccountingReferenceMatrixE2EIT {
           country,
           ksef,
           null,
-          null);
+          null,
+          null,
+          reference);
     }
 
     String vatTreatment() {

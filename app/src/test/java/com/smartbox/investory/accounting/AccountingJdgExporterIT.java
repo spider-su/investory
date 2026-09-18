@@ -40,7 +40,7 @@ class AccountingJdgExporterIT extends AccountingDatabaseTest {
     String csv = new String(exporter.exportCsv());
     List<String> rows = Arrays.asList(csv.strip().split("\\R"));
 
-    assertThat(rows).hasSize(9);
+    assertThat(rows).hasSize(19);
     assertThat(rows.get(0))
         .isEqualTo(
             "period,has_uop,domestic_revenue_net_pln,foreign_booked_revenue_pln,total_revenue_pln,"
@@ -48,6 +48,8 @@ class AccountingJdgExporterIT extends AccountingDatabaseTest {
                 + "social_zus_pln,health_zus_pln,total_zus_pln");
     assertThat(rows)
         .contains(
+            "2025-03,true,0.0000,0.0000,0.0000,0,0.0000,0.00,0,0.00,1384.97,1384.97",
+            "2025-12,true,0.0000,0.0000,0.0000,0,0.0000,0.00,0,0.00,1384.97,1384.97",
             "2026-01,true,29600.0000,32171.2300,61771.2300,7323,6808.0000,93.54,6714,0.00,1495.04,1495.04",
             "2026-03,true,32560.0000,32706.5200,65266.5200,7742,7488.8000,238.38,7251,0.00,1495.04,1495.04",
             "2026-07,true,16250.0000,32908.8700,49008.8700,5791,3703.0000,145.99,3557,0.00,1495.04,1495.04");

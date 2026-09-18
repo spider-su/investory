@@ -136,6 +136,135 @@ class AccountingStagingFlowIT extends AccountingDatabaseTest {
   }
 
   @Test
+  @DisplayName("staged fuel purchase preserves category and VAT deduction through promotion")
+  void stagedFuelPurchasePreservesReviewedAttributes() {
+    long sourceId = source("fuel");
+    long stagedId =
+        staging.insertInvoice(
+            PROFILE_A,
+            PERIOD,
+            sourceId,
+            "UPLOAD",
+            SOURCE_PREFIX + "fuel",
+            "EXPENSE",
+            LocalDate.of(2026, 9, 6),
+            null,
+            reference("FUEL"),
+            "Fuel Supplier",
+            "PL1234567890",
+            "PL",
+            "VEHICLE_FUEL",
+            "PLN",
+            new BigDecimal("100.00"),
+            new BigDecimal("23.00"),
+            new BigDecimal("123.00"),
+            new BigDecimal("0.50"),
+            new BigDecimal("11.50"),
+            VatTreatment.DOMESTIC_PURCHASE.name(),
+            new BigDecimal("23.00"),
+            null,
+            "REVIEWED",
+            null);
+
+    assertThat(promotion.promoteNew(PROFILE_A, PERIOD).invoices()).isEqualTo(1);
+    assertThat(stagedInvoice(stagedId).status()).isEqualTo(StagingReconciliationStatus.PROMOTED);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT category || ':' || vat_deduction_ratio FROM investory.accounting_document WHERE profile_id = ? AND reference = ?",
+                String.class,
+                PROFILE_A,
+                reference("FUEL")))
+        .isEqualTo("VEHICLE_FUEL:0.50");
+  }
+
+  @Test
+  @DisplayName("staged credit note stays a linked credit note")
+  void stagedCreditNotePreservesKindAndLinksCorrectedInvoice() {
+    long originalSource = source("credit-original");
+    stageInvoice(PROFILE_A, originalSource, "CREDIT-ORIGINAL");
+    assertThat(promotion.promoteNew(PROFILE_A, PERIOD).invoices()).isEqualTo(1);
+
+    long correctionSource = source("credit-note");
+    long stagedId =
+        staging.insertInvoice(
+            PROFILE_A,
+            PERIOD,
+            correctionSource,
+            "KSEF",
+            "KSEF-CREDIT-1",
+            "CREDIT_NOTE",
+            LocalDate.of(2026, 9, 10),
+            null,
+            reference("CREDIT-NOTE"),
+            "Test Customer",
+            "DE123456789",
+            "DE",
+            null,
+            "PLN",
+            new BigDecimal("100.00"),
+            new BigDecimal("23.00"),
+            new BigDecimal("123.00"),
+            null,
+            BigDecimal.ZERO,
+            VatTreatment.DOMESTIC_VAT.name(),
+            new BigDecimal("23.00"),
+            "KSEF-CREDIT-1",
+            "REVIEWED",
+            reference("CREDIT-ORIGINAL"));
+
+    assertThat(promotion.promoteNew(PROFILE_A, PERIOD).invoices()).isEqualTo(1);
+    assertThat(stagedInvoice(stagedId).status()).isEqualTo(StagingReconciliationStatus.PROMOTED);
+    assertThat(
+            jdbc.queryForObject(
+                """
+                SELECT d.document_kind || ':' || d.gross_amount || ':' || original.reference
+                  FROM investory.accounting_document d
+                  JOIN investory.accounting_document original ON original.id = d.corrects_document_id
+                 WHERE d.profile_id = ? AND d.reference = ?
+                """,
+                String.class,
+                PROFILE_A,
+                reference("CREDIT-NOTE")))
+        .isEqualTo("CREDIT_NOTE:-123.0000:" + reference("CREDIT-ORIGINAL"));
+  }
+
+  @Test
+  @DisplayName("credit note with an unknown corrected invoice remains review-required")
+  void creditNoteWithUnknownTargetIsBlockedFromPromotion() {
+    long sourceId = source("credit-missing-target");
+    long stagedId =
+        staging.insertInvoice(
+            PROFILE_A,
+            PERIOD,
+            sourceId,
+            "UPLOAD",
+            SOURCE_PREFIX + "credit-missing-target",
+            "CREDIT_NOTE",
+            LocalDate.of(2026, 9, 10),
+            null,
+            reference("CREDIT-MISSING-TARGET"),
+            "Test Customer",
+            "DE123456789",
+            "DE",
+            null,
+            "PLN",
+            new BigDecimal("100.00"),
+            new BigDecimal("23.00"),
+            new BigDecimal("123.00"),
+            null,
+            BigDecimal.ZERO,
+            VatTreatment.DOMESTIC_VAT.name(),
+            new BigDecimal("23.00"),
+            null,
+            "REVIEWED",
+            reference("UNKNOWN-ORIGINAL"));
+
+    assertThat(promotion.promoteNew(PROFILE_A, PERIOD).invoices()).isZero();
+    assertThat(stagedInvoice(stagedId).status()).isEqualTo(StagingReconciliationStatus.MISMATCH);
+    assertThat(stagedInvoice(stagedId).reasonCodes()).contains("CORRECTION_TARGET_NOT_FOUND");
+  }
+
+  @Test
   @DisplayName("reconciliation and promotion operate only on the requested staging profile")
   void twoProfilesRemainIsolatedThroughReconciliationAndPromotion() {
     long sourceA = source("profile-a");

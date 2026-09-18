@@ -4,7 +4,7 @@ This module owns the POC accounting acquisition boundary, deterministic accounti
 
 ## Canonical model
 
-The Jan-Aug 2026 reference tables are an immutable verification oracle. They preserve the trusted historical answer and never feed operational calculations. Canonical facts are the reconstructed operational result.
+The Jan-Aug 2026 reference tables are an immutable verification oracle. They preserve the trusted historical answer and never feed operational calculations. Canonical facts are the reconstructed operational result. 2025 uses confirmed historical facts and the legacy calculation mode; it is not an extension of the 2026 reference oracle.
 
 ## Data layers
 
@@ -12,7 +12,7 @@ The Jan-Aug 2026 reference tables are an immutable verification oracle. They pre
 reference -> source evidence -> staging -> canonical operational -> derived accounting result
 ```
 
-Reference rows are comparison-only. Source evidence is immutable; staging is reviewable; promotion is the explicit boundary into operational canonical facts.
+Reference rows are comparison-only. Source evidence is immutable; staging is reviewable; promotion is the explicit boundary into operational canonical facts. A staged row retains its reviewed category, VAT deduction, source quality, and (for a correction) corrected-invoice reference.
 
 ## Acquisition model
 
@@ -31,7 +31,7 @@ they are not production certification of arbitrary multi-profile operation or is
 
 `PENDING` means not yet evaluated. `MATCH` means one same-profile canonical fact matches. `NEW` means no same-profile candidate exists and the row may be promoted. `MISMATCH` means a candidate exists but accounting values differ. `AMBIGUOUS` means multiple same-profile candidates require review. `PROMOTED` is terminal.
 
-Only `NEW` may promote. `MATCH` never rewrites canonical facts. `MISMATCH` and `AMBIGUOUS` require review. Staging never silently overwrites canonical facts. Promotion is explicit and `PROMOTED` remains terminal and idempotent.
+Only `NEW` may promote. `MATCH` never rewrites canonical facts; for bank rows it means the transaction is already recorded, not that import failed. `MISMATCH` and `AMBIGUOUS` require review. A credit note also requires one same-profile canonical sales invoice identified by its corrected-invoice reference; otherwise it becomes `MISMATCH` and cannot promote. Staging never silently overwrites canonical facts. Promotion is explicit and `PROMOTED` remains terminal and idempotent.
 
 ## Tests
 
@@ -41,7 +41,7 @@ Only `NEW` may promote. `MATCH` never rewrites canonical facts. `MISMATCH` and `
 source -> staging -> reconciliation -> promotion -> canonical
 ```
 
-The manual E2E sequence is: start on an empty operational workspace, import one Jan-Aug bank CSV, upload or sync source documents, reconcile each month, promote only `NEW` rows, run the normal calculation, and compare each month with its reference rows. A bank file is parsed once and its rows are routed by authoritative `booking_date`; the month open in the UI does not constrain routing.
+The manual E2E sequence is: start on an empty operational workspace, import one Jan-Aug bank CSV, upload or sync source documents, reconcile each month, promote only `NEW` rows, run the normal calculation, and compare each month with its reference rows. A bank file is parsed once and its rows are routed by authoritative `booking_date`; the month open in the UI does not constrain routing. Private acceptance-source files remain under `.local-app-data`; maintain their local manifest with file hashes, import order, expected month totals, and reconciliation states.
 
 ## POC limitations
 

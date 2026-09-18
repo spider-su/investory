@@ -25,6 +25,8 @@
     </modules>
     <properties>
         <java.version>25</java.version>
+        <tomcat.version>11.0.25</tomcat.version>
+        <postgresql.version>42.7.12</postgresql.version>
         <telegrambots.version>6.9.7.1</telegrambots.version>
         <commons-io.version>2.22.0</commons-io.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>

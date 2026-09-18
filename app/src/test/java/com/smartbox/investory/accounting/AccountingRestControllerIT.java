@@ -54,6 +54,7 @@ class AccountingRestControllerIT extends AccountingDatabaseTest {
         .andExpect(jsonPath("$").isArray())
         .andExpect(jsonPath("$[?(@.type == 'SALE')]").isNotEmpty())
         .andExpect(jsonPath("$[?(@.type == 'PURCHASE')]").isNotEmpty())
+        .andExpect(jsonPath("$[?(@.documentKind == 'INVOICE')]").isNotEmpty())
         .andExpect(jsonPath("$[?(@.category == 'VEHICLE_FUEL')].categoryLabel").isNotEmpty());
   }
 
