@@ -67,6 +67,35 @@ class AccountingPageControllerTest {
   }
 
   @Test
+  void counterpartyDetailLoadsDocumentsWithOneBatchCall() {
+    var counterparty =
+        new AccountingUserApi.CounterpartyView(
+            7L, "1234567890", "PL", "Legal Company", "Short name", 1);
+    var document =
+        new AccountingUserApi.DocumentView(
+            11L,
+            "INV-1",
+            "PURCHASE",
+            month.atEndOfMonth(),
+            new BigDecimal("123.00"),
+            "PLN",
+            "IMPORTED",
+            "source-1");
+    when(client.counterparties(1)).thenReturn(List.of(counterparty));
+    when(client.counterpartyDocuments(1, 7L))
+        .thenReturn(List.of(new AccountingUserApi.CounterpartyDocumentView(month, document)));
+
+    var model = new ExtendedModelMap();
+    assertThat(controller.counterparty(1, 7L, model, new MockHttpServletRequest()))
+        .isEqualTo("accounting/counterparty");
+
+    assertThat(model.get("counterpartyInvoices")).asList().hasSize(1);
+    verify(client).counterparties(1);
+    verify(client).counterpartyDocuments(1, 7L);
+    verifyNoMoreInteractions(client);
+  }
+
+  @Test
   void untouchedMonthIsPresentedAsWaitingForSourceData() {
     when(client.months(1))
         .thenReturn(

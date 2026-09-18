@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AccountingBankStagingImportService {
@@ -28,9 +29,10 @@ public class AccountingBankStagingImportService {
     this.externalAccountId = externalAccountId;
   }
 
+  @Transactional
   public Result stageFile(
       long profileId, String filename, String contentType, byte[] payload, LocalDate period) {
-    long sourceId = sources.receiveBank(filename, contentType, payload, period);
+    long sourceId = sources.receiveBank(profileId, filename, contentType, payload, period);
     try {
       var rows =
           new CsvBankTransactionSource(payload, externalAccountId)

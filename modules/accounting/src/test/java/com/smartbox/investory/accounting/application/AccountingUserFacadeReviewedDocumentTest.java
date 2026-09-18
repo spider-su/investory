@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smartbox.investory.accounting.AccountingMonthSnapshot.ObligationRow;
 import com.smartbox.investory.accounting.AccountingSourceStatus;
 import com.smartbox.investory.accounting.AccountingSourceType;
 import com.smartbox.investory.accounting.api.AccountingUserApi.ReviewedDocument;
@@ -15,6 +17,7 @@ import com.smartbox.investory.accounting.staging.AccountingStagingAcquisitionSer
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -52,6 +55,57 @@ class AccountingUserFacadeReviewedDocumentTest {
           stagingReconciliation,
           bankImport,
           Optional.empty());
+
+  @Test
+  void serializesRecognitionMoneyAsDecimalStrings() throws Exception {
+    var candidate =
+        new com.smartbox.investory.accounting.api.AccountingUserApi.CandidateView(
+            "upload-1",
+            "PURCHASE_INVOICE",
+            null,
+            null,
+            null,
+            "FV-1",
+            "Supplier",
+            null,
+            null,
+            null,
+            null,
+            "PLN",
+            new BigDecimal("123.45"),
+            new BigDecimal("23.45"),
+            new BigDecimal("146.90"),
+            null,
+            "PARSED",
+            false,
+            null,
+            null,
+            new BigDecimal("23"),
+            List.of(),
+            List.of());
+
+    var json = new ObjectMapper().writeValueAsString(candidate);
+
+    assertThat(json).contains("\"netAmount\":\"123.45\"");
+    assertThat(json).contains("\"vatRate\":\"23\"");
+  }
+
+  @Test
+  void exposesBackendOwnedVatRequiredInputsAndConditionalFields() {
+    var inputs = AccountingUserFacade.requiredInputs("PURCHASE_INVOICE");
+
+    assertThat(inputs)
+        .extracting(input -> input.field())
+        .containsExactly("vatTreatment", "vatRate", "counterpartyCountry");
+    assertThat(inputs.getFirst().required()).isTrue();
+    assertThat(inputs.getFirst().options())
+        .extracting(option -> option.value())
+        .containsExactly("DOMESTIC_PURCHASE", "IMPORT_OF_SERVICES_EU", "IMPORT_OF_SERVICES_NON_EU");
+    assertThat(inputs.get(1).dependsOn()).isEqualTo("vatTreatment");
+    assertThat(inputs.get(1).dependsOnValues()).containsExactly("DOMESTIC_PURCHASE");
+    assertThat(inputs.get(2).dependsOnValues())
+        .containsExactly("IMPORT_OF_SERVICES_EU", "IMPORT_OF_SERVICES_NON_EU");
+  }
 
   @Test
   void mapsReviewedDueDateThroughFacadeWithoutLosingCountry() {
@@ -92,6 +146,75 @@ class AccountingUserFacadeReviewedDocumentTest {
     assertThat(captor.getValue().dueDate()).isEqualTo(dueDate);
     assertThat(captor.getValue().counterpartyCountry()).isEqualTo("DE");
     org.mockito.Mockito.verify(stagingReconciliation).reconcile(1L, YearMonth.of(2026, 7).atDay(1));
+  }
+
+  @Test
+  void exposesPersistedPaymentHistoryWithoutRecalculatingObligations() {
+    when(repository.profileExists(1L)).thenReturn(true);
+    when(repository.obligationsForPeriod(1L, LocalDate.of(2026, 7, 1)))
+        .thenReturn(
+            java.util.List.of(
+                new ObligationRow(
+                    LocalDate.of(2026, 7, 1),
+                    "VAT",
+                    LocalDate.of(2026, 8, 25),
+                    new BigDecimal("1230.00"),
+                    new BigDecimal("500.00"),
+                    LocalDate.of(2026, 8, 20),
+                    "PARTIALLY_PAID",
+                    null)));
+
+    var history = facade.paymentHistory(1L, YearMonth.of(2026, 7), YearMonth.of(2026, 7), "vat");
+
+    assertThat(history).hasSize(1);
+    assertThat(history.getFirst().type()).isEqualTo("VAT");
+    assertThat(history.getFirst().period()).isEqualTo(YearMonth.of(2026, 7));
+    assertThat(history.getFirst().amount()).isEqualByComparingTo("1230.00");
+    assertThat(history.getFirst().paidAmount()).isEqualByComparingTo("500.00");
+    assertThat(history.getFirst().outstandingAmount()).isEqualByComparingTo("730.00");
+    assertThat(history.getFirst().paymentDate()).isEqualTo(LocalDate.of(2026, 8, 20));
+  }
+
+  @Test
+  void rejectsUnknownPaymentHistoryType() {
+    when(repository.profileExists(1L)).thenReturn(true);
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> facade.paymentHistory(1L, YearMonth.of(2026, 7), YearMonth.of(2026, 7), "CIT"))
+        .withMessage("Unsupported obligation type");
+  }
+
+  @Test
+  void doesNotTreatUnknownDocumentTypeAsSalesDocument() {
+    when(repository.profileExists(1L)).thenReturn(true);
+
+    var document =
+        new ReviewedDocument(
+            "upload-unknown",
+            "UNRECOGNIZED",
+            null,
+            null,
+            null,
+            "UNKNOWN-1",
+            null,
+            null,
+            null,
+            null,
+            "PLN",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> facade.saveReviewedResult(1L, document))
+        .withMessage("Unsupported document type");
   }
 
   @Test

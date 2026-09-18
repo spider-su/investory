@@ -20,7 +20,7 @@ class PdfDocumentScanner implements DocumentScanner {
   }
 
   @Override
-  public DocumentScanResult scan(DocumentInput input) {
+  public DocumentScanResult scan(long profileId, DocumentInput input) {
     try {
       DocumentText text = textExtractor.extract(input.bytes());
       log.info(
@@ -28,7 +28,7 @@ class PdfDocumentScanner implements DocumentScanner {
           text.plainText().length(),
           text.pages().size());
       InvoiceTextParser.ParseResult parsed =
-          textParser.parse(text, factService.accountingProfile().nip());
+          textParser.parse(text, factService.accountingProfile(profileId).nip());
       if (parsed.invoice() != null) {
         var issues = validator.validate(parsed.invoice());
         if (!issues.isEmpty())

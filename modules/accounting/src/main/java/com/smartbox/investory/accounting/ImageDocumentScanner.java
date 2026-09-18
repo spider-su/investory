@@ -11,7 +11,7 @@ class ImageDocumentScanner implements DocumentScanner {
   }
 
   @Override
-  public DocumentScanResult scan(DocumentInput input) {
+  public DocumentScanResult scan(long profileId, DocumentInput input) {
     return DocumentScanResult.incomplete(
         ScannerType.IMAGE, ScanStatus.UNSUPPORTED, "Image OCR is not implemented");
   }

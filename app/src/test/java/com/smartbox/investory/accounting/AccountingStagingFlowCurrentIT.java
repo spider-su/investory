@@ -50,7 +50,7 @@ class AccountingStagingFlowCurrentIT extends AccountingDatabaseTest {
   @Test
   void reviewedInvoiceStagesReconcilesPromotesAndWritesVatFact() {
     long sourceId =
-        sources.receiveUpload("staging-flow.pdf", "application/pdf", new byte[] {3, 2, 1});
+        sources.receiveUpload(1L, "staging-flow.pdf", "application/pdf", new byte[] {3, 2, 1});
     acquisition.stageInvoice(1, invoice("STAGING-FLOW-2026-03", sourceId), "DOMESTIC_VAT");
 
     assertThat(staging.reconcile(1, java.time.YearMonth.of(2026, 3)).readyToPromote()).isEqualTo(1);
@@ -71,7 +71,7 @@ class AccountingStagingFlowCurrentIT extends AccountingDatabaseTest {
   @Test
   void unknownDirectionAndMissingVatTreatmentNeverEnterStaging() {
     long sourceId =
-        sources.receiveUpload("invalid-staging.pdf", "application/pdf", new byte[] {4, 5, 6});
+        sources.receiveUpload(1L, "invalid-staging.pdf", "application/pdf", new byte[] {4, 5, 6});
     assertThatThrownBy(
             () ->
                 acquisition.stageInvoice(

@@ -87,7 +87,7 @@ class AccountingInvoiceFolderRecognitionIT extends AccountingDatabaseTest {
     try {
       byte[] bytes = Files.readAllBytes(file);
       RecognizedInvoice invoice =
-          recognitionService.recognize(file.getFileName().toString(), contentType(file), bytes);
+          recognitionService.recognize(1L, file.getFileName().toString(), contentType(file), bytes);
       List<String> issues = validate(invoice);
       boolean ok = issues.isEmpty();
       String debug = ok ? summary(invoice) : String.join("; ", issues) + " | " + summary(invoice);

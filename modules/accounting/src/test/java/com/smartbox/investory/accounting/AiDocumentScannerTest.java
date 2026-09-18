@@ -21,7 +21,7 @@ class AiDocumentScannerTest {
             () ->
                 new AiDocumentScanner(
                         client, new InvoiceValidator(), mock(AccountingFactService.class))
-                    .scan(new DocumentInput("invoice.pdf", "application/pdf", new byte[] {1})))
+                    .scan(1L, new DocumentInput("invoice.pdf", "application/pdf", new byte[] {1})))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("AI invoice recognition returned no result");
   }
@@ -30,7 +30,7 @@ class AiDocumentScannerTest {
   void keepsAnAmbiguousInvoiceForTheManualReviewFlow() {
     AiInvoiceRecognitionClient client = mock(AiInvoiceRecognitionClient.class);
     AccountingFactService facts = mock(AccountingFactService.class);
-    when(facts.accountingProfile())
+    when(facts.accountingProfile(1L))
         .thenReturn(new AccountingProfile(true, "1111111111", null, null, null, null, null, null));
     when(client.recognize("invoice.pdf", "application/pdf", new byte[] {1}))
         .thenReturn(
@@ -54,7 +54,7 @@ class AiDocumentScannerTest {
 
     DocumentScanResult result =
         new AiDocumentScanner(client, new InvoiceValidator(), facts)
-            .scan(new DocumentInput("invoice.pdf", "application/pdf", new byte[] {1}));
+            .scan(1L, new DocumentInput("invoice.pdf", "application/pdf", new byte[] {1}));
 
     assertThat(result.status()).isEqualTo(ScanStatus.PARTIAL);
     assertThat(result.invoice()).isNotNull();

@@ -14,19 +14,6 @@ import org.springframework.stereotype.Service;
 public class AccountingSourceEvidenceService {
   private final AccountingSourceRepository repository;
 
-  public long receiveUpload(String filename, String contentType, byte[] payload) {
-    byte[] hash = sha256(payload);
-    return repository.save(
-        AccountingSourceType.UPLOAD,
-        "sha256:" + hex(hash),
-        filename,
-        contentType,
-        Instant.now(),
-        null,
-        hash,
-        payload);
-  }
-
   public long receiveUpload(long profileId, String filename, String contentType, byte[] payload) {
     byte[] hash = sha256(payload);
     return repository.save(
@@ -39,10 +26,6 @@ public class AccountingSourceEvidenceService {
         null,
         hash,
         payload);
-  }
-
-  public long receiveKsef(String ksefNumber, LocalDate documentDate, byte[] payload) {
-    return receiveKsef(1L, ksefNumber, documentDate, payload);
   }
 
   public long receiveKsef(
@@ -58,11 +41,6 @@ public class AccountingSourceEvidenceService {
         documentDate,
         hash,
         payload);
-  }
-
-  public long receiveBank(
-      String filename, String contentType, byte[] payload, LocalDate documentDate) {
-    return receiveBank(1L, filename, contentType, payload, documentDate);
   }
 
   public long receiveBank(
@@ -96,10 +74,6 @@ public class AccountingSourceEvidenceService {
     return repository.status(id);
   }
 
-  public java.util.Optional<Long> findId(AccountingSourceType type, String externalReference) {
-    return repository.findId(type, externalReference);
-  }
-
   public java.util.Optional<Long> findId(
       long profileId, AccountingSourceType type, String externalReference) {
     return repository.findId(profileId, type, externalReference);
@@ -110,16 +84,8 @@ public class AccountingSourceEvidenceService {
     return repository.findSource(profileId, type, externalReference);
   }
 
-  public java.util.List<SourceOutcome> outcomes(LocalDate period) {
-    return repository.outcomes(period);
-  }
-
   public java.util.List<SourceOutcome> outcomes(long profileId, LocalDate period) {
     return repository.outcomes(profileId, period);
-  }
-
-  public java.util.List<SourceOutcome> bankOutcomes(LocalDate period) {
-    return repository.bankOutcomes(period);
   }
 
   public record SourceOutcome(String reference, String status, String error) {}

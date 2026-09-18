@@ -52,6 +52,12 @@ public final class InProcessAccountingClient implements AccountingRestClient {
   }
 
   @Override
+  public List<PaymentHistoryView> paymentHistory(
+      long p, YearMonth from, YearMonth to, String type) {
+    return user.paymentHistory(p, from, to, type);
+  }
+
+  @Override
   public FilingView filings(long p, YearMonth m) {
     return user.filings(p, m);
   }
@@ -64,6 +70,11 @@ public final class InProcessAccountingClient implements AccountingRestClient {
   @Override
   public List<CounterpartyView> counterparties(long p) {
     return user.counterparties(p);
+  }
+
+  @Override
+  public List<CounterpartyDocumentView> counterpartyDocuments(long p, long id) {
+    return user.counterpartyDocuments(p, id);
   }
 
   @Override

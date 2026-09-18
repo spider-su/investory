@@ -37,10 +37,10 @@ class AccountingJdgExporterIT extends AccountingDatabaseTest {
 
   @Test
   void exportsExistingJdgDatasetAsMonthlyCsv() {
-    String csv = new String(exporter.exportCsv());
+    String csv = new String(exporter.exportCsv(1L));
     List<String> rows = Arrays.asList(csv.strip().split("\\R"));
 
-    assertThat(rows).hasSize(19);
+    assertThat(rows).hasSize(20);
     assertThat(rows.get(0))
         .isEqualTo(
             "period,has_uop,domestic_revenue_net_pln,foreign_booked_revenue_pln,total_revenue_pln,"

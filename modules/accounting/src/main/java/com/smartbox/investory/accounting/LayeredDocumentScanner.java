@@ -22,18 +22,18 @@ public class LayeredDocumentScanner {
     this.properties = properties;
   }
 
-  public DocumentScanResult scan(DocumentInput input) {
+  public DocumentScanResult scan(long profileId, DocumentInput input) {
     DocumentScanner deterministic = select(input);
     if (deterministic != null) {
       log.info("document scanner selected: {}", scannerName(deterministic));
-      DocumentScanResult result = deterministic.scan(input);
+      DocumentScanResult result = deterministic.scan(profileId, input);
       if (result.isUsable()) return result;
       log.info("falling back to AI after {} result: {}", result.status(), result.warnings());
       if (!properties.isAiFallbackEnabled()) return result;
     } else {
       log.info("no deterministic document scanner available; falling back to AI");
     }
-    if (properties.isAiFallbackEnabled()) return aiScanner.scan(input);
+    if (properties.isAiFallbackEnabled()) return aiScanner.scan(profileId, input);
     return DocumentScanResult.incomplete(
         ScannerType.NONE, ScanStatus.UNSUPPORTED, "AI fallback is disabled");
   }

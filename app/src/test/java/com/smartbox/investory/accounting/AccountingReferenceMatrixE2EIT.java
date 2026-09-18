@@ -164,12 +164,13 @@ class AccountingReferenceMatrixE2EIT {
   private void acquireAndStageInvoice(InvoiceInput row) {
     long sourceId =
         sources.receiveKsef(
-            row.reference(), row.issueDate(), row.reference().getBytes(StandardCharsets.UTF_8));
+            1L, row.reference(), row.issueDate(), row.reference().getBytes(StandardCharsets.UTF_8));
     staging.stageInvoice(
         PROFILE_ID, row.reviewedInvoice(Long.toString(sourceId)), row.vatTreatment());
     if (row.correctionNet() != null && row.correctionNet().signum() != 0) {
       long correctionSource =
           sources.receiveKsef(
+              1L,
               row.reference() + "-CORRECTION",
               row.period().plusMonths(1).withDayOfMonth(1),
               (row.reference() + "-CORRECTION").getBytes(StandardCharsets.UTF_8));

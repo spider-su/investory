@@ -65,9 +65,12 @@ class KsefConnectionControllerTest {
         .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-SALE-1\"}]}");
     when(client.downloadInvoice(KsefEnvironment.PRODUCTION, "access-token", "KSEF-SALE-1"))
         .thenReturn("<Invoice/>");
-    when(sources.findId(AccountingSourceType.KSEF, "KSEF-SALE-1")).thenReturn(Optional.empty());
+    when(sources.findId(1L, AccountingSourceType.KSEF, "KSEF-SALE-1")).thenReturn(Optional.empty());
     when(sources.receiveKsef(
-            eq("KSEF-SALE-1"), eq(LocalDate.of(2026, 7, 10)), org.mockito.ArgumentMatchers.any()))
+            org.mockito.ArgumentMatchers.eq(1L),
+            eq("KSEF-SALE-1"),
+            eq(LocalDate.of(2026, 7, 10)),
+            org.mockito.ArgumentMatchers.any()))
         .thenReturn(42L);
     when(parser.parse(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
@@ -86,7 +89,9 @@ class KsefConnectionControllerTest {
                 null,
                 null,
                 "VAT"));
-    when(ingestion.ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
+    when(ingestion.ingest(
+            org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
         .thenReturn(true);
 
     KsefConnectionController controller =
@@ -101,12 +106,12 @@ class KsefConnectionControllerTest {
             sources,
             org.mockito.Mockito.mock(AccountingPocRepository.class));
 
-    var result = controller.syncSeller(java.time.YearMonth.of(2026, 7));
+    var result = controller.syncSeller(1L, java.time.YearMonth.of(2026, 7));
 
     assertThat(result.imported()).isEqualTo(1);
     assertThat(result.message()).contains("discovery month uses issue date");
     ArgumentCaptor<ReviewedInvoice> invoice = ArgumentCaptor.forClass(ReviewedInvoice.class);
-    verify(ingestion).ingest(invoice.capture());
+    verify(ingestion).ingest(org.mockito.ArgumentMatchers.eq(1L), invoice.capture());
     assertThat(invoice.getValue().documentType()).isEqualTo("SALES_INVOICE");
     assertThat(invoice.getValue().counterpartyAlias()).isEqualTo("Buyer");
     assertThat(invoice.getValue().taxPeriod()).isEqualTo(LocalDate.of(2026, 6, 1));
@@ -144,9 +149,13 @@ class KsefConnectionControllerTest {
         .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-CREDIT-1\"}]}");
     when(client.downloadInvoice(KsefEnvironment.PRODUCTION, "access-token", "KSEF-CREDIT-1"))
         .thenReturn("<Invoice/>");
-    when(sources.findId(AccountingSourceType.KSEF, "KSEF-CREDIT-1")).thenReturn(Optional.empty());
+    when(sources.findId(1L, AccountingSourceType.KSEF, "KSEF-CREDIT-1"))
+        .thenReturn(Optional.empty());
     when(sources.receiveKsef(
-            eq("KSEF-CREDIT-1"), eq(LocalDate.of(2026, 7, 11)), org.mockito.ArgumentMatchers.any()))
+            org.mockito.ArgumentMatchers.eq(1L),
+            eq("KSEF-CREDIT-1"),
+            eq(LocalDate.of(2026, 7, 11)),
+            org.mockito.ArgumentMatchers.any()))
         .thenReturn(43L);
     when(parser.parse(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
@@ -165,7 +174,9 @@ class KsefConnectionControllerTest {
                 null,
                 null,
                 "KOR"));
-    when(ingestion.ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
+    when(ingestion.ingest(
+            org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
         .thenReturn(true);
 
     KsefConnectionController controller =
@@ -180,11 +191,11 @@ class KsefConnectionControllerTest {
             sources,
             org.mockito.Mockito.mock(AccountingPocRepository.class));
 
-    var result = controller.syncSeller(java.time.YearMonth.of(2026, 7));
+    var result = controller.syncSeller(1L, java.time.YearMonth.of(2026, 7));
 
     assertThat(result.imported()).isEqualTo(1);
     ArgumentCaptor<ReviewedInvoice> invoice = ArgumentCaptor.forClass(ReviewedInvoice.class);
-    verify(ingestion).ingest(invoice.capture());
+    verify(ingestion).ingest(org.mockito.ArgumentMatchers.eq(1L), invoice.capture());
     assertThat(invoice.getValue().documentType()).isEqualTo("CREDIT_NOTE");
     assertThat(invoice.getValue().taxPeriod()).isEqualTo(LocalDate.of(2026, 7, 1));
     assertThat(invoice.getValue().issueDate()).isEqualTo(LocalDate.of(2026, 7, 11));
@@ -212,9 +223,10 @@ class KsefConnectionControllerTest {
         .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-NO-SALE-DATE\"}]}");
     when(client.downloadInvoice(KsefEnvironment.PRODUCTION, "access-token", "KSEF-NO-SALE-DATE"))
         .thenReturn("<Invoice/>");
-    when(sources.findId(AccountingSourceType.KSEF, "KSEF-NO-SALE-DATE"))
+    when(sources.findId(1L, AccountingSourceType.KSEF, "KSEF-NO-SALE-DATE"))
         .thenReturn(Optional.empty());
     when(sources.receiveKsef(
+            org.mockito.ArgumentMatchers.eq(1L),
             eq("KSEF-NO-SALE-DATE"),
             eq(LocalDate.of(2026, 7, 10)),
             org.mockito.ArgumentMatchers.any()))
@@ -236,7 +248,9 @@ class KsefConnectionControllerTest {
                 null,
                 null,
                 "VAT"));
-    when(ingestion.ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
+    when(ingestion.ingest(
+            org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
         .thenReturn(true);
 
     KsefConnectionController controller =
@@ -251,10 +265,10 @@ class KsefConnectionControllerTest {
             sources,
             org.mockito.Mockito.mock(AccountingPocRepository.class));
 
-    controller.syncSeller(java.time.YearMonth.of(2026, 7));
+    controller.syncSeller(1L, java.time.YearMonth.of(2026, 7));
 
     ArgumentCaptor<ReviewedInvoice> invoice = ArgumentCaptor.forClass(ReviewedInvoice.class);
-    verify(ingestion).ingest(invoice.capture());
+    verify(ingestion).ingest(org.mockito.ArgumentMatchers.eq(1L), invoice.capture());
     assertThat(invoice.getValue().taxPeriod()).isEqualTo(LocalDate.of(2026, 7, 1));
   }
 
@@ -292,7 +306,7 @@ class KsefConnectionControllerTest {
         new KsefConnectionController(client, KsefEnvironment.TEST, "1234567890", "secret-token");
     RedirectAttributesModelMap attributes = new RedirectAttributesModelMap();
 
-    String redirect = controller.readInvoices("2026-07", attributes);
+    String redirect = controller.readInvoices(1L, "2026-07", attributes);
 
     assertThat(redirect).isEqualTo("redirect:/poc/accounting?month=2026-07");
     assertThat(attributes.getFlashAttributes().get("ksefInvoicesJson"))
@@ -339,7 +353,9 @@ class KsefConnectionControllerTest {
                 new BigDecimal("100.00"),
                 new BigDecimal("23.00"),
                 new BigDecimal("123.00")));
-    when(ingestion.ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
+    when(ingestion.ingest(
+            org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
         .thenReturn(true);
 
     KsefConnectionController controller =
@@ -353,10 +369,10 @@ class KsefConnectionControllerTest {
             new ObjectMapper());
     RedirectAttributesModelMap attributes = new RedirectAttributesModelMap();
 
-    controller.readInvoices("2026-07", attributes);
+    controller.readInvoices(1L, "2026-07", attributes);
 
     ArgumentCaptor<ReviewedInvoice> captor = ArgumentCaptor.forClass(ReviewedInvoice.class);
-    verify(ingestion).ingest(captor.capture());
+    verify(ingestion).ingest(org.mockito.ArgumentMatchers.eq(1L), captor.capture());
     assertThat(captor.getValue().reference()).isEqualTo("FV-1");
     assertThat(captor.getValue().sourceQuality()).isEqualTo("KSEF_SOURCE_DOCUMENT");
     assertThat(captor.getValue().note()).contains("KSeF KSEF-1");
@@ -386,7 +402,10 @@ class KsefConnectionControllerTest {
     when(client.downloadInvoice(KsefEnvironment.TEST, "access-token", "KSEF-UNKNOWN"))
         .thenReturn("<Invoice/>");
     when(sources.receiveKsef(
-            eq("KSEF-UNKNOWN"), eq(LocalDate.of(2026, 7, 10)), org.mockito.ArgumentMatchers.any()))
+            org.mockito.ArgumentMatchers.eq(1L),
+            eq("KSEF-UNKNOWN"),
+            eq(LocalDate.of(2026, 7, 10)),
+            org.mockito.ArgumentMatchers.any()))
         .thenReturn(10L);
     when(sources.status(10L)).thenReturn(AccountingSourceStatus.RECEIVED);
     when(parser.parse(org.mockito.ArgumentMatchers.any()))
@@ -417,7 +436,7 @@ class KsefConnectionControllerTest {
             new ObjectMapper(),
             sources);
 
-    controller.readInvoices("2026-07", new RedirectAttributesModelMap());
+    controller.readInvoices(1L, "2026-07", new RedirectAttributesModelMap());
 
     org.mockito.Mockito.verifyNoInteractions(ingestion);
     org.mockito.Mockito.verify(sources)
@@ -448,6 +467,7 @@ class KsefConnectionControllerTest {
     when(client.downloadInvoice(KsefEnvironment.TEST, "access-token", "KSEF-BAD"))
         .thenReturn("<broken/>");
     when(sources.receiveKsef(
+            org.mockito.ArgumentMatchers.eq(1L),
             org.mockito.ArgumentMatchers.startsWith("FAILED:KSEF-BAD:"),
             org.mockito.ArgumentMatchers.isNull(),
             org.mockito.ArgumentMatchers.any()))
@@ -465,7 +485,7 @@ class KsefConnectionControllerTest {
             ingestion,
             new ObjectMapper(),
             sources)
-        .readInvoices("2026-07", new RedirectAttributesModelMap());
+        .readInvoices(1L, "2026-07", new RedirectAttributesModelMap());
 
     verify(sources).status(11L, AccountingSourceStatus.FAILED, "invalid KSeF XML");
     org.mockito.Mockito.verifyNoInteractions(ingestion);
@@ -490,7 +510,8 @@ class KsefConnectionControllerTest {
             eq(0),
             eq(250)))
         .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-IMPORTED\"}]}");
-    when(sources.findId(AccountingSourceType.KSEF, "KSEF-IMPORTED")).thenReturn(Optional.of(12L));
+    when(sources.findId(1L, AccountingSourceType.KSEF, "KSEF-IMPORTED"))
+        .thenReturn(Optional.of(12L));
     when(canonical.canonicalDocumentExists(1L, 12L, "KSEF-IMPORTED", null)).thenReturn(true);
 
     RedirectAttributesModelMap attributes = new RedirectAttributesModelMap();
@@ -504,7 +525,7 @@ class KsefConnectionControllerTest {
             new ObjectMapper(),
             sources,
             canonical)
-        .readInvoices("2026-07", attributes);
+        .readInvoices(1L, "2026-07", attributes);
 
     org.mockito.Mockito.verifyNoInteractions(parser, ingestion);
     org.mockito.Mockito.verify(client, org.mockito.Mockito.never())
@@ -535,11 +556,15 @@ class KsefConnectionControllerTest {
         .thenReturn("{\"invoices\":[{\"ksefNumber\":\"KSEF-RECOVER\"}]}");
     when(client.downloadInvoice(KsefEnvironment.TEST, "access-token", "KSEF-RECOVER"))
         .thenReturn("<Invoice/>");
-    when(sources.findId(AccountingSourceType.KSEF, "KSEF-RECOVER")).thenReturn(Optional.of(12L));
+    when(sources.findId(1L, AccountingSourceType.KSEF, "KSEF-RECOVER"))
+        .thenReturn(Optional.of(12L));
     when(canonical.canonicalDocumentExists(1L, 12L, "KSEF-RECOVER", "FV-RECOVER"))
         .thenReturn(false);
     when(sources.receiveKsef(
-            eq("KSEF-RECOVER"), eq(LocalDate.of(2026, 7, 10)), org.mockito.ArgumentMatchers.any()))
+            org.mockito.ArgumentMatchers.eq(1L),
+            eq("KSEF-RECOVER"),
+            eq(LocalDate.of(2026, 7, 10)),
+            org.mockito.ArgumentMatchers.any()))
         .thenReturn(12L);
     when(parser.parse(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
@@ -555,7 +580,9 @@ class KsefConnectionControllerTest {
                 new BigDecimal("100"),
                 new BigDecimal("23"),
                 new BigDecimal("123")));
-    when(ingestion.ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
+    when(ingestion.ingest(
+            org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
         .thenReturn(true);
 
     var result =
@@ -569,10 +596,13 @@ class KsefConnectionControllerTest {
                 new ObjectMapper(),
                 sources,
                 canonical)
-            .readInvoices("2026-07", new RedirectAttributesModelMap());
+            .readInvoices(1L, "2026-07", new RedirectAttributesModelMap());
 
     verify(client).downloadInvoice(KsefEnvironment.TEST, "access-token", "KSEF-RECOVER");
-    verify(ingestion).ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class));
+    verify(ingestion)
+        .ingest(
+            org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.any(ReviewedInvoice.class));
   }
 
   @Test
@@ -603,15 +633,16 @@ class KsefConnectionControllerTest {
                 default -> "{\"invoices\":[]}";
               };
             });
-    when(sources.findId(AccountingSourceType.KSEF, "KSEF-3")).thenReturn(Optional.of(12L));
+    when(sources.findId(1L, AccountingSourceType.KSEF, "KSEF-3")).thenReturn(Optional.of(12L));
     when(canonical.canonicalDocumentExists(1L, 12L, "KSEF-3", null)).thenReturn(true);
-    when(sources.findId(AccountingSourceType.KSEF, "KSEF-1")).thenReturn(Optional.empty());
-    when(sources.findId(AccountingSourceType.KSEF, "KSEF-2")).thenReturn(Optional.empty());
+    when(sources.findId(1L, AccountingSourceType.KSEF, "KSEF-1")).thenReturn(Optional.empty());
+    when(sources.findId(1L, AccountingSourceType.KSEF, "KSEF-2")).thenReturn(Optional.empty());
     when(client.downloadInvoice(KsefEnvironment.TEST, "access-token", "KSEF-1"))
         .thenReturn("<Invoice/>");
     when(client.downloadInvoice(KsefEnvironment.TEST, "access-token", "KSEF-2"))
         .thenReturn("<Invoice/>");
     when(sources.receiveKsef(
+            org.mockito.ArgumentMatchers.eq(1L),
             org.mockito.ArgumentMatchers.anyString(),
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any()))
@@ -630,7 +661,9 @@ class KsefConnectionControllerTest {
                 new BigDecimal("100"),
                 new BigDecimal("23"),
                 new BigDecimal("123")));
-    when(ingestion.ingest(org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
+    when(ingestion.ingest(
+            org.mockito.ArgumentMatchers.eq(1L),
+            org.mockito.ArgumentMatchers.any(ReviewedInvoice.class)))
         .thenReturn(true);
 
     var result =
@@ -644,7 +677,7 @@ class KsefConnectionControllerTest {
                 new ObjectMapper(),
                 sources,
                 canonical)
-            .sync(java.time.YearMonth.of(2026, 5));
+            .sync(1L, java.time.YearMonth.of(2026, 5));
 
     assertThat(result.received()).isEqualTo(3);
     assertThat(result.imported()).isEqualTo(2);

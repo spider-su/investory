@@ -26,14 +26,14 @@ class LayeredDocumentScannerTest {
     ImageDocumentScanner image = mock(ImageDocumentScanner.class);
     AiDocumentScanner ai = mock(AiDocumentScanner.class);
     when(pdf.supports(PDF)).thenReturn(true);
-    when(pdf.scan(PDF))
+    when(pdf.scan(1L, PDF))
         .thenReturn(DocumentScanResult.complete(invoice(), ScannerType.PDF_DETERMINISTIC, 1.0));
 
-    DocumentScanResult result = scanner(pdf, image, ai).scan(PDF);
+    DocumentScanResult result = scanner(pdf, image, ai).scan(1L, PDF);
 
     assertThat(result.isUsable()).isTrue();
     assertThat(result.scannerType()).isEqualTo(ScannerType.PDF_DETERMINISTIC);
-    verify(ai, never()).scan(PDF);
+    verify(ai, never()).scan(1L, PDF);
   }
 
   @Test
@@ -42,17 +42,17 @@ class LayeredDocumentScannerTest {
     ImageDocumentScanner image = mock(ImageDocumentScanner.class);
     AiDocumentScanner ai = mock(AiDocumentScanner.class);
     when(pdf.supports(PDF)).thenReturn(true);
-    when(pdf.scan(PDF))
+    when(pdf.scan(1L, PDF))
         .thenReturn(
             DocumentScanResult.incomplete(
                 ScannerType.PDF_DETERMINISTIC, ScanStatus.PARTIAL, "missing VAT amount"));
-    when(ai.scan(PDF))
+    when(ai.scan(1L, PDF))
         .thenReturn(DocumentScanResult.complete(invoice(), ScannerType.AI_FALLBACK, .8));
 
-    DocumentScanResult result = scanner(pdf, image, ai).scan(PDF);
+    DocumentScanResult result = scanner(pdf, image, ai).scan(1L, PDF);
 
     assertThat(result.scannerType()).isEqualTo(ScannerType.AI_FALLBACK);
-    verify(ai).scan(PDF);
+    verify(ai).scan(1L, PDF);
   }
 
   @Test
@@ -61,18 +61,18 @@ class LayeredDocumentScannerTest {
     ImageDocumentScanner image = mock(ImageDocumentScanner.class);
     AiDocumentScanner ai = mock(AiDocumentScanner.class);
     when(image.supports(IMAGE)).thenReturn(true);
-    when(image.scan(IMAGE))
+    when(image.scan(1L, IMAGE))
         .thenReturn(
             DocumentScanResult.incomplete(
                 ScannerType.IMAGE, ScanStatus.UNSUPPORTED, "OCR not implemented"));
-    when(ai.scan(IMAGE))
+    when(ai.scan(1L, IMAGE))
         .thenReturn(DocumentScanResult.complete(invoice(), ScannerType.AI_FALLBACK, .8));
 
-    DocumentScanResult result = scanner(pdf, image, ai).scan(IMAGE);
+    DocumentScanResult result = scanner(pdf, image, ai).scan(1L, IMAGE);
 
     assertThat(result.scannerType()).isEqualTo(ScannerType.AI_FALLBACK);
-    verify(image).scan(IMAGE);
-    verify(ai).scan(IMAGE);
+    verify(image).scan(1L, IMAGE);
+    verify(ai).scan(1L, IMAGE);
   }
 
   @Test
@@ -80,13 +80,13 @@ class LayeredDocumentScannerTest {
     PdfDocumentScanner pdf = mock(PdfDocumentScanner.class);
     ImageDocumentScanner image = mock(ImageDocumentScanner.class);
     AiDocumentScanner ai = mock(AiDocumentScanner.class);
-    when(ai.scan(UNKNOWN))
+    when(ai.scan(1L, UNKNOWN))
         .thenReturn(DocumentScanResult.complete(invoice(), ScannerType.AI_FALLBACK, .8));
 
-    DocumentScanResult result = scanner(pdf, image, ai).scan(UNKNOWN);
+    DocumentScanResult result = scanner(pdf, image, ai).scan(1L, UNKNOWN);
 
     assertThat(result.scannerType()).isEqualTo(ScannerType.AI_FALLBACK);
-    verify(ai).scan(UNKNOWN);
+    verify(ai).scan(1L, UNKNOWN);
   }
 
   @Test
@@ -94,9 +94,9 @@ class LayeredDocumentScannerTest {
     PdfDocumentScanner pdf = mock(PdfDocumentScanner.class);
     ImageDocumentScanner image = mock(ImageDocumentScanner.class);
     AiDocumentScanner ai = mock(AiDocumentScanner.class);
-    when(ai.scan(UNKNOWN)).thenThrow(new IllegalStateException("AI unavailable"));
+    when(ai.scan(1L, UNKNOWN)).thenThrow(new IllegalStateException("AI unavailable"));
 
-    assertThatThrownBy(() -> scanner(pdf, image, ai).scan(UNKNOWN))
+    assertThatThrownBy(() -> scanner(pdf, image, ai).scan(1L, UNKNOWN))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("AI unavailable");
   }
@@ -110,11 +110,11 @@ class LayeredDocumentScannerTest {
     properties.setAiFallbackEnabled(false);
 
     DocumentScanResult result =
-        new LayeredDocumentScanner(pdf, image, ai, properties).scan(UNKNOWN);
+        new LayeredDocumentScanner(pdf, image, ai, properties).scan(1L, UNKNOWN);
 
     assertThat(result.status()).isEqualTo(ScanStatus.UNSUPPORTED);
     assertThat(result.warnings()).containsExactly("AI fallback is disabled");
-    verify(ai, never()).scan(UNKNOWN);
+    verify(ai, never()).scan(1L, UNKNOWN);
   }
 
   private LayeredDocumentScanner scanner(

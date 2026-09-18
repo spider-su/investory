@@ -20,13 +20,13 @@ class AiDocumentScanner implements DocumentScanner {
   }
 
   @Override
-  public DocumentScanResult scan(DocumentInput input) {
+  public DocumentScanResult scan(long profileId, DocumentInput input) {
     AccountingInvoiceRecognitionService.RecognizedInvoice invoice =
         client.recognize(input.fileName(), input.contentType(), input.bytes());
     if (invoice == null) {
       throw new IllegalStateException("AI invoice recognition returned no result");
     }
-    invoice = validator.resolveDirection(invoice, factService.accountingProfile().nip());
+    invoice = validator.resolveDirection(invoice, factService.accountingProfile(profileId).nip());
     var issues = validator.validate(invoice);
     if (!issues.isEmpty()) {
       log.info("AI invoice result requires review: {}", issues);

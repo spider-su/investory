@@ -39,13 +39,14 @@ class AccountingRestControllerIT extends AccountingDatabaseTest {
     mvc.perform(get("/api/v1/profiles/1/accounting/months/2026-01").with(admin))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.month").value("2026-01"))
-        .andExpect(jsonPath("$.summary.revenue").value(expected.summary().revenue().doubleValue()))
+        .andExpect(
+            jsonPath("$.summary.revenue").value(expected.summary().revenue().toPlainString()))
         .andExpect(
             jsonPath("$.summary.totalObligations")
-                .value(expected.summary().totalObligations().doubleValue()))
+                .value(expected.summary().totalObligations().toPlainString()))
         .andExpect(
             jsonPath("$.paymentSummary.totalOutstanding")
-                .value(expected.paymentSummary().totalOutstanding().doubleValue()))
+                .value(expected.paymentSummary().totalOutstanding().toPlainString()))
         .andExpect(jsonPath("$.paymentSummary.payments").isArray())
         .andExpect(jsonPath("$.reference").doesNotExist());
 
@@ -78,8 +79,8 @@ class AccountingRestControllerIT extends AccountingDatabaseTest {
         .andExpect(status().isOk())
         .andExpect(
             jsonPath("$.summary.totalObligations")
-                .value(overview.summary().totalObligations().doubleValue()))
-        .andExpect(jsonPath("$.paymentSummary.totalOutstanding").value(0));
+                .value(overview.summary().totalObligations().toPlainString()))
+        .andExpect(jsonPath("$.paymentSummary.totalOutstanding").value("0"));
   }
 
   @Test
