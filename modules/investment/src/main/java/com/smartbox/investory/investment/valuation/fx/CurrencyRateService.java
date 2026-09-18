@@ -150,8 +150,19 @@ public class CurrencyRateService implements CurrencyConversion {
    * <p>Dates already present in the cache are left untouched, so freshly harvested observations
    * that populated the cache after a mutation are not overwritten by stale batch values.
    */
+  @Override
   public void warmValuationMatrices(LocalDate startDate, LocalDate endDate) {
     if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+      return;
+    }
+    boolean hasMissingDate = false;
+    for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+      if (valuationMatrices.getIfPresent(date) == null) {
+        hasMissingDate = true;
+        break;
+      }
+    }
+    if (!hasMissingDate) {
       return;
     }
     Map<LocalDate, Map<FxPair, FxRateResolution>> loaded = new HashMap<>();

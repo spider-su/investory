@@ -449,6 +449,7 @@ class CurrencyRateServiceTest {
                     "USD", "PLN", "4.1", "OBSERVED", "FX", "2026-06-16", "OK", "2026-06-16")));
 
     service.warmValuationMatrices(start, end);
+    service.warmValuationMatrices(start, end);
 
     // Every date in the range is served from the warmed cache without a per-date lazy query.
     assertEquals(

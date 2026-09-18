@@ -1,6 +1,7 @@
 package com.smartbox.investory.user.web;
 
 import com.smartbox.investory.config.TokenAuthenticationService;
+import com.smartbox.investory.user.application.CurrentProfileService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class AuthRestController {
   private final AuthenticationManager authenticationManager;
   private final TokenAuthenticationService tokens;
+  private final CurrentProfileService profiles;
 
   @Value("${app.security.token-lifetime:PT12H}")
   private java.time.Duration lifetime;
@@ -39,6 +42,11 @@ public class AuthRestController {
     } catch (org.springframework.security.core.AuthenticationException e) {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
     }
+  }
+
+  @org.springframework.web.bind.annotation.GetMapping("/me")
+  public CurrentProfileService.CurrentProfileResponse me(Authentication authentication) {
+    return profiles.find(authentication.getName());
   }
 
   public record LoginRequest(String username, String email, @NotBlank String password) {

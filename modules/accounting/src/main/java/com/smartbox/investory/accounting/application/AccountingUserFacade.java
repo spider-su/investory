@@ -130,6 +130,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public MonthOverview overview(long profileId, YearMonth month) {
     profile(profileId);
+    facts.warmMonthFx(month);
     var snapshotCache = new java.util.HashMap<LocalDate, AccountingMonthSnapshot>();
     var snapshot = snapshot(profileId, date(month));
     snapshotCache.put(date(month), snapshot);

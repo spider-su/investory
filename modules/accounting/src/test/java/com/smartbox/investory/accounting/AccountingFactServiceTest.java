@@ -3,6 +3,7 @@ package com.smartbox.investory.accounting;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.accounting.AccountingMonthSnapshot.BankRow;
@@ -19,6 +20,7 @@ import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableExcep
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +29,17 @@ class AccountingFactServiceTest {
   private static final LocalDate JULY = LocalDate.of(2026, 7, 1);
   private static final LocalDate JANUARY = LocalDate.of(2026, 1, 1);
   private static final LocalDate FEBRUARY = LocalDate.of(2026, 2, 1);
+
+  @Test
+  void warmsFxMatricesForTheRequestedAccountingMonth() {
+    CurrencyConversion fx = mock(CurrencyConversion.class);
+
+    new AccountingFactService(
+            mock(AccountingFactRepository.class), mock(AccountingPocRepository.class), fx)
+        .warmMonthFx(YearMonth.of(2026, 8));
+
+    verify(fx).warmValuationMatrices(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
+  }
 
   @Test
   void calculatesNormalJdgSocialAndHealthZusWithoutUop() {
