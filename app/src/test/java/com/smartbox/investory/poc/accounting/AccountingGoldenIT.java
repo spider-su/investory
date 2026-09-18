@@ -40,7 +40,7 @@ class AccountingGoldenIT extends AccountingDatabaseTest {
             LocalDate.of(2026, 1, 30)))
         .thenReturn(new BigDecimal("32171.2300"));
 
-    AccountingMonthSnapshot snapshot = service.snapshot(JANUARY);
+    AccountingMonthSnapshot snapshot = service.snapshot(1L, JANUARY);
 
     assertComparison(snapshot, "REVENUE", "61771.23", "61771.23", "0.00", "MATCH");
     assertComparison(snapshot, "RYCZALT", "7323", "7323.0000", "0.0000", "MATCH");
@@ -63,7 +63,7 @@ class AccountingGoldenIT extends AccountingDatabaseTest {
             LocalDate.of(2026, 2, 27)))
         .thenReturn(new BigDecimal("32249.1200"));
 
-    AccountingMonthSnapshot snapshot = service.snapshot(FEBRUARY);
+    AccountingMonthSnapshot snapshot = service.snapshot(1L, FEBRUARY);
 
     assertComparison(snapshot, "REVENUE", "61849.12", "61849.12", "0.00", "MATCH");
     assertComparison(snapshot, "RYCZALT", "7332", "7332.0000", "0.0000", "MATCH");
@@ -82,7 +82,7 @@ class AccountingGoldenIT extends AccountingDatabaseTest {
             LocalDate.of(2026, 4, 29)))
         .thenReturn(new BigDecimal("32481.2500"));
 
-    AccountingMonthSnapshot snapshot = service.snapshot(APRIL);
+    AccountingMonthSnapshot snapshot = service.snapshot(1L, APRIL);
 
     assertComparison(snapshot, "REVENUE", "63561.25", "63561.25", "0.00", "MATCH");
     assertComparison(snapshot, "RYCZALT", "7538", "7538.0000", "0.0000", "MATCH");
@@ -100,7 +100,7 @@ class AccountingGoldenIT extends AccountingDatabaseTest {
             LocalDate.of(2026, 5, 29)))
         .thenReturn(new BigDecimal("32317.0800"));
 
-    AccountingMonthSnapshot snapshot = service.snapshot(MAY);
+    AccountingMonthSnapshot snapshot = service.snapshot(1L, MAY);
 
     assertComparison(snapshot, "REVENUE", "61917.08", "61917.08", "0.00", "MATCH");
     assertComparison(snapshot, "RYCZALT", "7340", "7340.0000", "0.0000", "MATCH");
@@ -118,7 +118,7 @@ class AccountingGoldenIT extends AccountingDatabaseTest {
             LocalDate.of(2026, 6, 29)))
         .thenReturn(new BigDecimal("32750.8000"));
 
-    AccountingMonthSnapshot snapshot = service.snapshot(JUNE);
+    AccountingMonthSnapshot snapshot = service.snapshot(1L, JUNE);
 
     assertComparison(snapshot, "REVENUE", "65310.80", "65310.80", "0.00", "MATCH");
     assertComparison(snapshot, "RYCZALT", "7748", "7748.0000", "0.0000", "MATCH");
@@ -140,7 +140,7 @@ class AccountingGoldenIT extends AccountingDatabaseTest {
             LocalDate.of(2026, 7, 30)))
         .thenReturn(new BigDecimal("32908.8700"));
 
-    AccountingMonthSnapshot snapshot = service.snapshot(JULY);
+    AccountingMonthSnapshot snapshot = service.snapshot(1L, JULY);
 
     assertComparison(snapshot, "REVENUE", "49008.87", "49008.87", "0.00", "MATCH");
     assertComparison(snapshot, "RYCZALT", "5791", "5791.0000", "0.0000", "MATCH");

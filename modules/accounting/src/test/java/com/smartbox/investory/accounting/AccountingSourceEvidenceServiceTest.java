@@ -19,25 +19,29 @@ class AccountingSourceEvidenceServiceTest {
     byte[] payload = "invoice".getBytes(java.nio.charset.StandardCharsets.UTF_8);
     org.mockito.Mockito.when(
             repository.save(
+                org.mockito.ArgumentMatchers.eq(1L),
                 org.mockito.ArgumentMatchers.eq(AccountingSourceType.UPLOAD),
-                    org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.eq("invoice.pdf"),
-                    org.mockito.ArgumentMatchers.eq("application/pdf"),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.isNull(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.same(payload)))
+                org.mockito.ArgumentMatchers.eq("application/pdf"),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.same(payload)))
         .thenReturn(7L);
 
-    assertThat(service.receiveUpload("invoice.pdf", "application/pdf", payload)).isEqualTo(7L);
+    assertThat(service.receiveUpload(1L, "invoice.pdf", "application/pdf", payload)).isEqualTo(7L);
     var captor = org.mockito.ArgumentCaptor.forClass(String.class);
     verify(repository)
         .save(
+            org.mockito.ArgumentMatchers.eq(1L),
             org.mockito.ArgumentMatchers.eq(AccountingSourceType.UPLOAD),
             captor.capture(),
             org.mockito.ArgumentMatchers.eq("invoice.pdf"),
             org.mockito.ArgumentMatchers.eq("application/pdf"),
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.isNull(),
-            org.mockito.ArgumentMatchers.argThat(hash -> hash.length == 32),
+            org.mockito.ArgumentMatchers.argThat((byte[] hash) -> hash.length == 32),
             org.mockito.ArgumentMatchers.same(payload));
     assertThat(captor.getValue()).startsWith("sha256:").hasSize(71);
   }
@@ -47,6 +51,7 @@ class AccountingSourceEvidenceServiceTest {
     byte[] payload = "same".getBytes();
     org.mockito.Mockito.when(
             repository.save(
+                org.mockito.ArgumentMatchers.eq(1L),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any(),
@@ -57,13 +62,14 @@ class AccountingSourceEvidenceServiceTest {
                 org.mockito.ArgumentMatchers.same(payload)))
         .thenReturn(9L);
 
-    service.receiveUpload("a.pdf", "application/pdf", payload);
-    service.receiveUpload("different-name.pdf", "application/pdf", payload);
+    service.receiveUpload(1L, "a.pdf", "application/pdf", payload);
+    service.receiveUpload(1L, "different-name.pdf", "application/pdf", payload);
 
     org.mockito.ArgumentCaptor<String> identities =
         org.mockito.ArgumentCaptor.forClass(String.class);
     verify(repository, org.mockito.Mockito.times(2))
         .save(
+            org.mockito.ArgumentMatchers.eq(1L),
             org.mockito.ArgumentMatchers.eq(AccountingSourceType.UPLOAD),
             identities.capture(),
             org.mockito.ArgumentMatchers.any(),

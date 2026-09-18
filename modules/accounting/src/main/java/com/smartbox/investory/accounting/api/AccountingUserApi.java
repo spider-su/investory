@@ -26,6 +26,8 @@ public interface AccountingUserApi {
 
   List<CounterpartyView> counterparties(long profileId);
 
+  List<CounterpartyDocumentView> counterpartyDocuments(long profileId, long counterpartyId);
+
   void updateCounterpartyAlias(long profileId, long counterpartyId, String alias);
 
   AutoApprovalSettings autoApprovalSettings(long profileId);
@@ -73,6 +75,8 @@ public interface AccountingUserApi {
       return alias == null || alias.isBlank() ? name : alias;
     }
   }
+
+  record CounterpartyDocumentView(YearMonth month, DocumentView document) {}
 
   record AutoApprovalSettings(
       boolean enabled, BigDecimal maxAmount, List<String> trustedCategories) {}

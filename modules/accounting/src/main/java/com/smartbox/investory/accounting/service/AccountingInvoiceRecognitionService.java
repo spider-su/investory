@@ -14,8 +14,10 @@ import org.springframework.stereotype.Service;
 public class AccountingInvoiceRecognitionService {
   private final LayeredDocumentScanner scanner;
 
-  public RecognizedInvoice recognize(String filename, String contentType, byte[] bytes) {
-    DocumentScanResult result = scanner.scan(new DocumentInput(filename, contentType, bytes));
+  public RecognizedInvoice recognize(
+      long profileId, String filename, String contentType, byte[] bytes) {
+    DocumentScanResult result =
+        scanner.scan(profileId, new DocumentInput(filename, contentType, bytes));
     if (result.invoice() == null) {
       String warning =
           result.warnings().isEmpty()

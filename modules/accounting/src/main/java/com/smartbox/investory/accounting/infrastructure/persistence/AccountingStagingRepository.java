@@ -412,15 +412,6 @@ public class AccountingStagingRepository {
         id);
   }
 
-  public void result(
-      String table,
-      long id,
-      StagingReconciliationStatus status,
-      List<String> reasons,
-      String message) {
-    result(1L, table, id, status, reasons, message);
-  }
-
   public void promoted(long profileId, String table, long id, long canonicalId) {
     jdbc.update(
         "UPDATE investory.accounting_tmp_"
@@ -429,10 +420,6 @@ public class AccountingStagingRepository {
         canonicalId,
         profileId,
         id);
-  }
-
-  public void promoted(String table, long id, long canonicalId) {
-    promoted(1L, table, id, canonicalId);
   }
 
   /**

@@ -49,7 +49,8 @@ class AccountingStagingAcquisitionServiceTest {
     var sources =
         mock(com.smartbox.investory.accounting.service.AccountingSourceEvidenceService.class);
     var bank = new AccountingBankStagingImportService(sources, service, "JDG_MAIN_ACCOUNT");
-    when(sources.receiveBank(any(), any(), any(), any())).thenReturn(7L);
+    when(sources.receiveBank(org.mockito.ArgumentMatchers.eq(1L), any(), any(), any(), any()))
+        .thenReturn(7L);
 
     bank.stageFile(
         1,

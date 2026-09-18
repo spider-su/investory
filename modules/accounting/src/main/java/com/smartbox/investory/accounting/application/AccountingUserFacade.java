@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -73,6 +74,18 @@ public class AccountingUserFacade implements AccountingUserApi {
   public List<AccountingUserApi.CounterpartyView> counterparties(long profileId) {
     profile(profileId);
     return repository.counterparties(profileId);
+  }
+
+  @Override
+  public List<AccountingUserApi.CounterpartyDocumentView> counterpartyDocuments(
+      long profileId, long counterpartyId) {
+    profile(profileId);
+    return repository.counterpartyDocuments(profileId, counterpartyId).stream()
+        .map(
+            row ->
+                new AccountingUserApi.CounterpartyDocumentView(
+                    YearMonth.from(row.taxPeriod()), document(row.document())))
+        .toList();
   }
 
   @Override
@@ -568,16 +581,13 @@ public class AccountingUserFacade implements AccountingUserApi {
   }
 
   @Override
+  @Transactional
   public CandidateView recognize(long p, String filename, String contentType, byte[] content) {
     profile(p);
-    if (p != 1L) {
-      throw new IllegalArgumentException(
-          "Document recognition is certified only for the primary Accounting profile.");
-    }
     long id = sources.receiveUpload(p, filename, contentType, content);
     try {
       if (sources.status(id) == AccountingSourceStatus.FAILED) sources.retry(id);
-      RecognizedInvoice r = recognition.recognize(filename, contentType, content);
+      RecognizedInvoice r = recognition.recognize(p, filename, contentType, content);
       if (r == null) {
         throw new IllegalStateException("Invoice recognition returned no result");
       }
@@ -612,7 +622,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   }
 
   private RecognizedInvoice enforceProfileDirection(long profileId, RecognizedInvoice invoice) {
-    String ownNip = facts.accountingProfile().nip();
+    String ownNip = facts.accountingProfile(profileId).nip();
     if (ownNip == null || ownNip.isBlank() || "CREDIT_NOTE".equals(invoice.documentType())) {
       return invoice;
     }
@@ -653,6 +663,7 @@ public class AccountingUserFacade implements AccountingUserApi {
             .orElseThrow(() -> new IllegalArgumentException("KSeF review source is not available"));
     var result =
         extraction.extract(
+            p,
             new AccountingSourceDocument(
                 source.originalFilename(), source.contentType(), source.payload()));
     var candidate = result.candidate();
@@ -679,6 +690,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   }
 
   @Override
+  @Transactional
   public void saveReviewed(long p, ReviewedDocument d) {
     profile(p);
     try {
@@ -784,7 +796,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public AccountingUserApi.KsefSyncResult syncKsef(long p, YearMonth m) {
     profile(p);
-    return ksef.map(adapter -> adapter.syncAll(java.time.YearMonth.now()))
+    return ksef.map(adapter -> adapter.syncAll(p, m))
         .orElseGet(
             () ->
                 new AccountingUserApi.KsefSyncResult(
@@ -794,7 +806,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public AccountingUserApi.KsefSyncResult reimportKsef(long p, YearMonth m) {
     profile(p);
-    return ksef.map(adapter -> adapter.reimport(m))
+    return ksef.map(adapter -> adapter.reimport(p, m))
         .orElseGet(
             () ->
                 new AccountingUserApi.KsefSyncResult(
@@ -804,7 +816,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public AccountingUserApi.KsefSyncResult syncKsefSeller(long p, YearMonth m) {
     profile(p);
-    return ksef.map(adapter -> adapter.syncSeller(m))
+    return ksef.map(adapter -> adapter.syncSeller(p, m))
         .orElseGet(
             () ->
                 new AccountingUserApi.KsefSyncResult(
@@ -814,7 +826,7 @@ public class AccountingUserFacade implements AccountingUserApi {
   @Override
   public AccountingUserApi.KsefSyncResult syncKsefThirdParty(long p, YearMonth m) {
     profile(p);
-    return ksef.map(adapter -> adapter.syncThirdParty(m))
+    return ksef.map(adapter -> adapter.syncThirdParty(p, m))
         .orElseGet(
             () ->
                 new AccountingUserApi.KsefSyncResult(

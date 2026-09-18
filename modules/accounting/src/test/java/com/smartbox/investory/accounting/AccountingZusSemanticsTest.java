@@ -52,11 +52,11 @@ class AccountingZusSemanticsTest {
     AccountingPocRepository repository = mock(AccountingPocRepository.class);
     CurrencyConversion fx = mock(CurrencyConversion.class);
 
-    when(repository.accountingProfile()).thenReturn(profile);
-    when(repository.invoicesForPeriod(JANUARY)).thenReturn(List.of());
-    when(repository.expensesForPeriod(JANUARY)).thenReturn(List.of());
-    when(repository.bankTransactionsForPeriod(JANUARY)).thenReturn(List.of());
-    when(repository.obligationsForPeriod(JANUARY))
+    when(repository.accountingProfile(1L)).thenReturn(profile);
+    when(repository.invoicesForPeriod(1L, JANUARY)).thenReturn(List.of());
+    when(repository.expensesForPeriod(1L, JANUARY)).thenReturn(List.of());
+    when(repository.bankTransactionsForPeriod(1L, JANUARY)).thenReturn(List.of());
+    when(repository.obligationsForPeriod(1L, JANUARY))
         .thenReturn(
             List.of(
                 new ObligationRow(
@@ -68,9 +68,9 @@ class AccountingZusSemanticsTest {
                     "MATCHED",
                     "Historical qualifying-UoP health-only golden.")));
     // ZUS must be calculated from the profile/rules. wFirma/ZUS evidence is comparison-only.
-    when(repository.taxInputsForPeriod(JANUARY)).thenReturn(List.of());
+    when(repository.taxInputsForPeriod(1L, JANUARY)).thenReturn(List.of());
 
-    return new AccountingFactService(factRepository, repository, fx).snapshot(JANUARY);
+    return new AccountingFactService(factRepository, repository, fx).snapshot(1L, JANUARY);
   }
 
   private ComparisonRow zusComparison(AccountingMonthSnapshot snapshot) {

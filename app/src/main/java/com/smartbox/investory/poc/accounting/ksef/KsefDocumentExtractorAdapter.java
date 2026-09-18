@@ -29,7 +29,7 @@ class KsefDocumentExtractorAdapter implements AccountingDocumentExtractor {
   }
 
   @Override
-  public ExtractionResult extract(AccountingSourceDocument source) {
+  public ExtractionResult extract(long profileId, AccountingSourceDocument source) {
     KsefInvoiceXmlParser.ParsedKsefInvoice value = parser.parse(source.content());
     var candidate =
         new AccountingDocumentCandidate(

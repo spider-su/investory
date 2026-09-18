@@ -273,22 +273,10 @@ public class AccountingPageController {
     model.addAttribute("profileId", profileId);
     model.addAttribute("counterparty", counterparty);
     var invoices =
-        client.months(profileId).stream()
-            .flatMap(
-                period -> {
-                  var month = period.month();
-                  var matchingDocuments =
-                      client.documents(profileId, month).stream()
-                          .filter(document -> belongsTo(document, counterparty))
-                          .toList();
-                  if (matchingDocuments.isEmpty()) return java.util.stream.Stream.empty();
-                  var issues = client.issues(profileId, month);
-                  var reconciliation = client.reconciliation(profileId, month);
-                  return matchingDocuments.stream()
-                      .map(
-                          document ->
-                              documentView(document, profileId, month, issues, reconciliation));
-                })
+        client.counterpartyDocuments(profileId, counterpartyId).stream()
+            .map(
+                item ->
+                    documentView(item.document(), profileId, item.month(), List.of(), List.of()))
             .toList();
     model.addAttribute("counterpartyInvoices", invoices);
     model.addAttribute("canWrite", canWrite(request));

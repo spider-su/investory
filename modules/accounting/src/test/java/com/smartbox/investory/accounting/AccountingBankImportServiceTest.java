@@ -31,7 +31,7 @@ class AccountingBankImportServiceTest {
 
   @Test
   void persistsBankSourceBeforeParsingAndMarksSuccessfulImport() {
-    when(sources.receiveBank("bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1)))
+    when(sources.receiveBank(1L, "bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1)))
         .thenReturn(7L);
     when(ingestion.ingest(
             any(ExternalBankTransaction.class), org.mockito.ArgumentMatchers.anyLong()))
@@ -39,10 +39,12 @@ class AccountingBankImportServiceTest {
             new AccountingBankTransactionIngestionService.Result(true, false, "CUSTOMER_RECEIPT"));
 
     AccountingBankImportService.Result result =
-        service.importFile("bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
+        service.importFile(1L, "bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
 
     InOrder order = inOrder(sources, ingestion);
-    order.verify(sources).receiveBank("bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
+    order
+        .verify(sources)
+        .receiveBank(1L, "bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
     order
         .verify(ingestion)
         .ingest(any(ExternalBankTransaction.class), org.mockito.ArgumentMatchers.anyLong());
@@ -58,12 +60,18 @@ class AccountingBankImportServiceTest {
 
   @Test
   void preservesBankSourceWhenParsingFails() {
-    when(sources.receiveBank(anyString(), anyString(), any(), any(LocalDate.class))).thenReturn(8L);
+    when(sources.receiveBank(
+            org.mockito.ArgumentMatchers.eq(1L),
+            anyString(),
+            anyString(),
+            any(),
+            any(LocalDate.class)))
+        .thenReturn(8L);
 
     assertThatThrownBy(
             () ->
                 service.importFile(
-                    "broken.csv", "text/csv", "bad".getBytes(), LocalDate.of(2026, 9, 1)))
+                    1L, "broken.csv", "text/csv", "bad".getBytes(), LocalDate.of(2026, 9, 1)))
         .isInstanceOf(IllegalArgumentException.class);
 
     verify(sources).status(eq(8L), eq(AccountingSourceStatus.FAILED), anyString());
@@ -71,12 +79,18 @@ class AccountingBankImportServiceTest {
 
   @Test
   void keepsAmbiguousRowsPersistedAndMarksSourceForReview() {
-    when(sources.receiveBank(anyString(), anyString(), any(), any(LocalDate.class))).thenReturn(9L);
+    when(sources.receiveBank(
+            org.mockito.ArgumentMatchers.eq(1L),
+            anyString(),
+            anyString(),
+            any(),
+            any(LocalDate.class)))
+        .thenReturn(9L);
     when(ingestion.ingest(
             any(ExternalBankTransaction.class), org.mockito.ArgumentMatchers.anyLong()))
         .thenReturn(new AccountingBankTransactionIngestionService.Result(true, true, "UNKNOWN"));
 
-    service.importFile("bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
+    service.importFile(1L, "bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
 
     verify(ingestion)
         .ingest(any(ExternalBankTransaction.class), org.mockito.ArgumentMatchers.anyLong());
@@ -89,12 +103,17 @@ class AccountingBankImportServiceTest {
 
   @Test
   void skipsAlreadyImportedBankSourceWithoutParsingAgain() {
-    when(sources.receiveBank(anyString(), anyString(), any(), any(LocalDate.class)))
+    when(sources.receiveBank(
+            org.mockito.ArgumentMatchers.eq(1L),
+            anyString(),
+            anyString(),
+            any(),
+            any(LocalDate.class)))
         .thenReturn(10L);
     when(sources.status(10L)).thenReturn(AccountingSourceStatus.IMPORTED);
 
     AccountingBankImportService.Result result =
-        service.importFile("bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
+        service.importFile(1L, "bank.csv", "text/csv", validFile, LocalDate.of(2026, 9, 1));
 
     org.assertj.core.api.Assertions.assertThat(result.processedRows()).isZero();
     org.mockito.Mockito.verifyNoInteractions(ingestion);

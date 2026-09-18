@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -19,10 +20,6 @@ public class AccountingFilingService {
   private final AccountingJpkGenerator jpkGenerator;
   private final AccountingDueDatePolicy dueDatePolicy;
   private final AccountingJpkXmlValidator jpkXmlValidator;
-
-  public FilingResult filing(LocalDate period) {
-    return filing(1L, period);
-  }
 
   public FilingResult filing(long profileId, LocalDate period) {
     AccountingMonthSnapshot snapshot = factService.snapshot(profileId, period);
@@ -138,10 +135,7 @@ public class AccountingFilingService {
                         + ")"));
   }
 
-  public void confirm(LocalDate period) {
-    confirm(1L, period);
-  }
-
+  @Transactional
   public void confirm(long profileId, LocalDate period) {
     FilingResult result = filing(profileId, period);
     if (!result.issues().isEmpty() && !result.onlyNotConfirmed()) {
@@ -160,10 +154,6 @@ public class AccountingFilingService {
     repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.CONFIRMED);
   }
 
-  public void reopen(LocalDate period, String reason) {
-    reopen(1L, period, reason);
-  }
-
   public void reopen(long profileId, LocalDate period, String reason) {
     var state = repository.periodState(profileId, period);
     var current = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();
@@ -172,10 +162,6 @@ public class AccountingFilingService {
   }
 
   /** Evidence-derived filing transition. */
-  public void markFiled(LocalDate period) {
-    markFiled(1L, period);
-  }
-
   public void markFiled(long profileId, LocalDate period) {
     FilingResult result = filing(profileId, period);
     if (!result.confirmed())
@@ -203,10 +189,6 @@ public class AccountingFilingService {
   }
 
   /** Evidence-derived payment transition. */
-  public void markPaid(LocalDate period) {
-    markPaid(1L, period);
-  }
-
   public void markPaid(long profileId, LocalDate period) {
     AccountingMonthSnapshot snapshot = factService.snapshot(profileId, period);
     for (var obligation : payableObligations(snapshot)) {
@@ -231,10 +213,7 @@ public class AccountingFilingService {
   /**
    * Evidence-derived settlement transition; authority evidence is required separately from cash.
    */
-  public void settle(LocalDate period) {
-    settle(1L, period);
-  }
-
+  @Transactional
   public void settle(long profileId, LocalDate period) {
     AccountingMonthSnapshot snapshot = factService.snapshot(profileId, period);
     markFiled(profileId, period);
@@ -265,19 +244,11 @@ public class AccountingFilingService {
             "ZUS", snapshot.zus().totalZus(), snapshot.period()));
   }
 
-  public void lock(LocalDate period) {
-    lock(1L, period);
-  }
-
   public void lock(long profileId, LocalDate period) {
     var state = repository.periodState(profileId, period);
     if (state == null || state.lifecycleStatus() != PeriodLifecycleStatus.SETTLED)
       throw new AccountingInvalidTransitionException("Only a settled period can be locked");
     repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.LOCKED);
-  }
-
-  public byte[] jpk(LocalDate period) {
-    return jpk(1L, period);
   }
 
   public byte[] jpk(long profileId, LocalDate period) {
@@ -305,10 +276,6 @@ public class AccountingFilingService {
   }
 
   /** Records imported/manual authority evidence; no government submission is performed. */
-  public void recordAuthorityConfirmation(AuthorityConfirmation confirmation) {
-    recordAuthorityConfirmation(1L, confirmation);
-  }
-
   public void recordAuthorityConfirmation(long profileId, AuthorityConfirmation confirmation) {
     String hash =
         confirmation.calculationHash() == null
@@ -328,10 +295,6 @@ public class AccountingFilingService {
             confirmation.note(),
             confirmation.amount(),
             hash));
-  }
-
-  public List<AccountingPaymentInstruction> paymentInstructions(LocalDate period) {
-    return paymentInstructions(1L, period);
   }
 
   public List<AccountingPaymentInstruction> paymentInstructions(long profileId, LocalDate period) {

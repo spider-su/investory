@@ -28,7 +28,7 @@ class AccountingInvoiceRecognitionServiceTest {
             null,
             null,
             "Direction needs review");
-    when(scanner.scan(any(DocumentInput.class)))
+    when(scanner.scan(org.mockito.ArgumentMatchers.eq(1L), any(DocumentInput.class)))
         .thenReturn(
             new DocumentScanResult(
                 candidate,
@@ -39,14 +39,14 @@ class AccountingInvoiceRecognitionServiceTest {
 
     assertThat(
             new AccountingInvoiceRecognitionService(scanner)
-                .recognize("invoice.pdf", "application/pdf", new byte[] {1}))
+                .recognize(1L, "invoice.pdf", "application/pdf", new byte[] {1}))
         .isSameAs(candidate);
   }
 
   @Test
   void reportsParserFailureInsteadOfDereferencingMissingInvoice() {
     LayeredDocumentScanner scanner = mock(LayeredDocumentScanner.class);
-    when(scanner.scan(any(DocumentInput.class)))
+    when(scanner.scan(org.mockito.ArgumentMatchers.eq(1L), any(DocumentInput.class)))
         .thenReturn(
             DocumentScanResult.incomplete(
                 ScannerType.PDF_DETERMINISTIC, ScanStatus.PARTIAL, "missing invoice fields"));
@@ -54,7 +54,7 @@ class AccountingInvoiceRecognitionServiceTest {
     assertThatThrownBy(
             () ->
                 new AccountingInvoiceRecognitionService(scanner)
-                    .recognize("invoice.pdf", "application/pdf", new byte[] {1}))
+                    .recognize(1L, "invoice.pdf", "application/pdf", new byte[] {1}))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Document could not be parsed (PARTIAL): missing invoice fields");
   }

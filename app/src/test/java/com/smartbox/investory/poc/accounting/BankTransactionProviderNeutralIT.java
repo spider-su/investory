@@ -90,8 +90,8 @@ class BankTransactionProviderNeutralIT {
     byte[] sameTransactionInSecondFile =
         (csv("FREEZE-UNKNOWN", "UNKNOWN CARD", "-12.34") + "\n").getBytes();
 
-    bankImport.importFile("freeze-first.csv", "text/csv", first, PERIOD);
-    bankImport.importFile("freeze-second.csv", "text/csv", sameTransactionInSecondFile, PERIOD);
+    bankImport.importFile(1L, "freeze-first.csv", "text/csv", first, PERIOD);
+    bankImport.importFile(1L, "freeze-second.csv", "text/csv", sameTransactionInSecondFile, PERIOD);
 
     var row =
         jdbcTemplate.queryForMap(
@@ -113,12 +113,13 @@ class BankTransactionProviderNeutralIT {
     BigDecimal totalZus = new BigDecimal("1495.04");
 
     bankImport.importFile(
+        1L,
         "freeze-zus.csv",
         "text/csv",
         csv("FREEZE-ZUS", "ZUS", totalZus.negate().toPlainString()).getBytes(),
         PERIOD);
 
-    var after = factService.snapshot(PERIOD);
+    var after = factService.snapshot(1L, PERIOD);
     assertThat(after.ryczalt().healthContributionPaid()).isPositive();
     assertThat(after.ryczalt().healthDeduction()).isEqualByComparingTo(new BigDecimal("100.00"));
   }

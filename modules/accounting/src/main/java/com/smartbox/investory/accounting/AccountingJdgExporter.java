@@ -22,11 +22,11 @@ public class AccountingJdgExporter {
 
   private final AccountingFactService factService;
 
-  public byte[] exportCsv() {
+  public byte[] exportCsv(long profileId) {
     StringBuilder csv = new StringBuilder(HEADER).append('\n');
-    List<LocalDate> periods = factService.availablePeriods();
+    List<LocalDate> periods = factService.availablePeriods(profileId);
     for (LocalDate period : periods) {
-      AccountingMonthSnapshot snapshot = factService.snapshot(period);
+      AccountingMonthSnapshot snapshot = factService.snapshot(profileId, period);
       csv.append(row(snapshot)).append('\n');
     }
     return csv.toString().getBytes(StandardCharsets.UTF_8);

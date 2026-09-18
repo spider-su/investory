@@ -20,9 +20,10 @@ class LegacyInvoiceExtractorAdapter implements AccountingDocumentExtractor {
   }
 
   @Override
-  public ExtractionResult extract(AccountingSourceDocument source) {
+  public ExtractionResult extract(long profileId, AccountingSourceDocument source) {
     DocumentScanResult result =
-        pdf.scan(new DocumentInput(source.name(), source.contentType(), source.content()));
+        pdf.scan(
+            profileId, new DocumentInput(source.name(), source.contentType(), source.content()));
     if (result.invoice() == null) {
       return new ExtractionResult(
           null, ExtractorType.PDF_LAYOUT, ExtractionOutcome.REVIEW_REQUIRED, result.warnings());

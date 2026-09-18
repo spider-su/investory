@@ -22,10 +22,10 @@ class LegacyImageAiExtractorAdapter implements AccountingDocumentExtractor {
   }
 
   @Override
-  public ExtractionResult extract(AccountingSourceDocument source) {
+  public ExtractionResult extract(long profileId, AccountingSourceDocument source) {
     DocumentInput input = new DocumentInput(source.name(), source.contentType(), source.content());
-    DocumentScanResult result = image.scan(input);
-    if (!result.isUsable()) result = ai.scan(input);
+    DocumentScanResult result = image.scan(profileId, input);
+    if (!result.isUsable()) result = ai.scan(profileId, input);
     if (result.invoice() == null) {
       return new ExtractionResult(
           null, ExtractorType.OCR, ExtractionOutcome.REVIEW_REQUIRED, result.warnings());

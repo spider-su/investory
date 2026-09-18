@@ -67,6 +67,11 @@ public final class InProcessAccountingClient implements AccountingRestClient {
   }
 
   @Override
+  public List<CounterpartyDocumentView> counterpartyDocuments(long p, long id) {
+    return user.counterpartyDocuments(p, id);
+  }
+
+  @Override
   public void updateCounterpartyAlias(long p, long id, String alias) {
     user.updateCounterpartyAlias(p, id, alias);
   }

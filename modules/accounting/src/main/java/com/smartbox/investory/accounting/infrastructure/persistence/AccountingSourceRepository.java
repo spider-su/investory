@@ -15,10 +15,6 @@ import org.springframework.stereotype.Repository;
 public class AccountingSourceRepository {
   private final JdbcTemplate jdbcTemplate;
 
-  public Optional<Long> findId(AccountingSourceType type, String externalReference) {
-    return findId(1L, type, externalReference);
-  }
-
   public Optional<Long> findId(
       long profileId, AccountingSourceType type, String externalReference) {
     return jdbcTemplate.query(
@@ -58,27 +54,6 @@ public class AccountingSourceRepository {
   }
 
   public long save(
-      AccountingSourceType type,
-      String externalReference,
-      String originalFilename,
-      String contentType,
-      Instant receivedAt,
-      LocalDate documentDate,
-      byte[] contentHash,
-      byte[] payload) {
-    return save(
-        1L,
-        type,
-        externalReference,
-        originalFilename,
-        contentType,
-        receivedAt,
-        documentDate,
-        contentHash,
-        payload);
-  }
-
-  public long save(
       long profileId,
       AccountingSourceType type,
       String externalReference,
@@ -106,10 +81,6 @@ public class AccountingSourceRepository {
         contentHash,
         payload);
     return findId(profileId, type, externalReference).orElseThrow();
-  }
-
-  public java.util.List<AccountingSourceEvidenceService.SourceOutcome> outcomes(LocalDate period) {
-    return outcomes(1L, period);
   }
 
   public java.util.List<AccountingSourceEvidenceService.SourceOutcome> outcomes(
@@ -141,11 +112,6 @@ public class AccountingSourceRepository {
         profileId,
         period,
         period);
-  }
-
-  public java.util.List<AccountingSourceEvidenceService.SourceOutcome> bankOutcomes(
-      LocalDate period) {
-    return bankOutcomes(1L, period);
   }
 
   public java.util.List<AccountingSourceEvidenceService.SourceOutcome> bankOutcomes(

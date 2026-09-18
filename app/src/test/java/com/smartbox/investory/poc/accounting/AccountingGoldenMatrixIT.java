@@ -71,7 +71,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
 
     expected.forEach(
         (month, monthExpected) -> {
-          AccountingMonthSnapshot snapshot = service.snapshot(LocalDate.parse(month + "-01"));
+          AccountingMonthSnapshot snapshot = service.snapshot(1L, LocalDate.parse(month + "-01"));
           assertThat(status(snapshot, "REVENUE"))
               .as(month + " revenue")
               .isEqualTo(monthExpected.revenue());
@@ -99,7 +99,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
 
     expectedInputVat.forEach(
         (month, expected) -> {
-          AccountingMonthSnapshot snapshot = service.snapshot(LocalDate.parse(month + "-01"));
+          AccountingMonthSnapshot snapshot = service.snapshot(1L, LocalDate.parse(month + "-01"));
           assertThat(snapshot.vat().deductibleInputVat())
               .as(month + " document-level deductible purchase VAT")
               .isEqualByComparingTo(expected);
@@ -108,7 +108,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
 
   @Test
   void appliesJpkIndependentWholeZlotyRoundingToMarchVat() {
-    AccountingMonthSnapshot march = service.snapshot(LocalDate.of(2026, 3, 1));
+    AccountingMonthSnapshot march = service.snapshot(1L, LocalDate.of(2026, 3, 1));
     ComparisonRow vat = comparison(march, "VAT");
 
     assertThat(march.vat().deductibleInputVat()).isEqualByComparingTo("238.38");
@@ -122,8 +122,10 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
   void calculatesSeptemberFromPersistedNormalizedFactsWithoutMonthGolden() {
     LocalDate september = LocalDate.of(2026, 9, 1);
     long sourceId =
-        sourceEvidence.receiveKsef("E2E-KSEF-SEPTEMBER", september.plusDays(10), "xml".getBytes());
+        sourceEvidence.receiveKsef(
+            1L, "E2E-KSEF-SEPTEMBER", september.plusDays(10), "xml".getBytes());
     ingestion.ingest(
+        1L,
         new AccountingInvoiceIngestionService.ReviewedInvoice(
             september,
             "SALES_INVOICE",
@@ -145,6 +147,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             "E2E-KSEF-SALE",
             new AccountingFilingEvidence(AccountingFilingEvidence.Type.KSEF, "E2E-KSEF-SALE")));
     ingestion.ingest(
+        1L,
         new AccountingInvoiceIngestionService.ReviewedInvoice(
             september,
             "PURCHASE_INVOICE",
@@ -181,8 +184,8 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         new BigDecimal("200.00"),
         "E2E_TEST");
 
-    assertThat(service.availablePeriods()).contains(september);
-    AccountingMonthSnapshot snapshot = service.snapshot(september);
+    assertThat(service.availablePeriods(1L)).contains(september);
+    AccountingMonthSnapshot snapshot = service.snapshot(1L, september);
     assertThat(snapshot.calculationMode()).isEqualTo(AccountingCalculationMode.CURRENT_CALCULATION);
     assertThat(snapshot.comparisons()).isEmpty();
     assertThat(snapshot.readiness())
@@ -196,8 +199,9 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     LocalDate september = LocalDate.of(2026, 9, 1);
     long sourceId =
         sourceEvidence.receiveKsef(
-            "E2E-FILING-SEPTEMBER", september.plusDays(10), "filing".getBytes());
+            1L, "E2E-FILING-SEPTEMBER", september.plusDays(10), "filing".getBytes());
     ingestion.ingest(
+        1L,
         new AccountingInvoiceIngestionService.ReviewedInvoice(
             september,
             "SALES_INVOICE",
@@ -220,6 +224,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             new AccountingFilingEvidence(
                 AccountingFilingEvidence.Type.KSEF, "M123456789-20260910-ABCDEF-123456-78")));
     ingestion.ingest(
+        1L,
         new AccountingInvoiceIngestionService.ReviewedInvoice(
             september,
             "PURCHASE_INVOICE",
@@ -272,16 +277,16 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         "PL00123456789012345678901234",
         "PL00123456789012345678901234");
 
-    filingService.confirm(september);
-    AccountingFilingService.FilingResult filing = filingService.filing(september);
+    filingService.confirm(1L, september);
+    AccountingFilingService.FilingResult filing = filingService.filing(1L, september);
 
     assertThat(filing.ready()).isTrue();
-    assertThat(new String(filingService.jpk(september)))
+    assertThat(new String(filingService.jpk(1L, september)))
         .contains("JPK_V7M (3)", "<P_51>207</P_51>");
     assertThat(filing.snapshot().zus().totalZus())
         .as("calculated ZUS for %s", september)
         .isPositive();
-    var instructions = filingService.paymentInstructions(september);
+    var instructions = filingService.paymentInstructions(1L, september);
     assertThat(instructions)
         .extracting(AccountingPaymentInstruction::obligationType)
         .containsExactly("VAT", "RYCZALT", "ZUS");
@@ -296,7 +301,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
           instruction.obligationType() + "_PAYMENT",
           "SETTLE-" + instruction.obligationType());
     }
-    var snapshot = service.snapshot(september);
+    var snapshot = service.snapshot(1L, september);
     var reconciliations =
         instructions.stream()
             .map(
@@ -312,6 +317,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     assertThat(reconciliations)
         .allMatch(row -> row.status() == AccountingObligationReconciliation.Status.SETTLED);
     filingService.recordAuthorityConfirmation(
+        1L,
         new AuthorityConfirmation(
             "TAX_OFFICE",
             "JPK_V7M",
@@ -323,6 +329,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             null,
             "Imported UPO"));
     filingService.recordAuthorityConfirmation(
+        1L,
         new AuthorityConfirmation(
             "TAX_OFFICE",
             "VAT",
@@ -339,6 +346,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
                 .orElseThrow()
                 .amount()));
     filingService.recordAuthorityConfirmation(
+        1L,
         new AuthorityConfirmation(
             "TAX_OFFICE",
             "RYCZALT",
@@ -355,6 +363,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
                 .orElseThrow()
                 .amount()));
     filingService.recordAuthorityConfirmation(
+        1L,
         new AuthorityConfirmation(
             "ZUS",
             "ZUS",
@@ -366,6 +375,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             null,
             "Imported DRA acceptance"));
     filingService.recordAuthorityConfirmation(
+        1L,
         new AuthorityConfirmation(
             "ZUS",
             "ZUS",
@@ -387,10 +397,10 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
                 Integer.class,
                 september))
         .isEqualTo(5);
-    filingService.markFiled(september);
-    filingService.markPaid(september);
-    filingService.settle(september);
-    filingService.lock(september);
+    filingService.markFiled(1L, september);
+    filingService.markPaid(1L, september);
+    filingService.settle(1L, september);
+    filingService.lock(1L, september);
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT lifecycle_status FROM investory.accounting_poc_period_state WHERE tax_period = ?",
@@ -434,8 +444,9 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
     LocalDate september = LocalDate.of(2026, 9, 1);
     long sourceId =
         sourceEvidence.receiveKsef(
-            "E2E-BANK-INVOICE", september.plusDays(10), "invoice".getBytes());
+            1L, "E2E-BANK-INVOICE", september.plusDays(10), "invoice".getBytes());
     ingestion.ingest(
+        1L,
         new AccountingInvoiceIngestionService.ReviewedInvoice(
             september,
             "SALES_INVOICE",
@@ -465,6 +476,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
         new BigDecimal("200.00"),
         "E2E_BANK_TEST");
     bankImport.importFile(
+        1L,
         "e2e-bank.csv",
         "text/csv",
         ("booking_date;related_period;reference;counterparty;currency;amount;note\n"
@@ -472,7 +484,7 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
             .getBytes(),
         september);
 
-    AccountingMonthSnapshot snapshot = service.snapshot(september);
+    AccountingMonthSnapshot snapshot = service.snapshot(1L, september);
     assertThat(snapshot.ryczalt().revenueBeforeDeductions()).isEqualByComparingTo("1000.00");
     assertThat(snapshot.reconciliations())
         .anySatisfy(

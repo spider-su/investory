@@ -1,4 +1,4 @@
--- Squashed DDL from V01.010 through V01.019. Statement text preserved.
+-- Squashed accounting DDL from V01.010 through V01.024. Statement text preserved.
 
 CREATE TABLE investory.accounting_poc_fact (
     id BIGSERIAL PRIMARY KEY,
@@ -1090,3 +1090,444 @@ CREATE TRIGGER trg_accounting_document_correction_profile
 BEFORE INSERT OR UPDATE OF profile_id, direction, document_kind, corrects_document_id
 ON investory.accounting_document
 FOR EACH ROW EXECUTE FUNCTION investory.validate_accounting_document_correction();
+
+
+-- Squashed DDL from V01.011 staging and reference tables.
+-- Temporary POC/test data injection squashed from V01.010 through V01.019.
+
+
+-- Squashed from app/src/main/resources/sql/migration/V01.027__accounting_staging_reconciliation.sql
+CREATE TABLE investory.accounting_tmp_invoice (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    source_id BIGINT NOT NULL REFERENCES investory.accounting_source_evidence(id),
+    source_type VARCHAR(16) NOT NULL,
+    source_reference VARCHAR(256),
+    source_hash BYTEA,
+    document_kind VARCHAR(16) NOT NULL,
+    document_date DATE,
+    reference VARCHAR(128) NOT NULL,
+    counterparty_name VARCHAR(256) NOT NULL,
+    counterparty_tax_identifier VARCHAR(64),
+    counterparty_country VARCHAR(2),
+    currency CHAR(3) NOT NULL,
+    net_amount NUMERIC(19,4) NOT NULL,
+    vat_amount NUMERIC(19,4) NOT NULL,
+    gross_amount NUMERIC(19,4) NOT NULL,
+    vat_deduction_ratio NUMERIC(3,2),
+    deductible_vat NUMERIC(19,4),
+    vat_treatment VARCHAR(48),
+    ksef_number VARCHAR(256),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    reconciliation_reason_codes VARCHAR(64)[] NOT NULL DEFAULT '{}',
+    reconciliation_message VARCHAR(1000),
+    promoted_at TIMESTAMPTZ,
+    canonical_id BIGINT,
+    canonical_type VARCHAR(32),
+    CONSTRAINT chk_accounting_tmp_invoice_status CHECK (reconciliation_status IN ('PENDING','MATCH','NEW','MISMATCH','AMBIGUOUS','PROMOTED')),
+    CONSTRAINT uq_accounting_tmp_invoice_source_reference UNIQUE (source_id, reference)
+);
+
+
+CREATE INDEX ix_accounting_tmp_invoice_period ON investory.accounting_tmp_invoice(profile_id, tax_period, reconciliation_status, id);
+
+
+CREATE TABLE investory.accounting_tmp_bank_transaction (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    source_id BIGINT NOT NULL REFERENCES investory.accounting_source_evidence(id),
+    source_type VARCHAR(16) NOT NULL,
+    source_reference VARCHAR(256),
+    source_hash BYTEA,
+    provider VARCHAR(64) NOT NULL,
+    external_account_id VARCHAR(256),
+    external_transaction_id VARCHAR(256),
+    booking_date DATE NOT NULL,
+    value_date DATE,
+    amount NUMERIC(19,4) NOT NULL,
+    currency CHAR(3) NOT NULL,
+    counterparty_name VARCHAR(256),
+    counterparty_account VARCHAR(256),
+    remittance_information VARCHAR(1000),
+    source_payload_hash VARCHAR(256),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    reconciliation_reason_codes VARCHAR(64)[] NOT NULL DEFAULT '{}',
+    reconciliation_message VARCHAR(1000),
+    promoted_at TIMESTAMPTZ,
+    canonical_id BIGINT,
+    CONSTRAINT chk_accounting_tmp_bank_status CHECK (reconciliation_status IN ('PENDING','MATCH','NEW','MISMATCH','AMBIGUOUS','PROMOTED')),
+    CONSTRAINT uq_accounting_tmp_bank_identity UNIQUE (source_id, external_transaction_id)
+);
+
+
+CREATE INDEX ix_accounting_tmp_bank_period ON investory.accounting_tmp_bank_transaction(profile_id, tax_period, reconciliation_status, id);
+
+
+CREATE TABLE investory.accounting_tmp_vat_transaction (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    source_id BIGINT NOT NULL REFERENCES investory.accounting_source_evidence(id),
+    direction VARCHAR(16) NOT NULL,
+    treatment VARCHAR(48) NOT NULL,
+    tax_date DATE NOT NULL,
+    counterparty_country VARCHAR(2),
+    counterparty_tax_identifier VARCHAR(64),
+    net_amount NUMERIC(19,4) NOT NULL,
+    vat_amount NUMERIC(19,4) NOT NULL,
+    deductible_vat NUMERIC(19,4) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    reconciliation_reason_codes VARCHAR(64)[] NOT NULL DEFAULT '{}',
+    reconciliation_message VARCHAR(1000),
+    promoted_at TIMESTAMPTZ,
+    canonical_id BIGINT,
+    CONSTRAINT chk_accounting_tmp_vat_status CHECK (reconciliation_status IN ('PENDING','MATCH','NEW','MISMATCH','AMBIGUOUS','PROMOTED'))
+);
+
+
+CREATE INDEX ix_accounting_tmp_vat_period ON investory.accounting_tmp_vat_transaction(profile_id, tax_period, reconciliation_status, id);
+-- Immutable Jan-Aug 2026 verification oracle. It is deliberately separate from
+-- operational Accounting tables and is never read by the calculation path.
+CREATE TABLE investory.accounting_reference_invoice (
+    id BIGINT PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    issue_date DATE,
+    sale_date DATE,
+    fx_rate_date DATE,
+    reference VARCHAR(128) NOT NULL,
+    counterparty_alias VARCHAR(128) NOT NULL,
+    invoice_kind VARCHAR(32) NOT NULL,
+    currency CHAR(3) NOT NULL,
+    net_amount NUMERIC(19,4) NOT NULL,
+    vat_amount NUMERIC(19,4) NOT NULL,
+    gross_amount NUMERIC(19,4) NOT NULL,
+    correction_net_amount NUMERIC(19,4) NOT NULL,
+    correction_vat_amount NUMERIC(19,4) NOT NULL,
+    correction_gross_amount NUMERIC(19,4) NOT NULL,
+    expected_receivable NUMERIC(19,4) NOT NULL,
+    booked_net_pln NUMERIC(19,4),
+    ryczalt_rate NUMERIC(7,4),
+    note VARCHAR(512),
+    source_id BIGINT,
+    counterparty_tax_identifier VARCHAR(32),
+    counterparty_country VARCHAR(2),
+    ksef_number VARCHAR(256),
+    filing_evidence VARCHAR(8),
+    UNIQUE (profile_id, reference)
+);
+
+
+CREATE TABLE investory.accounting_reference_expense_invoice (
+    id BIGINT PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    invoice_date DATE,
+    reference VARCHAR(128) NOT NULL,
+    supplier_alias VARCHAR(128) NOT NULL,
+    category VARCHAR(64) NOT NULL,
+    currency CHAR(3) NOT NULL,
+    net_amount NUMERIC(19,4) NOT NULL,
+    vat_amount NUMERIC(19,4) NOT NULL,
+    gross_amount NUMERIC(19,4) NOT NULL,
+    vat_deduction_ratio NUMERIC(3,2) NOT NULL,
+    source_quality VARCHAR(32) NOT NULL,
+    note VARCHAR(512),
+    source_id BIGINT,
+    counterparty_tax_identifier VARCHAR(32),
+    counterparty_country VARCHAR(2),
+    ksef_number VARCHAR(256),
+    filing_evidence VARCHAR(8),
+    UNIQUE (profile_id, reference)
+);
+
+
+CREATE TABLE investory.accounting_reference_bank_transaction (
+    id BIGINT PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    booking_date DATE NOT NULL,
+    related_period DATE,
+    reference VARCHAR(128),
+    counterparty_alias VARCHAR(128),
+    currency CHAR(3) NOT NULL,
+    amount NUMERIC(19,4) NOT NULL,
+    transaction_type VARCHAR(32) NOT NULL,
+    scope VARCHAR(32) NOT NULL,
+    note VARCHAR(512),
+    source_id BIGINT,
+    source_row_identity VARCHAR(256),
+    provider VARCHAR(32) NOT NULL,
+    external_account_id VARCHAR(256) NOT NULL,
+    external_transaction_id VARCHAR(256) NOT NULL,
+    source_payload_hash VARCHAR(128)
+);
+
+
+CREATE TABLE investory.accounting_reference_obligation (
+    id BIGINT PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    obligation_type VARCHAR(32) NOT NULL,
+    due_date DATE,
+    expected_amount NUMERIC(19,4) NOT NULL,
+    paid_amount NUMERIC(19,4),
+    payment_date DATE,
+    status VARCHAR(32) NOT NULL,
+    note VARCHAR(512)
+);
+
+
+CREATE TABLE investory.accounting_reference_tax_input (
+    id BIGINT PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    input_type VARCHAR(64) NOT NULL,
+    amount NUMERIC(19,4) NOT NULL,
+    note VARCHAR(512)
+);
+
+
+CREATE TABLE investory.accounting_reference_month (
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    revenue NUMERIC(19,4) NOT NULL,
+    expenses NUMERIC(19,4) NOT NULL,
+    output_vat NUMERIC(19,4) NOT NULL,
+    deductible_input_vat NUMERIC(19,4) NOT NULL,
+    vat_payable NUMERIC(19,4) NOT NULL,
+    ryczalt NUMERIC(19,4),
+    zus NUMERIC(19,4),
+    document_count INTEGER NOT NULL,
+    bank_count INTEGER NOT NULL,
+    filing_status VARCHAR(32),
+    PRIMARY KEY (profile_id, tax_period),
+    CONSTRAINT chk_accounting_reference_month_range
+        CHECK (tax_period >= DATE '2026-01-01' AND tax_period < DATE '2026-09-01')
+);
+
+
+COMMENT ON TABLE investory.accounting_reference_month IS
+    'Immutable Jan-Aug 2026 verification oracle. Never used as operational calculation input.';
+
+-- Branch oracle: a second, non-UoP taxpayer case. This is intentionally
+-- separate from accounting_poc_profile, whose singleton is the live POC
+-- profile. Each month carries both policy variants and the date edge cases.
+CREATE TABLE investory.accounting_reference_zus_branch (
+    case_key VARCHAR(32) NOT NULL,
+    tax_period DATE NOT NULL,
+    has_uop BOOLEAN NOT NULL,
+    voluntary_sickness BOOLEAN NOT NULL,
+    ytd_revenue NUMERIC(19,4) NOT NULL,
+    paid_social NUMERIC(19,4) NOT NULL,
+    expected_health_band VARCHAR(16) NOT NULL,
+    expected_social NUMERIC(19,4) NOT NULL,
+    expected_deductible_social NUMERIC(19,4) NOT NULL,
+    expected_health NUMERIC(19,4) NOT NULL,
+    correction_sale_date DATE NOT NULL,
+    correction_issue_date DATE NOT NULL,
+    expected_correction_period DATE NOT NULL,
+    foreign_document_date DATE NOT NULL,
+    expected_fx_rate_date DATE NOT NULL,
+    PRIMARY KEY (case_key, tax_period),
+    CONSTRAINT chk_accounting_reference_zus_branch_period
+        CHECK (tax_period >= DATE '2026-01-01' AND tax_period < DATE '2026-09-01'),
+    CONSTRAINT chk_accounting_reference_zus_branch_band
+        CHECK (expected_health_band IN ('LOW','MEDIUM','HIGH')),
+    CONSTRAINT chk_accounting_reference_zus_branch_dates
+        CHECK (expected_correction_period = DATE_TRUNC('month', correction_issue_date)::date)
+);
+
+COMMENT ON TABLE investory.accounting_reference_zus_branch IS
+    'Immutable monthly ZUS branch oracle, including the non-UoP social path. Never used by calculations.';
+-- A provider transaction is one operational staging row per profile, even when
+-- the same transaction is present in overlapping exports.
+CREATE UNIQUE INDEX uq_accounting_tmp_bank_profile_external_transaction
+    ON investory.accounting_tmp_bank_transaction
+       (profile_id, provider, external_account_id, external_transaction_id);
+ALTER TABLE investory.accounting_tmp_invoice
+    DROP CONSTRAINT IF EXISTS uq_accounting_tmp_invoice_source_reference;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_tmp_invoice_profile_source_reference
+    ON investory.accounting_tmp_invoice(profile_id, source_id, reference);
+
+ALTER TABLE investory.accounting_tmp_bank_transaction
+    DROP CONSTRAINT IF EXISTS uq_accounting_tmp_bank_identity;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_accounting_tmp_bank_profile_identity
+    ON investory.accounting_tmp_bank_transaction(profile_id, source_id, external_transaction_id);
+
+ALTER TABLE investory.accounting_tmp_invoice
+    ADD CONSTRAINT chk_accounting_tmp_invoice_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_tmp_bank_transaction
+    ADD CONSTRAINT chk_accounting_tmp_bank_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_tmp_vat_transaction
+    ADD CONSTRAINT chk_accounting_tmp_vat_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_invoice
+    ADD CONSTRAINT chk_accounting_reference_invoice_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_expense_invoice
+    ADD CONSTRAINT chk_accounting_reference_expense_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_bank_transaction
+    ADD CONSTRAINT chk_accounting_reference_bank_related_period_month_start
+    CHECK (related_period IS NULL OR EXTRACT(DAY FROM related_period) = 1);
+
+ALTER TABLE investory.accounting_reference_obligation
+    ADD CONSTRAINT chk_accounting_reference_obligation_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_tax_input
+    ADD CONSTRAINT chk_accounting_reference_tax_input_period_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_reference_month
+    ADD CONSTRAINT chk_accounting_reference_month_month_start
+    CHECK (EXTRACT(DAY FROM tax_period) = 1);
+
+ALTER TABLE investory.accounting_tmp_invoice
+    DROP CONSTRAINT IF EXISTS accounting_tmp_invoice_source_id_fkey;
+
+ALTER TABLE investory.accounting_tmp_invoice
+    ADD CONSTRAINT fk_accounting_tmp_invoice_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
+
+ALTER TABLE investory.accounting_tmp_bank_transaction
+    DROP CONSTRAINT IF EXISTS accounting_tmp_bank_transaction_source_id_fkey;
+
+ALTER TABLE investory.accounting_tmp_bank_transaction
+    ADD CONSTRAINT fk_accounting_tmp_bank_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
+
+ALTER TABLE investory.accounting_tmp_vat_transaction
+    DROP CONSTRAINT IF EXISTS accounting_tmp_vat_transaction_source_id_fkey;
+
+ALTER TABLE investory.accounting_tmp_vat_transaction
+    ADD CONSTRAINT fk_accounting_tmp_vat_profile_source
+    FOREIGN KEY (profile_id, source_id)
+    REFERENCES investory.accounting_source_evidence (profile_id, id);
+
+
+ALTER TABLE investory.accounting_tmp_invoice ALTER COLUMN profile_id DROP DEFAULT;
+
+ALTER TABLE investory.accounting_tmp_bank_transaction ALTER COLUMN profile_id DROP DEFAULT;
+
+ALTER TABLE investory.accounting_tmp_vat_transaction ALTER COLUMN profile_id DROP DEFAULT;
+
+-- Preserve the source bank row's obligation period separately from the month used
+-- to display and navigate the staging queue.
+ALTER TABLE investory.accounting_tmp_bank_transaction
+    ADD COLUMN IF NOT EXISTS related_period DATE;
+ALTER TABLE investory.accounting_tmp_invoice
+    ADD COLUMN IF NOT EXISTS due_date DATE;
+ALTER TABLE investory.accounting_tmp_invoice
+    ADD COLUMN vat_rate NUMERIC(5,2);
+
+
+
+
+
+-- Squashed DDL from V01.013__accounting_counterparty_auto_approval.sql.
+ALTER TABLE investory.accounting_poc_profile
+    ADD COLUMN auto_approve_known_counterparties BOOLEAN NOT NULL DEFAULT TRUE;
+
+CREATE TABLE investory.accounting_trusted_counterparty_treatment (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    counterparty_id BIGINT NOT NULL REFERENCES investory.accounting_known_counterparty(id),
+    source_document_id BIGINT NOT NULL REFERENCES investory.accounting_document(id),
+    direction VARCHAR(16) NOT NULL,
+    document_kind VARCHAR(32) NOT NULL,
+    category VARCHAR(64),
+    vat_treatment VARCHAR(40) NOT NULL,
+    vat_deduction_ratio NUMERIC(3,2),
+    vat_rate NUMERIC(5,2),
+    jpk_evidence VARCHAR(32),
+    confirmed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_accounting_trusted_treatment_source UNIQUE (profile_id, source_document_id),
+    CONSTRAINT chk_accounting_trusted_treatment_direction CHECK (direction IN ('SALE', 'PURCHASE')),
+    CONSTRAINT chk_accounting_trusted_treatment_kind CHECK (document_kind IN ('INVOICE', 'CREDIT_NOTE'))
+);
+
+CREATE INDEX ix_accounting_trusted_treatment_lookup
+    ON investory.accounting_trusted_counterparty_treatment(profile_id, counterparty_id, direction);
+
+
+-- Squashed DDL from V01.015__accounting_2025_reference_months.sql.
+-- Reconstruct the missing 2025 reference-month rows from the immutable
+-- obligation evidence and staged bank evidence, falling back to operational
+-- facts where a reference component is not available.
+
+ALTER TABLE investory.accounting_reference_month
+    DROP CONSTRAINT IF EXISTS chk_accounting_reference_month_range;
+
+ALTER TABLE investory.accounting_reference_month
+    ADD CONSTRAINT chk_accounting_reference_month_range
+    CHECK (tax_period >= DATE '2025-01-01' AND tax_period < DATE '2026-09-01');
+
+
+-- Squashed DDL from V01.017__accounting_counterparty_alias.sql.
+ALTER TABLE investory.accounting_known_counterparty
+    ADD COLUMN IF NOT EXISTS alias VARCHAR(128);
+
+COMMENT ON COLUMN investory.accounting_known_counterparty.alias IS
+    'Optional user-facing name; canonical_name remains the stable source identity.';
+
+
+-- Squashed DDL from V01.020__accounting_vat_adjustment_facts.sql.
+CREATE TABLE IF NOT EXISTS investory.accounting_vat_adjustment (
+    id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT NOT NULL REFERENCES investory.portfolios(id),
+    tax_period DATE NOT NULL,
+    adjustment_type TEXT NOT NULL,
+    amount NUMERIC(19, 2) NOT NULL,
+    source_system TEXT NOT NULL,
+    source_reference TEXT NOT NULL,
+    affects TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT chk_accounting_vat_adjustment_period_month_start
+        CHECK (tax_period = date_trunc('month', tax_period)::date),
+    CONSTRAINT chk_accounting_vat_adjustment_affects
+        CHECK (affects IN ('OUTPUT_VAT', 'INPUT_VAT', 'PAYABLE_VAT')),
+    CONSTRAINT uq_accounting_vat_adjustment_source
+        UNIQUE (profile_id, tax_period, adjustment_type, source_system, source_reference)
+);
+
+COMMENT ON TABLE investory.accounting_vat_adjustment IS
+    'Traceable historical VAT adjustment facts; amounts are signed and added to VAT payable.';
+
+
+-- Squashed DDL from V01.021__accounting_auto_approval_policy.sql.
+CREATE TABLE investory.accounting_auto_approval_policy (
+    profile_id BIGINT PRIMARY KEY REFERENCES investory.portfolios(id) ON DELETE CASCADE,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    max_amount NUMERIC(19, 2) NOT NULL DEFAULT 0,
+    trusted_categories TEXT[] NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_accounting_auto_approval_max_amount_non_negative CHECK (max_amount >= 0)
+);
+
+COMMENT ON TABLE investory.accounting_auto_approval_policy IS
+    'Profile-scoped editor settings for future backend auto-approval decisions; settings alone do not approve documents.';
+
+
+-- Squashed DDL from V01.024__accounting_staging_document_semantics.sql.
+-- Staging must retain every reviewed fact required for safe canonical promotion.
+ALTER TABLE investory.accounting_tmp_invoice
+    ADD COLUMN category VARCHAR(64),
+    ADD COLUMN source_quality VARCHAR(32),
+    ADD COLUMN corrects_document_reference VARCHAR(128);

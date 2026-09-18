@@ -37,7 +37,7 @@ class AccountingJdgExporterIT extends AccountingDatabaseTest {
 
   @Test
   void exportsExistingJdgDatasetAsMonthlyCsv() {
-    String csv = new String(exporter.exportCsv());
+    String csv = new String(exporter.exportCsv(1L));
     List<String> rows = Arrays.asList(csv.strip().split("\\R"));
 
     assertThat(rows).hasSize(19);

@@ -9,6 +9,7 @@ import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AccountingBankImportService {
@@ -33,8 +34,10 @@ public class AccountingBankImportService {
     this.externalAccountId = Objects.requireNonNull(externalAccountId);
   }
 
-  public Result importFile(String filename, String contentType, byte[] payload, LocalDate period) {
-    long sourceId = sourceEvidence.receiveBank(filename, contentType, payload, period);
+  @Transactional
+  public Result importFile(
+      long profileId, String filename, String contentType, byte[] payload, LocalDate period) {
+    long sourceId = sourceEvidence.receiveBank(profileId, filename, contentType, payload, period);
     if (sourceEvidence.status(sourceId) == AccountingSourceStatus.IMPORTED) {
       return new Result(sourceId, 0, 0, 0);
     }
