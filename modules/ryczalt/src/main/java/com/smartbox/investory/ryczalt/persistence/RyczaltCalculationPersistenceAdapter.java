@@ -22,32 +22,17 @@ public class RyczaltCalculationPersistenceAdapter {
       String inputFingerprint,
       String ruleVersion,
       String calculatorVersion) {
-    RyczaltCalculationEntity previous =
-        calculations
-            .findByProfileIdAndPeriodIdAndTypeAndCurrentTrue(profileId, period.id(), type)
-            .orElse(null);
-    if (previous != null) {
-      previous.markStale();
-      calculations.save(previous);
-    }
-    int revision =
-        calculations
-            .findTopByProfileIdAndPeriodIdAndTypeOrderByRevisionDesc(profileId, period.id(), type)
-            .map(existing -> existing.getRevision() + 1)
-            .orElse(1);
     RyczaltCalculationEntity entity =
         new RyczaltCalculationEntity(
             period,
             profileId,
             type,
-            CalculationStatus.CALCULATED,
+            CalculationStatus.CURRENT,
             resultJson,
             inputFingerprint,
             ruleVersion,
             calculatorVersion,
-            Instant.now(),
-            revision,
-            true);
+            Instant.now());
     return calculations.save(entity);
   }
 }

@@ -2,7 +2,6 @@ package com.smartbox.investory.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.ryczalt.checker.PaymentMatchType;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.migration.RyczaltMigrationReport;
 import com.smartbox.investory.ryczalt.migration.RyczaltMigrationService;
@@ -12,14 +11,11 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltFxRateEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltFxRateJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository;
-import com.smartbox.investory.ryczalt.persistence.RyczaltPaymentMatchEntity;
-import com.smartbox.investory.ryczalt.persistence.RyczaltPaymentMatchJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPersistenceAdapter;
 import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionJpaRepository;
-import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -58,7 +54,6 @@ class RyczaltPersistenceMigrationIT {
   @Autowired private RyczaltCalculationJpaRepository calculations;
   @Autowired private RyczaltCalculationPersistenceAdapter calculationAdapter;
   @Autowired private RyczaltFxRateJpaRepository fxRates;
-  @Autowired private RyczaltPaymentMatchJpaRepository paymentMatches;
   @Autowired private DataSource dataSource;
 
   @BeforeAll
@@ -76,10 +71,10 @@ class RyczaltPersistenceMigrationIT {
     try (Connection connection = dataSource.getConnection();
         var statement = connection.createStatement()) {
       statement.execute(
-          "TRUNCATE investory.ryczalt_payment_match, investory.ryczalt_source_reference,"
-              + " investory.ryczalt_obligation, investory.ryczalt_transaction,"
-              + " investory.ryczalt_invoice, investory.ryczalt_calculation,"
-              + " investory.ryczalt_period RESTART IDENTITY CASCADE");
+          "TRUNCATE investory.ryczalt_source_reference, investory.ryczalt_obligation,"
+              + " investory.ryczalt_transaction, investory.ryczalt_invoice,"
+              + " investory.ryczalt_calculation, investory.ryczalt_period RESTART IDENTITY"
+              + " CASCADE");
       statement.execute("DELETE FROM investory.accounting_poc_invoice WHERE profile_id=1");
       statement.execute("DELETE FROM investory.accounting_poc_expense_invoice WHERE profile_id=1");
       statement.execute("DELETE FROM investory.accounting_poc_bank_transaction WHERE profile_id=1");
@@ -152,7 +147,7 @@ class RyczaltPersistenceMigrationIT {
         "RyczaltCalculator-1");
     fxRates.save(
         new RyczaltFxRateEntity(
-            CurrencyType.EUR,
+            "EUR",
             LocalDate.of(2026, 2, 1),
             new BigDecimal("4.20"),
             "FIXTURE",
@@ -161,22 +156,8 @@ class RyczaltPersistenceMigrationIT {
     assertThat(calculations.count()).isEqualTo(1);
     assertThat(
             fxRates.findByProviderAndCurrencyAndEffectiveDate(
-                "FIXTURE", CurrencyType.EUR, LocalDate.of(2026, 2, 1)))
+                "FIXTURE", "EUR", LocalDate.of(2026, 2, 1)))
         .isPresent();
-
-    var storedObligation = obligations.findAll().getFirst();
-    var storedTransaction = transactions.findAll().getFirst();
-    paymentMatches.save(
-        new RyczaltPaymentMatchEntity(
-            1,
-            storedObligation,
-            storedTransaction,
-            new BigDecimal("498.35"),
-            PaymentMatchType.MANUAL,
-            Instant.now()));
-    assertThat(paymentMatches.findByProfileIdAndObligationId(1, storedObligation.id()))
-        .singleElement()
-        .satisfies(match -> assertThat(match.getMatchedAmount()).isEqualByComparingTo("498.35"));
   }
 
   @Configuration(proxyBeanMethods = false)
@@ -190,8 +171,7 @@ class RyczaltPersistenceMigrationIT {
         RyczaltObligationJpaRepository.class,
         RyczaltSourceReferenceJpaRepository.class,
         RyczaltCalculationJpaRepository.class,
-        RyczaltFxRateJpaRepository.class,
-        RyczaltPaymentMatchJpaRepository.class
+        RyczaltFxRateJpaRepository.class
       })
   @Import({
     RyczaltMigrationService.class,

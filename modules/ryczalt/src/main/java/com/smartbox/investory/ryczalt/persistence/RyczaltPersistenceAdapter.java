@@ -5,7 +5,6 @@ import com.smartbox.investory.ryczalt.domain.Bucket;
 import com.smartbox.investory.ryczalt.domain.Invoice;
 import com.smartbox.investory.ryczalt.domain.Obligation;
 import com.smartbox.investory.ryczalt.domain.Transaction;
-import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.transaction.Transactional;
 import java.time.YearMonth;
 import java.util.List;
@@ -80,10 +79,6 @@ public class RyczaltPersistenceAdapter {
                         period.period().getYear(),
                         period.period().getMonthValue(),
                         period.status()));
-    if (stored.getStatus() == com.smartbox.investory.ryczalt.domain.PeriodStatus.FROZEN) {
-      throw new FrozenPeriodMutationException(
-          profileId, period.period().getYear(), period.period().getMonthValue());
-    }
     stored.setStatus(period.status());
     stored = periods.save(stored);
     final RyczaltPeriodEntity persistedPeriod = stored;
@@ -122,7 +117,7 @@ public class RyczaltPersistenceAdapter {
             invoice.netAmount(),
             invoice.vatAmount(),
             invoice.grossAmount(),
-            CurrencyType.valueOf(invoice.currency().getCurrencyCode()),
+            invoice.currency().getCurrencyCode(),
             invoice.bookedNetPln(),
             invoice.ryczaltRate(),
             invoice.deductibleVat()));
@@ -136,7 +131,7 @@ public class RyczaltPersistenceAdapter {
             profileId,
             transaction.date(),
             transaction.amount(),
-            CurrencyType.valueOf(transaction.currency().getCurrencyCode()),
+            transaction.currency().getCurrencyCode(),
             transaction.reference(),
             transaction.counterparty(),
             transaction.description()));
@@ -149,7 +144,7 @@ public class RyczaltPersistenceAdapter {
             profileId,
             obligation.type(),
             obligation.amount(),
-            CurrencyType.valueOf(obligation.currency().getCurrencyCode()),
+            obligation.currency().getCurrencyCode(),
             obligation.dueDate(),
             obligation.status(),
             null));

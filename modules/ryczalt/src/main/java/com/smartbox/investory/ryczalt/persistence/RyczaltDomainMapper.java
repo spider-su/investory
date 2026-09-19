@@ -16,7 +16,7 @@ final class RyczaltDomainMapper {
         entity.getNetAmount(),
         entity.getVatAmount(),
         entity.getGrossAmount(),
-        Currency.getInstance(entity.getCurrency().name()),
+        Currency.getInstance(entity.getCurrency()),
         entity.getBookedNetPln(),
         entity.getRyczaltRate(),
         entity.getDeductibleVat());
@@ -27,7 +27,7 @@ final class RyczaltDomainMapper {
         entity.getReference() == null ? "" : entity.getReference(),
         entity.getBookingDate(),
         entity.getAmount(),
-        Currency.getInstance(entity.getCurrency().name()),
+        Currency.getInstance(entity.getCurrency()),
         entity.getCounterparty(),
         entity.getDescription());
   }
@@ -36,7 +36,7 @@ final class RyczaltDomainMapper {
     return new Obligation(
         entity.getType(),
         entity.getAmount(),
-        Currency.getInstance(entity.getCurrency().name()),
+        Currency.getInstance(entity.getCurrency()),
         entity.getDueDate(),
         entity.getStatus());
   }

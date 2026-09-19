@@ -1,8 +1,6 @@
 package com.smartbox.investory.ryczalt.persistence;
 
-import com.smartbox.investory.ryczalt.domain.ObligationDueDateCalculator;
 import com.smartbox.investory.ryczalt.domain.ObligationStatus;
-import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,12 +8,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.YearMonth;
 
 @Entity
 @Table(name = "ryczalt_obligation", schema = "investory")
@@ -34,9 +29,8 @@ public class RyczaltObligationEntity extends RyczaltEntity {
   @Column(nullable = false, precision = 19, scale = 4)
   private BigDecimal amount;
 
-  @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 3)
-  private CurrencyType currency;
+  private String currency;
 
   @Column(name = "due_date")
   private LocalDate dueDate;
@@ -55,7 +49,7 @@ public class RyczaltObligationEntity extends RyczaltEntity {
       long profileId,
       com.smartbox.investory.ryczalt.domain.ObligationType type,
       BigDecimal amount,
-      CurrencyType currency,
+      String currency,
       LocalDate dueDate,
       ObligationStatus status,
       Long calculationId) {
@@ -64,7 +58,7 @@ public class RyczaltObligationEntity extends RyczaltEntity {
     this.type = type;
     this.amount = amount;
     this.currency = currency;
-    this.dueDate = dueDate != null ? dueDate : calculateDueDate();
+    this.dueDate = dueDate;
     this.status = status;
     this.calculationId = calculationId;
   }
@@ -85,27 +79,12 @@ public class RyczaltObligationEntity extends RyczaltEntity {
     return amount;
   }
 
-  public CurrencyType getCurrency() {
+  public String getCurrency() {
     return currency;
   }
 
   public LocalDate getDueDate() {
-    return dueDate != null ? dueDate : calculateDueDate();
-  }
-
-  @PrePersist
-  @PreUpdate
-  void ensureDueDate() {
-    if (dueDate == null) {
-      dueDate = calculateDueDate();
-    }
-  }
-
-  private LocalDate calculateDueDate() {
-    return period == null
-        ? null
-        : ObligationDueDateCalculator.calculate(
-            YearMonth.of(period.getYear(), period.getMonth()), type);
+    return dueDate;
   }
 
   public ObligationStatus getStatus() {
@@ -114,13 +93,5 @@ public class RyczaltObligationEntity extends RyczaltEntity {
 
   public Long getCalculationId() {
     return calculationId;
-  }
-
-  public Long id() {
-    return getId();
-  }
-
-  public void setStatus(ObligationStatus status) {
-    this.status = status;
   }
 }

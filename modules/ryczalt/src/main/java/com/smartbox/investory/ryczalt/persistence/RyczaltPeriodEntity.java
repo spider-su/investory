@@ -30,12 +30,6 @@ public class RyczaltPeriodEntity extends RyczaltEntity {
   @Column(name = "frozen_at")
   private Instant frozenAt;
 
-  @Column(name = "reopened_at")
-  private Instant reopenedAt;
-
-  @Column(name = "reopen_reason", length = 1000)
-  private String reopenReason;
-
   protected RyczaltPeriodEntity() {}
 
   public RyczaltPeriodEntity(long profileId, int year, int month, PeriodStatus status) {
@@ -65,32 +59,12 @@ public class RyczaltPeriodEntity extends RyczaltEntity {
     this.status = status;
   }
 
-  public void markReopened(String reason, Instant at) {
-    this.status = PeriodStatus.DIRTY;
-    this.frozenAt = null;
-    this.reopenedAt = at;
-    this.reopenReason = reason;
-  }
-
-  public void markFrozen(Instant at) {
-    this.status = PeriodStatus.FROZEN;
-    this.frozenAt = at;
-  }
-
   public Instant getCalculatedAt() {
     return calculatedAt;
   }
 
   public Instant getFrozenAt() {
     return frozenAt;
-  }
-
-  public Instant getReopenedAt() {
-    return reopenedAt;
-  }
-
-  public String getReopenReason() {
-    return reopenReason;
   }
 
   public Long id() {
