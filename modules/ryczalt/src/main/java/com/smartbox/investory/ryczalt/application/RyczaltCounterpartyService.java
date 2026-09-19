@@ -11,36 +11,24 @@ import org.springframework.transaction.annotation.Transactional;
 public class RyczaltCounterpartyService {
   private final RyczaltCounterpartyJpaRepository counterparties;
   private final RyczaltCounterpartyRuleJpaRepository rules;
-  private final RyczaltInvoiceJpaRepository invoices;
   private final CounterpartyRuleMatcher matcher = new CounterpartyRuleMatcher();
 
   public RyczaltCounterpartyService(
-      RyczaltCounterpartyJpaRepository counterparties,
-      RyczaltCounterpartyRuleJpaRepository rules,
-      RyczaltInvoiceJpaRepository invoices) {
+      RyczaltCounterpartyJpaRepository counterparties, RyczaltCounterpartyRuleJpaRepository rules) {
     this.counterparties = counterparties;
     this.rules = rules;
-    this.invoices = invoices;
   }
 
   @Transactional(readOnly = true)
   public List<Counterparty> list(long profileId) {
-    return counterparties.findSummaries(profileId);
+    return counterparties.findByProfileIdOrderByLegalName(profileId).stream()
+        .map(this::counterparty)
+        .toList();
   }
 
   @Transactional(readOnly = true)
   public Counterparty get(long profileId, long id) {
-    var row = entity(profileId, id);
-    return new Counterparty(
-        id,
-        profileId,
-        row.getTaxIdentifier(),
-        row.getCountry(),
-        row.getLegalName(),
-        row.getAlias(),
-        row.getBankAccount(),
-        rules.countByProfileIdAndCounterpartyId(profileId, id),
-        invoices.countByProfileIdAndCounterparty_Id(profileId, id));
+    return counterparty(entity(profileId, id));
   }
 
   @Transactional
@@ -73,7 +61,7 @@ public class RyczaltCounterpartyService {
     var row =
         rules
             .findByIdAndProfileIdAndCounterpartyId(ruleId, profileId, counterpartyId)
-            .orElseThrow(() -> new RyczaltCounterpartyRuleNotFoundException(profileId, ruleId));
+            .orElseThrow(() -> new IllegalArgumentException("Counterparty rule not found"));
     row.update(
         c.name(),
         c.sourceType(),
@@ -93,7 +81,7 @@ public class RyczaltCounterpartyService {
     rules.delete(
         rules
             .findByIdAndProfileIdAndCounterpartyId(ruleId, profileId, counterpartyId)
-            .orElseThrow(() -> new RyczaltCounterpartyRuleNotFoundException(profileId, ruleId)));
+            .orElseThrow(() -> new IllegalArgumentException("Counterparty rule not found")));
   }
 
   @Transactional(readOnly = true)
@@ -101,32 +89,10 @@ public class RyczaltCounterpartyService {
     return matcher.match(candidate, rules(profileId, candidate.counterpartyId()));
   }
 
-  /** Resolve only a strong identity. Names and aliases never merge counterparties. */
-  @Transactional
-  public RyczaltCounterpartyEntity resolveByTaxId(
-      long profileId, String taxIdentifier, String country, String legalName) {
-    if (taxIdentifier == null || taxIdentifier.isBlank()) return null;
-    String normalizedTax = taxIdentifier.trim();
-    String normalizedCountry =
-        country == null || country.isBlank() ? "PL" : country.trim().toUpperCase();
-    return counterparties
-        .findByProfileIdAndTaxIdentifierAndCountry(profileId, normalizedTax, normalizedCountry)
-        .orElseGet(
-            () ->
-                counterparties.save(
-                    new RyczaltCounterpartyEntity(
-                        profileId,
-                        normalizedTax,
-                        normalizedCountry,
-                        legalName == null || legalName.isBlank()
-                            ? normalizedTax
-                            : legalName.trim())));
-  }
-
   private RyczaltCounterpartyEntity entity(long p, long id) {
     return counterparties
         .findByIdAndProfileId(id, p)
-        .orElseThrow(() -> new RyczaltCounterpartyNotFoundException(p, id));
+        .orElseThrow(() -> new IllegalArgumentException("Counterparty not found"));
   }
 
   private Counterparty counterparty(RyczaltCounterpartyEntity e) {
@@ -136,10 +102,7 @@ public class RyczaltCounterpartyService {
         e.getTaxIdentifier(),
         e.getCountry(),
         e.getLegalName(),
-        e.getAlias(),
-        e.getBankAccount(),
-        0,
-        0);
+        e.getAlias());
   }
 
   private CounterpartyRule rule(RyczaltCounterpartyRuleEntity e) {

@@ -102,8 +102,8 @@ public class RyczaltCounterpartyRestController {
       String serviceKey,
       String classification,
       String vatTreatment,
-      String vatDeductionRatio,
-      String ryczaltRate,
+      BigDecimal vatDeductionRatio,
+      BigDecimal ryczaltRate,
       boolean autoApprove,
       PaymentVerificationPolicy paymentVerificationPolicy) {
     RuleCommand command() {
@@ -114,19 +114,10 @@ public class RyczaltCounterpartyRestController {
           serviceKey,
           classification,
           vatTreatment,
-          decimal(vatDeductionRatio),
-          decimal(ryczaltRate),
+          vatDeductionRatio,
+          ryczaltRate,
           autoApprove,
           paymentVerificationPolicy);
-    }
-
-    private static BigDecimal decimal(String value) {
-      if (value == null || value.isBlank()) return null;
-      try {
-        return new BigDecimal(value.trim());
-      } catch (NumberFormatException exception) {
-        throw new IllegalArgumentException("Invalid decimal value: " + value, exception);
-      }
     }
   }
 }

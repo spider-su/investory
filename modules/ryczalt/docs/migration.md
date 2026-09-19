@@ -18,6 +18,23 @@ Stage 3 uses `RyczaltMigrationService` for a controlled, one-way import. It read
 while the import is explicitly run; `RyczaltPersistenceAdapter` never reads them. The old
 `accounting` module remains independently available for comparison.
 
+The authoritative historical calculation source is
+`accounting_calculation_snapshot.payload`, not `accounting_poc_obligation` or a newly executed
+calculator. `ryczalt_calculation` receives the `ryczalt`, `vat`, and `zus` snapshot sections with
+`input_fingerprint` equal to `calculation_hash`; `ryczalt_obligation` receives the persisted
+`calculatedTax`, `calculatedVat`, and `totalZus` values and points to the corresponding native
+calculation. Snapshot provenance is recorded as `ACCOUNTING_CALCULATION_SNAPSHOT`. Tax-input rows
+remain calculation inputs and never become obligations. Payment matches, FX rates, corrections, and
+audit events are intentionally not fabricated during migration.
+
+The strict `AccountingToRyczaltMigrationReconciliationIT` Testcontainers test derives expected
+cardinalities from the source rows, performs source-to-native and native-to-source anti-joins, and
+compares persisted monetary values with numeric equality. Run it with:
+
+```text
+./mvnw -pl app -am -Dit.test=AccountingToRyczaltMigrationReconciliationIT verify
+```
+
 Stage 2 deliberately owns normalized calculator inputs rather than importing accounting DTOs or
 fixtures. The test fixture `HappyInvestorStage2Fixture` is adapted from the existing
 `HappyInvestorAccounting2026Facts` JSON and Jan-Aug reference rows; its provenance is recorded in
@@ -48,13 +65,14 @@ or before the policy-selected prior business day, calls NBP only when no fact ex
 effective date/rate/provider reference using `BigDecimal`, and never overwrites an existing fact.
 No calculator calls NBP.
 
-The Stage 7 bridge owns `RyczaltUserApi` and routes existing legacy controllers to it. The stable
-native accounting resources are exposed separately by `RyczaltAccountingRestController` and use
-native query/lifecycle services only. The temporary
-`LegacyAccountingUserApiAdapter` delegates unsupported document, bank, filing, KSeF, and reference
-operations through the legacy public `AccountingUserApi`. Native settlement/lifecycle behavior is used
-when a Ryczalt period exists; historical periods continue to use legacy behavior. This dependency is
-explicit in the Ryczalt Maven module and is the first removal target after native endpoint parity.
+The Stage 7 application boundary is split cleanly. `RyczaltAccountingApi` and
+`RyczaltAccountingFacade` own native query and lifecycle operations in the Ryczalt module.
+`RyczaltAccountingRestController` calls that API only. The app module's
+`LegacyAccountingApiBridge` keeps old routes working: native-supported reads and lifecycle commands
+use Ryczalt when a native period exists, while filings, reconciliation, counterparties, ingestion,
+KSeF, and other unsupported operations use the qualified legacy `AccountingUserApi`.
+`modules/ryczalt` no longer depends on `modules/accounting`; historical periods continue through the
+app compatibility bridge until their consumers migrate.
 
 The current endpoint and dependency inventory is maintained in
 `modules/ryczalt/docs/cutover-audit.md`. It distinguishes migration-only legacy table reads from

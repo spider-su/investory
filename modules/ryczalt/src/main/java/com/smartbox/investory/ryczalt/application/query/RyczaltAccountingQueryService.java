@@ -63,6 +63,11 @@ public class RyczaltAccountingQueryService {
   }
 
   @Transactional(readOnly = true)
+  public boolean hasPeriod(long profileId, YearMonth month) {
+    return listPeriods(profileId).stream().anyMatch(period -> period.month().equals(month));
+  }
+
+  @Transactional(readOnly = true)
   public RyczaltPeriodReadModel getPeriod(long profileId, YearMonth month) {
     Loaded loaded = load(profileId, month);
     List<RyczaltInvoiceEntity> invoiceRows = invoices(loaded.period);
@@ -74,45 +79,65 @@ public class RyczaltAccountingQueryService {
         obligationRows.stream()
             .map(RyczaltObligationEntity::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal paid =
-        obligationModels.stream()
-            .map(RyczaltObligationReadModel::paidAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal outstanding =
         obligationModels.stream()
             .map(RyczaltObligationReadModel::outstandingAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    int paidCount = (int) obligationModels.stream().filter(this::paid).count();
     boolean calculationsCurrent = calculationsCurrent(loaded.calculations);
-    boolean complete = calculationsCurrent && issues.isEmpty();
+    long blockingIssues =
+        issues.stream().filter(issue -> issue.kind() == IssueKind.BLOCKED).count();
+    boolean complete = calculationsCurrent && blockingIssues == 0;
+    BigDecimal totalPaid =
+        obligationModels.stream()
+            .map(RyczaltObligationReadModel::paidAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    int paidCount = (int) obligationModels.stream().filter(this::paid).count();
     return new RyczaltPeriodReadModel(
         month,
         loaded.period.getStatus(),
         calculationStates(loaded.calculations, obligationRows),
-        invoiceRows.stream()
-            .filter(invoice -> invoice.getDirection().name().equals("INCOME"))
-            .map(
-                invoice ->
-                    invoice.getBookedNetPln() == null
-                        ? invoice.getNetAmount()
-                        : invoice.getBookedNetPln())
-            .reduce(BigDecimal.ZERO, BigDecimal::add),
-        amountFor(obligationRows, ObligationType.RYCZALT),
-        amountFor(obligationRows, ObligationType.VAT),
-        amountFor(obligationRows, ObligationType.ZUS),
-        totalObligations,
-        invoiceRows.size(),
-        transactionRows.size(),
-        new RyczaltPeriodReadModel.ObligationTotals(
-            obligationRows.size(), paidCount, paid, outstanding),
+        new RyczaltPeriodReadModel.Summary(
+            invoiceRows.stream()
+                .filter(invoice -> invoice.getDirection().name().equals("INCOME"))
+                .map(
+                    invoice ->
+                        invoice.getBookedNetPln() == null
+                            ? invoice.getNetAmount()
+                            : invoice.getBookedNetPln())
+                .reduce(BigDecimal.ZERO, BigDecimal::add),
+            validAmount(loaded.calculations, CalculationType.RYCZALT, obligationRows),
+            validAmount(loaded.calculations, CalculationType.VAT, obligationRows),
+            validAmount(loaded.calculations, CalculationType.ZUS, obligationRows)),
+        new RyczaltPeriodReadModel.Documents(invoiceRows.size(), transactionRows.size()),
+        new RyczaltPeriodReadModel.SettlementSummary(
+            obligationRows.size(),
+            paidCount,
+            obligationRows.size() - paidCount,
+            totalObligations,
+            totalPaid,
+            outstanding,
+            outstanding.signum() == 0),
+        reconciliation(obligationModels),
         new RyczaltPeriodReadModel.Completeness(
-            complete ? "COMPLETE" : "INCOMPLETE", issues.size()),
+            complete ? "COMPLETE" : "INCOMPLETE", (int) blockingIssues),
         allowedActions(loaded.period, complete, obligationRows.isEmpty()));
   }
 
   @Transactional(readOnly = true)
   public List<RyczaltInvoiceReadModel> getInvoices(long profileId, YearMonth month) {
     return invoices(load(profileId, month).period).stream().map(this::invoice).toList();
+  }
+
+  @Transactional(readOnly = true)
+  public List<RyczaltInvoiceReadModel> getInvoices(
+      long profileId, YearMonth month, long counterpartyId) {
+    Loaded loaded = load(profileId, month);
+    return invoices
+        .findByProfileIdAndPeriodIdAndCounterparty_IdOrderByAccountingDateAscIdAsc(
+            profileId, loaded.period.id(), counterpartyId)
+        .stream()
+        .map(this::invoice)
+        .toList();
   }
 
   @Transactional(readOnly = true)
@@ -181,18 +206,38 @@ public class RyczaltAccountingQueryService {
               .orElse(null);
       if (calculation == null) {
         result.add(
-            new RyczaltIssueReadModel("MISSING_CALCULATION", CheckSeverity.ERROR, type.name()));
+            new RyczaltIssueReadModel(
+                "calculation:" + type.name(),
+                "MISSING_CALCULATION",
+                CheckSeverity.ERROR,
+                IssueKind.BLOCKED,
+                "Missing calculation",
+                "No calculation is available for " + type.name(),
+                type.name()));
       } else if (calculation.getStatus() == CalculationStatus.DIRTY
           || calculation.getStatus() == CalculationStatus.STALE) {
         result.add(
-            new RyczaltIssueReadModel("DIRTY_CALCULATION", CheckSeverity.ERROR, type.name()));
+            new RyczaltIssueReadModel(
+                "calculation:" + type.name(),
+                "DIRTY_CALCULATION",
+                CheckSeverity.ERROR,
+                IssueKind.BLOCKED,
+                "Calculation needs refresh",
+                "The " + type.name() + " calculation is not current",
+                type.name()));
       }
     }
     for (RyczaltObligationReadModel obligation : obligationRows) {
       if (!paid(obligation)) {
         result.add(
             new RyczaltIssueReadModel(
-                "UNSETTLED_OBLIGATION", CheckSeverity.ERROR, obligation.type().name()));
+                "obligation:" + obligation.id(),
+                "UNSETTLED_OBLIGATION",
+                CheckSeverity.INFO,
+                IssueKind.SETTLEMENT,
+                "Payment outstanding",
+                "The " + obligation.type().name() + " obligation is not fully paid",
+                String.valueOf(obligation.id())));
       }
     }
     return result;
@@ -314,6 +359,34 @@ public class RyczaltAccountingQueryService {
                                 && row.isCurrent()
                                 && row.getStatus() != CalculationStatus.DIRTY
                                 && row.getStatus() != CalculationStatus.STALE));
+  }
+
+  private BigDecimal validAmount(
+      List<RyczaltCalculationEntity> rows,
+      CalculationType type,
+      List<RyczaltObligationEntity> obligations) {
+    return rows.stream()
+        .filter(row -> row.getType() == type && validCalculation(row))
+        .findFirst()
+        .map(row -> amountFor(obligations, obligationType(type)))
+        .orElse(null);
+  }
+
+  private RyczaltPeriodReadModel.ReconciliationSummary reconciliation(
+      List<RyczaltObligationReadModel> obligations) {
+    int settled = (int) obligations.stream().filter(this::paid).count();
+    int mismatches =
+        (int)
+            obligations.stream()
+                .filter(obligation -> obligation.paidAmount().signum() > 0 && !paid(obligation))
+                .count();
+    int missingEvidence =
+        (int)
+            obligations.stream()
+                .filter(obligation -> obligation.paidAmount().signum() == 0)
+                .count();
+    return new RyczaltPeriodReadModel.ReconciliationSummary(
+        obligations.size(), settled, mismatches, missingEvidence);
   }
 
   private Set<RyczaltPeriodReadModel.PeriodAction> allowedActions(

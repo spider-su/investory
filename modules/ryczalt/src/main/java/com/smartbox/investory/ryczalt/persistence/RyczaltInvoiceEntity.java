@@ -1,5 +1,8 @@
 package com.smartbox.investory.ryczalt.persistence;
 
+import com.smartbox.investory.ryczalt.domain.ApprovalMethod;
+import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
+import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,6 +18,10 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "ryczalt_invoice", schema = "investory")
 public class RyczaltInvoiceEntity extends RyczaltEntity {
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "counterparty_id")
+  private RyczaltCounterpartyEntity counterparty;
+
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "period_id", nullable = false)
   private RyczaltPeriodEntity period;
@@ -56,6 +63,18 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
 
   @Column(name = "deductible_vat", precision = 19, scale = 4)
   private BigDecimal deductibleVat;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "approval_status", nullable = false, length = 16)
+  private ApprovalStatus approvalStatus = ApprovalStatus.NEEDS_REVIEW;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "approval_method", length = 32)
+  private ApprovalMethod approvalMethod;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "payment_verification_policy", nullable = false, length = 16)
+  private PaymentVerificationPolicy paymentVerificationPolicy = PaymentVerificationPolicy.REQUIRED;
 
   protected RyczaltInvoiceEntity() {}
 
@@ -138,5 +157,48 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
 
   public BigDecimal getDeductibleVat() {
     return deductibleVat;
+  }
+
+  public RyczaltCounterpartyEntity getCounterparty() {
+    return counterparty;
+  }
+
+  public ApprovalStatus getApprovalStatus() {
+    return approvalStatus;
+  }
+
+  public ApprovalMethod getApprovalMethod() {
+    return approvalMethod;
+  }
+
+  public PaymentVerificationPolicy getPaymentVerificationPolicy() {
+    return paymentVerificationPolicy;
+  }
+
+  public void applyCounterpartyRule(
+      RyczaltCounterpartyEntity counterparty, boolean approve, PaymentVerificationPolicy policy) {
+    this.counterparty = counterparty;
+    this.paymentVerificationPolicy = policy;
+    this.approvalStatus = approve ? ApprovalStatus.APPROVED : ApprovalStatus.NEEDS_REVIEW;
+    this.approvalMethod = approve ? ApprovalMethod.COUNTERPARTY_RULE : null;
+  }
+
+  public void update(
+      LocalDate issueDate,
+      LocalDate accountingDate,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      CurrencyType currency) {
+    this.issueDate = issueDate;
+    this.accountingDate = accountingDate;
+    this.netAmount = netAmount;
+    this.vatAmount = vatAmount;
+    this.grossAmount = grossAmount;
+    this.currency = currency;
+  }
+
+  public Long id() {
+    return getId();
   }
 }
