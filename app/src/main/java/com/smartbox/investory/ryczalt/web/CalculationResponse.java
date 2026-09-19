@@ -1,3 +1,5 @@
 package com.smartbox.investory.ryczalt.web;
 
-public record CalculationResponse(String type, String status, String amount) {}
+import com.smartbox.investory.ryczalt.persistence.CalculationStatus;
+
+public record CalculationResponse(String type, CalculationStatus status, String amount) {}

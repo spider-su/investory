@@ -11,6 +11,9 @@ public interface RyczaltPaymentMatchJpaRepository
     extends JpaRepository<RyczaltPaymentMatchEntity, Long> {
   List<RyczaltPaymentMatchEntity> findByProfileIdAndObligationId(long profileId, long obligationId);
 
+  List<RyczaltPaymentMatchEntity> findByProfileIdAndTransactionId(
+      long profileId, long transactionId);
+
   Optional<RyczaltPaymentMatchEntity> findByProfileIdAndObligationIdAndTransactionId(
       long profileId, long obligationId, long transactionId);
 

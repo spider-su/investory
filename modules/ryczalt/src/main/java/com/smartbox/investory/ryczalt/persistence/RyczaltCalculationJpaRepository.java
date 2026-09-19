@@ -15,6 +15,8 @@ public interface RyczaltCalculationJpaRepository
   List<RyczaltCalculationEntity> findByProfileIdAndPeriodIdAndCurrentTrue(
       long profileId, long periodId);
 
+  List<RyczaltCalculationEntity> findByProfileIdAndPeriodId(long profileId, long periodId);
+
   Optional<RyczaltCalculationEntity> findTopByProfileIdAndPeriodIdAndTypeOrderByRevisionDesc(
       long profileId, long periodId, CalculationType type);
 }

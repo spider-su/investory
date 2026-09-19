@@ -17,7 +17,9 @@ React Native client named `investory-accounting-mobile`, not a missing repositor
 paths and field usage are recorded in `docs/rest-api.md`.
 
 Only `settle`, `lock`, and `reopen` have a native branch, and even those fall back to Accounting
-when the requested period is absent from `ryczalt_period`.
+when the requested period is absent from `ryczalt_period`. A native read-only query foundation now
+covers periods, invoices, transactions, obligations, issues, and persisted payment history. The
+common native REST adapter is now wired; legacy routes remain separate compatibility routes.
 
 The NBP code added in the previous stage is a native core capability, but it is not exposed by the
 public accounting application contract. Bank and KSeF have reusable generic transports, but no
@@ -41,13 +43,13 @@ Every method below is implemented by `LegacyAccountingUserApiAdapter`.
 
 | Method | Current handling | Classification | Replacement/blocker |
 | --- | --- | --- | --- |
-| `months` | delegates to Accounting | `LEGACY_DELEGATED` | Native period/month read model missing |
+| `months` | delegates to Accounting | `LEGACY_DELEGATED` | Native period/month query exists; REST wiring remains |
 | `overview` | delegates to Accounting | `LEGACY_DELEGATED` | Native API view assembler missing |
-| `issues` | delegates to Accounting | `LEGACY_DELEGATED` | Native completeness/issue view not wired |
-| `documents` | delegates to Accounting | `LEGACY_DELEGATED` | Native invoice read API and DTO missing |
-| `bankTransactions` | delegates to Accounting | `LEGACY_DELEGATED` | Native transaction read API missing |
-| `payments` | delegates to Accounting | `LEGACY_DELEGATED` | Native payment view missing |
-| `paymentHistory` | delegates to Accounting | `LEGACY_DELEGATED` | Native history query missing |
+| `issues` | delegates to Accounting | `LEGACY_DELEGATED` | Native issue query exists; REST wiring remains |
+| `documents` | delegates to Accounting | `LEGACY_DELEGATED` | Native invoice query exists; REST wiring remains |
+| `bankTransactions` | delegates to Accounting | `LEGACY_DELEGATED` | Native transaction query exists; acquisition remains legacy |
+| `payments` | delegates to Accounting | `LEGACY_DELEGATED` | Native obligation query exists; REST wiring remains |
+| `paymentHistory` | delegates to Accounting | `LEGACY_DELEGATED` | Native persisted-match history query exists; REST wiring remains |
 | `filings` | delegates to Accounting | `LEGACY_DELEGATED` | Filing lifecycle is not implemented in Ryczalt |
 | `reconciliation` | delegates to Accounting | `LEGACY_DELEGATED` | Native reconciliation view missing |
 | `counterparties` | delegates to Accounting | `LEGACY_DELEGATED` | Counterparty model/read path not in Ryczalt |
@@ -109,6 +111,7 @@ All routes below are under `/api/profiles/{profileId}/accounting` and are curren
 | staging rows/reconcile/promote | `AccountingStagingRestController` | `AccountingStagingFacade` directly | `LEGACY_DELEGATED` / outside Ryczalt bridge |
 | web accounting page | `AccountingPageController` -> `InProcessAccountingClient` | Accounting DTOs plus `accountingUserFacade` and `accountingStagingFacade` | Legacy contract dependency |
 | mobile accounting responses | `AccountingMobileRestController` -> `AccountingMobileResponse` | Ryczalt bridge input, Accounting DTO mapping | Legacy DTO dependency |
+| common native accounting resources | `RyczaltAccountingRestController` | native Ryczalt query/lifecycle services | `STABLE_NATIVE`; web/mobile migration pending |
 
 The REST controller already injects `@Qualifier("ryczaltUserApi")`, but that is only a routing
 change. It does not make the underlying operation native.
@@ -217,11 +220,10 @@ The following should not be copied into Ryczalt merely to obtain API parity:
 
 ## Ordered implementation backlog
 
-1. Define a Ryczalt-owned read/application contract for the required month, invoice, transaction,
-   payment, issue, reconciliation, and lifecycle views. This removes the `AccountingUserApi` type
-   dependency.
-2. Add native Ryczalt invoice and bank read models/queries and wire the existing canonical
-   persistence. This removes read delegation from the adapter.
+1. Define a Ryczalt-owned read/application contract for the required period, invoice, transaction,
+   payment, issue, and lifecycle views. **DONE for the stable native REST surface.**
+2. Wire the native Ryczalt query foundation to the scoped REST contract and keep legacy routes as
+   compatibility routes. **DONE.** Bank acquisition/synchronization remains a separate gap.
 3. Add a Ryczalt bank source port and sync service around the reusable bank source. Persist source
    references, enforce profile/frozen-period rules, and expose the bank import operation. This
    removes `importBank` delegation.
