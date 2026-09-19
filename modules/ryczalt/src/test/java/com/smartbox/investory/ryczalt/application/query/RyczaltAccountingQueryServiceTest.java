@@ -9,9 +9,6 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.ryczalt.domain.ObligationStatus;
 import com.smartbox.investory.ryczalt.domain.ObligationType;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
-import com.smartbox.investory.ryczalt.persistence.CalculationStatus;
-import com.smartbox.investory.ryczalt.persistence.CalculationType;
-import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationEntity;
@@ -70,48 +67,6 @@ class RyczaltAccountingQueryServiceTest {
             new RyczaltPeriodListItem(YearMonth.of(2026, 1), PeriodStatus.FROZEN)),
         service.listPeriods(7L));
     verify(periods).findByProfileIdOrderByYearDescMonthDesc(7L);
-  }
-
-  @Test
-  void periodAuditReadsNativeCalculationValues() {
-    RyczaltPeriodEntity period = mock(RyczaltPeriodEntity.class);
-    RyczaltCalculationEntity ryczalt =
-        calculation(
-            CalculationType.RYCZALT,
-            "{\"revenueBeforeDeductions\":61849.12,\"taxableBase\":61102,\"calculatedTax\":7332,\"healthDeduction\":747.52,\"socialContributionDeduction\":0}");
-    RyczaltCalculationEntity vat =
-        calculation(
-            CalculationType.VAT,
-            "{\"outputVatAfterSalesCorrection\":6808,\"deductibleInputVat\":68.54,\"calculatedVat\":6739}");
-    RyczaltCalculationEntity zus = calculation(CalculationType.ZUS, "{\"totalZus\":1495.04}");
-    when(periods.findByProfileIdAndYearAndMonth(7L, 2026, 2)).thenReturn(Optional.of(period));
-    when(period.getProfileId()).thenReturn(7L);
-    when(period.id()).thenReturn(1L);
-    when(period.getStatus()).thenReturn(PeriodStatus.FROZEN);
-    when(invoices.findByProfileIdAndPeriodIdOrderByAccountingDateAscIdAsc(7L, 1L))
-        .thenReturn(List.of());
-    when(transactions.findByProfileIdAndPeriodIdOrderByBookingDateAscIdAsc(7L, 1L))
-        .thenReturn(List.of());
-    when(obligations.findByProfileIdAndPeriodIdOrderByTypeAsc(7L, 1L)).thenReturn(List.of());
-    when(calculations.findByProfileIdAndPeriodId(7L, 1L)).thenReturn(List.of(ryczalt, vat, zus));
-
-    var audit = service.getPeriod(7L, YearMonth.of(2026, 2)).audit();
-
-    assertEquals(new BigDecimal("61849.12"), audit.revenue());
-    assertEquals(new BigDecimal("61102"), audit.taxableBase());
-    assertEquals(new BigDecimal("7332"), audit.monthlyAdvance());
-    assertEquals(new BigDecimal("6808"), audit.outputVat());
-    assertEquals(new BigDecimal("68.54"), audit.inputVat());
-    assertEquals(new BigDecimal("6739"), audit.finalPayable());
-  }
-
-  private static RyczaltCalculationEntity calculation(CalculationType type, String result) {
-    RyczaltCalculationEntity calculation = mock(RyczaltCalculationEntity.class);
-    when(calculation.getType()).thenReturn(type);
-    when(calculation.getStatus()).thenReturn(CalculationStatus.FROZEN);
-    when(calculation.isCurrent()).thenReturn(true);
-    when(calculation.getResultJson()).thenReturn(result);
-    return calculation;
   }
 
   @Test

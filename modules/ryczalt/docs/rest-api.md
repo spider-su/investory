@@ -3,6 +3,10 @@
 This is the target common contract for web and mobile. It is intentionally smaller than the
 legacy `AccountingUserApi` and contains accounting facts and lifecycle commands, not screen models.
 
+The native read foundation is implemented in `RyczaltAccountingQueryService` with Ryczalt-owned
+read models and profile-scoped repository queries. The common resources below are now exposed by
+`RyczaltAccountingRestController`; older month/mobile routes remain compatibility routes.
+
 ## Consumer evidence
 
 The mobile client was inspected at `/home/alex/projects/ryczalt_it` (`investory-accounting-mobile`).
@@ -35,7 +39,9 @@ The mobile client does not currently consume `summary.totalObligations`; it uses
 `paymentSummary.totalOutstanding` for the payable headline. These are different concepts and must
 not be merged in the new contract.
 
-## Target resources
+## Stable native resources
+
+These resources do not delegate to `AccountingUserApi`.
 
 All common resources remain profile-scoped:
 
@@ -77,8 +83,8 @@ typed identifiers, never button labels.
 The current `/api/v1` mobile routes and `/api` legacy routes are temporary compatibility routes.
 They cannot be removed until the mobile repository is switched to the common resources and the web
 adapter uses the same application query/command operations. No `/v2` is required: backend and
-mobile are controlled repositories and can migrate atomically once the native application layer is
-ready.
+mobile are controlled repositories and can migrate atomically. The stable resources already use the
+native query/lifecycle layer.
 
 `AccountingMobileResponse` should be deleted after the mobile mapper consumes the common factual
 DTOs. `AccountingPageController` should receive a web assembler over the same Ryczalt query

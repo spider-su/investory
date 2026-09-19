@@ -48,7 +48,9 @@ or before the policy-selected prior business day, calls NBP only when no fact ex
 effective date/rate/provider reference using `BigDecimal`, and never overwrites an existing fact.
 No calculator calls NBP.
 
-The Stage 7 bridge owns `RyczaltUserApi` and routes existing controllers to it. The temporary
+The Stage 7 bridge owns `RyczaltUserApi` and routes existing legacy controllers to it. The stable
+native accounting resources are exposed separately by `RyczaltAccountingRestController` and use
+native query/lifecycle services only. The temporary
 `LegacyAccountingUserApiAdapter` delegates unsupported document, bank, filing, KSeF, and reference
 operations through the legacy public `AccountingUserApi`. Native settlement/lifecycle behavior is used
 when a Ryczalt period exists; historical periods continue to use legacy behavior. This dependency is
