@@ -79,6 +79,10 @@ public class RyczaltPersistenceAdapter {
                         period.period().getYear(),
                         period.period().getMonthValue(),
                         period.status()));
+    if (stored.getStatus() == com.smartbox.investory.ryczalt.domain.PeriodStatus.FROZEN) {
+      throw new FrozenPeriodMutationException(
+          profileId, period.period().getYear(), period.period().getMonthValue());
+    }
     stored.setStatus(period.status());
     stored = periods.save(stored);
     final RyczaltPeriodEntity persistedPeriod = stored;

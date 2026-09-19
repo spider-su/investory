@@ -7,10 +7,15 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Entity
 @Table(name = "ryczalt_source_reference", schema = "investory")
 public class RyczaltSourceReferenceEntity {
+  private static final ObjectMapper JSON = new ObjectMapper();
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
@@ -30,8 +35,9 @@ public class RyczaltSourceReferenceEntity {
   @Column(name = "external_id", nullable = false, length = 256)
   private String externalId;
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(columnDefinition = "jsonb")
-  private String metadata;
+  private JsonNode metadata;
 
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
@@ -50,7 +56,11 @@ public class RyczaltSourceReferenceEntity {
     this.entityId = entityId;
     this.source = source;
     this.externalId = externalId;
-    this.metadata = metadata;
+    try {
+      this.metadata = metadata == null ? null : JSON.readTree(metadata);
+    } catch (Exception exception) {
+      throw new IllegalArgumentException("Source metadata must contain valid JSON", exception);
+    }
     this.createdAt = Instant.now();
   }
 
@@ -79,7 +89,7 @@ public class RyczaltSourceReferenceEntity {
   }
 
   public String getMetadata() {
-    return metadata;
+    return metadata == null ? null : metadata.toString();
   }
 
   public Instant getCreatedAt() {

@@ -23,16 +23,23 @@ Historical/supporting data:
 transactions and obligations point to the period and repeat `profile_id` so repository queries and
 database constraints cannot accidentally cross profile boundaries.
 
-`ryczalt_calculation` stores one current/stale/frozen result per profile, period, and calculation
+`ryczalt_calculation` stores a revision history and one current result per profile, period, and calculation
 type (`RYCZALT`, `VAT`, `ZUS`). `result_json` is an explicit JSON document produced by the application,
 not Java serialization. `rule_version`, `calculator_version`, `calculated_at`, and
-`input_fingerprint` make the stored result auditable. Fingerprint generation is deliberately left to
-the calculation orchestration stage; Stage 3 persists the field but does not invent an entity-
-serialization fingerprint.
+`input_fingerprint` make the stored result auditable. Stage 4 fingerprints semantic inputs and
+retains prior revisions when a calculation changes.
 
 `ryczalt_fx_rate` stores provider, currency, date, positive `NUMERIC(19,8)` rate, and fetch time.
 `ryczalt_source_reference` preserves the legacy source table and row identity without adding
 provider-specific fields to canonical domain objects.
+
+`ryczalt_payment_match` stores positive payment allocations, match type, and creation time. Composite
+profile/entity foreign keys prevent an obligation from one profile being matched to a transaction
+from another. A unique obligation/transaction pair makes automatic settlement idempotent.
+
+REST/application code must use the Ryczalt application port rather than repositories. The current
+legacy adapter may read through `AccountingUserApi`, but it must not bypass that public API or expose
+legacy snapshots to the new domain.
 
 ## Precision
 
@@ -48,6 +55,5 @@ calculators. Saving is explicit and does not rely on aggregate-wide cascade magi
 
 ## Frozen periods
 
-The schema retains calculated and frozen timestamps plus persisted calculation results. A later
-orchestration/checker stage must prevent silent recalculation or mutation of frozen periods. Payment
-matching and reopening workflow are intentionally outside Stage 3.
+The schema retains calculated and frozen timestamps plus persisted calculation results. Frozen writes
+fail at the persistence boundary. Reopening and correction are explicit, reasoned, and audited.
