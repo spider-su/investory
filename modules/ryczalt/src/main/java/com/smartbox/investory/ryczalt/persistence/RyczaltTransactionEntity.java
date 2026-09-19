@@ -25,7 +25,7 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
   @Column(nullable = false, precision = 19, scale = 4)
   private BigDecimal amount;
 
-  @Column(nullable = false, length = 3)
+  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
   private String currency;
 
   @Column(length = 256)
@@ -97,5 +97,9 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
 
   public String getDescription() {
     return description;
+  }
+
+  public Long id() {
+    return getId();
   }
 }

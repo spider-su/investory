@@ -17,7 +17,7 @@ public class RyczaltFxRateEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Column(nullable = false, length = 3)
+  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
   private String currency;
 
   @Column(name = "effective_date", nullable = false)

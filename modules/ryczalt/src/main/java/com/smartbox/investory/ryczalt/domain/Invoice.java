@@ -35,6 +35,16 @@ public record Invoice(
       BigDecimal vatAmount,
       BigDecimal grossAmount,
       Currency currency) {
-    this(reference, issueDate, accountingDate, netAmount, vatAmount, grossAmount, currency, null, null, null);
+    this(
+        reference,
+        issueDate,
+        accountingDate,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        currency,
+        null,
+        null,
+        null);
   }
 }

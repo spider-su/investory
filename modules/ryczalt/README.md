@@ -45,7 +45,7 @@ sources -> adapters -> ports -> AccountingPeriod -> calculators
 9. application cutover
 10. remove accounting
 
-## Current stage: persistence and migration
+## Current stage: REST/application cutover bridge
 
 Stage 2 added pure calculators over already-normalized facts. Stage 3 adds separate JPA persistence
 and a one-way legacy import:
@@ -62,5 +62,22 @@ The versioned rule sets are `RyczaltRules2026`, `VatRules2026`, and `ZusRules202
 VAT settlement. Inputs are normalized PLN facts; source classification, FX acquisition, database
 adapters, persistence, reconciliation, UI, and application cutover remain future stages.
 
-The old `accounting` module remains the operational reference until later parity and cutover
-stages. Reference/golden tables are comparison evidence and are not imported as canonical facts.
+Stage 4 added revisioned calculation history, deterministic fingerprints, targeted invalidation,
+explicit freeze/reopen/correction services, and audit events. Stage 5 added pure payment and period
+completeness checkers, persisted partial payment matches, deterministic automatic settlement, manual
+matching, and frozen-settlement protection. The current cutover bridge exposes the existing REST
+contract through `RyczaltUserApi`; unsupported operations delegate through the temporary
+`LegacyAccountingUserApiAdapter`. Native settlement and lifecycle operations are selected for periods
+already present in the Ryczalt schema. Frozen periods are load-only.
+
+The legacy `accounting` dependency is intentionally temporary and must be removed after native REST
+capabilities replace the delegated operations. Reference/golden tables remain comparison evidence and
+are not imported as canonical facts.
+
+Current capability:
+
+```text
+RYCZALT  calculation ✓  persistence ✓  payment detection ✓  manual matching ✓  external verify ✗
+VAT      calculation ✓  persistence ✓  payment detection ✓  manual matching ✓  external verify ✗
+ZUS      calculation ✓  persistence ✓  payment detection ✓  manual matching ✓  eZUS verify ✗
+```

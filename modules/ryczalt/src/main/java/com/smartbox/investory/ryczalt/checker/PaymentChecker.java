@@ -188,9 +188,7 @@ public final class PaymentChecker {
 
   private List<PaymentAllocation> allocations(List<Transaction> transactions) {
     return transactions.stream()
-        .map(
-            transaction ->
-                new PaymentAllocation(transaction.reference(), transaction.amount().abs()))
+        .map(transaction -> new PaymentAllocation(transaction.reference(), transaction.amount()))
         .toList();
   }
 }

@@ -85,12 +85,8 @@ public class RyczaltPeriodLifecycleService {
                       calculation.markStale();
                       calculations.save(calculation);
                     }));
-    // A change that no calculation depends on (for example a bank transaction) must not force a
-    // recalculation of already-current tax figures. It still records provenance for reconciliation.
-    if (!affected.isEmpty() && period.getStatus() != PeriodStatus.OPEN) {
-      period.setStatus(PeriodStatus.DIRTY);
-      periods.save(period);
-    }
+    period.setStatus(PeriodStatus.DIRTY);
+    periods.save(period);
     audit(profileId, period.id(), "CALCULATION_INVALIDATED", change.name(), actor);
   }
 
@@ -109,7 +105,7 @@ public class RyczaltPeriodLifecycleService {
         event,
         reason,
         actor,
-        java.sql.Timestamp.from(Instant.now()));
+        Instant.now());
   }
 
   private static void requireReason(String reason) {
