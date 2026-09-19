@@ -1,7 +1,7 @@
 package com.smartbox.investory.ryczalt.web;
 
 import com.smartbox.investory.config.AuthorizationService;
-import com.smartbox.investory.ryczalt.application.query.RyczaltAccountingQueryService;
+import com.smartbox.investory.ryczalt.application.RyczaltAccountingApi;
 import com.smartbox.investory.ryczalt.application.query.RyczaltInvoiceReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltIssueReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltObligationReadModel;
@@ -10,8 +10,6 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodListItem;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundException;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltTransactionReadModel;
-import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodLifecycleService;
-import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
@@ -31,19 +29,12 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/profiles/{profileId}/accounting")
 public class RyczaltAccountingRestController {
-  private final RyczaltAccountingQueryService queries;
-  private final SettlementService settlement;
-  private final RyczaltPeriodLifecycleService lifecycle;
+  private final RyczaltAccountingApi accounting;
   private final AuthorizationService authorization;
 
   public RyczaltAccountingRestController(
-      RyczaltAccountingQueryService queries,
-      SettlementService settlement,
-      RyczaltPeriodLifecycleService lifecycle,
-      AuthorizationService authorization) {
-    this.queries = queries;
-    this.settlement = settlement;
-    this.lifecycle = lifecycle;
+      RyczaltAccountingApi accounting, AuthorizationService authorization) {
+    this.accounting = accounting;
     this.authorization = authorization;
   }
 
@@ -51,45 +42,58 @@ public class RyczaltAccountingRestController {
   public List<PeriodRefResponse> periods(
       @PathVariable long profileId, Authentication authentication) {
     read(profileId, authentication);
-    return queries.listPeriods(profileId).stream().map(this::periodRef).toList();
+    return accounting.periods(profileId).stream().map(this::periodRef).toList();
   }
 
   @GetMapping("/periods/{month}")
   public PeriodResponse period(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
     read(profileId, authentication);
-    return periodResponse(queries.getPeriod(profileId, month));
+    return periodResponse(accounting.period(profileId, month));
   }
 
   @GetMapping("/periods/{month}/invoices")
   public List<InvoiceResponse> invoices(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
     read(profileId, authentication);
-    return queries.getInvoices(profileId, month).stream().map(this::invoice).toList();
+    return accounting.invoices(profileId, month).stream().map(this::invoice).toList();
+  }
+
+  /** Canonical native invoice filter used by counterparty detail views. */
+  @GetMapping("/invoices")
+  public List<InvoiceResponse> invoicesByCounterparty(
+      @PathVariable long profileId,
+      @RequestParam YearMonth month,
+      @RequestParam long counterpartyId,
+      Authentication authentication) {
+    read(profileId, authentication);
+    return accounting.invoices(profileId, month, counterpartyId).stream()
+        .map(this::invoice)
+        .toList();
   }
 
   @GetMapping("/periods/{month}/transactions")
   public List<TransactionResponse> transactions(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
     read(profileId, authentication);
-    return queries.getTransactions(profileId, month).stream().map(this::transaction).toList();
+    return accounting.transactions(profileId, month).stream().map(this::transaction).toList();
   }
 
   @GetMapping("/periods/{month}/obligations")
   public List<ObligationResponse> obligations(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
     read(profileId, authentication);
-    return queries.getObligations(profileId, month).stream().map(this::obligation).toList();
+    return accounting.obligations(profileId, month).stream().map(this::obligation).toList();
   }
 
   @GetMapping("/periods/{month}/issues")
   public List<IssueResponse> issues(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
     read(profileId, authentication);
-    return queries.getIssues(profileId, month).stream().map(this::issue).toList();
+    return accounting.issues(profileId, month).stream().map(this::issue).toList();
   }
 
-  @GetMapping("/payments/history")
+  @GetMapping("/periods/payments/history")
   public List<PaymentHistoryResponse> paymentHistory(
       @PathVariable long profileId,
       @RequestParam YearMonth from,
@@ -97,7 +101,7 @@ public class RyczaltAccountingRestController {
       @RequestParam(required = false) String type,
       Authentication authentication) {
     read(profileId, authentication);
-    return queries.getPaymentHistory(profileId, from, to, type).stream()
+    return accounting.paymentHistory(profileId, from, to, type).stream()
         .map(this::paymentHistory)
         .toList();
   }
@@ -106,7 +110,7 @@ public class RyczaltAccountingRestController {
   public ResponseEntity<Void> settle(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
     write(profileId, authentication);
-    command(() -> settlement.settlePeriod(profileId, month));
+    command(() -> accounting.settle(profileId, month));
     return ResponseEntity.noContent().build();
   }
 
@@ -117,7 +121,7 @@ public class RyczaltAccountingRestController {
       @RequestBody LifecycleRequest request,
       Authentication authentication) {
     write(profileId, authentication);
-    command(() -> lifecycle.freeze(profileId, month, actor(authentication), reason(request)));
+    command(() -> accounting.freeze(profileId, month, actor(authentication), reason(request)));
     return ResponseEntity.noContent().build();
   }
 
@@ -128,7 +132,7 @@ public class RyczaltAccountingRestController {
       @RequestBody LifecycleRequest request,
       Authentication authentication) {
     write(profileId, authentication);
-    command(() -> lifecycle.reopen(profileId, month, actor(authentication), reason(request)));
+    command(() -> accounting.reopen(profileId, month, actor(authentication), reason(request)));
     return ResponseEntity.noContent().build();
   }
 
@@ -188,20 +192,28 @@ public class RyczaltAccountingRestController {
                     new CalculationResponse(
                         calculation.type(), calculation.status(), decimal(calculation.amount())))
             .toList(),
-        decimal(value.revenue()),
-        decimal(value.ryczaltAmount()),
-        decimal(value.vatAmount()),
-        decimal(value.zusAmount()),
-        decimal(value.totalObligations()),
-        value.invoiceCount(),
-        value.transactionCount(),
-        new PeriodResponse.ObligationTotalsResponse(
-            value.obligationTotals().expectedCount(),
-            value.obligationTotals().paidCount(),
-            decimal(value.obligationTotals().paidAmount()),
-            decimal(value.obligationTotals().outstandingAmount())),
+        new PeriodResponse.SummaryResponse(
+            decimal(value.summary().revenue()),
+            decimal(value.summary().ryczalt()),
+            decimal(value.summary().vat()),
+            decimal(value.summary().zus())),
+        new PeriodResponse.DocumentsResponse(
+            value.documents().invoiceCount(), value.documents().transactionCount()),
+        new PeriodResponse.SettlementResponse(
+            value.settlement().expectedCount(),
+            value.settlement().paidCount(),
+            value.settlement().outstandingCount(),
+            decimal(value.settlement().totalExpected()),
+            decimal(value.settlement().totalPaid()),
+            decimal(value.settlement().totalOutstanding()),
+            value.settlement().fullySettled()),
+        new PeriodResponse.ReconciliationResponse(
+            value.reconciliation().rowCount(),
+            value.reconciliation().settledCount(),
+            value.reconciliation().mismatchCount(),
+            value.reconciliation().missingEvidenceCount()),
         new PeriodResponse.CompletenessResponse(
-            value.completeness().status(), value.completeness().issueCount()),
+            value.completeness().status(), value.completeness().blockingIssueCount()),
         value.allowedActions().stream()
             .map(Enum::name)
             .collect(java.util.stream.Collectors.toSet()));
@@ -248,7 +260,14 @@ public class RyczaltAccountingRestController {
   }
 
   private IssueResponse issue(RyczaltIssueReadModel value) {
-    return new IssueResponse(value.code(), value.severity(), value.context());
+    return new IssueResponse(
+        value.id(),
+        value.code(),
+        value.severity(),
+        value.kind(),
+        value.title(),
+        value.message(),
+        value.sourceReference());
   }
 
   private PaymentHistoryResponse paymentHistory(RyczaltPaymentHistoryReadModel value) {

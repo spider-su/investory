@@ -37,8 +37,8 @@ provider-specific fields to canonical domain objects.
 profile/entity foreign keys prevent an obligation from one profile being matched to a transaction
 from another. A unique obligation/transaction pair makes automatic settlement idempotent.
 
-REST/application code must use the Ryczalt application port rather than repositories. The current
-legacy adapter may read through `AccountingUserApi`, but it must not bypass that public API or expose
+REST/application code must use the Ryczalt application port rather than repositories. Compatibility
+mapping of native read models to old `AccountingUserApi` records belongs in `app`; it must not expose
 legacy snapshots to the new domain.
 
 ## Precision

@@ -19,11 +19,6 @@ public record CounterpartyRule(
     PaymentVerificationPolicy paymentVerificationPolicy) {
   public CounterpartyRule {
     if (name == null || name.isBlank()) throw new IllegalArgumentException("Rule name is required");
-    sourceType = RuleCriteria.token(sourceType, "sourceType");
-    documentType = RuleCriteria.token(documentType, "documentType");
-    serviceKey = RuleCriteria.serviceKey(serviceKey);
-    classification = RuleCriteria.token(classification, "classification");
-    vatTreatment = RuleCriteria.token(vatTreatment, "vatTreatment");
     if (paymentVerificationPolicy == null)
       throw new IllegalArgumentException("Payment policy is required");
   }

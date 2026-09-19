@@ -56,12 +56,6 @@ public class RyczaltAccountingFacade implements RyczaltAccountingApi {
   }
 
   @Override
-  public List<RyczaltInvoiceReadModel> invoices(
-      long profileId, YearMonth month, Long counterpartyId) {
-    return queries.getInvoices(profileId, month, counterpartyId);
-  }
-
-  @Override
   public List<RyczaltTransactionReadModel> transactions(long profileId, YearMonth month) {
     return queries.getTransactions(profileId, month);
   }

@@ -65,14 +65,14 @@ adapters, persistence, reconciliation, UI, and application cutover remain future
 Stage 4 added revisioned calculation history, deterministic fingerprints, targeted invalidation,
 explicit freeze/reopen/correction services, and audit events. Stage 5 added pure payment and period
 completeness checkers, persisted partial payment matches, deterministic automatic settlement, manual
-matching, and frozen-settlement protection. The current cutover bridge exposes the existing REST
-contract through `RyczaltUserApi`; unsupported operations delegate through the temporary
-`LegacyAccountingUserApiAdapter`. Native settlement and lifecycle operations are selected for periods
-already present in the Ryczalt schema. Frozen periods are load-only.
+matching, and frozen-settlement protection. `RyczaltAccountingApi` and
+`RyczaltAccountingFacade` now own the native application boundary. Native REST uses that boundary;
+the app module owns the temporary `LegacyAccountingApiBridge` for old routes. Native settlement and
+lifecycle operations are selected for periods already present in the Ryczalt schema. Frozen periods
+are load-only.
 
-The legacy `accounting` dependency is intentionally temporary and must be removed after native REST
-capabilities replace the delegated operations. Reference/golden tables remain comparison evidence and
-are not imported as canonical facts.
+The `modules/ryczalt` Maven dependency on `accounting` is removed. Reference/golden tables remain
+comparison evidence and are not imported as canonical facts.
 
 Native source capability is incremental. `RyczaltFxRateService` reads persisted historical NBP facts
 before calling the reusable `NbpClient`; acquired rates are stored once with the provider reference.
@@ -98,3 +98,23 @@ ZUS external verify    NO   no reusable production eZUS verification client
 
 See [docs/cutover-audit.md](docs/cutover-audit.md) for the detailed endpoint, dependency, and
 deletion-blocker audit.
+
+## Counterparties and learned rules
+
+`Counterparty` is the legal supplier/customer identity. Its profile-scoped identity uses
+`taxIdentifier + country` when available; missing tax identifiers are not invented. `alias` is only
+a friendly presentation name. Display uses the alias when nonblank, otherwise the legal name.
+
+`CounterpartyRule` stores a reusable accounting decision for a service shape, not one permanent
+category for the whole company. Stage 2 persists source/document/service matching signals,
+`classification`, `vatTreatment`, VAT deduction ratio, and ryczalt rate. `autoApprove` belongs to
+the rule.
+
+Matching is exact and deterministic: every nonblank rule criterion must equal the invoice fact.
+No match or multiple matches means `NEEDS_REVIEW`; no arbitrary rule is selected.
+
+Approval is separate from payment evidence. Approval is `NEEDS_REVIEW` or `APPROVED`, with origin
+`MANUAL`, `COUNTERPARTY_RULE`, or `MIGRATION`. `PaymentVerificationPolicy` is `REQUIRED` or
+`NOT_REQUIRED`. A cash-paid fuel invoice can therefore be approved by a matching fuel rule with
+`NOT_REQUIRED` and produces no missing-bank-evidence attention. A `REQUIRED` rule keeps normal
+payment matching and unresolved-payment attention.
