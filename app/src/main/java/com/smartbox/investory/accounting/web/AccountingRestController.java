@@ -2,6 +2,7 @@ package com.smartbox.investory.accounting.web;
 
 import com.smartbox.investory.accounting.api.AccountingUserApi;
 import com.smartbox.investory.config.AuthorizationService;
+import com.smartbox.investory.ryczalt.application.RyczaltUserApi;
 import java.time.YearMonth;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -12,12 +13,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/profiles/{profileId}/accounting")
 public class AccountingRestController {
-  private final AccountingUserApi accounting;
+  private final RyczaltUserApi accounting;
   private final AuthorizationService authorization;
 
   public AccountingRestController(
-      @Qualifier("accountingUserFacade") AccountingUserApi accounting,
-      AuthorizationService authorization) {
+      @Qualifier("ryczaltUserApi") RyczaltUserApi accounting, AuthorizationService authorization) {
     this.accounting = accounting;
     this.authorization = authorization;
   }

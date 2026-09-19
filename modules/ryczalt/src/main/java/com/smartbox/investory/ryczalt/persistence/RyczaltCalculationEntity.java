@@ -9,10 +9,15 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Entity
 @Table(name = "ryczalt_calculation", schema = "investory")
 public class RyczaltCalculationEntity {
+  private static final ObjectMapper JSON = new ObjectMapper();
   @jakarta.persistence.Id
   @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
   private Long id;
@@ -32,8 +37,9 @@ public class RyczaltCalculationEntity {
   @Column(nullable = false, length = 16)
   private CalculationStatus status;
 
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "result_json", nullable = false, columnDefinition = "jsonb")
-  private String resultJson;
+  private JsonNode resultJson;
 
   @Column(name = "input_fingerprint", nullable = false, length = 128)
   private String inputFingerprint;
@@ -47,6 +53,12 @@ public class RyczaltCalculationEntity {
   @Column(name = "calculated_at", nullable = false)
   private Instant calculatedAt;
 
+  @Column(nullable = false)
+  private int revision;
+
+  @Column(name = "is_current", nullable = false)
+  private boolean current;
+
   protected RyczaltCalculationEntity() {}
 
   public RyczaltCalculationEntity(
@@ -58,16 +70,24 @@ public class RyczaltCalculationEntity {
       String inputFingerprint,
       String ruleVersion,
       String calculatorVersion,
-      Instant calculatedAt) {
+      Instant calculatedAt,
+      int revision,
+      boolean current) {
     this.period = period;
     this.profileId = profileId;
     this.type = type;
     this.status = status;
-    this.resultJson = resultJson;
+    try {
+      this.resultJson = JSON.readTree(resultJson);
+    } catch (Exception exception) {
+      throw new IllegalArgumentException("Calculation result must contain valid JSON", exception);
+    }
     this.inputFingerprint = inputFingerprint;
     this.ruleVersion = ruleVersion;
     this.calculatorVersion = calculatorVersion;
     this.calculatedAt = calculatedAt;
+    this.revision = revision;
+    this.current = current;
   }
 
   public Long getId() {
@@ -91,7 +111,7 @@ public class RyczaltCalculationEntity {
   }
 
   public String getResultJson() {
-    return resultJson;
+    return resultJson == null ? null : resultJson.toString();
   }
 
   public String getInputFingerprint() {
@@ -108,5 +128,22 @@ public class RyczaltCalculationEntity {
 
   public Instant getCalculatedAt() {
     return calculatedAt;
+  }
+
+  public int getRevision() {
+    return revision;
+  }
+
+  public boolean isCurrent() {
+    return current;
+  }
+
+  public void markStale() {
+    this.status = CalculationStatus.STALE;
+    this.current = false;
+  }
+
+  public void markFrozen() {
+    this.status = CalculationStatus.FROZEN;
   }
 }

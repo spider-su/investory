@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.smartbox.investory.accounting.api.AccountingUserApi;
+import com.smartbox.investory.ryczalt.application.RyczaltUserApi;
 import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
 import java.time.YearMonth;
 import org.junit.jupiter.api.DisplayName;
@@ -30,8 +30,8 @@ class AccountingRestControllerIT extends AccountingDatabaseTest {
   @Autowired private JdbcTemplate jdbc;
 
   @Autowired
-  @Qualifier("accountingUserFacade")
-  private AccountingUserApi accounting;
+  @Qualifier("ryczaltUserApi")
+  private RyczaltUserApi accounting;
 
   @Test
   @DisplayName("versioned mobile reads expose mapped operational accounting data")

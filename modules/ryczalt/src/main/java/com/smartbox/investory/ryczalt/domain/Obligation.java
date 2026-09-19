@@ -1,11 +1,9 @@
 package com.smartbox.investory.ryczalt.domain;
 
-import java.util.Objects;
-
-/** Accounting obligation; payment matching is intentionally not modeled yet. */
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Currency;
+import java.util.Objects;
 
 public record Obligation(
     ObligationType type,

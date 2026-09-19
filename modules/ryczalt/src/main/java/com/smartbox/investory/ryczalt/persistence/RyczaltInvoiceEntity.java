@@ -43,7 +43,7 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
   @Column(name = "gross_amount", nullable = false, precision = 19, scale = 4)
   private BigDecimal grossAmount;
 
-  @Column(nullable = false, length = 3)
+  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
   private String currency;
 
   @Column(name = "booked_net_pln", precision = 19, scale = 4)
