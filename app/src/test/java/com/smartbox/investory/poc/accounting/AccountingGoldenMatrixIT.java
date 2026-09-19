@@ -12,22 +12,31 @@ import com.smartbox.investory.accounting.service.AccountingInvoiceIngestionServi
 import com.smartbox.investory.accounting.service.AccountingSourceEvidenceService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.testsupport.accounting.AccountingDatabaseTest;
+import com.smartbox.investory.testsupport.WorkerDatabase;
+import com.smartbox.investory.testsupport.accounting.AccountingDatabase;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
+@ActiveProfiles("test-fast")
+class AccountingGoldenMatrixIT {
+
+  private static final WorkerDatabase DATABASE =
+      AccountingDatabase.scopedPocDatabase("golden_matrix");
 
   @Autowired private AccountingFactService service;
 
@@ -43,6 +52,18 @@ class AccountingGoldenMatrixIT extends AccountingDatabaseTest {
 
   @MockitoBean(name = "currencyRateService")
   private CurrencyRateService currencyConversion;
+
+  @AfterAll
+  static void closeDatabase() {
+    DATABASE.close();
+  }
+
+  @DynamicPropertySource
+  protected static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", DATABASE::jdbcUrl);
+    registry.add("spring.datasource.username", DATABASE::username);
+    registry.add("spring.datasource.password", DATABASE::password);
+  }
 
   @BeforeEach
   void configureCapturedFxGoldens() {

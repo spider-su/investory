@@ -29,12 +29,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
+@Slf4j
 public class AccountingFactService {
   private static final BigDecimal HALF = new BigDecimal("0.50");
   private static final String REQUEST_YEAR_INVOICES_CACHE =
@@ -46,6 +49,7 @@ public class AccountingFactService {
   private final CurrencyConversion currencyConversion;
   private final AccountingMonthCalculator calculator;
   private final AccountingProfileResolver profileResolver;
+  private final ObjectMapper json;
 
   public AccountingFactService(
       AccountingFactRepository factRepository,
@@ -56,7 +60,8 @@ public class AccountingFactService {
         pocRepository,
         currencyConversion,
         new DefaultAccountingMonthCalculator(currencyConversion),
-        new AccountingProfileResolver());
+        new AccountingProfileResolver(),
+        new ObjectMapper());
   }
 
   @Autowired
@@ -65,12 +70,14 @@ public class AccountingFactService {
       AccountingPocRepository pocRepository,
       CurrencyConversion currencyConversion,
       AccountingMonthCalculator calculator,
-      AccountingProfileResolver profileResolver) {
+      AccountingProfileResolver profileResolver,
+      ObjectMapper json) {
     this.factRepository = factRepository;
     this.pocRepository = pocRepository;
     this.currencyConversion = currencyConversion;
     this.calculator = calculator;
     this.profileResolver = profileResolver;
+    this.json = json;
   }
 
   public List<AccountingFact> facts() {
@@ -104,6 +111,31 @@ public class AccountingFactService {
   }
 
   public AccountingMonthSnapshot snapshot(long profileId, LocalDate period) {
+    var state = pocRepository.periodState(profileId, period);
+    if (state != null && state.lifecycleStatus() == PeriodLifecycleStatus.LOCKED) {
+      var stored = pocRepository.calculationSnapshot(profileId, period);
+      if (stored.isPresent()) {
+        try {
+          log.info("Using persisted accounting snapshot profile={} period={}", profileId, period);
+          return json.readValue(stored.get(), AccountingMonthSnapshot.class);
+        } catch (RuntimeException ex) {
+          log.warn(
+              "Ignoring unreadable persisted accounting snapshot profile={} period={}; recalculating",
+              profileId,
+              period,
+              ex);
+        }
+      }
+    }
+    var result = calculateSnapshot(profileId, period);
+    if (state != null && state.lifecycleStatus() == PeriodLifecycleStatus.LOCKED) {
+      persistSnapshot(profileId, period, result);
+    }
+    return result;
+  }
+
+  private AccountingMonthSnapshot calculateSnapshot(long profileId, LocalDate period) {
+    long started = System.nanoTime();
     List<InvoiceRow> invoices = pocRepository.invoicesForPeriod(profileId, period);
     // Legacy rows keep a correction amount on the original invoice. Apply it to the
     // following tax period, without naming a specific month.
@@ -397,25 +429,56 @@ public class AccountingFactService {
       issues.addAll(calculated.issues());
     }
 
-    return new AccountingMonthSnapshot(
+    var result =
+        new AccountingMonthSnapshot(
+            period,
+            domesticRevenue,
+            foreignBookedRevenue,
+            foreignSourceEur,
+            domesticRevenue.add(foreignBookedRevenue),
+            fx,
+            ryczalt,
+            vat,
+            zus,
+            comparisons,
+            invoices,
+            expenses,
+            reconciliations,
+            obligations,
+            bankTransactions,
+            calculationMode,
+            readiness(issues),
+            issues);
+    log.info(
+        "accounting snapshot performance profile={} period={} mode={} totalMs={} invoices={} expenses={} bankTransactions={} obligations={} taxInputs={} reconciliations={} issues={}",
+        profileId,
         period,
-        domesticRevenue,
-        foreignBookedRevenue,
-        foreignSourceEur,
-        domesticRevenue.add(foreignBookedRevenue),
-        fx,
-        ryczalt,
-        vat,
-        zus,
-        comparisons,
-        invoices,
-        expenses,
-        reconciliations,
-        obligations,
-        bankTransactions,
         calculationMode,
-        readiness(issues),
-        issues);
+        java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started),
+        invoices.size(),
+        expenses.size(),
+        bankTransactions.size(),
+        obligations.size(),
+        taxInputs.size(),
+        reconciliations.size(),
+        issues.size());
+    return result;
+  }
+
+  private void persistSnapshot(long profileId, LocalDate period, AccountingMonthSnapshot snapshot) {
+    try {
+      String payload = json.writeValueAsString(snapshot);
+      String hash =
+          java.util.HexFormat.of()
+              .formatHex(
+                  java.security.MessageDigest.getInstance("SHA-256")
+                      .digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+      pocRepository.saveCalculationSnapshot(profileId, period, payload, hash);
+      log.info(
+          "Persisted accounting snapshot profile={} period={} hash={}", profileId, period, hash);
+    } catch (Exception ex) {
+      throw new IllegalStateException("Unable to persist accounting calculation snapshot", ex);
+    }
   }
 
   private AccountingPocRepository.PaidContributionProjection projectPaidContributions(
