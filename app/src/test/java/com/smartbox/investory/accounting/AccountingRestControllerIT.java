@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,6 +26,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @DisplayName("Accounting user REST boundary")
 class AccountingRestControllerIT extends AccountingDatabaseTest {
   @Autowired private MockMvc mvc;
+
+  @Autowired private JdbcTemplate jdbc;
 
   @Autowired
   @Qualifier("accountingUserFacade")
@@ -92,6 +95,30 @@ class AccountingRestControllerIT extends AccountingDatabaseTest {
         .andExpect(status().isBadRequest());
     mvc.perform(get("/api/v1/profiles/999/accounting/months/2026-01").with(admin))
         .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("locked month reuses its persisted calculation snapshot")
+  void lockedMonthUsesPersistedCalculationSnapshot() throws Exception {
+    jdbc.update(
+        "INSERT INTO investory.accounting_poc_period_state (profile_id, tax_period, lifecycle_status) VALUES (1, ?, 'LOCKED') ON CONFLICT (profile_id, tax_period) DO UPDATE SET lifecycle_status = 'LOCKED'",
+        java.time.LocalDate.of(2026, 5, 1));
+
+    var first = accounting.overview(1, YearMonth.of(2026, 5));
+    var firstCalculatedAt =
+        jdbc.queryForObject(
+            "SELECT calculated_at FROM investory.accounting_calculation_snapshot WHERE profile_id = 1 AND tax_period = DATE '2026-05-01'",
+            java.time.OffsetDateTime.class);
+
+    Thread.sleep(20);
+    var second = accounting.overview(1, YearMonth.of(2026, 5));
+    var secondCalculatedAt =
+        jdbc.queryForObject(
+            "SELECT calculated_at FROM investory.accounting_calculation_snapshot WHERE profile_id = 1 AND tax_period = DATE '2026-05-01'",
+            java.time.OffsetDateTime.class);
+
+    org.assertj.core.api.Assertions.assertThat(secondCalculatedAt).isEqualTo(firstCalculatedAt);
+    org.assertj.core.api.Assertions.assertThat(second.summary()).isEqualTo(first.summary());
   }
 
   @Test

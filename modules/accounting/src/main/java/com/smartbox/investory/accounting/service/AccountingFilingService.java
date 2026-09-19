@@ -157,6 +157,7 @@ public class AccountingFilingService {
     repository.updateLifecycleStatus(profileId, period, PeriodLifecycleStatus.CONFIRMED);
   }
 
+  @Transactional
   public void reopen(long profileId, LocalDate period, String reason) {
     var state = repository.periodState(profileId, period);
     var current = state == null ? PeriodLifecycleStatus.OPEN : state.lifecycleStatus();

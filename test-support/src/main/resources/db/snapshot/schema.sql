@@ -1441,6 +1441,17 @@ CREATE TABLE investory.accounting_reference_month (
     CONSTRAINT chk_accounting_reference_month_range CHECK (((tax_period >= '2025-01-01'::date) AND (tax_period < '2026-09-01'::date)))
 );
 
+CREATE TABLE investory.accounting_calculation_snapshot (
+    profile_id bigint NOT NULL,
+    tax_period date NOT NULL,
+    schema_version integer NOT NULL,
+    payload jsonb NOT NULL,
+    calculation_hash character varying(64) NOT NULL,
+    calculated_at timestamp with time zone NOT NULL,
+    CONSTRAINT accounting_calculation_snapshot_pkey PRIMARY KEY (profile_id, tax_period),
+    CONSTRAINT chk_accounting_calculation_snapshot_period_month_start CHECK ((EXTRACT(day FROM tax_period) = (1)::numeric))
+);
+
 
 --
 -- Name: TABLE accounting_reference_month; Type: COMMENT; Schema: investory; Owner: -
