@@ -27,7 +27,7 @@ public class PortfolioOwnershipWebConfig implements WebMvcConfigurer {
   @Override
   public void addCorsMappings(CorsRegistry registry) {
     registry
-        .addMapping("/api/v1/**")
+        .addMapping("/api/**")
         .allowedOrigins(mobileApiAllowedOrigins.split(","))
         .allowedMethods("GET", "POST", "PUT", "OPTIONS")
         .allowedHeaders("Authorization", "Content-Type")

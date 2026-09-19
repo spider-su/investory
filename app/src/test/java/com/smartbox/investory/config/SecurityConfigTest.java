@@ -6,6 +6,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
@@ -93,6 +95,18 @@ class SecurityConfigTest {
   @Test
   void livenessProbe_isOpen() throws Exception {
     mockMvc.perform(get("/actuator/health/liveness")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void legacyAccountingPreflight_allowsMobileWebOrigin() throws Exception {
+    mockMvc
+        .perform(
+            options("/api/profiles/1/accounting/documents/recognize")
+                .header("Origin", "http://localhost:8081")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "authorization,content-type"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:8081"));
   }
 
   @Test
