@@ -1,6 +1,7 @@
 package com.smartbox.investory.ryczalt.persistence;
 
 import com.smartbox.investory.ryczalt.domain.ObligationStatus;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -29,8 +30,9 @@ public class RyczaltObligationEntity extends RyczaltEntity {
   @Column(nullable = false, precision = 19, scale = 4)
   private BigDecimal amount;
 
-  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
-  private String currency;
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 3)
+  private CurrencyType currency;
 
   @Column(name = "due_date")
   private LocalDate dueDate;
@@ -49,7 +51,7 @@ public class RyczaltObligationEntity extends RyczaltEntity {
       long profileId,
       com.smartbox.investory.ryczalt.domain.ObligationType type,
       BigDecimal amount,
-      String currency,
+      CurrencyType currency,
       LocalDate dueDate,
       ObligationStatus status,
       Long calculationId) {
@@ -79,7 +81,7 @@ public class RyczaltObligationEntity extends RyczaltEntity {
     return amount;
   }
 
-  public String getCurrency() {
+  public CurrencyType getCurrency() {
     return currency;
   }
 

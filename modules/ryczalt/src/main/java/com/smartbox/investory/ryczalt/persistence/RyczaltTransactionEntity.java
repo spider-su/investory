@@ -1,7 +1,10 @@
 package com.smartbox.investory.ryczalt.persistence;
 
+import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -25,8 +28,9 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
   @Column(nullable = false, precision = 19, scale = 4)
   private BigDecimal amount;
 
-  @Column(nullable = false, length = 3, columnDefinition = "char(3)")
-  private String currency;
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 3)
+  private CurrencyType currency;
 
   @Column(length = 256)
   private String reference;
@@ -44,7 +48,7 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
       long profileId,
       LocalDate bookingDate,
       BigDecimal amount,
-      String currency,
+      CurrencyType currency,
       String reference,
       String counterparty,
       String description) {
@@ -74,7 +78,7 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
     return amount;
   }
 
-  public String getCurrency() {
+  public CurrencyType getCurrency() {
     return currency;
   }
 

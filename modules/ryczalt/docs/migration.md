@@ -10,8 +10,8 @@ and remains the reference/oracle during migration.
 | 3 | new persistence + migration | DONE |
 | 4 | systematic parity/corrections/lifecycle | DONE |
 | 5 | checkers/payment lifecycle | DONE |
-| 6 | native integrations | future |
-| 7 | API/application cutover bridge | CURRENT |
+| 6 | native integrations | IN PROGRESS |
+| 7 | API/application cutover bridge | IN PROGRESS |
 | 8 | remove Accounting | future |
 
 Stage 3 uses `RyczaltMigrationService` for a controlled, one-way import. It reads legacy tables only
@@ -39,14 +39,24 @@ Stage 4 limitations and explicit non-goals:
 - the implemented ZUS and statutory rules are the explicit 2026 POC scenarios, not a general
   future-year rule engine.
 
-Stage 5 adds settlement only over canonical persisted obligations and transactions. It does not add
-bank, eZUS, KSeF, NBP, filing, or external verification integrations.
+Stage 5 adds settlement only over canonical persisted obligations and transactions. Native NBP
+historical FX acquisition is now available through `FxRateSourcePort` and `RyczaltFxRateService`.
+Bank, eZUS, KSeF, filing, and external verification integrations remain incomplete.
+
+The NBP path is deliberately source-first and idempotent: the service looks up a persisted rate on
+or before the policy-selected prior business day, calls NBP only when no fact exists, persists the
+effective date/rate/provider reference using `BigDecimal`, and never overwrites an existing fact.
+No calculator calls NBP.
 
 The Stage 7 bridge owns `RyczaltUserApi` and routes existing controllers to it. The temporary
 `LegacyAccountingUserApiAdapter` delegates unsupported document, bank, filing, KSeF, and reference
 operations through the legacy public `AccountingUserApi`. Native settlement/lifecycle behavior is used
 when a Ryczalt period exists; historical periods continue to use legacy behavior. This dependency is
 explicit in the Ryczalt Maven module and is the first removal target after native endpoint parity.
+
+The current endpoint and dependency inventory is maintained in
+`modules/ryczalt/docs/cutover-audit.md`. It distinguishes migration-only legacy table reads from
+normal runtime dependencies and is the source for the next implementation backlog.
 
 Stage 3 intentionally does not migrate `accounting_reference_*` or other comparison-only tables.
 Legacy booked PLN and ryczałt-rate fields are copied to canonical invoices. The current legacy POC
