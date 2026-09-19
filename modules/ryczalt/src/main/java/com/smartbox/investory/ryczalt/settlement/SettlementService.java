@@ -135,7 +135,7 @@ public class SettlementService {
             new com.smartbox.investory.ryczalt.domain.Obligation(
                 obligation.getType(),
                 obligation.getAmount(),
-                Currency.getInstance(obligation.getCurrency()),
+                Currency.getInstance(obligation.getCurrency().name()),
                 obligation.getDueDate(),
                 obligation.getStatus()),
             domainTransactions,
@@ -199,7 +199,7 @@ public class SettlementService {
         entity.id().toString(),
         entity.getBookingDate(),
         entity.getAmount(),
-        Currency.getInstance(entity.getCurrency()),
+        Currency.getInstance(entity.getCurrency().name()),
         entity.getCounterparty(),
         entity.getCounterpartyAccount(),
         entity.getDescription());
