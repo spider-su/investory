@@ -25,7 +25,7 @@ reference data, including FX rates, is persisted. Reopening or correction is exp
 results will carry rule/calculator versions. Rounding belongs to versioned calculation rules, not
 generic formatting.
 
-The intended future flow is:
+The intended flow is:
 
 ```text
 sources -> adapters -> ports -> AccountingPeriod -> calculators
@@ -45,22 +45,22 @@ sources -> adapters -> ports -> AccountingPeriod -> calculators
 9. application cutover
 10. remove accounting
 
-## Current stage: calculation layer
+## Current stage: persistence and migration
 
-Stage 2 adds pure, dependency-free calculators over already-normalized facts:
+Stage 2 added pure calculators over already-normalized facts. Stage 3 adds separate JPA persistence
+and a one-way legacy import:
 
-- `RyczaltCalculator` calculates multi-rate revenue, eligible social/health deductions, taxable
-  base, tax, and deduction carry-forward.
-- `VatCalculator` settles output VAT, sales corrections, deductible input VAT, and explicit
-  adjustments.
-- `ZusCalculator` covers the supported JDG/UoP insurance cases and 2026 health bands.
+- `RyczaltPersistenceAdapter` loads and saves canonical `AccountingPeriod` facts from `ryczalt_*`
+  tables.
+- `RyczaltMigrationService` imports operational legacy POC rows once, idempotently, with source
+  references. It is not a runtime legacy adapter.
+- JPA entities, repositories, calculation records, FX facts, and profile-scoped constraints are
+  under `persistence`.
 
 The versioned rule sets are `RyczaltRules2026`, `VatRules2026`, and `ZusRules2026`. The shared
 `RoundingPolicy` exposes named semantic operations for FX, contributions, deductions, ryczałt, and
 VAT settlement. Inputs are normalized PLN facts; source classification, FX acquisition, database
 adapters, persistence, reconciliation, UI, and application cutover remain future stages.
 
-Stage 2 has no dependency on `accounting`, `app`, or `test-support`. Its owned tests use a small
-adapted HappyInvestor fixture and compare selected normalized values with the existing reference
-oracle. The old `accounting` module remains the operational reference until later parity and
-cutover stages are complete.
+The old `accounting` module remains the operational reference until later parity and cutover
+stages. Reference/golden tables are comparison evidence and are not imported as canonical facts.

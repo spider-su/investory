@@ -1,7 +1,5 @@
 package com.smartbox.investory.ryczalt.persistence;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,14 +9,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "ryczalt_calculation", schema = "investory")
 public class RyczaltCalculationEntity {
-  private static final ObjectMapper JSON = new ObjectMapper();
-
   @jakarta.persistence.Id
   @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
   private Long id;
@@ -38,9 +32,8 @@ public class RyczaltCalculationEntity {
   @Column(nullable = false, length = 16)
   private CalculationStatus status;
 
-  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "result_json", nullable = false, columnDefinition = "jsonb")
-  private JsonNode resultJson;
+  private String resultJson;
 
   @Column(name = "input_fingerprint", nullable = false, length = 128)
   private String inputFingerprint;
@@ -54,12 +47,6 @@ public class RyczaltCalculationEntity {
   @Column(name = "calculated_at", nullable = false)
   private Instant calculatedAt;
 
-  @Column(nullable = false)
-  private int revision;
-
-  @Column(name = "is_current", nullable = false)
-  private boolean current;
-
   protected RyczaltCalculationEntity() {}
 
   public RyczaltCalculationEntity(
@@ -71,24 +58,16 @@ public class RyczaltCalculationEntity {
       String inputFingerprint,
       String ruleVersion,
       String calculatorVersion,
-      Instant calculatedAt,
-      int revision,
-      boolean current) {
+      Instant calculatedAt) {
     this.period = period;
     this.profileId = profileId;
     this.type = type;
     this.status = status;
-    try {
-      this.resultJson = JSON.readTree(resultJson);
-    } catch (Exception exception) {
-      throw new IllegalArgumentException("Calculation result must contain valid JSON", exception);
-    }
+    this.resultJson = resultJson;
     this.inputFingerprint = inputFingerprint;
     this.ruleVersion = ruleVersion;
     this.calculatorVersion = calculatorVersion;
     this.calculatedAt = calculatedAt;
-    this.revision = revision;
-    this.current = current;
   }
 
   public Long getId() {
@@ -112,10 +91,6 @@ public class RyczaltCalculationEntity {
   }
 
   public String getResultJson() {
-    return resultJson == null ? null : resultJson.toString();
-  }
-
-  public JsonNode getResultJsonNode() {
     return resultJson;
   }
 
@@ -133,22 +108,5 @@ public class RyczaltCalculationEntity {
 
   public Instant getCalculatedAt() {
     return calculatedAt;
-  }
-
-  public int getRevision() {
-    return revision;
-  }
-
-  public boolean isCurrent() {
-    return current;
-  }
-
-  public void markStale() {
-    this.status = CalculationStatus.STALE;
-    this.current = false;
-  }
-
-  public void markFrozen() {
-    this.status = CalculationStatus.FROZEN;
   }
 }

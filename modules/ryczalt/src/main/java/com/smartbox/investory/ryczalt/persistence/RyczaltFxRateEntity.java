@@ -1,10 +1,7 @@
 package com.smartbox.investory.ryczalt.persistence;
 
-import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -20,9 +17,8 @@ public class RyczaltFxRateEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 3)
-  private CurrencyType currency;
+  private String currency;
 
   @Column(name = "effective_date", nullable = false)
   private LocalDate effectiveDate;
@@ -42,7 +38,7 @@ public class RyczaltFxRateEntity {
   protected RyczaltFxRateEntity() {}
 
   public RyczaltFxRateEntity(
-      CurrencyType currency,
+      String currency,
       LocalDate effectiveDate,
       BigDecimal rate,
       String provider,
@@ -60,7 +56,7 @@ public class RyczaltFxRateEntity {
     return id;
   }
 
-  public CurrencyType getCurrency() {
+  public String getCurrency() {
     return currency;
   }
 
