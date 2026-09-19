@@ -8,6 +8,7 @@ import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.investment.web.AccountIdParser;
 import com.smartbox.investory.longterm.api.model.*;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundException;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -70,6 +71,8 @@ public class RestApiExceptionHandler {
 
   @ExceptionHandler({
     ResourceNotFoundException.class,
+    RyczaltPeriodNotFoundException.class,
+    RyczaltPeriodNotFoundException.class,
     InvestmentAssetApi.AssetNotFoundException.class,
     InvestmentDashboardApi.PortfolioNotFoundException.class,
     RetirementPlanApi.EventNotFoundException.class

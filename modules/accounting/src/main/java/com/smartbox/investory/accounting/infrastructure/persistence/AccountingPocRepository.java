@@ -373,8 +373,8 @@ public class AccountingPocRepository {
 
   public Optional<String> calculationSnapshot(long profileId, LocalDate period) {
     return jdbcTemplate.query(
-        "SELECT payload::text FROM investory.accounting_calculation_snapshot WHERE profile_id = ? AND tax_period = ?",
-        rs -> rs.next() ? Optional.ofNullable(rs.getString(1)) : Optional.empty(),
+        "SELECT payload FROM investory.accounting_calculation_snapshot WHERE profile_id = ? AND tax_period = ?",
+        rs -> rs.next() ? Optional.ofNullable(rs.getString("payload")) : Optional.empty(),
         profileId,
         period);
   }
@@ -396,13 +396,6 @@ public class AccountingPocRepository {
         period,
         payload,
         calculationHash);
-  }
-
-  public void invalidateCalculationSnapshotsFrom(long profileId, LocalDate period) {
-    jdbcTemplate.update(
-        "DELETE FROM investory.accounting_calculation_snapshot WHERE profile_id = ? AND tax_period >= ?",
-        profileId,
-        period);
   }
 
   public Map<LocalDate, PeriodState> periodStates(long profileId) {
@@ -462,7 +455,6 @@ public class AccountingPocRepository {
         period,
         java.sql.Timestamp.from(reopenedAt),
         reason);
-    invalidateCalculationSnapshotsFrom(profileId, period);
   }
 
   public void saveFilingArtifact(long profileId, AccountingFilingArtifact artifact) {

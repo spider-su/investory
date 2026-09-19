@@ -21,7 +21,7 @@ public class AccountingMobileRestController {
   private final AuthorizationService authorization;
 
   public AccountingMobileRestController(
-      @Qualifier("accountingUserFacade") AccountingUserApi accounting,
+      @Qualifier("legacyAccountingApiBridge") AccountingUserApi accounting,
       AuthorizationService authorization) {
     this.accounting = accounting;
     this.authorization = authorization;
