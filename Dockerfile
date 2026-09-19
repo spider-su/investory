@@ -13,6 +13,7 @@ COPY modules/investment/pom.xml modules/investment/pom.xml
 COPY modules/longterm/pom.xml modules/longterm/pom.xml
 COPY modules/profile/pom.xml modules/profile/pom.xml
 COPY modules/retirement/pom.xml modules/retirement/pom.xml
+COPY modules/accounting/pom.xml modules/accounting/pom.xml
 COPY modules/ryczalt/pom.xml modules/ryczalt/pom.xml
 COPY integrations/pom.xml integrations/pom.xml
 COPY test-support/pom.xml test-support/pom.xml
@@ -21,12 +22,7 @@ COPY app/pom.xml app/pom.xml
 RUN sed -i 's/\r$//' mvnw \
     && ./mvnw -B -DskipTests dependency:go-offline
 
-COPY modules/shared modules/shared
-COPY modules/investment modules/investment
-COPY modules/longterm modules/longterm
-COPY modules/profile modules/profile
-COPY modules/retirement modules/retirement
-COPY modules/ryczalt modules/ryczalt
+COPY modules modules
 COPY integrations integrations
 COPY test-support test-support
 COPY adapters adapters
