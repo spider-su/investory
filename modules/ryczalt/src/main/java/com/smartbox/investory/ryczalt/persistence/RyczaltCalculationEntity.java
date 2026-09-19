@@ -1,5 +1,7 @@
 package com.smartbox.investory.ryczalt.persistence;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,13 +13,12 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Entity
 @Table(name = "ryczalt_calculation", schema = "investory")
 public class RyczaltCalculationEntity {
   private static final ObjectMapper JSON = new ObjectMapper();
+
   @jakarta.persistence.Id
   @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
   private Long id;

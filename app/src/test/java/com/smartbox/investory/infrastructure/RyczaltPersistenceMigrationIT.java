@@ -19,6 +19,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPersistenceAdapter;
 import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionJpaRepository;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -151,7 +152,7 @@ class RyczaltPersistenceMigrationIT {
         "RyczaltCalculator-1");
     fxRates.save(
         new RyczaltFxRateEntity(
-            "EUR",
+            CurrencyType.EUR,
             LocalDate.of(2026, 2, 1),
             new BigDecimal("4.20"),
             "FIXTURE",
@@ -160,7 +161,7 @@ class RyczaltPersistenceMigrationIT {
     assertThat(calculations.count()).isEqualTo(1);
     assertThat(
             fxRates.findByProviderAndCurrencyAndEffectiveDate(
-                "FIXTURE", "EUR", LocalDate.of(2026, 2, 1)))
+                "FIXTURE", CurrencyType.EUR, LocalDate.of(2026, 2, 1)))
         .isPresent();
 
     var storedObligation = obligations.findAll().getFirst();

@@ -5,6 +5,7 @@ import com.smartbox.investory.ryczalt.domain.Bucket;
 import com.smartbox.investory.ryczalt.domain.Invoice;
 import com.smartbox.investory.ryczalt.domain.Obligation;
 import com.smartbox.investory.ryczalt.domain.Transaction;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.transaction.Transactional;
 import java.time.YearMonth;
 import java.util.List;
@@ -121,7 +122,7 @@ public class RyczaltPersistenceAdapter {
             invoice.netAmount(),
             invoice.vatAmount(),
             invoice.grossAmount(),
-            invoice.currency().getCurrencyCode(),
+            CurrencyType.valueOf(invoice.currency().getCurrencyCode()),
             invoice.bookedNetPln(),
             invoice.ryczaltRate(),
             invoice.deductibleVat()));
@@ -135,7 +136,7 @@ public class RyczaltPersistenceAdapter {
             profileId,
             transaction.date(),
             transaction.amount(),
-            transaction.currency().getCurrencyCode(),
+            CurrencyType.valueOf(transaction.currency().getCurrencyCode()),
             transaction.reference(),
             transaction.counterparty(),
             transaction.description()));
@@ -148,7 +149,7 @@ public class RyczaltPersistenceAdapter {
             profileId,
             obligation.type(),
             obligation.amount(),
-            obligation.currency().getCurrencyCode(),
+            CurrencyType.valueOf(obligation.currency().getCurrencyCode()),
             obligation.dueDate(),
             obligation.status(),
             null));

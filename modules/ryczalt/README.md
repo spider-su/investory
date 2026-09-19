@@ -45,7 +45,7 @@ sources -> adapters -> ports -> AccountingPeriod -> calculators
 9. application cutover
 10. remove accounting
 
-## Current stage: REST/application cutover bridge
+## Current stage: native source integration and REST/application cutover bridge
 
 Stage 2 added pure calculators over already-normalized facts. Stage 3 adds separate JPA persistence
 and a one-way legacy import:
@@ -74,6 +74,11 @@ The legacy `accounting` dependency is intentionally temporary and must be remove
 capabilities replace the delegated operations. Reference/golden tables remain comparison evidence and
 are not imported as canonical facts.
 
+Native source capability is incremental. `RyczaltFxRateService` reads persisted historical NBP facts
+before calling the reusable `NbpClient`; acquired rates are stored once with the provider reference.
+The date decision is in `FxRateDatePolicy`, not in the HTTP client. The direct `integrations`
+dependency is for reusable source clients only and does not replace the temporary REST bridge.
+
 Current capability:
 
 ```text
@@ -81,3 +86,15 @@ RYCZALT  calculation ✓  persistence ✓  payment detection ✓  manual matchin
 VAT      calculation ✓  persistence ✓  payment detection ✓  manual matching ✓  external verify ✗
 ZUS      calculation ✓  persistence ✓  payment detection ✓  manual matching ✓  eZUS verify ✗
 ```
+
+Source integration matrix:
+
+```text
+Invoices / KSeF        NO   reusable transport exists; Ryczalt FA(3) normalizer not yet native
+Transactions / Bank    NO   reusable CSV source exists; Ryczalt sync service not yet wired
+FX / NBP               YES  NbpClient -> NbpFxRateAdapter -> FxRateSourcePort -> ryczalt_fx_rate
+ZUS external verify    NO   no reusable production eZUS verification client
+```
+
+See [docs/cutover-audit.md](docs/cutover-audit.md) for the detailed endpoint, dependency, and
+deletion-blocker audit.
