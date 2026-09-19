@@ -81,23 +81,34 @@ public class RyczaltMigrationService {
           row.get("reference") == null
               ? "legacy-bank-" + row.get("id")
               : row.get("reference").toString();
-      Long id =
-          insertReturning(
-              """
-              INSERT INTO investory.ryczalt_transaction
-                  (period_id, profile_id, booking_date, amount, currency, reference, counterparty, description)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT (profile_id, reference) DO UPDATE SET reference=EXCLUDED.reference
-              RETURNING id
-              """,
-              periodId,
+      java.util.List<Map<String, Object>> existing =
+          jdbc.queryForList(
+              "SELECT id FROM investory.ryczalt_transaction WHERE profile_id=? AND reference=?",
               profileId,
-              date(row, "booking_date"),
-              row.get("amount"),
-              row.get("currency"),
-              reference,
-              row.get("counterparty_alias"),
-              row.get("note"));
+              reference);
+      Long id;
+      if (!existing.isEmpty()) {
+        // Preserve historical collapse-by-reference: distinct legacy rows sharing one reference map
+        // to a single migrated transaction, keeping certified counts stable.
+        id = ((Number) existing.getFirst().get("id")).longValue();
+      } else {
+        id =
+            insertReturning(
+                """
+                INSERT INTO investory.ryczalt_transaction
+                    (period_id, profile_id, booking_date, amount, currency, reference, counterparty, description)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """,
+                periodId,
+                profileId,
+                date(row, "booking_date"),
+                row.get("amount"),
+                row.get("currency"),
+                reference,
+                row.get("counterparty_alias"),
+                row.get("note"));
+      }
       sourceReferences +=
           sourceReference(
                   profileId,
@@ -142,8 +153,202 @@ public class RyczaltMigrationService {
               : 0;
       obligations++;
     }
+    sourceReferences += migrateCalculationSnapshots(profileId);
     return new RyczaltMigrationReport(
         periods, income, costs, transactions, obligations, sourceReferences);
+  }
+
+  /**
+   * Copies persisted historical results. These values are evidence, not fresh calculator output.
+   * The legacy obligation table is intentionally not used for this mapping.
+   */
+  private int migrateCalculationSnapshots(long profileId) {
+    int sourceReferences = 0;
+    for (Map<String, Object> row :
+        query(
+            "SELECT tax_period, calculation_hash, calculated_at,"
+                + " payload->'ryczalt' AS ryczalt, payload->'vat' AS vat, payload->'zus' AS zus"
+                + " FROM investory.accounting_calculation_snapshot WHERE profile_id=?"
+                + " ORDER BY tax_period",
+            profileId)) {
+      LocalDate taxPeriod = date(row, "tax_period");
+      long periodId = period(profileId, taxPeriod);
+      String fingerprint = row.get("calculation_hash").toString();
+      Object calculatedAt = row.get("calculated_at");
+      String status = periodStatus(profileId, periodId);
+      for (Map.Entry<String, String> section :
+          Map.of("ryczalt", "RYCZALT", "vat", "VAT", "zus", "ZUS").entrySet()) {
+        String resultJson = jsonValue(row.get(section.getKey()));
+        if (resultJson == null) continue;
+        long calculationId =
+            calculation(
+                profileId,
+                periodId,
+                section.getValue(),
+                resultJson,
+                fingerprint,
+                status,
+                calculatedAt);
+        sourceReferences +=
+            sourceReference(
+                    profileId,
+                    "CALCULATION",
+                    calculationId,
+                    "ACCOUNTING_CALCULATION_SNAPSHOT",
+                    taxPeriod + "|" + section.getValue())
+                ? 1
+                : 0;
+        long obligationId =
+            obligationFromSnapshot(
+                profileId,
+                periodId,
+                section.getValue(),
+                resultJson,
+                calculationId,
+                status,
+                calculatedAt);
+        sourceReferences +=
+            sourceReference(
+                    profileId,
+                    "OBLIGATION",
+                    obligationId,
+                    "ACCOUNTING_CALCULATION_SNAPSHOT",
+                    taxPeriod + "|" + section.getValue())
+                ? 1
+                : 0;
+      }
+    }
+    return sourceReferences;
+  }
+
+  private long calculation(
+      long profileId,
+      long periodId,
+      String type,
+      String resultJson,
+      String fingerprint,
+      String status,
+      Object calculatedAt) {
+    Map<String, Object> existing =
+        jdbc.query(
+            "SELECT id, input_fingerprint FROM investory.ryczalt_calculation"
+                + " WHERE profile_id=? AND period_id=? AND calculation_type=?",
+            rs ->
+                rs.next()
+                    ? Map.of(
+                        "id",
+                        rs.getLong("id"),
+                        "input_fingerprint",
+                        rs.getString("input_fingerprint"))
+                    : null,
+            profileId,
+            periodId,
+            type);
+    if (existing != null && !fingerprint.equals(existing.get("input_fingerprint"))) {
+      throw new IllegalStateException(
+          "Accounting snapshot conflicts with native calculation profile="
+              + profileId
+              + " periodId="
+              + periodId
+              + " type="
+              + type);
+    }
+    return insertReturning(
+        """
+        INSERT INTO investory.ryczalt_calculation
+            (period_id, profile_id, calculation_type, status, result_json, input_fingerprint,
+             rule_version, calculator_version, calculated_at)
+        VALUES (?, ?, ?, ?, ?::jsonb, ?, 'LEGACY_ACCOUNTING_SNAPSHOT_V1', 'LEGACY_ACCOUNTING', ?)
+        ON CONFLICT (profile_id, period_id, calculation_type) WHERE is_current DO UPDATE SET
+            status=EXCLUDED.status, result_json=EXCLUDED.result_json,
+            input_fingerprint=EXCLUDED.input_fingerprint,
+            rule_version=EXCLUDED.rule_version, calculator_version=EXCLUDED.calculator_version,
+            calculated_at=EXCLUDED.calculated_at
+        RETURNING id
+        """,
+        periodId,
+        profileId,
+        type,
+        status,
+        resultJson,
+        fingerprint,
+        calculatedAt);
+  }
+
+  private long obligationFromSnapshot(
+      long profileId,
+      long periodId,
+      String type,
+      String resultJson,
+      long calculationId,
+      String status,
+      Object calculatedAt) {
+    String obligationStatus = "FROZEN".equals(status) ? "FROZEN" : "OPEN";
+    BigDecimal amount =
+        jdbc.queryForObject(
+            "SELECT COALESCE((?::jsonb ->> CASE ? WHEN 'RYCZALT' THEN 'calculatedTax'"
+                + " WHEN 'VAT' THEN 'calculatedVat' ELSE 'totalZus' END)::numeric, 0)",
+            BigDecimal.class,
+            resultJson,
+            type);
+    Map<String, Object> existing =
+        jdbc.query(
+            "SELECT id, amount, status FROM investory.ryczalt_obligation"
+                + " WHERE profile_id=? AND period_id=? AND obligation_type=?",
+            rs ->
+                rs.next()
+                    ? Map.of(
+                        "id",
+                        rs.getLong("id"),
+                        "amount",
+                        rs.getBigDecimal("amount"),
+                        "status",
+                        rs.getString("status"))
+                    : null,
+            profileId,
+            periodId,
+            type);
+    if (existing != null
+        && (amount.compareTo((BigDecimal) existing.get("amount")) != 0
+            || !obligationStatus.equals(existing.get("status")))) {
+      throw new IllegalStateException(
+          "Accounting snapshot conflicts with native obligation profile="
+              + profileId
+              + " periodId="
+              + periodId
+              + " type="
+              + type);
+    }
+    return insertReturning(
+        """
+        INSERT INTO investory.ryczalt_obligation
+            (period_id, profile_id, obligation_type, amount, currency, due_date, status, calculation_id)
+        VALUES (?, ?, ?, ?, 'PLN', NULL, ?, ?)
+        ON CONFLICT (profile_id, period_id, obligation_type) DO UPDATE SET
+            amount=EXCLUDED.amount, status=EXCLUDED.status, calculation_id=EXCLUDED.calculation_id
+        RETURNING id
+        """,
+        periodId,
+        profileId,
+        type,
+        amount,
+        obligationStatus,
+        calculationId);
+  }
+
+  private String periodStatus(long profileId, long periodId) {
+    return jdbc.queryForObject(
+        "SELECT CASE WHEN status='FROZEN' THEN 'FROZEN' ELSE 'CURRENT' END"
+            + " FROM investory.ryczalt_period WHERE profile_id=? AND id=?",
+        String.class,
+        profileId,
+        periodId);
+  }
+
+  private static String jsonValue(Object value) {
+    if (value == null) return null;
+    String json = value.toString();
+    return "null".equals(json) ? null : json;
   }
 
   private long period(long profileId, LocalDate date) {

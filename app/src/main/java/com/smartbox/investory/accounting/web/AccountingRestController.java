@@ -2,7 +2,6 @@ package com.smartbox.investory.accounting.web;
 
 import com.smartbox.investory.accounting.api.AccountingUserApi;
 import com.smartbox.investory.config.AuthorizationService;
-import com.smartbox.investory.ryczalt.application.RyczaltUserApi;
 import java.time.YearMonth;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -13,11 +12,12 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/profiles/{profileId}/accounting")
 public class AccountingRestController {
-  private final RyczaltUserApi accounting;
+  private final AccountingUserApi accounting;
   private final AuthorizationService authorization;
 
   public AccountingRestController(
-      @Qualifier("ryczaltUserApi") RyczaltUserApi accounting, AuthorizationService authorization) {
+      @Qualifier("legacyAccountingApiBridge") AccountingUserApi accounting,
+      AuthorizationService authorization) {
     this.accounting = accounting;
     this.authorization = authorization;
   }
@@ -290,11 +290,16 @@ public class AccountingRestController {
   public void reopen(
       @PathVariable long profileId,
       @PathVariable YearMonth month,
-      @RequestParam String reason,
+      @RequestBody ReopenRequest request,
       Authentication a) {
     write(profileId, a);
-    accounting.reopen(profileId, month, reason);
+    if (request == null || request.reason() == null || request.reason().isBlank()) {
+      throw badRequest("Reopen reason is required");
+    }
+    accounting.reopen(profileId, month, request.reason().trim());
   }
+
+  public record ReopenRequest(String reason) {}
 
   private void read(long p, Authentication a) {
     if (!authorization.canRead(p, a))
@@ -309,13 +314,19 @@ public class AccountingRestController {
   }
 
   private void validateUpload(MultipartFile file, String... contentTypes) {
-    if (file == null || file.isEmpty())
-      throw new IllegalArgumentException("Uploaded file is empty");
+    if (file == null || file.isEmpty()) throw badRequest("Uploaded file is empty");
+
     if (file.getSize() > 12L * 1024 * 1024)
-      throw new IllegalArgumentException("Uploaded file exceeds the 12 MB limit");
+      throw badRequest("Uploaded file exceeds the 12 MB limit");
+
     String contentType = file.getContentType();
     if (contentType != null
         && java.util.Arrays.stream(contentTypes).noneMatch(contentType::equalsIgnoreCase))
-      throw new IllegalArgumentException("Unsupported uploaded file type");
+      throw badRequest("Unsupported uploaded file type");
+  }
+
+  private org.springframework.web.server.ResponseStatusException badRequest(String message) {
+    return new org.springframework.web.server.ResponseStatusException(
+        org.springframework.http.HttpStatus.BAD_REQUEST, message);
   }
 }

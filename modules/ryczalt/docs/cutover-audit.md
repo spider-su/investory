@@ -6,11 +6,10 @@ the `modules/accounting` module.
 
 ## Executive result
 
-`modules/ryczalt` still has one direct production dependency on `modules/accounting`: the
-`RyczaltUserApi` contract extends `AccountingUserApi`, and
-`LegacyAccountingUserApiAdapter` delegates nearly that entire contract to the qualified
-`accountingUserFacade` bean. This is not an accidental second import path; it is the current REST
-compatibility boundary.
+`modules/ryczalt` has no production dependency on `modules/accounting`. Its native application
+boundary is `RyczaltAccountingApi` implemented by `RyczaltAccountingFacade`. The app module owns
+`LegacyAccountingApiBridge`, which maps native data to old `AccountingUserApi` records and delegates
+unsupported operations to the qualified `accountingUserFacade` bean.
 
 The mobile consumer checkout is available at `/home/alex/projects/ryczalt_it`. It is an Expo/
 React Native client named `investory-accounting-mobile`, not a missing repository. Its concrete
@@ -29,9 +28,9 @@ Ryczalt application sync path. eZUS has no reusable production verification clie
 
 | Location | Dependency | Classification |
 | --- | --- | --- |
-| `modules/ryczalt/pom.xml` | `com.smartbox:accounting` | Temporary bridge dependency |
-| `ryczalt/application/RyczaltUserApi.java` | extends `com.smartbox.investory.accounting.api.AccountingUserApi` | Legacy-owned public contract; deletion blocker |
-| `ryczalt/application/LegacyAccountingUserApiAdapter.java` | imports `AccountingUserApi`; injects `@Qualifier("accountingUserFacade")` | Sole production bridge implementation |
+| `modules/ryczalt/pom.xml` | no `com.smartbox:accounting` dependency | `REMOVED` |
+| `ryczalt/application/RyczaltAccountingApi.java` | native query/lifecycle port | Ryczalt-owned application contract |
+| `app/accounting/application/LegacyAccountingApiBridge.java` | maps native records and qualifies `accountingUserFacade` | Temporary app compatibility bridge |
 
 No other production class under `modules/ryczalt` imports an Accounting class. The migration
 service's SQL references legacy `accounting_poc_*` tables, but that is an explicit one-way import
@@ -39,7 +38,7 @@ path and is classified separately below.
 
 ## Adapter method audit
 
-Every method below is implemented by `LegacyAccountingUserApiAdapter`.
+The old-route methods below are implemented by `LegacyAccountingApiBridge`.
 
 | Method | Current handling | Classification | Replacement/blocker |
 | --- | --- | --- | --- |
@@ -78,9 +77,9 @@ make those capabilities native: the adapter explicitly delegates them.
 
 ## Public contract and DTO ownership
 
-`RyczaltUserApi` has no Ryczalt-owned method or DTO. It inherits all methods and nested records from
-`AccountingUserApi`, including `MonthOverview`, `DocumentView`, `BankTransactionView`,
-`KsefSyncResult`, filing records, issue/resolution records, and payment records.
+The native contract owns only Ryczalt read models and lifecycle commands. Old-route DTO mapping stays
+in `app`; `AccountingUserApi` remains a temporary compatibility contract for consumers not yet
+migrated.
 
 Classification:
 
@@ -101,20 +100,21 @@ All routes below are under `/api/profiles/{profileId}/accounting` and are curren
 
 | Endpoint group | Entry point | Current owner | Result |
 | --- | --- | --- | --- |
-| months, overview, issues, documents, bank transactions, payments, reconciliation | `AccountingRestController` | `RyczaltUserApi` -> legacy adapter -> Accounting | `LEGACY_DELEGATED` |
+| months, overview, issues, documents, bank transactions, payments | `AccountingRestController` | app bridge; native period data or legacy fallback | `NATIVE_OR_LEGACY_FALLBACK` |
 | counterparties and aliases | `AccountingRestController` | legacy adapter -> Accounting | `LEGACY_DELEGATED` |
 | document recognition/review/manual income/issue | `AccountingRestController` | legacy adapter -> Accounting | `LEGACY_DELEGATED` |
 | bank import | `AccountingRestController` and web UI controller | legacy adapter -> Accounting | `LEGACY_DELEGATED` |
 | KSeF sync/reimport/seller/third-party | `AccountingRestController` and web UI controller | legacy adapter -> Accounting | `LEGACY_DELEGATED` |
 | confirm/file/JPK/confirmation | `AccountingRestController` | legacy adapter -> Accounting | `LEGACY_DELEGATED` |
-| settle/lock/reopen | `AccountingRestController` and web UI controller | conditional native branch, legacy fallback | `LEGACY_DELEGATED_BUT_NATIVE_CAPABILITY_EXISTS` |
+| settle/lock/reopen | `AccountingRestController` and web UI controller | app bridge; native period data or legacy fallback | `NATIVE_OR_LEGACY_FALLBACK` |
 | staging rows/reconcile/promote | `AccountingStagingRestController` | `AccountingStagingFacade` directly | `LEGACY_DELEGATED` / outside Ryczalt bridge |
 | web accounting page | `AccountingPageController` -> `InProcessAccountingClient` | Accounting DTOs plus `accountingUserFacade` and `accountingStagingFacade` | Legacy contract dependency |
-| mobile accounting responses | `AccountingMobileRestController` -> `AccountingMobileResponse` | Ryczalt bridge input, Accounting DTO mapping | Legacy DTO dependency |
+| mobile accounting responses | `AccountingMobileRestController` -> `AccountingMobileResponse` | app bridge input, Accounting DTO mapping | Legacy DTO dependency |
 | common native accounting resources | `RyczaltAccountingRestController` | native Ryczalt query/lifecycle services | `STABLE_NATIVE`; web/mobile migration pending |
 
-The REST controller already injects `@Qualifier("ryczaltUserApi")`, but that is only a routing
-change. It does not make the underlying operation native.
+The native REST controller injects `RyczaltAccountingApi` directly. Old REST controllers inject the
+app-owned compatibility bridge. This keeps routing explicit and prevents the Ryczalt module from
+depending on legacy API types.
 
 ## Web/mobile consumer matrix
 
@@ -182,9 +182,9 @@ those operations are replaced.
 
 ## What breaks if Accounting is deleted today?
 
-### Blocks removal of `LegacyAccountingUserApiAdapter`
+### Remaining blockers before removing legacy Accounting
 
-1. The entire `RyczaltUserApi extends AccountingUserApi` contract and all inherited DTOs.
+1. Remaining web/mobile consumers still use the old `AccountingUserApi` DTO contract.
 2. Native read/application services for months, overview, issues, invoices, transactions, payments,
    reconciliation, and counterparties.
 3. Native document recognition/review/manual income behavior, or an explicit decision to classify
@@ -235,8 +235,7 @@ The following should not be copied into Ryczalt merely to obtain API parity:
 6. Expose the existing NBP FX service from the required native application use case and add the
    end-to-end persistence/use-case test. This removes the current `IMPLEMENTED_CORE_NOT_WIRED` gap.
 7. Replace the Accounting mobile/web DTO mapping and staging client with the scoped native contract.
-8. Remove all legacy fallbacks from `LegacyAccountingUserApiAdapter`; then delete the adapter and
-   the Ryczalt Maven dependency on `accounting`.
+8. Migrate remaining consumers, remove compatibility fallbacks, then delete `modules/accounting`.
 9. Run replacement parity/certification tests for supported Ryczałt, VAT, ZUS, FX/booked PLN, and
    obligations. Retire or relocate legacy-only reference tests.
 10. Delete `modules/accounting` only after controllers, UI, staging, tests, migration tooling, and
