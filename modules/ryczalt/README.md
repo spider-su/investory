@@ -65,14 +65,14 @@ adapters, persistence, reconciliation, UI, and application cutover remain future
 Stage 4 added revisioned calculation history, deterministic fingerprints, targeted invalidation,
 explicit freeze/reopen/correction services, and audit events. Stage 5 added pure payment and period
 completeness checkers, persisted partial payment matches, deterministic automatic settlement, manual
-matching, and frozen-settlement protection. The current cutover bridge exposes the existing REST
-contract through `RyczaltUserApi`; unsupported operations delegate through the temporary
-`LegacyAccountingUserApiAdapter`. Native settlement and lifecycle operations are selected for periods
-already present in the Ryczalt schema. Frozen periods are load-only.
+matching, and frozen-settlement protection. `RyczaltAccountingApi` and
+`RyczaltAccountingFacade` now own the native application boundary. Native REST uses that boundary;
+the app module owns the temporary `LegacyAccountingApiBridge` for old routes. Native settlement and
+lifecycle operations are selected for periods already present in the Ryczalt schema. Frozen periods
+are load-only.
 
-The legacy `accounting` dependency is intentionally temporary and must be removed after native REST
-capabilities replace the delegated operations. Reference/golden tables remain comparison evidence and
-are not imported as canonical facts.
+The `modules/ryczalt` Maven dependency on `accounting` is removed. Reference/golden tables remain
+comparison evidence and are not imported as canonical facts.
 
 Native source capability is incremental. `RyczaltFxRateService` reads persisted historical NBP facts
 before calling the reusable `NbpClient`; acquired rates are stored once with the provider reference.

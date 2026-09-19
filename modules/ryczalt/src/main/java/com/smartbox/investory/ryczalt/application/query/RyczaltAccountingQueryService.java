@@ -63,6 +63,11 @@ public class RyczaltAccountingQueryService {
   }
 
   @Transactional(readOnly = true)
+  public boolean hasPeriod(long profileId, YearMonth month) {
+    return listPeriods(profileId).stream().anyMatch(period -> period.month().equals(month));
+  }
+
+  @Transactional(readOnly = true)
   public RyczaltPeriodReadModel getPeriod(long profileId, YearMonth month) {
     Loaded loaded = load(profileId, month);
     List<RyczaltInvoiceEntity> invoiceRows = invoices(loaded.period);

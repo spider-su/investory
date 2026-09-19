@@ -139,4 +139,23 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
   public BigDecimal getDeductibleVat() {
     return deductibleVat;
   }
+
+  public void update(
+      LocalDate issueDate,
+      LocalDate accountingDate,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      CurrencyType currency) {
+    this.issueDate = issueDate;
+    this.accountingDate = accountingDate;
+    this.netAmount = netAmount;
+    this.vatAmount = vatAmount;
+    this.grossAmount = grossAmount;
+    this.currency = currency;
+  }
+
+  public Long id() {
+    return getId();
+  }
 }

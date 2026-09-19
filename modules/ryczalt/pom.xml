@@ -9,12 +9,6 @@
   </parent>
   <artifactId>ryczalt</artifactId>
   <dependencies>
-    <!-- Temporary Stage 7 bridge. Remove when the REST contract is natively implemented. -->
-    <dependency>
-      <groupId>com.smartbox</groupId>
-      <artifactId>accounting</artifactId>
-      <version>${project.version}</version>
-    </dependency>
     <dependency>
       <groupId>com.smartbox</groupId>
       <artifactId>integrations</artifactId>

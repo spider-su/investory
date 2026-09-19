@@ -27,7 +27,7 @@ Its API paths are defined in `src/api/accountingPaths.ts` and calls are made by
 | `GET/PUT .../counterparties` | web and mobile read path | mobile read only | legacy Accounting | temporary; not native Ryczalt yet |
 | document recognition/save | web and mobile | mobile uses both | legacy Accounting | temporary ingestion workflow; do not call it invoice resource |
 | KSeF, bank import, filing, staging commands | web | no mobile use found | legacy Accounting | temporary or remove by product decision |
-| settle, lock, reopen | web | no mobile use found | conditional Ryczalt/legacy adapter | retain as common commands, rename lock to freeze in the new contract |
+| settle, lock, reopen | web | no mobile use found | old routes use the app bridge; native routes use `RyczaltAccountingApi` | retain common commands during migration, with native `freeze` replacing `lock` |
 
 The mobile client consumes monthly facts for revenue, Ryczałt/VAT/ZUS amounts, payment rows,
 issues, document rows, source/review/payment statuses, bank/reconciliation summaries, filing
@@ -52,7 +52,7 @@ GET  /api/profiles/{profileId}/accounting/periods/{month}/invoices
 GET  /api/profiles/{profileId}/accounting/periods/{month}/transactions
 GET  /api/profiles/{profileId}/accounting/periods/{month}/obligations
 GET  /api/profiles/{profileId}/accounting/periods/{month}/issues
-GET  /api/profiles/{profileId}/accounting/payments/history
+GET  /api/profiles/{profileId}/accounting/periods/payments/history
 
 POST /api/profiles/{profileId}/accounting/periods/{month}/settle
 POST /api/profiles/{profileId}/accounting/periods/{month}/freeze
