@@ -13,7 +13,10 @@ public record Invoice(
     BigDecimal netAmount,
     BigDecimal vatAmount,
     BigDecimal grossAmount,
-    Currency currency) {
+    Currency currency,
+    BigDecimal bookedNetPln,
+    BigDecimal ryczaltRate,
+    BigDecimal deductibleVat) {
   public Invoice {
     reference = Objects.requireNonNull(reference, "reference");
     issueDate = Objects.requireNonNull(issueDate, "issueDate");
@@ -22,5 +25,16 @@ public record Invoice(
     vatAmount = Objects.requireNonNull(vatAmount, "vatAmount");
     grossAmount = Objects.requireNonNull(grossAmount, "grossAmount");
     currency = Objects.requireNonNull(currency, "currency");
+  }
+
+  public Invoice(
+      String reference,
+      LocalDate issueDate,
+      LocalDate accountingDate,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      Currency currency) {
+    this(reference, issueDate, accountingDate, netAmount, vatAmount, grossAmount, currency, null, null, null);
   }
 }
