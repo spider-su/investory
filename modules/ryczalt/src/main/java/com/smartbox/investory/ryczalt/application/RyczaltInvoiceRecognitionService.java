@@ -20,27 +20,33 @@ public class RyczaltInvoiceRecognitionService {
   private final RyczaltInvoiceCandidateJpaRepository candidates;
   private final RyczaltSourceReferenceJpaRepository sources;
   private final RyczaltCounterpartyService counterparties;
+  private final RyczaltInvoiceCandidatePersistenceService persistence;
 
   public RyczaltInvoiceRecognitionService(
       InvoiceRecognitionPort recognizer,
       RyczaltInvoiceCandidateJpaRepository candidates,
       RyczaltSourceReferenceJpaRepository sources,
-      RyczaltCounterpartyService counterparties) {
+      RyczaltCounterpartyService counterparties,
+      RyczaltInvoiceCandidatePersistenceService persistence) {
     this.recognizer = recognizer;
     this.candidates = candidates;
     this.sources = sources;
     this.counterparties = counterparties;
+    this.persistence = persistence;
   }
 
-  @Transactional
   public CandidateView recognize(
       long profileId, String filename, String contentType, byte[] content) {
     var invoice = recognizer.recognize(filename, contentType, content);
     validate(invoice);
     String externalId = sha256(content);
+    if (sources
+        .findByProfileIdAndEntityTypeAndSourceAndExternalId(
+            profileId, "INVOICE", SOURCE, externalId)
+        .isPresent()) throw new RyczaltInvoiceSourceConflictException();
     var existing =
         candidates.findByProfileIdAndSourceTypeAndSourceExternalId(profileId, SOURCE, externalId);
-    if (existing.isPresent()) return view(existing.get(), true);
+    if (existing.isPresent()) return view(existing.get(), SourceState.EXISTING_CANDIDATE);
     LocalDate accountingDate =
         invoice.saleDate() == null ? invoice.issueDate() : invoice.saleDate();
     Party supplier = invoice.seller();
@@ -96,34 +102,28 @@ public class RyczaltInvoiceRecognitionService {
       }
     }
     try {
-      row = candidates.save(row);
-      sources.save(
-          new RyczaltSourceReferenceEntity(
-              profileId,
-              "INVOICE_CANDIDATE",
-              row.id(),
-              SOURCE,
-              externalId,
-              invoice.sourceMetadata()));
-      sources.flush();
+      row = persistence.persist(row, invoice.sourceMetadata());
     } catch (DataIntegrityViolationException exception) {
       if (knownRecognitionConflict(exception)) {
-        throw new RyczaltInvoiceSourceConflictException();
+        return candidates
+            .findByProfileIdAndSourceTypeAndSourceExternalId(profileId, SOURCE, externalId)
+            .map(winner -> view(winner, SourceState.EXISTING_CANDIDATE))
+            .orElseThrow(() -> exception);
       }
       throw exception;
     }
-    return view(row, false);
+    return view(row, SourceState.NEW_CANDIDATE);
   }
 
   @Transactional(readOnly = true)
   public CandidateView get(long profileId, UUID key) {
     return candidates
         .findByProfileIdAndCandidateKey(profileId, key)
-        .map(row -> view(row, row.isDuplicate()))
+        .map(row -> view(row, SourceState.EXISTING_CANDIDATE))
         .orElseThrow(() -> new RyczaltInvoiceCandidateNotFoundException(profileId));
   }
 
-  private CandidateView view(RyczaltInvoiceCandidateEntity row, boolean duplicate) {
+  private CandidateView view(RyczaltInvoiceCandidateEntity row, SourceState sourceState) {
     return new CandidateView(
         row.getCandidateKey(),
         row.getSourceType(),
@@ -147,9 +147,9 @@ public class RyczaltInvoiceRecognitionService {
         row.getPaymentVerificationPolicy(),
         row.getRuleMatchStatus(),
         row.getPaymentVerificationPolicy() == PaymentVerificationPolicy.NOT_REQUIRED
-            ? "NOT_REQUIRED"
-            : "UNMATCHED",
-        duplicate,
+            ? InvoicePaymentStatus.NOT_REQUIRED
+            : InvoicePaymentStatus.UNMATCHED,
+        sourceState,
         row.getPeriodYear(),
         row.getPeriodMonth(),
         required(row));
@@ -263,9 +263,14 @@ public class RyczaltInvoiceRecognitionService {
       ApprovalMethod approvalMethod,
       PaymentVerificationPolicy paymentVerificationPolicy,
       RuleMatchResult.Kind ruleMatchStatus,
-      String paymentStatus,
-      boolean duplicate,
+      InvoicePaymentStatus paymentStatus,
+      SourceState sourceState,
       int periodYear,
       int periodMonth,
       List<RequiredInput> requiredInputs) {}
+
+  public enum SourceState {
+    NEW_CANDIDATE,
+    EXISTING_CANDIDATE
+  }
 }

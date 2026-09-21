@@ -6,10 +6,17 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /** In-process UI adapter. It preserves the application API without a loopback HTTP hop. */
+/**
+ * Retained only for tests and the legacy cutover path. The application composition now supplies the
+ * native controller-backed implementation.
+ */
+@Deprecated(forRemoval = true)
 @Component
+@Profile("legacy-accounting-compat")
 public final class InProcessAccountingClient implements AccountingRestClient {
   private final AccountingUserApi user;
   private final AccountingStagingApi staging;

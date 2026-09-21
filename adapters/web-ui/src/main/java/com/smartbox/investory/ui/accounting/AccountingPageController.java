@@ -17,6 +17,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
+@Profile("legacy-accounting-compat")
+@Deprecated(forRemoval = true)
 public class AccountingPageController {
   private static final String BASE = "/profiles/{profileId}/accounting";
   private final AccountingRestClient client;
@@ -115,6 +118,7 @@ public class AccountingPageController {
                     ? "Ready to file"
                     : "In progress";
     model.addAttribute("profileId", profileId);
+    model.addAttribute("nativeRyczaltCompatibility", true);
     model.addAttribute("months", months);
     model.addAttribute("selectedMonth", selected);
     model.addAttribute("overview", overview);
@@ -347,11 +351,9 @@ public class AccountingPageController {
       List<ReconciliationView> paymentRows,
       YearMonth selected) {
     if (paymentRows.isEmpty())
-      return overview
-          .summary()
-          .vat()
-          .add(overview.summary().ryczalt())
-          .add(overview.summary().zus());
+      return amountOrZero(overview.summary().vat())
+          .add(amountOrZero(overview.summary().ryczalt()))
+          .add(amountOrZero(overview.summary().zus()));
     return paymentRows.stream()
         .map(
             row ->
@@ -359,6 +361,10 @@ public class AccountingPageController {
                     .subtract(row.matchedAmount() == null ? BigDecimal.ZERO : row.matchedAmount())
                     .max(BigDecimal.ZERO))
         .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private static BigDecimal amountOrZero(BigDecimal value) {
+    return value == null ? BigDecimal.ZERO : value;
   }
 
   private static BigDecimal paidAmount(List<ReconciliationView> paymentRows) {

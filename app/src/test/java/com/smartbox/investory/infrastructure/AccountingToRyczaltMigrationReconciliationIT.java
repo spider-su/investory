@@ -144,7 +144,7 @@ class AccountingToRyczaltMigrationReconciliationIT {
 
     assertThat(
             jdbc.queryForObject(
-                "SELECT amount FROM investory.ryczalt_invoice WHERE direction='COST' AND reference='CERT-COST'",
+                "SELECT net_amount FROM investory.ryczalt_invoice WHERE direction='COST' AND reference='CERT-COST'",
                 BigDecimal.class))
         .isEqualByComparingTo("100");
     assertThat(
@@ -156,7 +156,11 @@ class AccountingToRyczaltMigrationReconciliationIT {
             jdbc.queryForObject(
                 "SELECT reference FROM investory.ryczalt_transaction WHERE profile_id=1",
                 String.class))
-        .isEqualTo("legacy-bank-1");
+        .isEqualTo(
+            "legacy-bank-"
+                + jdbc.queryForObject(
+                    "SELECT id FROM investory.accounting_poc_bank_transaction WHERE profile_id=1",
+                    Long.class));
 
     assertThat(
             count(

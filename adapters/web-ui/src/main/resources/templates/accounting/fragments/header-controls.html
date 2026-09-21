@@ -4,11 +4,11 @@
 <th:block th:fragment="accountingEmptyRail"></th:block>
 <th:block th:fragment="accountingHeaderActions">
   <div class="accounting-header-actions" th:if="${canWrite}" aria-label="Accounting actions">
-    <form method="post" th:action="@{/profiles/{profileId}/accounting/ksef/sync(profileId=${profileId})}">
+    <form th:if="${nativeRyczaltCompatibility != true}" method="post" th:action="@{/profiles/{profileId}/accounting/ksef/sync(profileId=${profileId})}">
       <input type="hidden" name="month" th:value="${selectedMonth}">
       <button class="btn btn-primary" data-testid="ksef-sync-all" type="submit">Sync KSeF</button>
     </form>
-    <form method="post" enctype="multipart/form-data" th:action="@{/profiles/{profileId}/accounting/bank/import(profileId=${profileId})}">
+    <form th:if="${nativeRyczaltCompatibility != true}" method="post" enctype="multipart/form-data" th:action="@{/profiles/{profileId}/accounting/bank/import(profileId=${profileId})}">
       <input type="hidden" name="month" th:value="${selectedMonth}">
       <input id="accounting-bank-file" class="accounting-bank-file-input" data-testid="accounting-bank-file" type="file" name="file" accept=".csv,text/csv" required onchange="this.form.requestSubmit()">
       <label class="btn btn-outline-secondary accounting-bank-file-label" for="accounting-bank-file" data-testid="accounting-bank-import">Import bank</label>
@@ -18,13 +18,17 @@
       <input id="accounting-document-file" class="accounting-bank-file-input" data-testid="accounting-document-file" type="file" name="file" accept="application/pdf,image/*" required onchange="this.form.requestSubmit()">
       <label class="btn btn-primary accounting-bank-file-label" for="accounting-document-file" data-testid="accounting-document-upload">Import document</label>
     </form>
-    <form method="post" th:action="@{/profiles/{profileId}/accounting/staging/reconcile(profileId=${profileId})}">
+    <form th:if="${nativeRyczaltCompatibility != true}" method="post" th:action="@{/profiles/{profileId}/accounting/staging/reconcile(profileId=${profileId})}">
       <input type="hidden" name="month" th:value="${selectedMonth}">
       <button class="btn btn-outline-secondary" data-testid="accounting-staging-reconcile" type="submit">Reconcile</button>
     </form>
-    <form method="post" th:action="@{/profiles/{profileId}/accounting/staging/promote(profileId=${profileId})}">
+    <form th:if="${nativeRyczaltCompatibility != true}" method="post" th:action="@{/profiles/{profileId}/accounting/staging/promote(profileId=${profileId})}">
       <input type="hidden" name="month" th:value="${selectedMonth}">
       <button class="btn btn-primary" data-testid="accounting-staging-promote" type="submit">Promote safe rows</button>
+    </form>
+    <form th:if="${nativeRyczaltCompatibility == true}" method="post" th:action="@{/profiles/{profileId}/accounting/actions/settle(profileId=${profileId})}">
+      <input type="hidden" name="month" th:value="${selectedMonth}">
+      <button class="btn btn-outline-secondary" data-testid="accounting-match-payments" type="submit">Match bank payments</button>
     </form>
     <a class="btn btn-outline-secondary accounting-counterparties-link" data-testid="accounting-counterparties" th:href="@{/profiles/{profileId}/accounting/counterparties(profileId=${profileId})}">Counterparties</a>
   </div>

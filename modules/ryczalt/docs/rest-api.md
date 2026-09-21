@@ -115,8 +115,19 @@ DTOs. `AccountingPageController` should receive a web assembler over the same Ry
 operations, without constructing `AccountingUserApi` records.
 # Invoice recognition and approval
 
+## Canonical namespace
+
+Native accounting REST uses `/api/profiles/{profileId}/accounting`. Invoice history is available
+at `/invoices` with optional `month` and `counterpartyId` filters; period detail collections use
+their dedicated `/periods/{month}/...` routes. Generated OpenAPI is served at `/v3/api-docs`.
+
 `POST /api/profiles/{profileId}/accounting/invoices/recognize` accepts multipart field `file`. The server stores a native candidate and returns its `candidateKey`, source identity, source amounts/dates, counterparty resolution, approval state, typed `requiredInputs`, and decimal values as plain JSON strings.
 
 `POST /api/profiles/{profileId}/accounting/invoices` accepts `candidateKey`, optional decision fields (`counterpartyId`, `classification`, `vatTreatment`, `vatDeductionRatio`, `ryczaltRate`, `paymentVerificationPolicy`), `approve`, and explicit `rememberRule`. Decimal request values are strings. Recognized source facts are reloaded from the server-side candidate; the client cannot replace amounts, dates, or reference by resending them. The selected UI month is not accepted as authoritative; the candidate accounting date selects the period. Frozen periods and duplicate canonical references reject the save.
+
+Recognition is idempotent by `(profileId, source, SHA-256(content))`. A retry returns the existing
+candidate with `sourceState=EXISTING_CANDIDATE`; a new upload returns `NEW_CANDIDATE`. If the source
+already produced a canonical invoice, recognition returns `409` and creates no candidate. Human invoice
+references are searchable only and are not identity constraints.
 
 Recognition facts and approval decisions are separate. The client cannot submit arbitrary source amounts or dates. Uploads use a stable SHA-256 source reference and do not persist file contents.

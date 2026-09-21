@@ -186,7 +186,7 @@ public class RyczaltInvoiceApprovalService {
         decimal(invoice.getGrossAmount()),
         invoice.getApprovalStatus(),
         invoice.getPaymentVerificationPolicy(),
-        invoice.getPaymentStatus());
+        InvoicePaymentStatus.fromPersisted(invoice.getPaymentStatus()));
   }
 
   private static boolean blank(String value) {
@@ -207,8 +207,7 @@ public class RyczaltInvoiceApprovalService {
     while (cause != null) {
       if (cause instanceof org.hibernate.exception.ConstraintViolationException violation) {
         String name = violation.getConstraintName();
-        return "uq_ryczalt_source_reference".equals(name)
-            || "uq_ryczalt_invoice_source".equals(name);
+        return "uq_ryczalt_source_reference".equals(name);
       }
       cause = cause.getCause();
     }
@@ -244,5 +243,5 @@ public class RyczaltInvoiceApprovalService {
       String grossAmount,
       ApprovalStatus approvalStatus,
       PaymentVerificationPolicy paymentVerificationPolicy,
-      String paymentStatus) {}
+      InvoicePaymentStatus paymentStatus) {}
 }

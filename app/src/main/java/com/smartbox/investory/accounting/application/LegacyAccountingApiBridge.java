@@ -85,6 +85,7 @@ public class LegacyAccountingApiBridge implements AccountingUserApi {
                 .map(o -> o.outstandingAmount())
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add),
             payments);
+    var reference = legacy.overview(profileId, month).reference();
     var documentSummary =
         new DocumentSummary(
             (int) invoices.stream().filter(i -> i.direction().name().equals("INCOME")).count(),
@@ -108,7 +109,19 @@ public class LegacyAccountingApiBridge implements AccountingUserApi {
         null,
         null,
         period.allowedActions().stream().map(Enum::name).toList(),
-        null);
+        reference,
+        new AccountingUserApi.MonthlyAudit(
+            period.audit().revenue(),
+            period.audit().socialDeduction(),
+            period.audit().healthDeduction(),
+            period.audit().otherDeduction(),
+            period.audit().taxableBase(),
+            period.audit().cumulativeTax(),
+            period.audit().monthlyAdvance(),
+            period.audit().outputVat(),
+            period.audit().inputVat(),
+            period.audit().vatAdjustments(),
+            period.audit().finalPayable()));
   }
 
   @Override
@@ -235,7 +248,28 @@ public class LegacyAccountingApiBridge implements AccountingUserApi {
 
   @Override
   public List<ReconciliationView> reconciliation(long p, YearMonth m) {
-    return legacy.reconciliation(p, m);
+    if (!nativePeriod(p, m)) return legacy.reconciliation(p, m);
+    var invoicePayments =
+        legacy.reconciliation(p, m).stream()
+            .filter(
+                row -> "INVOICE_PAYMENT".equals(row.kind()) || "EXPENSE_PAYMENT".equals(row.kind()))
+            .toList();
+    var obligationPayments =
+        ryczalt.obligations(p, m).stream()
+            .map(
+                obligation ->
+                    new ReconciliationView(
+                        obligation.type().name(),
+                        "OBLIGATION_PAYMENT",
+                        obligation.expectedAmount(),
+                        obligation.paidAmount(),
+                        obligation.outstandingAmount().signum() == 0 ? "MATCHED" : "OPEN",
+                        "Native Ryczalt obligation",
+                        obligation.currency().name(),
+                        null))
+            .toList();
+    return java.util.stream.Stream.concat(invoicePayments.stream(), obligationPayments.stream())
+        .toList();
   }
 
   @Override
