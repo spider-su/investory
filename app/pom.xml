@@ -51,11 +51,6 @@
     </dependency>
     <dependency>
       <groupId>com.smartbox</groupId>
-      <artifactId>ryczalt</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.smartbox</groupId>
       <artifactId>test-support</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>

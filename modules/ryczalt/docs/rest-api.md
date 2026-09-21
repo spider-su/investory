@@ -5,7 +5,7 @@ legacy `AccountingUserApi` and contains accounting facts and lifecycle commands,
 
 The native read foundation is implemented in `RyczaltAccountingQueryService` with Ryczalt-owned
 read models and profile-scoped repository queries. The common resources below are now exposed by
-`RyczaltAccountingRestController`; older month/mobile routes remain compatibility routes.
+`RyczaltAccountingRestController`; older month/mobile routes have been removed.
 
 ## Consumer evidence
 
@@ -79,6 +79,12 @@ completeness: status and issue count
 allowedActions: SETTLE, FREEZE, REOPEN
 ```
 
+Obligation `dueDate` is a server-owned ISO date. `RYCZALT` and `ZUS` use the 20th day of the
+following month; `VAT` uses the 25th. If that date is a Saturday, Sunday, or Polish public holiday,
+the backend moves it to the next working day. Clients display the returned value and do not calculate
+tax deadlines locally. The current holiday policy includes Poland's fixed holidays and Easter,
+Easter Monday, Pentecost, and Corpus Christi.
+
 Detailed invoices, transactions, obligations, and issues are separate collections. No filing,
 KSeF transport, bank DTO, JPA entity, Thymeleaf model, or mobile screen model crosses this
 contract.
@@ -102,17 +108,47 @@ matching status, defaulting to `UNMATCHED` when no reliable invoice-level match 
 Counterparty-rule `vatDeductionRatio` and `ryczaltRate` are JSON strings on both
 responses and requests; responses use plain decimal notation without scientific notation.
 
+`paymentStatus` is a stable enum: `MATCHED`, `PARTIALLY_MATCHED`, `UNMATCHED`,
+`MANUALLY_CONFIRMED`, or `NOT_REQUIRED`. `MANUALLY_CONFIRMED` is only for a cost invoice and is
+set by an explicit user command with a payment date. It is not bank evidence, does not mean that a
+transaction was matched, and cannot be used for income invoices. `DELETE
+/invoices/{invoiceId}/manual-paid` reverses it to `UNMATCHED` while the period is open; both
+commands reject frozen periods. Mobile must display it as paid by manual confirmation and must not
+silently convert it to `MATCHED` or infer a bank transaction.
+
+### Native write controls
+
+The server-rendered Web adapter uses the same native routes as other clients:
+
+```text
+POST   /api/profiles/{profileId}/accounting/invoices/recognize       multipart file
+GET    /api/profiles/{profileId}/accounting/invoices/candidates/{candidateKey}
+POST   /api/profiles/{profileId}/accounting/invoices                candidate approval
+POST   /api/profiles/{profileId}/accounting/invoices/{invoiceId}/manual-paid
+DELETE /api/profiles/{profileId}/accounting/invoices/{invoiceId}/manual-paid
+POST   /api/profiles/{profileId}/accounting/counterparties/{id}/rules
+PUT    /api/profiles/{profileId}/accounting/counterparties/{id}/rules/{ruleId}
+DELETE /api/profiles/{profileId}/accounting/counterparties/{id}/rules/{ruleId}
+POST   /api/profiles/{profileId}/accounting/bank/import              multipart CSV
+POST   /api/profiles/{profileId}/accounting/ksef/sync                month and modes
+```
+
+Upload stores source identity and a candidate, but never accepts client-provided source amounts or
+dates as authoritative. Approval creates the canonical invoice only after the user supplies the
+required classification and counterparty decision. `rememberRule` is explicit. Bank CSV and KSeF
+sync are native acquisition controls; they persist only `ryczalt_*` facts and invalidate affected
+open-period calculations. They do not provide filing or external KSeF submission.
+
 ## Migration policy
 
-The current `/api/v1` mobile routes and `/api` legacy routes are temporary compatibility routes.
-They cannot be removed until the mobile repository is switched to the common resources and the web
-adapter uses the same application query/command operations. No `/v2` is required: backend and
-mobile are controlled repositories and can migrate atomically. The stable resources already use the
-native query/lifecycle layer.
+The current `/api/v1` mobile routes and `/api` legacy month routes have been removed.
+The mobile contract is now the common factual resource contract above. No `/v2` is required:
+backend and mobile are controlled repositories and can migrate atomically. The stable resources
+already use the native query/lifecycle layer.
 
 `AccountingMobileResponse` should be deleted after the mobile mapper consumes the common factual
-DTOs. `AccountingPageController` should receive a web assembler over the same Ryczalt query
-operations, without constructing `AccountingUserApi` records.
+DTOs. The Web adapter now uses the native upload, review, approval, rule, payment, bank, and KSeF
+operations described above; it must not reconstruct legacy Accounting DTOs.
 # Invoice recognition and approval
 
 ## Canonical namespace

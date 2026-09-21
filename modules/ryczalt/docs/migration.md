@@ -14,9 +14,9 @@ and remains the reference/oracle during migration.
 | 7 | API/application cutover bridge | IN PROGRESS |
 | 8 | remove Accounting | future |
 
-Stage 3 uses `RyczaltMigrationService` for a controlled, one-way import. It reads legacy tables only
-while the import is explicitly run; `RyczaltPersistenceAdapter` never reads them. The old
-`accounting` module remains independently available for comparison.
+The one-way legacy import utility and old aggregate persistence adapter have been removed. Native
+query services read only `ryczalt_*` tables. The old `accounting` module and historical tables
+remain only for planned cleanup.
 
 The authoritative historical calculation source is
 `accounting_calculation_snapshot.payload`, not `accounting_poc_obligation` or a newly executed
@@ -67,16 +67,13 @@ No calculator calls NBP.
 
 The Stage 7 application boundary is split cleanly. `RyczaltAccountingApi` and
 `RyczaltAccountingFacade` own native query and lifecycle operations in the Ryczalt module.
-`RyczaltAccountingRestController` calls that API only. The app module's
-`LegacyAccountingApiBridge` keeps old routes working: native-supported reads and lifecycle commands
-use Ryczalt when a native period exists, while filings, reconciliation, counterparties, ingestion,
-KSeF, and other unsupported operations use the qualified legacy `AccountingUserApi`.
-`modules/ryczalt` no longer depends on `modules/accounting`; historical periods continue through the
-app compatibility bridge until their consumers migrate.
+`RyczaltAccountingRestController` calls that API only. Legacy app controllers, adapters, and bridge
+have been removed. `modules/ryczalt` no longer depends on `modules/accounting`; historical legacy
+tables remain only for the later database cleanup.
 
 The current endpoint and dependency inventory is maintained in
-`modules/ryczalt/docs/cutover-audit.md`. It distinguishes migration-only legacy table reads from
-normal runtime dependencies and is the source for the next implementation backlog.
+`modules/ryczalt/docs/cutover-audit.md`. It distinguishes historical migration SQL from normal
+runtime dependencies and is the source for the next implementation backlog.
 
 Stage 3 intentionally does not migrate `accounting_reference_*` or other comparison-only tables.
 Legacy booked PLN and ryczałt-rate fields are copied to canonical invoices. The current legacy POC

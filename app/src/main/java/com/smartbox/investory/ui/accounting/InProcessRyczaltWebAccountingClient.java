@@ -1,13 +1,15 @@
 package com.smartbox.investory.ui.accounting;
 
-import com.smartbox.investory.accounting.api.AccountingUserApi;
 import com.smartbox.investory.ryczalt.web.RyczaltAccountingRestController;
+import com.smartbox.investory.ryczalt.web.RyczaltBankImportRestController;
 import com.smartbox.investory.ryczalt.web.RyczaltCounterpartyRestController;
 import com.smartbox.investory.ryczalt.web.RyczaltInvoiceRecognitionRestController;
+import com.smartbox.investory.ryczalt.web.RyczaltKsefRestController;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Qualifier;
+import java.util.UUID;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -18,16 +20,21 @@ import org.springframework.stereotype.Component;
 public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAccountingClient {
   private final RyczaltAccountingRestController accounting;
   private final RyczaltCounterpartyRestController counterparties;
-  private final AccountingUserApi accountingReference;
+  private final RyczaltInvoiceRecognitionRestController recognition;
+  private final RyczaltBankImportRestController bank;
+  private final RyczaltKsefRestController ksef;
 
   public InProcessRyczaltWebAccountingClient(
       RyczaltAccountingRestController accounting,
       RyczaltCounterpartyRestController counterparties,
-      RyczaltInvoiceRecognitionRestController ignoredRecognitionController,
-      @Qualifier("legacyAccountingApiBridge") AccountingUserApi accountingReference) {
+      RyczaltInvoiceRecognitionRestController recognition,
+      RyczaltBankImportRestController bank,
+      RyczaltKsefRestController ksef) {
     this.accounting = accounting;
     this.counterparties = counterparties;
-    this.accountingReference = accountingReference;
+    this.recognition = recognition;
+    this.bank = bank;
+    this.ksef = ksef;
   }
 
   @Override
@@ -83,22 +90,23 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
 
   @Override
   public Reference reference(long profileId, YearMonth month) {
-    var value = accountingReference.overview(profileId, month).reference();
-    if (value == null || !value.available()) {
+    if (accounting.periods(profileId, authentication()).stream()
+        .noneMatch(value -> value.month().equals(month))) {
       return new Reference(false, null, null, null, null, null, null, null, 0, 0, null);
     }
+    var value = accounting.period(profileId, month, authentication());
     return new Reference(
         true,
-        value.revenue(),
-        value.expenses(),
-        value.outputVat(),
-        value.deductibleInputVat(),
-        value.vatPayable(),
-        value.ryczalt(),
-        value.zus(),
-        value.documentCount(),
-        value.bankCount(),
-        value.filingStatus());
+        decimal(value.audit().revenue()),
+        null,
+        decimal(value.audit().outputVat()),
+        decimal(value.audit().inputVat()),
+        decimal(value.audit().finalPayable()),
+        decimal(value.audit().monthlyAdvance()),
+        decimal(value.summary().zus()),
+        value.documents().invoiceCount(),
+        value.documents().transactionCount(),
+        value.status().name());
   }
 
   @Override
@@ -228,6 +236,106 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
   }
 
   @Override
+  public Candidate recognize(long profileId, String filename, String contentType, byte[] content) {
+    return candidate(
+        recognition.recognize(profileId, filename, contentType, content, authentication()));
+  }
+
+  @Override
+  public Candidate candidate(long profileId, UUID candidateKey) {
+    return candidate(recognition.candidate(profileId, candidateKey, authentication()));
+  }
+
+  @Override
+  public void approveCandidate(
+      long profileId,
+      UUID candidateKey,
+      Long counterpartyId,
+      String classification,
+      String vatTreatment,
+      String vatDeductionRatio,
+      String ryczaltRate,
+      String paymentVerificationPolicy,
+      boolean approve,
+      boolean rememberRule,
+      String ruleName,
+      String serviceKey) {
+    recognition.approve(
+        profileId,
+        new RyczaltInvoiceRecognitionRestController.ApprovalRequest(
+            candidateKey,
+            counterpartyId,
+            classification,
+            vatTreatment,
+            vatDeductionRatio,
+            ryczaltRate,
+            paymentVerificationPolicy == null
+                ? null
+                : com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy.valueOf(
+                    paymentVerificationPolicy),
+            approve,
+            rememberRule,
+            ruleName,
+            serviceKey),
+        authentication());
+  }
+
+  @Override
+  public void manualPaid(long profileId, long invoiceId, LocalDate paidDate, String note) {
+    accounting.markInvoicePaid(
+        profileId,
+        invoiceId,
+        new RyczaltAccountingRestController.ManualPaidRequest(paidDate, note),
+        authentication());
+  }
+
+  @Override
+  public void manualUnpaid(long profileId, long invoiceId) {
+    accounting.markInvoiceUnpaid(profileId, invoiceId, authentication());
+  }
+
+  @Override
+  public void addRule(long profileId, long counterpartyId, RuleForm rule) {
+    counterparties.add(profileId, counterpartyId, ruleRequest(rule), authentication());
+  }
+
+  @Override
+  public void updateRule(long profileId, long counterpartyId, long ruleId, RuleForm rule) {
+    counterparties.update(profileId, counterpartyId, ruleId, ruleRequest(rule), authentication());
+  }
+
+  @Override
+  public void deleteRule(long profileId, long counterpartyId, long ruleId) {
+    counterparties.delete(profileId, counterpartyId, ruleId, authentication());
+  }
+
+  @Override
+  public ImportResult importBank(
+      long profileId, String filename, String contentType, byte[] content) {
+    var result = bank.importBank(profileId, filename, contentType, content, authentication());
+    return new ImportResult(result.received(), result.imported(), result.duplicates(), 0, 0);
+  }
+
+  @Override
+  public ImportResult syncKsef(long profileId, YearMonth month) {
+    var result =
+        ksef.sync(
+            profileId,
+            new RyczaltKsefRestController.SyncRequest(
+                month,
+                java.util.Set.of(
+                    com.smartbox.investory.ryczalt.integration.ksef.KsefSyncMode.SALES,
+                    com.smartbox.investory.ryczalt.integration.ksef.KsefSyncMode.PURCHASES)),
+            authentication());
+    return new ImportResult(
+        result.received(),
+        result.imported(),
+        result.duplicates(),
+        result.updated(),
+        result.failed());
+  }
+
+  @Override
   public void alias(long profileId, long id, String alias) {
     counterparties.alias(
         profileId, id, new RyczaltCounterpartyRestController.AliasRequest(alias), authentication());
@@ -262,7 +370,7 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
         decimal(v.grossAmount()),
         v.currency().name(),
         v.approvalStatus().name(),
-        v.approvalMethod().name(),
+        v.approvalMethod() == null ? null : v.approvalMethod().name(),
         v.paymentVerificationPolicy().name(),
         v.paymentStatus().name(),
         v.counterparty() == null
@@ -270,6 +378,52 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
             : (v.counterparty().alias() == null
                 ? v.counterparty().legalName()
                 : v.counterparty().alias()));
+  }
+
+  private Candidate candidate(
+      com.smartbox.investory.ryczalt.application.RyczaltInvoiceRecognitionService.CandidateView v) {
+    return new Candidate(
+        v.candidateKey(),
+        v.sourceType(),
+        v.documentType(),
+        v.issueDate(),
+        v.saleDate(),
+        v.dueDate(),
+        v.reference(),
+        v.counterpartyId(),
+        v.currency(),
+        v.netAmount(),
+        v.vatAmount(),
+        v.grossAmount(),
+        v.classification(),
+        v.vatTreatment(),
+        v.ryczaltRate(),
+        v.approvalStatus().name(),
+        v.approvalMethod() == null ? null : v.approvalMethod().name(),
+        v.paymentVerificationPolicy().name(),
+        v.ruleMatchStatus().name(),
+        v.paymentStatus().name(),
+        v.sourceState().name(),
+        v.periodYear(),
+        v.periodMonth(),
+        v.requiredInputs().stream().map(input -> input.field()).toList());
+  }
+
+  private static RyczaltCounterpartyRestController.RuleRequest ruleRequest(RuleForm rule) {
+    return new RyczaltCounterpartyRestController.RuleRequest(
+        rule.name(),
+        rule.sourceType(),
+        rule.documentType(),
+        rule.serviceKey(),
+        rule.classification(),
+        rule.vatTreatment(),
+        rule.vatDeductionRatio(),
+        rule.ryczaltRate(),
+        rule.autoApprove(),
+        rule.paymentVerificationPolicy() == null
+            ? null
+            : com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy.valueOf(
+                rule.paymentVerificationPolicy()));
   }
 
   private static BigDecimal decimal(String value) {
