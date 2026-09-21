@@ -14,6 +14,7 @@ COPY modules/longterm/pom.xml modules/longterm/pom.xml
 COPY modules/profile/pom.xml modules/profile/pom.xml
 COPY modules/retirement/pom.xml modules/retirement/pom.xml
 COPY modules/accounting/pom.xml modules/accounting/pom.xml
+COPY modules/ryczalt/pom.xml modules/ryczalt/pom.xml
 COPY integrations/pom.xml integrations/pom.xml
 COPY test-support/pom.xml test-support/pom.xml
 COPY adapters/web-ui/pom.xml adapters/web-ui/pom.xml

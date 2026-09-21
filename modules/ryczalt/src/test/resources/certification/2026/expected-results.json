@@ -1,0 +1,17 @@
+{
+  "purpose": "Immutable oracle for the certified .60 Accounting to Ryczalt migration run.",
+  "source": ".60 certified dataset/run; externally confirmed historical results",
+  "scope": "Data migration certification evidence for January through August 2026",
+  "certificationVersion": ".60",
+  "productionReadable": false,
+  "results": [
+    {"month": "2026-01", "ryczalt": 7323, "vat": 6714, "zus": 1495.04},
+    {"month": "2026-02", "ryczalt": 7332, "vat": 6739, "zus": 1495.04},
+    {"month": "2026-03", "ryczalt": 7748, "vat": 7288, "zus": 1495.04},
+    {"month": "2026-04", "ryczalt": 7543, "vat": 7028, "zus": 1495.04},
+    {"month": "2026-05", "ryczalt": 7341, "vat": 6612, "zus": 1495.04},
+    {"month": "2026-06", "ryczalt": 7755, "vat": 7348, "zus": 1495.04},
+    {"month": "2026-07", "ryczalt": 5794, "vat": 3591, "zus": 1495.04},
+    {"month": "2026-08", "ryczalt": 7038, "vat": 5969, "zus": 1495.04}
+  ]
+}

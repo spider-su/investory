@@ -30,7 +30,7 @@ class AccountingRestControllerIT extends AccountingDatabaseTest {
   @Autowired private JdbcTemplate jdbc;
 
   @Autowired
-  @Qualifier("accountingUserFacade")
+  @Qualifier("legacyAccountingApiBridge")
   private AccountingUserApi accounting;
 
   @Test
@@ -145,6 +145,9 @@ class AccountingRestControllerIT extends AccountingDatabaseTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.month").value("2026-01"))
         .andExpect(jsonPath("$.summary").exists())
+        .andExpect(jsonPath("$.summary.ryczalt").value(7323))
+        .andExpect(jsonPath("$.summary.vat").value(6714))
+        .andExpect(jsonPath("$.summary.zus").value(1495.04))
         .andExpect(jsonPath("$.sources.imported").exists());
 
     mvc.perform(get("/api/profiles/1/accounting/months/2026-01/issues").with(admin))
@@ -188,6 +191,39 @@ class AccountingRestControllerIT extends AccountingDatabaseTest {
         .andExpect(status().isForbidden());
     mvc.perform(post("/api/profiles/1/accounting/ksef/sync").param("month", "2026-01").with(user))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @DisplayName("reopen requires a non-empty reason")
+  void reopenRequiresReason() throws Exception {
+    var admin = user("admin").roles("ADMIN");
+
+    mvc.perform(
+            post("/api/profiles/1/accounting/months/2026-01/reopen")
+                .with(admin)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"reason":""}
+                    """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("unsupported recognition upload type is rejected")
+  void unsupportedRecognitionUploadIsRejected() throws Exception {
+    var admin = user("admin").roles("ADMIN");
+
+    var file =
+        new org.springframework.mock.web.MockMultipartFile(
+            "file", "invoice.exe", "application/octet-stream", new byte[] {1, 2, 3});
+
+    mvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
+                    "/api/profiles/1/accounting/documents/recognize")
+                .file(file)
+                .with(admin))
+        .andExpect(status().isBadRequest());
   }
 
   @Test
