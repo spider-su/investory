@@ -2,6 +2,7 @@ package com.smartbox.investory.ryczalt.web;
 
 import com.smartbox.investory.config.AuthorizationService;
 import com.smartbox.investory.ryczalt.application.RyczaltAccountingApi;
+import com.smartbox.investory.ryczalt.application.RyczaltInvoicePaymentService;
 import com.smartbox.investory.ryczalt.application.query.RyczaltInvoiceReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltIssueReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltObligationReadModel;
@@ -16,6 +17,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,11 +32,15 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/profiles/{profileId}/accounting")
 public class RyczaltAccountingRestController {
   private final RyczaltAccountingApi accounting;
+  private final RyczaltInvoicePaymentService invoicePayments;
   private final AuthorizationService authorization;
 
   public RyczaltAccountingRestController(
-      RyczaltAccountingApi accounting, AuthorizationService authorization) {
+      RyczaltAccountingApi accounting,
+      RyczaltInvoicePaymentService invoicePayments,
+      AuthorizationService authorization) {
     this.accounting = accounting;
+    this.invoicePayments = invoicePayments;
     this.authorization = authorization;
   }
 
@@ -71,6 +77,33 @@ public class RyczaltAccountingRestController {
         .map(this::invoice)
         .toList();
   }
+
+  @PostMapping("/invoices/{invoiceId}/manual-paid")
+  public ResponseEntity<Void> markInvoicePaid(
+      @PathVariable long profileId,
+      @PathVariable long invoiceId,
+      @RequestBody ManualPaidRequest request,
+      Authentication authentication) {
+    write(profileId, authentication);
+    command(
+        () ->
+            invoicePayments.markPaid(
+                profileId,
+                invoiceId,
+                request == null ? null : request.paidDate(),
+                request == null ? null : request.note()));
+    return ResponseEntity.noContent().build();
+  }
+
+  @DeleteMapping("/invoices/{invoiceId}/manual-paid")
+  public ResponseEntity<Void> markInvoiceUnpaid(
+      @PathVariable long profileId, @PathVariable long invoiceId, Authentication authentication) {
+    write(profileId, authentication);
+    command(() -> invoicePayments.markUnpaid(profileId, invoiceId));
+    return ResponseEntity.noContent().build();
+  }
+
+  public record ManualPaidRequest(java.time.LocalDate paidDate, String note) {}
 
   @GetMapping("/periods/{month}/transactions")
   public List<TransactionResponse> transactions(

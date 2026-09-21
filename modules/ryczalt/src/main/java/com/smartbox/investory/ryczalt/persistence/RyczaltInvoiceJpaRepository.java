@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface RyczaltInvoiceJpaRepository extends JpaRepository<RyczaltInvoiceEntity, Long> {
   List<RyczaltInvoiceEntity> findByProfileIdOrderByAccountingDateAscIdAsc(long profileId);
 
+  java.util.Optional<RyczaltInvoiceEntity> findByIdAndProfileId(long id, long profileId);
+
   List<RyczaltInvoiceEntity> findByProfileIdAndCounterparty_IdOrderByAccountingDateAscIdAsc(
       long profileId, long counterpartyId);
 

@@ -3,6 +3,7 @@ package com.smartbox.investory.ryczalt.web;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.smartbox.investory.config.AuthorizationService;
 import com.smartbox.investory.config.RestApiExceptionHandler;
 import com.smartbox.investory.ryczalt.application.RyczaltAccountingApi;
+import com.smartbox.investory.ryczalt.application.RyczaltInvoicePaymentService;
 import com.smartbox.investory.ryczalt.application.query.RyczaltInvoiceReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodListItem;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundException;
@@ -32,6 +34,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class RyczaltAccountingRestControllerTest {
   private final RyczaltAccountingApi accounting = mock(RyczaltAccountingApi.class);
+  private final RyczaltInvoicePaymentService invoicePayments =
+      mock(RyczaltInvoicePaymentService.class);
   private final AuthorizationService authorization = mock(AuthorizationService.class);
   private final Authentication authentication = mock(Authentication.class);
   private MockMvc mvc;
@@ -43,7 +47,7 @@ class RyczaltAccountingRestControllerTest {
     when(authorization.canWrite(7L, authentication)).thenReturn(true);
     mvc =
         MockMvcBuilders.standaloneSetup(
-                new RyczaltAccountingRestController(accounting, authorization))
+                new RyczaltAccountingRestController(accounting, invoicePayments, authorization))
             .setControllerAdvice(new RestApiExceptionHandler(mock(ApplicationTime.class)))
             .build();
   }
@@ -124,6 +128,27 @@ class RyczaltAccountingRestControllerTest {
         .andExpect(status().isNoContent());
 
     verify(accounting).reopen(7L, YearMonth.of(2026, 8), "owner", "Correction");
+  }
+
+  @Test
+  void manualPaidEndpointDelegatesDateAndNote() throws Exception {
+    mvc.perform(
+            post("/api/profiles/7/accounting/invoices/11/manual-paid")
+                .principal(authentication)
+                .contentType("application/json")
+                .content("{\"paidDate\":\"2026-08-25\",\"note\":\"Paid in cash\"}"))
+        .andExpect(status().isNoContent());
+
+    verify(invoicePayments).markPaid(7L, 11L, LocalDate.of(2026, 8, 25), "Paid in cash");
+  }
+
+  @Test
+  void manualUnpaidEndpointDelegatesInvoice() throws Exception {
+    mvc.perform(
+            delete("/api/profiles/7/accounting/invoices/11/manual-paid").principal(authentication))
+        .andExpect(status().isNoContent());
+
+    verify(invoicePayments).markUnpaid(7L, 11L);
   }
 
   @Test

@@ -76,8 +76,14 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
   @Column(name = "payment_verification_policy", nullable = false, length = 16)
   private PaymentVerificationPolicy paymentVerificationPolicy = PaymentVerificationPolicy.REQUIRED;
 
-  @Column(name = "payment_status", nullable = false, length = 16)
+  @Column(name = "payment_status", nullable = false, length = 20)
   private String paymentStatus = "UNMATCHED";
+
+  @Column(name = "manual_paid_date")
+  private LocalDate manualPaidDate;
+
+  @Column(name = "manual_paid_note", length = 1000)
+  private String manualPaidNote;
 
   @Column(length = 128)
   private String classification;
@@ -196,6 +202,27 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
     return paymentStatus;
   }
 
+  public LocalDate getManualPaidDate() {
+    return manualPaidDate;
+  }
+
+  public String getManualPaidNote() {
+    return manualPaidNote;
+  }
+
+  public void markManuallyPaid(LocalDate paidDate, String note) {
+    if (paidDate == null) throw new IllegalArgumentException("Payment date is required");
+    this.paymentStatus = "MANUALLY_CONFIRMED";
+    this.manualPaidDate = paidDate;
+    this.manualPaidNote = note == null || note.isBlank() ? null : note.trim();
+  }
+
+  public void markUnpaid() {
+    this.paymentStatus = "UNMATCHED";
+    this.manualPaidDate = null;
+    this.manualPaidNote = null;
+  }
+
   public String getClassification() {
     return classification;
   }
@@ -227,6 +254,8 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
     this.approvalMethod = method;
     this.paymentStatus =
         policy == PaymentVerificationPolicy.NOT_REQUIRED ? "NOT_REQUIRED" : "UNMATCHED";
+    this.manualPaidDate = null;
+    this.manualPaidNote = null;
   }
 
   public void applyCounterpartyRule(
