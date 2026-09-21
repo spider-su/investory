@@ -10,4 +10,6 @@ public interface RyczaltInvoiceJpaRepository extends JpaRepository<RyczaltInvoic
   List<RyczaltInvoiceEntity>
       findByProfileIdAndPeriodIdAndCounterparty_IdOrderByAccountingDateAscIdAsc(
           long profileId, long periodId, long counterpartyId);
+
+  long countByProfileIdAndCounterparty_Id(long profileId, long counterpartyId);
 }

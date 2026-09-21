@@ -40,28 +40,8 @@ public class RyczaltInvoiceRecognitionRestController {
     if (file.isEmpty() || file.getSize() > MAX_FILE_SIZE || file.getContentType() == null)
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST, "A non-empty supported invoice file is required");
-    return recognize(
-        profileId,
-        file.getOriginalFilename(),
-        file.getContentType(),
-        file.getBytes(),
-        authentication);
-  }
-
-  public RyczaltInvoiceRecognitionService.CandidateView recognize(
-      long profileId,
-      String filename,
-      String contentType,
-      byte[] content,
-      Authentication authentication) {
-    write(profileId, authentication);
-    if (content == null
-        || content.length == 0
-        || content.length > MAX_FILE_SIZE
-        || contentType == null)
-      throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "A non-empty supported invoice file is required");
-    return recognition.recognize(profileId, filename, contentType, content);
+    return recognition.recognize(
+        profileId, file.getOriginalFilename(), file.getContentType(), file.getBytes());
   }
 
   @GetMapping("/candidates/{candidateKey}")

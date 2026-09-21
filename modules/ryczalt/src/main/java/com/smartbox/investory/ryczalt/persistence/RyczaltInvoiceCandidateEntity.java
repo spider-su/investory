@@ -2,10 +2,8 @@ package com.smartbox.investory.ryczalt.persistence;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartbox.investory.ryczalt.domain.ApprovalMethod;
 import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
 import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
-import com.smartbox.investory.ryczalt.domain.RuleMatchResult;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -74,11 +72,6 @@ public class RyczaltInvoiceCandidateEntity extends RyczaltEntity {
 
   private BigDecimal confidence;
   private String serviceKey;
-
-  @Enumerated(EnumType.STRING)
-  @Column(name = "rule_match_status", nullable = false, length = 16)
-  private RuleMatchResult.Kind ruleMatchStatus = RuleMatchResult.Kind.NO_MATCH;
-
   private String classification;
   private String vatTreatment;
   private BigDecimal vatDeductionRatio;
@@ -88,9 +81,8 @@ public class RyczaltInvoiceCandidateEntity extends RyczaltEntity {
   @Column(name = "approval_status", nullable = false)
   private ApprovalStatus approvalStatus = ApprovalStatus.NEEDS_REVIEW;
 
-  @Enumerated(EnumType.STRING)
   @Column(name = "approval_source")
-  private ApprovalMethod approvalMethod;
+  private String approvalSource;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "payment_verification_policy", nullable = false)
@@ -269,24 +261,8 @@ public class RyczaltInvoiceCandidateEntity extends RyczaltEntity {
     return paymentVerificationPolicy;
   }
 
-  public ApprovalMethod getApprovalMethod() {
-    return approvalMethod;
-  }
-
-  public String getServiceKey() {
-    return serviceKey;
-  }
-
-  public RuleMatchResult.Kind getRuleMatchStatus() {
-    return ruleMatchStatus;
-  }
-
-  public void setServiceKey(String serviceKey) {
-    this.serviceKey = serviceKey;
-  }
-
-  public void setRuleMatchStatus(RuleMatchResult.Kind status) {
-    this.ruleMatchStatus = status;
+  public String getApprovalSource() {
+    return approvalSource;
   }
 
   public int getPeriodYear() {
@@ -312,14 +288,14 @@ public class RyczaltInvoiceCandidateEntity extends RyczaltEntity {
       BigDecimal rate,
       PaymentVerificationPolicy policy,
       ApprovalStatus status,
-      ApprovalMethod method) {
+      String source) {
     this.classification = classification;
     this.vatTreatment = vatTreatment;
     this.vatDeductionRatio = ratio;
     this.ryczaltRate = rate;
     this.paymentVerificationPolicy = policy;
     this.approvalStatus = status;
-    this.approvalMethod = method;
+    this.approvalSource = source;
   }
 
   public String getClassification() {

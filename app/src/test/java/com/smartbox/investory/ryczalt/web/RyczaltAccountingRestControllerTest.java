@@ -152,7 +152,7 @@ class RyczaltAccountingRestControllerTest {
     mvc.perform(get("/api/profiles/7/accounting/periods/2026-08/issues").principal(authentication))
         .andExpect(status().isOk());
     mvc.perform(
-            get("/api/profiles/7/accounting/periods/payments/history")
+            get("/api/profiles/7/accounting/payments")
                 .param("from", "2026-08")
                 .param("to", "2026-08")
                 .principal(authentication))

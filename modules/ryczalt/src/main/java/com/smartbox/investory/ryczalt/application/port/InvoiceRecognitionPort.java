@@ -21,8 +21,7 @@ public interface InvoiceRecognitionPort {
       BigDecimal grossAmount,
       String descriptionHint,
       String sourceMetadata,
-      BigDecimal confidence,
-      String serviceKey) {}
+      BigDecimal confidence) {}
 
   record Party(String legalName, String taxIdentifier, String country) {}
 }
