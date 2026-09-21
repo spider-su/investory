@@ -1,6 +1,7 @@
 package com.smartbox.investory.ryczalt.persistence;
 
 import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
+import com.smartbox.investory.ryczalt.domain.RuleCriteria;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 
@@ -63,11 +64,11 @@ public class RyczaltCounterpartyRuleEntity extends RyczaltEntity {
     this.profileId = profileId;
     this.counterparty = counterparty;
     this.name = name;
-    this.sourceType = sourceType;
-    this.documentType = documentType;
-    this.serviceKey = serviceKey;
-    this.classification = classification;
-    this.vatTreatment = vatTreatment;
+    this.sourceType = RuleCriteria.token(sourceType, "sourceType");
+    this.documentType = RuleCriteria.token(documentType, "documentType");
+    this.serviceKey = RuleCriteria.serviceKey(serviceKey);
+    this.classification = RuleCriteria.token(classification, "classification");
+    this.vatTreatment = RuleCriteria.token(vatTreatment, "vatTreatment");
     this.vatDeductionRatio = vatDeductionRatio;
     this.ryczaltRate = ryczaltRate;
     this.autoApprove = autoApprove;
@@ -138,11 +139,11 @@ public class RyczaltCounterpartyRuleEntity extends RyczaltEntity {
       boolean autoApprove,
       PaymentVerificationPolicy policy) {
     this.name = name;
-    this.sourceType = sourceType;
-    this.documentType = documentType;
-    this.serviceKey = serviceKey;
-    this.classification = classification;
-    this.vatTreatment = vatTreatment;
+    this.sourceType = RuleCriteria.token(sourceType, "sourceType");
+    this.documentType = RuleCriteria.token(documentType, "documentType");
+    this.serviceKey = RuleCriteria.serviceKey(serviceKey);
+    this.classification = RuleCriteria.token(classification, "classification");
+    this.vatTreatment = RuleCriteria.token(vatTreatment, "vatTreatment");
     this.vatDeductionRatio = vatDeductionRatio;
     this.ryczaltRate = ryczaltRate;
     this.autoApprove = autoApprove;

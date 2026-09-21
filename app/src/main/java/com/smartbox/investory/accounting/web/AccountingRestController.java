@@ -29,25 +29,6 @@ public class AccountingRestController {
     return accounting.months(profileId);
   }
 
-  @GetMapping("/counterparties")
-  public java.util.List<AccountingUserApi.CounterpartyView> counterparties(
-      @PathVariable long profileId, Authentication a) {
-    read(profileId, a);
-    return accounting.counterparties(profileId);
-  }
-
-  @PutMapping("/counterparties/{counterpartyId}/alias")
-  public void updateCounterpartyAlias(
-      @PathVariable long profileId,
-      @PathVariable long counterpartyId,
-      @RequestBody AliasRequest request,
-      Authentication a) {
-    write(profileId, a);
-    accounting.updateCounterpartyAlias(profileId, counterpartyId, request.alias());
-  }
-
-  public record AliasRequest(String alias) {}
-
   @GetMapping("/months/{month}/overview")
   public AccountingUserApi.MonthOverview overview(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication a) {

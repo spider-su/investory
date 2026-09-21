@@ -18,6 +18,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceJpaRepos
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.YearMonth;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
@@ -73,7 +74,7 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
     int duplicates = 0;
     int updated = 0;
     int failed = 0;
-    Map<InvoiceDirection, YearMonth> touched = new EnumMap<>(InvoiceDirection.class);
+    Map<InvoiceDirection, Set<YearMonth>> touched = new EnumMap<>(InvoiceDirection.class);
     for (InvoiceSourceRecord record : records) {
       if (record.netAmount() == null
           || record.vatAmount() == null
@@ -93,7 +94,12 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
         }
         RyczaltInvoiceEntity invoice =
             invoices.findById(existing.get().getEntityId()).orElseThrow();
-        requireMutable(profileId, target);
+        YearMonth current =
+            YearMonth.of(invoice.getPeriod().getYear(), invoice.getPeriod().getMonth());
+        requireMutable(profileId, current);
+        if (!current.equals(target)) {
+          invoice.moveToPeriod(requireMutable(profileId, target));
+        }
         invoice.update(
             record.issueDate(),
             record.accountingDate(),
@@ -103,7 +109,8 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
             currency(record.currency()));
         invoices.save(invoice);
         updated++;
-        touched.put(record.direction(), target);
+        touched.computeIfAbsent(record.direction(), ignored -> new HashSet<>()).add(current);
+        touched.get(record.direction()).add(target);
         continue;
       }
       RyczaltPeriodEntity period = requireMutable(profileId, target);
@@ -127,17 +134,19 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
           new RyczaltSourceReferenceEntity(
               profileId, ENTITY_TYPE, saved.getId(), SOURCE, record.sourceExternalId(), null));
       imported++;
-      touched.put(record.direction(), target);
+      touched.computeIfAbsent(record.direction(), ignored -> new HashSet<>()).add(target);
     }
     touched.forEach(
-        (direction, m) ->
-            lifecycle.invalidate(
-                profileId,
-                m,
-                direction == InvoiceDirection.INCOME
-                    ? InputChange.INCOME_INVOICE_CHANGED
-                    : InputChange.COST_INVOICE_CHANGED,
-                ACTOR));
+        (direction, months) ->
+            months.forEach(
+                m ->
+                    lifecycle.invalidate(
+                        profileId,
+                        m,
+                        direction == InvoiceDirection.INCOME
+                            ? InputChange.INCOME_INVOICE_CHANGED
+                            : InputChange.COST_INVOICE_CHANGED,
+                        ACTOR)));
     return new RyczaltKsefSyncResult(records.size(), imported, duplicates, updated, failed);
   }
 

@@ -295,7 +295,16 @@ public class RyczaltAccountingQueryService {
         row.getCurrency(),
         row.getBookedNetPln(),
         row.getRyczaltRate(),
-        row.getDeductibleVat());
+        row.getDeductibleVat(),
+        row.getCounterparty() == null
+            ? null
+            : new RyczaltInvoiceReadModel.CounterpartyView(
+                row.getCounterparty().id(),
+                row.getCounterparty().getLegalName(),
+                row.getCounterparty().getAlias()),
+        row.getApprovalStatus(),
+        row.getApprovalMethod(),
+        row.getPaymentVerificationPolicy());
   }
 
   private Loaded load(long profileId, YearMonth month) {

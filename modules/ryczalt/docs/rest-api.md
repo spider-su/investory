@@ -21,8 +21,8 @@ Its API paths are defined in `src/api/accountingPaths.ts` and calls are made by
 | `GET /api/profiles/{profileId}/accounting/months/{month}/documents` | yes | no | legacy Accounting DTO | replace with `/accounting/periods/{month}/invoices` |
 | `GET /api/v1/profiles/{profileId}/accounting/months/{month}/documents` | no | yes | mobile DTO over legacy DTO | replace with `/accounting/periods/{month}/invoices` |
 | `GET .../bank-transactions` | web only | no | legacy Accounting | replace with `/accounting/periods/{month}/transactions` when native sync exists |
-| `GET .../payments` | web only | no | legacy Accounting | replace with `/accounting/periods/{month}/obligations` |
-| `GET .../payments/history` and `/api/v1/.../payments/history` | web and mobile | yes | legacy Accounting | retain one common `/accounting/payments/history` resource during migration |
+| `GET .../payments` | web only | no | legacy Accounting | native `/accounting/payments` |
+| `GET .../payments/history` and `/api/v1/.../payments/history` | web and mobile | yes | legacy Accounting | transitional legacy routes; not the native contract |
 | `GET/PUT /api/v1/.../auto-approval` | no | yes | legacy Accounting | temporary; product ownership decision required |
 | `GET/PUT .../counterparties` | web and mobile read path | mobile read only | legacy Accounting | temporary; not native Ryczalt yet |
 | document recognition/save | web and mobile | mobile uses both | legacy Accounting | temporary ingestion workflow; do not call it invoice resource |
@@ -52,7 +52,7 @@ GET  /api/profiles/{profileId}/accounting/periods/{month}/invoices
 GET  /api/profiles/{profileId}/accounting/periods/{month}/transactions
 GET  /api/profiles/{profileId}/accounting/periods/{month}/obligations
 GET  /api/profiles/{profileId}/accounting/periods/{month}/issues
-GET  /api/profiles/{profileId}/accounting/periods/payments/history
+GET  /api/profiles/{profileId}/accounting/payments
 
 GET  /api/profiles/{profileId}/accounting/counterparties
 GET  /api/profiles/{profileId}/accounting/counterparties/{id}
@@ -87,6 +87,20 @@ Amounts are decimal JSON strings, dates are ISO local dates, and lifecycle value
 identifiers such as `OPEN`, `DIRTY`, `CALCULATED`, `PAID`, and `FROZEN`. `allowedActions` contains
 typed identifiers, never button labels.
 
+`GET /api/profiles/{profileId}/accounting/payments` returns payment/obligation history across
+periods and accepts `from`, `to`, and optional `type` query parameters.
+
+Counterparty responses include `id`, `legalName`, `alias`, `displayName`, `taxIdentifier`,
+`country`, `ruleCount`, and `invoiceCount`. Counts are profile-scoped. `RequiredInput` uses
+`field`, `inputType`, `required`, structured options (`value`, `labelKey`), `dependsOn`, and
+`dependsOnValues`; empty `requiredInputs` is valid and does not imply approval.
+
+Invoice responses expose a compact counterparty (`id`, `legalName`, `alias`) and the persisted
+`approvalStatus`, `approvalMethod`, and `paymentVerificationPolicy`. Invoice `paymentStatus` is
+not exposed yet because this read boundary does not have a reliable invoice-level reconciliation
+derivation. Counterparty-rule `vatDeductionRatio` and `ryczaltRate` are JSON strings on both
+responses and requests; responses use plain decimal notation without scientific notation.
+
 ## Migration policy
 
 The current `/api/v1` mobile routes and `/api` legacy routes are temporary compatibility routes.
@@ -98,3 +112,10 @@ native query/lifecycle layer.
 `AccountingMobileResponse` should be deleted after the mobile mapper consumes the common factual
 DTOs. `AccountingPageController` should receive a web assembler over the same Ryczalt query
 operations, without constructing `AccountingUserApi` records.
+# Invoice recognition and approval
+
+`POST /api/profiles/{profileId}/accounting/invoices/recognize` accepts multipart field `file`. The server stores a native candidate and returns its `candidateKey`, source identity, source amounts/dates, counterparty resolution, approval state, typed `requiredInputs`, and decimal values as plain JSON strings.
+
+`POST /api/profiles/{profileId}/accounting/invoices` accepts `candidateKey`, optional decision fields (`counterpartyId`, `classification`, `vatTreatment`, `vatDeductionRatio`, `ryczaltRate`, `paymentVerificationPolicy`), `approve`, and explicit `rememberRule`. Decimal request values are strings. Recognized source facts are reloaded from the server-side candidate; the client cannot replace amounts, dates, or reference by resending them. The selected UI month is not accepted as authoritative; the candidate accounting date selects the period. Frozen periods and duplicate canonical references reject the save.
+
+Recognition facts and approval decisions are separate. The client cannot submit arbitrary source amounts or dates. Uploads use a stable SHA-256 source reference and do not persist file contents.
