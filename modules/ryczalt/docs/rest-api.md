@@ -96,9 +96,10 @@ Counterparty responses include `id`, `legalName`, `alias`, `displayName`, `taxId
 `dependsOnValues`; empty `requiredInputs` is valid and does not imply approval.
 
 Invoice responses expose a compact counterparty (`id`, `legalName`, `alias`) and the persisted
-`approvalStatus`, `approvalMethod`, and `paymentVerificationPolicy`. Invoice `paymentStatus` is
-not exposed yet because this read boundary does not have a reliable invoice-level reconciliation
-derivation. Counterparty-rule `vatDeductionRatio` and `ryczaltRate` are JSON strings on both
+`approvalStatus`, `approvalMethod`, `paymentVerificationPolicy`, and canonical `paymentStatus`.
+`NOT_REQUIRED` always returns `NOT_REQUIRED`; required payment currently returns native persisted
+matching status, defaulting to `UNMATCHED` when no reliable invoice-level match exists.
+Counterparty-rule `vatDeductionRatio` and `ryczaltRate` are JSON strings on both
 responses and requests; responses use plain decimal notation without scientific notation.
 
 ## Migration policy
