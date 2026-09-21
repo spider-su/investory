@@ -10,7 +10,12 @@ public record Counterparty(
     long ruleCount,
     long invoiceCount) {
   public Counterparty(
-      long id, long profileId, String taxIdentifier, String country, String legalName, String alias) {
+      long id,
+      long profileId,
+      String taxIdentifier,
+      String country,
+      String legalName,
+      String alias) {
     this(id, profileId, taxIdentifier, country, legalName, alias, 0, 0);
   }
 

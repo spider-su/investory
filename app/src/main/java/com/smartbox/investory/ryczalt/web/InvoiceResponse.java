@@ -23,6 +23,7 @@ public record InvoiceResponse(
     CounterpartyView counterparty,
     ApprovalStatus approvalStatus,
     ApprovalMethod approvalMethod,
-    PaymentVerificationPolicy paymentVerificationPolicy) {
+    PaymentVerificationPolicy paymentVerificationPolicy,
+    String paymentStatus) {
   public record CounterpartyView(long id, String legalName, String alias) {}
 }
