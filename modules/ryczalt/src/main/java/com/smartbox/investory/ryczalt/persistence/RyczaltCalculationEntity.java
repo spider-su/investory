@@ -115,6 +115,10 @@ public class RyczaltCalculationEntity {
     return resultJson == null ? null : resultJson.toString();
   }
 
+  public JsonNode getResultJsonNode() {
+    return resultJson;
+  }
+
   public String getInputFingerprint() {
     return inputFingerprint;
   }

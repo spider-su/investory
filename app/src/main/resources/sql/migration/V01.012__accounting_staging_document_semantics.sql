@@ -1,5 +1,5 @@
 
--- Squashed source: app/src/main/resources/sql/migration/V01.024__accounting_staging_document_semantics.sql
+-- Squashed source: app/src/main/resources/sql/migration/V01.012__accounting_staging_document_semantics.sql
 -- Staging must retain every reviewed fact required for safe canonical promotion.
 ALTER TABLE investory.accounting_tmp_invoice
     ADD COLUMN IF NOT EXISTS category VARCHAR(64),
@@ -69,13 +69,20 @@ CREATE TABLE investory.ryczalt_invoice (
     classification VARCHAR(128),
     vat_treatment VARCHAR(128),
     vat_deduction_ratio NUMERIC(7,6),
-    payment_status VARCHAR(16) NOT NULL DEFAULT 'UNMATCHED',
+    payment_status VARCHAR(20) NOT NULL DEFAULT 'UNMATCHED',
+    manual_paid_date DATE,
+    manual_paid_note VARCHAR(1000),
     CONSTRAINT chk_ryczalt_invoice_direction CHECK (direction IN ('INCOME', 'COST')),
     CONSTRAINT chk_ryczalt_invoice_currency CHECK (length(btrim(currency)) = 3),
     CONSTRAINT chk_ryczalt_invoice_approval CHECK (approval_status IN ('NEEDS_REVIEW','APPROVED')),
     CONSTRAINT chk_ryczalt_invoice_payment_policy CHECK (payment_verification_policy IN ('REQUIRED','NOT_REQUIRED')),
     CONSTRAINT chk_ryczalt_invoice_payment_status
-        CHECK (payment_status IN ('MATCHED', 'PARTIALLY_MATCHED', 'UNMATCHED', 'NOT_REQUIRED'))
+        CHECK (payment_status IN ('MATCHED', 'PARTIALLY_MATCHED', 'UNMATCHED', 'MANUALLY_CONFIRMED', 'NOT_REQUIRED')),
+    CONSTRAINT chk_ryczalt_invoice_manual_paid_data
+        CHECK (
+            (payment_status = 'MANUALLY_CONFIRMED' AND manual_paid_date IS NOT NULL)
+            OR payment_status <> 'MANUALLY_CONFIRMED'
+        )
 );
 
 CREATE INDEX ix_ryczalt_invoice_period ON investory.ryczalt_invoice(profile_id, period_id, accounting_date, id);
@@ -618,7 +625,7 @@ ON CONFLICT (profile_id, entity_type, source, external_id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- 6. Obligations.
 --
--- Status mapping intentionally mirrors RyczaltMigrationService:
+-- Status mapping preserves the historical Ryczalt import contract:
 --   PAID / SETTLED   -> PAID
 --   FROZEN / LOCKED  -> FROZEN
 --   everything else  -> OPEN
@@ -1313,3 +1320,5 @@ FOR EACH ROW EXECUTE FUNCTION investory.touch_ryczalt_invoice_candidate_updated_
 -- Squashed source: app/src/main/resources/sql/migration/V01.039__ryczalt_candidate_rule_state.sql
 -- Squashed source: app/src/main/resources/sql/migration/V01.040__ryczalt_counterparty_country_varchar.sql
 -- Squashed source: app/src/main/resources/sql/migration/V01.041__ryczalt_invoice_source_identity.sql
+
+-- Squashed source: app/src/main/resources/sql/migration/V01.025__ryczalt_manual_invoice_payment.sql

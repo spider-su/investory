@@ -10,11 +10,6 @@
     <dependencies>
         <dependency>
             <groupId>com.smartbox</groupId>
-            <artifactId>accounting</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.smartbox</groupId>
             <artifactId>investment</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -83,4 +78,14 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

@@ -4,6 +4,7 @@ public enum InvoicePaymentStatus {
   MATCHED,
   PARTIALLY_MATCHED,
   UNMATCHED,
+  MANUALLY_CONFIRMED,
   NOT_REQUIRED;
 
   public static InvoicePaymentStatus fromPersisted(String value) {

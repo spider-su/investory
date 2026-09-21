@@ -170,7 +170,11 @@ public class RyczaltAccountingQueryService {
     return rows.stream()
         .filter(row -> row.getType() == type && validCalculation(row))
         .findFirst()
-        .map(row -> readJson(row.getResultJson()))
+        .map(
+            row -> {
+              JsonNode result = row.getResultJsonNode();
+              return result == null ? readJson(row.getResultJson()) : result;
+            })
         .orElse(null);
   }
 

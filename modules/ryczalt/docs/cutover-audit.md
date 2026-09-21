@@ -7,9 +7,9 @@ the `modules/accounting` module.
 ## Executive result
 
 `modules/ryczalt` has no production dependency on `modules/accounting`. Its native application
-boundary is `RyczaltAccountingApi` implemented by `RyczaltAccountingFacade`. The app module owns
-`LegacyAccountingApiBridge`, which maps native data to old `AccountingUserApi` records and delegates
-unsupported operations to the qualified `accountingUserFacade` bean.
+boundary is `RyczaltAccountingApi` implemented by `RyczaltAccountingFacade`. The former
+`LegacyAccountingApiBridge` has been removed; remaining legacy route and DTO dependencies are
+tracked below as migration gaps.
 
 The mobile consumer checkout is available at `/home/alex/projects/ryczalt_it`. It is an Expo/
 React Native client named `investory-accounting-mobile`, not a missing repository. Its concrete
@@ -30,7 +30,7 @@ Ryczalt application sync path. eZUS has no reusable production verification clie
 | --- | --- | --- |
 | `modules/ryczalt/pom.xml` | no `com.smartbox:accounting` dependency | `REMOVED` |
 | `ryczalt/application/RyczaltAccountingApi.java` | native query/lifecycle port | Ryczalt-owned application contract |
-| `app/accounting/application/LegacyAccountingApiBridge.java` | maps native records and qualifies `accountingUserFacade` | Temporary app compatibility bridge |
+| `app/accounting/application/LegacyAccountingApiBridge.java` | maps native records and qualifies `accountingUserFacade` | Removed |
 
 No other production class under `modules/ryczalt` imports an Accounting class. The migration
 service's SQL references legacy `accounting_poc_*` tables, but that is an explicit one-way import
@@ -112,9 +112,9 @@ All routes below are under `/api/profiles/{profileId}/accounting` and are curren
 | mobile accounting responses | `AccountingMobileRestController` -> `AccountingMobileResponse` | app bridge input, Accounting DTO mapping | Legacy DTO dependency |
 | common native accounting resources | `RyczaltAccountingRestController` | native Ryczalt query/lifecycle services | `STABLE_NATIVE`; web/mobile migration pending |
 
-The native REST controller injects `RyczaltAccountingApi` directly. Old REST controllers inject the
-app-owned compatibility bridge. This keeps routing explicit and prevents the Ryczalt module from
-depending on legacy API types.
+The native REST controller injects `RyczaltAccountingApi` directly. Old REST, mobile, staging, and
+Web compatibility controllers have been removed. The native Web client gets period/reference data
+from the native controller response.
 
 ## Web/mobile consumer matrix
 
@@ -148,7 +148,7 @@ are not blockers themselves; the missing piece is native transaction acquisition
 
 | Dependency | Classification | Finding |
 | --- | --- | --- |
-| `RyczaltMigrationService` queries `accounting_poc_invoice`, `accounting_poc_expense_invoice`, `accounting_poc_bank_transaction`, and `accounting_poc_obligation` | `MIGRATION_ONLY` | Explicit one-way import; normal Ryczalt persistence reads `ryczalt_*` |
+| Legacy import utility and source tables | `REMOVED` / `HISTORICAL_SCHEMA` | No production Ryczalt code reads `accounting_poc_*`; the old tables remain only in historical Flyway migrations |
 | `HappyInvestorStage2Fixture` references legacy migration fixture provenance | `REFERENCE_TEST_ONLY` | Test documentation/evidence, not runtime |
 | `AccountingReferenceMatrixE2EIT` and Accounting golden/staging tests query `accounting_reference_*` / `accounting_poc_*` | `REFERENCE_ONLY` / `LEGACY_ONLY` | Certification and legacy tests; not a Ryczalt runtime blocker by themselves |
 | Ryczalt calculators, persistence, settlement, lifecycle | none | No normal runtime SQL read of `accounting_*` found |
@@ -203,8 +203,8 @@ those operations are replaced.
 3. `AccountingStagingRestController`, `AccountingStagingFacade`, and staging tests.
 4. Accounting-only reference/golden/parity tests, unless deliberately retained in a separate
    certification module or replaced with Ryczalt-owned fixtures.
-5. `RyczaltMigrationService`'s legacy source tables, unless the one-way migration is completed and
-   retired. This is a migration deletion blocker, not a normal runtime blocker.
+5. Legacy source tables and their historical migrations. They are not runtime dependencies, but
+   database cleanup still requires a separate data-retention and migration plan.
 
 ## Do not migrate
 
@@ -253,5 +253,5 @@ LEGACY_DELEGATED     all read/document/bank/KSeF/filing/counterparty operations 
 MISSING              native application contract, bank/KSeF sync, filing/read model coverage
 NOT_REQUIRED         eZUS unless a real product integration is introduced; obsolete POC internals
 REFERENCE_ONLY       accounting_reference_* and old/new certification fixtures
-MIGRATION_ONLY       RyczaltMigrationService reads of accounting_poc_* tables
+HISTORICAL_SCHEMA    accounting_poc_* table definitions retained in old Flyway migrations
 ```

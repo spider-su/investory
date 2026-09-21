@@ -45,15 +45,15 @@ sources -> adapters -> ports -> AccountingPeriod -> calculators
 9. application cutover
 10. remove accounting
 
-## Current stage: native source integration and REST/application cutover bridge
+## Current stage: native source integration and REST/application cutover
 
-Stage 2 added pure calculators over already-normalized facts. Stage 3 adds separate JPA persistence
-and a one-way legacy import:
+Stage 2 added pure calculators over already-normalized facts. Stage 3 added separate JPA persistence;
+the one-way legacy import utility has since been removed:
 
-- `RyczaltPersistenceAdapter` loads and saves canonical `AccountingPeriod` facts from `ryczalt_*`
-  tables.
-- `RyczaltMigrationService` imports operational legacy POC rows once, idempotently, with source
-  references. It is not a runtime legacy adapter.
+- The old aggregate persistence adapter and domain mapper are removed. Native query services and
+  repositories read the canonical `ryczalt_*` tables.
+- Legacy import code is not part of the active Ryczalt runtime. Historical legacy tables remain for
+  the planned database cleanup.
 - JPA entities, repositories, calculation records, FX facts, and profile-scoped constraints are
   under `persistence`.
 
@@ -66,8 +66,8 @@ Stage 4 added revisioned calculation history, deterministic fingerprints, target
 explicit freeze/reopen/correction services, and audit events. Stage 5 added pure payment and period
 completeness checkers, persisted partial payment matches, deterministic automatic settlement, manual
 matching, and frozen-settlement protection. `RyczaltAccountingApi` and
-`RyczaltAccountingFacade` now own the native application boundary. Native REST uses that boundary;
-the app module owns the temporary `LegacyAccountingApiBridge` for old routes. Native settlement and
+`RyczaltAccountingFacade` now own the native application boundary. Native REST uses that boundary.
+Native settlement and
 lifecycle operations are selected for periods already present in the Ryczalt schema. Frozen periods
 are load-only.
 
@@ -77,7 +77,7 @@ comparison evidence and are not imported as canonical facts.
 Native source capability is incremental. `RyczaltFxRateService` reads persisted historical NBP facts
 before calling the reusable `NbpClient`; acquired rates are stored once with the provider reference.
 The date decision is in `FxRateDatePolicy`, not in the HTTP client. The direct `integrations`
-dependency is for reusable source clients only and does not replace the temporary REST bridge.
+dependency is for reusable source clients only.
 
 Current capability:
 

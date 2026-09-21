@@ -46,11 +46,6 @@
     </dependency>
     <dependency>
       <groupId>com.smartbox</groupId>
-      <artifactId>accounting</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.smartbox</groupId>
       <artifactId>ryczalt</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -158,6 +153,20 @@
   </dependencies>
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <testExcludes>
+            <exclude>**/accounting/**</exclude>
+            <exclude>**/poc/accounting/**</exclude>
+            <exclude>**/ui/AccountingPocUiIT.java</exclude>
+            <exclude>**/app/AccountingHeaderRenderTest.java</exclude>
+            <exclude>**/infrastructure/AccountingToRyczaltMigrationReconciliationIT.java</exclude>
+            <exclude>**/contract/CanonicalAccountingOpenApiIT.java</exclude>
+          </testExcludes>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>

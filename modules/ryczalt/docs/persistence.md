@@ -49,9 +49,9 @@ Storage precision is not statutory rounding. Stage-2 `RoundingPolicy` remains au
 
 ## JPA boundary
 
-JPA entities and repositories live under `persistence`; canonical records remain in `domain` and
-are assembled by `RyczaltDomainMapper` through `RyczaltPersistenceAdapter`. Loading does not run
-calculators. Saving is explicit and does not rely on aggregate-wide cascade magic.
+JPA entities and repositories live under `persistence`; native query services map them to immutable
+read models. Loading does not run calculators. Writes are explicit and do not rely on
+aggregate-wide cascade magic.
 
 ## Frozen periods
 

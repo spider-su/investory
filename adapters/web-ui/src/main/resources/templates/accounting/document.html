@@ -29,6 +29,18 @@
         <div class="col-md-6" th:if="${document.sourceReference != null}"><label class="form-label">Source reference</label><input class="form-control" readonly th:value="${document.sourceReferenceDisplay}" value="Source"></div>
       </div>
       <div class="accounting-document-detail__actions">
+        <div th:if="${canWrite and document.direction != 'SALES' and document.paymentStatus != 'MATCHED' and document.paymentStatus != 'PARTIALLY_MATCHED'}" class="accounting-document-payment-actions" data-testid="accounting-document-payment-actions">
+          <form th:if="${document.paymentStatus != 'MANUALLY_CONFIRMED'}" method="post" th:action="@{/profiles/{profileId}/accounting/documents/{documentId}/manual-paid(profileId=${profileId},documentId=${document.id})}" class="d-flex align-items-end gap-2">
+            <input type="hidden" name="month" th:value="${selectedMonth}">
+            <div><label class="form-label" for="paidDate">Payment date</label><input class="form-control" id="paidDate" name="paidDate" type="date" required th:value="${today}"></div>
+            <div><label class="form-label" for="paidNote">Note</label><input class="form-control" id="paidNote" name="note" type="text" maxlength="1000" placeholder="Optional"></div>
+            <button class="btn btn-success" type="submit" data-testid="accounting-document-confirm-paid">Confirm paid</button>
+          </form>
+          <form th:if="${document.paymentStatus == 'MANUALLY_CONFIRMED'}" method="post" th:action="@{/profiles/{profileId}/accounting/documents/{documentId}/manual-unpaid(profileId=${profileId},documentId=${document.id})}">
+            <input type="hidden" name="month" th:value="${selectedMonth}">
+            <button class="btn btn-outline-warning" type="submit" data-testid="accounting-document-make-unpaid">Make unpaid</button>
+          </form>
+        </div>
         <a class="btn btn-primary" data-testid="accounting-document-review" th:if="${canWrite and document.canReview}" th:href="@{/profiles/{profileId}/accounting/documents/review(profileId=${profileId},month=${selectedMonth},sourceReference=${document.sourceReference})}">Review document</a>
         <a class="btn btn-link" th:href="@{/profiles/{profileId}/accounting(profileId=${profileId},month=${selectedMonth})}">Back</a>
       </div>

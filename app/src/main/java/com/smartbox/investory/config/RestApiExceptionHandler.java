@@ -1,6 +1,5 @@
 package com.smartbox.investory.config;
 
-import com.smartbox.investory.accounting.AccountingInvalidTransitionException;
 import com.smartbox.investory.investment.api.asset.InvestmentAssetApi;
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
 import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
@@ -65,12 +64,6 @@ public class RestApiExceptionHandler {
     if (status == null) status = HttpStatus.INTERNAL_SERVER_ERROR;
     return error(
         status, status.is4xxClientError() ? message(exception) : "Internal server error", request);
-  }
-
-  @ExceptionHandler(AccountingInvalidTransitionException.class)
-  public ResponseEntity<ApiError> accountingConflict(
-      AccountingInvalidTransitionException exception, HttpServletRequest request) {
-    return error(HttpStatus.CONFLICT, message(exception), request);
   }
 
   @ExceptionHandler(RyczaltInvoiceConflictException.class)
