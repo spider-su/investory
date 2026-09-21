@@ -9,7 +9,6 @@ import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,33 +19,27 @@ public class RyczaltInvoiceRecognitionService {
   private final RyczaltInvoiceCandidateJpaRepository candidates;
   private final RyczaltSourceReferenceJpaRepository sources;
   private final RyczaltCounterpartyService counterparties;
-  private final RyczaltInvoiceCandidatePersistenceService persistence;
 
   public RyczaltInvoiceRecognitionService(
       InvoiceRecognitionPort recognizer,
       RyczaltInvoiceCandidateJpaRepository candidates,
       RyczaltSourceReferenceJpaRepository sources,
-      RyczaltCounterpartyService counterparties,
-      RyczaltInvoiceCandidatePersistenceService persistence) {
+      RyczaltCounterpartyService counterparties) {
     this.recognizer = recognizer;
     this.candidates = candidates;
     this.sources = sources;
     this.counterparties = counterparties;
-    this.persistence = persistence;
   }
 
+  @Transactional
   public CandidateView recognize(
       long profileId, String filename, String contentType, byte[] content) {
     var invoice = recognizer.recognize(filename, contentType, content);
     validate(invoice);
     String externalId = sha256(content);
-    if (sources
-        .findByProfileIdAndEntityTypeAndSourceAndExternalId(
-            profileId, "INVOICE", SOURCE, externalId)
-        .isPresent()) throw new RyczaltInvoiceSourceConflictException();
     var existing =
         candidates.findByProfileIdAndSourceTypeAndSourceExternalId(profileId, SOURCE, externalId);
-    if (existing.isPresent()) return view(existing.get(), SourceState.EXISTING_CANDIDATE);
+    if (existing.isPresent()) return view(existing.get(), true);
     LocalDate accountingDate =
         invoice.saleDate() == null ? invoice.issueDate() : invoice.saleDate();
     Party supplier = invoice.seller();
@@ -81,14 +74,11 @@ public class RyczaltInvoiceRecognitionService {
             invoice.confidence(),
             accountingDate.getYear(),
             accountingDate.getMonthValue());
-    row.setServiceKey(RuleCriteria.serviceKey(invoice.serviceKey()));
     if (cp != null) row.setCounterpartyId(cp.id());
-    if (cp != null && row.getServiceKey() != null) {
+    if (cp != null) {
       var match =
           counterparties.match(
-              new InvoiceCandidate(cp.id(), SOURCE, invoice.documentType(), row.getServiceKey()),
-              profileId);
-      row.setRuleMatchStatus(match.kind());
+              new InvoiceCandidate(cp.id(), SOURCE, invoice.documentType(), null), profileId);
       if (match.kind() == RuleMatchResult.Kind.MATCHED) {
         var rule = match.rule();
         row.apply(
@@ -98,32 +88,30 @@ public class RyczaltInvoiceRecognitionService {
             rule.ryczaltRate(),
             rule.paymentVerificationPolicy(),
             rule.autoApprove() ? ApprovalStatus.APPROVED : ApprovalStatus.NEEDS_REVIEW,
-            rule.autoApprove() ? ApprovalMethod.COUNTERPARTY_RULE : null);
+            rule.autoApprove() ? "COUNTERPARTY_RULE" : null);
       }
     }
-    try {
-      row = persistence.persist(row, invoice.sourceMetadata());
-    } catch (DataIntegrityViolationException exception) {
-      if (knownRecognitionConflict(exception)) {
-        return candidates
-            .findByProfileIdAndSourceTypeAndSourceExternalId(profileId, SOURCE, externalId)
-            .map(winner -> view(winner, SourceState.EXISTING_CANDIDATE))
-            .orElseThrow(() -> exception);
-      }
-      throw exception;
-    }
-    return view(row, SourceState.NEW_CANDIDATE);
+    row = candidates.save(row);
+    sources.save(
+        new RyczaltSourceReferenceEntity(
+            profileId,
+            "INVOICE_CANDIDATE",
+            row.id(),
+            SOURCE,
+            externalId,
+            invoice.sourceMetadata()));
+    return view(row, false);
   }
 
   @Transactional(readOnly = true)
   public CandidateView get(long profileId, UUID key) {
     return candidates
         .findByProfileIdAndCandidateKey(profileId, key)
-        .map(row -> view(row, SourceState.EXISTING_CANDIDATE))
+        .map(row -> view(row, row.isDuplicate()))
         .orElseThrow(() -> new RyczaltInvoiceCandidateNotFoundException(profileId));
   }
 
-  private CandidateView view(RyczaltInvoiceCandidateEntity row, SourceState sourceState) {
+  private CandidateView view(RyczaltInvoiceCandidateEntity row, boolean duplicate) {
     return new CandidateView(
         row.getCandidateKey(),
         row.getSourceType(),
@@ -143,37 +131,24 @@ public class RyczaltInvoiceRecognitionService {
         row.getVatTreatment(),
         decimal(row.getRyczaltRate()),
         row.getApprovalStatus(),
-        row.getApprovalMethod(),
+        row.getApprovalSource(),
         row.getPaymentVerificationPolicy(),
-        row.getRuleMatchStatus(),
         row.getPaymentVerificationPolicy() == PaymentVerificationPolicy.NOT_REQUIRED
-            ? InvoicePaymentStatus.NOT_REQUIRED
-            : InvoicePaymentStatus.UNMATCHED,
-        sourceState,
+            ? "NOT_REQUIRED"
+            : "UNMATCHED",
+        duplicate,
         row.getPeriodYear(),
         row.getPeriodMonth(),
         required(row));
   }
 
   private List<RequiredInput> required(RyczaltInvoiceCandidateEntity row) {
+    if (row.getApprovalStatus() == ApprovalStatus.APPROVED) return List.of();
     var result = new java.util.ArrayList<RequiredInput>();
     if (row.getCounterpartyId() == null)
       result.add(new RequiredInput("COUNTERPARTY", "CHOICE", true, List.of(), null, List.of()));
     if (row.getClassification() == null)
       result.add(new RequiredInput("CLASSIFICATION", "TEXT", true, List.of(), null, List.of()));
-    if (row.getVatTreatment() == null)
-      result.add(new RequiredInput("VAT_TREATMENT", "CHOICE", true, List.of(), null, List.of()));
-    if (row.getVatTreatment() != null
-        && (row.getVatTreatment().equals("HALF") || row.getVatTreatment().equals("PARTIAL"))
-        && row.getVatDeductionRatio() == null)
-      result.add(
-          new RequiredInput(
-              "VAT_DEDUCTION_RATIO",
-              "DECIMAL",
-              true,
-              List.of(),
-              "VAT_TREATMENT",
-              List.of("HALF", "PARTIAL")));
     if (row.getRyczaltRate() == null)
       result.add(new RequiredInput("RYCZALT_RATE", "DECIMAL", true, List.of(), null, List.of()));
     return List.copyOf(result);
@@ -218,19 +193,6 @@ public class RyczaltInvoiceRecognitionService {
     return value == null ? null : value.toPlainString();
   }
 
-  private static boolean knownRecognitionConflict(DataIntegrityViolationException exception) {
-    Throwable cause = exception;
-    while (cause != null) {
-      if (cause instanceof org.hibernate.exception.ConstraintViolationException violation) {
-        String name = violation.getConstraintName();
-        return "uq_ryczalt_candidate_source".equals(name)
-            || "uq_ryczalt_source_reference".equals(name);
-      }
-      cause = cause.getCause();
-    }
-    return false;
-  }
-
   private static String sha256(byte[] content) {
     try {
       var digest = MessageDigest.getInstance("SHA-256");
@@ -260,17 +222,11 @@ public class RyczaltInvoiceRecognitionService {
       String vatTreatment,
       String ryczaltRate,
       ApprovalStatus approvalStatus,
-      ApprovalMethod approvalMethod,
+      String approvalMethod,
       PaymentVerificationPolicy paymentVerificationPolicy,
-      RuleMatchResult.Kind ruleMatchStatus,
-      InvoicePaymentStatus paymentStatus,
-      SourceState sourceState,
+      String paymentStatus,
+      boolean duplicate,
       int periodYear,
       int periodMonth,
       List<RequiredInput> requiredInputs) {}
-
-  public enum SourceState {
-    NEW_CANDIDATE,
-    EXISTING_CANDIDATE
-  }
 }

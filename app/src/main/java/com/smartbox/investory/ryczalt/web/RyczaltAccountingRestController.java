@@ -93,7 +93,7 @@ public class RyczaltAccountingRestController {
     return accounting.issues(profileId, month).stream().map(this::issue).toList();
   }
 
-  @GetMapping("/periods/payments/history")
+  @GetMapping("/payments")
   public List<PaymentHistoryResponse> paymentHistory(
       @PathVariable long profileId,
       @RequestParam YearMonth from,
@@ -232,7 +232,16 @@ public class RyczaltAccountingRestController {
         value.currency(),
         decimal(value.bookedNetPln()),
         decimal(value.ryczaltRate()),
-        decimal(value.deductibleVat()));
+        decimal(value.deductibleVat()),
+        value.counterparty() == null
+            ? null
+            : new InvoiceResponse.CounterpartyView(
+                value.counterparty().id(),
+                value.counterparty().legalName(),
+                value.counterparty().alias()),
+        value.approvalStatus(),
+        value.approvalMethod(),
+        value.paymentVerificationPolicy());
   }
 
   private TransactionResponse transaction(RyczaltTransactionReadModel value) {

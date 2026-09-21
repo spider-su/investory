@@ -7,7 +7,6 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.UUID;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,48 +42,37 @@ public class RyczaltInvoiceApprovalService {
   public InvoiceView approve(long profileId, UUID key, ApproveCommand command) {
     var candidate =
         candidates
-            .findLockedByProfileIdAndCandidateKey(profileId, key)
+            .findByProfileIdAndCandidateKey(profileId, key)
             .orElseThrow(() -> new RyczaltInvoiceCandidateNotFoundException(profileId));
-    if (candidate.isConsumed()) throw new RyczaltInvoiceCandidateConsumedException();
+    if (candidate.isConsumed())
+      throw new IllegalStateException("Invoice candidate was already consumed");
+    if (candidate.getCounterpartyId() == null)
+      throw new IllegalArgumentException("Counterparty is required");
     Long originalCounterpartyId = candidate.getCounterpartyId();
     long cpId =
-        command.counterpartyId() == null
-            ? requireCounterparty(originalCounterpartyId)
-            : command.counterpartyId();
-    boolean counterpartyChanged = originalCounterpartyId == null || cpId != originalCounterpartyId;
+        command.counterpartyId() == null ? candidate.getCounterpartyId() : command.counterpartyId();
     var cp =
         counterparties
             .findByIdAndProfileId(cpId, profileId)
             .orElseThrow(() -> new RyczaltCounterpartyNotFoundException(profileId, cpId));
-    String classification =
-        explicit(command.classification())
-            ? command.classification()
-            : counterpartyChanged ? null : candidate.getClassification();
-    String vatTreatment =
-        explicit(command.vatTreatment())
-            ? command.vatTreatment()
-            : counterpartyChanged ? null : candidate.getVatTreatment();
-    BigDecimal ratio =
-        command.vatDeductionRatio() != null
-            ? command.vatDeductionRatio()
-            : counterpartyChanged ? null : candidate.getVatDeductionRatio();
-    BigDecimal rate =
-        command.ryczaltRate() != null
-            ? command.ryczaltRate()
-            : counterpartyChanged ? null : candidate.getRyczaltRate();
     PaymentVerificationPolicy policy =
-        command.paymentVerificationPolicy() != null
-            ? command.paymentVerificationPolicy()
-            : counterpartyChanged
-                ? PaymentVerificationPolicy.REQUIRED
-                : candidate.getPaymentVerificationPolicy();
-    if (command.approve() && (blank(classification) || rate == null))
+        command.paymentVerificationPolicy() == null
+            ? PaymentVerificationPolicy.REQUIRED
+            : command.paymentVerificationPolicy();
+    if (command.approve() && (blank(command.classification()) || command.ryczaltRate() == null))
       throw new IllegalArgumentException(
           "Classification and Ryczalt rate are required for approval");
-    if (sources
-        .findByProfileIdAndEntityTypeAndSourceAndExternalId(
-            profileId, "INVOICE", candidate.getSourceType(), candidate.getSourceExternalId())
-        .isPresent()) throw new RyczaltInvoiceSourceConflictException();
+    ApprovalStatus status =
+        command.approve() ? ApprovalStatus.APPROVED : ApprovalStatus.NEEDS_REVIEW;
+    candidate.apply(
+        command.classification(),
+        command.vatTreatment(),
+        command.vatDeductionRatio(),
+        command.ryczaltRate(),
+        policy,
+        status,
+        command.approve() ? "MANUAL" : null);
+    candidate.setCounterpartyId(cpId);
     YearMonth month = YearMonth.of(candidate.getPeriodYear(), candidate.getPeriodMonth());
     var period =
         periods
@@ -96,61 +84,47 @@ public class RyczaltInvoiceApprovalService {
                             profileId, month.getYear(), month.getMonthValue(), PeriodStatus.OPEN)));
     if (period.getStatus() == PeriodStatus.FROZEN)
       throw new FrozenPeriodMutationException(profileId, month.getYear(), month.getMonthValue());
-    ApprovalStatus status =
-        command.approve() ? ApprovalStatus.APPROVED : ApprovalStatus.NEEDS_REVIEW;
-    ApprovalMethod method =
-        command.approve()
-            ? (!counterpartyChanged
-                    && candidate.getApprovalMethod() == ApprovalMethod.COUNTERPARTY_RULE
-                ? ApprovalMethod.COUNTERPARTY_RULE
-                : ApprovalMethod.MANUAL)
-            : null;
-    candidate.apply(classification, vatTreatment, ratio, rate, policy, status, method);
-    candidate.setCounterpartyId(cpId);
-    RyczaltInvoiceEntity invoice;
-    try {
-      invoice =
-          invoices.save(
-              new RyczaltInvoiceEntity(
-                  period,
-                  profileId,
-                  candidate.getDirection(),
-                  candidate.getReference(),
-                  candidate.getIssueDate(),
-                  candidate.getSaleDate() == null
-                      ? candidate.getIssueDate()
-                      : candidate.getSaleDate(),
-                  candidate.getNetAmount(),
-                  candidate.getVatAmount(),
-                  candidate.getGrossAmount(),
-                  CurrencyType.valueOf(candidate.getCurrency()),
-                  null,
-                  rate,
-                  ratio));
-      invoice.applyDecision(cp, classification, vatTreatment, ratio, rate, policy, status, method);
-      invoices.save(invoice);
-      sources.save(
-          new RyczaltSourceReferenceEntity(
-              profileId,
-              "INVOICE",
-              invoice.id(),
-              candidate.getSourceType(),
-              candidate.getSourceExternalId(),
-              null));
-      sources.flush();
-    } catch (DataIntegrityViolationException exception) {
-      if (knownSourceConflict(exception)) throw new RyczaltInvoiceSourceConflictException();
-      throw exception;
-    }
+    var invoice =
+        invoices.save(
+            new RyczaltInvoiceEntity(
+                period,
+                profileId,
+                candidate.getDirection(),
+                candidate.getReference(),
+                candidate.getIssueDate(),
+                candidate.getSaleDate() == null
+                    ? candidate.getIssueDate()
+                    : candidate.getSaleDate(),
+                candidate.getNetAmount(),
+                candidate.getVatAmount(),
+                candidate.getGrossAmount(),
+                CurrencyType.valueOf(candidate.getCurrency()),
+                null,
+                command.ryczaltRate(),
+                command.vatDeductionRatio()));
+    invoice.applyDecision(
+        cp,
+        command.classification(),
+        command.vatTreatment(),
+        command.vatDeductionRatio(),
+        command.ryczaltRate(),
+        policy,
+        status,
+        command.approve() ? ApprovalMethod.MANUAL : null);
+    invoices.save(invoice);
+    sources.save(
+        new RyczaltSourceReferenceEntity(
+            profileId,
+            "INVOICE",
+            invoice.id(),
+            candidate.getSourceType(),
+            candidate.getSourceExternalId(),
+            null));
     candidate.consume();
     candidates.save(candidate);
     if (command.rememberRule()
         && originalCounterpartyId != null
-        && cpId == originalCounterpartyId
-        && !blank(
-            command.serviceKey() == null ? candidate.getServiceKey() : command.serviceKey())) {
-      String serviceKey =
-          command.serviceKey() == null ? candidate.getServiceKey() : command.serviceKey();
+        && cpId == originalCounterpartyId) {
       counterpartyService.addRule(
           profileId,
           cpId,
@@ -158,11 +132,11 @@ public class RyczaltInvoiceApprovalService {
               command.ruleName() == null ? candidate.getReference() : command.ruleName(),
               candidate.getSourceType(),
               candidate.getDocumentType(),
-              serviceKey,
-              classification,
-              vatTreatment,
-              ratio,
-              rate,
+              command.serviceKey(),
+              command.classification(),
+              command.vatTreatment(),
+              command.vatDeductionRatio(),
+              command.ryczaltRate(),
               command.approve(),
               policy));
     }
@@ -186,32 +160,11 @@ public class RyczaltInvoiceApprovalService {
         decimal(invoice.getGrossAmount()),
         invoice.getApprovalStatus(),
         invoice.getPaymentVerificationPolicy(),
-        InvoicePaymentStatus.fromPersisted(invoice.getPaymentStatus()));
+        invoice.getPaymentStatus());
   }
 
   private static boolean blank(String value) {
     return value == null || value.isBlank();
-  }
-
-  private static boolean explicit(String value) {
-    return value != null && !value.isBlank();
-  }
-
-  private static long requireCounterparty(Long value) {
-    if (value == null) throw new IllegalArgumentException("Counterparty is required");
-    return value;
-  }
-
-  private static boolean knownSourceConflict(DataIntegrityViolationException exception) {
-    Throwable cause = exception;
-    while (cause != null) {
-      if (cause instanceof org.hibernate.exception.ConstraintViolationException violation) {
-        String name = violation.getConstraintName();
-        return "uq_ryczalt_source_reference".equals(name);
-      }
-      cause = cause.getCause();
-    }
-    return false;
   }
 
   private static String decimal(BigDecimal value) {
@@ -243,5 +196,5 @@ public class RyczaltInvoiceApprovalService {
       String grossAmount,
       ApprovalStatus approvalStatus,
       PaymentVerificationPolicy paymentVerificationPolicy,
-      InvoicePaymentStatus paymentStatus) {}
+      String paymentStatus) {}
 }

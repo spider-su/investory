@@ -118,3 +118,12 @@ Approval is separate from payment evidence. Approval is `NEEDS_REVIEW` or `APPRO
 `NOT_REQUIRED`. A cash-paid fuel invoice can therefore be approved by a matching fuel rule with
 `NOT_REQUIRED` and produces no missing-bank-evidence attention. A `REQUIRED` rule keeps normal
 payment matching and unresolved-payment attention.
+# Native invoice workflow
+
+Invoice upload follows a native Ryczalt flow:
+
+1. `POST /api/profiles/{profileId}/accounting/invoices/recognize` calls `InvoiceRecognitionPort` and persists source facts as an invoice candidate.
+2. The candidate resolves counterparties by tax identifier and country, then evaluates deterministic counterparty rules.
+3. `POST /api/profiles/{profileId}/accounting/invoices` accepts the candidate key and user decisions. It validates the authoritative period, writes `ryczalt_invoice`, records provenance, and invalidates affected calculations in one transaction.
+
+Upload identity is the SHA-256 of the file, scoped by profile and source. It is used for idempotency and duplicate detection. Names and aliases do not merge counterparties. Income upload is not yet supported; KSeF remains the native income acquisition path.

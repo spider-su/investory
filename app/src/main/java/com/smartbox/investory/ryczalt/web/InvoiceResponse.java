@@ -1,5 +1,8 @@
 package com.smartbox.investory.ryczalt.web;
 
+import com.smartbox.investory.ryczalt.domain.ApprovalMethod;
+import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
+import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
 import com.smartbox.investory.ryczalt.persistence.InvoiceDirection;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
@@ -16,4 +19,10 @@ public record InvoiceResponse(
     CurrencyType currency,
     String bookedNetPln,
     String ryczaltRate,
-    String deductibleVat) {}
+    String deductibleVat,
+    CounterpartyView counterparty,
+    ApprovalStatus approvalStatus,
+    ApprovalMethod approvalMethod,
+    PaymentVerificationPolicy paymentVerificationPolicy) {
+  public record CounterpartyView(long id, String legalName, String alias) {}
+}

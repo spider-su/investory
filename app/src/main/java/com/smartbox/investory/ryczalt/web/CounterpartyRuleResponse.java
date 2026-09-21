@@ -11,8 +11,8 @@ public record CounterpartyRuleResponse(
     String serviceKey,
     String classification,
     String vatTreatment,
-    BigDecimal vatDeductionRatio,
-    BigDecimal ryczaltRate,
+    String vatDeductionRatio,
+    String ryczaltRate,
     boolean autoApprove,
     String paymentVerificationPolicy) {
   static CounterpartyRuleResponse of(CounterpartyRule r) {
@@ -24,9 +24,13 @@ public record CounterpartyRuleResponse(
         r.serviceKey(),
         r.classification(),
         r.vatTreatment(),
-        r.vatDeductionRatio(),
-        r.ryczaltRate(),
+        decimal(r.vatDeductionRatio()),
+        decimal(r.ryczaltRate()),
         r.autoApprove(),
         r.paymentVerificationPolicy().name());
+  }
+
+  private static String decimal(BigDecimal value) {
+    return value == null ? null : value.toPlainString();
   }
 }
