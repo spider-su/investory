@@ -241,7 +241,8 @@ public class RyczaltAccountingRestController {
                 value.counterparty().alias()),
         value.approvalStatus(),
         value.approvalMethod(),
-        value.paymentVerificationPolicy());
+        value.paymentVerificationPolicy(),
+        value.paymentStatus());
   }
 
   private TransactionResponse transaction(RyczaltTransactionReadModel value) {

@@ -304,7 +304,11 @@ public class RyczaltAccountingQueryService {
                 row.getCounterparty().getAlias()),
         row.getApprovalStatus(),
         row.getApprovalMethod(),
-        row.getPaymentVerificationPolicy());
+        row.getPaymentVerificationPolicy(),
+        row.getPaymentVerificationPolicy()
+                == com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy.NOT_REQUIRED
+            ? "NOT_REQUIRED"
+            : row.getPaymentStatus() == null ? "UNMATCHED" : row.getPaymentStatus());
   }
 
   private Loaded load(long profileId, YearMonth month) {

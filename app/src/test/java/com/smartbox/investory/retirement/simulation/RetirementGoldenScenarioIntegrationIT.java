@@ -47,8 +47,8 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("test-fast")
 @EnableCaching
-@Import(RetirementGoldenScenarioIntegrationTest.FixedClockConfig.class)
-class RetirementGoldenScenarioIntegrationTest {
+@Import(RetirementGoldenScenarioIntegrationIT.FixedClockConfig.class)
+class RetirementGoldenScenarioIntegrationIT {
   private static final WorkerDatabase DATABASE =
       FastDatabase.scopedDatabase("retirement_golden_scenario");
 
