@@ -44,7 +44,6 @@ class CanonicalAccountingOpenApiIT extends FastDatabaseTest {
             "/api/profiles/{profileId}/accounting/invoices/recognize",
             "/api/profiles/{profileId}/accounting/invoices/candidates/{candidateKey}",
             "/api/profiles/{profileId}/accounting/payments",
-            "/api/profiles/{profileId}/accounting/invoices/{invoiceId}/manual-paid",
             "/api/profiles/{profileId}/accounting/counterparties",
             "/api/profiles/{profileId}/accounting/periods/{month}/freeze",
             "/api/v1/auth/login",
@@ -61,10 +60,8 @@ class CanonicalAccountingOpenApiIT extends FastDatabaseTest {
                 "MATCHED",
                 "PARTIALLY_MATCHED",
                 "UNMATCHED",
-                "MANUALLY_CONFIRMED",
                 "NOT_REQUIRED"))
-        .containsExactlyInAnyOrder(
-            "MATCHED", "PARTIALLY_MATCHED", "UNMATCHED", "MANUALLY_CONFIRMED", "NOT_REQUIRED");
+        .containsExactlyInAnyOrder("MATCHED", "PARTIALLY_MATCHED", "UNMATCHED", "NOT_REQUIRED");
     assertThat(
             schemas
                 .path("InvoiceResponse")

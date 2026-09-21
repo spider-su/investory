@@ -96,6 +96,17 @@ class RyczaltAccountingRestControllerTest {
   }
 
   @Test
+  void invoiceHistoryFiltersAreOptional() throws Exception {
+    when(accounting.invoices(7L, null, null)).thenReturn(List.of());
+
+    mvc.perform(get("/api/profiles/7/accounting/invoices").principal(authentication))
+        .andExpect(status().isOk())
+        .andExpect(content().json("[]"));
+
+    verify(accounting).invoices(7L, null, null);
+  }
+
+  @Test
   void deniedProfileReturnsForbiddenBeforeNativeQuery() throws Exception {
     when(authorization.canRead(7L, authentication)).thenReturn(false);
 

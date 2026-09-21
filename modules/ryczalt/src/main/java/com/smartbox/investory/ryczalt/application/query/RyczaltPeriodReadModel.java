@@ -13,6 +13,7 @@ public record RyczaltPeriodReadModel(
     PeriodStatus periodStatus,
     List<CalculationState> calculations,
     Summary summary,
+    Audit audit,
     Documents documents,
     SettlementSummary settlement,
     ReconciliationSummary reconciliation,
@@ -21,6 +22,7 @@ public record RyczaltPeriodReadModel(
   public RyczaltPeriodReadModel {
     calculations = List.copyOf(calculations);
     summary = summary == null ? Summary.empty() : summary;
+    audit = audit == null ? Audit.empty() : audit;
     documents = documents == null ? new Documents(0, 0) : documents;
     settlement = settlement == null ? SettlementSummary.empty() : settlement;
     reconciliation = reconciliation == null ? ReconciliationSummary.empty() : reconciliation;
@@ -47,6 +49,7 @@ public record RyczaltPeriodReadModel(
         periodStatus,
         calculations,
         new Summary(revenue, ryczaltAmount, vatAmount, zusAmount),
+        Audit.empty(),
         new Documents(invoiceCount, transactionCount),
         new SettlementSummary(
             obligationTotals.expectedCount(),
@@ -108,6 +111,52 @@ public record RyczaltPeriodReadModel(
   public record Summary(BigDecimal revenue, BigDecimal ryczalt, BigDecimal vat, BigDecimal zus) {
     public static Summary empty() {
       return new Summary(BigDecimal.ZERO, null, null, null);
+    }
+  }
+
+  public record Audit(
+      BigDecimal revenue,
+      BigDecimal socialDeduction,
+      BigDecimal healthDeduction,
+      BigDecimal otherDeduction,
+      BigDecimal taxableBase,
+      BigDecimal cumulativeTax,
+      BigDecimal monthlyAdvance,
+      BigDecimal outputVat,
+      BigDecimal inputVat,
+      BigDecimal vatAdjustments,
+      BigDecimal finalPayable) {
+    public Audit {
+      revenue = value(revenue);
+      socialDeduction = value(socialDeduction);
+      healthDeduction = value(healthDeduction);
+      otherDeduction = value(otherDeduction);
+      taxableBase = value(taxableBase);
+      cumulativeTax = value(cumulativeTax);
+      monthlyAdvance = value(monthlyAdvance);
+      outputVat = value(outputVat);
+      inputVat = value(inputVat);
+      vatAdjustments = value(vatAdjustments);
+      finalPayable = value(finalPayable);
+    }
+
+    public static Audit empty() {
+      return new Audit(
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO);
+    }
+
+    private static BigDecimal value(BigDecimal value) {
+      return value == null ? BigDecimal.ZERO : value;
     }
   }
 

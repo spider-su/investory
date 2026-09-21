@@ -2,6 +2,7 @@ package com.smartbox.investory.ryczalt.application.query;
 
 import com.smartbox.investory.ryczalt.domain.ApprovalMethod;
 import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
+import com.smartbox.investory.ryczalt.domain.InvoicePaymentStatus;
 import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
 import com.smartbox.investory.ryczalt.persistence.InvoiceDirection;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -21,11 +22,12 @@ public record RyczaltInvoiceReadModel(
     BigDecimal bookedNetPln,
     BigDecimal ryczaltRate,
     BigDecimal deductibleVat,
+    String classification,
     CounterpartyView counterparty,
     ApprovalStatus approvalStatus,
     ApprovalMethod approvalMethod,
     PaymentVerificationPolicy paymentVerificationPolicy,
-    String paymentStatus) {
+    InvoicePaymentStatus paymentStatus) {
   public record CounterpartyView(long id, String legalName, String alias) {}
 
   public RyczaltInvoiceReadModel(
@@ -55,9 +57,10 @@ public record RyczaltInvoiceReadModel(
         ryczaltRate,
         deductibleVat,
         null,
+        null,
         ApprovalStatus.NEEDS_REVIEW,
         null,
         PaymentVerificationPolicy.REQUIRED,
-        "UNMATCHED");
+        InvoicePaymentStatus.UNMATCHED);
   }
 }

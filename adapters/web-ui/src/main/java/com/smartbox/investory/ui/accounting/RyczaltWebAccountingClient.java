@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
-import java.util.UUID;
 
 /** Factual Web seam for the native Ryczalt accounting boundary. */
 public interface RyczaltWebAccountingClient {
@@ -29,38 +28,6 @@ public interface RyczaltWebAccountingClient {
   Counterparty counterparty(long profileId, long id);
 
   List<Rule> rules(long profileId, long counterpartyId);
-
-  Candidate recognize(long profileId, String filename, String contentType, byte[] content);
-
-  Candidate candidate(long profileId, UUID candidateKey);
-
-  void approveCandidate(
-      long profileId,
-      UUID candidateKey,
-      Long counterpartyId,
-      String classification,
-      String vatTreatment,
-      String vatDeductionRatio,
-      String ryczaltRate,
-      String paymentVerificationPolicy,
-      boolean approve,
-      boolean rememberRule,
-      String ruleName,
-      String serviceKey);
-
-  void manualPaid(long profileId, long invoiceId, LocalDate paidDate, String note);
-
-  void manualUnpaid(long profileId, long invoiceId);
-
-  void addRule(long profileId, long counterpartyId, RuleForm rule);
-
-  void updateRule(long profileId, long counterpartyId, long ruleId, RuleForm rule);
-
-  void deleteRule(long profileId, long counterpartyId, long ruleId);
-
-  ImportResult importBank(long profileId, String filename, String contentType, byte[] content);
-
-  ImportResult syncKsef(long profileId, YearMonth month);
 
   void alias(long profileId, long counterpartyId, String alias);
 
@@ -206,44 +173,4 @@ public interface RyczaltWebAccountingClient {
       String ryczaltRate,
       boolean autoApprove,
       String paymentVerificationPolicy) {}
-
-  record RuleForm(
-      String name,
-      String sourceType,
-      String documentType,
-      String serviceKey,
-      String classification,
-      String vatTreatment,
-      String vatDeductionRatio,
-      String ryczaltRate,
-      boolean autoApprove,
-      String paymentVerificationPolicy) {}
-
-  record Candidate(
-      UUID candidateKey,
-      String sourceType,
-      String documentType,
-      LocalDate issueDate,
-      LocalDate saleDate,
-      LocalDate dueDate,
-      String reference,
-      Long counterpartyId,
-      String currency,
-      String netAmount,
-      String vatAmount,
-      String grossAmount,
-      String classification,
-      String vatTreatment,
-      String ryczaltRate,
-      String approvalStatus,
-      String approvalMethod,
-      String paymentVerificationPolicy,
-      String ruleMatchStatus,
-      String paymentStatus,
-      String sourceState,
-      int periodYear,
-      int periodMonth,
-      List<String> requiredInputs) {}
-
-  record ImportResult(int received, int imported, int duplicates, int updated, int failed) {}
 }
