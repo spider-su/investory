@@ -41,12 +41,13 @@ public class RyczaltMigrationService {
             profileId)) {
       long periodId = period(profileId, date(row, "tax_period"));
       periods += seenPeriods.add(YearMonth.from(date(row, "tax_period"))) ? 1 : 0;
-      long id = invoice(profileId, periodId, "INCOME", row);
-      sourceReferences +=
-          sourceReference(
-                  profileId, "INVOICE", id, "ACCOUNTING_POC_INVOICE", row.get("id").toString())
-              ? 1
-              : 0;
+      String source = "ACCOUNTING_POC_INVOICE";
+      String externalId = row.get("id").toString();
+      Long id = sourceReferenceId(profileId, "INVOICE", source, externalId);
+      if (id == null) {
+        id = invoice(profileId, periodId, "INCOME", row);
+        sourceReferences += sourceReference(profileId, "INVOICE", id, source, externalId) ? 1 : 0;
+      }
       income++;
     }
     for (Map<String, Object> row :
@@ -57,16 +58,13 @@ public class RyczaltMigrationService {
             profileId)) {
       long periodId = period(profileId, date(row, "tax_period"));
       periods += seenPeriods.add(YearMonth.from(date(row, "tax_period"))) ? 1 : 0;
-      long id = invoice(profileId, periodId, "COST", row);
-      sourceReferences +=
-          sourceReference(
-                  profileId,
-                  "INVOICE",
-                  id,
-                  "ACCOUNTING_POC_EXPENSE_INVOICE",
-                  row.get("id").toString())
-              ? 1
-              : 0;
+      String source = "ACCOUNTING_POC_EXPENSE_INVOICE";
+      String externalId = row.get("id").toString();
+      Long id = sourceReferenceId(profileId, "INVOICE", source, externalId);
+      if (id == null) {
+        id = invoice(profileId, periodId, "COST", row);
+        sourceReferences += sourceReference(profileId, "INVOICE", id, source, externalId) ? 1 : 0;
+      }
       costs++;
     }
     for (Map<String, Object> row :
@@ -356,10 +354,25 @@ public class RyczaltMigrationService {
     return insertReturning(
         """
         INSERT INTO investory.ryczalt_period(profile_id, period_year, period_month, status)
-        VALUES (?, ?, ?, 'OPEN')
-        ON CONFLICT (profile_id, period_year, period_month) DO UPDATE SET profile_id=EXCLUDED.profile_id
+        VALUES (
+            ?, ?, ?,
+            CASE WHEN EXISTS (
+                SELECT 1
+                  FROM investory.accounting_poc_period_state
+                 WHERE profile_id=? AND tax_period=make_date(?, ?, 1)
+                   AND lifecycle_status IN ('LOCKED', 'FROZEN')
+            ) THEN 'FROZEN' ELSE 'OPEN' END
+        )
+        ON CONFLICT (profile_id, period_year, period_month) DO UPDATE SET
+            status = CASE
+                WHEN EXCLUDED.status = 'FROZEN' THEN 'FROZEN'
+                ELSE investory.ryczalt_period.status
+            END
         RETURNING id
         """,
+        profileId,
+        month.getYear(),
+        month.getMonthValue(),
         profileId,
         month.getYear(),
         month.getMonthValue());
@@ -386,7 +399,6 @@ public class RyczaltMigrationService {
                %s, %s, ?
           FROM investory.%s
          WHERE id=? AND profile_id=?
-        ON CONFLICT (profile_id, direction, reference) DO UPDATE SET period_id=EXCLUDED.period_id
         RETURNING id
         """
             .formatted(booked, rate, sourceTable),
@@ -418,6 +430,25 @@ public class RyczaltMigrationService {
             source,
             externalId)
         == 1;
+  }
+
+  private Long sourceReferenceId(
+      long profileId, String entityType, String source, String externalId) {
+    return jdbc
+        .query(
+            """
+        SELECT entity_id
+          FROM investory.ryczalt_source_reference
+         WHERE profile_id=? AND entity_type=? AND source=? AND external_id=?
+        """,
+            (result, rowNum) -> result.getLong("entity_id"),
+            profileId,
+            entityType,
+            source,
+            externalId)
+        .stream()
+        .findFirst()
+        .orElse(null);
   }
 
   private long insertReturning(String sql, Object... args) {

@@ -42,9 +42,6 @@ Important rules:
   as PLN.
 - A counterparty rule match is exact and deterministic. No match or multiple matches means
   `NEEDS_REVIEW`.
-- Obligation due dates are calculated in the native Java application boundary. `RYCZALT` and `ZUS`
-  are due on the 20th of the next month; `VAT` on the 25th. Weekends and Polish public holidays
-  move to the next working day. Mobile and Web display the returned date and never derive it locally.
 
 ## 3. Counterparties and invoice decisions
 
@@ -99,11 +96,10 @@ Important code locations:
 - `modules/ryczalt/src/main/java/.../domain`: records, enums, calculators, rules, checkers.
 - `modules/ryczalt/src/main/java/.../application`: use cases and `RyczaltAccountingApi`.
 - `modules/ryczalt/src/main/java/.../persistence`: JPA entities, repositories, persistence adapter.
-- Legacy migration/import code is removed from the active source tree. Historical migration SQL is
-  retained only for the later database cleanup.
+- `modules/ryczalt/src/main/java/.../migration`: one-way legacy import; not a runtime adapter.
 - `app/src/main/java/.../ryczalt/web`: REST controllers and response DTOs.
 - `adapters/web-ui/src/main/java/.../ui/accounting`: server-rendered Web controller and UI contract.
-- `app/src/main/java/.../ui/accounting/InProcessRyczaltWebAccountingClient.java`: active native Web client; it calls native controllers and does not depend on the legacy bridge.
+- `app/src/main/java/.../ui/accounting/InProcessRyczaltWebAccountingClient.java`: active Web bridge.
 
 Native REST base path:
 
@@ -153,7 +149,9 @@ All profile-scoped reads and writes perform ownership checks through `Authorizat
 The active server-rendered Web path uses `InProcessRyczaltWebAccountingClient`. It injects native
 Ryczalt REST controllers and calls them directly, preserving REST request/response behavior without a
 loopback HTTP call. This is the current migration pattern. Do not add a direct Web dependency on
-Ryczalt repositories or application services.
+Ryczalt repositories or application services. The older `InProcessRyczaltControllerAccountingClient`
+path is
+kept only for legacy `AccountingRestClient` compatibility.
 
 The MVC controller should remain thin: read a Web contract, populate the model, select a template,
 and send lifecycle commands through the client. Unsupported upload/KSeF/bank/filing operations must
@@ -209,15 +207,11 @@ remain explicit unsupported features; do not fake successful integration behavio
 
 - Native application services for CSV bank import and KSeF import exist, but the active native
   Ryczalt accounting REST controller does not expose those commands yet.
-- The old `/accounting` compatibility routes and bridge have been removed. Native bank/KSeF
-  application APIs are not exposed by the accounting REST controller yet. Third-party KSeF evidence
-  and JPK/filing remain outside the native module.
-- The native invoice upload flow is candidate-based and purchase-oriented. Web upload creates a
-  candidate, then a review form approves it or leaves it in `NEEDS_REVIEW`; source amounts and dates
-  remain server-owned. `rememberRule` must be explicitly selected.
-- `MANUALLY_CONFIRMED` is the final mobile payment decision for an explicitly confirmed cost
-  invoice. It is distinct from `MATCHED`, is reversible to `UNMATCHED` while the period is open, and
-  is rejected for frozen periods or bank-matched invoices.
+- During migration, the old `/accounting` routes call `LegacyAccountingApiBridge`, which delegates
+  bank and KSeF acquisition to `RyczaltBankApi` and `RyczaltKsefApi` for native periods. This is the
+  current ingestion path. Third-party KSeF evidence and JPK/filing remain on legacy behavior.
+- The native invoice upload flow is candidate-based and purchase-oriented. The configured
+  recognition provider may still be unsupported; an explicit unsupported-provider error is expected.
 
 ### Data retention and deletion
 
@@ -240,11 +234,9 @@ remain explicit unsupported features; do not fake successful integration behavio
 | Payment detection and matching | Native |
 | Historical NBP FX lookup | Native |
 | Counterparties and rules | Native |
-| Invoice recognition/approval | Native Web upload, candidate review, and approval |
-| Counterparty rule editing | Native Web add, update, delete, and explicit rule remembering |
-| Manual invoice payment | Native Web and REST; cost invoices only |
-| KSeF acquisition | Native sync control for sales and purchases; no filing/submission |
-| Bank transaction import | Native CSV import control; no bank provider connection |
+| Invoice recognition/approval | Partial; candidate flow exists, purchase upload is the current flow |
+| KSeF acquisition | Native application service, exposed through the legacy compatibility route during cutover |
+| Bank transaction import | Native application service, exposed through the legacy compatibility route during cutover |
 | External ZUS/eZUS verification | Not supported |
 | Filing/JPK submission | Not supported |
 
@@ -284,15 +276,16 @@ CI is defined in `.github/workflows/tests.yml`. The main stages are:
   REST suites.
 - UI setup/execution: Chromium-backed browser tests with PostgreSQL fixtures and uploaded artifacts.
 
-The native Web controller and native REST routes are the only active accounting paths. Legacy
-controllers and adapters have been removed. Legacy source in `modules/accounting`, migration SQL,
-and tables remain only for the planned later cleanup.
+There is no separate Ryczalt production feature flag found in the current code. Rollout is controlled
+by route/controller profiles and the compatibility bridge: the Ryczalt Web controller is active while
+the old Accounting MVC controller is limited to `legacy-accounting-compat`. Treat production cutover
+and removal of the bridge as an explicit deployment decision, not an implicit test result.
 
 ## 9. First places to read
 
 1. `modules/ryczalt/README.md` — staged migration and capability matrix.
 2. `modules/ryczalt/src/main/java/.../application/RyczaltAccountingApi.java` — application boundary.
-3. `RyczaltAccountingFacade` and native persistence repositories — orchestration and storage.
+3. `RyczaltAccountingFacade` and `RyczaltPersistenceAdapter` — orchestration and storage.
 4. `app/.../ryczalt/web/RyczaltAccountingRestController.java` — active REST contract.
 5. `V01.026__ryczalt_persistence.sql` plus later `V01.027+` migrations — schema evolution.
 6. `docs/development/testing.md` — test ownership and database-test rules.

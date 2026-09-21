@@ -63,8 +63,8 @@ public class RyczaltAccountingRestController {
   @GetMapping("/invoices")
   public List<InvoiceResponse> invoicesByCounterparty(
       @PathVariable long profileId,
-      @RequestParam YearMonth month,
-      @RequestParam long counterpartyId,
+      @RequestParam(required = false) YearMonth month,
+      @RequestParam(required = false) Long counterpartyId,
       Authentication authentication) {
     read(profileId, authentication);
     return accounting.invoices(profileId, month, counterpartyId).stream()
@@ -179,24 +179,44 @@ public class RyczaltAccountingRestController {
   }
 
   private PeriodRefResponse periodRef(RyczaltPeriodListItem value) {
-    return new PeriodRefResponse(value.month(), value.status());
+    return new PeriodRefResponse(
+        value.month(),
+        value.status() == com.smartbox.investory.ryczalt.domain.PeriodStatus.FROZEN
+            ? AccountingPeriodLifecycle.FROZEN
+            : AccountingPeriodLifecycle.OPEN);
   }
 
   private PeriodResponse periodResponse(RyczaltPeriodReadModel value) {
     return new PeriodResponse(
         value.month(),
-        value.periodStatus(),
+        value.periodStatus() == com.smartbox.investory.ryczalt.domain.PeriodStatus.FROZEN
+            ? AccountingPeriodLifecycle.FROZEN
+            : AccountingPeriodLifecycle.OPEN,
         value.calculations().stream()
             .map(
                 calculation ->
                     new CalculationResponse(
-                        calculation.type(), calculation.status(), decimal(calculation.amount())))
+                        calculation.type(),
+                        calculation.status().name(),
+                        decimal(calculation.amount())))
             .toList(),
         new PeriodResponse.SummaryResponse(
             decimal(value.summary().revenue()),
             decimal(value.summary().ryczalt()),
             decimal(value.summary().vat()),
             decimal(value.summary().zus())),
+        new PeriodResponse.AuditResponse(
+            decimal(value.audit().revenue()),
+            decimal(value.audit().socialDeduction()),
+            decimal(value.audit().healthDeduction()),
+            decimal(value.audit().otherDeduction()),
+            decimal(value.audit().taxableBase()),
+            decimal(value.audit().cumulativeTax()),
+            decimal(value.audit().monthlyAdvance()),
+            decimal(value.audit().outputVat()),
+            decimal(value.audit().inputVat()),
+            decimal(value.audit().vatAdjustments()),
+            decimal(value.audit().finalPayable())),
         new PeriodResponse.DocumentsResponse(
             value.documents().invoiceCount(), value.documents().transactionCount()),
         new PeriodResponse.SettlementResponse(
@@ -214,15 +234,13 @@ public class RyczaltAccountingRestController {
             value.reconciliation().missingEvidenceCount()),
         new PeriodResponse.CompletenessResponse(
             value.completeness().status(), value.completeness().blockingIssueCount()),
-        value.allowedActions().stream()
-            .map(Enum::name)
-            .collect(java.util.stream.Collectors.toSet()));
+        value.allowedActions());
   }
 
   private InvoiceResponse invoice(RyczaltInvoiceReadModel value) {
     return new InvoiceResponse(
         value.id(),
-        value.direction(),
+        value.direction().name(),
         value.reference(),
         value.issueDate(),
         value.accountingDate(),
@@ -233,6 +251,7 @@ public class RyczaltAccountingRestController {
         decimal(value.bookedNetPln()),
         decimal(value.ryczaltRate()),
         decimal(value.deductibleVat()),
+        value.classification(),
         value.counterparty() == null
             ? null
             : new InvoiceResponse.CounterpartyView(

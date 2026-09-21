@@ -74,7 +74,16 @@ public class RyczaltCalculationApplicationService {
   private String json(RyczaltCalculationResult result) {
     return "{\"revenue\":\""
         + result.revenue().toPlainString()
-        + "\",\"taxableBase\":\""
+        + "\",\"revenueBeforeDeductions\":\""
+        + result.revenue().toPlainString()
+        + "\",\"socialContributionDeduction\":\""
+        + result.socialContributionDeduction().toPlainString()
+        + "\",\"healthContributionPaid\":\""
+        + result.healthContributionPaid().toPlainString()
+        + "\",\"healthDeduction\":\""
+        + result.healthDeduction().toPlainString()
+        + "\",\"otherDeduction\":\"0\""
+        + ",\"taxableBase\":\""
         + result.taxableBase().toPlainString()
         + "\",\"calculatedTax\":\""
         + result.calculatedTax().toPlainString()

@@ -39,6 +39,20 @@ class PaymentCheckerTest {
                         "VAT")))
             .status());
     assertEquals(
+        new BigDecimal("100.00"),
+        checker
+            .check(
+                obligation,
+                List.of(
+                    new Transaction(
+                        "vat-outflow",
+                        LocalDate.of(2026, 2, 25),
+                        new BigDecimal("-100.00"),
+                        PLN,
+                        "",
+                        "VAT")))
+            .matchedAmount());
+    assertEquals(
         PaymentCheckStatus.PAID_LATE,
         checker.check(obligation, List.of(tx("vat-late", "100.00", "2026-02-26", "VAT"))).status());
   }

@@ -22,6 +22,8 @@ public interface RyczaltAccountingApi {
 
   List<RyczaltInvoiceReadModel> invoices(long profileId, YearMonth month, long counterpartyId);
 
+  List<RyczaltInvoiceReadModel> invoices(long profileId, YearMonth month, Long counterpartyId);
+
   List<RyczaltTransactionReadModel> transactions(long profileId, YearMonth month);
 
   List<RyczaltObligationReadModel> obligations(long profileId, YearMonth month);

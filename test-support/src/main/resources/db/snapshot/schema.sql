@@ -11274,15 +11274,12 @@ CREATE TABLE investory.ryczalt_invoice (
     classification character varying(128),
     vat_treatment character varying(128),
     vat_deduction_ratio numeric(7,6),
-    payment_status character varying(20) DEFAULT 'UNMATCHED'::character varying NOT NULL,
-    manual_paid_date date,
-    manual_paid_note character varying(1000),
+    payment_status character varying(16) DEFAULT 'UNMATCHED'::character varying NOT NULL,
     CONSTRAINT chk_ryczalt_invoice_approval CHECK (((approval_status)::text = ANY ((ARRAY['NEEDS_REVIEW'::character varying, 'APPROVED'::character varying])::text[]))),
     CONSTRAINT chk_ryczalt_invoice_currency CHECK ((length(btrim((currency)::text)) = 3)),
     CONSTRAINT chk_ryczalt_invoice_direction CHECK (((direction)::text = ANY ((ARRAY['INCOME'::character varying, 'COST'::character varying])::text[]))),
     CONSTRAINT chk_ryczalt_invoice_payment_policy CHECK (((payment_verification_policy)::text = ANY ((ARRAY['REQUIRED'::character varying, 'NOT_REQUIRED'::character varying])::text[]))),
-    CONSTRAINT chk_ryczalt_invoice_payment_status CHECK (((payment_status)::text = ANY ((ARRAY['MATCHED'::character varying, 'PARTIALLY_MATCHED'::character varying, 'UNMATCHED'::character varying, 'MANUALLY_CONFIRMED'::character varying, 'NOT_REQUIRED'::character varying])::text[]))),
-    CONSTRAINT chk_ryczalt_invoice_manual_paid_data CHECK (((((payment_status)::text = 'MANUALLY_CONFIRMED'::text) AND (manual_paid_date IS NOT NULL)) OR ((payment_status)::text <> 'MANUALLY_CONFIRMED'::text)))
+    CONSTRAINT chk_ryczalt_invoice_payment_status CHECK (((payment_status)::text = ANY ((ARRAY['MATCHED'::character varying, 'PARTIALLY_MATCHED'::character varying, 'UNMATCHED'::character varying, 'NOT_REQUIRED'::character varying])::text[])))
 );
 
 
@@ -12975,7 +12972,7 @@ COPY investory.ryczalt_fx_rate (id, currency, effective_date, rate, provider, pr
 -- Data for Name: ryczalt_invoice; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.ryczalt_invoice (id, period_id, profile_id, direction, reference, issue_date, accounting_date, net_amount, vat_amount, gross_amount, currency, booked_net_pln, ryczalt_rate, deductible_vat, created_at, updated_at, counterparty_id, approval_status, approval_method, payment_verification_policy, classification, vat_treatment, vat_deduction_ratio, payment_status, manual_paid_date, manual_paid_note) FROM stdin;
+COPY investory.ryczalt_invoice (id, period_id, profile_id, direction, reference, issue_date, accounting_date, net_amount, vat_amount, gross_amount, currency, booked_net_pln, ryczalt_rate, deductible_vat, created_at, updated_at, counterparty_id, approval_status, approval_method, payment_verification_policy, classification, vat_treatment, vat_deduction_ratio, payment_status) FROM stdin;
 \.
 
 
