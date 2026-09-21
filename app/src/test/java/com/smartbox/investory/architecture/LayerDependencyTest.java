@@ -424,6 +424,7 @@ class LayerDependencyTest {
             "..retirement.api..",
             "..integrations.management.api..",
             "..accounting.api..",
+            "..ryczalt..",
             "java..",
             "javax..",
             "jakarta..",

@@ -14,6 +14,16 @@ runs:
         distribution: temurin
         java-version: ${{ inputs.java-version }}
 
+    - name: Configure Maven retry handling
+      shell: bash
+      run: |
+        mkdir -p "$GITHUB_WORKSPACE/.m2"
+        cat > "$GITHUB_WORKSPACE/.m2/maven.config" <<'EOF'
+        -Dmaven.wagon.http.retryHandler.count=5
+        -Dmaven.wagon.http.retryHandler.requestSentEnabled=true
+        -Dmaven.artifact.threads=1
+        EOF
+
     - name: Restore Maven cache
       uses: actions/cache@v5
       with:

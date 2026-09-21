@@ -109,10 +109,7 @@ jobs:
         suite:
           - name: contracts
             project: app
-            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AccountingGoldenIT,AccountingGoldenMatrixIT,AccountingInvoiceFolderRecognitionIT,AccountingKsefImportIT,AccountingJdgExporterIT,AccountingRestControllerIT,AccountingStagingFlowIT,AccountingStagingFlowCurrentIT,BankTransactionProviderNeutralIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT,MockZusClientIT
-          - name: accounting-reference-matrix
-            project: app
-            tests: AccountingReferenceMatrixE2EIT
+            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT,MockZusClientIT,RyczaltNativeBankImportIT,RyczaltNativeKsefImportIT
           - name: imports
             project: app
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT
@@ -205,8 +202,6 @@ jobs:
             test: PlanSimulationCrudUiIT
           - name: investment-dashboard
             test: InvestmentDashboardGoldenUiIT
-          - name: accounting-poc-ui
-            test: AccountingPocUiIT
 
     steps:
       - name: Check out repository
@@ -277,7 +272,7 @@ jobs:
         run: |
           sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am \
             initialize test-compile failsafe:integration-test failsafe:verify \
-            "-Dit.test=GoldenRebuildIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+            "-Dit.test=GoldenRebuildIT,RetirementGoldenScenarioIntegrationIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
 
       - name: Upload golden-path execution data
         uses: actions/upload-artifact@v7

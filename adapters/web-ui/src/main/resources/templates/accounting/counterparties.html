@@ -14,9 +14,9 @@
     <section class="iv-card accounting-counterparty-list" aria-label="Known counterparties">
       <div class="accounting-counterparty-list__header"><span>Name</span><span>Country / tax ID</span><span>Documents</span><span></span></div>
       <div class="accounting-counterparty-row" th:each="item : ${counterparties}">
-        <a class="accounting-counterparty-row__main" th:href="@{/profiles/{profileId}/accounting/counterparties/{id}(profileId=${profileId},id=${item.id})}" th:aria-label="${'Open counterparty ' + item.displayName()}"><strong th:text="${item.displayName()}">Emagine</strong><small th:if="${item.alias != null and !item.alias.isBlank()}" th:text="${item.name}">Legal name</small></a>
+        <a class="accounting-counterparty-row__main" th:href="@{/profiles/{profileId}/accounting/counterparties/{id}(profileId=${profileId},id=${item.id})}" th:aria-label="${'Open counterparty ' + item.displayName}"><strong th:text="${item.displayName}">Emagine</strong><small th:if="${item.alias != null and !item.alias.isBlank()}" th:text="${item.legalName}">Legal name</small></a>
         <span class="accounting-counterparty-row__identity" th:text="${item.country + ' · ' + item.taxIdentifier}">PL · 123</span>
-        <span th:text="${item.documentCount}">0</span>
+        <span th:text="${item.invoiceCount}">0</span>
         <a class="btn btn-sm btn-outline-secondary" th:href="@{/profiles/{profileId}/accounting/counterparties/{id}(profileId=${profileId},id=${item.id})}">Edit</a>
       </div>
       <div class="accounting-empty" th:if="${counterparties.isEmpty()}">No known counterparties yet.</div>

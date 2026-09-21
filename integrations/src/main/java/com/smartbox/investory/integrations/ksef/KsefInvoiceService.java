@@ -4,6 +4,10 @@ import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.application.IntegrationConfigurationService;
 import com.smartbox.investory.integrations.management.model.PluginConfig;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -11,6 +15,9 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class KsefInvoiceService {
+  private static final int PAGE_SIZE = 250;
+  private static final int MAX_PAGES = 100;
+
   private final IntegrationConfigurationService configurationService;
   private final KsefIntegrationPlugin plugin;
   private final KsefClient client;
@@ -21,6 +28,25 @@ public class KsefInvoiceService {
     KsefClient.KsefAccess access = authenticate(config);
     return client.queryIncomingInvoices(
         plugin.environment(config), access.accessToken(), from, to, pageOffset, pageSize);
+  }
+
+  /** Discovers all KSeF document numbers for a month from the taxpayer's chosen perspective. */
+  public List<String> listInvoiceNumbers(YearMonth month, KsefSubject subject) {
+    PluginConfig config = configuration();
+    KsefClient.KsefAccess access = authenticate(config);
+    KsefEnvironment environment = plugin.environment(config);
+    OffsetDateTime from = month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+    OffsetDateTime to = month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+    List<String> numbers = new ArrayList<>();
+    for (int page = 0; page < MAX_PAGES; page++) {
+      String metadata =
+          client.queryInvoices(
+              environment, access.accessToken(), subject.code(), from, to, page, PAGE_SIZE);
+      List<String> pageNumbers = KsefInvoiceMetadata.extractKsefNumbers(metadata);
+      numbers.addAll(pageNumbers);
+      if (pageNumbers.size() < PAGE_SIZE) break;
+    }
+    return numbers;
   }
 
   public String downloadInvoice(String ksefNumber) {

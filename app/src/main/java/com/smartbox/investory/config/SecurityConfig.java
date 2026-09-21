@@ -56,7 +56,7 @@ public class SecurityConfig {
     configuration.setAllowCredentials(true);
 
     var source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/api/v1/**", configuration);
+    source.registerCorsConfiguration("/api/**", configuration);
     return source;
   }
 
@@ -66,8 +66,6 @@ public class SecurityConfig {
       @Value("${app.security.read-authentication-required:true}")
           boolean readAuthenticationRequired,
       @Value("${app.security.csrf-protection-required:true}") boolean csrfProtectionRequired,
-      @Value("${app.security.legacy-accounting-write-enabled:false}")
-          boolean legacyAccountingWriteEnabled,
       TokenAuthenticationService tokens,
       UserDetailsService users,
       @Value("${app.security.token-login-enabled:true}") boolean tokenLoginEnabled) {
@@ -77,8 +75,7 @@ public class SecurityConfig {
                   if (csrfProtectionRequired) {
                     csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        .ignoringRequestMatchers(
-                            "/api/v1/auth/login", "/api/v1/profiles/*/accounting/auto-approval");
+                        .ignoringRequestMatchers("/api/v1/auth/login");
                   } else {
                     csrf.disable();
                   }
@@ -113,13 +110,6 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "PROFILE_OWNER")
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/**")
                         .hasRole("ADMIN"));
-
-    authorization.authorizeHttpRequests(
-        auth -> {
-          var legacyAccounting = auth.requestMatchers(HttpMethod.POST, "/poc/accounting/**");
-          if (legacyAccountingWriteEnabled) legacyAccounting.authenticated();
-          else legacyAccounting.denyAll();
-        });
 
     if (readAuthenticationRequired) {
       authorization.authorizeHttpRequests(

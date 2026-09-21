@@ -1,6 +1,5 @@
 package com.smartbox.investory.config;
 
-import com.smartbox.investory.accounting.AccountingInvalidTransitionException;
 import com.smartbox.investory.investment.api.asset.InvestmentAssetApi;
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
 import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
@@ -8,6 +7,11 @@ import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.investment.web.AccountIdParser;
 import com.smartbox.investory.longterm.api.model.*;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.ryczalt.application.RyczaltCounterpartyNotFoundException;
+import com.smartbox.investory.ryczalt.application.RyczaltCounterpartyRuleNotFoundException;
+import com.smartbox.investory.ryczalt.application.RyczaltInvoiceCandidateNotFoundException;
+import com.smartbox.investory.ryczalt.application.RyczaltInvoiceConflictException;
+import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundException;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -62,14 +66,18 @@ public class RestApiExceptionHandler {
         status, status.is4xxClientError() ? message(exception) : "Internal server error", request);
   }
 
-  @ExceptionHandler(AccountingInvalidTransitionException.class)
-  public ResponseEntity<ApiError> accountingConflict(
-      AccountingInvalidTransitionException exception, HttpServletRequest request) {
+  @ExceptionHandler(RyczaltInvoiceConflictException.class)
+  public ResponseEntity<ApiError> ryczaltConflict(
+      RyczaltInvoiceConflictException exception, HttpServletRequest request) {
     return error(HttpStatus.CONFLICT, message(exception), request);
   }
 
   @ExceptionHandler({
     ResourceNotFoundException.class,
+    RyczaltPeriodNotFoundException.class,
+    RyczaltCounterpartyNotFoundException.class,
+    RyczaltCounterpartyRuleNotFoundException.class,
+    RyczaltInvoiceCandidateNotFoundException.class,
     InvestmentAssetApi.AssetNotFoundException.class,
     InvestmentDashboardApi.PortfolioNotFoundException.class,
     RetirementPlanApi.EventNotFoundException.class

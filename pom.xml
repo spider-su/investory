@@ -17,7 +17,7 @@
         <module>modules/longterm</module>
         <module>modules/profile</module>
         <module>modules/retirement</module>
-        <module>modules/accounting</module>
+        <module>modules/ryczalt</module>
         <module>integrations</module>
         <module>test-support</module>
         <module>adapters/web-ui</module>
