@@ -7,7 +7,6 @@ public record Counterparty(
     String country,
     String legalName,
     String alias,
-    String bankAccount,
     long ruleCount,
     long invoiceCount) {
   public Counterparty(
@@ -17,7 +16,7 @@ public record Counterparty(
       String country,
       String legalName,
       String alias) {
-    this(id, profileId, taxIdentifier, country, legalName, alias, null, 0, 0);
+    this(id, profileId, taxIdentifier, country, legalName, alias, 0, 0);
   }
 
   public String displayName() {

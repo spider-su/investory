@@ -38,7 +38,6 @@ public class RyczaltCounterpartyService {
         row.getCountry(),
         row.getLegalName(),
         row.getAlias(),
-        row.getBankAccount(),
         rules.countByProfileIdAndCounterpartyId(profileId, id),
         invoices.countByProfileIdAndCounterparty_Id(profileId, id));
   }
@@ -136,10 +135,7 @@ public class RyczaltCounterpartyService {
         e.getTaxIdentifier(),
         e.getCountry(),
         e.getLegalName(),
-        e.getAlias(),
-        e.getBankAccount(),
-        0,
-        0);
+        e.getAlias());
   }
 
   private CounterpartyRule rule(RyczaltCounterpartyRuleEntity e) {
