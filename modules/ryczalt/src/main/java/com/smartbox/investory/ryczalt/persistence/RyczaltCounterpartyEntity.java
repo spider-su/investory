@@ -22,6 +22,9 @@ public class RyczaltCounterpartyEntity extends RyczaltEntity {
   @Column(length = 256)
   private String alias;
 
+  @Column(name = "bank_account", length = 64)
+  private String bankAccount;
+
   protected RyczaltCounterpartyEntity() {}
 
   public RyczaltCounterpartyEntity(
@@ -50,6 +53,10 @@ public class RyczaltCounterpartyEntity extends RyczaltEntity {
 
   public String getAlias() {
     return alias;
+  }
+
+  public String getBankAccount() {
+    return bankAccount;
   }
 
   public void setAlias(String alias) {

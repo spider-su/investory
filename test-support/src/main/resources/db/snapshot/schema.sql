@@ -11143,6 +11143,7 @@ CREATE TABLE investory.ryczalt_counterparty (
     country character varying(2) NOT NULL,
     legal_name character varying(512) NOT NULL,
     alias character varying(256),
+    bank_account character varying(64),
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -11451,6 +11452,40 @@ ALTER SEQUENCE investory.ryczalt_payment_match_id_seq OWNED BY investory.ryczalt
 
 
 --
+-- Name: ryczalt_payment_account_rule; Type: TABLE; Schema: investory; Owner: -
+--
+
+CREATE TABLE investory.ryczalt_payment_account_rule (
+    id bigint NOT NULL,
+    profile_id bigint NOT NULL,
+    obligation_type character varying(32) NOT NULL,
+    account_number character varying(64) NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT chk_ryczalt_payment_account_rule_account CHECK ((length(btrim((account_number)::text)) > 0)),
+    CONSTRAINT chk_ryczalt_payment_account_rule_type CHECK (((obligation_type)::text = ANY ((ARRAY['RYCZALT'::character varying, 'VAT'::character varying, 'ZUS'::character varying])::text[])))
+);
+
+
+--
+-- Name: ryczalt_payment_account_rule_id_seq; Type: SEQUENCE; Schema: investory; Owner: -
+--
+
+CREATE SEQUENCE investory.ryczalt_payment_account_rule_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: ryczalt_payment_account_rule_id_seq; Type: SEQUENCE OWNED BY; Schema: investory; Owner: -
+--
+
+ALTER SEQUENCE investory.ryczalt_payment_account_rule_id_seq OWNED BY investory.ryczalt_payment_account_rule.id;
+
+
+--
 -- Name: ryczalt_period; Type: TABLE; Schema: investory; Owner: -
 --
 
@@ -11539,6 +11574,7 @@ CREATE TABLE investory.ryczalt_transaction (
     currency character varying(3) NOT NULL,
     reference character varying(256),
     counterparty character varying(256),
+    counterparty_account character varying(64),
     description character varying(1000),
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -11892,6 +11928,13 @@ ALTER TABLE ONLY investory.ryczalt_obligation ALTER COLUMN id SET DEFAULT nextva
 --
 
 ALTER TABLE ONLY investory.ryczalt_payment_match ALTER COLUMN id SET DEFAULT nextval('investory.ryczalt_payment_match_id_seq'::regclass);
+
+
+--
+-- Name: ryczalt_payment_account_rule id; Type: DEFAULT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.ryczalt_payment_account_rule ALTER COLUMN id SET DEFAULT nextval('investory.ryczalt_payment_account_rule_id_seq'::regclass);
 
 
 --
@@ -12908,7 +12951,7 @@ COPY investory.ryczalt_correction (id, profile_id, original_period_id, affected_
 -- Data for Name: ryczalt_counterparty; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.ryczalt_counterparty (id, profile_id, tax_identifier, country, legal_name, alias, created_at, updated_at) FROM stdin;
+COPY investory.ryczalt_counterparty (id, profile_id, tax_identifier, country, legal_name, alias, bank_account, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -12961,6 +13004,14 @@ COPY investory.ryczalt_payment_match (id, profile_id, obligation_id, transaction
 
 
 --
+-- Data for Name: ryczalt_payment_account_rule; Type: TABLE DATA; Schema: investory; Owner: -
+--
+
+COPY investory.ryczalt_payment_account_rule (id, profile_id, obligation_type, account_number, created_at) FROM stdin;
+\.
+
+
+--
 -- Data for Name: ryczalt_period; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
@@ -12980,7 +13031,7 @@ COPY investory.ryczalt_source_reference (id, profile_id, entity_type, entity_id,
 -- Data for Name: ryczalt_transaction; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.ryczalt_transaction (id, period_id, profile_id, booking_date, amount, currency, reference, counterparty, description, created_at, updated_at) FROM stdin;
+COPY investory.ryczalt_transaction (id, period_id, profile_id, booking_date, amount, currency, reference, counterparty, counterparty_account, description, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -13999,6 +14050,14 @@ ALTER TABLE ONLY investory.ryczalt_payment_match
 
 
 --
+-- Name: ryczalt_payment_account_rule ryczalt_payment_account_rule_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.ryczalt_payment_account_rule
+    ADD CONSTRAINT ryczalt_payment_account_rule_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ryczalt_period ryczalt_period_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
@@ -14148,6 +14207,14 @@ ALTER TABLE ONLY investory.ryczalt_obligation
 
 ALTER TABLE ONLY investory.ryczalt_payment_match
     ADD CONSTRAINT uq_ryczalt_payment_match_pair UNIQUE (profile_id, obligation_id, transaction_id);
+
+
+--
+-- Name: ryczalt_payment_account_rule uq_ryczalt_payment_account_rule; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.ryczalt_payment_account_rule
+    ADD CONSTRAINT uq_ryczalt_payment_account_rule UNIQUE (profile_id, obligation_type, account_number);
 
 
 --
@@ -14712,6 +14779,13 @@ CREATE INDEX ix_ryczalt_counterparty_profile ON investory.ryczalt_counterparty U
 
 
 --
+-- Name: ix_ryczalt_counterparty_bank_account; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_ryczalt_counterparty_bank_account ON investory.ryczalt_counterparty USING btree (profile_id, bank_account) WHERE (bank_account IS NOT NULL);
+
+
+--
 -- Name: ix_ryczalt_fx_lookup; Type: INDEX; Schema: investory; Owner: -
 --
 
@@ -14761,6 +14835,13 @@ CREATE INDEX ix_ryczalt_payment_match_transaction ON investory.ryczalt_payment_m
 
 
 --
+-- Name: ix_ryczalt_payment_account_rule_profile; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_ryczalt_payment_account_rule_profile ON investory.ryczalt_payment_account_rule USING btree (profile_id, obligation_type);
+
+
+--
 -- Name: ix_ryczalt_period_profile_status; Type: INDEX; Schema: investory; Owner: -
 --
 
@@ -14786,6 +14867,13 @@ CREATE INDEX ix_ryczalt_source_entity ON investory.ryczalt_source_reference USIN
 --
 
 CREATE INDEX ix_ryczalt_transaction_period ON investory.ryczalt_transaction USING btree (profile_id, period_id, booking_date, id);
+
+
+--
+-- Name: ix_ryczalt_transaction_counterparty_account; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_ryczalt_transaction_counterparty_account ON investory.ryczalt_transaction USING btree (profile_id, counterparty_account) WHERE (counterparty_account IS NOT NULL);
 
 
 --
@@ -16130,6 +16218,14 @@ ALTER TABLE ONLY investory.ryczalt_obligation
 
 ALTER TABLE ONLY investory.ryczalt_payment_match
     ADD CONSTRAINT ryczalt_payment_match_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ryczalt_payment_account_rule ryczalt_payment_account_rule_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.ryczalt_payment_account_rule
+    ADD CONSTRAINT ryczalt_payment_account_rule_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id) ON DELETE CASCADE;
 
 
 --

@@ -1,5 +1,6 @@
 package com.smartbox.investory.ryczalt.settlement;
 
+import com.smartbox.investory.ryczalt.checker.PaymentAccountRules;
 import com.smartbox.investory.ryczalt.checker.PaymentAllocation;
 import com.smartbox.investory.ryczalt.checker.PaymentCheckResult;
 import com.smartbox.investory.ryczalt.checker.PaymentCheckStatus;
@@ -21,6 +22,7 @@ import java.time.Instant;
 import java.time.YearMonth;
 import java.util.Currency;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,18 +33,24 @@ public class SettlementService {
   private final RyczaltObligationJpaRepository obligations;
   private final RyczaltTransactionJpaRepository transactions;
   private final RyczaltPaymentMatchJpaRepository matches;
+  private final RyczaltPaymentAccountResolver paymentAccounts;
   private final PaymentChecker checker;
+  private final BigDecimal paymentTolerance;
 
   public SettlementService(
       RyczaltPeriodJpaRepository periods,
       RyczaltObligationJpaRepository obligations,
       RyczaltTransactionJpaRepository transactions,
-      RyczaltPaymentMatchJpaRepository matches) {
+      RyczaltPaymentMatchJpaRepository matches,
+      RyczaltPaymentAccountResolver paymentAccounts,
+      @Value("${app.ryczalt.payment.tolerance-pln:0}") BigDecimal paymentTolerance) {
     this.periods = periods;
     this.obligations = obligations;
     this.transactions = transactions;
     this.matches = matches;
+    this.paymentAccounts = paymentAccounts;
     this.checker = new PaymentChecker();
+    this.paymentTolerance = paymentTolerance == null ? BigDecimal.ZERO : paymentTolerance;
   }
 
   @Transactional
@@ -50,8 +58,11 @@ public class SettlementService {
     RyczaltPeriodEntity period = findPeriod(profileId, month);
     List<RyczaltTransactionEntity> storedTransactions =
         transactions.findByProfileIdAndPeriodIdOrderByBookingDateAscIdAsc(profileId, period.id());
+    PaymentAccountRules accountRules = paymentAccounts.forProfile(profileId);
     return obligations.findByProfileIdAndPeriodIdOrderByTypeAsc(profileId, period.id()).stream()
-        .map(obligation -> settleOne(profileId, period, obligation, storedTransactions))
+        .map(
+            obligation ->
+                settleOne(profileId, period, obligation, storedTransactions, accountRules))
         .toList();
   }
 
@@ -108,7 +119,8 @@ public class SettlementService {
       long profileId,
       RyczaltPeriodEntity period,
       RyczaltObligationEntity obligation,
-      List<RyczaltTransactionEntity> storedTransactions) {
+      List<RyczaltTransactionEntity> storedTransactions,
+      PaymentAccountRules accountRules) {
     if (period.getStatus() == PeriodStatus.FROZEN)
       return new PaymentCheckResult(
           PaymentCheckStatus.NOT_FOUND,
@@ -126,7 +138,8 @@ public class SettlementService {
                 Currency.getInstance(obligation.getCurrency().name()),
                 obligation.getDueDate(),
                 obligation.getStatus()),
-            domainTransactions);
+            domainTransactions,
+            accountRules);
     if (result.status() != PaymentCheckStatus.AMBIGUOUS
         && result.status() != PaymentCheckStatus.NOT_FOUND) {
       for (PaymentAllocation allocation : result.matchedTransactions()) {
@@ -168,13 +181,14 @@ public class SettlementService {
   private void refreshStatus(long profileId, RyczaltObligationEntity obligation) {
     if (obligation.getStatus() == ObligationStatus.FROZEN) return;
     BigDecimal paid = matches.allocatedForObligation(profileId, obligation.id());
+    BigDecimal difference = paid.subtract(obligation.getAmount());
     ObligationStatus status =
         paid.signum() == 0
             ? ObligationStatus.OPEN
-            : paid.compareTo(obligation.getAmount()) > 0
-                ? ObligationStatus.OVERPAID
-                : paid.compareTo(obligation.getAmount()) == 0
-                    ? ObligationStatus.PAID
+            : difference.abs().compareTo(paymentTolerance) <= 0
+                ? ObligationStatus.PAID
+                : difference.signum() > 0
+                    ? ObligationStatus.OVERPAID
                     : ObligationStatus.PARTIALLY_PAID;
     obligation.setStatus(status);
     obligations.save(obligation);
@@ -187,6 +201,7 @@ public class SettlementService {
         entity.getAmount(),
         Currency.getInstance(entity.getCurrency().name()),
         entity.getCounterparty(),
+        entity.getCounterpartyAccount(),
         entity.getDescription());
   }
 
