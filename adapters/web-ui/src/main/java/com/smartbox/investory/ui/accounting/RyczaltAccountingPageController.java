@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -58,7 +59,9 @@ public class RyczaltAccountingPageController {
           periods.stream().anyMatch(value -> value.month().equals(selected.plusMonths(1)))
               ? client.transactions(profileId, selected.plusMonths(1))
               : List.<RyczaltWebAccountingClient.Transaction>of();
-      transactions = bankTransactionsForDisplay(nextMonthTransactions);
+      transactions =
+          bankTransactionsForDisplay(
+              client.transactions(profileId, selected), nextMonthTransactions);
       obligations = client.obligations(profileId, selected);
       issues = client.issues(profileId, selected);
     }
@@ -179,14 +182,21 @@ public class RyczaltAccountingPageController {
   }
 
   static List<RyczaltWebAccountingClient.Transaction> bankTransactionsForDisplay(
+      List<RyczaltWebAccountingClient.Transaction> currentMonth,
       List<RyczaltWebAccountingClient.Transaction> nextMonth) {
-    return nextMonth.stream()
+    return Stream.concat(
+            currentMonth.stream().filter(transaction -> signum(transaction.amount()) > 0),
+            nextMonth.stream().filter(transaction -> signum(transaction.amount()) < 0))
         .sorted(
             java.util.Comparator.comparing(
                     RyczaltWebAccountingClient.Transaction::bookingDate,
                     java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()))
                 .thenComparingLong(RyczaltWebAccountingClient.Transaction::id))
         .toList();
+  }
+
+  private static int signum(BigDecimal value) {
+    return value == null ? 0 : value.signum();
   }
 
   private static void putCounterpartyLabel(Map<String, String> labels, String name, String label) {

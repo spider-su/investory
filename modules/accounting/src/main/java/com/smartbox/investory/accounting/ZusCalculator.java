@@ -51,15 +51,6 @@ public final class ZusCalculator {
         deductibleSocial.setScale(2, RoundingMode.HALF_UP));
   }
 
-  public ZusCalculation calculate(Input input, ZusAnnualRuleSet rules) {
-    return calculate(
-        input,
-        rules.labourFund(),
-        rules.voluntarySickness(),
-        rules.health(input.explicitHealthBand()),
-        rules.version());
-  }
-
   public record Input(
       boolean jdgActive,
       boolean qualifyingUop,

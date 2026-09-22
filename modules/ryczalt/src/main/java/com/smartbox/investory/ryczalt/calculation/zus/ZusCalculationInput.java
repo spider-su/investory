@@ -35,10 +35,4 @@ public record ZusCalculationInput(
         fullJdgSocial,
         null);
   }
-
-  BigDecimal fullJdgSocial(ZusRuleSet rules) {
-    return fullJdgSocial.equals(ZusRules2026.FULL_JDG_SOCIAL)
-        ? rules.fullJdgSocial()
-        : fullJdgSocial;
-  }
 }

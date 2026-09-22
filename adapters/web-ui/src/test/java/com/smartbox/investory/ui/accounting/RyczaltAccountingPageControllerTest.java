@@ -58,7 +58,7 @@ class RyczaltAccountingPageControllerTest {
   }
 
   @Test
-  void bankTransactionsUseNextMonthForIncomeAndPayments() {
+  void bankTransactionsUseCurrentMonthIncomeAndNextMonthPayments() {
     var currentIncome = transaction(1, LocalDate.of(2026, 2, 3), new BigDecimal("100.00"));
     var currentPayment = transaction(2, LocalDate.of(2026, 2, 4), new BigDecimal("-50.00"));
     var nextIncome = transaction(3, LocalDate.of(2026, 3, 3), new BigDecimal("200.00"));
@@ -66,9 +66,9 @@ class RyczaltAccountingPageControllerTest {
 
     var result =
         RyczaltAccountingPageController.bankTransactionsForDisplay(
-            List.of(nextIncome, nextPayment));
+            List.of(currentIncome, currentPayment), List.of(nextIncome, nextPayment));
 
-    assertEquals(List.of(nextIncome, nextPayment), result);
+    assertEquals(List.of(currentIncome, nextPayment), result);
   }
 
   private static RyczaltWebAccountingClient.Transaction transaction(

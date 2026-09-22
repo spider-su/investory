@@ -23,21 +23,18 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
   private final RyczaltInvoiceRecognitionRestController recognition;
   private final RyczaltBankImportRestController bank;
   private final RyczaltKsefRestController ksef;
-  private final AccountingReferenceReader references;
 
   public InProcessRyczaltWebAccountingClient(
       RyczaltAccountingRestController accounting,
       RyczaltCounterpartyRestController counterparties,
       RyczaltInvoiceRecognitionRestController recognition,
       RyczaltBankImportRestController bank,
-      RyczaltKsefRestController ksef,
-      AccountingReferenceReader references) {
+      RyczaltKsefRestController ksef) {
     this.accounting = accounting;
     this.counterparties = counterparties;
     this.recognition = recognition;
     this.bank = bank;
     this.ksef = ksef;
-    this.references = references;
   }
 
   @Override
@@ -93,22 +90,23 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
 
   @Override
   public Reference reference(long profileId, YearMonth month) {
-    var value = references.read(profileId, month);
-    if (value == null) {
+    if (accounting.periods(profileId, authentication()).stream()
+        .noneMatch(value -> value.month().equals(month))) {
       return new Reference(false, null, null, null, null, null, null, null, 0, 0, null);
     }
+    var value = accounting.period(profileId, month, authentication());
     return new Reference(
         true,
-        decimal(value.revenue()),
-        decimal(value.expenses()),
-        decimal(value.outputVat()),
-        decimal(value.deductibleInputVat()),
-        decimal(value.vatPayable()),
-        decimal(value.ryczalt()),
-        decimal(value.zus()),
-        value.documentCount(),
-        value.bankCount(),
-        value.filingStatus());
+        decimal(value.audit().revenue()),
+        null,
+        decimal(value.audit().outputVat()),
+        decimal(value.audit().inputVat()),
+        decimal(value.audit().finalPayable()),
+        decimal(value.audit().monthlyAdvance()),
+        decimal(value.summary().zus()),
+        value.documents().invoiceCount(),
+        value.documents().transactionCount(),
+        value.status().name());
   }
 
   @Override

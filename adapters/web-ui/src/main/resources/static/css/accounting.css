@@ -84,16 +84,6 @@
 .accounting-section .iv-planning-section__header { min-height: 58px; padding: 15px 20px; }
 .accounting-section .iv-planning-section__header h2 { font-size: 1rem; font-weight: 750; }
 .accounting-section .iv-planning-section__details > .accounting-document-row { margin: 0 20px; }
-.accounting-table { width: 100%; table-layout: fixed; }
-.accounting-table__primary { width: 44%; }
-.accounting-table__date { width: 22%; }
-.accounting-table__amount { width: 22%; }
-.accounting-table__status { width: 12%; }
-.accounting-table td { vertical-align: middle; }
-.accounting-table--cost .accounting-table__name-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.accounting-table--cost .accounting-table__name-action > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.accounting-table--cost .accounting-table__name-action form { flex: 0 0 auto; margin: 0; }
-.accounting-table--cost .accounting-table__name-action .btn { white-space: nowrap; }
 .accounting-document-row { display: grid; grid-template-columns: minmax(150px, 1.3fr) minmax(130px, 1fr) minmax(110px, .8fr) minmax(100px, .7fr) minmax(110px, .7fr) auto; align-items: center; gap: 14px; min-height: 58px; padding: 10px 0; }
 .accounting-document-row--income { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.2fr) minmax(70px, .7fr) minmax(110px, .85fr) minmax(92px, auto); }
 .accounting-document-row--cost { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.1fr) minmax(68px, .65fr) minmax(0, .9fr) minmax(105px, .85fr) minmax(92px, auto); }
