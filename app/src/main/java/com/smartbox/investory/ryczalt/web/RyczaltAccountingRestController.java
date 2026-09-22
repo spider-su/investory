@@ -139,6 +139,14 @@ public class RyczaltAccountingRestController {
         .toList();
   }
 
+  @PostMapping("/periods/{month}/settle")
+  public ResponseEntity<Void> settle(
+      @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
+    write(profileId, authentication);
+    command(() -> accounting.settle(profileId, month));
+    return ResponseEntity.noContent().build();
+  }
+
   @PostMapping("/periods/{month}/freeze")
   public ResponseEntity<Void> freeze(
       @PathVariable long profileId,
