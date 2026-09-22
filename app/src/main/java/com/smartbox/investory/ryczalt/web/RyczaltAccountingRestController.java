@@ -2,6 +2,7 @@ package com.smartbox.investory.ryczalt.web;
 
 import com.smartbox.investory.config.AuthorizationService;
 import com.smartbox.investory.ryczalt.application.RyczaltAccountingApi;
+import com.smartbox.investory.ryczalt.application.RyczaltInvoicePaymentService;
 import com.smartbox.investory.ryczalt.application.query.RyczaltInvoiceReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltIssueReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltObligationReadModel;
@@ -16,6 +17,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,11 +32,15 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/profiles/{profileId}/accounting")
 public class RyczaltAccountingRestController {
   private final RyczaltAccountingApi accounting;
+  private final RyczaltInvoicePaymentService invoicePayments;
   private final AuthorizationService authorization;
 
   public RyczaltAccountingRestController(
-      RyczaltAccountingApi accounting, AuthorizationService authorization) {
+      RyczaltAccountingApi accounting,
+      RyczaltInvoicePaymentService invoicePayments,
+      AuthorizationService authorization) {
     this.accounting = accounting;
+    this.invoicePayments = invoicePayments;
     this.authorization = authorization;
   }
 
@@ -63,14 +69,41 @@ public class RyczaltAccountingRestController {
   @GetMapping("/invoices")
   public List<InvoiceResponse> invoicesByCounterparty(
       @PathVariable long profileId,
-      @RequestParam YearMonth month,
-      @RequestParam long counterpartyId,
+      @RequestParam(required = false) YearMonth month,
+      @RequestParam(required = false) Long counterpartyId,
       Authentication authentication) {
     read(profileId, authentication);
     return accounting.invoices(profileId, month, counterpartyId).stream()
         .map(this::invoice)
         .toList();
   }
+
+  @PostMapping("/invoices/{invoiceId}/manual-paid")
+  public ResponseEntity<Void> markInvoicePaid(
+      @PathVariable long profileId,
+      @PathVariable long invoiceId,
+      @RequestBody ManualPaidRequest request,
+      Authentication authentication) {
+    write(profileId, authentication);
+    command(
+        () ->
+            invoicePayments.markPaid(
+                profileId,
+                invoiceId,
+                request == null ? null : request.paidDate(),
+                request == null ? null : request.note()));
+    return ResponseEntity.noContent().build();
+  }
+
+  @DeleteMapping("/invoices/{invoiceId}/manual-paid")
+  public ResponseEntity<Void> markInvoiceUnpaid(
+      @PathVariable long profileId, @PathVariable long invoiceId, Authentication authentication) {
+    write(profileId, authentication);
+    command(() -> invoicePayments.markUnpaid(profileId, invoiceId));
+    return ResponseEntity.noContent().build();
+  }
+
+  public record ManualPaidRequest(java.time.LocalDate paidDate, String note) {}
 
   @GetMapping("/periods/{month}/transactions")
   public List<TransactionResponse> transactions(
@@ -93,7 +126,7 @@ public class RyczaltAccountingRestController {
     return accounting.issues(profileId, month).stream().map(this::issue).toList();
   }
 
-  @GetMapping("/periods/payments/history")
+  @GetMapping("/payments")
   public List<PaymentHistoryResponse> paymentHistory(
       @PathVariable long profileId,
       @RequestParam YearMonth from,
@@ -104,14 +137,6 @@ public class RyczaltAccountingRestController {
     return accounting.paymentHistory(profileId, from, to, type).stream()
         .map(this::paymentHistory)
         .toList();
-  }
-
-  @PostMapping("/periods/{month}/settle")
-  public ResponseEntity<Void> settle(
-      @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
-    write(profileId, authentication);
-    command(() -> accounting.settle(profileId, month));
-    return ResponseEntity.noContent().build();
   }
 
   @PostMapping("/periods/{month}/freeze")
@@ -179,24 +204,44 @@ public class RyczaltAccountingRestController {
   }
 
   private PeriodRefResponse periodRef(RyczaltPeriodListItem value) {
-    return new PeriodRefResponse(value.month(), value.status());
+    return new PeriodRefResponse(
+        value.month(),
+        value.status() == com.smartbox.investory.ryczalt.domain.PeriodStatus.FROZEN
+            ? AccountingPeriodLifecycle.FROZEN
+            : AccountingPeriodLifecycle.OPEN);
   }
 
   private PeriodResponse periodResponse(RyczaltPeriodReadModel value) {
     return new PeriodResponse(
         value.month(),
-        value.periodStatus(),
+        value.periodStatus() == com.smartbox.investory.ryczalt.domain.PeriodStatus.FROZEN
+            ? AccountingPeriodLifecycle.FROZEN
+            : AccountingPeriodLifecycle.OPEN,
         value.calculations().stream()
             .map(
                 calculation ->
                     new CalculationResponse(
-                        calculation.type(), calculation.status(), decimal(calculation.amount())))
+                        calculation.type(),
+                        calculation.status().name(),
+                        decimal(calculation.amount())))
             .toList(),
         new PeriodResponse.SummaryResponse(
             decimal(value.summary().revenue()),
             decimal(value.summary().ryczalt()),
             decimal(value.summary().vat()),
             decimal(value.summary().zus())),
+        new PeriodResponse.AuditResponse(
+            decimal(value.audit().revenue()),
+            decimal(value.audit().socialDeduction()),
+            decimal(value.audit().healthDeduction()),
+            decimal(value.audit().otherDeduction()),
+            decimal(value.audit().taxableBase()),
+            decimal(value.audit().cumulativeTax()),
+            decimal(value.audit().monthlyAdvance()),
+            decimal(value.audit().outputVat()),
+            decimal(value.audit().inputVat()),
+            decimal(value.audit().vatAdjustments()),
+            decimal(value.audit().finalPayable())),
         new PeriodResponse.DocumentsResponse(
             value.documents().invoiceCount(), value.documents().transactionCount()),
         new PeriodResponse.SettlementResponse(
@@ -214,15 +259,13 @@ public class RyczaltAccountingRestController {
             value.reconciliation().missingEvidenceCount()),
         new PeriodResponse.CompletenessResponse(
             value.completeness().status(), value.completeness().blockingIssueCount()),
-        value.allowedActions().stream()
-            .map(Enum::name)
-            .collect(java.util.stream.Collectors.toSet()));
+        value.allowedActions());
   }
 
   private InvoiceResponse invoice(RyczaltInvoiceReadModel value) {
     return new InvoiceResponse(
         value.id(),
-        value.direction(),
+        value.direction().name(),
         value.reference(),
         value.issueDate(),
         value.accountingDate(),
@@ -232,7 +275,18 @@ public class RyczaltAccountingRestController {
         value.currency(),
         decimal(value.bookedNetPln()),
         decimal(value.ryczaltRate()),
-        decimal(value.deductibleVat()));
+        decimal(value.deductibleVat()),
+        value.classification(),
+        value.counterparty() == null
+            ? null
+            : new InvoiceResponse.CounterpartyView(
+                value.counterparty().id(),
+                value.counterparty().legalName(),
+                value.counterparty().alias()),
+        value.approvalStatus(),
+        value.approvalMethod(),
+        value.paymentVerificationPolicy(),
+        value.paymentStatus());
   }
 
   private TransactionResponse transaction(RyczaltTransactionReadModel value) {

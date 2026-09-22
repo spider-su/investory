@@ -1,6 +1,7 @@
 package com.smartbox.investory.ryczalt.web;
 
 import com.smartbox.investory.ryczalt.domain.CounterpartyRule;
+import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
 import java.math.BigDecimal;
 
 public record CounterpartyRuleResponse(
@@ -11,10 +12,10 @@ public record CounterpartyRuleResponse(
     String serviceKey,
     String classification,
     String vatTreatment,
-    BigDecimal vatDeductionRatio,
-    BigDecimal ryczaltRate,
+    String vatDeductionRatio,
+    String ryczaltRate,
     boolean autoApprove,
-    String paymentVerificationPolicy) {
+    PaymentVerificationPolicy paymentVerificationPolicy) {
   static CounterpartyRuleResponse of(CounterpartyRule r) {
     return new CounterpartyRuleResponse(
         r.id(),
@@ -24,9 +25,13 @@ public record CounterpartyRuleResponse(
         r.serviceKey(),
         r.classification(),
         r.vatTreatment(),
-        r.vatDeductionRatio(),
-        r.ryczaltRate(),
+        decimal(r.vatDeductionRatio()),
+        decimal(r.ryczaltRate()),
         r.autoApprove(),
-        r.paymentVerificationPolicy().name());
+        r.paymentVerificationPolicy());
+  }
+
+  private static String decimal(BigDecimal value) {
+    return value == null ? null : value.toPlainString();
   }
 }

@@ -8,9 +8,20 @@ public record CounterpartyResponse(
     String alias,
     String displayName,
     String taxIdentifier,
-    String country) {
+    String country,
+    String bankAccount,
+    long ruleCount,
+    long invoiceCount) {
   static CounterpartyResponse of(Counterparty c) {
     return new CounterpartyResponse(
-        c.id(), c.legalName(), c.alias(), c.displayName(), c.taxIdentifier(), c.country());
+        c.id(),
+        c.legalName(),
+        c.alias(),
+        c.displayName(),
+        c.taxIdentifier(),
+        c.country(),
+        c.bankAccount(),
+        c.ruleCount(),
+        c.invoiceCount());
   }
 }

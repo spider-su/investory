@@ -55,7 +55,7 @@ spring:
 springdoc:
   api-docs:
     path: /v3/api-docs
-  paths-to-match: /api/v1/**
+  paths-to-match: /api/**
   swagger-ui:
     path: /swagger-ui.html
 
@@ -179,3 +179,7 @@ app:
     environment: ${INVESTORY_KSEF_ENVIRONMENT:TEST}
     nip: ${INVESTORY_KSEF_NIP:}
     token: ${INVESTORY_KSEF_TOKEN:change-me-ksef-token}
+  ryczalt:
+    payment:
+      # Treat small bank/reference rounding differences as settled.
+      tolerance-pln: ${RYCZALT_PAYMENT_TOLERANCE_PLN:5.00}

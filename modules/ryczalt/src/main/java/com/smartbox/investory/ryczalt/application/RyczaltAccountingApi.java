@@ -22,6 +22,8 @@ public interface RyczaltAccountingApi {
 
   List<RyczaltInvoiceReadModel> invoices(long profileId, YearMonth month, long counterpartyId);
 
+  List<RyczaltInvoiceReadModel> invoices(long profileId, YearMonth month, Long counterpartyId);
+
   List<RyczaltTransactionReadModel> transactions(long profileId, YearMonth month);
 
   List<RyczaltObligationReadModel> obligations(long profileId, YearMonth month);
@@ -30,8 +32,6 @@ public interface RyczaltAccountingApi {
 
   List<RyczaltPaymentHistoryReadModel> paymentHistory(
       long profileId, YearMonth from, YearMonth to, String type);
-
-  void settle(long profileId, YearMonth month);
 
   void freeze(long profileId, YearMonth month, String actor, String reason);
 

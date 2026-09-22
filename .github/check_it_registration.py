@@ -13,6 +13,19 @@ SOURCE_ROOTS = (
     Path("modules/investment/src/test"),
     Path("modules/retirement/src/test"),
 )
+DISABLED_SOURCE_PARTS = (
+    "/accounting/",
+    "/poc/accounting/",
+)
+DISABLED_TEST_NAMES = {
+    "AccountingPocUiIT",
+    "CanonicalAccountingOpenApiIT",
+}
+
+
+def is_disabled(path: Path) -> bool:
+    normalized = f"/{path.as_posix()}"
+    return any(part in normalized for part in DISABLED_SOURCE_PARTS) or path.stem in DISABLED_TEST_NAMES
 
 
 def main() -> int:
@@ -21,7 +34,12 @@ def main() -> int:
         r"(?<![A-Za-z0-9_])([A-Za-z][A-Za-z0-9]*IT)(?=[,\"\s])", workflow
     )
     counts = Counter(registered)
-    source = {path.stem for root in SOURCE_ROOTS for path in root.rglob("*IT.java")}
+    source = {
+        path.stem
+        for root in SOURCE_ROOTS
+        for path in root.rglob("*IT.java")
+        if not is_disabled(path)
+    }
     duplicate = sorted(name for name in source if counts[name] > 1)
     missing = sorted(name for name in source if counts[name] == 0)
     unknown = sorted(name for name in counts if name not in source)

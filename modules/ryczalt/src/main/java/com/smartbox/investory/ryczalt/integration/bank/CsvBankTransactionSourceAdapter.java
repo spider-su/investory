@@ -44,6 +44,7 @@ public class CsvBankTransactionSourceAdapter implements BankTransactionSourcePor
         row.amount(),
         row.currency(),
         row.counterpartyName(),
+        row.counterpartyAccount(),
         row.rawReference(),
         row.remittanceInformation());
   }

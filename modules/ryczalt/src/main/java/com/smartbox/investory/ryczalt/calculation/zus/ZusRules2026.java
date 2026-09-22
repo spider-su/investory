@@ -30,6 +30,20 @@ public final class ZusRules2026 {
     return healthBand(revenue.subtract(social).max(BigDecimal.ZERO));
   }
 
+  static ZusRuleSet ruleSet() {
+    return new ZusRuleSet(
+        2026,
+        VERSION,
+        SOCIAL_INSURANCE,
+        LABOUR_FUND,
+        VOLUNTARY_SICKNESS,
+        HEALTH_LOW,
+        HEALTH_MEDIUM,
+        HEALTH_HIGH,
+        new BigDecimal("60000"),
+        new BigDecimal("300000"));
+  }
+
   public enum HealthBand {
     LOW(HEALTH_LOW),
     MEDIUM(HEALTH_MEDIUM),
