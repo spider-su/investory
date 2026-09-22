@@ -201,7 +201,6 @@ public record RyczaltPeriodReadModel(
   }
 
   public enum PeriodAction {
-    SETTLE,
     FREEZE,
     REOPEN
   }

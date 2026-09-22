@@ -251,7 +251,10 @@ public class AccountingFactService {
         hasAccountingRecord
             && (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
                 || (resolved.zusRegime() != null && resolved.ryczaltRate() != null));
-    boolean uses2025ZusRules = period.getYear() == 2025;
+    ZusAnnualRuleSet zusRules =
+        pocRepository
+            .zusRuleSet(period.getYear())
+            .orElseThrow(() -> new IllegalStateException("No ZUS rule set for year " + period.getYear()));
     ZusCalculator.Input zusInput =
         new ZusCalculator.Input(
             resolved.jdgActive(),
@@ -259,22 +262,14 @@ public class AccountingFactService {
             resolved.zusRegime(),
             resolved.voluntarySickness(),
             yearToDate.taxableRyczaltRevenue(),
-            uses2025ZusRules ? ZusRules2025.FULL_JDG_SOCIAL : ZusRules2026.FULL_JDG_SOCIAL,
-            uses2025ZusRules
+            zusRules.fullJdgSocial(),
+            period.getYear() == 2025
                     || calculationMode == AccountingCalculationMode.HISTORICAL_RECONSTRUCTION
                 ? ZusRules2026.HealthBand.HIGH
                 : null);
     var zusCalculation =
         useCalculatedZus
-            ? uses2025ZusRules
-                ? new ZusCalculator()
-                    .calculate(
-                        zusInput,
-                        ZusRules2025.LABOUR_FUND,
-                        ZusRules2025.VOLUNTARY_SICKNESS,
-                        ZusRules2025.HEALTH_HIGH,
-                        ZusRules2025.VERSION)
-                : new ZusCalculator().calculate(zusInput)
+            ? new ZusCalculator().calculate(zusInput, zusRules)
             : null;
     var paidContributionProjection =
         calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
@@ -285,7 +280,7 @@ public class AccountingFactService {
           new AccountingPocRepository.PaidContributionProjection(List.of(), List.of());
     }
     if (calculationMode == AccountingCalculationMode.CURRENT_CALCULATION
-        && !uses2025ZusRules
+        && period.getYear() != 2025
         && zusCalculation != null) {
       // The health contribution band for a calendar year is based on the prior
       // calendar year's completed revenue, not current-year YTD revenue or paid social.
@@ -298,7 +293,7 @@ public class AccountingFactService {
             java.util.Objects.requireNonNullElse(
                 pocRepository.oldestAvailableYearRevenue(profileId), BigDecimal.ZERO);
       }
-      var healthBand = ZusRules2026.healthBand(priorYearRevenue);
+      var healthBand = zusRules.healthBand(priorYearRevenue);
       zusCalculation =
           new ZusCalculator()
               .calculate(
@@ -308,8 +303,9 @@ public class AccountingFactService {
                       resolved.zusRegime(),
                       resolved.voluntarySickness(),
                       yearToDate.taxableRyczaltRevenue(),
-                      ZusRules2026.FULL_JDG_SOCIAL,
-                      healthBand));
+                      zusRules.fullJdgSocial(),
+                      healthBand),
+                  zusRules);
       paidContributionProjection =
           projectPaidContributions(profileId, period, resolved, zusCalculation);
       if (paidContributionProjection == null) {

@@ -75,8 +75,6 @@ class AccountingHeaderRenderTest {
             "For 2026-09",
             "Due date",
             "2026-08-20",
-            "Status",
-            "In progress",
             "Sync KSeF",
             "Import bank",
             "Import document",

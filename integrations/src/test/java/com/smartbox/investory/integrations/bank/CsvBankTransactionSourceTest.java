@@ -95,10 +95,13 @@ class CsvBankTransactionSourceTest {
     assertThat(page.transactions().getFirst())
         .extracting(
             ExternalBankTransaction::externalAccountId,
+            ExternalBankTransaction::counterpartyAccount,
             ExternalBankTransaction::rawReference,
             ExternalBankTransaction::currency,
             ExternalBankTransaction::amount)
-        .containsExactly("16124046761978001147512542", "RI5", "EUR", new BigDecimal("7661.00"));
+        .containsExactly(
+            "16124046761978001147512542", "SACC", "RI5", "EUR", new BigDecimal("7661.00"));
+    assertThat(page.transactions().get(1).counterpartyAccount()).isEqualTo("7612");
   }
 
   private CsvBankTransactionSource source(String csv) {

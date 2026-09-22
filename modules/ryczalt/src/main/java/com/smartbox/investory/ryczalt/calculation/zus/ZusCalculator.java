@@ -7,25 +7,30 @@ import java.util.Objects;
 /** Pure ZUS calculation for the supported JDG/UoP cases. */
 public final class ZusCalculator {
   public ZusCalculationResult calculate(ZusCalculationInput input) {
+    return calculate(input, ZusRules2026.ruleSet());
+  }
+
+  public ZusCalculationResult calculate(ZusCalculationInput input, ZusRuleSet rules) {
     Objects.requireNonNull(input, "input");
+    Objects.requireNonNull(rules, "rules");
     if (input.zusRegime() != null && !"JDG".equals(input.zusRegime())) {
       throw new IllegalArgumentException("Unsupported ZUS regime: " + input.zusRegime());
     }
     BigDecimal social =
         input.jdgActive() && !input.qualifyingUop()
             ? input
-                .fullJdgSocial()
-                .add(input.voluntarySickness() ? ZusRules2026.VOLUNTARY_SICKNESS : BigDecimal.ZERO)
+                .fullJdgSocial(rules)
+                .add(input.voluntarySickness() ? rules.voluntarySickness() : BigDecimal.ZERO)
             : BigDecimal.ZERO;
     BigDecimal deductibleSocial =
         input.jdgActive() && !input.qualifyingUop()
             ? input
-                .fullJdgSocial()
-                .subtract(ZusRules2026.LABOUR_FUND)
-                .add(input.voluntarySickness() ? ZusRules2026.VOLUNTARY_SICKNESS : BigDecimal.ZERO)
+                .fullJdgSocial(rules)
+                .subtract(rules.labourFund())
+                .add(input.voluntarySickness() ? rules.voluntarySickness() : BigDecimal.ZERO)
             : BigDecimal.ZERO;
     BigDecimal health =
-        input.jdgActive() ? input.explicitHealthBand().monthlyAmount() : BigDecimal.ZERO;
+        input.jdgActive() ? rules.health(input.ytdRyczaltRevenue()) : BigDecimal.ZERO;
     social = RoundingPolicy.roundZusContribution(social);
     health = RoundingPolicy.roundZusContribution(health);
     return new ZusCalculationResult(
@@ -33,8 +38,18 @@ public final class ZusCalculator {
         health,
         RoundingPolicy.roundZusContribution(social.add(health)),
         RoundingPolicy.roundZusContribution(deductibleSocial),
-        input.explicitHealthBand(),
+        healthBand(input.ytdRyczaltRevenue(), rules),
         input.qualifyingUop() ? "UOP_PRIMARY_INSURANCE" : "JDG_PRIMARY_INSURANCE",
-        ZusRules2026.VERSION);
+        rules.version());
+  }
+
+  private ZusRules2026.HealthBand healthBand(BigDecimal ytdRevenue, ZusRuleSet rules) {
+    if (ytdRevenue.compareTo(rules.thresholdLow()) <= 0) {
+      return ZusRules2026.HealthBand.LOW;
+    }
+    if (ytdRevenue.compareTo(rules.thresholdMedium()) <= 0) {
+      return ZusRules2026.HealthBand.MEDIUM;
+    }
+    return ZusRules2026.HealthBand.HIGH;
   }
 }

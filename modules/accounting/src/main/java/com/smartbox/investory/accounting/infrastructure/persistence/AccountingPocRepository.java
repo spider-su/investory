@@ -28,6 +28,32 @@ import org.springframework.stereotype.Repository;
 public class AccountingPocRepository {
   private final JdbcTemplate jdbcTemplate;
 
+  public Optional<ZusAnnualRuleSet> zusRuleSet(int year) {
+    return jdbcTemplate
+        .query(
+            """
+            SELECT rule_year, version, social_insurance, labour_fund, voluntary_sickness,
+                   health_low, health_medium, health_high, threshold_low, threshold_medium
+            FROM investory.ryczalt_zus_rule_set
+            WHERE rule_year = ?
+            """,
+            (rs, rowNum) ->
+                new ZusAnnualRuleSet(
+                    rs.getInt("rule_year"),
+                    rs.getString("version"),
+                    rs.getBigDecimal("social_insurance"),
+                    rs.getBigDecimal("labour_fund"),
+                    rs.getBigDecimal("voluntary_sickness"),
+                    rs.getBigDecimal("health_low"),
+                    rs.getBigDecimal("health_medium"),
+                    rs.getBigDecimal("health_high"),
+                    rs.getBigDecimal("threshold_low"),
+                    rs.getBigDecimal("threshold_medium")),
+            year)
+        .stream()
+        .findFirst();
+  }
+
   public AccountingUserApi.AutoApprovalSettings autoApprovalSettings(long profileId) {
     return jdbcTemplate.query(
         "SELECT enabled, max_amount, trusted_categories FROM investory.accounting_auto_approval_policy WHERE profile_id = ?",

@@ -17,5 +17,6 @@ public record BankTransactionSourceRecord(
     BigDecimal amount,
     String currency,
     String counterparty,
+    String counterpartyAccount,
     String reference,
     String description) {}
