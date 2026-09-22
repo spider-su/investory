@@ -196,6 +196,7 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
                     v.displayName(),
                     v.taxIdentifier(),
                     v.country(),
+                    v.bankAccount(),
                     v.ruleCount(),
                     v.invoiceCount()))
         .toList();
@@ -211,6 +212,7 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
         v.displayName(),
         v.taxIdentifier(),
         v.country(),
+        v.bankAccount(),
         v.ruleCount(),
         v.invoiceCount());
   }
@@ -339,11 +341,6 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
   public void alias(long profileId, long id, String alias) {
     counterparties.alias(
         profileId, id, new RyczaltCounterpartyRestController.AliasRequest(alias), authentication());
-  }
-
-  @Override
-  public void settle(long p, YearMonth m) {
-    accounting.settle(p, m, authentication());
   }
 
   @Override

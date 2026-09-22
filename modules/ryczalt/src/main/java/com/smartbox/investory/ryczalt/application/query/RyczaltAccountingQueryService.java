@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +44,26 @@ public class RyczaltAccountingQueryService {
   private final RyczaltPaymentMatchJpaRepository matches;
   private final RyczaltCalculationJpaRepository calculations;
   private final ObjectMapper json;
+  private final BigDecimal paymentTolerance;
+
+  public RyczaltAccountingQueryService(
+      RyczaltPeriodJpaRepository periods,
+      RyczaltInvoiceJpaRepository invoices,
+      RyczaltTransactionJpaRepository transactions,
+      RyczaltObligationJpaRepository obligations,
+      RyczaltPaymentMatchJpaRepository matches,
+      RyczaltCalculationJpaRepository calculations,
+      ObjectMapper json,
+      BigDecimal paymentTolerance) {
+    this.periods = periods;
+    this.invoices = invoices;
+    this.transactions = transactions;
+    this.obligations = obligations;
+    this.matches = matches;
+    this.calculations = calculations;
+    this.json = json;
+    this.paymentTolerance = paymentTolerance == null ? BigDecimal.ZERO : paymentTolerance;
+  }
 
   public RyczaltAccountingQueryService(
       RyczaltPeriodJpaRepository periods,
@@ -52,16 +73,30 @@ public class RyczaltAccountingQueryService {
       RyczaltPaymentMatchJpaRepository matches,
       RyczaltCalculationJpaRepository calculations,
       ObjectMapper json) {
-    this.periods = periods;
-    this.invoices = invoices;
-    this.transactions = transactions;
-    this.obligations = obligations;
-    this.matches = matches;
-    this.calculations = calculations;
-    this.json = json;
+    this(
+        periods, invoices, transactions, obligations, matches, calculations, json, BigDecimal.ZERO);
   }
 
   @Autowired
+  public RyczaltAccountingQueryService(
+      RyczaltPeriodJpaRepository periods,
+      RyczaltInvoiceJpaRepository invoices,
+      RyczaltTransactionJpaRepository transactions,
+      RyczaltObligationJpaRepository obligations,
+      RyczaltPaymentMatchJpaRepository matches,
+      RyczaltCalculationJpaRepository calculations,
+      @Value("${app.ryczalt.payment.tolerance-pln:0}") BigDecimal paymentTolerance) {
+    this(
+        periods,
+        invoices,
+        transactions,
+        obligations,
+        matches,
+        calculations,
+        new ObjectMapper(),
+        paymentTolerance);
+  }
+
   public RyczaltAccountingQueryService(
       RyczaltPeriodJpaRepository periods,
       RyczaltInvoiceJpaRepository invoices,
@@ -353,12 +388,13 @@ public class RyczaltAccountingQueryService {
 
   private RyczaltObligationReadModel obligation(long profileId, RyczaltObligationEntity row) {
     BigDecimal paid = matches.allocatedForObligation(profileId, row.id());
-    BigDecimal outstanding = row.getAmount().subtract(paid).max(BigDecimal.ZERO);
+    BigDecimal rawOutstanding = row.getAmount().subtract(paid).max(BigDecimal.ZERO);
+    BigDecimal outstanding = withinTolerance(rawOutstanding) ? BigDecimal.ZERO : rawOutstanding;
     ObligationStatus status =
         paid.signum() == 0
             ? ObligationStatus.OPEN
-            : paid.compareTo(row.getAmount()) >= 0
-                ? (paid.compareTo(row.getAmount()) == 0
+            : outstanding.signum() == 0
+                ? (paid.compareTo(row.getAmount()) <= 0
                     ? ObligationStatus.PAID
                     : ObligationStatus.OVERPAID)
                 : ObligationStatus.PARTIALLY_PAID;
@@ -513,7 +549,7 @@ public class RyczaltAccountingQueryService {
       return Set.of(RyczaltPeriodReadModel.PeriodAction.REOPEN);
     }
     EnumSet<RyczaltPeriodReadModel.PeriodAction> actions =
-        EnumSet.of(RyczaltPeriodReadModel.PeriodAction.SETTLE);
+        EnumSet.noneOf(RyczaltPeriodReadModel.PeriodAction.class);
     if ((period.getStatus() == PeriodStatus.CALCULATED || period.getStatus() == PeriodStatus.PAID)
         && complete
         && !noObligations) {
@@ -530,7 +566,11 @@ public class RyczaltAccountingQueryService {
   }
 
   private boolean paid(RyczaltObligationReadModel obligation) {
-    return obligation.paidAmount().compareTo(obligation.expectedAmount()) >= 0;
+    return obligation.outstandingAmount().signum() == 0;
+  }
+
+  private boolean withinTolerance(BigDecimal value) {
+    return value != null && value.abs().compareTo(paymentTolerance) <= 0;
   }
 
   private ObligationType parseType(String value) {

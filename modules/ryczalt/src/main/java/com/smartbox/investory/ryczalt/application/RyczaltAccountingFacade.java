@@ -9,7 +9,6 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodListItem;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltTransactionReadModel;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodLifecycleService;
-import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import java.time.YearMonth;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -17,15 +16,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class RyczaltAccountingFacade implements RyczaltAccountingApi {
   private final RyczaltAccountingQueryService queries;
-  private final SettlementService settlement;
   private final RyczaltPeriodLifecycleService lifecycle;
 
   public RyczaltAccountingFacade(
-      RyczaltAccountingQueryService queries,
-      SettlementService settlement,
-      RyczaltPeriodLifecycleService lifecycle) {
+      RyczaltAccountingQueryService queries, RyczaltPeriodLifecycleService lifecycle) {
     this.queries = queries;
-    this.settlement = settlement;
     this.lifecycle = lifecycle;
   }
 
@@ -80,11 +75,6 @@ public class RyczaltAccountingFacade implements RyczaltAccountingApi {
   public List<RyczaltPaymentHistoryReadModel> paymentHistory(
       long profileId, YearMonth from, YearMonth to, String type) {
     return queries.getPaymentHistory(profileId, from, to, type);
-  }
-
-  @Override
-  public void settle(long profileId, YearMonth month) {
-    settlement.settlePeriod(profileId, month);
   }
 
   @Override

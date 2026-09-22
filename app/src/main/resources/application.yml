@@ -179,3 +179,7 @@ app:
     environment: ${INVESTORY_KSEF_ENVIRONMENT:TEST}
     nip: ${INVESTORY_KSEF_NIP:}
     token: ${INVESTORY_KSEF_TOKEN:change-me-ksef-token}
+  ryczalt:
+    payment:
+      # Treat small bank/reference rounding differences as settled.
+      tolerance-pln: ${RYCZALT_PAYMENT_TOLERANCE_PLN:5.00}

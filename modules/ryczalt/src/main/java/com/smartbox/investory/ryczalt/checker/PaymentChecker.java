@@ -11,6 +11,11 @@ import java.util.Locale;
 /** Pure, deterministic payment checker. It proposes evidence; it does not persist matches. */
 public final class PaymentChecker {
   public PaymentCheckResult check(Obligation obligation, List<Transaction> transactions) {
+    return check(obligation, transactions, PaymentAccountRules.empty());
+  }
+
+  public PaymentCheckResult check(
+      Obligation obligation, List<Transaction> transactions, PaymentAccountRules accountRules) {
     List<Transaction> currencyCandidates =
         transactions.stream()
             .filter(transaction -> transaction.currency().equals(obligation.currency()))
@@ -32,7 +37,7 @@ public final class PaymentChecker {
 
     List<Transaction> evidenced =
         currencyCandidates.stream()
-            .filter(transaction -> mentionsType(obligation, transaction))
+            .filter(transaction -> hasPaymentEvidence(obligation, transaction, accountRules))
             .toList();
     List<Transaction> candidates = evidenced;
     if (candidates.isEmpty()) {
@@ -41,7 +46,8 @@ public final class PaymentChecker {
               .filter(
                   transaction ->
                       PaymentReconciliationPolicy.sameObligationAmount(
-                          obligation.amount(), transaction.amount().abs()))
+                              obligation.amount(), transaction.amount().abs())
+                          && allowsExactAmountFallback(obligation, transaction, accountRules))
               .toList();
       if (exactWithoutType.size() > 1) {
         return result(
@@ -140,8 +146,32 @@ public final class PaymentChecker {
     return switch (obligation.type()) {
       case ZUS -> text.contains("ZUS");
       case VAT -> text.contains("VAT") || text.contains("JPK");
-      case RYCZALT -> text.contains("RYCZ") || text.contains("PIT") || text.contains("TAX");
+      // Polish tax-office transfers commonly identify the ryczałt advance as
+      // PPE (the bank format uses SFP/PPE), without spelling out PIT or RYCZALT.
+      case RYCZALT ->
+          text.contains("RYCZ")
+              || text.contains("PIT")
+              || text.contains("TAX")
+              || text.contains("PPE");
     };
+  }
+
+  private boolean hasPaymentEvidence(
+      Obligation obligation, Transaction transaction, PaymentAccountRules accountRules) {
+    String expectedAccount = accountRules.accountFor(obligation.type());
+    String transactionAccount = PaymentAccountRules.normalize(transaction.counterpartyAccount());
+    if (!transactionAccount.isBlank() && expectedAccount != null) {
+      if (!transactionAccount.equals(expectedAccount)) return false;
+      if (accountRules.isUniqueFor(obligation.type(), transactionAccount)) return true;
+    }
+    return mentionsType(obligation, transaction);
+  }
+
+  private boolean allowsExactAmountFallback(
+      Obligation obligation, Transaction transaction, PaymentAccountRules accountRules) {
+    String expectedAccount = accountRules.accountFor(obligation.type());
+    String transactionAccount = PaymentAccountRules.normalize(transaction.counterpartyAccount());
+    return expectedAccount == null || transactionAccount.isBlank();
   }
 
   private PaymentCheckResult result(

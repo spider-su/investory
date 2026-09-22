@@ -13,6 +13,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionJpaRepository;
+import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.YearMonth;
 import java.util.LinkedHashSet;
@@ -35,18 +36,21 @@ public class RyczaltBankImportService implements RyczaltBankApi {
   private final RyczaltTransactionJpaRepository transactions;
   private final RyczaltSourceReferenceJpaRepository sourceReferences;
   private final RyczaltPeriodLifecycleService lifecycle;
+  private final SettlementService settlement;
 
   public RyczaltBankImportService(
       BankTransactionSourcePort source,
       RyczaltPeriodJpaRepository periods,
       RyczaltTransactionJpaRepository transactions,
       RyczaltSourceReferenceJpaRepository sourceReferences,
-      RyczaltPeriodLifecycleService lifecycle) {
+      RyczaltPeriodLifecycleService lifecycle,
+      SettlementService settlement) {
     this.source = source;
     this.periods = periods;
     this.transactions = transactions;
     this.sourceReferences = sourceReferences;
     this.lifecycle = lifecycle;
+    this.settlement = settlement;
   }
 
   @Override
@@ -83,6 +87,7 @@ public class RyczaltBankImportService implements RyczaltBankApi {
                   CurrencyType.valueOf(record.currency()),
                   record.reference(),
                   record.counterparty(),
+                  record.counterpartyAccount(),
                   record.description()));
       sourceReferences.save(
           new RyczaltSourceReferenceEntity(
@@ -97,6 +102,7 @@ public class RyczaltBankImportService implements RyczaltBankApi {
     }
     touched.forEach(
         month -> lifecycle.invalidate(profileId, month, InputChange.TRANSACTION_CHANGED, ACTOR));
+    touched.forEach(month -> settlement.settlePeriod(profileId, month));
     return new RyczaltBankImportResult(records.size(), imported, duplicates);
   }
 

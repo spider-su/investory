@@ -38,6 +38,9 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
   @Column(length = 256)
   private String counterparty;
 
+  @Column(name = "counterparty_account", length = 64)
+  private String counterpartyAccount;
+
   @Column(length = 1000)
   private String description;
 
@@ -51,6 +54,7 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
       CurrencyType currency,
       String reference,
       String counterparty,
+      String counterpartyAccount,
       String description) {
     this.period = period;
     this.profileId = profileId;
@@ -59,6 +63,7 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
     this.currency = currency;
     this.reference = reference;
     this.counterparty = counterparty;
+    this.counterpartyAccount = counterpartyAccount;
     this.description = description;
   }
 
@@ -88,6 +93,10 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
 
   public String getCounterparty() {
     return counterparty;
+  }
+
+  public String getCounterpartyAccount() {
+    return counterpartyAccount;
   }
 
   public String getDescription() {

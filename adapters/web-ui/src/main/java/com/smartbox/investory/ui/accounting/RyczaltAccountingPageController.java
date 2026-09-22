@@ -3,10 +3,15 @@ package com.smartbox.investory.ui.accounting;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,7 +45,8 @@ public class RyczaltAccountingPageController {
     List<RyczaltWebAccountingClient.Transaction> transactions;
     List<RyczaltWebAccountingClient.Obligation> obligations;
     List<RyczaltWebAccountingClient.Issue> issues;
-    if (periods.stream().noneMatch(value -> value.month().equals(selected))) {
+    var selectedMonthInPeriods = periods.stream().anyMatch(value -> value.month().equals(selected));
+    if (!selectedMonthInPeriods) {
       period = emptyPeriod(selected);
       invoices = List.of();
       transactions = List.of();
@@ -49,12 +55,21 @@ public class RyczaltAccountingPageController {
     } else {
       period = client.period(profileId, selected);
       invoices = client.invoices(profileId, selected);
-      transactions = client.transactions(profileId, selected);
+      var nextMonthTransactions =
+          periods.stream().anyMatch(value -> value.month().equals(selected.plusMonths(1)))
+              ? client.transactions(profileId, selected.plusMonths(1))
+              : List.<RyczaltWebAccountingClient.Transaction>of();
+      transactions =
+          bankTransactionsForDisplay(
+              client.transactions(profileId, selected), nextMonthTransactions);
       obligations = client.obligations(profileId, selected);
       issues = client.issues(profileId, selected);
     }
     model.addAttribute("profileId", profileId);
     model.addAttribute("selectedMonth", selected);
+    model.addAttribute("previousMonth", selected.minusMonths(1));
+    model.addAttribute("nextMonth", selected.plusMonths(1));
+    model.addAttribute("selectedMonthInPeriods", selectedMonthInPeriods);
     model.addAttribute("periods", periods);
     model.addAttribute("period", period);
     model.addAttribute("reference", reference);
@@ -65,6 +80,10 @@ public class RyczaltAccountingPageController {
     model.addAttribute(
         "costInvoices", invoices.stream().filter(item -> "COST".equals(item.direction())).toList());
     model.addAttribute("transactions", transactions);
+    model.addAttribute(
+        "bankTransactionRows",
+        bankTransactionRows(
+            transactions.isEmpty() ? List.of() : client.counterparties(profileId), transactions));
     model.addAttribute("obligations", obligations);
     model.addAttribute("issues", issues);
     model.addAttribute("today", LocalDate.now());
@@ -122,6 +141,83 @@ public class RyczaltAccountingPageController {
   private static String whole(BigDecimal value) {
     return value == null ? "—" : value.setScale(0, RoundingMode.HALF_UP).toPlainString();
   }
+
+  static List<BankTransactionRow> bankTransactionRows(
+      List<RyczaltWebAccountingClient.Counterparty> counterparties,
+      List<RyczaltWebAccountingClient.Transaction> transactions) {
+    Map<String, String> labels = new HashMap<>();
+    counterparties.forEach(
+        counterparty -> {
+          String label =
+              counterparty.alias() == null || counterparty.alias().isBlank()
+                  ? counterparty.displayName()
+                  : counterparty.alias();
+          putCounterpartyLabel(labels, counterparty.legalName(), label);
+          putCounterpartyLabel(labels, counterparty.alias(), label);
+          putCounterpartyLabel(labels, counterparty.displayName(), label);
+        });
+    return transactions.stream()
+        .map(
+            transaction -> {
+              String counterparty = transaction.counterparty();
+              String label = labels.getOrDefault(normalizeCounterparty(counterparty), counterparty);
+              BigDecimal amount =
+                  transaction.amount() == null ? BigDecimal.ZERO : transaction.amount();
+              BigDecimal matched =
+                  transaction.matchedAmount() == null
+                      ? BigDecimal.ZERO
+                      : transaction.matchedAmount();
+              String status =
+                  matched.signum() == 0
+                      ? "Unmatched"
+                      : matched.compareTo(amount.abs()) >= 0 ? "Matched" : "Partially matched";
+              return new BankTransactionRow(
+                  label == null || label.isBlank() ? "—" : label,
+                  transaction.bookingDate(),
+                  whole(amount),
+                  status,
+                  transaction.description());
+            })
+        .toList();
+  }
+
+  static List<RyczaltWebAccountingClient.Transaction> bankTransactionsForDisplay(
+      List<RyczaltWebAccountingClient.Transaction> currentMonth,
+      List<RyczaltWebAccountingClient.Transaction> nextMonth) {
+    return Stream.concat(
+            currentMonth.stream().filter(transaction -> signum(transaction.amount()) > 0),
+            nextMonth.stream().filter(transaction -> signum(transaction.amount()) < 0))
+        .sorted(
+            java.util.Comparator.comparing(
+                    RyczaltWebAccountingClient.Transaction::bookingDate,
+                    java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()))
+                .thenComparingLong(RyczaltWebAccountingClient.Transaction::id))
+        .toList();
+  }
+
+  private static int signum(BigDecimal value) {
+    return value == null ? 0 : value.signum();
+  }
+
+  private static void putCounterpartyLabel(Map<String, String> labels, String name, String label) {
+    String key = normalizeCounterparty(name);
+    if (!key.isEmpty() && label != null && !label.isBlank()) labels.putIfAbsent(key, label);
+  }
+
+  private static String normalizeCounterparty(String name) {
+    if (name == null || name.isBlank()) return "";
+    return Normalizer.normalize(name, Normalizer.Form.NFD)
+        .replaceAll("\\p{M}", "")
+        .replaceAll("[^\\p{Alnum}]", "")
+        .toUpperCase(Locale.ROOT);
+  }
+
+  record BankTransactionRow(
+      String counterparty,
+      LocalDate bookingDate,
+      String amount,
+      String status,
+      String description) {}
 
   private static String difference(BigDecimal calculated, BigDecimal comparison) {
     if (calculated == null || comparison == null) return null;
@@ -354,11 +450,6 @@ public class RyczaltAccountingPageController {
       redirect.addFlashAttribute("accountingError", "KSeF sync failed.");
     }
     return accountingRedirect(profileId, month);
-  }
-
-  @PostMapping(BASE + "/actions/settle")
-  public String settle(@PathVariable long profileId, YearMonth month, RedirectAttributes redirect) {
-    return command(profileId, month, redirect, () -> client.settle(profileId, month), "settle");
   }
 
   @PostMapping(BASE + "/actions/freeze")
