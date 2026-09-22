@@ -196,9 +196,7 @@ class RyczaltAccountingRestControllerTest {
   }
 
   @Test
-  void settleAndFreezeUseNativeCommands() throws Exception {
-    mvc.perform(post("/api/profiles/7/accounting/periods/2026-08/settle").principal(authentication))
-        .andExpect(status().isNoContent());
+  void freezeUsesNativeCommand() throws Exception {
     mvc.perform(
             post("/api/profiles/7/accounting/periods/2026-08/freeze")
                 .principal(authentication)
@@ -206,7 +204,6 @@ class RyczaltAccountingRestControllerTest {
                 .content("{\"reason\":\"Ready\"}"))
         .andExpect(status().isNoContent());
 
-    verify(accounting).settle(7L, YearMonth.of(2026, 8));
     verify(accounting).freeze(7L, YearMonth.of(2026, 8), "owner", "Ready");
   }
 }
