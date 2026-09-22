@@ -8,18 +8,31 @@
 </head>
 <body>
 <main class="iv-app iv-report-page accounting-page" data-testid="accounting-counterparties-page">
-  <div th:replace="~{fragments/app-header :: appHeader('Counterparties', 'Accounting', 'accounting', ${profileId}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, ~{accounting/fragments/header-controls :: accountingEmptyRail}, ~{accounting/fragments/header-controls :: accountingEmptyRail}, ~{accounting/fragments/header-controls :: accountingEmptyRail})}"></div>
   <div class="accounting-shell">
-    <div class="accounting-context-bar"><div><span class="accounting-eyebrow">Accounting setup</span><h2>Known counterparties</h2><p class="accounting-page-intro">Choose the short name shown in Income and Costs. The legal name stays unchanged.</p></div></div>
-    <section class="iv-card accounting-counterparty-list" aria-label="Known counterparties">
-      <div class="accounting-counterparty-list__header"><span>Name</span><span>Country / tax ID</span><span>Documents</span><span></span></div>
-      <div class="accounting-counterparty-row" th:each="item : ${counterparties}">
-        <a class="accounting-counterparty-row__main" th:href="@{/profiles/{profileId}/accounting/counterparties/{id}(profileId=${profileId},id=${item.id})}" th:aria-label="${'Open counterparty ' + item.displayName}"><strong th:text="${item.displayName}">Emagine</strong><small th:if="${item.alias != null and !item.alias.isBlank()}" th:text="${item.legalName}">Legal name</small></a>
-        <span class="accounting-counterparty-row__identity" th:text="${item.country + ' · ' + item.taxIdentifier}">PL · 123</span>
-        <span th:text="${item.invoiceCount}">0</span>
-        <a class="btn btn-sm btn-outline-secondary" th:href="@{/profiles/{profileId}/accounting/counterparties/{id}(profileId=${profileId},id=${item.id})}">Edit</a>
+    <header class="accounting-compact-header">
+      <h1>Counterparties</h1>
+      <a class="accounting-document-back" th:href="@{/profiles/{profileId}/accounting(profileId=${profileId})}">‹ Back to accounting</a>
+    </header>
+    <section class="iv-planning-section iv-card card accounting-section" aria-label="Counterparties">
+      <div class="accounting-empty iv-planning-section__empty" th:if="${counterparties.isEmpty()}">No known counterparties yet.</div>
+      <div class="table-responsive" th:unless="${counterparties.isEmpty()}">
+        <table class="table card-table table-vcenter">
+          <thead>
+          <tr><th>Name</th><th>Country / tax ID</th><th>Documents</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+          <tr th:each="item : ${counterparties}">
+            <td>
+              <a th:href="@{/profiles/{profileId}/accounting/counterparties/{id}(profileId=${profileId},id=${item.id})}" th:aria-label="${'Open counterparty ' + item.displayName}" th:text="${item.displayName}">Emagine</a>
+              <span class="text-secondary d-block" th:if="${item.alias != null and !item.alias.isBlank()}" th:text="${item.legalName}">Legal name</span>
+            </td>
+            <td th:text="${item.country + ' · ' + item.taxIdentifier}">PL · 123</td>
+            <td th:text="${item.invoiceCount}">0</td>
+            <td><a class="btn btn-sm btn-outline-secondary" th:href="@{/profiles/{profileId}/accounting/counterparties/{id}(profileId=${profileId},id=${item.id})}">Edit</a></td>
+          </tr>
+          </tbody>
+        </table>
       </div>
-      <div class="accounting-empty" th:if="${counterparties.isEmpty()}">No known counterparties yet.</div>
     </section>
   </div>
 </main>

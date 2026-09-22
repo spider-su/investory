@@ -33,8 +33,6 @@ public interface RyczaltAccountingApi {
   List<RyczaltPaymentHistoryReadModel> paymentHistory(
       long profileId, YearMonth from, YearMonth to, String type);
 
-  void settle(long profileId, YearMonth month);
-
   void freeze(long profileId, YearMonth month, String actor, String reason);
 
   void reopen(long profileId, YearMonth month, String actor, String reason);

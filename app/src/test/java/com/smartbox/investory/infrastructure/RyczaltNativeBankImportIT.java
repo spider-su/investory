@@ -14,6 +14,8 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodLifecycleService;
 import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionJpaRepository;
+import com.smartbox.investory.ryczalt.settlement.RyczaltPaymentAccountResolver;
+import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
@@ -105,6 +107,61 @@ class RyczaltNativeBankImportIT {
   }
 
   @Test
+  void importAutomaticallySettlesMatchingObligations() {
+    jdbc.update(
+        "INSERT INTO investory.ryczalt_period(profile_id, period_year, period_month, status)"
+            + " VALUES (1, 2026, 2, 'CALCULATED')");
+    Long periodId =
+        jdbc.queryForObject(
+            "SELECT id FROM investory.ryczalt_period WHERE profile_id=1 AND period_year=2026 AND"
+                + " period_month=2",
+            Long.class);
+    jdbc.update(
+        "INSERT INTO investory.ryczalt_obligation(period_id, profile_id, obligation_type, amount,"
+            + " currency, due_date, status) VALUES (?, 1, 'ZUS', 498.35, 'PLN', '2026-02-20',"
+            + " 'OPEN')",
+        periodId);
+
+    importCsv(1, "2026-02-15,2026-02-01,BANK-REF-1,ZUS,PLN,-498.35,ZUS payment");
+
+    Integer matches =
+        jdbc.queryForObject("SELECT count(*) FROM investory.ryczalt_payment_match", Integer.class);
+    String status =
+        jdbc.queryForObject(
+            "SELECT status FROM investory.ryczalt_obligation WHERE profile_id=1 AND"
+                + " obligation_type='ZUS'",
+            String.class);
+    assertThat(matches).isEqualTo(1);
+    assertThat(status).isEqualTo("PAID");
+  }
+
+  @Test
+  void importTreatsSmallUnderpaymentWithinToleranceAsPaid() {
+    jdbc.update(
+        "INSERT INTO investory.ryczalt_period(profile_id, period_year, period_month, status)"
+            + " VALUES (1, 2026, 2, 'CALCULATED')");
+    Long periodId =
+        jdbc.queryForObject(
+            "SELECT id FROM investory.ryczalt_period WHERE profile_id=1 AND period_year=2026 AND"
+                + " period_month=2",
+            Long.class);
+    jdbc.update(
+        "INSERT INTO investory.ryczalt_obligation(period_id, profile_id, obligation_type, amount,"
+            + " currency, due_date, status) VALUES (?, 1, 'ZUS', 1495.04, 'PLN', '2026-02-20',"
+            + " 'OPEN')",
+        periodId);
+
+    importCsv(1, "2026-02-15,2026-02-01,BANK-REF-1,ZUS,PLN,-1495.00,ZUS payment");
+
+    String status =
+        jdbc.queryForObject(
+            "SELECT status FROM investory.ryczalt_obligation WHERE profile_id=1 AND"
+                + " obligation_type='ZUS'",
+            String.class);
+    assertThat(status).isEqualTo("PAID");
+  }
+
+  @Test
   void duplicateHumanReferenceDoesNotCollapseDistinctTransactions() {
     RyczaltBankImportResult result =
         importCsv(
@@ -176,12 +233,15 @@ class RyczaltNativeBankImportIT {
         RyczaltTransactionJpaRepository.class,
         RyczaltSourceReferenceJpaRepository.class,
         RyczaltObligationJpaRepository.class,
+        com.smartbox.investory.ryczalt.persistence.RyczaltPaymentMatchJpaRepository.class,
         com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository.class
       })
   @Import({
     RyczaltBankImportService.class,
     CsvBankTransactionSourceAdapter.class,
-    RyczaltPeriodLifecycleService.class
+    RyczaltPeriodLifecycleService.class,
+    SettlementService.class,
+    RyczaltPaymentAccountResolver.class
   })
   static class TestConfiguration {}
 

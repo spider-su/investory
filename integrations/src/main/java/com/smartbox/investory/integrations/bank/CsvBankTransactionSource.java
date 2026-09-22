@@ -128,6 +128,10 @@ public final class CsvBankTransactionSource implements BankTransactionSource {
     BigDecimal amount = pekaoAmount(cells.get(7));
     String reference = cleanValue(required(cells.get(9)));
     LocalDate relatedPeriod = obligationPeriod(note);
+    String sourceAccount = cleanAccount(cells.get(4));
+    String destinationAccount = cleanAccount(cells.get(5));
+    String counterpartyAccount =
+        sourceAccount.equals(accountId) ? destinationAccount : sourceAccount;
     String identity =
         String.join(
             "\u001f",
@@ -148,7 +152,7 @@ public final class CsvBankTransactionSource implements BankTransactionSource {
         amount,
         currency,
         counterparty,
-        null,
+        blank(counterpartyAccount),
         note,
         reference,
         sha256(String.join(";", cells).getBytes(StandardCharsets.UTF_8)));

@@ -9,6 +9,7 @@ public record CounterpartyResponse(
     String displayName,
     String taxIdentifier,
     String country,
+    String bankAccount,
     long ruleCount,
     long invoiceCount) {
   static CounterpartyResponse of(Counterparty c) {
@@ -19,6 +20,7 @@ public record CounterpartyResponse(
         c.displayName(),
         c.taxIdentifier(),
         c.country(),
+        c.bankAccount(),
         c.ruleCount(),
         c.invoiceCount());
   }

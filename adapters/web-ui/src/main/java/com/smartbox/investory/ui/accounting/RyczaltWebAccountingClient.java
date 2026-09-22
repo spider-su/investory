@@ -64,8 +64,6 @@ public interface RyczaltWebAccountingClient {
 
   void alias(long profileId, long counterpartyId, String alias);
 
-  void settle(long profileId, YearMonth month);
-
   void freeze(long profileId, YearMonth month, String reason);
 
   void reopen(long profileId, YearMonth month, String reason);
@@ -191,6 +189,7 @@ public interface RyczaltWebAccountingClient {
       String displayName,
       String taxIdentifier,
       String country,
+      String bankAccount,
       long ruleCount,
       long invoiceCount) {}
 

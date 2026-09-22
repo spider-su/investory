@@ -12,6 +12,7 @@ public record Transaction(
     BigDecimal amount,
     Currency currency,
     String counterparty,
+    String counterpartyAccount,
     String description) {
   public Transaction {
     reference = Objects.requireNonNull(reference, "reference");
@@ -21,6 +22,16 @@ public record Transaction(
   }
 
   public Transaction(String reference, LocalDate date, BigDecimal amount, Currency currency) {
-    this(reference, date, amount, currency, null, null);
+    this(reference, date, amount, currency, null, null, null);
+  }
+
+  public Transaction(
+      String reference,
+      LocalDate date,
+      BigDecimal amount,
+      Currency currency,
+      String counterparty,
+      String description) {
+    this(reference, date, amount, currency, counterparty, null, description);
   }
 }
