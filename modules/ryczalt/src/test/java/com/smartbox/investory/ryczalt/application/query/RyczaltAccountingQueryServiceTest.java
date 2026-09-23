@@ -60,7 +60,6 @@ class RyczaltAccountingQueryServiceTest {
             obligations,
             matches,
             calculations,
-            sourceReferences,
             new com.fasterxml.jackson.databind.ObjectMapper(),
             new RyczaltInvoiceQueryService(periods, invoices, sourceReferences),
             new RyczaltPaymentQueryService(periods, obligations, matches, BigDecimal.ZERO));
