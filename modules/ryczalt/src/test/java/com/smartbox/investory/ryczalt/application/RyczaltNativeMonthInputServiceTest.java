@@ -33,6 +33,19 @@ class RyczaltNativeMonthInputServiceTest {
   }
 
   @Test
+  void scaleOnlyAmountChangesDoNotInvalidate() {
+    var oldCommand = command(new BigDecimal("10.0"), new BigDecimal("20.00"), new BigDecimal("30.000"));
+    var newCommand = command(new BigDecimal("10.00"), new BigDecimal("20.0"), new BigDecimal("30.00"));
+    var entity = new RyczaltNativeMonthInputEntity(7L, YearMonth.of(2026, 9), oldCommand);
+    when(inputs.findByProfileIdAndYearAndMonth(7L, 2026, 9)).thenReturn(Optional.of(entity));
+
+    service.save(7L, YearMonth.of(2026, 9), newCommand);
+
+    verify(inputs).save(entity);
+    verifyNoInteractions(lifecycle);
+  }
+
+  @Test
   void changesInvalidateOnlyTheirCalculationAreas() {
     var oldCommand = command(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
     var newCommand = command(new BigDecimal("10"), new BigDecimal("20"), new BigDecimal("30"));
