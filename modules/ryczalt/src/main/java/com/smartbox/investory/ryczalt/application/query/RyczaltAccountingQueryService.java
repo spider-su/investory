@@ -25,6 +25,8 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +42,29 @@ public class RyczaltAccountingQueryService {
   private final ObjectMapper json;
   private final RyczaltInvoiceQueryService invoiceQueries;
   private final RyczaltPaymentQueryService paymentQueries;
+
+  @Autowired
+  public RyczaltAccountingQueryService(
+      RyczaltPeriodJpaRepository periods,
+      RyczaltInvoiceJpaRepository invoices,
+      RyczaltTransactionJpaRepository transactions,
+      RyczaltObligationJpaRepository obligations,
+      RyczaltPaymentMatchJpaRepository matches,
+      RyczaltCalculationJpaRepository calculations,
+      ObjectProvider<ObjectMapper> jsonProvider,
+      RyczaltInvoiceQueryService invoiceQueries,
+      RyczaltPaymentQueryService paymentQueries) {
+    this(
+        periods,
+        invoices,
+        transactions,
+        obligations,
+        matches,
+        calculations,
+        jsonProvider.getIfAvailable(ObjectMapper::new),
+        invoiceQueries,
+        paymentQueries);
+  }
 
   public RyczaltAccountingQueryService(
       RyczaltPeriodJpaRepository periods,
