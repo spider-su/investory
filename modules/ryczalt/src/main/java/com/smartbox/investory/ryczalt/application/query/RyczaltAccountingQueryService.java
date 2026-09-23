@@ -341,8 +341,12 @@ public class RyczaltAccountingQueryService {
   }
 
   private List<RyczaltTransactionEntity> transactions(Loaded loaded) {
-    return transactions.findByProfileIdAndPeriodIdOrderByBookingDateAscIdAsc(
-        loaded.period.getProfileId(), loaded.period.id());
+    return transactions
+        .findByProfileIdAndPeriodIdOrderByBookingDateAscIdAsc(
+            loaded.period.getProfileId(), loaded.period.id())
+        .stream()
+        .filter(transaction -> !transaction.isExcludedFromPaymentMatching())
+        .toList();
   }
 
   private List<RyczaltObligationEntity> obligations(RyczaltPeriodEntity period) {

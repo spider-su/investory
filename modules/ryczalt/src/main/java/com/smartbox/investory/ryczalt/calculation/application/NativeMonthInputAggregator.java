@@ -1,5 +1,6 @@
 package com.smartbox.investory.ryczalt.calculation.application;
 
+import com.smartbox.investory.ryczalt.application.RyczaltNativeMonthInputService.Command;
 import com.smartbox.investory.ryczalt.calculation.vat.VatCalculationInput;
 import com.smartbox.investory.ryczalt.calculation.zus.ZusCalculationInput;
 import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
@@ -9,6 +10,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltNativeMonthInputEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltNativeMonthInputJpaRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,7 +33,7 @@ public class NativeMonthInputAggregator {
     RyczaltNativeMonthInputEntity settings =
         monthInputs
             .findByProfileIdAndYearAndMonth(profileId, month.getYear(), month.getMonthValue())
-            .orElseThrow(() -> needsReview(month, "native month ZUS/input settings are missing"));
+            .orElseGet(() -> deriveMonthInput(profileId, month));
     RyczaltNativeMonthInputEntity.ZusSettings zus = settings.zusSettings();
     return aggregate(
         profileId,
@@ -50,6 +52,37 @@ public class NativeMonthInputAggregator {
         settings.deductionsAlreadyConsumed(),
         settings.salesCorrections(),
         settings.explicitVatAdjustments());
+  }
+
+  private RyczaltNativeMonthInputEntity deriveMonthInput(long profileId, YearMonth month) {
+    RyczaltNativeMonthInputEntity previous =
+        monthInputs
+            .findLatestBefore(profileId, month.getYear(), month.getMonthValue())
+            .orElseThrow(() -> needsReview(month, "no prior ZUS/input settings exist"));
+    var previousZus = previous.zusSettings();
+    LocalDate firstDay = month.atDay(1);
+    BigDecimal ytdRevenue =
+        invoices.findByProfileIdOrderByAccountingDateAscIdAsc(profileId).stream()
+            .filter(invoice -> invoice.getDirection() == InvoiceDirection.INCOME)
+            .filter(invoice -> invoice.getApprovalStatus() == ApprovalStatus.APPROVED)
+            .filter(invoice -> invoice.getAccountingDate().isBefore(firstDay))
+            .map(RyczaltInvoiceEntity::getBookedNetPln)
+            .filter(java.util.Objects::nonNull)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    var command =
+        new Command(
+            previousZus.jdgActive(),
+            previousZus.qualifyingUop(),
+            previousZus.zusRegime(),
+            previousZus.voluntarySickness(),
+            ytdRevenue,
+            previousZus.fullJdgSocial(),
+            previousZus.socialContributionDeduction(),
+            previousZus.healthContributionOverride(),
+            previous.deductionsAlreadyConsumed(),
+            previous.salesCorrections(),
+            previous.explicitVatAdjustments());
+    return monthInputs.save(new RyczaltNativeMonthInputEntity(profileId, month, command));
   }
 
   public NativeMonthCalculationInput aggregate(

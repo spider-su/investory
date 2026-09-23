@@ -44,6 +44,9 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
   @Column(length = 1000)
   private String description;
 
+  @Column(name = "excluded_from_payment_matching", nullable = false)
+  private boolean excludedFromPaymentMatching;
+
   protected RyczaltTransactionEntity() {}
 
   public RyczaltTransactionEntity(
@@ -101,6 +104,10 @@ public class RyczaltTransactionEntity extends RyczaltEntity {
 
   public String getDescription() {
     return description;
+  }
+
+  public boolean isExcludedFromPaymentMatching() {
+    return excludedFromPaymentMatching;
   }
 
   public Long id() {

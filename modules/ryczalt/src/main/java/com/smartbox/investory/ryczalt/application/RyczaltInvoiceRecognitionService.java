@@ -21,18 +21,21 @@ public class RyczaltInvoiceRecognitionService {
   private final RyczaltSourceReferenceJpaRepository sources;
   private final RyczaltCounterpartyService counterparties;
   private final RyczaltInvoiceCandidatePersistenceService persistence;
+  private final RyczaltInvoiceApprovalService approval;
 
   public RyczaltInvoiceRecognitionService(
       InvoiceRecognitionPort recognizer,
       RyczaltInvoiceCandidateJpaRepository candidates,
       RyczaltSourceReferenceJpaRepository sources,
       RyczaltCounterpartyService counterparties,
-      RyczaltInvoiceCandidatePersistenceService persistence) {
+      RyczaltInvoiceCandidatePersistenceService persistence,
+      RyczaltInvoiceApprovalService approval) {
     this.recognizer = recognizer;
     this.candidates = candidates;
     this.sources = sources;
     this.counterparties = counterparties;
     this.persistence = persistence;
+    this.approval = approval;
   }
 
   public CandidateView recognize(
@@ -112,7 +115,24 @@ public class RyczaltInvoiceRecognitionService {
       }
       throw exception;
     }
-    return view(row, SourceState.NEW_CANDIDATE);
+    CandidateView result = view(row, SourceState.NEW_CANDIDATE);
+    if (row.getApprovalStatus() == ApprovalStatus.APPROVED) {
+      approval.approve(
+          profileId,
+          row.getCandidateKey(),
+          new RyczaltInvoiceApprovalService.ApproveCommand(
+              row.getCounterpartyId(),
+              row.getClassification(),
+              row.getVatTreatment(),
+              row.getVatDeductionRatio(),
+              row.getRyczaltRate(),
+              row.getPaymentVerificationPolicy(),
+              true,
+              false,
+              null,
+              row.getServiceKey()));
+    }
+    return result;
   }
 
   @Transactional(readOnly = true)
@@ -129,7 +149,7 @@ public class RyczaltInvoiceRecognitionService {
         row.getSourceType(),
         row.getSourceExternalId(),
         row.getDocumentType(),
-        row.getDirection(),
+        row.getDirection().name(),
         row.getIssueDate(),
         row.getSaleDate(),
         row.getDueDate(),
@@ -246,7 +266,7 @@ public class RyczaltInvoiceRecognitionService {
       String sourceType,
       String sourceExternalId,
       String documentType,
-      InvoiceDirection direction,
+      String direction,
       LocalDate issueDate,
       LocalDate saleDate,
       LocalDate dueDate,

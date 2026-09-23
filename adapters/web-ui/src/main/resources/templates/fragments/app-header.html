@@ -45,7 +45,7 @@
         <div class="iv-kpi iv-shared-topbar__kpi" th:each="card : ${taxCards}">
             <span class="iv-topbar-metric__label" th:text="${card.type}">RYCZALT</span>
             <div class="iv-accounting-tax-card__main"><span class="iv-kpi__value" th:text="${card.calculated}">0</span><span class="iv-accounting-tax-card__status" th:classappend="${card.statusClass}" th:text="${card.status}">○ Unpaid</span></div>
-            <div class="iv-accounting-tax-card__line"><span>Reference</span><strong th:text="${card.reference}">0</strong><small th:if="${card.referenceDiff != null}" th:text="${'diff ' + card.referenceDiff}">diff +0</small></div>
+            <div class="iv-accounting-tax-card__line"><span>Reference</span><strong th:text="${card.reference}">—</strong><small th:if="${card.referenceDiff != null}" th:text="${'diff ' + card.referenceDiff}">diff +0</small></div>
             <div class="iv-accounting-tax-card__line"><span>Bank</span><strong th:text="${card.bank}">0</strong><small th:if="${card.bankDiff != null}" th:text="${'diff ' + card.bankDiff}">diff +0</small></div>
         </div>
     </div>

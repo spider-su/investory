@@ -1,7 +1,14 @@
 package com.smartbox.investory.ryczalt.application.ksef;
 
+import com.smartbox.investory.ryczalt.application.RyczaltCounterpartyService;
 import com.smartbox.investory.ryczalt.calculation.InputChange;
+import com.smartbox.investory.ryczalt.domain.ApprovalMethod;
+import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
+import com.smartbox.investory.ryczalt.domain.CounterpartyRule;
+import com.smartbox.investory.ryczalt.domain.InvoiceCandidate;
+import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
+import com.smartbox.investory.ryczalt.domain.RuleMatchResult;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourcePort;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourcePort.KsefSyncCommand;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourceRecord;
@@ -41,18 +48,21 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
   private final RyczaltInvoiceJpaRepository invoices;
   private final RyczaltSourceReferenceJpaRepository sourceReferences;
   private final RyczaltPeriodLifecycleService lifecycle;
+  private final RyczaltCounterpartyService counterparties;
 
   public RyczaltKsefImportService(
       InvoiceSourcePort source,
       RyczaltPeriodJpaRepository periods,
       RyczaltInvoiceJpaRepository invoices,
       RyczaltSourceReferenceJpaRepository sourceReferences,
-      RyczaltPeriodLifecycleService lifecycle) {
+      RyczaltPeriodLifecycleService lifecycle,
+      RyczaltCounterpartyService counterparties) {
     this.source = source;
     this.periods = periods;
     this.invoices = invoices;
     this.sourceReferences = sourceReferences;
     this.lifecycle = lifecycle;
+    this.counterparties = counterparties;
   }
 
   @Override
@@ -84,6 +94,16 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
         continue;
       }
       YearMonth target = YearMonth.from(record.accountingDate());
+      var counterparty =
+          counterparties.resolveByTaxId(
+              profileId, record.counterpartyTaxId(), "PL", record.counterpartyName());
+      CounterpartyRule rule = null;
+      if (counterparty != null) {
+        RuleMatchResult match =
+            counterparties.match(
+                new InvoiceCandidate(counterparty.id(), SOURCE, null, null), profileId);
+        if (match.kind() == RuleMatchResult.Kind.MATCHED) rule = match.rule();
+      }
       var existing =
           sourceReferences.findByProfileIdAndEntityTypeAndSourceAndExternalId(
               profileId, ENTITY_TYPE, SOURCE, record.sourceExternalId());
@@ -128,8 +148,18 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
                   record.grossAmount(),
                   currency(record.currency()),
                   null,
-                  record.ryczaltRate(),
-                  record.deductibleVat()));
+                  rule == null ? record.ryczaltRate() : rule.ryczaltRate(),
+                  rule == null ? record.deductibleVat() : rule.vatDeductionRatio()));
+      saved.applyDecision(
+          counterparty,
+          rule == null ? null : rule.classification(),
+          rule == null ? null : rule.vatTreatment(),
+          rule == null ? record.deductibleVat() : rule.vatDeductionRatio(),
+          rule == null ? record.ryczaltRate() : rule.ryczaltRate(),
+          rule == null ? PaymentVerificationPolicy.REQUIRED : rule.paymentVerificationPolicy(),
+          ApprovalStatus.APPROVED,
+          rule == null ? ApprovalMethod.KSEF_TRUSTED : ApprovalMethod.COUNTERPARTY_RULE);
+      saved = invoices.save(saved);
       sourceReferences.save(
           new RyczaltSourceReferenceEntity(
               profileId, ENTITY_TYPE, saved.getId(), SOURCE, record.sourceExternalId(), null));
