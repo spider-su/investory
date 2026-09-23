@@ -19,6 +19,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltObligationEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
+import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.YearMonth;
@@ -29,29 +30,26 @@ import org.springframework.transaction.annotation.Transactional;
 /** Runs the complete native RYCZALT, VAT, ZUS and obligation cycle for one month. */
 @Service
 public class NativeMonthCalculationService {
-  private static final String RYCZALT_RULES = "ryczalt-2026";
-  private static final String VAT_RULES = "vat-2026";
-  private static final String ZUS_RULES = "zus-2026";
   private static final String CALCULATOR_VERSION = "native-month-1";
 
   private final RyczaltPeriodJpaRepository periods;
   private final NativeMonthInputAggregator inputAggregator;
   private final RyczaltCalculationPersistenceAdapter calculations;
   private final RyczaltObligationJpaRepository obligations;
-  private final RyczaltCalculator ryczalt = new RyczaltCalculator(RYCZALT_RULES);
-  private final VatCalculator vat = new VatCalculator();
-  private final ZusCalculator zus = new ZusCalculator();
+  private final SettlementService settlement;
   private final ObjectMapper json = new ObjectMapper();
 
   public NativeMonthCalculationService(
       RyczaltPeriodJpaRepository periods,
       NativeMonthInputAggregator inputAggregator,
       RyczaltCalculationPersistenceAdapter calculations,
-      RyczaltObligationJpaRepository obligations) {
+      RyczaltObligationJpaRepository obligations,
+      SettlementService settlement) {
     this.periods = periods;
     this.inputAggregator = inputAggregator;
     this.calculations = calculations;
     this.obligations = obligations;
+    this.settlement = settlement;
   }
 
   @Transactional
@@ -70,15 +68,19 @@ public class NativeMonthCalculationService {
       throw new IllegalStateException("Frozen period cannot be recalculated: " + month);
     }
 
-    ZusCalculationResult zusResult = zus.calculate(input.zus());
+    String ryczaltRules = ruleVersion("RYCZALT", month);
+    String vatRules = ruleVersion("VAT", month);
+    String zusRules = ruleVersion("ZUS", month);
+    ZusCalculationResult zusResult = new ZusCalculator(zusRules).calculate(input.zus());
     RyczaltCalculationResult ryczaltResult =
-        ryczalt.calculate(
-            new RyczaltCalculationInput(
-                input.revenueByRate(),
-                zusResult.deductibleSocial(),
-                zusResult.health(),
-                input.deductionsAlreadyConsumed()));
-    VatCalculationResult vatResult = vat.calculate(input.vat());
+        new RyczaltCalculator(ryczaltRules)
+            .calculate(
+                new RyczaltCalculationInput(
+                    input.revenueByRate(),
+                    zusResult.deductibleSocial(),
+                    zusResult.health(),
+                    input.deductionsAlreadyConsumed()));
+    VatCalculationResult vatResult = new VatCalculator(vatRules).calculate(input.vat());
 
     RyczaltCalculationEntity ryczaltCalculation =
         save(
@@ -92,24 +94,24 @@ public class NativeMonthCalculationService {
                     zusResult.deductibleSocial(),
                     zusResult.health(),
                     input.deductionsAlreadyConsumed()),
-                RYCZALT_RULES),
-            RYCZALT_RULES);
+                ryczaltRules),
+            ryczaltRules);
     RyczaltCalculationEntity vatCalculation =
         save(
             period,
             profileId,
             CalculationType.VAT,
             json(vatResult),
-            fingerprint(input.vat(), VAT_RULES),
-            VAT_RULES);
+            fingerprint(input.vat(), vatRules),
+            vatRules);
     RyczaltCalculationEntity zusCalculation =
         save(
             period,
             profileId,
             CalculationType.ZUS,
             json(zusResult),
-            fingerprint(input.zus(), ZUS_RULES),
-            ZUS_RULES);
+            fingerprint(input.zus(), zusRules),
+            zusRules);
 
     upsertObligation(
         profileId,
@@ -122,6 +124,7 @@ public class NativeMonthCalculationService {
     upsertObligation(profileId, period, ObligationType.ZUS, zusResult.total(), zusCalculation);
     period.markCalculated(java.time.Instant.now());
     periods.save(period);
+    settlement.settlePeriod(profileId, month);
     return new NativeMonthCalculationResult(
         month,
         ryczaltResult.calculatedTax(),
@@ -190,5 +193,9 @@ public class NativeMonthCalculationService {
 
   private String fingerprint(Object value, String ruleVersion) {
     return InputFingerprint.sha256(ruleVersion + "|" + json(value));
+  }
+
+  private String ruleVersion(String type, YearMonth month) {
+    return type + "_" + month.getYear() + "_POC_V1";
   }
 }

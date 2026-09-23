@@ -7,10 +7,9 @@ import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-/** Reads canonical bank transactions without exposing their persistence shape to ZusClient. */
+/** Reads canonical Ryczalt bank transactions without exposing JDBC details to ZusClient. */
 @Component
 public class BankTransactionZusPaymentSource {
-  private static final long POC_PROFILE_ID = 1L;
   private final JdbcTemplate jdbcTemplate;
 
   public BankTransactionZusPaymentSource(JdbcTemplate jdbcTemplate) {
@@ -19,14 +18,14 @@ public class BankTransactionZusPaymentSource {
 
   public List<BankTransaction> findOutgoingZusTransactions(
       Long profileId, LocalDate from, LocalDate to) {
-    if (profileId == null || profileId.longValue() != POC_PROFILE_ID) return List.of();
+    if (profileId == null) return List.of();
     if (from == null || to == null || !from.isBefore(to)) return List.of();
     return jdbcTemplate
         .query(
             """
-        SELECT id, booking_date, amount, currency, reference, counterparty_alias, note
-          FROM investory.accounting_poc_bank_transaction
-         WHERE booking_date >= ? AND booking_date < ?
+        SELECT id, booking_date, amount, currency, reference, counterparty, description
+          FROM investory.ryczalt_transaction
+         WHERE profile_id = ? AND booking_date >= ? AND booking_date < ?
            AND amount < 0
            AND UPPER(currency) = 'PLN'
          ORDER BY booking_date, id
@@ -38,8 +37,9 @@ public class BankTransactionZusPaymentSource {
                     rs.getBigDecimal("amount"),
                     rs.getString("currency"),
                     rs.getString("reference"),
-                    rs.getString("counterparty_alias"),
-                    rs.getString("note")),
+                    rs.getString("counterparty"),
+                    rs.getString("description")),
+            profileId,
             from,
             to)
         .stream()

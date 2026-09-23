@@ -54,7 +54,16 @@ class RyczaltAccountingQueryServiceTest {
   void setUp() {
     service =
         new RyczaltAccountingQueryService(
-            periods, invoices, transactions, obligations, matches, calculations);
+            periods,
+            invoices,
+            transactions,
+            obligations,
+            matches,
+            calculations,
+            sourceReferences,
+            new com.fasterxml.jackson.databind.ObjectMapper(),
+            new RyczaltInvoiceQueryService(periods, invoices, sourceReferences),
+            new RyczaltPaymentQueryService(periods, obligations, matches, BigDecimal.ZERO));
   }
 
   @Test
@@ -216,7 +225,16 @@ class RyczaltAccountingQueryServiceTest {
 
   private RyczaltAccountingQueryService serviceWithSources() {
     return new RyczaltAccountingQueryService(
-        periods, invoices, transactions, obligations, matches, calculations, sourceReferences);
+        periods,
+        invoices,
+        transactions,
+        obligations,
+        matches,
+        calculations,
+        sourceReferences,
+        new com.fasterxml.jackson.databind.ObjectMapper(),
+        new RyczaltInvoiceQueryService(periods, invoices, sourceReferences),
+        new RyczaltPaymentQueryService(periods, obligations, matches, BigDecimal.ZERO));
   }
 
   private static RyczaltInvoiceEntity invoice(long id) {

@@ -6,6 +6,7 @@ import com.smartbox.investory.ryczalt.checker.CheckSeverity;
 import com.smartbox.investory.ryczalt.domain.ObligationType;
 import com.smartbox.investory.ryczalt.persistence.CalculationStatus;
 import com.smartbox.investory.ryczalt.persistence.CalculationType;
+import com.smartbox.investory.ryczalt.persistence.FreezeEligibility;
 import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceEntity;
@@ -25,8 +26,8 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,54 +42,8 @@ public class RyczaltAccountingQueryService {
   private final RyczaltCalculationJpaRepository calculations;
   private final RyczaltSourceReferenceJpaRepository sourceReferences;
   private final ObjectMapper json;
-  private final BigDecimal paymentTolerance;
   private final RyczaltInvoiceQueryService invoiceQueries;
   private final RyczaltPaymentQueryService paymentQueries;
-
-  public RyczaltAccountingQueryService(
-      RyczaltPeriodJpaRepository periods,
-      RyczaltInvoiceJpaRepository invoices,
-      RyczaltTransactionJpaRepository transactions,
-      RyczaltObligationJpaRepository obligations,
-      RyczaltPaymentMatchJpaRepository matches,
-      RyczaltCalculationJpaRepository calculations,
-      RyczaltSourceReferenceJpaRepository sourceReferences,
-      ObjectMapper json,
-      BigDecimal paymentTolerance) {
-    this.periods = periods;
-    this.invoices = invoices;
-    this.transactions = transactions;
-    this.obligations = obligations;
-    this.matches = matches;
-    this.calculations = calculations;
-    this.sourceReferences = sourceReferences;
-    this.json = json;
-    this.paymentTolerance = paymentTolerance == null ? BigDecimal.ZERO : paymentTolerance;
-    this.invoiceQueries = new RyczaltInvoiceQueryService(periods, invoices, sourceReferences);
-    this.paymentQueries =
-        new RyczaltPaymentQueryService(periods, obligations, matches, this.paymentTolerance);
-  }
-
-  public RyczaltAccountingQueryService(
-      RyczaltPeriodJpaRepository periods,
-      RyczaltInvoiceJpaRepository invoices,
-      RyczaltTransactionJpaRepository transactions,
-      RyczaltObligationJpaRepository obligations,
-      RyczaltPaymentMatchJpaRepository matches,
-      RyczaltCalculationJpaRepository calculations,
-      RyczaltSourceReferenceJpaRepository sourceReferences,
-      ObjectMapper json) {
-    this(
-        periods,
-        invoices,
-        transactions,
-        obligations,
-        matches,
-        calculations,
-        sourceReferences,
-        json,
-        BigDecimal.ZERO);
-  }
 
   @Autowired
   public RyczaltAccountingQueryService(
@@ -99,17 +54,19 @@ public class RyczaltAccountingQueryService {
       RyczaltPaymentMatchJpaRepository matches,
       RyczaltCalculationJpaRepository calculations,
       RyczaltSourceReferenceJpaRepository sourceReferences,
-      @Value("${app.ryczalt.payment.tolerance-pln:0}") BigDecimal paymentTolerance) {
-    this(
-        periods,
-        invoices,
-        transactions,
-        obligations,
-        matches,
-        calculations,
-        sourceReferences,
-        new ObjectMapper(),
-        paymentTolerance);
+      ObjectProvider<ObjectMapper> jsonProvider,
+      RyczaltInvoiceQueryService invoiceQueries,
+      RyczaltPaymentQueryService paymentQueries) {
+    this.periods = periods;
+    this.invoices = invoices;
+    this.transactions = transactions;
+    this.obligations = obligations;
+    this.matches = matches;
+    this.calculations = calculations;
+    this.sourceReferences = sourceReferences;
+    this.json = jsonProvider.getIfAvailable(ObjectMapper::new);
+    this.invoiceQueries = invoiceQueries;
+    this.paymentQueries = paymentQueries;
   }
 
   public RyczaltAccountingQueryService(
@@ -119,34 +76,20 @@ public class RyczaltAccountingQueryService {
       RyczaltObligationJpaRepository obligations,
       RyczaltPaymentMatchJpaRepository matches,
       RyczaltCalculationJpaRepository calculations,
-      RyczaltSourceReferenceJpaRepository sourceReferences) {
-    this(
-        periods,
-        invoices,
-        transactions,
-        obligations,
-        matches,
-        calculations,
-        sourceReferences,
-        new ObjectMapper());
-  }
-
-  public RyczaltAccountingQueryService(
-      RyczaltPeriodJpaRepository periods,
-      RyczaltInvoiceJpaRepository invoices,
-      RyczaltTransactionJpaRepository transactions,
-      RyczaltObligationJpaRepository obligations,
-      RyczaltPaymentMatchJpaRepository matches,
-      RyczaltCalculationJpaRepository calculations) {
-    this(
-        periods,
-        invoices,
-        transactions,
-        obligations,
-        matches,
-        calculations,
-        null,
-        new ObjectMapper());
+      RyczaltSourceReferenceJpaRepository sourceReferences,
+      ObjectMapper json,
+      RyczaltInvoiceQueryService invoiceQueries,
+      RyczaltPaymentQueryService paymentQueries) {
+    this.periods = periods;
+    this.invoices = invoices;
+    this.transactions = transactions;
+    this.obligations = obligations;
+    this.matches = matches;
+    this.calculations = calculations;
+    this.sourceReferences = sourceReferences;
+    this.json = json;
+    this.invoiceQueries = invoiceQueries;
+    this.paymentQueries = paymentQueries;
   }
 
   @Transactional(readOnly = true)
@@ -218,7 +161,7 @@ public class RyczaltAccountingQueryService {
         paymentQueries.reconciliation(obligationModels),
         new RyczaltPeriodReadModel.Completeness(
             complete ? "COMPLETE" : "INCOMPLETE", (int) blockingIssues),
-        allowedActions(loaded.period, complete, obligationRows.isEmpty()));
+        allowedActions(loaded.period, loaded.calculations, obligationRows));
   }
 
   private RyczaltPeriodReadModel.Audit audit(
@@ -464,13 +407,15 @@ public class RyczaltAccountingQueryService {
   }
 
   private Set<RyczaltPeriodReadModel.PeriodAction> allowedActions(
-      RyczaltPeriodEntity period, boolean complete, boolean noObligations) {
+      RyczaltPeriodEntity period,
+      List<RyczaltCalculationEntity> calculationRows,
+      List<RyczaltObligationEntity> obligationRows) {
     if (period.getStatus().isFrozen()) {
       return Set.of(RyczaltPeriodReadModel.PeriodAction.REOPEN);
     }
     EnumSet<RyczaltPeriodReadModel.PeriodAction> actions =
         EnumSet.noneOf(RyczaltPeriodReadModel.PeriodAction.class);
-    if (period.getStatus().canFreeze() && complete && !noObligations) {
+    if (FreezeEligibility.isEligible(period, calculationRows, obligationRows)) {
       actions.add(RyczaltPeriodReadModel.PeriodAction.FREEZE);
     }
     return actions;

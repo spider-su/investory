@@ -21,12 +21,12 @@ facts are normalized to PLN before tax calculations. Historical FX facts are per
 ## 2. Main Ryczalt flow
 
 ```text
-source or imported legacy fact
+source or imported native fact
         -> normalized Ryczalt fact
         -> AccountingPeriod
         -> RYCZALT / VAT / ZUS calculators
         -> persisted calculation snapshots
-        -> obligations and payment checks
+        -> obligations, settlement, and payment checks
         -> completeness/reconciliation result
         -> freeze or correction
 ```
@@ -163,19 +163,17 @@ remain explicit unsupported features; do not fake successful integration behavio
 
 ### Architecture
 
-- **Direct controller injection is temporary migration debt.** `InProcessRyczaltWebAccountingClient`
-  exists to simulate a REST client without a loopback HTTP call. It preserves the current
-  controller response contract, but bypasses HTTP filters, request logging, exception translation,
-  and serialization. The target design is for REST and Web adapters to call
-  `RyczaltAccountingApi`/`RyczaltAccountingFacade` directly through a shared application boundary.
-- Do not move repositories, persistence entities, or tax services into the Web adapter while this
-  bridge remains. Treat the bridge as a cutover aid and remove it when the shared boundary is ready.
+- `InProcessRyczaltWebAccountingClient` is intentional. The active Web path is
+  `RyczaltWebAccountingClient -> InProcessRyczaltWebAccountingClient -> native REST controllers`.
+  It avoids loopback HTTP while preserving the REST seam. Do not replace it with direct Web
+  repository or application-service access.
 - The main Ryczalt path is currently **synchronous**. REST commands, invoice approval, bank import,
   KSeF import, settlement, invalidation, and calculation calls run in the request/application
   transaction that invokes them. No Ryczalt domain-event queue or scheduled tax batch currently
   drives this pipeline. Existing scheduled jobs belong to other application concerns.
-- Imports invalidate affected calculations; invalidation is not the same as recalculation. A caller
-  must invoke the calculation application service to create a new snapshot.
+- Imports and month-input changes invalidate affected calculations; invalidation is not the same as
+  recalculation. The calculation command aggregates persisted facts, writes a new snapshot, creates
+  obligations, and settles already-imported transactions.
 
 ### Domain edge cases
 
@@ -207,8 +205,8 @@ remain explicit unsupported features; do not fake successful integration behavio
 
 ### Ingestion reality
 
-- Native application services for CSV bank import and KSeF import exist, but the active native
-  Ryczalt accounting REST controller does not expose those commands yet.
+- Native CSV bank import, KSeF sync, invoice recognition, month input settings, and calculation
+  commands persist canonical Ryczalt facts.
 - The old `/accounting` compatibility routes and bridge have been removed. Native bank/KSeF
   application APIs are not exposed by the accounting REST controller yet. Third-party KSeF evidence
   and JPK/filing remain outside the native module.

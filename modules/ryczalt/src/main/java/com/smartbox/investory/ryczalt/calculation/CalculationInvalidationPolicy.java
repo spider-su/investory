@@ -13,6 +13,8 @@ public final class CalculationInvalidationPolicy {
       case INCOME_INVOICE_CHANGED -> EnumSet.of(CalculationType.RYCZALT, CalculationType.VAT);
       case COST_INVOICE_CHANGED -> EnumSet.of(CalculationType.VAT);
       case ZUS_INPUT_CHANGED -> EnumSet.of(CalculationType.ZUS, CalculationType.RYCZALT);
+      case RYCZALT_DEDUCTIONS_CHANGED -> EnumSet.of(CalculationType.RYCZALT);
+      case VAT_ADJUSTMENT_CHANGED -> EnumSet.of(CalculationType.VAT);
       case FX_FACT_CHANGED -> EnumSet.of(CalculationType.RYCZALT, CalculationType.VAT);
       case TRANSACTION_CHANGED -> EnumSet.noneOf(CalculationType.class);
     };

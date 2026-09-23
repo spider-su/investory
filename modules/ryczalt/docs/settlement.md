@@ -17,11 +17,11 @@ Canonical bank outflows may be stored as negative transaction amounts. Settlemen
 absolute payment value and persists a positive `matched_amount`; incoming transactions remain
 eligible only when explicit obligation evidence makes them a candidate.
 
-Obligations use `OPEN`, `PARTIALLY_PAID`, `PAID`, `OVERPAID`, and `FROZEN`. Due-date payment is
+Obligations use `OPEN`, `PARTIALLY_PAID`, `PAID`, `OVERPAID`, and transitional `FROZEN`. Due-date payment is
 reported as `PAID`; payment after the due date is `PAID_LATE`. A frozen period cannot be matched,
 unmatched, or have its settlement state changed. External bank, eZUS, KSeF, NBP, and filing
 verification are outside Stage 5.
 
-The REST `/months/{month}/settle` operation selects this settlement service for periods in the
-Ryczalt schema and delegates older periods to legacy Accounting. The response contract remains the
-existing endpoint contract while settlement state is persisted natively for new periods.
+The REST `POST /api/profiles/{profileId}/accounting/periods/{month}/settle` operation invokes this
+settlement service. Calculation also invokes settlement after obligations are refreshed, so both
+`import → calculate` and `calculate → import` flows converge on the same idempotent matches.

@@ -98,6 +98,48 @@ class NativeMonthInputAggregatorTest {
                 BigDecimal.ZERO));
   }
 
+  @Test
+  void acceptsForeignCurrencyIncomeWhenPlnBookedAmountIsAvailable() {
+    RyczaltInvoiceEntity income =
+        new RyczaltInvoiceEntity(
+            mock(com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity.class),
+            7L,
+            InvoiceDirection.INCOME,
+            "EUR-1",
+            LocalDate.of(2025, 1, 31),
+            LocalDate.of(2025, 1, 31),
+            new BigDecimal("1000"),
+            BigDecimal.ZERO,
+            new BigDecimal("1000"),
+            CurrencyType.EUR,
+            new BigDecimal("4300"),
+            new BigDecimal("0.12"),
+            null);
+    income.applyDecision(
+        null,
+        "SERVICE",
+        "EU_ZERO",
+        BigDecimal.ONE,
+        new BigDecimal("0.12"),
+        PaymentVerificationPolicy.NOT_REQUIRED,
+        ApprovalStatus.APPROVED,
+        ApprovalMethod.MANUAL);
+    when(invoices.findByProfileIdAndPeriodIdOrderByAccountingDateAscIdAsc(7L, 10L))
+        .thenReturn(List.of(income));
+
+    var result =
+        aggregator.aggregate(
+            7L,
+            10L,
+            YearMonth.of(2025, 1),
+            new ZusCalculationInput(true, false, "JDG", false, BigDecimal.ZERO, null),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+
+    assertEquals(new BigDecimal("4300"), result.revenueByRate().get(new BigDecimal("0.12")));
+  }
+
   private RyczaltInvoiceEntity invoice(InvoiceDirection direction, BigDecimal net, BigDecimal vat) {
     return new RyczaltInvoiceEntity(
         mock(com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity.class),

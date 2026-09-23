@@ -145,7 +145,7 @@ public class SettlementService {
         storedTransactions.stream()
             .filter(
                 transaction ->
-                    transaction(transaction).reference().equals(allocation.transactionReference()))
+                    transaction(transaction).matchKey().equals(allocation.transactionId()))
             .findFirst()
             .ifPresent(
                 transaction ->
@@ -196,6 +196,7 @@ public class SettlementService {
   private Transaction transaction(RyczaltTransactionEntity entity) {
     return new Transaction(
         entity.id().toString(),
+        entity.getReference(),
         entity.getBookingDate(),
         entity.getAmount(),
         Currency.getInstance(entity.getCurrency().name()),

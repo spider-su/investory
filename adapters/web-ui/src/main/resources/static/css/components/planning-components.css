@@ -354,17 +354,19 @@
 .iv-planning-section .table th,
 .iv-planning-section .table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .long-term-assets-table th:first-child,
-.long-term-assets-table td:first-child { width: 28%; }
+.long-term-assets-table td:first-child { width: 24%; }
 .long-term-assets-table th:nth-child(2),
-.long-term-assets-table td:nth-child(2) { width: 16%; }
+.long-term-assets-table td:nth-child(2) { width: 14%; }
 .long-term-assets-table th:nth-child(3),
-.long-term-assets-table td:nth-child(3) { width: 12%; }
+.long-term-assets-table td:nth-child(3) { width: 11%; }
 .long-term-assets-table th:nth-child(4),
-.long-term-assets-table td:nth-child(4) { width: 18%; }
+.long-term-assets-table td:nth-child(4) { width: 15%; }
 .long-term-assets-table th:nth-child(5),
-.long-term-assets-table td:nth-child(5) { width: 14%; }
+.long-term-assets-table td:nth-child(5) { width: 10%; }
 .long-term-assets-table th:nth-child(6),
-.long-term-assets-table td:nth-child(6) { width: 12%; }
+.long-term-assets-table td:nth-child(6) { width: 10%; }
+.long-term-assets-table th:last-child,
+.long-term-assets-table td:last-child { width: 10%; }
 .long-term-assets-table td .iv-report-table__sub { text-align: right; }
 
 @media (max-width: 900px) {

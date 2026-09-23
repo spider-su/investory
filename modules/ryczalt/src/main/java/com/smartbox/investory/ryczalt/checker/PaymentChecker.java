@@ -20,7 +20,7 @@ public final class PaymentChecker {
         transactions.stream()
             .filter(transaction -> transaction.currency().equals(obligation.currency()))
             .filter(transaction -> transaction.amount().signum() != 0)
-            .sorted(Comparator.comparing(Transaction::date).thenComparing(Transaction::reference))
+            .sorted(Comparator.comparing(Transaction::date).thenComparing(Transaction::matchKey))
             .toList();
     if (currencyCandidates.isEmpty()) {
       boolean otherCurrency =
@@ -111,7 +111,7 @@ public final class PaymentChecker {
     for (Transaction candidate : candidates) {
       if (remaining.signum() <= 0) break;
       BigDecimal allocation = candidate.amount().abs();
-      result.add(new PaymentAllocation(candidate.reference(), allocation));
+      result.add(new PaymentAllocation(candidate.matchKey(), allocation));
       remaining = remaining.subtract(candidate.amount().abs());
     }
     return result;
@@ -129,7 +129,7 @@ public final class PaymentChecker {
         .filter(
             transaction ->
                 allocations.stream()
-                    .anyMatch(a -> a.transactionReference().equals(transaction.reference())))
+                    .anyMatch(a -> a.transactionId().equals(transaction.matchKey())))
         .map(Transaction::date)
         .max(Comparator.naturalOrder())
         .orElseThrow();
@@ -190,7 +190,7 @@ public final class PaymentChecker {
     return transactions.stream()
         .map(
             transaction ->
-                new PaymentAllocation(transaction.reference(), transaction.amount().abs()))
+                new PaymentAllocation(transaction.matchKey(), transaction.amount().abs()))
         .toList();
   }
 }
