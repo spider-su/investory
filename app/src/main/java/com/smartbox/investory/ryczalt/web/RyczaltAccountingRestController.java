@@ -309,7 +309,8 @@ public class RyczaltAccountingRestController {
             : new InvoiceResponse.CounterpartyView(
                 value.counterparty().id(),
                 value.counterparty().legalName(),
-                value.counterparty().alias()),
+                value.counterparty().alias(),
+                value.counterparty().taxIdentifier()),
         value.approvalStatus(),
         value.approvalMethod(),
         value.paymentVerificationPolicy(),

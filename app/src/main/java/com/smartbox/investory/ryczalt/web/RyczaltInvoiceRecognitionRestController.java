@@ -5,6 +5,7 @@ import com.smartbox.investory.ryczalt.application.RyczaltInvoiceApprovalService;
 import com.smartbox.investory.ryczalt.application.RyczaltInvoiceApprovalService.ApproveCommand;
 import com.smartbox.investory.ryczalt.application.RyczaltInvoiceRecognitionService;
 import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -16,7 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/profiles/{profileId}/accounting/invoices")
 public class RyczaltInvoiceRecognitionRestController {
-  private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
   private final AuthorizationService authorization;
   private final RyczaltInvoiceRecognitionService recognition;
   private final RyczaltInvoiceApprovalService approval;
@@ -34,18 +34,18 @@ public class RyczaltInvoiceRecognitionRestController {
   public RyczaltInvoiceRecognitionService.CandidateView recognize(
       @PathVariable long profileId,
       @RequestPart("file") MultipartFile file,
-      Authentication authentication)
-      throws Exception {
+      Authentication authentication) {
     write(profileId, authentication);
-    if (file.isEmpty() || file.getSize() > MAX_FILE_SIZE || file.getContentType() == null)
+    String filename = RyczaltUploadSupport.filename(file.getOriginalFilename(), "invoice.pdf");
+    byte[] content;
+    try {
+      content = file.getBytes();
+    } catch (IOException exception) {
       throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "A non-empty supported invoice file is required");
-    return recognize(
-        profileId,
-        file.getOriginalFilename(),
-        file.getContentType(),
-        file.getBytes(),
-        authentication);
+          HttpStatus.BAD_REQUEST, "Could not read invoice upload", exception);
+    }
+    RyczaltUploadSupport.requireInvoice(filename, file.getContentType(), content);
+    return recognize(profileId, filename, file.getContentType(), content, authentication);
   }
 
   public RyczaltInvoiceRecognitionService.CandidateView recognize(
@@ -55,13 +55,9 @@ public class RyczaltInvoiceRecognitionRestController {
       byte[] content,
       Authentication authentication) {
     write(profileId, authentication);
-    if (content == null
-        || content.length == 0
-        || content.length > MAX_FILE_SIZE
-        || contentType == null)
-      throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "A non-empty supported invoice file is required");
-    return recognition.recognize(profileId, filename, contentType, content);
+    String safeFilename = RyczaltUploadSupport.filename(filename, "invoice.pdf");
+    RyczaltUploadSupport.requireInvoice(safeFilename, contentType, content);
+    return recognition.recognize(profileId, safeFilename, contentType, content);
   }
 
   @GetMapping("/candidates/{candidateKey}")

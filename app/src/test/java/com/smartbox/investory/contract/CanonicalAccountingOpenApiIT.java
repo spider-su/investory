@@ -75,6 +75,23 @@ class CanonicalAccountingOpenApiIT extends FastDatabaseTest {
         .isEqualTo("string");
     assertThat(schemas.path("InvoiceResponse").path("properties").has("sourceType")).isTrue();
     assertThat(schemas.path("InvoiceResponse").path("properties").has("sourceReference")).isTrue();
+    String counterpartyRef =
+        schemas
+            .path("InvoiceResponse")
+            .path("properties")
+            .path("counterparty")
+            .path("$ref")
+            .asText();
+    JsonNode counterpartySchema =
+        schemas.path(counterpartyRef.substring(counterpartyRef.lastIndexOf('/') + 1));
+    JsonNode taxIdentifier = counterpartySchema.path("properties").path("taxIdentifier");
+    assertThat(taxIdentifier.isMissingNode()).isFalse();
+    assertThat(
+            taxIdentifier.path("nullable").asBoolean()
+                || StreamSupport.stream(taxIdentifier.path("type").spliterator(), false)
+                    .map(JsonNode::asText)
+                    .anyMatch("null"::equals))
+        .isTrue();
   }
 
   private static java.util.List<String> propertyEnumValuesContaining(

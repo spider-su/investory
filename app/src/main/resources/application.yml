@@ -115,7 +115,6 @@ app:
   security:
     # Read routes require HTTP Basic by default. Set false only for a trusted local network.
     read-authentication-required: ${APP_SECURITY_READ_AUTHENTICATION_REQUIRED:true}
-    # Disabled during the Accounting POC. Re-enable after the POC is complete.
     csrf-protection-required: ${APP_SECURITY_CSRF_PROTECTION_REQUIRED:true}
     admin-username: ${APP_SECURITY_ADMIN_USERNAME:admin}
     admin-password: ${APP_SECURITY_ADMIN_PASSWORD:change-me-admin}
@@ -187,7 +186,7 @@ app:
   ryczalt:
     ksef:
       sync:
-        enabled: ${RYCZALT_KSEF_SYNC_ENABLED:true}
+        enabled: ${RYCZALT_KSEF_SYNC_ENABLED:false}
         cron: ${RYCZALT_KSEF_SYNC_CRON:0 0 2 * * *}
         zone: ${RYCZALT_KSEF_SYNC_ZONE:Europe/Warsaw}
     payment:

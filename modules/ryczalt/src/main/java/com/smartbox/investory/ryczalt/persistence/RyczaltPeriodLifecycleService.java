@@ -32,7 +32,7 @@ public class RyczaltPeriodLifecycleService {
   @Transactional
   public void freeze(long profileId, YearMonth month, String actor, String reason) {
     requireReason(reason);
-    RyczaltPeriodEntity period = find(profileId, month);
+    RyczaltPeriodEntity period = findLocked(profileId, month);
     if (!period.getStatus().canFreeze()) {
       throw new IllegalStateException("Only calculated or paid periods can be frozen");
     }
@@ -58,7 +58,7 @@ public class RyczaltPeriodLifecycleService {
   @Transactional
   public void reopen(long profileId, YearMonth month, String actor, String reason) {
     requireReason(reason);
-    RyczaltPeriodEntity period = find(profileId, month);
+    RyczaltPeriodEntity period = findLocked(profileId, month);
     if (!period.getStatus().isFrozen()) throw new IllegalStateException("Period is not frozen");
     period.markReopened(reason, Instant.now());
     periods.save(period);
@@ -67,7 +67,7 @@ public class RyczaltPeriodLifecycleService {
 
   @Transactional
   public void invalidate(long profileId, YearMonth month, InputChange change, String actor) {
-    RyczaltPeriodEntity period = find(profileId, month);
+    RyczaltPeriodEntity period = findLocked(profileId, month);
     if (period.getStatus().isFrozen()) {
       throw new FrozenPeriodMutationException(profileId, month.getYear(), month.getMonthValue());
     }
@@ -91,9 +91,9 @@ public class RyczaltPeriodLifecycleService {
         profileId, period.id(), "CALCULATION_INVALIDATED", change.name(), actor, Instant.now());
   }
 
-  private RyczaltPeriodEntity find(long profileId, YearMonth month) {
+  private RyczaltPeriodEntity findLocked(long profileId, YearMonth month) {
     return periods
-        .findByProfileIdAndYearAndMonth(profileId, month.getYear(), month.getMonthValue())
+        .findLocked(profileId, month.getYear(), month.getMonthValue())
         .orElseThrow(() -> new IllegalArgumentException("Period does not exist: " + month));
   }
 

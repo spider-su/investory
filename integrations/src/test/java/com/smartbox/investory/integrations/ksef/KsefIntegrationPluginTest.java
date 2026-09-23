@@ -10,9 +10,9 @@ class KsefIntegrationPluginTest {
   private final KsefIntegrationPlugin plugin = new KsefIntegrationPlugin(null);
 
   @Test
-  void exposesEInvoicingPluginWithoutScheduledJobs() {
+  void exposesEInvoicingPluginWithInvoiceSyncJob() {
     assertEquals("ksef", plugin.id());
     assertEquals(IntegrationType.E_INVOICING, plugin.type());
-    assertTrue(plugin.descriptor().jobs().isEmpty());
+    assertTrue(plugin.descriptor().jobs().contains("sync-invoices"));
   }
 }

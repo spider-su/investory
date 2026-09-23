@@ -31,5 +31,10 @@ public record InvoiceResponse(
         String sourceType,
     @Schema(nullable = true, description = "Display-safe provider reference; null for uploads")
         String sourceReference) {
-  public record CounterpartyView(long id, String legalName, String alias) {}
+  public record CounterpartyView(
+      long id,
+      String legalName,
+      String alias,
+      @Schema(nullable = true, description = "Counterparty tax identifier, when known")
+          String taxIdentifier) {}
 }

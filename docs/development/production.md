@@ -16,6 +16,9 @@ At minimum provide:
 - `APP_SECURITY_ADMIN_USERNAME`, `APP_SECURITY_ADMIN_PASSWORD`, `APP_SECURITY_USER_USERNAME`, and `APP_SECURITY_USER_PASSWORD`;
 - `DEVELOP_MODE=false`;
 - a stable `INVESTORY_INTEGRATION_MASTER_KEY` before encrypted integration secrets are stored;
+- `APP_SECURITY_TOKEN_SECRET` with at least 32 characters;
+- `INVESTORY_KSEF_ENVIRONMENT`, `INVESTORY_KSEF_NIP`, and `INVESTORY_KSEF_TOKEN` when the legacy KSeF configuration is used;
+- `RYCZALT_KSEF_SYNC_ENABLED=true` only when scheduled KSeF synchronization is explicitly wanted;
 - provider credentials only for integrations that are enabled.
 
 Do not deploy with the non-production `change-me-*` security defaults. Keep secrets outside the repository and image.
@@ -29,6 +32,8 @@ Before a schema-changing release, take a database backup appropriate to the Post
 ## Scheduling and external data
 
 Scheduled work is globally controlled by `SCHEDULING_ENABLED`. Market prices, FX, notifications, Telegram, and OpenAI analysis additionally depend on their own configuration and provider availability. Provider failures must not be treated as permission to invent or silently substitute financial facts.
+
+KSeF scheduled synchronization is disabled by default. Enable it explicitly with `RYCZALT_KSEF_SYNC_ENABLED=true`; manual authorized KSeF sync is still available when the KSeF integration is configured.
 
 Yahoo Finance is the primary configured market quote integration; unsupported/non-US listings may require manual prices. FX uses NBP and the canonical rules in `../domain/fx-normalization.md`. Yahoo export is an adapter surface and participates in C7 reconciliation; it is not an accounting source of truth.
 

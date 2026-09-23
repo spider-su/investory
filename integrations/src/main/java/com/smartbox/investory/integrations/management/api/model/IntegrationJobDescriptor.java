@@ -15,6 +15,9 @@ public record IntegrationJobDescriptor(
       case "export-portfolio" ->
           new IntegrationJobDescriptor(
               jobType, "Export portfolio", "0 0 22 * * *", "Europe/Warsaw");
+      case "sync-invoices" ->
+          new IntegrationJobDescriptor(
+              jobType, "Sync KSeF invoices", "0 0 2 * * *", "Europe/Warsaw");
       default -> new IntegrationJobDescriptor(jobType, jobType, "0 0 * * * *", "Europe/Warsaw");
     };
   }

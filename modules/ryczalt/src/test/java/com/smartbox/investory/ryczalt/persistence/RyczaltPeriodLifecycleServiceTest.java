@@ -23,7 +23,7 @@ class RyczaltPeriodLifecycleServiceTest {
     RyczaltPeriodEntity period = mock(RyczaltPeriodEntity.class);
     when(period.id()).thenReturn(10L);
     when(period.getStatus()).thenReturn(PeriodStatus.CALCULATED);
-    when(periods.findByProfileIdAndYearAndMonth(7L, 2026, 1)).thenReturn(Optional.of(period));
+    when(periods.findLocked(7L, 2026, 1)).thenReturn(Optional.of(period));
     when(calculations.findByProfileIdAndPeriodIdAndTypeAndCurrentTrue(
             7L, 10L, CalculationType.RYCZALT))
         .thenReturn(Optional.empty());

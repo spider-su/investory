@@ -428,6 +428,8 @@ class InvestmentDashboardFacadeTest {
     assertEquals(
         result.performance().summary().expectedAnnualReturn().value(),
         profileKpi.expectedAnnualReturn());
+    // The KPI starts in 2026, so all prior-year slots use fixed SPY returns.
+    assertEquals(new BigDecimal("0.1884"), profileKpi.expectedAnnualReturn());
     assertEquals(result.performance().summary().totalReturnStartDate(), profileKpi.startDate());
   }
 

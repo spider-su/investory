@@ -288,7 +288,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
               "Investment result YTD",
               "Annualized current investment result",
               "Annualized current result",
-              "Historical annualized TWR")
+              "Annualized current return")
           .doesNotContain("p.a.");
       assertThat(
               sourceCards

@@ -99,7 +99,7 @@ The normal `/profiles/{profileId}/accounting` page is also the acquisition entry
 document, bank CSV import, and KSeF sync go through `AccountingPageController`, the
 `AccountingRestClient` abstraction, `InProcessAccountingClient`, and `AccountingUserFacade`; the
 facade delegates to source acquisition before extraction and normalized facts. Bank is currently
-CSV-only. KSeF status is shown explicitly as connected or not configured. Source-evidence counts are
+CSV-only. Native invoice recognition currently accepts text PDFs only; image uploads are not OCR-capable and are rejected. KSeF status is shown explicitly as connected or not configured. Source-evidence counts are
 separate from normalized document counts, so preloaded normalized documents may coexist with zero
 source evidence.
 

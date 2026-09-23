@@ -22,6 +22,7 @@ app:
     # Production must provide a stable key; never use the development fallback.
     master-key: ${INVESTORY_INTEGRATION_MASTER_KEY}
   security:
+    token-secret: ${APP_SECURITY_TOKEN_SECRET}
     admin-username: ${APP_SECURITY_ADMIN_USERNAME}
     admin-password: ${APP_SECURITY_ADMIN_PASSWORD}
     user-username: ${APP_SECURITY_USER_USERNAME}
@@ -31,5 +32,13 @@ app:
       client-id: ${APP_SECURITY_GOOGLE_CLIENT_ID:}
       client-secret: ${APP_SECURITY_GOOGLE_CLIENT_SECRET:}
       redirect-uri: ${APP_SECURITY_GOOGLE_REDIRECT_URI:{baseUrl}/login/oauth2/code/{registrationId}}
+  ksef:
+    environment: ${INVESTORY_KSEF_ENVIRONMENT}
+    nip: ${INVESTORY_KSEF_NIP}
+    token: ${INVESTORY_KSEF_TOKEN}
+  ryczalt:
+    ksef:
+      sync:
+        enabled: ${RYCZALT_KSEF_SYNC_ENABLED:false}
   notifications:
     enabled: true

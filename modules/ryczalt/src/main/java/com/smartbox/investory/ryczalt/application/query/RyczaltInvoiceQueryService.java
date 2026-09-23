@@ -111,7 +111,8 @@ public class RyczaltInvoiceQueryService {
             : new RyczaltInvoiceReadModel.CounterpartyView(
                 row.getCounterparty().id(),
                 row.getCounterparty().getLegalName(),
-                row.getCounterparty().getAlias()),
+                row.getCounterparty().getAlias(),
+                row.getCounterparty().getTaxIdentifier()),
         row.getApprovalStatus(),
         row.getApprovalMethod(),
         row.getPaymentVerificationPolicy(),

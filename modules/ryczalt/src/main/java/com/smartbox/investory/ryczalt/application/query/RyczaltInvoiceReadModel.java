@@ -30,7 +30,7 @@ public record RyczaltInvoiceReadModel(
     InvoicePaymentStatus paymentStatus,
     String sourceType,
     String sourceReference) {
-  public record CounterpartyView(long id, String legalName, String alias) {}
+  public record CounterpartyView(long id, String legalName, String alias, String taxIdentifier) {}
 
   public RyczaltInvoiceReadModel(
       long id,
