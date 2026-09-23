@@ -19,7 +19,6 @@ DISABLED_SOURCE_PARTS = (
 )
 DISABLED_TEST_NAMES = {
     "AccountingPocUiIT",
-    "CanonicalAccountingOpenApiIT",
 }
 
 

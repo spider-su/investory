@@ -39,7 +39,6 @@ public class RyczaltAccountingPageController {
       HttpServletRequest request) {
     var periods = client.periods(profileId);
     var selected = month == null ? YearMonth.now() : month;
-    var reference = client.reference(profileId, selected);
     RyczaltWebAccountingClient.Period period;
     List<RyczaltWebAccountingClient.Invoice> invoices;
     List<RyczaltWebAccountingClient.Transaction> transactions;
@@ -72,7 +71,6 @@ public class RyczaltAccountingPageController {
     model.addAttribute("selectedMonthInPeriods", selectedMonthInPeriods);
     model.addAttribute("periods", periods);
     model.addAttribute("period", period);
-    model.addAttribute("reference", reference);
     model.addAttribute("invoices", invoices);
     model.addAttribute(
         "incomeInvoices",
@@ -94,25 +92,21 @@ public class RyczaltAccountingPageController {
     model.addAttribute("payments", List.of());
     model.addAttribute(
         "workspaceStatus", "FROZEN".equals(period.status()) ? "Frozen" : "In progress");
-    model.addAttribute("taxCards", taxCards(period, reference, obligations));
+    model.addAttribute("taxCards", taxCards(period, obligations));
     return "accounting/ryczalt";
   }
 
   private static List<TaxCard> taxCards(
       RyczaltWebAccountingClient.Period period,
-      RyczaltWebAccountingClient.Reference reference,
       List<RyczaltWebAccountingClient.Obligation> obligations) {
     return List.of(
-        taxCard("Ryczalt", period.summary().ryczalt(), reference.ryczalt(), obligations),
-        taxCard("VAT", period.summary().vat(), reference.vatPayable(), obligations),
-        taxCard("ZUS", period.summary().zus(), reference.zus(), obligations));
+        taxCard("Ryczalt", period.summary().ryczalt(), obligations),
+        taxCard("VAT", period.summary().vat(), obligations),
+        taxCard("ZUS", period.summary().zus(), obligations));
   }
 
   private static TaxCard taxCard(
-      String type,
-      BigDecimal calculated,
-      BigDecimal reference,
-      List<RyczaltWebAccountingClient.Obligation> obligations) {
+      String type, BigDecimal calculated, List<RyczaltWebAccountingClient.Obligation> obligations) {
     var bank =
         obligations.stream()
             .filter(item -> type.equalsIgnoreCase(item.type()))
@@ -130,9 +124,9 @@ public class RyczaltAccountingPageController {
     return new TaxCard(
         type,
         whole(calculated),
-        whole(reference),
+        whole(calculated),
         whole(bank),
-        difference(calculated, reference),
+        BigDecimal.ZERO.setScale(0).toPlainString(),
         difference(calculated, bank),
         paid ? "✓ Paid" : "○ Unpaid",
         paid ? "is-paid" : "is-unpaid");

@@ -1,10 +1,18 @@
 package com.smartbox.investory.ryczalt.domain;
 
-/** Preliminary accounting-period lifecycle. Payment and closing semantics remain future work. */
+/** Native period lifecycle. Calculation and obligation statuses remain separate concerns. */
 public enum PeriodStatus {
   OPEN,
   DIRTY,
   CALCULATED,
   PAID,
-  FROZEN
+  FROZEN;
+
+  public boolean isFrozen() {
+    return this == FROZEN;
+  }
+
+  public boolean canFreeze() {
+    return this == CALCULATED || this == PAID;
+  }
 }

@@ -89,27 +89,6 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
   }
 
   @Override
-  public Reference reference(long profileId, YearMonth month) {
-    if (accounting.periods(profileId, authentication()).stream()
-        .noneMatch(value -> value.month().equals(month))) {
-      return new Reference(false, null, null, null, null, null, null, null, 0, 0, null);
-    }
-    var value = accounting.period(profileId, month, authentication());
-    return new Reference(
-        true,
-        decimal(value.audit().revenue()),
-        null,
-        decimal(value.audit().outputVat()),
-        decimal(value.audit().inputVat()),
-        decimal(value.audit().finalPayable()),
-        decimal(value.audit().monthlyAdvance()),
-        decimal(value.summary().zus()),
-        value.documents().invoiceCount(),
-        value.documents().transactionCount(),
-        value.status().name());
-  }
-
-  @Override
   public List<Invoice> invoices(long profileId, YearMonth month) {
     return accounting.invoices(profileId, month, authentication()).stream()
         .map(this::invoice)

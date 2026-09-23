@@ -7,7 +7,6 @@ import com.smartbox.investory.ryczalt.checker.PaymentCheckStatus;
 import com.smartbox.investory.ryczalt.checker.PaymentChecker;
 import com.smartbox.investory.ryczalt.checker.PaymentMatchType;
 import com.smartbox.investory.ryczalt.domain.ObligationStatus;
-import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.domain.Transaction;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository;
@@ -121,7 +120,7 @@ public class SettlementService {
       RyczaltObligationEntity obligation,
       List<RyczaltTransactionEntity> storedTransactions,
       PaymentAccountRules accountRules) {
-    if (period.getStatus() == PeriodStatus.FROZEN)
+    if (period.getStatus().isFrozen())
       return new PaymentCheckResult(
           PaymentCheckStatus.NOT_FOUND,
           obligation.getAmount(),
@@ -212,7 +211,7 @@ public class SettlementService {
   }
 
   private void requireMutable(RyczaltPeriodEntity period) {
-    if (period.getStatus() == PeriodStatus.FROZEN)
+    if (period.getStatus().isFrozen())
       throw new IllegalStateException("Frozen period settlement is immutable");
   }
 

@@ -15,19 +15,12 @@ Its API paths are defined in `src/api/accountingPaths.ts` and calls are made by
 
 | Current endpoint | Web | Mobile | Current owner | Target |
 | --- | --- | --- | --- | --- |
-| `GET /api/profiles/{profileId}/accounting/months` | no direct current mobile use | no | legacy Accounting | replace with `/accounting/periods` |
-| `GET /api/profiles/{profileId}/accounting/months/{month}/overview` | yes | no | legacy Accounting DTO | replace with `/accounting/periods/{month}` |
-| `GET /api/v1/profiles/{profileId}/accounting/months/{month}` | no | yes | `AccountingMobileResponse` over legacy DTO | replace with `/accounting/periods/{month}` |
-| `GET /api/profiles/{profileId}/accounting/months/{month}/documents` | yes | no | legacy Accounting DTO | replace with `/accounting/periods/{month}/invoices` |
-| `GET /api/v1/profiles/{profileId}/accounting/months/{month}/documents` | no | yes | mobile DTO over legacy DTO | replace with `/accounting/periods/{month}/invoices` |
-| `GET .../bank-transactions` | web only | no | legacy Accounting | replace with `/accounting/periods/{month}/transactions` when native sync exists |
-| `GET .../payments` | web only | no | legacy Accounting | native `/accounting/payments` |
-| `GET .../payments/history` and `/api/v1/.../payments/history` | web and mobile | yes | legacy Accounting | transitional legacy routes; not the native contract |
-| `GET/PUT /api/v1/.../auto-approval` | no | yes | legacy Accounting | temporary; product ownership decision required |
-| `GET/PUT .../counterparties` | web and mobile read path | mobile read only | legacy Accounting | temporary; not native Ryczalt yet |
-| document recognition/save | web and mobile | mobile uses both | legacy Accounting | temporary ingestion workflow; do not call it invoice resource |
-| KSeF, bank import, filing, staging commands | web | no mobile use found | legacy Accounting | temporary or remove by product decision |
-| settle, lock, reopen | web | no mobile use found | old routes use the app bridge; native routes use `RyczaltAccountingApi` | retain common commands during migration, with native `freeze` replacing `lock` |
+| native period, invoice, transaction, obligation, issue, and payment routes | web/mobile target | native Ryczalt | `RyczaltAccountingRestController` | stable native contract |
+| native counterparty and invoice-recognition routes | web target | native Ryczalt | dedicated Ryczalt controllers | stable native contract |
+| `POST .../periods/{month}/calculate` | web/API | no current mobile use | native Ryczalt | accepts normalized RYCZALT/VAT/ZUS inputs and completes one month |
+| `POST .../bank/import` and `POST .../ksef/sync` | web/API | no current mobile use | native Ryczalt adapters | source acquisition is native; filing remains separate |
+| old `/api/v1` mobile and `/accounting/months` routes | compatibility only | legacy consumers | legacy Accounting | migrate consumers before deleting compatibility code |
+| filing, confirmation, and JPK commands | legacy | no current native consumer | legacy Accounting | product decision and native filing design still required |
 
 The mobile client consumes monthly facts for revenue, Ryczałt/VAT/ZUS amounts, payment rows,
 issues, document rows, source/review/payment statuses, bank/reconciliation summaries, filing
@@ -66,6 +59,9 @@ GET  /api/profiles/{profileId}/accounting/invoices?month=YYYY-MM&counterpartyId=
 POST /api/profiles/{profileId}/accounting/periods/{month}/settle
 POST /api/profiles/{profileId}/accounting/periods/{month}/freeze
 POST /api/profiles/{profileId}/accounting/periods/{month}/reopen
+POST /api/profiles/{profileId}/accounting/periods/{month}/calculate
+POST /api/profiles/{profileId}/accounting/bank/import
+POST /api/profiles/{profileId}/accounting/ksef/sync
 ```
 
 The top-level period response is a factual summary only:
@@ -156,6 +152,11 @@ operations described above; it must not reconstruct legacy Accounting DTOs.
 Native accounting REST uses `/api/profiles/{profileId}/accounting`. Invoice history is available
 at `/invoices` with optional `month` and `counterpartyId` filters; period detail collections use
 their dedicated `/periods/{month}/...` routes. Generated OpenAPI is served at `/v3/api-docs`.
+
+`POST /periods/{month}/calculate` runs the native monthly RYCZALT, VAT, ZUS, and obligation cycle.
+It accepts normalized PLN inputs (`revenueByRate`, VAT components, ZUS inputs, and consumed
+deductions), creates a missing period when needed, and returns the calculation result. It is a
+backend command; Web and mobile clients do not yet aggregate source facts automatically.
 
 `POST /api/profiles/{profileId}/accounting/invoices/recognize` accepts multipart field `file`. The server stores a native candidate and returns its `candidateKey`, source identity, source amounts/dates, counterparty resolution, approval state, typed `requiredInputs`, and decimal values as plain JSON strings.
 

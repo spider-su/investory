@@ -61,8 +61,15 @@ public class RyczaltPeriodEntity extends RyczaltEntity {
     return status;
   }
 
-  public void setStatus(PeriodStatus status) {
-    this.status = status;
+  public void markDirty() {
+    if (status.isFrozen()) throw new IllegalStateException("Frozen period cannot become dirty");
+    this.status = PeriodStatus.DIRTY;
+  }
+
+  public void markCalculated(Instant at) {
+    if (status.isFrozen()) throw new IllegalStateException("Frozen period cannot be calculated");
+    this.status = PeriodStatus.CALCULATED;
+    this.calculatedAt = at;
   }
 
   public void markReopened(String reason, Instant at) {

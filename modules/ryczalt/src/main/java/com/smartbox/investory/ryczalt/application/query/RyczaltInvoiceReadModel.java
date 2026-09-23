@@ -27,7 +27,9 @@ public record RyczaltInvoiceReadModel(
     ApprovalStatus approvalStatus,
     ApprovalMethod approvalMethod,
     PaymentVerificationPolicy paymentVerificationPolicy,
-    InvoicePaymentStatus paymentStatus) {
+    InvoicePaymentStatus paymentStatus,
+    String sourceType,
+    String sourceReference) {
   public record CounterpartyView(long id, String legalName, String alias) {}
 
   public RyczaltInvoiceReadModel(
@@ -61,6 +63,8 @@ public record RyczaltInvoiceReadModel(
         ApprovalStatus.NEEDS_REVIEW,
         null,
         PaymentVerificationPolicy.REQUIRED,
-        InvoicePaymentStatus.UNMATCHED);
+        InvoicePaymentStatus.UNMATCHED,
+        null,
+        null);
   }
 }

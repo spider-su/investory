@@ -11,6 +11,7 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodListItem;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundException;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltTransactionReadModel;
+import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
@@ -161,6 +162,19 @@ public class RyczaltAccountingRestController {
     return ResponseEntity.noContent().build();
   }
 
+  @PostMapping("/periods/{month}/calculate")
+  public NativeMonthCalculationResult calculate(
+      @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
+    write(profileId, authentication);
+    try {
+      return accounting.calculateFromPersistedFacts(profileId, month);
+    } catch (IllegalArgumentException exception) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
+    } catch (IllegalStateException exception) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, exception.getMessage(), exception);
+    }
+  }
+
   public record LifecycleRequest(String reason) {}
 
   private void command(Runnable operation) {
@@ -286,7 +300,9 @@ public class RyczaltAccountingRestController {
         value.approvalStatus(),
         value.approvalMethod(),
         value.paymentVerificationPolicy(),
-        value.paymentStatus());
+        value.paymentStatus(),
+        value.sourceType(),
+        value.sourceReference());
   }
 
   private TransactionResponse transaction(RyczaltTransactionReadModel value) {

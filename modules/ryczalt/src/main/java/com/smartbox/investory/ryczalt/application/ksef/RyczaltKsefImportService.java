@@ -159,7 +159,7 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
                     periods.save(
                         new RyczaltPeriodEntity(
                             profileId, month.getYear(), month.getMonthValue(), PeriodStatus.OPEN)));
-    if (period.getStatus() == PeriodStatus.FROZEN) {
+    if (period.getStatus().isFrozen()) {
       throw new FrozenPeriodMutationException(profileId, month.getYear(), month.getMonthValue());
     }
     return period;

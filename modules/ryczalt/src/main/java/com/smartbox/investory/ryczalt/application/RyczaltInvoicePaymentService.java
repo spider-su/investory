@@ -1,6 +1,5 @@
 package com.smartbox.investory.ryczalt.application;
 
-import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.persistence.InvoiceDirection;
 import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceJpaRepository;
@@ -52,7 +51,7 @@ public class RyczaltInvoicePaymentService {
   }
 
   private static void requireMutable(RyczaltInvoiceEntity invoice) {
-    if (invoice.getPeriod().getStatus() == PeriodStatus.FROZEN) {
+    if (invoice.getPeriod().getStatus().isFrozen()) {
       throw new IllegalStateException("Frozen period payment confirmation is immutable");
     }
   }

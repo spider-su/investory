@@ -1,8 +1,8 @@
 package com.smartbox.investory.ryczalt.persistence;
 
+import com.smartbox.investory.ryczalt.application.port.RyczaltCorrectionWriter;
 import java.time.Instant;
 import java.time.YearMonth;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,11 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RyczaltCorrectionService {
   private final RyczaltPeriodJpaRepository periods;
-  private final JdbcTemplate jdbc;
+  private final RyczaltCorrectionWriter writer;
 
-  public RyczaltCorrectionService(RyczaltPeriodJpaRepository periods, JdbcTemplate jdbc) {
+  public RyczaltCorrectionService(
+      RyczaltPeriodJpaRepository periods, RyczaltCorrectionWriter writer) {
     this.periods = periods;
-    this.jdbc = jdbc;
+    this.writer = writer;
   }
 
   @Transactional
@@ -43,10 +44,7 @@ public class RyczaltCorrectionService {
                 .map(RyczaltPeriodEntity::id)
                 .orElseThrow(
                     () -> new IllegalArgumentException("Correction period does not exist"));
-    jdbc.update(
-        "INSERT INTO investory.ryczalt_correction (profile_id, original_period_id, entity_type,"
-            + " entity_id, reason, requested_at, correction_period_id) VALUES (?, ?, ?, ?, ?, ?,"
-            + " ?)",
+    return writer.write(
         profileId,
         originalPeriodId,
         entityType,
@@ -54,7 +52,5 @@ public class RyczaltCorrectionService {
         reason,
         Instant.now(),
         correctionPeriodId);
-    return jdbc.queryForObject(
-        "SELECT currval(pg_get_serial_sequence('investory.ryczalt_correction', 'id'))", Long.class);
   }
 }

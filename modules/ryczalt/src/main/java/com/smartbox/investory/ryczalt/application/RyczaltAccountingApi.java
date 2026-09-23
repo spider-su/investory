@@ -7,6 +7,8 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltPaymentHistoryRea
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodListItem;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltTransactionReadModel;
+import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationInput;
+import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
 import java.time.YearMonth;
 import java.util.List;
 
@@ -36,4 +38,9 @@ public interface RyczaltAccountingApi {
   void freeze(long profileId, YearMonth month, String actor, String reason);
 
   void reopen(long profileId, YearMonth month, String actor, String reason);
+
+  NativeMonthCalculationResult calculate(
+      long profileId, YearMonth month, NativeMonthCalculationInput input);
+
+  NativeMonthCalculationResult calculateFromPersistedFacts(long profileId, YearMonth month);
 }

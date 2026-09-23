@@ -5,9 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.smartbox.investory.ryczalt.application.bank.RyczaltBankImportResult;
 import com.smartbox.investory.ryczalt.application.bank.RyczaltBankImportService;
+import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationInput;
+import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationService;
+import com.smartbox.investory.ryczalt.calculation.vat.VatCalculationInput;
+import com.smartbox.investory.ryczalt.calculation.zus.ZusCalculationInput;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.integration.bank.CsvBankTransactionSourceAdapter;
 import com.smartbox.investory.ryczalt.persistence.FrozenPeriodMutationException;
+import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceJpaRepository;
+import com.smartbox.investory.ryczalt.persistence.RyczaltNativeMonthInputJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
@@ -43,6 +49,7 @@ class RyczaltNativeBankImportIT {
       "booking_date,related_period,reference,counterparty,currency,amount,note\n";
 
   @Autowired private RyczaltBankImportService bankImport;
+  @Autowired private NativeMonthCalculationService monthCalculation;
   @Autowired private RyczaltPeriodJpaRepository periods;
   @Autowired private RyczaltTransactionJpaRepository transactions;
   @Autowired private RyczaltSourceReferenceJpaRepository sourceReferences;
@@ -133,6 +140,99 @@ class RyczaltNativeBankImportIT {
             String.class);
     assertThat(matches).isEqualTo(1);
     assertThat(status).isEqualTo("PAID");
+  }
+
+  @Test
+  void newMonthCalculatesAllTaxesCreatesObligationsAndSettlesBankPayments() {
+    var result =
+        monthCalculation.calculate(
+            1,
+            java.time.YearMonth.of(2026, 9),
+            new NativeMonthCalculationInput(
+                java.util.Map.of(
+                    new java.math.BigDecimal("0.12"), new java.math.BigDecimal("10000")),
+                new VatCalculationInput(
+                    new java.math.BigDecimal("2300"),
+                    java.math.BigDecimal.ZERO,
+                    new java.math.BigDecimal("100")),
+                new ZusCalculationInput(
+                    true,
+                    false,
+                    "JDG",
+                    false,
+                    new java.math.BigDecimal("10000"),
+                    new java.math.BigDecimal("2000")),
+                java.math.BigDecimal.ZERO));
+
+    assertThat(result.ryczalt()).isPositive();
+    assertThat(result.vat()).isEqualByComparingTo("2200");
+    assertThat(result.zus()).isPositive();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM investory.ryczalt_calculation WHERE profile_id=1",
+                Integer.class))
+        .isEqualTo(3);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT status FROM investory.ryczalt_period WHERE profile_id=1"
+                    + " AND period_year=2026 AND period_month=9",
+                String.class))
+        .isEqualTo("CALCULATED");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM investory.ryczalt_calculation WHERE profile_id=1"
+                    + " AND status='CALCULATED' AND is_current=true",
+                Integer.class))
+        .isEqualTo(3);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM investory.ryczalt_obligation WHERE profile_id=1",
+                Integer.class))
+        .isEqualTo(3);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM investory.ryczalt_obligation WHERE profile_id=1"
+                    + " AND obligation_type IN ('RYCZALT', 'VAT', 'ZUS')",
+                Integer.class))
+        .isEqualTo(3);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT amount FROM investory.ryczalt_obligation WHERE profile_id=1"
+                    + " AND obligation_type='RYCZALT'",
+                java.math.BigDecimal.class))
+        .isEqualByComparingTo(result.ryczalt());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT amount FROM investory.ryczalt_obligation WHERE profile_id=1"
+                    + " AND obligation_type='VAT'",
+                java.math.BigDecimal.class))
+        .isEqualByComparingTo(result.vat());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT amount FROM investory.ryczalt_obligation WHERE profile_id=1"
+                    + " AND obligation_type='ZUS'",
+                java.math.BigDecimal.class))
+        .isEqualByComparingTo(result.zus());
+
+    importCsv(
+        1,
+        "2026-09-10,2026-09-01,PPE-SEP,Tax Office,PLN,-"
+            + result.ryczalt().toPlainString()
+            + ",PPE ryczalt payment",
+        "2026-09-11,2026-09-01,VAT-SEP,Tax Office,PLN,-"
+            + result.vat().toPlainString()
+            + ",VAT payment",
+        "2026-09-12,2026-09-01,ZUS-SEP,ZUS,PLN,-" + result.zus().toPlainString() + ",ZUS payment");
+
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM investory.ryczalt_payment_match", Integer.class))
+        .isEqualTo(3);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM investory.ryczalt_obligation WHERE profile_id=1 AND status='PAID'",
+                Integer.class))
+        .isEqualTo(3);
   }
 
   @Test
@@ -230,6 +330,8 @@ class RyczaltNativeBankImportIT {
   @EnableJpaRepositories(
       basePackageClasses = {
         RyczaltPeriodJpaRepository.class,
+        RyczaltInvoiceJpaRepository.class,
+        RyczaltNativeMonthInputJpaRepository.class,
         RyczaltTransactionJpaRepository.class,
         RyczaltSourceReferenceJpaRepository.class,
         RyczaltObligationJpaRepository.class,
@@ -238,8 +340,13 @@ class RyczaltNativeBankImportIT {
       })
   @Import({
     RyczaltBankImportService.class,
+    NativeMonthCalculationService.class,
+    com.smartbox.investory.ryczalt.calculation.application.NativeMonthInputAggregator.class,
+    com.smartbox.investory.ryczalt.persistence.RyczaltCalculationPersistenceAdapter.class,
     CsvBankTransactionSourceAdapter.class,
     RyczaltPeriodLifecycleService.class,
+    com.smartbox.investory.ryczalt.persistence.JdbcRyczaltAuditEventWriter.class,
+    com.smartbox.investory.ryczalt.persistence.JdbcRyczaltPaymentAccountRulesReader.class,
     SettlementService.class,
     RyczaltPaymentAccountResolver.class
   })

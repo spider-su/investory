@@ -5,6 +5,7 @@ import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
 import com.smartbox.investory.ryczalt.domain.InvoicePaymentStatus;
 import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 
 public record InvoiceResponse(
@@ -25,6 +26,10 @@ public record InvoiceResponse(
     ApprovalStatus approvalStatus,
     ApprovalMethod approvalMethod,
     PaymentVerificationPolicy paymentVerificationPolicy,
-    InvoicePaymentStatus paymentStatus) {
+    InvoicePaymentStatus paymentStatus,
+    @Schema(nullable = true, description = "Provenance source, for example KSEF or UPLOAD")
+        String sourceType,
+    @Schema(nullable = true, description = "Display-safe provider reference; null for uploads")
+        String sourceReference) {
   public record CounterpartyView(long id, String legalName, String alias) {}
 }
