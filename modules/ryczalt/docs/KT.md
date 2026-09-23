@@ -127,7 +127,6 @@ GET /invoices?month=YYYY-MM&counterpartyId=...
 Lifecycle commands:
 
 ```text
-POST /periods/{month}/settle
 POST /periods/{month}/freeze       body: { "reason": "..." }
 POST /periods/{month}/reopen       body: { "reason": "..." }
 ```
@@ -155,9 +154,7 @@ Ryczalt REST controllers and calls them directly, preserving REST request/respon
 loopback HTTP call. This is the current migration pattern. Do not add a direct Web dependency on
 Ryczalt repositories or application services.
 
-The MVC controller should remain thin: read a Web contract, populate the model, select a template,
-and send lifecycle commands through the client. Unsupported upload/KSeF/bank/filing operations must
-remain explicit unsupported features; do not fake successful integration behavior.
+The MVC controller should remain thin: read a Web contract, populate the model, select a template, and send commands through the client. Upload, KSeF, bank import, and lifecycle commands are native; filing/JPK remains outside the current scope.
 
 ## 6. Review points and current answers
 
@@ -198,18 +195,13 @@ remain explicit unsupported features; do not fake successful integration behavio
 - Current native list endpoints return plain `List` values. There is no `Pageable`, cursor, offset,
   limit, or total-count contract. This is acceptable for current expected volume, but pagination is
   an API change to plan before large invoice/payment histories are exposed.
-- Lifecycle commands have no idempotency-key contract. `settle` is mostly repeat-safe because
-  existing payment pairs are not duplicated, but `freeze` and `reopen` are state-guarded commands:
-  retrying an already completed transition currently returns a conflict/error rather than a
-  documented idempotent success. Add explicit idempotency semantics before using automatic retries.
+- Lifecycle commands have no idempotency-key contract. `freeze` and `reopen` are state-guarded commands: retrying an already completed transition currently returns a conflict/error rather than a documented idempotent success. Add explicit idempotency semantics before using automatic retries.
 
 ### Ingestion reality
 
 - Native CSV bank import, KSeF sync, invoice recognition, month input settings, and calculation
   commands persist canonical Ryczalt facts.
-- The old `/accounting` compatibility routes and bridge have been removed. Native bank/KSeF
-  application APIs are not exposed by the accounting REST controller yet. Third-party KSeF evidence
-  and JPK/filing remain outside the native module.
+- The old `/accounting` compatibility routes and bridge have been removed. Native bank and KSeF commands are exposed through dedicated native REST controllers. Third-party KSeF evidence and JPK/filing remain outside the native module.
 - The native invoice upload flow is candidate-based and purchase-oriented. Web upload creates a
   candidate, then a review form approves it or leaves it in `NEEDS_REVIEW`; source amounts and dates
   remain server-owned. `rememberRule` must be explicitly selected.
@@ -282,9 +274,7 @@ CI is defined in `.github/workflows/tests.yml`. The main stages are:
   REST suites.
 - UI setup/execution: Chromium-backed browser tests with PostgreSQL fixtures and uploaded artifacts.
 
-The native Web controller and native REST routes are the only active accounting paths. Legacy
-controllers and adapters have been removed. Legacy source in `modules/accounting`, migration SQL,
-and tables remain only for the planned later cleanup.
+The native Web controller and native REST routes are the only active accounting paths. Legacy controllers and adapters have been removed. Historical Accounting source and schema artifacts are retained only for separate cleanup/reference purposes.
 
 ## 9. First places to read
 
