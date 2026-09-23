@@ -86,12 +86,16 @@ public class RyczaltAccountingPageController {
     model.addAttribute("issues", issues);
     model.addAttribute("today", LocalDate.now());
     model.addAttribute("canWrite", canWrite(request));
-    model.addAttribute("nativeRyczaltCompatibility", true);
     model.addAttribute("toPayAmountDisplay", whole(period.settlement().totalOutstanding()));
     model.addAttribute("paidAmountDisplay", whole(period.settlement().totalPaid()));
-    model.addAttribute("payments", List.of());
     model.addAttribute(
-        "workspaceStatus", "FROZEN".equals(period.status()) ? "Frozen" : "In progress");
+        "nextDueDate",
+        obligations.stream()
+            .filter(item -> item.outstanding() != null && item.outstanding().signum() > 0)
+            .map(RyczaltWebAccountingClient.Obligation::dueDate)
+            .filter(java.util.Objects::nonNull)
+            .min(java.util.Comparator.naturalOrder())
+            .orElse(null));
     model.addAttribute("taxCards", taxCards(period, obligations));
     return "accounting/ryczalt";
   }
@@ -124,9 +128,7 @@ public class RyczaltAccountingPageController {
     return new TaxCard(
         type,
         whole(calculated),
-        whole(calculated),
         whole(bank),
-        BigDecimal.ZERO.setScale(0).toPlainString(),
         difference(calculated, bank),
         paid ? "✓ Paid" : "○ Unpaid",
         paid ? "is-paid" : "is-unpaid");
@@ -224,9 +226,7 @@ public class RyczaltAccountingPageController {
   record TaxCard(
       String type,
       String calculated,
-      String reference,
       String bank,
-      String referenceDiff,
       String bankDiff,
       String status,
       String statusClass) {}
