@@ -17,6 +17,7 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltInvoiceReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodListItem;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundException;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
+import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.persistence.InvoiceDirection;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -62,6 +63,25 @@ class RyczaltAccountingRestControllerTest {
         .andExpect(content().json("[{\"month\":\"2026-08\",\"status\":\"OPEN\"}]"));
 
     verify(accounting).periods(7L);
+  }
+
+  @Test
+  void calculateExposesNativeMonthCycleAsWriteCommand() throws Exception {
+    when(accounting.calculateFromPersistedFacts(
+            org.mockito.ArgumentMatchers.eq(7L),
+            org.mockito.ArgumentMatchers.eq(YearMonth.of(2026, 9))))
+        .thenReturn(mock(NativeMonthCalculationResult.class));
+
+    mvc.perform(
+            post("/api/profiles/7/accounting/periods/2026-09/calculate")
+                .principal(authentication)
+                .contentType("application/json"))
+        .andExpect(status().isOk());
+
+    verify(accounting)
+        .calculateFromPersistedFacts(
+            org.mockito.ArgumentMatchers.eq(7L),
+            org.mockito.ArgumentMatchers.eq(YearMonth.of(2026, 9)));
   }
 
   @Test

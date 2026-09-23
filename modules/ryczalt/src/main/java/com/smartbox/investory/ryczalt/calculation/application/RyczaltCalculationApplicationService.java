@@ -4,7 +4,6 @@ import com.smartbox.investory.ryczalt.calculation.InputFingerprint;
 import com.smartbox.investory.ryczalt.calculation.ryczalt.RyczaltCalculationInput;
 import com.smartbox.investory.ryczalt.calculation.ryczalt.RyczaltCalculationResult;
 import com.smartbox.investory.ryczalt.calculation.ryczalt.RyczaltCalculator;
-import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.persistence.CalculationType;
 import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository;
@@ -50,7 +49,7 @@ public class RyczaltCalculationApplicationService {
     if (current != null && current.getInputFingerprint().equals(fingerprint)) {
       return new CalculationExecution<>(null, true, current.getRevision(), fingerprint);
     }
-    if (period.getStatus() == PeriodStatus.FROZEN) {
+    if (period.getStatus().isFrozen()) {
       if (current == null)
         throw new IllegalStateException("Frozen period has no current calculation");
       return new CalculationExecution<>(
@@ -66,7 +65,7 @@ public class RyczaltCalculationApplicationService {
             fingerprint,
             RULE_VERSION,
             CALCULATOR_VERSION);
-    period.setStatus(PeriodStatus.CALCULATED);
+    period.markCalculated(java.time.Instant.now());
     periods.save(period);
     return new CalculationExecution<>(result, false, saved.getRevision(), fingerprint);
   }

@@ -74,7 +74,7 @@ public class RyczaltBankImportService implements RyczaltBankApi {
               ? YearMonth.from(record.relatedPeriod())
               : YearMonth.from(record.bookingDate());
       RyczaltPeriodEntity period = period(profileId, month);
-      if (period.getStatus() == PeriodStatus.FROZEN) {
+      if (period.getStatus().isFrozen()) {
         throw new FrozenPeriodMutationException(profileId, month.getYear(), month.getMonthValue());
       }
       RyczaltTransactionEntity transaction =

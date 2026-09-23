@@ -123,4 +123,11 @@ public class RyczaltObligationEntity extends RyczaltEntity {
   public void setStatus(ObligationStatus status) {
     this.status = status;
   }
+
+  public void refreshCalculation(BigDecimal amount, Long calculationId) {
+    boolean amountChanged = this.amount.compareTo(amount) != 0;
+    this.amount = amount;
+    this.calculationId = calculationId;
+    if (amountChanged) this.status = ObligationStatus.OPEN;
+  }
 }

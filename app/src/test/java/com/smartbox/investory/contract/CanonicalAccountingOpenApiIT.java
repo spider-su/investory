@@ -73,6 +73,8 @@ class CanonicalAccountingOpenApiIT extends FastDatabaseTest {
                 .path("type")
                 .asText())
         .isEqualTo("string");
+    assertThat(schemas.path("InvoiceResponse").path("properties").has("sourceType")).isTrue();
+    assertThat(schemas.path("InvoiceResponse").path("properties").has("sourceReference")).isTrue();
   }
 
   private static java.util.List<String> propertyEnumValuesContaining(

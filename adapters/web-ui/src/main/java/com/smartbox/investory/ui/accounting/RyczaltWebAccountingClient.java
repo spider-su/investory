@@ -12,8 +12,6 @@ public interface RyczaltWebAccountingClient {
 
   Period period(long profileId, YearMonth month);
 
-  Reference reference(long profileId, YearMonth month);
-
   List<Invoice> invoices(long profileId, YearMonth month);
 
   List<Transaction> transactions(long profileId, YearMonth month);
@@ -81,19 +79,6 @@ public interface RyczaltWebAccountingClient {
       Reconciliation reconciliation,
       Completeness completeness,
       List<String> allowedActions) {}
-
-  record Reference(
-      boolean available,
-      BigDecimal revenue,
-      BigDecimal expenses,
-      BigDecimal outputVat,
-      BigDecimal deductibleInputVat,
-      BigDecimal vatPayable,
-      BigDecimal ryczalt,
-      BigDecimal zus,
-      int documentCount,
-      int bankCount,
-      String filingStatus) {}
 
   record Calculation(String type, String status, BigDecimal amount) {}
 

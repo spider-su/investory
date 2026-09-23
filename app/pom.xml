@@ -163,7 +163,6 @@
             <exclude>**/ui/AccountingPocUiIT.java</exclude>
             <exclude>**/app/AccountingHeaderRenderTest.java</exclude>
             <exclude>**/infrastructure/AccountingToRyczaltMigrationReconciliationIT.java</exclude>
-            <exclude>**/contract/CanonicalAccountingOpenApiIT.java</exclude>
           </testExcludes>
         </configuration>
       </plugin>

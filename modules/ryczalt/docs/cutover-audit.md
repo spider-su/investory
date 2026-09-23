@@ -15,10 +15,10 @@ The mobile consumer checkout is available at `/home/alex/projects/ryczalt_it`. I
 React Native client named `investory-accounting-mobile`, not a missing repository. Its concrete
 paths and field usage are recorded in `docs/rest-api.md`.
 
-Only `settle`, `lock`, and `reopen` have a native branch, and even those fall back to Accounting
-when the requested period is absent from `ryczalt_period`. A native read-only query foundation now
-covers periods, invoices, transactions, obligations, issues, and persisted payment history. The
-common native REST adapter is now wired; legacy routes remain separate compatibility routes.
+Native period, invoice, transaction, obligation, issue, payment, counterparty, bank-import, KSeF,
+calculation, and lifecycle paths are now wired. The old Accounting routes remain separate
+compatibility routes. Filing, confirmation, JPK, and legacy-only staging remain outside the native
+scope.
 
 The NBP code added in the previous stage is a native core capability, but it is not exposed by the
 public accounting application contract. Bank and KSeF have reusable generic transports, but no
@@ -225,8 +225,7 @@ The following should not be copied into Ryczalt merely to obtain API parity:
 2. Wire the native Ryczalt query foundation to the scoped REST contract and keep legacy routes as
    compatibility routes. **DONE.** Bank acquisition/synchronization remains a separate gap.
 3. Add a Ryczalt bank source port and sync service around the reusable bank source. Persist source
-   references, enforce profile/frozen-period rules, and expose the bank import operation. This
-   removes `importBank` delegation.
+   references, enforce profile/frozen-period rules, and expose the bank import operation. **DONE.**
 4. Add a Ryczalt KSeF FA(3) normalizer/import service around `KsefClient`, including idempotency and
    provenance. This removes KSeF delegation.
 5. Decide the product boundary for recognition, counterparties, filing, confirmations, and

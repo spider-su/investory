@@ -247,7 +247,11 @@ class RyczaltNativeKsefImportIT {
         RyczaltObligationJpaRepository.class,
         com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository.class
       })
-  @Import({RyczaltKsefImportService.class, RyczaltPeriodLifecycleService.class})
+  @Import({
+    RyczaltKsefImportService.class,
+    RyczaltPeriodLifecycleService.class,
+    com.smartbox.investory.ryczalt.persistence.JdbcRyczaltAuditEventWriter.class
+  })
   static class TestConfiguration {
     @Bean
     ProgrammableInvoiceSource programmableInvoiceSource() {

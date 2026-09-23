@@ -8,6 +8,9 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltPaymentHistoryRea
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodListItem;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltTransactionReadModel;
+import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationInput;
+import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
+import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationService;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodLifecycleService;
 import java.time.YearMonth;
 import java.util.List;
@@ -17,11 +20,15 @@ import org.springframework.stereotype.Service;
 public class RyczaltAccountingFacade implements RyczaltAccountingApi {
   private final RyczaltAccountingQueryService queries;
   private final RyczaltPeriodLifecycleService lifecycle;
+  private final NativeMonthCalculationService calculations;
 
   public RyczaltAccountingFacade(
-      RyczaltAccountingQueryService queries, RyczaltPeriodLifecycleService lifecycle) {
+      RyczaltAccountingQueryService queries,
+      RyczaltPeriodLifecycleService lifecycle,
+      NativeMonthCalculationService calculations) {
     this.queries = queries;
     this.lifecycle = lifecycle;
+    this.calculations = calculations;
   }
 
   @Override
@@ -85,5 +92,16 @@ public class RyczaltAccountingFacade implements RyczaltAccountingApi {
   @Override
   public void reopen(long profileId, YearMonth month, String actor, String reason) {
     lifecycle.reopen(profileId, month, actor, reason);
+  }
+
+  @Override
+  public NativeMonthCalculationResult calculate(
+      long profileId, YearMonth month, NativeMonthCalculationInput input) {
+    return calculations.calculate(profileId, month, input);
+  }
+
+  @Override
+  public NativeMonthCalculationResult calculateFromPersistedFacts(long profileId, YearMonth month) {
+    return calculations.calculateFromPersistedInvoices(profileId, month);
   }
 }
