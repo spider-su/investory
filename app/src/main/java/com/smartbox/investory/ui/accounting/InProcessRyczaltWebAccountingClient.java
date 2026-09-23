@@ -130,6 +130,13 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
   }
 
   @Override
+  public List<ReferenceObligation> referenceObligations(long profileId, YearMonth month) {
+    return accounting.referenceObligations(profileId, month, authentication()).stream()
+        .map(value -> new ReferenceObligation(value.type(), value.expected()))
+        .toList();
+  }
+
+  @Override
   public List<Issue> issues(long profileId, YearMonth month) {
     return accounting.issues(profileId, month, authentication()).stream()
         .map(
@@ -362,6 +369,7 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
         v.candidateKey(),
         v.sourceType(),
         v.documentType(),
+        v.direction(),
         v.issueDate(),
         v.saleDate(),
         v.dueDate(),

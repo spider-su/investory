@@ -1504,6 +1504,26 @@ CREATE TABLE investory.accounting_reference_obligation (
 );
 
 
+-- Ryczalt-owned copy of the persisted reference obligations.
+CREATE TABLE investory.ryczalt_obligation_reference (
+    id bigint PRIMARY KEY,
+    profile_id bigint NOT NULL,
+    tax_period date NOT NULL,
+    obligation_type character varying(32) NOT NULL,
+    due_date date,
+    expected_amount numeric(19,4) NOT NULL,
+    paid_amount numeric(19,4),
+    payment_date date,
+    status character varying(32) NOT NULL,
+    note character varying(512),
+    CONSTRAINT chk_ryczalt_obligation_reference_period_month_start
+        CHECK ((EXTRACT(day FROM tax_period) = (1)::numeric))
+);
+
+CREATE INDEX idx_ryczalt_obligation_reference_profile_period
+    ON investory.ryczalt_obligation_reference USING btree (profile_id, tax_period, id);
+
+
 --
 -- Name: accounting_reference_tax_input; Type: TABLE; Schema: investory; Owner: -
 --
@@ -12166,6 +12186,15 @@ COPY investory.accounting_reference_obligation (id, profile_id, tax_period, obli
 22	1	2026-07-01	ZUS	2026-08-20	1495.0400	1495.0000	2026-08-18	MATCHED	Golden July ZUS/health contribution from wFirma. Bank cash evidence remains recorded separately.
 \.
 
+INSERT INTO investory.ryczalt_obligation_reference (
+    id, profile_id, tax_period, obligation_type, due_date,
+    expected_amount, paid_amount, payment_date, status, note
+)
+SELECT
+    id, profile_id, tax_period, obligation_type, due_date,
+    expected_amount, paid_amount, payment_date, status, note
+FROM investory.accounting_reference_obligation;
+
 
 --
 -- Data for Name: accounting_reference_tax_input; Type: TABLE DATA; Schema: investory; Owner: -
@@ -15794,6 +15823,14 @@ ALTER TABLE ONLY investory.ryczalt_invoice_candidate
 
 ALTER TABLE ONLY investory.ryczalt_invoice
     ADD CONSTRAINT fk_ryczalt_invoice_profile_counterparty FOREIGN KEY (profile_id, counterparty_id) REFERENCES investory.ryczalt_counterparty(profile_id, id);
+
+
+--
+-- Name: ryczalt_obligation_reference ryczalt_obligation_reference_profile_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.ryczalt_obligation_reference
+    ADD CONSTRAINT ryczalt_obligation_reference_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES investory.portfolios(id);
 
 
 --

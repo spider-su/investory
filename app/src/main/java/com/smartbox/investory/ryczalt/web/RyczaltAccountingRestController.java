@@ -12,6 +12,7 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundExc
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltTransactionReadModel;
 import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
+import com.smartbox.investory.ryczalt.reference.RyczaltObligationReferenceReader;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
@@ -35,14 +36,17 @@ public class RyczaltAccountingRestController {
   private final RyczaltAccountingApi accounting;
   private final RyczaltInvoicePaymentService invoicePayments;
   private final AuthorizationService authorization;
+  private final RyczaltObligationReferenceReader referenceObligations;
 
   public RyczaltAccountingRestController(
       RyczaltAccountingApi accounting,
       RyczaltInvoicePaymentService invoicePayments,
-      AuthorizationService authorization) {
+      AuthorizationService authorization,
+      RyczaltObligationReferenceReader referenceObligations) {
     this.accounting = accounting;
     this.invoicePayments = invoicePayments;
     this.authorization = authorization;
+    this.referenceObligations = referenceObligations;
   }
 
   @GetMapping("/periods")
@@ -118,6 +122,15 @@ public class RyczaltAccountingRestController {
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
     read(profileId, authentication);
     return accounting.obligations(profileId, month).stream().map(this::obligation).toList();
+  }
+
+  @GetMapping("/periods/{month}/reference-obligations")
+  public List<ReferenceObligationResponse> referenceObligations(
+      @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
+    read(profileId, authentication);
+    return referenceObligations.find(profileId, month).stream()
+        .map(value -> new ReferenceObligationResponse(value.type(), value.expected()))
+        .toList();
   }
 
   @GetMapping("/periods/{month}/issues")
@@ -339,6 +352,8 @@ public class RyczaltAccountingRestController {
         value.message(),
         value.sourceReference());
   }
+
+  public record ReferenceObligationResponse(String type, BigDecimal expected) {}
 
   private PaymentHistoryResponse paymentHistory(RyczaltPaymentHistoryReadModel value) {
     return new PaymentHistoryResponse(

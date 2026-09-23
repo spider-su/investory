@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.smartbox.investory.ryczalt.application.ksef.RyczaltKsefImportService;
 import com.smartbox.investory.ryczalt.application.ksef.RyczaltKsefSyncResult;
+import com.smartbox.investory.ryczalt.domain.ApprovalMethod;
+import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourcePort;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourceRecord;
@@ -129,6 +131,10 @@ class RyczaltNativeKsefImportIT {
     assertThat(reference.getSource()).isEqualTo("KSEF");
     assertThat(reference.getEntityType()).isEqualTo("INVOICE");
     assertThat(reference.getExternalId()).isEqualTo("KSEF-1");
+    assertThat(invoices.findAll().getFirst().getApprovalStatus())
+        .isEqualTo(ApprovalStatus.APPROVED);
+    assertThat(invoices.findAll().getFirst().getApprovalMethod())
+        .isEqualTo(ApprovalMethod.KSEF_TRUSTED);
     assertThat(legacyInvoiceRows()).isZero();
   }
 
@@ -243,12 +249,15 @@ class RyczaltNativeKsefImportIT {
       basePackageClasses = {
         RyczaltPeriodJpaRepository.class,
         RyczaltInvoiceJpaRepository.class,
+        com.smartbox.investory.ryczalt.persistence.RyczaltCounterpartyJpaRepository.class,
+        com.smartbox.investory.ryczalt.persistence.RyczaltCounterpartyRuleJpaRepository.class,
         RyczaltSourceReferenceJpaRepository.class,
         RyczaltObligationJpaRepository.class,
         com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository.class
       })
   @Import({
     RyczaltKsefImportService.class,
+    com.smartbox.investory.ryczalt.application.RyczaltCounterpartyService.class,
     RyczaltPeriodLifecycleService.class,
     com.smartbox.investory.ryczalt.persistence.JdbcRyczaltAuditEventWriter.class
   })

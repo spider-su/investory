@@ -18,6 +18,8 @@ public interface RyczaltWebAccountingClient {
 
   List<Obligation> obligations(long profileId, YearMonth month);
 
+  List<ReferenceObligation> referenceObligations(long profileId, YearMonth month);
+
   List<Issue> issues(long profileId, YearMonth month);
 
   List<PaymentHistory> paymentHistory(long profileId, YearMonth from, YearMonth to, String type);
@@ -148,6 +150,8 @@ public interface RyczaltWebAccountingClient {
       LocalDate dueDate,
       String status) {}
 
+  record ReferenceObligation(String type, BigDecimal expected) {}
+
   record PaymentHistory(
       String type,
       YearMonth period,
@@ -207,6 +211,7 @@ public interface RyczaltWebAccountingClient {
       UUID candidateKey,
       String sourceType,
       String documentType,
+      String direction,
       LocalDate issueDate,
       LocalDate saleDate,
       LocalDate dueDate,

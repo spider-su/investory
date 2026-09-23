@@ -74,6 +74,28 @@ class FlywayMigrationChainIT {
   }
 
   @Test
+  void copiesReferenceObligationsIntoRyczaltOwnedTable() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM investory.accounting_reference_obligation source "
+                  + "WHERE NOT EXISTS (SELECT 1 FROM investory.ryczalt_obligation_reference target "
+                  + "WHERE target.id = source.id "
+                  + "AND target.profile_id = source.profile_id "
+                  + "AND target.tax_period = source.tax_period "
+                  + "AND target.obligation_type = source.obligation_type "
+                  + "AND target.due_date IS NOT DISTINCT FROM source.due_date "
+                  + "AND target.paid_amount IS NOT DISTINCT FROM source.paid_amount "
+                  + "AND target.payment_date IS NOT DISTINCT FROM source.payment_date "
+                  + "AND target.status = source.status "
+                  + "AND target.note IS NOT DISTINCT FROM source.note)"));
+    }
+  }
+
+  @Test
   void installsTemporalAnomalyContractAndParameters() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {

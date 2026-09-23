@@ -68,19 +68,24 @@ public class RyczaltInvoiceApprovalService {
         command.vatDeductionRatio() != null
             ? command.vatDeductionRatio()
             : counterpartyChanged ? null : candidate.getVatDeductionRatio();
+    boolean incomeRyczaltProfile =
+        candidate.getDirection() == InvoiceDirection.INCOME
+            && ("PL_SERVICE".equals(classification) || "EU_SERVICE".equals(classification));
     BigDecimal rate =
-        command.ryczaltRate() != null
-            ? command.ryczaltRate()
-            : counterpartyChanged ? null : candidate.getRyczaltRate();
+        !incomeRyczaltProfile
+            ? null
+            : command.ryczaltRate() != null
+                ? command.ryczaltRate()
+                : counterpartyChanged ? null : candidate.getRyczaltRate();
     PaymentVerificationPolicy policy =
         command.paymentVerificationPolicy() != null
             ? command.paymentVerificationPolicy()
             : counterpartyChanged
                 ? PaymentVerificationPolicy.REQUIRED
                 : candidate.getPaymentVerificationPolicy();
-    if (command.approve() && (blank(classification) || rate == null))
+    if (command.approve() && (blank(classification) || (incomeRyczaltProfile && rate == null)))
       throw new IllegalArgumentException(
-          "Classification and Ryczalt rate are required for approval");
+          "Classification is required for approval; Ryczalt rate is required for income");
     if (sources
         .findByProfileIdAndEntityTypeAndSourceAndExternalId(
             profileId, "INVOICE", candidate.getSourceType(), candidate.getSourceExternalId())
@@ -146,19 +151,15 @@ public class RyczaltInvoiceApprovalService {
     candidates.save(candidate);
     if (command.rememberRule()
         && originalCounterpartyId != null
-        && cpId == originalCounterpartyId
-        && !blank(
-            command.serviceKey() == null ? candidate.getServiceKey() : command.serviceKey())) {
-      String serviceKey =
-          command.serviceKey() == null ? candidate.getServiceKey() : command.serviceKey();
+        && cpId == originalCounterpartyId) {
       counterpartyService.addRule(
           profileId,
           cpId,
           new RyczaltCounterpartyService.RuleCommand(
               command.ruleName() == null ? candidate.getReference() : command.ruleName(),
-              candidate.getSourceType(),
-              candidate.getDocumentType(),
-              serviceKey,
+              null,
+              null,
+              null,
               classification,
               vatTreatment,
               ratio,

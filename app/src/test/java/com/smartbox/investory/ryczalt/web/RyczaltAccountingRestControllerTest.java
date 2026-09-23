@@ -20,6 +20,7 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
 import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.persistence.InvoiceDirection;
+import com.smartbox.investory.ryczalt.reference.RyczaltObligationReferenceReader;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
@@ -38,6 +39,8 @@ class RyczaltAccountingRestControllerTest {
   private final RyczaltInvoicePaymentService invoicePayments =
       mock(RyczaltInvoicePaymentService.class);
   private final AuthorizationService authorization = mock(AuthorizationService.class);
+  private final RyczaltObligationReferenceReader referenceObligations =
+      mock(RyczaltObligationReferenceReader.class);
   private final Authentication authentication = mock(Authentication.class);
   private MockMvc mvc;
 
@@ -48,7 +51,8 @@ class RyczaltAccountingRestControllerTest {
     when(authorization.canWrite(7L, authentication)).thenReturn(true);
     mvc =
         MockMvcBuilders.standaloneSetup(
-                new RyczaltAccountingRestController(accounting, invoicePayments, authorization))
+                new RyczaltAccountingRestController(
+                    accounting, invoicePayments, authorization, referenceObligations))
             .setControllerAdvice(new RestApiExceptionHandler(mock(ApplicationTime.class)))
             .build();
   }
@@ -63,6 +67,23 @@ class RyczaltAccountingRestControllerTest {
         .andExpect(content().json("[{\"month\":\"2026-08\",\"status\":\"OPEN\"}]"));
 
     verify(accounting).periods(7L);
+  }
+
+  @Test
+  void referenceObligationsUsePersistedReferenceSource() throws Exception {
+    when(referenceObligations.find(7L, YearMonth.of(2026, 8)))
+        .thenReturn(
+            List.of(
+                new RyczaltObligationReferenceReader.ReferenceObligation(
+                    "RYCZALT", new BigDecimal("5809.00"))));
+
+    mvc.perform(
+            get("/api/profiles/7/accounting/periods/2026-08/reference-obligations")
+                .principal(authentication))
+        .andExpect(status().isOk())
+        .andExpect(content().json("[{\"type\":\"RYCZALT\",\"expected\":5809.00}]"));
+
+    verify(referenceObligations).find(7L, YearMonth.of(2026, 8));
   }
 
   @Test

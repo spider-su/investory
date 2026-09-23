@@ -60,17 +60,14 @@ the one-way legacy import utility has since been removed:
 
 The versioned rule sets are `RyczaltRules2026`, `VatRules2026`, and `ZusRules2026`. The shared
 `RoundingPolicy` exposes named semantic operations for FX, contributions, deductions, ryczałt, and
-VAT settlement. Inputs are normalized PLN facts; source classification, FX acquisition, database
-adapters, persistence, reconciliation, UI, and application cutover remain future stages.
+VAT settlement. Inputs are normalized PLN facts. Source acquisition, persistence, reconciliation, native REST, Web, and mobile-facing accounting contracts are active; remaining work is lifecycle and historical-data cleanup.
 
 Stage 4 added revisioned calculation history, deterministic fingerprints, targeted invalidation,
 explicit freeze/reopen/correction services, and audit events. Stage 5 added pure payment and period
 completeness checkers, persisted partial payment matches, deterministic automatic settlement, manual
 matching, and frozen-settlement protection. `RyczaltAccountingApi` and
 `RyczaltAccountingFacade` now own the native application boundary. Native REST uses that boundary.
-Native settlement and
-lifecycle operations are selected for periods already present in the Ryczalt schema. Frozen periods
-are load-only.
+Native settlement and lifecycle operations run entirely on Ryczalt persistence. Frozen periods are load-only.
 
 The `modules/ryczalt` Maven dependency on `accounting` is removed. Reference/golden tables remain
 comparison evidence and are not imported as canonical facts.

@@ -56,7 +56,11 @@ public class SettlementService {
   public List<PaymentCheckResult> settlePeriod(long profileId, YearMonth month) {
     RyczaltPeriodEntity period = findPeriod(profileId, month);
     List<RyczaltTransactionEntity> storedTransactions =
-        transactions.findByProfileIdAndPeriodIdOrderByBookingDateAscIdAsc(profileId, period.id());
+        transactions
+            .findByProfileIdAndPeriodIdOrderByBookingDateAscIdAsc(profileId, period.id())
+            .stream()
+            .filter(transaction -> !transaction.isExcludedFromPaymentMatching())
+            .toList();
     PaymentAccountRules accountRules = paymentAccounts.forProfile(profileId);
     return obligations.findByProfileIdAndPeriodIdOrderByTypeAsc(profileId, period.id()).stream()
         .map(
@@ -74,6 +78,9 @@ public class SettlementService {
     RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
     RyczaltTransactionEntity transaction = transactions.findById(transactionId).orElseThrow();
     requireSameProfile(profileId, obligation.getProfileId(), transaction.getProfileId());
+    if (transaction.isExcludedFromPaymentMatching()) {
+      throw new IllegalArgumentException("Transaction is excluded from Ryczalt payment matching");
+    }
     requireMutable(obligation.getPeriod());
     if (!obligation.getCurrency().equals(transaction.getCurrency())) {
       throw new IllegalArgumentException("Obligation and transaction currencies differ");

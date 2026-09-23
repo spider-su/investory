@@ -185,6 +185,11 @@ app:
     nip: ${INVESTORY_KSEF_NIP:}
     token: ${INVESTORY_KSEF_TOKEN:change-me-ksef-token}
   ryczalt:
+    ksef:
+      sync:
+        enabled: ${RYCZALT_KSEF_SYNC_ENABLED:true}
+        cron: ${RYCZALT_KSEF_SYNC_CRON:0 0 2 * * *}
+        zone: ${RYCZALT_KSEF_SYNC_ZONE:Europe/Warsaw}
     payment:
       # Treat small bank/reference rounding differences as settled.
       tolerance-pln: ${RYCZALT_PAYMENT_TOLERANCE_PLN:5.00}

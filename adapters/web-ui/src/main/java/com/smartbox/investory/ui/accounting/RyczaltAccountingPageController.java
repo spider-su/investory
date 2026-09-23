@@ -43,6 +43,7 @@ public class RyczaltAccountingPageController {
     List<RyczaltWebAccountingClient.Invoice> invoices;
     List<RyczaltWebAccountingClient.Transaction> transactions;
     List<RyczaltWebAccountingClient.Obligation> obligations;
+    List<RyczaltWebAccountingClient.ReferenceObligation> referenceObligations;
     List<RyczaltWebAccountingClient.Issue> issues;
     var selectedMonthInPeriods = periods.stream().anyMatch(value -> value.month().equals(selected));
     if (!selectedMonthInPeriods) {
@@ -50,6 +51,7 @@ public class RyczaltAccountingPageController {
       invoices = List.of();
       transactions = List.of();
       obligations = List.of();
+      referenceObligations = List.of();
       issues = List.of();
     } else {
       period = client.period(profileId, selected);
@@ -62,6 +64,7 @@ public class RyczaltAccountingPageController {
           bankTransactionsForDisplay(
               client.transactions(profileId, selected), nextMonthTransactions);
       obligations = client.obligations(profileId, selected);
+      referenceObligations = client.referenceObligations(profileId, selected);
       issues = client.issues(profileId, selected);
     }
     model.addAttribute("profileId", profileId);
@@ -86,27 +89,42 @@ public class RyczaltAccountingPageController {
     model.addAttribute("issues", issues);
     model.addAttribute("today", LocalDate.now());
     model.addAttribute("canWrite", canWrite(request));
-    model.addAttribute("nativeRyczaltCompatibility", true);
     model.addAttribute("toPayAmountDisplay", whole(period.settlement().totalOutstanding()));
     model.addAttribute("paidAmountDisplay", whole(period.settlement().totalPaid()));
-    model.addAttribute("payments", List.of());
     model.addAttribute(
-        "workspaceStatus", "FROZEN".equals(period.status()) ? "Frozen" : "In progress");
-    model.addAttribute("taxCards", taxCards(period, obligations));
+        "nextDueDate",
+        obligations.stream()
+            .filter(item -> item.outstanding() != null && item.outstanding().signum() > 0)
+            .map(RyczaltWebAccountingClient.Obligation::dueDate)
+            .filter(java.util.Objects::nonNull)
+            .min(java.util.Comparator.naturalOrder())
+            .orElse(null));
+    model.addAttribute("taxCards", taxCards(period, obligations, referenceObligations));
     return "accounting/ryczalt";
   }
 
   private static List<TaxCard> taxCards(
       RyczaltWebAccountingClient.Period period,
-      List<RyczaltWebAccountingClient.Obligation> obligations) {
+      List<RyczaltWebAccountingClient.Obligation> obligations,
+      List<RyczaltWebAccountingClient.ReferenceObligation> referenceObligations) {
     return List.of(
-        taxCard("Ryczalt", period.summary().ryczalt(), obligations),
-        taxCard("VAT", period.summary().vat(), obligations),
-        taxCard("ZUS", period.summary().zus(), obligations));
+        taxCard("Ryczalt", period.summary().ryczalt(), obligations, referenceObligations),
+        taxCard("VAT", period.summary().vat(), obligations, referenceObligations),
+        taxCard("ZUS", period.summary().zus(), obligations, referenceObligations));
   }
 
   private static TaxCard taxCard(
-      String type, BigDecimal calculated, List<RyczaltWebAccountingClient.Obligation> obligations) {
+      String type,
+      BigDecimal calculated,
+      List<RyczaltWebAccountingClient.Obligation> obligations,
+      List<RyczaltWebAccountingClient.ReferenceObligation> referenceObligations) {
+    var reference =
+        referenceObligations.stream()
+            .filter(item -> type.equalsIgnoreCase(item.type()))
+            .map(RyczaltWebAccountingClient.ReferenceObligation::expected)
+            .filter(value -> value != null)
+            .reduce(BigDecimal::add)
+            .orElse(null);
     var bank =
         obligations.stream()
             .filter(item -> type.equalsIgnoreCase(item.type()))
@@ -124,9 +142,9 @@ public class RyczaltAccountingPageController {
     return new TaxCard(
         type,
         whole(calculated),
-        whole(calculated),
+        whole(reference),
+        difference(calculated, reference),
         whole(bank),
-        BigDecimal.ZERO.setScale(0).toPlainString(),
         difference(calculated, bank),
         paid ? "✓ Paid" : "○ Unpaid",
         paid ? "is-paid" : "is-unpaid");
@@ -225,8 +243,8 @@ public class RyczaltAccountingPageController {
       String type,
       String calculated,
       String reference,
-      String bank,
       String referenceDiff,
+      String bank,
       String bankDiff,
       String status,
       String statusClass) {}
@@ -287,6 +305,11 @@ public class RyczaltAccountingPageController {
       var candidate =
           client.recognize(
               profileId, file.getOriginalFilename(), file.getContentType(), file.getBytes());
+      if ("APPROVED".equals(candidate.approvalStatus())) {
+        redirect.addFlashAttribute(
+            "accountingMessage", "Document recognized and approved automatically.");
+        return "redirect:/profiles/" + profileId + "/accounting";
+      }
       redirect.addFlashAttribute("accountingMessage", "Document recognized. Review the candidate.");
       return "redirect:/profiles/"
           + profileId
