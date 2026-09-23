@@ -10,9 +10,7 @@ non-frozen period to `DIRTY` and invalidates only dependent calculation types th
 `FrozenPeriodMutationException`. Reopening requires a reason and writes an audit event; a later
 calculation creates a new revision instead of deleting the frozen result.
 
-`RyczaltCorrectionService` records the original period, affected entity, reason, actor, and optional
-correction period. It does not rewrite the original facts. Payment matching, filing, integrations,
-and UI/REST cutover remain outside this stage.
+`RyczaltCorrectionService` records the original period, affected entity, reason, actor, and optional correction period. It does not rewrite the original facts. Filing/JPK remains outside the native accounting scope.
 
 Payment matches and obligation settlement are separate from calculation state. A frozen period cannot
 be matched, unmatched, or have its obligation status changed. Reopen/correction is required first.
@@ -23,5 +21,4 @@ runs the RYCZALT, VAT, ZUS, and obligation cycle for a month. It creates a missi
 calculations, creates or refreshes obligations, marks the period calculated internally, and settles
 compatible transactions already imported for the month.
 
-The REST bridge passes freeze/reopen operations to this lifecycle service for native periods.
-There is no legacy Accounting fallback in the active native accounting path.
+Native REST exposes freeze/reopen through this lifecycle service. There is no legacy Accounting fallback in the active accounting path.

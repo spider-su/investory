@@ -16,7 +16,6 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository
 import com.smartbox.investory.ryczalt.persistence.RyczaltPaymentMatchJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
-import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionJpaRepository;
 import java.math.BigDecimal;
@@ -40,7 +39,6 @@ public class RyczaltAccountingQueryService {
   private final RyczaltObligationJpaRepository obligations;
   private final RyczaltPaymentMatchJpaRepository matches;
   private final RyczaltCalculationJpaRepository calculations;
-  private final RyczaltSourceReferenceJpaRepository sourceReferences;
   private final ObjectMapper json;
   private final RyczaltInvoiceQueryService invoiceQueries;
   private final RyczaltPaymentQueryService paymentQueries;
@@ -53,20 +51,19 @@ public class RyczaltAccountingQueryService {
       RyczaltObligationJpaRepository obligations,
       RyczaltPaymentMatchJpaRepository matches,
       RyczaltCalculationJpaRepository calculations,
-      RyczaltSourceReferenceJpaRepository sourceReferences,
       ObjectProvider<ObjectMapper> jsonProvider,
       RyczaltInvoiceQueryService invoiceQueries,
       RyczaltPaymentQueryService paymentQueries) {
-    this.periods = periods;
-    this.invoices = invoices;
-    this.transactions = transactions;
-    this.obligations = obligations;
-    this.matches = matches;
-    this.calculations = calculations;
-    this.sourceReferences = sourceReferences;
-    this.json = jsonProvider.getIfAvailable(ObjectMapper::new);
-    this.invoiceQueries = invoiceQueries;
-    this.paymentQueries = paymentQueries;
+    this(
+        periods,
+        invoices,
+        transactions,
+        obligations,
+        matches,
+        calculations,
+        jsonProvider.getIfAvailable(ObjectMapper::new),
+        invoiceQueries,
+        paymentQueries);
   }
 
   public RyczaltAccountingQueryService(
@@ -76,7 +73,6 @@ public class RyczaltAccountingQueryService {
       RyczaltObligationJpaRepository obligations,
       RyczaltPaymentMatchJpaRepository matches,
       RyczaltCalculationJpaRepository calculations,
-      RyczaltSourceReferenceJpaRepository sourceReferences,
       ObjectMapper json,
       RyczaltInvoiceQueryService invoiceQueries,
       RyczaltPaymentQueryService paymentQueries) {
@@ -86,7 +82,6 @@ public class RyczaltAccountingQueryService {
     this.obligations = obligations;
     this.matches = matches;
     this.calculations = calculations;
-    this.sourceReferences = sourceReferences;
     this.json = json;
     this.invoiceQueries = invoiceQueries;
     this.paymentQueries = paymentQueries;

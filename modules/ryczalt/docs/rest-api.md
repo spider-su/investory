@@ -20,7 +20,7 @@ Its API paths are defined in `src/api/accountingPaths.ts` and calls are made by
 | `POST .../periods/{month}/calculate` | web/API | no current mobile use | native Ryczalt | aggregates persisted facts and completes one month |
 | `POST .../bank/import` and `POST .../ksef/sync` | web/API | no current mobile use | native Ryczalt adapters | source acquisition is native; filing remains separate |
 | old `/api/v1` mobile and `/accounting/months` routes | removed | none in active native path | none | historical docs only |
-| filing, confirmation, and JPK commands | legacy | no current native consumer | legacy Accounting | product decision and native filing design still required |
+| filing, confirmation, and JPK commands | not exposed | no current native consumer | none | outside the current native accounting scope |
 
 The mobile client consumes monthly facts for revenue, Ryczałt/VAT/ZUS amounts, payment rows,
 issues, document rows, source/review/payment statuses, bank/reconciliation summaries, filing
@@ -56,7 +56,6 @@ PUT  /api/profiles/{profileId}/accounting/counterparties/{id}/rules/{ruleId}
 DELETE /api/profiles/{profileId}/accounting/counterparties/{id}/rules/{ruleId}
 GET  /api/profiles/{profileId}/accounting/invoices?month=YYYY-MM&counterpartyId={id}
 
-POST /api/profiles/{profileId}/accounting/periods/{month}/settle
 POST /api/profiles/{profileId}/accounting/periods/{month}/freeze
 POST /api/profiles/{profileId}/accounting/periods/{month}/reopen
 POST /api/profiles/{profileId}/accounting/periods/{month}/calculate
@@ -152,9 +151,7 @@ The mobile contract is now the common factual resource contract above. No `/v2` 
 backend and mobile are controlled repositories and can migrate atomically. The stable resources
 already use the native query/lifecycle layer.
 
-`AccountingMobileResponse` should be deleted after the mobile mapper consumes the common factual
-DTOs. The Web adapter now uses the native upload, review, approval, rule, payment, bank, and KSeF
-operations described above; it must not reconstruct legacy Accounting DTOs.
+The Web adapter uses the native upload, review, approval, rule, payment, bank, and KSeF operations described above and does not reconstruct legacy Accounting DTOs.
 # Invoice recognition and approval
 
 ## Canonical namespace

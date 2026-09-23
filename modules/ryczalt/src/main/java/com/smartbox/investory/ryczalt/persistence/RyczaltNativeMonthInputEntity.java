@@ -84,22 +84,26 @@ public class RyczaltNativeMonthInputEntity extends RyczaltEntity {
         || qualifyingUop != command.qualifyingUop()
         || !java.util.Objects.equals(zusRegime, command.zusRegime())
         || voluntarySickness != command.voluntarySickness()
-        || !java.util.Objects.equals(ytdRyczaltRevenue, command.ytdRyczaltRevenue())
-        || !java.util.Objects.equals(fullJdgSocial, command.fullJdgSocial())
-        || !java.util.Objects.equals(
-            socialContributionDeduction, command.socialContributionDeduction())
-        || !java.util.Objects.equals(
-            healthContributionOverride, command.healthContributionOverride())) {
+        || !sameAmount(ytdRyczaltRevenue, command.ytdRyczaltRevenue())
+        || !sameAmount(fullJdgSocial, command.fullJdgSocial())
+        || !sameAmount(socialContributionDeduction, command.socialContributionDeduction())
+        || !sameAmount(healthContributionOverride, command.healthContributionOverride())) {
       changes.add(InputChange.ZUS_INPUT_CHANGED);
     }
-    if (!java.util.Objects.equals(deductionsAlreadyConsumed, command.deductionsAlreadyConsumed())) {
+    if (!sameAmount(deductionsAlreadyConsumed, command.deductionsAlreadyConsumed())) {
       changes.add(InputChange.RYCZALT_DEDUCTIONS_CHANGED);
     }
-    if (!java.util.Objects.equals(salesCorrections, command.salesCorrections())
-        || !java.util.Objects.equals(explicitVatAdjustments, command.explicitVatAdjustments())) {
+    if (!sameAmount(salesCorrections, command.salesCorrections())
+        || !sameAmount(explicitVatAdjustments, command.explicitVatAdjustments())) {
       changes.add(InputChange.VAT_ADJUSTMENT_CHANGED);
     }
     return Set.copyOf(changes);
+  }
+
+  private static boolean sameAmount(BigDecimal left, BigDecimal right) {
+    if (left == right) return true;
+    if (left == null || right == null) return false;
+    return left.compareTo(right) == 0;
   }
 
   public ZusSettings zusSettings() {
