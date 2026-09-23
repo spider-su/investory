@@ -6,7 +6,6 @@ import com.smartbox.investory.ryczalt.calculation.InputChange;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import java.time.Instant;
 import java.time.YearMonth;
-import java.util.EnumSet;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,32 +36,13 @@ public class RyczaltPeriodLifecycleService {
     if (!period.getStatus().canFreeze()) {
       throw new IllegalStateException("Only calculated or paid periods can be frozen");
     }
-    boolean calculationsCurrent =
-        EnumSet.allOf(CalculationType.class).stream()
-            .allMatch(
-                type ->
-                    calculations
-                        .findByProfileIdAndPeriodIdAndTypeAndCurrentTrue(
-                            profileId, period.id(), type)
-                        .map(
-                            calculation ->
-                                calculation.isCurrent()
-                                    && calculation.getStatus() != CalculationStatus.DIRTY
-                                    && calculation.getStatus() != CalculationStatus.STALE)
-                        .orElse(false));
-    if (!calculationsCurrent) {
-      throw new IllegalStateException("All calculations must be current before freezing");
+    if (!FreezeEligibility.isEligible(
+        period,
+        calculations.findByProfileIdAndPeriodId(profileId, period.id()),
+        obligations.findByProfileIdAndPeriodIdOrderByTypeAsc(profileId, period.id()))) {
+      throw new IllegalStateException(
+          "Period needs current calculations and settled obligations before freezing");
     }
-    boolean unsettled =
-        obligations.findByProfileIdAndPeriodIdOrderByTypeAsc(profileId, period.id()).stream()
-            .anyMatch(
-                obligation ->
-                    obligation.getStatus()
-                            != com.smartbox.investory.ryczalt.domain.ObligationStatus.PAID
-                        && obligation.getStatus()
-                            != com.smartbox.investory.ryczalt.domain.ObligationStatus.OVERPAID);
-    if (unsettled)
-      throw new IllegalStateException("All obligations must be settled before freezing");
     period.markFrozen(Instant.now());
     periods.save(period);
     calculations

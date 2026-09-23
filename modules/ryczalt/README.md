@@ -1,15 +1,16 @@
 # Ryczalt
 
-`ryczalt` is the replacement accounting module for JDG/ryczałt functionality. It is developed
-alongside the existing `accounting` module:
+`ryczalt` is the active native accounting module for JDG/ryczałt functionality. The old
+`modules/accounting` tree is outside the Maven runtime reactor and remains historical reference
+material until a separate cleanup decision.
 
 ```text
-accounting = existing/reference implementation
-ryczalt    = new implementation
+ryczalt    = active implementation
+accounting = retired historical/reference source
 ```
 
-The existing module remains functional during this staged migration and will be removed only after
-feature and data parity, cutover, and verification.
+Historical Flyway migrations and reference database tables remain intact. Runtime accounting reads
+and writes use canonical `ryczalt_*` tables.
 
 ## Architecture direction
 
@@ -45,7 +46,7 @@ sources -> adapters -> ports -> AccountingPeriod -> calculators
 9. application cutover
 10. remove accounting
 
-## Current stage: native source integration and REST/application cutover
+## Current stage: native accounting runtime
 
 Stage 2 added pure calculators over already-normalized facts. Stage 3 added separate JPA persistence;
 the one-way legacy import utility has since been removed:
@@ -90,14 +91,13 @@ ZUS      calculation ✓  persistence ✓  payment detection ✓  manual matchin
 Source integration matrix:
 
 ```text
-Invoices / KSeF        NO   reusable transport exists; Ryczalt FA(3) normalizer not yet native
-Transactions / Bank    NO   reusable CSV source exists; Ryczalt sync service not yet wired
+Invoices / KSeF        YES  native candidate/approval and KSeF sync paths persist Ryczalt facts
+Transactions / Bank    YES  native CSV import persists canonical Ryczalt transactions
 FX / NBP               YES  NbpClient -> NbpFxRateAdapter -> FxRateSourcePort -> ryczalt_fx_rate
 ZUS external verify    NO   no reusable production eZUS verification client
 ```
 
-See [docs/cutover-audit.md](docs/cutover-audit.md) for the detailed endpoint, dependency, and
-deletion-blocker audit.
+`docs/cutover-audit.md` is historical audit evidence, not a description of the active runtime.
 
 ## Counterparties and learned rules
 

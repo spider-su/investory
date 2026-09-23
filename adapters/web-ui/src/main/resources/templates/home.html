@@ -61,9 +61,9 @@
         <div class="iv-hero__logo">I</div>
         <h1 class="iv-hero__title">Welcome to Investory</h1>
         <p class="iv-hero__subtitle">Track your portfolio performance across brokers.</p>
+        <a class="iv-btn" th:if="${googleLoginEnabled}" href="/oauth2/authorization/google">Continue with Google</a>
         <a class="iv-btn" href="/portfolios/1/dashboard">Open dashboard →</a>
     </div>
 </main>
 </body>
 </html>
-

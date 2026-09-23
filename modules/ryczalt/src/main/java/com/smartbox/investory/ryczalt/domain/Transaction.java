@@ -7,6 +7,7 @@ import java.util.Objects;
 
 /** Canonical, source-independent bank or payment transaction. */
 public record Transaction(
+    String matchKey,
     String reference,
     LocalDate date,
     BigDecimal amount,
@@ -15,14 +16,14 @@ public record Transaction(
     String counterpartyAccount,
     String description) {
   public Transaction {
-    reference = Objects.requireNonNull(reference, "reference");
+    matchKey = Objects.requireNonNull(matchKey, "matchKey");
     date = Objects.requireNonNull(date, "date");
     amount = Objects.requireNonNull(amount, "amount");
     currency = Objects.requireNonNull(currency, "currency");
   }
 
   public Transaction(String reference, LocalDate date, BigDecimal amount, Currency currency) {
-    this(reference, date, amount, currency, null, null, null);
+    this(reference, reference, date, amount, currency, null, null, null);
   }
 
   public Transaction(
@@ -32,6 +33,25 @@ public record Transaction(
       Currency currency,
       String counterparty,
       String description) {
-    this(reference, date, amount, currency, counterparty, null, description);
+    this(reference, reference, date, amount, currency, counterparty, null, description);
+  }
+
+  public Transaction(
+      String reference,
+      LocalDate date,
+      BigDecimal amount,
+      Currency currency,
+      String counterparty,
+      String counterpartyAccount,
+      String description) {
+    this(
+        reference,
+        reference,
+        date,
+        amount,
+        currency,
+        counterparty,
+        counterpartyAccount,
+        description);
   }
 }

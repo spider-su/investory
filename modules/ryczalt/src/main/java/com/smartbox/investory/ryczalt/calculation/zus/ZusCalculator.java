@@ -6,6 +6,16 @@ import java.util.Objects;
 
 /** Pure ZUS calculation for the supported JDG/UoP cases. */
 public final class ZusCalculator {
+  private final String ruleVersion;
+
+  public ZusCalculator() {
+    this(ZusRules2026.VERSION);
+  }
+
+  public ZusCalculator(String ruleVersion) {
+    this.ruleVersion = Objects.requireNonNull(ruleVersion, "ruleVersion");
+  }
+
   public ZusCalculationResult calculate(ZusCalculationInput input) {
     Objects.requireNonNull(input, "input");
     if (input.zusRegime() != null && !"JDG".equals(input.zusRegime())) {
@@ -17,15 +27,23 @@ public final class ZusCalculator {
                 .fullJdgSocial()
                 .add(input.voluntarySickness() ? ZusRules2026.VOLUNTARY_SICKNESS : BigDecimal.ZERO)
             : BigDecimal.ZERO;
-    BigDecimal deductibleSocial =
+    BigDecimal calculatedDeductibleSocial =
         input.jdgActive() && !input.qualifyingUop()
             ? input
                 .fullJdgSocial()
                 .subtract(ZusRules2026.LABOUR_FUND)
                 .add(input.voluntarySickness() ? ZusRules2026.VOLUNTARY_SICKNESS : BigDecimal.ZERO)
             : BigDecimal.ZERO;
+    BigDecimal deductibleSocial =
+        input.socialContributionDeduction() == null
+            ? calculatedDeductibleSocial
+            : input.socialContributionDeduction();
     BigDecimal health =
-        input.jdgActive() ? input.explicitHealthBand().monthlyAmount() : BigDecimal.ZERO;
+        input.jdgActive()
+            ? input.healthContributionOverride() == null
+                ? input.explicitHealthBand().monthlyAmount()
+                : input.healthContributionOverride()
+            : BigDecimal.ZERO;
     social = RoundingPolicy.roundZusContribution(social);
     health = RoundingPolicy.roundZusContribution(health);
     return new ZusCalculationResult(
@@ -35,6 +53,6 @@ public final class ZusCalculator {
         RoundingPolicy.roundZusContribution(deductibleSocial),
         input.explicitHealthBand(),
         input.qualifyingUop() ? "UOP_PRIMARY_INSURANCE" : "JDG_PRIMARY_INSURANCE",
-        ZusRules2026.VERSION);
+        ruleVersion);
   }
 }

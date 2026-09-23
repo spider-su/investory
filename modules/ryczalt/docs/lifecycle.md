@@ -1,7 +1,8 @@
 # Lifecycle and corrections
 
-Periods use `OPEN -> DIRTY -> CALCULATED -> FROZEN`. `PAID` belongs to obligation settlement,
-not the period lifecycle. A relevant input change moves a
+Public periods use `OPEN | FROZEN`. Internal transitional states still include `DIRTY` and
+`CALCULATED` for persisted compatibility; `PAID` belongs to obligation settlement, not the public
+period lifecycle. A relevant input change moves a
 non-frozen period to `DIRTY` and invalidates only dependent calculation types through
 `CalculationInvalidationPolicy`.
 
@@ -18,9 +19,9 @@ be matched, unmatched, or have its obligation status changed. Reopen/correction 
 
 The native REST endpoint `POST /api/profiles/{profileId}/accounting/periods/{month}/calculate`
 runs the RYCZALT, VAT, ZUS, and obligation cycle for a month. It creates a missing period as
-`OPEN`, persists all three current calculations, creates or refreshes obligations, then marks the
-period `CALCULATED`. The request contains normalized PLN inputs; source-to-input aggregation remains
-an application workflow to be completed before automatic monthly calculation.
+`OPEN`, aggregates approved persisted invoices and saved month settings, persists all three current
+calculations, creates or refreshes obligations, marks the period calculated internally, and settles
+compatible transactions already imported for the month.
 
 The REST bridge passes freeze/reopen operations to this lifecycle service for native periods.
-Legacy-backed periods remain delegated until their facts are migrated and verified.
+There is no legacy Accounting fallback in the active native accounting path.

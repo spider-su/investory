@@ -33,8 +33,12 @@ public class HomeController {
   @Value("${app.ui.yahoo-url:}")
   private String yahooFinanceUrl;
 
+  @Value("${app.security.google.enabled:false}")
+  private boolean googleLoginEnabled;
+
   @GetMapping("/")
-  public String home() {
+  public String home(org.springframework.ui.Model model) {
+    model.addAttribute("googleLoginEnabled", googleLoginEnabled);
     return "home";
   }
 

@@ -38,8 +38,7 @@ class MockZusClientIT extends AccountingDatabaseTest {
   @AfterEach
   void deleteTestRows() {
     jdbcTemplate.update(
-        "DELETE FROM investory.accounting_poc_bank_transaction WHERE reference LIKE ?",
-        TEST_PREFIX + "%");
+        "DELETE FROM investory.ryczalt_transaction WHERE reference LIKE ?", TEST_PREFIX + "%");
   }
 
   @Test
@@ -57,16 +56,20 @@ class MockZusClientIT extends AccountingDatabaseTest {
 
   private void insert(String date, String counterparty, String amount) {
     jdbcTemplate.update(
+        "INSERT INTO investory.ryczalt_period(profile_id, period_year, period_month, status) "
+            + "VALUES (1, 2026, ?, 'OPEN') ON CONFLICT (profile_id, period_year, period_month) DO NOTHING",
+        LocalDate.parse(date).getMonthValue());
+    jdbcTemplate.update(
         """
-        INSERT INTO investory.accounting_poc_bank_transaction
-            (profile_id, booking_date, related_period, reference, counterparty_alias, currency, amount,
-             transaction_type, scope, note, provider, external_account_id, external_transaction_id)
-        VALUES (1, ?, NULL, ?, ?, 'PLN', ?, 'UNKNOWN', 'BUSINESS', 'mock ZUS integration test', 'CSV', 'JDG_MAIN_ACCOUNT', ?)
+        INSERT INTO investory.ryczalt_transaction
+            (period_id, profile_id, booking_date, reference, counterparty, currency, amount, description)
+        VALUES ((SELECT id FROM investory.ryczalt_period WHERE profile_id = 1 AND period_year = 2026 AND period_month = ?),
+                1, ?, ?, ?, 'PLN', ?, 'mock ZUS integration test')
         """,
+        LocalDate.parse(date).getMonthValue(),
         LocalDate.parse(date),
         TEST_PREFIX + "-" + date,
         counterparty,
-        new BigDecimal(amount),
-        TEST_PREFIX + "-" + date);
+        new BigDecimal(amount));
   }
 }

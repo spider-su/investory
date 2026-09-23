@@ -29,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 @DisplayName("Ibkr Treasury Import")
 class IbkrTreasuryImportIT extends FastDatabaseTest {
 
+  private static final Long ACCOUNT_ID = 17959259L;
+
   private static final String TREASURY_ROWS =
       String.join(
           "\n",
@@ -99,12 +101,18 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
     double importedCash = operations.stream().mapToDouble(op -> op.getAmount().doubleValue()).sum();
     assertEquals(-54.03, importedCash, 0.000001);
 
-    List<PositionEntity> closed = closedPositionRepository.findClosedByAssetId(treasury.getId());
+    List<PositionEntity> closed =
+        closedPositionRepository.findClosedByAssetIdAndAccountIn(
+            treasury.getId(), Set.of(ACCOUNT_ID));
     assertEquals(3, closed.size());
     assertEquals(
         10000.0, closed.stream().mapToDouble(p -> p.getVolume().doubleValue()).sum(), 0.000001);
     assertEquals(
         10000.0, closed.stream().mapToDouble(p -> p.getSaleValue().doubleValue()).sum(), 0.000001);
-    assertEquals(0, openedPositionRepository.findOpenByAssetId(treasury.getId()).size());
+    assertEquals(
+        0,
+        openedPositionRepository
+            .findOpenByAssetIdAndAccountIn(treasury.getId(), Set.of(ACCOUNT_ID))
+            .size());
   }
 }

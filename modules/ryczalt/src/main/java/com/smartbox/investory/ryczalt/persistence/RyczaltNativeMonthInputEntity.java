@@ -1,11 +1,14 @@
 package com.smartbox.investory.ryczalt.persistence;
 
 import com.smartbox.investory.ryczalt.application.RyczaltNativeMonthInputService.Command;
+import com.smartbox.investory.ryczalt.calculation.InputChange;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.YearMonth;
+import java.util.EnumSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "ryczalt_native_month_input", schema = "investory")
@@ -37,6 +40,12 @@ public class RyczaltNativeMonthInputEntity extends RyczaltEntity {
   @Column(name = "full_jdg_social", precision = 19, scale = 4)
   private BigDecimal fullJdgSocial;
 
+  @Column(name = "social_contribution_deduction", precision = 19, scale = 4)
+  private BigDecimal socialContributionDeduction;
+
+  @Column(name = "health_contribution_override", precision = 19, scale = 4)
+  private BigDecimal healthContributionOverride;
+
   @Column(name = "deductions_already_consumed", nullable = false, precision = 19, scale = 4)
   private BigDecimal deductionsAlreadyConsumed;
 
@@ -62,14 +71,47 @@ public class RyczaltNativeMonthInputEntity extends RyczaltEntity {
     this.voluntarySickness = command.voluntarySickness();
     this.ytdRyczaltRevenue = command.ytdRyczaltRevenue();
     this.fullJdgSocial = command.fullJdgSocial();
+    this.socialContributionDeduction = command.socialContributionDeduction();
+    this.healthContributionOverride = command.healthContributionOverride();
     this.deductionsAlreadyConsumed = command.deductionsAlreadyConsumed();
     this.salesCorrections = command.salesCorrections();
     this.explicitVatAdjustments = command.explicitVatAdjustments();
   }
 
+  public Set<InputChange> changesComparedTo(Command command) {
+    EnumSet<InputChange> changes = EnumSet.noneOf(InputChange.class);
+    if (jdgActive != command.jdgActive()
+        || qualifyingUop != command.qualifyingUop()
+        || !java.util.Objects.equals(zusRegime, command.zusRegime())
+        || voluntarySickness != command.voluntarySickness()
+        || !java.util.Objects.equals(ytdRyczaltRevenue, command.ytdRyczaltRevenue())
+        || !java.util.Objects.equals(fullJdgSocial, command.fullJdgSocial())
+        || !java.util.Objects.equals(
+            socialContributionDeduction, command.socialContributionDeduction())
+        || !java.util.Objects.equals(
+            healthContributionOverride, command.healthContributionOverride())) {
+      changes.add(InputChange.ZUS_INPUT_CHANGED);
+    }
+    if (!java.util.Objects.equals(deductionsAlreadyConsumed, command.deductionsAlreadyConsumed())) {
+      changes.add(InputChange.RYCZALT_DEDUCTIONS_CHANGED);
+    }
+    if (!java.util.Objects.equals(salesCorrections, command.salesCorrections())
+        || !java.util.Objects.equals(explicitVatAdjustments, command.explicitVatAdjustments())) {
+      changes.add(InputChange.VAT_ADJUSTMENT_CHANGED);
+    }
+    return Set.copyOf(changes);
+  }
+
   public ZusSettings zusSettings() {
     return new ZusSettings(
-        jdgActive, qualifyingUop, zusRegime, voluntarySickness, ytdRyczaltRevenue, fullJdgSocial);
+        jdgActive,
+        qualifyingUop,
+        zusRegime,
+        voluntarySickness,
+        ytdRyczaltRevenue,
+        fullJdgSocial,
+        socialContributionDeduction,
+        healthContributionOverride);
   }
 
   public BigDecimal deductionsAlreadyConsumed() {
@@ -90,5 +132,7 @@ public class RyczaltNativeMonthInputEntity extends RyczaltEntity {
       String zusRegime,
       boolean voluntarySickness,
       BigDecimal ytdRyczaltRevenue,
-      BigDecimal fullJdgSocial) {}
+      BigDecimal fullJdgSocial,
+      BigDecimal socialContributionDeduction,
+      BigDecimal healthContributionOverride) {}
 }

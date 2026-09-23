@@ -9,7 +9,9 @@ public record ZusCalculationInput(
     boolean voluntarySickness,
     BigDecimal ytdRyczaltRevenue,
     BigDecimal fullJdgSocial,
-    ZusRules2026.HealthBand explicitHealthBand) {
+    ZusRules2026.HealthBand explicitHealthBand,
+    BigDecimal socialContributionDeduction,
+    BigDecimal healthContributionOverride) {
   public ZusCalculationInput {
     ytdRyczaltRevenue = ytdRyczaltRevenue == null ? BigDecimal.ZERO : ytdRyczaltRevenue;
     fullJdgSocial = fullJdgSocial == null ? ZusRules2026.FULL_JDG_SOCIAL : fullJdgSocial;
@@ -17,6 +19,30 @@ public record ZusCalculationInput(
         explicitHealthBand == null
             ? ZusRules2026.healthBand(ytdRyczaltRevenue)
             : explicitHealthBand;
+    if (socialContributionDeduction != null && socialContributionDeduction.signum() < 0)
+      throw new IllegalArgumentException("socialContributionDeduction must not be negative");
+    if (healthContributionOverride != null && healthContributionOverride.signum() < 0)
+      throw new IllegalArgumentException("healthContributionOverride must not be negative");
+  }
+
+  public ZusCalculationInput(
+      boolean jdgActive,
+      boolean qualifyingUop,
+      String zusRegime,
+      boolean voluntarySickness,
+      BigDecimal ytdRyczaltRevenue,
+      BigDecimal fullJdgSocial,
+      ZusRules2026.HealthBand explicitHealthBand) {
+    this(
+        jdgActive,
+        qualifyingUop,
+        zusRegime,
+        voluntarySickness,
+        ytdRyczaltRevenue,
+        fullJdgSocial,
+        explicitHealthBand,
+        null,
+        null);
   }
 
   public ZusCalculationInput(
@@ -33,6 +59,8 @@ public record ZusCalculationInput(
         voluntarySickness,
         ytdRyczaltRevenue,
         fullJdgSocial,
+        null,
+        null,
         null);
   }
 }

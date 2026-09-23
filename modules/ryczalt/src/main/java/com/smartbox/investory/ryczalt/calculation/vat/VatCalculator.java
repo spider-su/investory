@@ -5,6 +5,16 @@ import java.math.BigDecimal;
 
 /** Pure VAT settlement over normalized VAT facts. */
 public final class VatCalculator {
+  private final String ruleVersion;
+
+  public VatCalculator() {
+    this(VatRules2026.VERSION);
+  }
+
+  public VatCalculator(String ruleVersion) {
+    this.ruleVersion = java.util.Objects.requireNonNull(ruleVersion, "ruleVersion");
+  }
+
   public VatCalculationResult calculate(VatCalculationInput input) {
     BigDecimal output = input.outputVatBeforeCorrections().add(input.salesCorrections());
     BigDecimal payable =
@@ -19,6 +29,6 @@ public final class VatCalculator {
         input.deductibleInputVat(),
         input.explicitAdjustments(),
         payable,
-        VatRules2026.VERSION);
+        ruleVersion);
   }
 }

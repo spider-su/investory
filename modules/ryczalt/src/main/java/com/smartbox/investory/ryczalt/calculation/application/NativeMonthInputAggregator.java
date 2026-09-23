@@ -8,7 +8,6 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltNativeMonthInputEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltNativeMonthInputJpaRepository;
-import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.LinkedHashMap;
@@ -44,7 +43,10 @@ public class NativeMonthInputAggregator {
             zus.zusRegime(),
             zus.voluntarySickness(),
             zus.ytdRyczaltRevenue(),
-            zus.fullJdgSocial()),
+            zus.fullJdgSocial(),
+            null,
+            zus.socialContributionDeduction(),
+            zus.healthContributionOverride()),
         settings.deductionsAlreadyConsumed(),
         settings.salesCorrections(),
         settings.explicitVatAdjustments());
@@ -70,13 +72,14 @@ public class NativeMonthInputAggregator {
     BigDecimal outputVat = BigDecimal.ZERO;
     BigDecimal deductibleVat = BigDecimal.ZERO;
     for (RyczaltInvoiceEntity invoice : rows) {
-      if (invoice.getCurrency() != CurrencyType.PLN) {
-        throw needsReview(month, "foreign-currency invoice needs PLN-normalized tax facts");
-      }
       if (invoice.getDirection() == InvoiceDirection.INCOME) {
         require(invoice.getBookedNetPln(), month, "income invoice has no booked PLN net amount");
         require(invoice.getRyczaltRate(), month, "income invoice has no ryczałt rate");
         revenueByRate.merge(invoice.getRyczaltRate(), invoice.getBookedNetPln(), BigDecimal::add);
+        if (invoice.getCurrency() != com.smartbox.investory.shared.currency.CurrencyType.PLN
+            && invoice.getVatAmount().signum() != 0) {
+          throw needsReview(month, "foreign-currency VAT requires PLN-normalized tax facts");
+        }
         outputVat = outputVat.add(invoice.getVatAmount());
       } else {
         require(invoice.getDeductibleVat(), month, "cost invoice has unresolved deductible VAT");

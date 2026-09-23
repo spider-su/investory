@@ -19,6 +19,12 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -68,7 +74,9 @@ public class SecurityConfig {
       @Value("${app.security.csrf-protection-required:true}") boolean csrfProtectionRequired,
       TokenAuthenticationService tokens,
       UserDetailsService users,
-      @Value("${app.security.token-login-enabled:true}") boolean tokenLoginEnabled) {
+      @Value("${app.security.token-login-enabled:true}") boolean tokenLoginEnabled,
+      @Value("${app.security.google.enabled:false}") boolean googleLoginEnabled,
+      ObjectProvider<OAuth2UserService<OAuth2UserRequest, OAuth2User>> googleUsers) {
     var authorization =
         http.csrf(
                 csrf -> {
@@ -81,7 +89,7 @@ public class SecurityConfig {
                   }
                 })
             .sessionManagement(
-                session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .cors(Customizer.withDefaults())
             .authorizeHttpRequests(
                 auth ->
@@ -96,7 +104,9 @@ public class SecurityConfig {
                             "/actuator/health/liveness",
                             "/swagger-ui.html",
                             "/swagger-ui/**",
-                            "/v3/api-docs/**")
+                            "/v3/api-docs/**",
+                            "/login/**",
+                            "/oauth2/**")
                         .permitAll()
                         .requestMatchers(
                             tokenLoginEnabled ? "/api/v1/auth/login" : "/disabled-token-login")
@@ -123,6 +133,12 @@ public class SecurityConfig {
         .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
         .httpBasic(Customizer.withDefaults())
         .formLogin(AbstractHttpConfigurer::disable);
+
+    if (googleLoginEnabled) {
+      authorization.oauth2Login(
+          oauth ->
+              oauth.userInfoEndpoint(userInfo -> userInfo.userService(googleUsers.getObject())));
+    }
 
     authorization.addFilterBefore(
         new BearerTokenAuthenticationFilter(tokens, users), BasicAuthenticationFilter.class);
@@ -192,5 +208,32 @@ public class SecurityConfig {
   @Bean
   public PasswordEncoder passwordEncoder() {
     return new BCryptPasswordEncoder();
+  }
+
+  @Bean
+  @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+      prefix = "app.security.google",
+      name = "enabled",
+      havingValue = "true")
+  public ClientRegistrationRepository googleClientRegistrationRepository(
+      @Value("${app.security.google.client-id}") String clientId,
+      @Value("${app.security.google.client-secret}") String clientSecret,
+      @Value("${app.security.google.redirect-uri:{baseUrl}/login/oauth2/code/{registrationId}}")
+          String redirectUri) {
+    ClientRegistration google =
+        ClientRegistration.withRegistrationId("google")
+            .clientId(clientId)
+            .clientSecret(clientSecret)
+            .scope("profile", "email")
+            .authorizationUri("https://accounts.google.com/o/oauth2/v2/auth")
+            .tokenUri("https://oauth2.googleapis.com/token")
+            .userInfoUri("https://openidconnect.googleapis.com/v1/userinfo")
+            .userNameAttributeName("sub")
+            .clientName("Google")
+            .redirectUri(redirectUri)
+            .authorizationGrantType(
+                org.springframework.security.oauth2.core.AuthorizationGrantType.AUTHORIZATION_CODE)
+            .build();
+    return new InMemoryClientRegistrationRepository(google);
   }
 }

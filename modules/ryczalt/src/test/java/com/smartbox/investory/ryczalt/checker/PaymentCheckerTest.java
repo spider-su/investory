@@ -101,6 +101,39 @@ class PaymentCheckerTest {
   }
 
   @Test
+  void keepsDuplicateHumanReferencesDistinctByMatchKey() {
+    Obligation obligation =
+        new Obligation(ObligationType.ZUS, new BigDecimal("150.00"), PLN, null, null);
+    PaymentCheckResult result =
+        checker.check(
+            obligation,
+            List.of(
+                new Transaction(
+                    "transaction-1",
+                    "same-bank-reference",
+                    LocalDate.of(2026, 2, 10),
+                    new BigDecimal("-100.00"),
+                    PLN,
+                    "ZUS",
+                    null,
+                    "ZUS"),
+                new Transaction(
+                    "transaction-2",
+                    "same-bank-reference",
+                    LocalDate.of(2026, 2, 11),
+                    new BigDecimal("-50.00"),
+                    PLN,
+                    "ZUS",
+                    null,
+                    "ZUS")));
+
+    assertEquals(PaymentCheckStatus.PAID, result.status());
+    assertEquals(
+        List.of("transaction-1", "transaction-2"),
+        result.matchedTransactions().stream().map(PaymentAllocation::transactionId).toList());
+  }
+
+  @Test
   void usesUniqueCounterpartyAccountAsDirectPaymentEvidence() {
     Obligation obligation =
         new Obligation(ObligationType.ZUS, new BigDecimal("1495.04"), PLN, null, null);

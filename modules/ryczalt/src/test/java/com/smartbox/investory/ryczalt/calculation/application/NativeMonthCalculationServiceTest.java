@@ -15,6 +15,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationPersistenceA
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
+import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
@@ -29,6 +30,7 @@ class NativeMonthCalculationServiceTest {
       mock(RyczaltCalculationPersistenceAdapter.class);
   private final RyczaltObligationJpaRepository obligations =
       mock(RyczaltObligationJpaRepository.class);
+  private final SettlementService settlement = mock(SettlementService.class);
 
   @Test
   void calculatesAllTaxesAndCreatesThreeObligationsForNewMonth() {
@@ -45,7 +47,8 @@ class NativeMonthCalculationServiceTest {
         .thenAnswer(invocation -> mock(RyczaltCalculationEntity.class));
 
     var service =
-        new NativeMonthCalculationService(periods, inputAggregator, calculations, obligations);
+        new NativeMonthCalculationService(
+            periods, inputAggregator, calculations, obligations, settlement);
     var result =
         service.calculate(
             7L,
@@ -70,5 +73,6 @@ class NativeMonthCalculationServiceTest {
         .saveCurrent(any(), any(Long.TYPE), any(), any(), any(), any(), any());
     verify(obligations, times(3)).save(any());
     verify(periods).save(period);
+    verify(settlement).settlePeriod(7L, month);
   }
 }

@@ -17,9 +17,9 @@ Its API paths are defined in `src/api/accountingPaths.ts` and calls are made by
 | --- | --- | --- | --- | --- |
 | native period, invoice, transaction, obligation, issue, and payment routes | web/mobile target | native Ryczalt | `RyczaltAccountingRestController` | stable native contract |
 | native counterparty and invoice-recognition routes | web target | native Ryczalt | dedicated Ryczalt controllers | stable native contract |
-| `POST .../periods/{month}/calculate` | web/API | no current mobile use | native Ryczalt | accepts normalized RYCZALT/VAT/ZUS inputs and completes one month |
+| `POST .../periods/{month}/calculate` | web/API | no current mobile use | native Ryczalt | aggregates persisted facts and completes one month |
 | `POST .../bank/import` and `POST .../ksef/sync` | web/API | no current mobile use | native Ryczalt adapters | source acquisition is native; filing remains separate |
-| old `/api/v1` mobile and `/accounting/months` routes | compatibility only | legacy consumers | legacy Accounting | migrate consumers before deleting compatibility code |
+| old `/api/v1` mobile and `/accounting/months` routes | removed | none in active native path | none | historical docs only |
 | filing, confirmation, and JPK commands | legacy | no current native consumer | legacy Accounting | product decision and native filing design still required |
 
 The mobile client consumes monthly facts for revenue, Ryczałt/VAT/ZUS amounts, payment rows,
@@ -72,7 +72,7 @@ amounts: revenue, ryczalt, vat, zus, totalObligations
 counts: invoices, transactions
 obligations: expectedCount, paidCount, outstandingAmount
 completeness: status and issue count
-allowedActions: SETTLE, FREEZE, REOPEN
+allowedActions: FREEZE, REOPEN
 ```
 
 Obligation `dueDate` is a server-owned ISO date. `RYCZALT` and `ZUS` use the 20th day of the
@@ -85,8 +85,8 @@ Detailed invoices, transactions, obligations, and issues are separate collection
 KSeF transport, bank DTO, JPA entity, Thymeleaf model, or mobile screen model crosses this
 contract.
 
-Amounts are decimal JSON strings, dates are ISO local dates, and lifecycle values are stable enum
-identifiers such as `OPEN`, `DIRTY`, `CALCULATED`, `PAID`, and `FROZEN`. `allowedActions` contains
+Amounts are decimal JSON strings, dates are ISO local dates, and public period lifecycle values are
+`OPEN` and `FROZEN`. Internal calculation and obligation states are separate. `allowedActions` contains
 typed identifiers, never button labels.
 
 `GET /api/profiles/{profileId}/accounting/payments` returns payment/obligation history across
@@ -129,6 +129,16 @@ POST   /api/profiles/{profileId}/accounting/bank/import              multipart C
 POST   /api/profiles/{profileId}/accounting/ksef/sync                month and modes
 ```
 
+The native month-input settings endpoint is:
+
+```text
+PUT /api/profiles/{profileId}/accounting/periods/{month}/input-settings
+```
+
+Calculation reads persisted input settings and approved invoice facts. It creates or refreshes the
+three native calculations and obligations, then attempts idempotent settlement against already
+imported canonical bank transactions.
+
 Upload stores source identity and a candidate, but never accepts client-provided source amounts or
 dates as authoritative. Approval creates the canonical invoice only after the user supplies the
 required classification and counterparty decision. `rememberRule` is explicit. Bank CSV and KSeF
@@ -154,9 +164,8 @@ at `/invoices` with optional `month` and `counterpartyId` filters; period detail
 their dedicated `/periods/{month}/...` routes. Generated OpenAPI is served at `/v3/api-docs`.
 
 `POST /periods/{month}/calculate` runs the native monthly RYCZALT, VAT, ZUS, and obligation cycle.
-It accepts normalized PLN inputs (`revenueByRate`, VAT components, ZUS inputs, and consumed
-deductions), creates a missing period when needed, and returns the calculation result. It is a
-backend command; Web and mobile clients do not yet aggregate source facts automatically.
+It reads persisted approved invoices and month-input settings, creates a missing period when needed,
+refreshes obligations, settles compatible imported transactions, and returns the calculation result.
 
 `POST /api/profiles/{profileId}/accounting/invoices/recognize` accepts multipart field `file`. The server stores a native candidate and returns its `candidateKey`, source identity, source amounts/dates, counterparty resolution, approval state, typed `requiredInputs`, and decimal values as plain JSON strings.
 

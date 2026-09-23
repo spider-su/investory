@@ -47,6 +47,27 @@ class ZusCalculatorTest {
     assertEquals(ZusRules2026.VERSION, result.ruleVersion());
   }
 
+  @Test
+  void usesPersistedYearSpecificContributionAmountsWhenProvided() {
+    ZusCalculationResult result =
+        calculator.calculate(
+            new ZusCalculationInput(
+                true,
+                false,
+                "JDG",
+                false,
+                BigDecimal.ZERO,
+                new BigDecimal("1646.47"),
+                ZusRules2026.HealthBand.HIGH,
+                new BigDecimal("1518.98"),
+                new BigDecimal("1384.97")));
+
+    assertAmount("1646.47", result.social());
+    assertAmount("1384.97", result.health());
+    assertAmount("3031.44", result.total());
+    assertAmount("1518.98", result.deductibleSocial());
+  }
+
   private static void assertAmount(String expected, BigDecimal actual) {
     assertEquals(0, new BigDecimal(expected).compareTo(actual));
   }

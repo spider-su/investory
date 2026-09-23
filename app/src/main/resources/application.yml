@@ -124,6 +124,11 @@ app:
     token-login-enabled: ${APP_SECURITY_TOKEN_LOGIN_ENABLED:true}
     token-secret: ${APP_SECURITY_TOKEN_SECRET:change-me-token-secret-change-me-token-secret}
     token-lifetime: ${APP_SECURITY_TOKEN_LIFETIME:PT12H}
+    google:
+      enabled: ${APP_SECURITY_GOOGLE_ENABLED:false}
+      client-id: ${APP_SECURITY_GOOGLE_CLIENT_ID:}
+      client-secret: ${APP_SECURITY_GOOGLE_CLIENT_SECRET:}
+      redirect-uri: ${APP_SECURITY_GOOGLE_REDIRECT_URI:{baseUrl}/login/oauth2/code/{registrationId}}
   telegram:
     enabled: ${TELEGRAM_BOT_ENABLED:false}
     portfolio-id: ${TELEGRAM_PORTFOLIO_ID:}
