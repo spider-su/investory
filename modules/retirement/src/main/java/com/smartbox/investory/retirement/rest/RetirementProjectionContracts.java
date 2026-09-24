@@ -22,6 +22,11 @@ public final class RetirementProjectionContracts {
       @Min(0) @Max(150) Integer defaultCurrentAge,
       @Min(0) @Max(150) Integer defaultEndAge) {}
 
+  public record ProjectionRequest(
+      com.smartbox.investory.profile.api.model.InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      PlanningBaseline baseline) {}
+
   public record ProjectionResponse(
       Long portfolioId,
       Long planId,

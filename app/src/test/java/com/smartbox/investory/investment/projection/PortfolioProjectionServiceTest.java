@@ -34,6 +34,7 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -51,6 +52,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -88,6 +90,8 @@ class PortfolioProjectionServiceTest {
   @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
   @Mock private PortfolioProjectionRefreshService projectionRefreshService;
   @Mock private ApplicationTime applicationTime;
+  @Mock private JdbcTemplate jdbcTemplate;
+  @Mock private EntityManager entityManager;
 
   @InjectMocks private PortfolioProjectionService service;
 

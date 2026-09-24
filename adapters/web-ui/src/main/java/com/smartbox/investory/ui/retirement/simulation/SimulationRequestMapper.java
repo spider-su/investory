@@ -27,72 +27,6 @@ final class SimulationRequestMapper {
     this.clock = clock;
   }
 
-  SimulationAssumptions applyLegacyOverrides(
-      SimulationAssumptions base, LegacyQueryOverrides input) {
-    CurrencyType submittedCurrency =
-        input.submittedDisplayCurrency() == null
-            ? input.displayCurrency()
-            : input.submittedDisplayCurrency();
-    return base.toBuilder()
-        .currentAge(input.currentAge() == null ? base.currentAge() : input.currentAge())
-        .endAge(input.endAge() == null ? base.endAge() : input.endAge())
-        .annualLivingExpenses(
-            resolveDisplayedMoney(
-                input.annualExpenses(),
-                input.annualExpensesCanonical(),
-                input.annualExpensesEdited(),
-                submittedCurrency,
-                base.annualLivingExpenses()))
-        .inflationRate(rate(input.inflation(), base.inflationRate()))
-        .fixedIncomeReturnRate(rate(input.fixedIncomeReturn(), base.fixedIncomeReturnRate()))
-        .equityReturnRate(rate(input.equityReturn(), base.equityReturnRate()))
-        .pensionStartAge(
-            input.pensionStartAge() == null ? base.pensionStartAge() : input.pensionStartAge())
-        .annualPension(
-            resolveDisplayedMoney(
-                input.annualPension(),
-                input.annualPensionCanonical(),
-                input.annualPensionEdited(),
-                submittedCurrency,
-                base.annualPension()))
-        .capitalGainTaxRate(rate(input.capitalGainTaxRate(), base.capitalGainTaxRate()))
-        .annualDiscretionaryExpenses(
-            resolveDisplayedMoney(
-                input.discretionaryExpenses(),
-                input.discretionaryExpensesCanonical(),
-                input.discretionaryExpensesEdited(),
-                submittedCurrency,
-                base.annualDiscretionaryExpenses()))
-        .rentalIncomeGrowthSpread(
-            rate(input.rentalIncomeGrowthSpread(), base.rentalIncomeGrowthSpread()))
-        .spendingGrowthSpread(rate(input.spendingGrowthSpread(), base.spendingGrowthSpread()))
-        .fundingStrategy(
-            input.fundingStrategy() == null ? base.fundingStrategy() : input.fundingStrategy())
-        .safeReserveYears(
-            input.safeReserveYears() == null ? base.safeReserveYears() : input.safeReserveYears())
-        .equityHarvestMinimumReturnRate(
-            input.equityHarvestMinimumReturn() == null
-                ? base.equityHarvestMinimumReturnRate()
-                : rate(input.equityHarvestMinimumReturn(), base.equityHarvestMinimumReturnRate()))
-        .equityGainHarvestRate(
-            input.equityGainHarvest() == null
-                ? base.equityGainHarvestRate()
-                : rate(input.equityGainHarvest(), base.equityGainHarvestRate()))
-        .allowEmergencyEquityWithdrawal(
-            input.allowEmergencyEquityWithdrawal() == null
-                ? base.allowEmergencyEquityWithdrawal()
-                : input.allowEmergencyEquityWithdrawal())
-        .fundingOrder(
-            input.fundingOrder() == null
-                ? base.fundingOrder()
-                : SimulationInputParser.parseFundingOrder(input.fundingOrder()))
-        .build();
-  }
-
-  SimulationAssumptions mapSaveForm(SimulationAssumptions storedAssumptions, SavePlanForm input) {
-    return mapSaveForm(storedAssumptions, input, Year.now(clock).getValue());
-  }
-
   SimulationAssumptions mapSaveForm(
       SimulationAssumptions storedAssumptions, SavePlanForm input, int currentYear) {
     int ageAtPlanStart =
@@ -124,7 +58,7 @@ final class SimulationRequestMapper {
             .inflationRate(rate(input.inflation(), BigDecimal.ZERO))
             .fixedIncomeReturnRate(rate(input.fixedIncomeReturn(), base.fixedIncomeReturnRate()))
             .equityReturnRate(rate(input.equityReturn(), BigDecimal.ZERO))
-            .pensionStartAge(normalizePensionStartAge(input.pensionStartAge()))
+            .pensionStartAge(input.pensionStartAge())
             .annualPension(
                 presentation.fromDisplay(
                     input.annualPension(), input.displayCurrency(), BigDecimal.ZERO))
@@ -181,19 +115,6 @@ final class SimulationRequestMapper {
             mappedAssumptions,
             input.displayCurrency())
         .assumptions();
-  }
-
-  BigDecimal resolveDisplayedMoney(
-      BigDecimal displayAmount,
-      BigDecimal canonicalAmount,
-      boolean edited,
-      CurrencyType displayCurrency,
-      BigDecimal fallback) {
-    return !edited && canonicalAmount != null
-        ? canonicalAmount
-        : displayAmount == null
-            ? fallback
-            : presentation.fromDisplay(displayAmount, displayCurrency, fallback);
   }
 
   private PlanEditorInput editorInput(
@@ -257,42 +178,6 @@ final class SimulationRequestMapper {
   static BigDecimal percentInputToRate(BigDecimal percent, BigDecimal fallback) {
     return rate(percent, fallback);
   }
-
-  private static Integer normalizePensionStartAge(Integer pensionStartAge) {
-    return pensionStartAge;
-  }
-
-  private static String text(Object value) {
-    return value == null ? "" : String.valueOf(value);
-  }
-
-  record LegacyQueryOverrides(
-      Integer currentAge,
-      Integer endAge,
-      BigDecimal annualExpenses,
-      BigDecimal annualExpensesCanonical,
-      boolean annualExpensesEdited,
-      BigDecimal discretionaryExpenses,
-      BigDecimal discretionaryExpensesCanonical,
-      boolean discretionaryExpensesEdited,
-      BigDecimal inflation,
-      BigDecimal rentalIncomeGrowthSpread,
-      BigDecimal spendingGrowthSpread,
-      SimulationFundingStrategy fundingStrategy,
-      String fundingOrder,
-      BigDecimal safeReserveYears,
-      BigDecimal equityHarvestMinimumReturn,
-      BigDecimal equityGainHarvest,
-      Boolean allowEmergencyEquityWithdrawal,
-      BigDecimal fixedIncomeReturn,
-      BigDecimal equityReturn,
-      Integer pensionStartAge,
-      BigDecimal annualPension,
-      BigDecimal annualPensionCanonical,
-      boolean annualPensionEdited,
-      BigDecimal capitalGainTaxRate,
-      CurrencyType displayCurrency,
-      CurrencyType submittedDisplayCurrency) {}
 
   record SavePlanForm(
       int currentAge,

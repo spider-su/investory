@@ -11,6 +11,7 @@ import com.smartbox.investory.retirement.api.model.SimulationChartData;
 import com.smartbox.investory.retirement.api.model.SimulationDecisionSummaryMoney;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.ui.profile.ProfileClient;
 import com.smartbox.investory.ui.retirement.simulation.RetirementPlanClient;
 import com.smartbox.investory.ui.retirement.simulation.RetirementPresentationClient;
 import com.smartbox.investory.ui.retirement.simulation.RetirementProjectionClient;
@@ -27,23 +28,25 @@ class RetirementAnalysisControllerTest {
     RetirementAnalysisClient analyses = mock(RetirementAnalysisClient.class);
     RetirementPresentationClient presentation = mock(RetirementPresentationClient.class);
     RetirementPlanClient plans = mock(RetirementPlanClient.class);
+    ProfileClient profiles = mock(ProfileClient.class);
     RetirementProjection projection = mock(RetirementProjection.class);
     when(plans.resolvePlanId(1L, null)).thenReturn(Optional.empty());
     when(projections.load(1L, null, 40, 95)).thenReturn(projection);
     when(projection.summaries()).thenReturn(Map.of());
     var charts = new SimulationChartData(Map.of(), List.of(), List.of());
-    when(analyses.analyze(projection))
+    when(analyses.analyze(1L, null, 40, 95))
         .thenReturn(RetirementAnalysisResult.noForwardHorizon(charts));
     SimulationDecisionSummaryMoney summary = mock(SimulationDecisionSummaryMoney.class);
     when(presentation.displaySummaries(Map.of(), CurrencyType.PLN))
         .thenReturn(Map.of(SimulationScenario.BASE, summary));
     when(presentation.displayCharts(charts, CurrencyType.PLN)).thenReturn(charts);
-    var controller = new RetirementAnalysisController(projections, analyses, presentation, plans);
+    var controller =
+        new RetirementAnalysisController(projections, analyses, presentation, plans, profiles);
     var model = new ConcurrentModel();
 
     assertThat(controller.analysis(1L, null, CurrencyType.PLN, SimulationScenario.BASE, model))
         .isEqualTo("retirement-analysis");
     assertThat(model.getAttribute("analysisPage")).isInstanceOf(RetirementAnalysisPageView.class);
-    verify(analyses).analyze(projection);
+    verify(analyses).analyze(1L, null, 40, 95);
   }
 }

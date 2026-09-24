@@ -12,17 +12,19 @@ import org.junit.jupiter.api.Test;
 
 @DisplayName("Performance Attribution Calculator")
 class PerformanceAttributionCalculatorTest {
-  @DisplayName("pure Unrealized Or Fx Movement Remains Explicit Residual")
+  @DisplayName("pure Unrealized Or Fx Movement Is Explicit Combined Movement")
   @Test
-  void pureUnrealizedOrFxMovementRemainsExplicitResidual() {
+  void pureUnrealizedOrFxMovementIsExplicitCombinedMovement() {
     PerformanceAttribution attribution =
         PerformanceAttributionCalculator.from(result("10", "0", "0", "0", "0", "0"));
 
     assertThat(attribution.unrealizedProfitLoss()).isNull();
     assertThat(attribution.fxEffect()).isNull();
-    assertThat(attribution.residual()).isEqualByComparingTo("10");
-    assertThat(attribution.residualMaterial()).isTrue();
-    assertThat(attribution.reconcilesWithinTolerance()).isFalse();
+    assertThat(attribution.marketAndFxMovement()).isEqualByComparingTo("10");
+    assertThat(attribution.residual()).isZero();
+    assertThat(attribution.residualMaterial()).isFalse();
+    assertThat(attribution.reconcilesWithinTolerance()).isTrue();
+    assertThat(attribution.totalAttributedResult()).isEqualByComparingTo("10");
   }
 
   @DisplayName("fee And Tax Effects Use Positive Expense Presentation")

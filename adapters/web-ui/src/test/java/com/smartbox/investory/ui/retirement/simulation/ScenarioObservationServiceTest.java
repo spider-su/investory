@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.retirement.api.RetirementScenarioObservationApi;
 import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.Map;
@@ -14,8 +13,8 @@ import org.junit.jupiter.api.Test;
 
 @DisplayName("Scenario Observation Service")
 class ScenarioObservationServiceTest {
-  private final RetirementScenarioObservationApi observations =
-      mock(RetirementScenarioObservationApi.class);
+  private final RetirementScenarioObservationClient observations =
+      mock(RetirementScenarioObservationClient.class);
   private final ScenarioObservationService service = new ScenarioObservationService(observations);
 
   @DisplayName("equity Return Uses Requested Portfolio And Keeps Missing Distinct From Zero")

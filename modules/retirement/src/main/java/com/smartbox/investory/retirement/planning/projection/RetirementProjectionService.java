@@ -12,7 +12,6 @@ import com.smartbox.investory.retirement.simulation.RetirementSimulation;
 import java.time.Clock;
 import java.util.EnumMap;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -26,7 +25,6 @@ public class RetirementProjectionService implements RetirementProjectionApi {
   private final RetirementSimulation simulations;
   private final Clock clock;
 
-  @Autowired
   public RetirementProjectionService(
       RetirementFactsProvider factsProvider,
       RetirementPlanApi plans,

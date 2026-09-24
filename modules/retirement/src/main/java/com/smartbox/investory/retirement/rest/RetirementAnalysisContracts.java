@@ -30,11 +30,30 @@ public final class RetirementAnalysisContracts {
           AnalysisValue.from(source.sensitivity()),
           source.charts());
     }
+
+    public RetirementAnalysisResult toDomain() {
+      return RetirementAnalysisContracts.toDomain(this);
+    }
   }
 
   public record AnalysisValue<T>(boolean available, T value, String reason) {
     static <T> AnalysisValue<T> from(AnalysisAvailability<T> source) {
       return new AnalysisValue<>(source.available(), source.value().orElse(null), source.reason());
     }
+  }
+
+  public static RetirementAnalysisResult toDomain(AnalysisResponse source) {
+    return new RetirementAnalysisResult(
+        source.state(),
+        toAvailability(source.sustainableSpending()),
+        toAvailability(source.retirementAge()),
+        toAvailability(source.sensitivity()),
+        source.charts());
+  }
+
+  private static <T> AnalysisAvailability<T> toAvailability(AnalysisValue<T> source) {
+    return source.available()
+        ? new AnalysisAvailability.Available<>(source.value())
+        : new AnalysisAvailability.Unavailable<>(source.reason());
   }
 }

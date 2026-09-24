@@ -25,6 +25,7 @@ class SimulationTimelineControllerTest {
   @Mock RetirementTimelineClient timeline;
   @Mock RetirementPresentationClient presentation;
   @Mock RetirementProjectionClient projections;
+  @Mock SimulationTimelinePageAssembler pageAssembler;
 
   private SimulationTimelineController controller() {
     return new SimulationTimelineController(
@@ -33,7 +34,8 @@ class SimulationTimelineControllerTest {
         timeline,
         presentation,
         projections,
-        Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+        Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC),
+        pageAssembler);
   }
 
   @Test

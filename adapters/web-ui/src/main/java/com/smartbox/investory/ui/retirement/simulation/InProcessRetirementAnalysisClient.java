@@ -1,23 +1,23 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
-import com.smartbox.investory.retirement.api.RetirementAnalysisApi;
-import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.RetirementAnalysisResult;
-import com.smartbox.investory.retirement.api.model.RetirementProjection;
+import com.smartbox.investory.retirement.rest.RetirementAnalysisRestController;
+import com.smartbox.investory.retirement.rest.RetirementProjectionContracts.ProjectionParameters;
 import com.smartbox.investory.ui.retirement.analysis.RetirementAnalysisClient;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InProcessRetirementAnalysisClient implements RetirementAnalysisClient {
-  private final RetirementAnalysisApi retirementAnalysisApi;
+  private final RetirementAnalysisRestController rest;
 
-  public InProcessRetirementAnalysisClient(
-      @Qualifier("retirementAnalysisService") RetirementAnalysisApi retirementAnalysisApi) {
-    this.retirementAnalysisApi = retirementAnalysisApi;
+  public InProcessRetirementAnalysisClient(RetirementAnalysisRestController rest) {
+    this.rest = rest;
   }
 
-  public RetirementAnalysisResult analyze(RetirementProjection projection) {
-    return retirementAnalysisApi.analyze(projection);
+  public RetirementAnalysisResult analyze(
+      Long portfolioId, Long planId, Integer defaultCurrentAge, Integer defaultEndAge) {
+    return rest.analyze(
+            portfolioId, new ProjectionParameters(planId, defaultCurrentAge, defaultEndAge))
+        .toDomain();
   }
 }

@@ -48,7 +48,8 @@ public class NativeMonthInputAggregator {
             zus.fullJdgSocial(),
             null,
             zus.socialContributionDeduction(),
-            zus.healthContributionOverride()),
+            zus.healthContributionOverride(),
+            zus.healthContributionPaidOverride()),
         settings.deductionsAlreadyConsumed(),
         settings.salesCorrections(),
         settings.explicitVatAdjustments());
@@ -79,6 +80,7 @@ public class NativeMonthInputAggregator {
             previousZus.fullJdgSocial(),
             previousZus.socialContributionDeduction(),
             previousZus.healthContributionOverride(),
+            previousZus.healthContributionPaidOverride(),
             previous.deductionsAlreadyConsumed(),
             previous.salesCorrections(),
             previous.explicitVatAdjustments());

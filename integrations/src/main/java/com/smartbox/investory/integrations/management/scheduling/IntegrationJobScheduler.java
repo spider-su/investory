@@ -15,7 +15,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -25,7 +24,7 @@ import org.springframework.stereotype.Service;
 /** Polls persisted jobs so changes take effect without an application restart. */
 @Slf4j
 @Service
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class IntegrationJobScheduler implements IntegrationJobExecutionApi {
   private final IntegrationJobRepository jobRepository;
   private final IntegrationInstanceRepository instanceRepository;

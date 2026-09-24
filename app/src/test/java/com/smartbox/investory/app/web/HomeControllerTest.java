@@ -10,9 +10,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
-import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardPageView;
-import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardQuery;
+import com.smartbox.investory.ui.common.BuildMetadata;
 import com.smartbox.investory.ui.investment.InvestmentDashboardClient;
+import com.smartbox.investory.ui.investment.InvestmentDashboardPageView;
+import com.smartbox.investory.ui.investment.InvestmentDashboardQuery;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +35,8 @@ class HomeControllerTest {
 
   @BeforeEach
   void setUp() {
-    HomeController controller = new HomeController(investmentDashboard);
+    HomeController controller =
+        new HomeController(investmentDashboard, BuildMetadata.development(), "", false);
     InternalResourceViewResolver resolver = new InternalResourceViewResolver();
     resolver.setPrefix("/WEB-INF/views/");
     resolver.setSuffix(".jsp");
@@ -50,7 +52,8 @@ class HomeControllerTest {
   @DisplayName("dashboard Exposes One Dashboard Page View And Presentation Metadata")
   @Test
   void dashboardExposesOneDashboardPageViewAndPresentationMetadata() throws Exception {
-    DashboardPageView dashboard = org.mockito.Mockito.mock(DashboardPageView.class);
+    InvestmentDashboardPageView dashboard =
+        org.mockito.Mockito.mock(InvestmentDashboardPageView.class);
     when(dashboard.selectedPeriod()).thenReturn(DashboardPeriod.ONE_YEAR);
     when(dashboard.periods()).thenReturn(List.of(DashboardPeriod.ONE_YEAR));
     when(investmentDashboard.loadDashboard(any())).thenReturn(dashboard);
@@ -117,20 +120,23 @@ class HomeControllerTest {
 
     mockMvc.perform(get("/portfolios/42/dashboard"));
 
-    ArgumentCaptor<DashboardQuery> query = ArgumentCaptor.forClass(DashboardQuery.class);
+    ArgumentCaptor<InvestmentDashboardQuery> query =
+        ArgumentCaptor.forClass(InvestmentDashboardQuery.class);
     verify(investmentDashboard).loadDashboard(query.capture());
     assertEquals(42L, query.getValue().portfolioId());
   }
 
   private void stubDashboard() {
-    DashboardPageView dashboard = org.mockito.Mockito.mock(DashboardPageView.class);
+    InvestmentDashboardPageView dashboard =
+        org.mockito.Mockito.mock(InvestmentDashboardPageView.class);
     when(dashboard.selectedPeriod()).thenReturn(DashboardPeriod.YEAR_TO_DATE);
     when(dashboard.periods()).thenReturn(List.of(DashboardPeriod.YEAR_TO_DATE));
     when(investmentDashboard.loadDashboard(any())).thenReturn(dashboard);
   }
 
   private void assertQuery(boolean submitted, List<Long> accountIds, DashboardPeriod period) {
-    ArgumentCaptor<DashboardQuery> query = ArgumentCaptor.forClass(DashboardQuery.class);
+    ArgumentCaptor<InvestmentDashboardQuery> query =
+        ArgumentCaptor.forClass(InvestmentDashboardQuery.class);
     verify(investmentDashboard).loadDashboard(query.capture());
     assertEquals(Boolean.valueOf(submitted), query.getValue().benchmarkAccountsSubmitted());
     assertEquals(accountIds, query.getValue().accountIds());

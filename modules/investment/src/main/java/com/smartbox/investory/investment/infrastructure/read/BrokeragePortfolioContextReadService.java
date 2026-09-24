@@ -5,7 +5,6 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.portfolio.PortfolioContext;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.util.Optional;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +20,7 @@ public class BrokeragePortfolioContextReadService implements PortfolioContextRea
     this(portfolioSummaries, null);
   }
 
-  @Autowired
+  @org.springframework.beans.factory.annotation.Autowired
   public BrokeragePortfolioContextReadService(
       PortfolioKpiSummaryRepository portfolioSummaries, JdbcTemplate jdbcTemplate) {
     this.portfolioSummaries = portfolioSummaries;

@@ -5,7 +5,6 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Year;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -18,9 +17,11 @@ final class SimulationPageAssembler {
   private final RetirementPresentationClient presentation;
   private final RetirementProjectionClient projections;
   private final Clock clock;
-  private final SimulationValueFormatter values;
-  private final SimulationRequestMapper requests;
   private final ScenarioObservationService observations;
+
+  private static final List<SimulationScenario> AVAILABLE_SCENARIOS =
+      List.of(
+          SimulationScenario.CONSERVATIVE, SimulationScenario.BASE, SimulationScenario.OPTIMISTIC);
 
   SimulationPageAssembler(
       RetirementPlanClient plans,
@@ -28,42 +29,31 @@ final class SimulationPageAssembler {
       RetirementPresentationClient presentation,
       RetirementProjectionClient projections,
       Clock clock,
-      SimulationRequestMapper requests,
       ScenarioObservationService observations) {
     this.plans = plans;
     this.planningTimeline = planningTimeline;
     this.presentation = presentation;
     this.projections = projections;
     this.clock = clock;
-    this.values = new SimulationValueFormatter(presentation);
-    this.requests = requests;
     this.observations = observations;
   }
 
-  RetirementSimulationPageView assemble(SimulationQuery query) {
+  RetirementSimulationPageView assemble(Long portfolioId, SimulationQuery query) {
     int currentYear = Year.now(clock).getValue();
-    int currentAge = query.getCurrentAge() == null ? 40 : query.getCurrentAge();
-    int endAge = query.getEndAge() == null ? 95 : query.getEndAge();
-    Long portfolioId = query.getPortfolioId();
     CurrencyType currency = query.getPlanningDisplayCurrency();
-    SimulationScenario requestedScenario = query.getSelectedScenario();
-    SimulationScenario scenario = requestedScenario;
+    SimulationScenario scenario = query.getSelectedScenario();
     // Calendar progression is planning-state maintenance only. It must happen before the
     // timeline query so the page never presents a stale current/historical boundary.
     planningTimeline.ensurePlanningTimeline(portfolioId);
     Long planId = plans.resolvePlanId(portfolioId, query.getPlanId()).orElse(null);
-    PlanDetails plan = planId == null ? null : plans.details(portfolioId, planId);
-    var input = projections.load(portfolioId, planId, currentAge, endAge);
-    var assumptions = requests.applyLegacyOverrides(input.assumptions(), query.legacyOverrides());
-    var projection =
-        projections.project(input.profile(), assumptions, plan == null ? null : plan.baseline());
+    var projection = projections.load(portfolioId, planId);
     var projected = projection.projectedAssumptions();
     var timeline = planningTimeline.loadForwardTimeline(portfolioId, projection, scenario);
     var timelineMoney = presentation.displayTimelineMoney(timeline, currency, projected);
     var yearly = RetirementYearSummaryView.from(timeline, timelineMoney);
     var toDisplay =
         (java.util.function.Function<BigDecimal, BigDecimal>)
-            amount -> values.money(amount, currency);
+            amount -> displayMoney(amount, currency);
     var chart = RetirementSimulationChartView.from(timeline, timelineMoney, projected);
     var planTimeline =
         PlanTimelineView.from(
@@ -114,52 +104,27 @@ final class SimulationPageAssembler {
                 scenarioValues.spendingGrowthRate(),
                 false,
                 loadedObservations));
-    var money =
-        new java.util.function.Function<BigDecimal, BigDecimal>() {
-          @Override
-          public BigDecimal apply(BigDecimal amount) {
-            return values.money(amount, currency);
-          }
-        };
-    var cashFlow = CashFlowSectionView.from(timeline, timelineMoney, projected, money);
-    var activeName = planId == null ? "Current assumptions" : plan.name();
-    var activeSummary =
-        projected.currentAge()
-            + "–"
-            + projected.endAge()
-            + " · Retire at "
-            + projected.retirementAge()
-            + " · Effective cost growth "
-            + PlanningPresentation.percentage(projected.effectiveSpendingGrowthRate());
-    return SimulationPageModelFactory.create(
-        input.profile(),
-        presentation.displayProfile(input.profile(), currency),
-        assumptions,
+    return new RetirementSimulationPageView(
+        projection.profile(),
         projected,
         currency,
         planId,
-        activeName,
-        activeSummary,
         scenario,
-        scenarioValues,
+        AVAILABLE_SCENARIOS,
         assumptionRows,
-        new LinkedHashMap<>(presentation.displaySummaries(projection.summaries(), currency))
-            .get(scenario),
-        values.money(
-            assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
-            currency),
-        values.money(assumptions.annualLivingExpenses(), currency),
-        values.money(assumptions.annualDiscretionaryExpenses(), currency),
-        values.money(assumptions.annualPension(), currency),
+        presentation.displaySummaries(projection.summaries(), currency).get(scenario),
         timeline,
         timelineMoney,
         yearly,
         planTimeline,
-        cashFlow,
-        timeline.years().stream()
-            .filter(row -> row.state() == PlanningTimelineState.LIVE)
-            .anyMatch(row -> row.year() < currentYear),
         chart);
+  }
+
+  private BigDecimal displayMoney(BigDecimal amount, CurrencyType currency) {
+    return presentation
+        .toDisplay(amount, currency)
+        .setScale(2, java.math.RoundingMode.HALF_UP)
+        .stripTrailingZeros();
   }
 
   private ScenarioAssumptionView assumption(

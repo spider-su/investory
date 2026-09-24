@@ -23,7 +23,6 @@ import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.time.Clock;
 import java.time.Year;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Application orchestration for the plan editor preview use case. */
@@ -36,7 +35,6 @@ public class RetirementPreviewApplicationService implements RetirementPreviewApi
   private final PlanEditorInputNormalizer normalizer;
   private final Clock clock;
 
-  @Autowired
   public RetirementPreviewApplicationService(
       ProfileSnapshotReader profiles,
       RetirementPlanApi plans,

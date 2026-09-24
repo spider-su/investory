@@ -1,6 +1,5 @@
 package com.smartbox.investory.ui.longterm;
 
-import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.longterm.api.model.PersonalAssetCommand;
 import com.smartbox.investory.longterm.api.model.ResourceNotFoundException;
 import java.time.Clock;
@@ -13,7 +12,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 @RequiredArgsConstructor
 public class LongTermPersonalAssetController {
-  private final LongTermAssetsApi assets;
+  private final LongTermAssetsClient assets;
   private final Clock clock;
 
   @GetMapping("/portfolios/{portfolioId}/long-term-assets/new/personal-asset")

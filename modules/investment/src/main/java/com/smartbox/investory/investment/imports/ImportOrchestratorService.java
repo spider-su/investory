@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Service;
@@ -46,32 +45,6 @@ public class ImportOrchestratorService {
   private final InvestmentCalculationCache calculationCache;
   private final StatisticsRefreshService statisticsRefreshService;
 
-  /** Compatibility constructor for focused tests and callers that predate scoped statistics. */
-  public ImportOrchestratorService(
-      List<BrokerImportParser> parsers,
-      ImportBatchAuditWriter auditWriter,
-      ImportSourceEvidenceService sourceEvidenceService,
-      AssetPriceFallbackService assetPriceFallbackService,
-      PortfolioProjectionService portfolioProjectionService,
-      PortfolioProjectionRefreshService projectionRefreshService,
-      ReconciliationRefreshService reconciliationRefreshService,
-      PriceHistoryCoverageService priceHistoryCoverageService,
-      InvestmentCalculationCache calculationCache) {
-    this(
-        parsers,
-        auditWriter,
-        sourceEvidenceService,
-        assetPriceFallbackService,
-        portfolioProjectionService,
-        projectionRefreshService,
-        reconciliationRefreshService,
-        priceHistoryCoverageService,
-        calculationCache,
-        new StatisticsRefreshService(
-            portfolioProjectionService, projectionRefreshService, calculationCache));
-  }
-
-  @Autowired
   public ImportOrchestratorService(
       List<BrokerImportParser> parsers,
       ImportBatchAuditWriter auditWriter,

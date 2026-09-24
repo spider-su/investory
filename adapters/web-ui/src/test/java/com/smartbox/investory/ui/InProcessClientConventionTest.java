@@ -1,5 +1,6 @@
 package com.smartbox.investory.ui;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,8 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.RestController;
 
 @DisplayName("In-process UI client conventions")
 class InProcessClientConventionTest {
@@ -42,30 +43,29 @@ class InProcessClientConventionTest {
   }
 
   @Test
-  @DisplayName("clients are components backed by explicitly qualified public APIs")
-  void clientsAreComponentsBackedByExplicitlyQualifiedPublicApis() {
+  @DisplayName("clients are components backed by REST controllers")
+  void clientsAreComponentsBackedByRestControllers() {
     for (Class<?> client : CLIENTS) {
       assertNotNull(client.getAnnotation(Component.class), client.getName());
       var constructors = client.getDeclaredConstructors();
       assertTrue(constructors.length == 1, client.getName());
       var parameters = constructors[0].getParameters();
       assertTrue(parameters.length > 0, client.getName());
-      for (var parameter : parameters) {
-        assertNotNull(parameter.getAnnotation(Qualifier.class), client.getName());
+      for (var parameter : parameters)
         assertTrue(
-            isPublicBoundaryType(parameter.getType()),
+            isRestController(parameter.getType()),
             () -> client.getName() + " depends on " + parameter.getType().getName());
+
+      for (var field : client.getDeclaredFields()) {
+        var dependency = field.getType().getSimpleName();
+        assertFalse(
+            dependency.matches(".*(Api|Service|Facade|Repository|Reader)$"),
+            () -> client.getName() + " directly depends on backend type " + dependency);
       }
     }
   }
 
-  private static boolean isPublicBoundaryType(Class<?> type) {
-    var packageName = type.getPackageName();
-    return type.isInterface()
-        && (packageName.startsWith("java.")
-            || packageName.equals("com.smartbox.investory.shared")
-            || packageName.startsWith("com.smartbox.investory.shared.")
-            || packageName.endsWith(".api")
-            || packageName.contains(".api."));
+  private static boolean isRestController(Class<?> type) {
+    return type.getAnnotation(RestController.class) != null;
   }
 }

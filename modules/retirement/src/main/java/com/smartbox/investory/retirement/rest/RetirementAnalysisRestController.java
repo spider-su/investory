@@ -2,7 +2,6 @@ package com.smartbox.investory.retirement.rest;
 
 import com.smartbox.investory.retirement.api.RetirementAnalysisApi;
 import com.smartbox.investory.retirement.api.RetirementProjectionApi;
-import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.rest.RetirementAnalysisContracts.AnalysisResponse;
 import com.smartbox.investory.retirement.rest.RetirementProjectionContracts.ProjectionParameters;
 import jakarta.validation.Valid;

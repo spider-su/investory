@@ -3,7 +3,6 @@ package com.smartbox.investory.investment.reconciliation;
 import com.smartbox.investory.investment.notifications.SystemAuditNotificationProducer;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -18,7 +17,6 @@ public class ReconciliationRefreshService {
   private final boolean enabled;
   private final SystemAuditNotificationProducer notificationProducer;
 
-  @Autowired
   public ReconciliationRefreshService(
       PortfolioProjectionService portfolioProjectionService,
       JdbcTemplate jdbcTemplate,

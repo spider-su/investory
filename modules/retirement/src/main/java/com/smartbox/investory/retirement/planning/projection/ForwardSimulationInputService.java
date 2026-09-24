@@ -6,7 +6,6 @@ import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.planning.input.*;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Prepares one bridged, rebased future boundary for all Simulation consumers. */
@@ -15,7 +14,6 @@ public class ForwardSimulationInputService {
   private final ForwardSimulationContextFactory contexts;
   private final CurrentYearProjectionBridge bridge;
 
-  @Autowired
   public ForwardSimulationInputService(
       ForwardSimulationContextFactory contexts, CurrentYearProjectionBridge bridge) {
     this.contexts = contexts;

@@ -7,7 +7,6 @@ import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Compares frozen planning values only with trustworthy historical portfolio reporting data. */
@@ -17,7 +16,6 @@ public class PlanningReconciliationService {
   private static final BigDecimal RATE_TOLERANCE = new BigDecimal("0.00000001");
   private final HistoricalPortfolioActualsReader historicalPortfolio;
 
-  @Autowired
   public PlanningReconciliationService(HistoricalPortfolioActualsReader historicalPortfolio) {
     this.historicalPortfolio = historicalPortfolio;
   }

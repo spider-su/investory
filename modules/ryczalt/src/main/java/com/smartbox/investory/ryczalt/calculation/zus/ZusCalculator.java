@@ -46,9 +46,15 @@ public final class ZusCalculator {
             : BigDecimal.ZERO;
     social = RoundingPolicy.roundZusContribution(social);
     health = RoundingPolicy.roundZusContribution(health);
+    BigDecimal healthPaidForDeduction =
+        RoundingPolicy.roundZusContribution(
+            input.healthContributionPaidOverride() == null
+                ? health
+                : input.healthContributionPaidOverride());
     return new ZusCalculationResult(
         social,
         health,
+        healthPaidForDeduction,
         RoundingPolicy.roundZusContribution(social.add(health)),
         RoundingPolicy.roundZusContribution(deductibleSocial),
         input.explicitHealthBand(),

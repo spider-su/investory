@@ -1,27 +1,24 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.reporting.InvestmentReconciliationApi;
 import com.smartbox.investory.investment.api.reporting.model.ReconciliationReport;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.smartbox.investory.investment.web.InvestmentReconciliationRestController;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InProcessInvestmentReconciliationClient implements InvestmentReconciliationClient {
-  private final InvestmentReconciliationApi investmentReconciliationApi;
+  private final InvestmentReconciliationRestController rest;
 
-  public InProcessInvestmentReconciliationClient(
-      @Qualifier("investmentReconciliationApplicationService")
-          InvestmentReconciliationApi investmentReconciliationApi) {
-    this.investmentReconciliationApi = investmentReconciliationApi;
+  public InProcessInvestmentReconciliationClient(InvestmentReconciliationRestController rest) {
+    this.rest = rest;
   }
 
   @Override
   public ReconciliationReport loadReconciliationReport(Long portfolioId) {
-    return investmentReconciliationApi.loadReconciliationReport(portfolioId);
+    return rest.report(portfolioId);
   }
 
   @Override
-  public void refreshReconciliationViews() {
-    investmentReconciliationApi.refreshReconciliationViews();
+  public void refreshReconciliationViews(Long portfolioId) {
+    rest.refresh(portfolioId);
   }
 }

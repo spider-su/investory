@@ -131,6 +131,8 @@ class PortfolioPerformanceQueryServiceTest {
     assertThat(result.getMonthlyCashflow()).containsEntry("2026-05", 100.0);
     assertThat(result.getMonthlyOperationsCount()).containsEntry("2026-05", 1L);
     assertThat(result.getMonthlyAttributions().get("2026-05").accounts()).hasSize(1);
+    assertThat(result.getMonthlyAttributions().get("2026-05").marketAndFxMovement())
+        .isEqualTo(20.0);
   }
 
   private static AccountEntity account(Long id) {

@@ -16,7 +16,6 @@ import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,7 +37,6 @@ public class PlanningTimelineFacade {
   private final PlanningYearReviewService planningYearReviews;
   private final PlanningMoneyConversionService money;
 
-  @Autowired
   public PlanningTimelineFacade(
       RetirementPlanningYearRepository years,
       RetirementPlanningYearStateCodec stateCodec,

@@ -1,5 +1,6 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
+import com.smartbox.investory.retirement.api.model.PlanEditorInput;
 import com.smartbox.investory.retirement.api.model.PlanningBuckets;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
@@ -69,7 +70,8 @@ final class SimulationPlanEditAssembler {
     model.addAttribute("selectedScenario", scenario);
     model.addAttribute("planningDisplayCurrency", currency);
     model.addAttribute("developMode", developMode);
-    var values = preview.preview(profile, assumptions, currency);
+    var values =
+        preview.preview(portfolioId, selectedId, currency, editorInput(assumptions)).preview();
     model.addAttribute("currentRentalIncome", values.rentalIncome());
     model.addAttribute("currentBondIncome", values.bondIncome());
     model.addAttribute("plannedIncomeReferenceYear", values.plannedIncomeReferenceYear());
@@ -122,6 +124,34 @@ final class SimulationPlanEditAssembler {
             event ->
                 eventAmounts.put(event.id(), presentation.toDisplay(event.amount(), currency)));
     model.addAttribute("displayEventAmounts", eventAmounts);
+  }
+
+  private static PlanEditorInput editorInput(SimulationAssumptions assumptions) {
+    var expenseProfile =
+        assumptions.expenseProfile().steps().stream()
+            .map(step -> new PlanEditorInput.ExpenseStageInput(step.fromYear(), step.factor()))
+            .toList();
+    return new PlanEditorInput(
+        assumptions.ageAtPlanStart(),
+        assumptions.planStartYear(),
+        assumptions.endAge(),
+        assumptions.retirementAge(),
+        assumptions.annualLivingExpenses().divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP),
+        assumptions.annualDiscretionaryExpenses(),
+        assumptions.inflationRate(),
+        assumptions.fixedIncomeReturnRate(),
+        assumptions.rentalIncomeGrowthSpread(),
+        assumptions.spendingGrowthSpread(),
+        assumptions.equityReturnRate(),
+        assumptions.safeReserveYears(),
+        assumptions.equityHarvestMinimumReturnRate(),
+        assumptions.equityGainHarvestRate(),
+        assumptions.allowEmergencyEquityWithdrawal(),
+        assumptions.annualEmploymentIncome(),
+        assumptions.annualPreRetirementContribution(),
+        assumptions.annualPension(),
+        assumptions.pensionStartAge(),
+        expenseProfile.isEmpty() ? null : expenseProfile);
   }
 
   private void addMoney(Model model, String name, BigDecimal amount, CurrencyType currency) {

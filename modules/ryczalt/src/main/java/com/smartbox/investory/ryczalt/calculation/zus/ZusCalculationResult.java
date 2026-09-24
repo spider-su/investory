@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 public record ZusCalculationResult(
     BigDecimal social,
     BigDecimal health,
+    BigDecimal healthPaidForDeduction,
     BigDecimal total,
     BigDecimal deductibleSocial,
     ZusRules2026.HealthBand healthBand,

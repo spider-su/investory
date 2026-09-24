@@ -296,9 +296,32 @@ public class RyczaltAccountingPageController {
       HttpServletRequest request) {
     model.addAttribute("profileId", profileId);
     model.addAttribute("counterparty", client.counterparty(profileId, counterpartyId));
+    var bills = client.invoices(profileId, counterpartyId);
+    model.addAttribute("bills", bills);
+    model.addAttribute("billsTotal", counterpartyInvoiceTotal(bills));
+    model.addAttribute("billsCurrency", counterpartyInvoiceCurrency(bills));
     model.addAttribute("rules", client.rules(profileId, counterpartyId));
     model.addAttribute("canWrite", canWrite(request));
     return "accounting/ryczalt-counterparty";
+  }
+
+  static BigDecimal counterpartyInvoiceTotal(List<RyczaltWebAccountingClient.Invoice> invoices) {
+    return invoices.stream()
+        .map(RyczaltWebAccountingClient.Invoice::grossAmount)
+        .filter(java.util.Objects::nonNull)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  static String counterpartyInvoiceCurrency(List<RyczaltWebAccountingClient.Invoice> invoices) {
+    var currencies =
+        invoices.stream()
+            .map(RyczaltWebAccountingClient.Invoice::currency)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
+    return currencies.size() == 1
+        ? currencies.getFirst()
+        : currencies.isEmpty() ? "" : "mixed currencies";
   }
 
   @PostMapping(BASE + "/documents/recognize")
@@ -445,6 +468,30 @@ public class RyczaltAccountingPageController {
       RedirectAttributes redirect) {
     client.manualUnpaid(profileId, invoiceId);
     redirect.addFlashAttribute("accountingMessage", "Invoice marked unpaid.");
+    return accountingRedirect(profileId, month);
+  }
+
+  @PostMapping(BASE + "/obligations/{obligationId}/manual-paid")
+  public String manualObligationPaid(
+      @PathVariable long profileId,
+      @PathVariable long obligationId,
+      @RequestParam YearMonth month,
+      @RequestParam LocalDate paidDate,
+      @RequestParam(required = false) String note,
+      RedirectAttributes redirect) {
+    client.manualObligationPaid(profileId, month, obligationId, paidDate, note);
+    redirect.addFlashAttribute("accountingMessage", "Obligation marked paid manually.");
+    return accountingRedirect(profileId, month);
+  }
+
+  @PostMapping(BASE + "/obligations/{obligationId}/manual-unpaid")
+  public String manualObligationUnpaid(
+      @PathVariable long profileId,
+      @PathVariable long obligationId,
+      @RequestParam YearMonth month,
+      RedirectAttributes redirect) {
+    client.manualObligationUnpaid(profileId, month, obligationId);
+    redirect.addFlashAttribute("accountingMessage", "Obligation marked unpaid.");
     return accountingRedirect(profileId, month);
   }
 

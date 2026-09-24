@@ -12,6 +12,7 @@ import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalcula
 import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
 import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationService;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodLifecycleService;
+import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import java.time.YearMonth;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -21,14 +22,17 @@ public class RyczaltAccountingFacade implements RyczaltAccountingApi {
   private final RyczaltAccountingQueryService queries;
   private final RyczaltPeriodLifecycleService lifecycle;
   private final NativeMonthCalculationService calculations;
+  private final SettlementService settlement;
 
   public RyczaltAccountingFacade(
       RyczaltAccountingQueryService queries,
       RyczaltPeriodLifecycleService lifecycle,
-      NativeMonthCalculationService calculations) {
+      NativeMonthCalculationService calculations,
+      SettlementService settlement) {
     this.queries = queries;
     this.lifecycle = lifecycle;
     this.calculations = calculations;
+    this.settlement = settlement;
   }
 
   @Override
@@ -92,6 +96,17 @@ public class RyczaltAccountingFacade implements RyczaltAccountingApi {
   @Override
   public void reopen(long profileId, YearMonth month, String actor, String reason) {
     lifecycle.reopen(profileId, month, actor, reason);
+  }
+
+  @Override
+  public void markObligationPaid(
+      long profileId, long obligationId, java.time.LocalDate paidDate, String note) {
+    settlement.markObligationPaid(profileId, obligationId, paidDate, note);
+  }
+
+  @Override
+  public void markObligationUnpaid(long profileId, long obligationId) {
+    settlement.markObligationUnpaid(profileId, obligationId);
   }
 
   @Override

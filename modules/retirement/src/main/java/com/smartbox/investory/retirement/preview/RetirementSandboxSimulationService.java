@@ -19,7 +19,6 @@ import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Translates the simple sandbox input into the canonical retirement simulation. */
@@ -27,7 +26,6 @@ import org.springframework.stereotype.Service;
 public final class RetirementSandboxSimulationService implements RetirementSandboxApi {
   private final RetirementProjectionService projections;
 
-  @Autowired
   public RetirementSandboxSimulationService(RetirementProjectionService projections) {
     this.projections = projections;
   }

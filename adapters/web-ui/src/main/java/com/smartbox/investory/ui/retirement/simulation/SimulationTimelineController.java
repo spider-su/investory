@@ -3,7 +3,6 @@ package com.smartbox.investory.ui.retirement.simulation;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import com.smartbox.investory.ui.profile.ProfileClient;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -24,23 +23,21 @@ public class SimulationTimelineController {
   private final Clock clock;
   private final SimulationTimelinePageAssembler pageAssembler;
 
-  @org.springframework.beans.factory.annotation.Autowired private PortfolioContextReader portfolios;
-
   public SimulationTimelineController(
       ProfileClient profiles,
       RetirementPlanClient plans,
       RetirementTimelineClient timeline,
       RetirementPresentationClient presentation,
       RetirementProjectionClient projections,
-      Clock clock) {
+      Clock clock,
+      SimulationTimelinePageAssembler pageAssembler) {
     this.profiles = profiles;
     this.plans = plans;
     this.timeline = timeline;
     this.presentation = presentation;
     this.projections = projections;
     this.clock = clock;
-    this.pageAssembler =
-        new SimulationTimelinePageAssembler(profiles, plans, timeline, presentation, projections);
+    this.pageAssembler = pageAssembler;
   }
 
   @PostMapping("/portfolios/{portfolioId}/simulation/timeline/past/{year}")
@@ -234,10 +231,6 @@ public class SimulationTimelineController {
 
   private CurrencyType resolveCurrency(Long portfolioId, CurrencyType requested) {
     if (requested != null) return requested;
-    if (portfolios == null) return CurrencyType.PLN;
-    return portfolios
-        .findById(portfolioId)
-        .map(context -> context.localCurrency())
-        .orElse(CurrencyType.PLN);
+    return profiles.loadProfile(portfolioId).currency();
   }
 }

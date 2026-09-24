@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.management.web;
 
+import com.smartbox.investory.integrations.management.api.IntegrationJobExecutionApi;
 import com.smartbox.investory.integrations.management.api.model.ConnectionTestResult;
 import com.smartbox.investory.integrations.management.api.model.IntegrationJobCommand;
 import com.smartbox.investory.integrations.management.api.model.IntegrationSettingsCommand;
@@ -9,14 +10,19 @@ import com.smartbox.investory.integrations.management.application.IntegrationSet
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/admin/integrations")
-@RequiredArgsConstructor
 public class IntegrationSettingsRestController {
   private final IntegrationSettingsFacade settings;
+  private final IntegrationJobExecutionApi jobs;
+
+  public IntegrationSettingsRestController(
+      IntegrationSettingsFacade settings, IntegrationJobExecutionApi jobs) {
+    this.settings = settings;
+    this.jobs = jobs;
+  }
 
   @GetMapping
   public List<IntegrationSettingsView> list() {
@@ -72,6 +78,15 @@ public class IntegrationSettingsRestController {
             payload.cron(),
             payload.timezone(),
             Map.of()));
+  }
+
+  @PostMapping("/{type}/{pluginId}/jobs/{jobType}/run")
+  public void runNow(
+      @PathVariable IntegrationType type,
+      @PathVariable String pluginId,
+      @PathVariable String jobType) {
+    if (jobs == null) throw new IllegalStateException("Integration job execution is unavailable");
+    jobs.runNow(type, pluginId, jobType);
   }
 
   public record Payload(

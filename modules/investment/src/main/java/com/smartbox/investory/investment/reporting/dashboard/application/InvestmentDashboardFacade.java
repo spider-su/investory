@@ -40,7 +40,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -113,7 +112,7 @@ public class InvestmentDashboardFacade {
         ReturnEstimateCalculator.DEFAULT_BENCHMARK_EXPECTATION);
   }
 
-  @Autowired
+  @org.springframework.beans.factory.annotation.Autowired
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
       BenchmarkService benchmarkService,

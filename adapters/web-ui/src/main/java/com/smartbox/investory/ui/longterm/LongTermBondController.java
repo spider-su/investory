@@ -1,11 +1,8 @@
 package com.smartbox.investory.ui.longterm;
 
 import com.smartbox.investory.longterm.api.LongTermAssetRateConversion;
-import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.longterm.api.model.*;
-import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.smartbox.investory.ui.profile.ProfileClient;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,30 +14,19 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 /** Bond-specific MVC endpoints. */
 @Controller
 public class LongTermBondController {
-  private final LongTermAssetsApi assets;
-  private final PortfolioContextReader portfolios;
+  private final LongTermAssetsClient assets;
+  private final ProfileClient profiles;
 
-  public LongTermBondController(LongTermAssetsApi assets) {
-    this(assets, null);
-  }
-
-  @Autowired
-  public LongTermBondController(LongTermAssetsApi assets, PortfolioContextReader portfolios) {
+  public LongTermBondController(LongTermAssetsClient assets, ProfileClient profiles) {
     this.assets = assets;
-    this.portfolios = portfolios;
+    this.profiles = profiles;
   }
 
   @GetMapping("/portfolios/{portfolioId}/long-term-assets/new/bond")
   public String bondForm(
       @org.springframework.web.bind.annotation.PathVariable Long portfolioId, Model model) {
     BondForm asset = new BondForm();
-    asset.setCurrency(
-        portfolios == null
-            ? CurrencyType.PLN
-            : portfolios
-                .findById(portfolioId)
-                .map(context -> context.localCurrency())
-                .orElse(CurrencyType.PLN));
+    asset.setCurrency(profiles.loadProfile(portfolioId).currency());
     model.addAttribute("asset", asset);
     model.addAttribute("portfolioId", portfolioId);
     return "bond-form";

@@ -1,10 +1,9 @@
 let sandboxChart;
 
-function renderSandboxChart() {
+export function initRetirementSandbox() {
+  destroyRetirementSandbox();
   const rows = window.retirementSandbox?.rows || [];
   const canvas = document.getElementById('sandbox-chart');
-  sandboxChart?.destroy();
-  sandboxChart = null;
   if (!canvas || !window.Chart || !rows.length) return;
 
   sandboxChart = new Chart(canvas, {type: 'line', data: {labels: rows.map(row => row.age), datasets: [
@@ -16,9 +15,7 @@ function renderSandboxChart() {
   ]}, options: {responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false}}});
 }
 
-renderSandboxChart();
-document.addEventListener('turbo:load', renderSandboxChart);
-document.addEventListener('turbo:before-cache', () => {
+export function destroyRetirementSandbox() {
   sandboxChart?.destroy();
   sandboxChart = null;
-});
+}

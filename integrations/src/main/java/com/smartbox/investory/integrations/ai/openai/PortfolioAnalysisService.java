@@ -2,7 +2,6 @@ package com.smartbox.investory.integrations.ai.openai;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -16,11 +15,6 @@ public class PortfolioAnalysisService {
 
   private final OpenAiChatService openAiChatService;
   private final Clock clock;
-
-  @Autowired
-  public PortfolioAnalysisService(OpenAiChatService openAiChatService) {
-    this(openAiChatService, Clock.systemDefaultZone());
-  }
 
   public PortfolioAnalysisService(OpenAiChatService openAiChatService, Clock clock) {
     this.openAiChatService = openAiChatService;

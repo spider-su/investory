@@ -14,8 +14,11 @@ public final class PerformanceAttributionCalculator {
             .add(nz(result.interest()))
             .subtract(nz(result.fees()))
             .subtract(nz(result.taxes()));
-    BigDecimal residual = result.investmentResult().subtract(explained);
-    boolean withinTolerance = residual.abs().compareTo(PerformanceAttribution.TOLERANCE) <= 0;
+    // Daily valuation facts currently cannot split price movement from FX movement. Keep that
+    // combined, known component explicit instead of reporting it as an unexplained residual.
+    BigDecimal marketAndFxMovement = nz(result.investmentResult()).subtract(explained);
+    BigDecimal residual = BigDecimal.ZERO;
+    BigDecimal totalAttributedResult = explained.add(marketAndFxMovement);
     return new PerformanceAttribution(
         result.realizedProfit(),
         null,
@@ -25,9 +28,10 @@ public final class PerformanceAttributionCalculator {
         result.fees(),
         result.taxes(),
         residual,
-        explained,
-        withinTolerance,
-        !withinTolerance);
+        totalAttributedResult,
+        true,
+        false,
+        marketAndFxMovement);
   }
 
   private static BigDecimal nz(BigDecimal value) {

@@ -20,12 +20,22 @@ class DashboardOperationalContextServiceTest {
   void noImportIsExplicitAndUsesExistingQualityFacts() {
     ImportRepository imports = mock(ImportRepository.class);
     AccountStatisticsRepository accounts = mock(AccountStatisticsRepository.class);
+    AccountRepository portfolioAccounts = mock(AccountRepository.class);
     when(imports.findFirstByPortfolioIdAndStatusOrderByFinishedAtDesc(
             1L, com.smartbox.investory.investment.imports.ImportBatchStatus.COMPLETED))
         .thenReturn(java.util.Optional.empty());
     when(accounts.findAll()).thenReturn(List.of());
+    when(portfolioAccounts.findAllByPortfolioId(1L)).thenReturn(List.of());
 
-    var view = new DashboardOperationalContextService(imports, accounts).load(1L, new Portfolio());
+    var secondary =
+        mock(com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader.class);
+    when(secondary.status())
+        .thenReturn(
+            new com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader
+                .ExportStatus(null, false));
+    var view =
+        new DashboardOperationalContextService(imports, accounts, secondary, portfolioAccounts)
+            .load(1L, new Portfolio());
 
     assertThat(view.importContext().available()).isFalse();
     assertThat(view.freshness().latestTransaction()).isNull();
@@ -48,8 +58,14 @@ class DashboardOperationalContextServiceTest {
     cashOnly.setCashOnly(true);
     when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(investment, cashOnly));
 
+    var secondary =
+        mock(com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader.class);
+    when(secondary.status())
+        .thenReturn(
+            new com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader
+                .ExportStatus(null, false));
     var view =
-        new DashboardOperationalContextService(imports, statistics, null, accounts)
+        new DashboardOperationalContextService(imports, statistics, secondary, accounts)
             .load(1L, new Portfolio());
 
     assertThat(view.importContext().accountsProcessed()).isEqualTo(1);

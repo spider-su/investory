@@ -53,7 +53,6 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -90,7 +89,7 @@ public class XtbImportService {
   private final AssetPriceHistoryBatchWriter priceBatchWriter;
   private final ImportSourceEvidenceService sourceEvidenceService;
 
-  @Autowired
+  @org.springframework.beans.factory.annotation.Autowired
   public XtbImportService(
       PositionRepository closedPositionRepository,
       PositionRepository openedPositionRepository,

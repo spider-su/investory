@@ -29,8 +29,8 @@ public class ImportBatchAuditWriter {
   private final ImportRepository importRepository;
   private final ApplicationTime applicationTime;
 
-  @org.springframework.beans.factory.annotation.Autowired(required = false)
-  private ImportNotificationProducer notificationProducer;
+  private final org.springframework.beans.factory.ObjectProvider<ImportNotificationProducer>
+      notificationProducer;
 
   @Transactional(readOnly = true)
   public Optional<ImportHistoryEntity> findExistingAppliedBatch(
@@ -179,6 +179,7 @@ public class ImportBatchAuditWriter {
   }
 
   private void publishFinalized(ImportHistoryEntity batch) {
-    if (notificationProducer != null) notificationProducer.publishFinalized(batch);
+    ImportNotificationProducer notifications = notificationProducer.getIfAvailable();
+    if (notifications != null) notifications.publishFinalized(batch);
   }
 }

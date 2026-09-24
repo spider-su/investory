@@ -245,6 +245,29 @@ class RyczaltAccountingRestControllerTest {
   }
 
   @Test
+  void manualPaidEndpointDelegatesObligationDateAndNote() throws Exception {
+    mvc.perform(
+            post("/api/profiles/7/accounting/periods/2026-08/obligations/21/manual-paid")
+                .principal(authentication)
+                .contentType("application/json")
+                .content("{\"paidDate\":\"2026-08-25\",\"note\":\"Paid without transfer\"}"))
+        .andExpect(status().isNoContent());
+
+    verify(accounting)
+        .markObligationPaid(7L, 21L, LocalDate.of(2026, 8, 25), "Paid without transfer");
+  }
+
+  @Test
+  void manualUnpaidEndpointDelegatesObligation() throws Exception {
+    mvc.perform(
+            delete("/api/profiles/7/accounting/periods/2026-08/obligations/21/manual-paid")
+                .principal(authentication))
+        .andExpect(status().isNoContent());
+
+    verify(accounting).markObligationUnpaid(7L, 21L);
+  }
+
+  @Test
   void allNativeReadRoutesAreExposedSeparatelyFromLegacyRoutes() throws Exception {
     YearMonth month = YearMonth.of(2026, 8);
     when(accounting.period(7L, month))

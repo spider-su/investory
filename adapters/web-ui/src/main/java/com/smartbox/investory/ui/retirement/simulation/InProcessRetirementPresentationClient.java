@@ -1,73 +1,71 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
-import com.smartbox.investory.retirement.api.RetirementPresentationApi;
 import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.rest.RetirementTimelineRestController;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /** In-process adapter for retirement presentation operations. */
 @Component
 public class InProcessRetirementPresentationClient implements RetirementPresentationClient {
-  private final RetirementPresentationApi api;
+  private final RetirementTimelineRestController rest;
 
-  public InProcessRetirementPresentationClient(
-      @Qualifier("retirementPlanningApplicationService") RetirementPresentationApi api) {
-    this.api = api;
+  public InProcessRetirementPresentationClient(RetirementTimelineRestController rest) {
+    this.rest = rest;
   }
 
   public BigDecimal toDisplay(BigDecimal canonical, CurrencyType display) {
-    return api.toDisplay(canonical, display);
+    return rest.toDisplay(canonical, display);
   }
 
   public BigDecimal fromDisplay(BigDecimal amount, CurrencyType display, BigDecimal fallback) {
-    return api.fromDisplay(amount, display, fallback);
+    return rest.fromDisplay(amount, display, fallback);
   }
 
   public PastPlanningYear display(PastPlanningYear past, CurrencyType display) {
-    return api.display(past, display);
+    return rest.display(past, display);
   }
 
   public HistoricalReconciliationView displayReconciliation(
       HistoricalReconciliation reconciliation, CurrencyType display) {
-    return api.displayReconciliation(reconciliation, display);
+    return rest.displayReconciliation(reconciliation, display);
   }
 
   public PlanningProfileMoney displayProfile(InvestmentProfile profile, CurrencyType display) {
-    return api.displayProfile(profile, display);
+    return rest.displayProfile(profile, display);
   }
 
   public Map<SimulationScenario, SimulationDecisionSummaryMoney> displaySummaries(
       Map<SimulationScenario, SimulationDecisionSummary> summaries, CurrencyType display) {
-    return api.displaySummaries(summaries, display);
+    return rest.displaySummaries(summaries, display);
   }
 
   public Map<Integer, PlanningTimelineMoney> displayTimelineMoney(
       PlanningTimeline timeline, CurrencyType currency) {
-    return api.displayTimelineMoney(timeline, currency);
+    return rest.displayTimelineMoney(timeline, currency);
   }
 
   public Map<Integer, PlanningTimelineMoney> displayTimelineMoney(
       PlanningTimeline timeline, CurrencyType currency, SimulationAssumptions assumptions) {
-    return api.displayTimelineMoney(timeline, currency, assumptions);
+    return rest.displayTimelineMoney(timeline, currency, assumptions);
   }
 
   public PlanRiskView displayPlanRisks(
       SimulationSensitivityAnalysis analysis, CurrencyType display) {
-    return api.displayPlanRisks(analysis, display);
+    return rest.displayPlanRisks(analysis, display);
   }
 
   public PlanningFlexibilityMoney displayPlanningFlexibility(
       SustainableSpendingAnalysis spending,
       RetirementAgeAnalysis retirement,
       CurrencyType display) {
-    return api.displayPlanningFlexibility(spending, retirement, display);
+    return rest.displayPlanningFlexibility(spending, retirement, display);
   }
 
   public SimulationChartData displayCharts(SimulationChartData charts, CurrencyType display) {
-    return api.displayCharts(charts, display);
+    return rest.displayCharts(charts, display);
   }
 }

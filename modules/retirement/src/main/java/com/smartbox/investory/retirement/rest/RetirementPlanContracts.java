@@ -40,14 +40,16 @@ public final class RetirementPlanContracts {
   public record PlanMutationResponse(Long id) {}
 
   public record PlanSummaryDto(Long id, String name) {
-    static PlanSummaryDto from(com.smartbox.investory.retirement.api.model.PlanSummary source) {
+    public static PlanSummaryDto from(
+        com.smartbox.investory.retirement.api.model.PlanSummary source) {
       return new PlanSummaryDto(source.id(), source.name());
     }
   }
 
   public record PlanDetailsDto(
       Long id, String name, AssumptionsDto assumptions, BaselineDto baseline) {
-    static PlanDetailsDto from(com.smartbox.investory.retirement.api.model.PlanDetails source) {
+    public static PlanDetailsDto from(
+        com.smartbox.investory.retirement.api.model.PlanDetails source) {
       return new PlanDetailsDto(
           source.id(),
           source.name(),
@@ -63,7 +65,7 @@ public final class RetirementPlanContracts {
       @NotNull @PositiveOrZero BigDecimal longTermCapital,
       @NotNull @PositiveOrZero BigDecimal rentalAnnualIncome,
       @NotNull @PositiveOrZero BigDecimal longTermAnnualIncome) {
-    PlanningBaseline toDomain() {
+    public PlanningBaseline toDomain() {
       return new PlanningBaseline(
           asOfYear,
           reserve,
@@ -73,7 +75,7 @@ public final class RetirementPlanContracts {
           longTermAnnualIncome);
     }
 
-    static BaselineDto from(PlanningBaseline source) {
+    public static BaselineDto from(PlanningBaseline source) {
       return source == null
           ? null
           : new BaselineDto(
@@ -145,7 +147,7 @@ public final class RetirementPlanContracts {
       @NotEmpty List<RetirementFundingSource> fundingOrder,
       @NotNull List<@Valid ExpenseStepDto> expenseProfile) {
 
-    SimulationAssumptions toDomain() {
+    public SimulationAssumptions toDomain() {
       return new SimulationAssumptions(
           currentAge,
           endAge,
@@ -173,7 +175,7 @@ public final class RetirementPlanContracts {
           new ExpenseProfile(expenseProfile.stream().map(ExpenseStepDto::toDomain).toList()));
     }
 
-    static AssumptionsDto from(SimulationAssumptions source) {
+    public static AssumptionsDto from(SimulationAssumptions source) {
       return new AssumptionsDto(
           source.currentAge(),
           source.endAge(),

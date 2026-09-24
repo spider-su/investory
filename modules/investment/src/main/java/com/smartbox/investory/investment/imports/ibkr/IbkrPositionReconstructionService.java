@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -46,7 +45,7 @@ public class IbkrPositionReconstructionService {
   private final PositionRepository closedPositionRepository;
   private final AssignedIdBatchWriter assignedIdBatchWriter;
 
-  @Autowired
+  @org.springframework.beans.factory.annotation.Autowired
   public IbkrPositionReconstructionService(
       CashOperationRepository cashOperationRepository,
       PositionRepository openedPositionRepository,

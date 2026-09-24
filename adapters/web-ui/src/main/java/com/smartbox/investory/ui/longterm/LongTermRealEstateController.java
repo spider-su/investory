@@ -1,6 +1,5 @@
 package com.smartbox.investory.ui.longterm;
 
-import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.longterm.api.model.AssetSummaryView;
 import com.smartbox.investory.longterm.api.model.RealEstateCommand;
 import com.smartbox.investory.longterm.api.model.RealEstateView;
@@ -17,10 +16,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 /** HTTP orchestration for real-estate pages. */
 @Controller
 public class LongTermRealEstateController {
-  private final LongTermAssetsApi assets;
+  private final LongTermAssetsClient assets;
   private final Clock clock;
 
-  public LongTermRealEstateController(LongTermAssetsApi assets, Clock clock) {
+  public LongTermRealEstateController(LongTermAssetsClient assets, Clock clock) {
     this.assets = assets;
     this.clock = clock;
   }

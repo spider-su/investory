@@ -5,10 +5,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.ui.investment.InvestmentDashboardClient;
+import com.smartbox.investory.ui.investment.InvestmentPerformanceKpi;
+import com.smartbox.investory.ui.investment.InvestmentResult;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -31,7 +32,7 @@ class InvestmentProfileControllerTest {
     when(profiles.loadProfile(7L)).thenReturn(profile);
     when(investment.loadPerformanceKpi(7L))
         .thenReturn(
-            new InvestmentDashboardApi.PerformanceKpiView(
+            new InvestmentPerformanceKpi(
                 true,
                 new BigDecimal("0.173"),
                 "+17.3%",
@@ -43,9 +44,7 @@ class InvestmentProfileControllerTest {
                 null,
                 "Benchmark estimate"));
     when(investment.investmentResultYtd(7L))
-        .thenReturn(
-            new InvestmentDashboardApi.InvestmentResultView(
-                true, new BigDecimal("20483"), CurrencyType.PLN));
+        .thenReturn(new InvestmentResult(true, new BigDecimal("20483"), CurrencyType.PLN));
     when(retirement.currentYearAnnualCost(7L, CurrencyType.PLN))
         .thenReturn(
             new com.smartbox.investory.retirement.api.model.AnnualCostView(
