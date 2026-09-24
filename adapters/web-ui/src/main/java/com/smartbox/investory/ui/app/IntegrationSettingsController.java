@@ -53,7 +53,8 @@ public class IntegrationSettingsController {
           if (key.startsWith("secret.")) secrets.put(key.substring(7), value);
           else if (key.startsWith("clearSecret.") && "true".equals(value))
             clearSecrets.add(key.substring(12));
-          else if (!key.equals("enabled") && !key.equals("action")) configuration.put(key, value);
+          else if (!key.equals("enabled") && !key.equals("action") && !key.equals("_csrf"))
+            configuration.put(key, value);
         });
     try {
       if ("test".equals(params.get("action"))) {
