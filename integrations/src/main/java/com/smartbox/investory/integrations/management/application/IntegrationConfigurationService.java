@@ -13,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
@@ -29,7 +28,6 @@ public class IntegrationConfigurationService {
   private final ObjectMapper objectMapper;
   private final ApplicationTime applicationTime;
 
-  @Autowired
   public IntegrationConfigurationService(
       IntegrationInstanceRepository instanceRepository,
       IntegrationSecretRepository secretRepository,

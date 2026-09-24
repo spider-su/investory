@@ -28,6 +28,8 @@ public interface RyczaltWebAccountingClient {
 
   Counterparty counterparty(long profileId, long id);
 
+  List<Invoice> invoices(long profileId, Long counterpartyId);
+
   List<Rule> rules(long profileId, long counterpartyId);
 
   Candidate recognize(long profileId, String filename, String contentType, byte[] content);
@@ -51,6 +53,11 @@ public interface RyczaltWebAccountingClient {
   void manualPaid(long profileId, long invoiceId, LocalDate paidDate, String note);
 
   void manualUnpaid(long profileId, long invoiceId);
+
+  void manualObligationPaid(
+      long profileId, YearMonth month, long obligationId, LocalDate paidDate, String note);
+
+  void manualObligationUnpaid(long profileId, YearMonth month, long obligationId);
 
   void addRule(long profileId, long counterpartyId, RuleForm rule);
 
@@ -148,7 +155,9 @@ public interface RyczaltWebAccountingClient {
       BigDecimal outstanding,
       String currency,
       LocalDate dueDate,
-      String status) {}
+      String status,
+      boolean manuallyPaid,
+      LocalDate manualPaidDate) {}
 
   record ReferenceObligation(String type, BigDecimal expected) {}
 

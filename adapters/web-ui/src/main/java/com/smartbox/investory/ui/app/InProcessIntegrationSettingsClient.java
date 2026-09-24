@@ -1,33 +1,25 @@
 package com.smartbox.investory.ui.app;
 
-import com.smartbox.investory.integrations.management.api.IntegrationJobExecutionApi;
-import com.smartbox.investory.integrations.management.api.IntegrationSettingsApi;
 import com.smartbox.investory.integrations.management.api.model.ConnectionTestResult;
-import com.smartbox.investory.integrations.management.api.model.IntegrationJobCommand;
-import com.smartbox.investory.integrations.management.api.model.IntegrationSettingsCommand;
 import com.smartbox.investory.integrations.management.api.model.IntegrationSettingsView;
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
+import com.smartbox.investory.integrations.management.web.IntegrationSettingsRestController;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InProcessIntegrationSettingsClient implements IntegrationSettingsClient {
-  private final IntegrationSettingsApi integrationSettingsApi;
-  private final IntegrationJobExecutionApi integrationJobExecutionApi;
+  private final IntegrationSettingsRestController rest;
 
-  public InProcessIntegrationSettingsClient(
-      @Qualifier("integrationSettingsFacade") IntegrationSettingsApi integrationSettingsApi,
-      @Qualifier("integrationJobScheduler") IntegrationJobExecutionApi integrationJobExecutionApi) {
-    this.integrationSettingsApi = integrationSettingsApi;
-    this.integrationJobExecutionApi = integrationJobExecutionApi;
+  public InProcessIntegrationSettingsClient(IntegrationSettingsRestController rest) {
+    this.rest = rest;
   }
 
   @Override
   public List<IntegrationSettingsView> list() {
-    return integrationSettingsApi.listIntegrations();
+    return rest.list();
   }
 
   @Override
@@ -37,8 +29,10 @@ public class InProcessIntegrationSettingsClient implements IntegrationSettingsCl
       Map<String, String> configuration,
       Map<String, String> secrets,
       Set<String> clearSecrets) {
-    return integrationSettingsApi.saveConfiguration(
-        new IntegrationSettingsCommand(type, pluginId, configuration, secrets, clearSecrets));
+    return rest.save(
+        type,
+        pluginId,
+        new IntegrationSettingsRestController.Payload(configuration, secrets, clearSecrets));
   }
 
   @Override
@@ -48,14 +42,16 @@ public class InProcessIntegrationSettingsClient implements IntegrationSettingsCl
       Map<String, String> configuration,
       Map<String, String> secrets,
       Set<String> clearSecrets) {
-    return integrationSettingsApi.testConnection(
-        new IntegrationSettingsCommand(type, pluginId, configuration, secrets, clearSecrets));
+    return rest.test(
+        type,
+        pluginId,
+        new IntegrationSettingsRestController.Payload(configuration, secrets, clearSecrets));
   }
 
   @Override
   public IntegrationSettingsView setEnabled(
       IntegrationType type, String pluginId, boolean enabled) {
-    return integrationSettingsApi.setEnabled(type, pluginId, enabled);
+    return rest.enabled(type, pluginId, new IntegrationSettingsRestController.Enabled(enabled));
   }
 
   @Override
@@ -66,12 +62,15 @@ public class InProcessIntegrationSettingsClient implements IntegrationSettingsCl
       boolean enabled,
       String cron,
       String timezone) {
-    return integrationSettingsApi.saveJob(
-        new IntegrationJobCommand(type, pluginId, jobType, enabled, cron, timezone, Map.of()));
+    return rest.job(
+        type,
+        pluginId,
+        jobType,
+        new IntegrationSettingsRestController.Job(enabled, cron, timezone));
   }
 
   @Override
   public void runJobNow(IntegrationType type, String pluginId, String jobType) {
-    integrationJobExecutionApi.runNow(type, pluginId, jobType);
+    rest.runNow(type, pluginId, jobType);
   }
 }

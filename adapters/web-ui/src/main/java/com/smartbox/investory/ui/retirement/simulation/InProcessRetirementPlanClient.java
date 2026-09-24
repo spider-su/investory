@@ -1,57 +1,69 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
-import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.BaselineDto;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.EventWriteRequest;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanCreateRequest;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanDetailsDto;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanUpdateRequest;
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.PlanningBaseline;
+import com.smartbox.investory.retirement.rest.RetirementPlanRestController;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InProcessRetirementPlanClient implements RetirementPlanClient {
-  private final RetirementPlanApi retirementPlanApi;
+  private final RetirementPlanRestController rest;
 
-  public InProcessRetirementPlanClient(
-      @Qualifier("canonicalRetirementPlanService") RetirementPlanApi retirementPlanApi) {
-    this.retirementPlanApi = retirementPlanApi;
+  public InProcessRetirementPlanClient(RetirementPlanRestController rest) {
+    this.rest = rest;
   }
 
   public Optional<Long> resolvePlanId(Long portfolioId, Long requestedPlanId) {
-    return retirementPlanApi.resolvePlanId(portfolioId, requestedPlanId);
+    return rest.resolvePlanId(portfolioId, requestedPlanId);
   }
 
   public List<PlanSummary> listPlans(Long portfolioId) {
-    return retirementPlanApi.listPlans(portfolioId);
+    return rest.listPlans(portfolioId).stream()
+        .map(dto -> new PlanSummary(dto.id(), dto.name()))
+        .toList();
   }
 
   @Override
   public PlanDetails details(Long portfolioId, Long planId) {
-    return retirementPlanApi.details(portfolioId, planId);
+    PlanDetailsDto dto = rest.details(portfolioId, planId);
+    return new PlanDetails(
+        dto.id(),
+        dto.name(),
+        dto.assumptions().toDomain(),
+        dto.baseline() == null ? null : dto.baseline().toDomain());
   }
 
-  public Long createPlan(com.smartbox.investory.retirement.api.model.CreatePlanCommand command) {
-    return retirementPlanApi.createPlan(command);
+  public Long createPlan(Long portfolioId, PlanCreateRequest request) {
+    return rest.createPlan(portfolioId, request).getBody().id();
   }
 
-  public Long updatePlan(com.smartbox.investory.retirement.api.model.UpdatePlanCommand command) {
-    return retirementPlanApi.updatePlan(command);
+  public Long updatePlan(Long portfolioId, Long planId, PlanUpdateRequest request) {
+    return rest.updatePlan(portfolioId, planId, request).id();
   }
 
   public Long savePlanEvent(
-      com.smartbox.investory.retirement.api.model.SavePlanEventCommand command) {
-    return retirementPlanApi.savePlanEvent(command);
+      Long portfolioId, Long planId, Long eventId, EventWriteRequest request) {
+    return (eventId == null
+            ? rest.createPlanEvent(portfolioId, planId, request)
+            : rest.updatePlanEvent(portfolioId, planId, eventId, request))
+        .id();
   }
 
   public void deleteEvent(Long portfolioId, Long planId, Long eventId) {
-    retirementPlanApi.deleteEvent(portfolioId, planId, eventId);
+    rest.deleteEvent(portfolioId, planId, eventId);
   }
 
   public void deletePlan(Long portfolioId, Long planId) {
-    retirementPlanApi.deletePlan(portfolioId, planId);
+    rest.deletePlan(portfolioId, planId);
   }
 
-  public void rebaselinePlan(Long portfolioId, Long planId, PlanningBaseline baseline) {
-    retirementPlanApi.rebaselinePlan(portfolioId, planId, baseline);
+  public void rebaselinePlan(Long portfolioId, Long planId, BaselineDto baseline) {
+    rest.rebaselinePlan(portfolioId, planId, baseline);
   }
 }

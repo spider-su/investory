@@ -11,7 +11,8 @@ public record ZusCalculationInput(
     BigDecimal fullJdgSocial,
     ZusRules2026.HealthBand explicitHealthBand,
     BigDecimal socialContributionDeduction,
-    BigDecimal healthContributionOverride) {
+    BigDecimal healthContributionOverride,
+    BigDecimal healthContributionPaidOverride) {
   public ZusCalculationInput {
     ytdRyczaltRevenue = ytdRyczaltRevenue == null ? BigDecimal.ZERO : ytdRyczaltRevenue;
     fullJdgSocial = fullJdgSocial == null ? ZusRules2026.FULL_JDG_SOCIAL : fullJdgSocial;
@@ -23,6 +24,8 @@ public record ZusCalculationInput(
       throw new IllegalArgumentException("socialContributionDeduction must not be negative");
     if (healthContributionOverride != null && healthContributionOverride.signum() < 0)
       throw new IllegalArgumentException("healthContributionOverride must not be negative");
+    if (healthContributionPaidOverride != null && healthContributionPaidOverride.signum() < 0)
+      throw new IllegalArgumentException("healthContributionPaidOverride must not be negative");
   }
 
   public ZusCalculationInput(
@@ -42,6 +45,30 @@ public record ZusCalculationInput(
         fullJdgSocial,
         explicitHealthBand,
         null,
+        null,
+        null);
+  }
+
+  public ZusCalculationInput(
+      boolean jdgActive,
+      boolean qualifyingUop,
+      String zusRegime,
+      boolean voluntarySickness,
+      BigDecimal ytdRyczaltRevenue,
+      BigDecimal fullJdgSocial,
+      ZusRules2026.HealthBand explicitHealthBand,
+      BigDecimal socialContributionDeduction,
+      BigDecimal healthContributionOverride) {
+    this(
+        jdgActive,
+        qualifyingUop,
+        zusRegime,
+        voluntarySickness,
+        ytdRyczaltRevenue,
+        fullJdgSocial,
+        explicitHealthBand,
+        socialContributionDeduction,
+        healthContributionOverride,
         null);
   }
 
@@ -59,6 +86,7 @@ public record ZusCalculationInput(
         voluntarySickness,
         ytdRyczaltRevenue,
         fullJdgSocial,
+        null,
         null,
         null,
         null);

@@ -1,19 +1,21 @@
 package com.smartbox.investory.retirement.rest;
 
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.retirement.api.RetirementPresentationApi;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.BaselineDto;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.EventWriteRequest;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanCreateRequest;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanDetailsDto;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanMutationResponse;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanSummaryDto;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanUpdateRequest;
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.rest.RetirementPlanContracts.BaselineDto;
-import com.smartbox.investory.retirement.rest.RetirementPlanContracts.EventWriteRequest;
-import com.smartbox.investory.retirement.rest.RetirementPlanContracts.PlanCreateRequest;
-import com.smartbox.investory.retirement.rest.RetirementPlanContracts.PlanDetailsDto;
-import com.smartbox.investory.retirement.rest.RetirementPlanContracts.PlanMutationResponse;
-import com.smartbox.investory.retirement.rest.RetirementPlanContracts.PlanSummaryDto;
-import com.smartbox.investory.retirement.rest.RetirementPlanContracts.PlanUpdateRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.net.URI;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -33,10 +35,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/portfolios/{portfolioId}/retirement/plans")
 public class RetirementPlanRestController {
   private final RetirementPlanApi plans;
+  private final RetirementPresentationApi presentation;
 
+  @Autowired
   public RetirementPlanRestController(
-      @Qualifier("canonicalRetirementPlanService") RetirementPlanApi plans) {
+      @Qualifier("canonicalRetirementPlanService") RetirementPlanApi plans,
+      @Qualifier("retirementPlanningApplicationService") RetirementPresentationApi presentation) {
     this.plans = plans;
+    this.presentation = presentation;
+  }
+
+  public RetirementPlanRestController(RetirementPlanApi plans) {
+    this.plans = plans;
+    this.presentation = null;
   }
 
   @GetMapping("/selection")
@@ -111,7 +122,8 @@ public class RetirementPlanRestController {
                 eventId,
                 request.year(),
                 request.name(),
-                request.amount(),
+                presentation.fromDisplay(
+                    request.amount(), request.currency(), java.math.BigDecimal.ZERO),
                 request.type(),
                 request.notes()));
     return new PlanMutationResponse(savedId);

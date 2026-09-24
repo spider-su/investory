@@ -14,4 +14,6 @@ public record RyczaltObligationReadModel(
     BigDecimal outstandingAmount,
     CurrencyType currency,
     LocalDate dueDate,
-    ObligationStatus status) {}
+    ObligationStatus status,
+    boolean manuallyPaid,
+    LocalDate manualPaidDate) {}

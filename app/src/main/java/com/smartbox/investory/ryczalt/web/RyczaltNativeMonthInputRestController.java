@@ -46,6 +46,7 @@ public class RyczaltNativeMonthInputRestController {
       BigDecimal fullJdgSocial,
       BigDecimal socialContributionDeduction,
       BigDecimal healthContributionOverride,
+      BigDecimal healthContributionPaidOverride,
       BigDecimal deductionsAlreadyConsumed,
       BigDecimal salesCorrections,
       BigDecimal explicitVatAdjustments) {
@@ -59,6 +60,7 @@ public class RyczaltNativeMonthInputRestController {
           fullJdgSocial,
           socialContributionDeduction,
           healthContributionOverride,
+          healthContributionPaidOverride,
           deductionsAlreadyConsumed,
           salesCorrections,
           explicitVatAdjustments);

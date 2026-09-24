@@ -12,6 +12,11 @@
   <a th:href="@{/profiles/{profileId}/accounting/counterparties(profileId=${profileId})}">‹ Back to counterparties</a>
   <h1 th:text="${counterparty.displayName}">Counterparty</h1>
   <p th:text="${counterparty.legalName}">Legal name</p>
+  <section class="iv-card p-4 mb-4" data-testid="counterparty-bills">
+    <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h4 mb-0">Bills</h2><strong th:text="${#numbers.formatDecimal(billsTotal, 1, 'POINT', 2, 'COMMA') + (billsCurrency == '' ? '' : ' ' + billsCurrency)}">0.00</strong></div>
+    <div class="accounting-empty" th:if="${bills.isEmpty()}">No bills.</div>
+    <div class="table-responsive" th:unless="${bills.isEmpty()}"><table class="table card-table"><thead><tr><th>Invoice</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody><tr th:each="bill : ${bills}"><td th:text="${bill.reference}">Invoice</td><td th:text="${bill.issueDate}">2026-01-15</td><td th:text="${#numbers.formatDecimal(bill.grossAmount, 1, 'POINT', 2, 'COMMA') + ' ' + bill.currency}">0.00 PLN</td><td th:text="${bill.paymentStatus}">UNMATCHED</td></tr></tbody></table></div>
+  </section>
   <div class="iv-card p-4 mb-4"><form method="post" th:action="@{/profiles/{profileId}/accounting/counterparties/{id}/alias(profileId=${profileId},id=${counterparty.id})}" class="d-flex gap-2"><input class="form-control" name="alias" th:value="${counterparty.alias}" placeholder="Display alias"><button class="btn btn-primary" type="submit">Save alias</button></form></div>
   <h2>Rules</h2>
   <div class="iv-card p-4 mb-4" th:each="rule : ${rules}">

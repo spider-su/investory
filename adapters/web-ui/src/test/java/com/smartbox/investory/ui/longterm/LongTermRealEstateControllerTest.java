@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.longterm.api.model.AnnualEconomicsView;
 import com.smartbox.investory.longterm.api.model.AssetSummaryView;
 import com.smartbox.investory.longterm.api.model.CashFlowType;
@@ -38,7 +37,7 @@ class LongTermRealEstateControllerTest {
 
   @Test
   void detailRoutePassesCompleteAssetSummaryAndRentalReadModel() {
-    LongTermAssetsApi assets = mock(LongTermAssetsApi.class);
+    LongTermAssetsClient assets = mock(LongTermAssetsClient.class);
     LongTermRealEstateController controller = controller(assets);
     RealEstateView asset = realEstate();
     AssetSummaryView summary = summary();
@@ -71,7 +70,7 @@ class LongTermRealEstateControllerTest {
 
   @Test
   void createRouteUsesCanonicalUrl() {
-    LongTermRealEstateController controller = controller(mock(LongTermAssetsApi.class));
+    LongTermRealEstateController controller = controller(mock(LongTermAssetsClient.class));
     var model = new ConcurrentModel();
 
     assertThat(controller.realEstateForm(PORTFOLIO_ID, model)).isEqualTo("real-estate-form");
@@ -80,7 +79,7 @@ class LongTermRealEstateControllerTest {
 
   @Test
   void updateRoutePreservesEveryRealEstateField() {
-    LongTermAssetsApi assets = mock(LongTermAssetsApi.class);
+    LongTermAssetsClient assets = mock(LongTermAssetsClient.class);
     LongTermRealEstateController controller = controller(assets);
     RealEstateForm form =
         new RealEstateForm(
@@ -144,7 +143,7 @@ class LongTermRealEstateControllerTest {
 
   @Test
   void detailRoutePropagatesMissingTargetedSummary() {
-    LongTermAssetsApi assets = mock(LongTermAssetsApi.class);
+    LongTermAssetsClient assets = mock(LongTermAssetsClient.class);
     when(assets.realEstate(PORTFOLIO_ID, ASSET_ID)).thenReturn(realEstate());
     when(assets.realEstateSummary(PORTFOLIO_ID, ASSET_ID, TODAY))
         .thenThrow(new ResourceNotFoundException("Real estate not found"));
@@ -156,7 +155,7 @@ class LongTermRealEstateControllerTest {
         .hasMessage("Real estate not found");
   }
 
-  private static LongTermRealEstateController controller(LongTermAssetsApi assets) {
+  private static LongTermRealEstateController controller(LongTermAssetsClient assets) {
     return new LongTermRealEstateController(
         assets, Clock.fixed(Instant.parse("2026-09-06T00:00:00Z"), ZoneOffset.UTC));
   }

@@ -21,6 +21,7 @@ import com.smartbox.investory.investment.valuation.price.AssetPriceHistoryGapFil
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.time.ApplicationTime;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -70,6 +71,7 @@ public class PortfolioProjectionService {
   private final PortfolioProjectionRefreshService projectionRefreshService;
   private final ApplicationTime applicationTime;
   private final JdbcTemplate jdbcTemplate;
+  private final EntityManager entityManager;
 
   @Transactional
   public void recalculateAll() {
@@ -80,7 +82,13 @@ public class PortfolioProjectionService {
     try {
       assetPriceHistoryGapFillService.fillMissingBusinessDayGaps(applicationTime.today());
       accountIds = allKnownAccountIds();
-      recalculateAccountsInternal(accountIds);
+      // Keep the rebuild's peak heap bounded. One account contains thousands of positions and
+      // cash operations; processing every account in one persistence context retains all loaded
+      // entities until the transaction ends and can exhaust the Cloud Run heap.
+      for (Long accountId : accountIds) {
+        recalculateAccountsInternal(Set.of(accountId));
+        entityManager.clear();
+      }
       log.info(
           "Portfolio projection rebuild completed mode=all accounts={} durationMs={}",
           accountIds.size(),

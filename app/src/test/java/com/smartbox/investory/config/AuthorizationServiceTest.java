@@ -23,7 +23,7 @@ class AuthorizationServiceTest {
 
   @BeforeEach
   void setUp() {
-    authorization = new AuthorizationService(jdbc);
+    authorization = new AuthorizationService(jdbc, true);
   }
 
   @Test

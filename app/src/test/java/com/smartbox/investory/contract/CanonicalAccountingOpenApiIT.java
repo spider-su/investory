@@ -42,6 +42,7 @@ class CanonicalAccountingOpenApiIT extends FastDatabaseTest {
             "/api/profiles/{profileId}/accounting/periods/{month}/invoices",
             "/api/profiles/{profileId}/accounting/invoices",
             "/api/profiles/{profileId}/accounting/invoices/recognize",
+            "/api/profiles/{profileId}/accounting/invoices/manual-candidates",
             "/api/profiles/{profileId}/accounting/invoices/candidates/{candidateKey}",
             "/api/profiles/{profileId}/accounting/payments",
             "/api/profiles/{profileId}/accounting/invoices/{invoiceId}/manual-paid",

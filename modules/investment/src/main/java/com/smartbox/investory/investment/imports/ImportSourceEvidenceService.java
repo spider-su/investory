@@ -8,7 +8,6 @@ import com.smartbox.investory.investment.infrastructure.persistence.imports.Impo
 import com.smartbox.investory.shared.time.ApplicationTime;
 import java.util.Map;
 import java.util.Optional;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +21,6 @@ public class ImportSourceEvidenceService {
   private final ObjectMapper objectMapper;
   private final ApplicationTime applicationTime;
 
-  @Autowired
   public ImportSourceEvidenceService(
       ImportSourceFileRepository fileRepository,
       ImportSourceRowRepository rowRepository,

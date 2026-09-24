@@ -6,6 +6,7 @@ import {initRealEstateDetail} from './real-estate-detail.js';
 import {initAssetDetail, destroyAssetDetail} from './asset-detail.js';
 import {initRetirementAnalysis, destroyRetirementAnalysis} from './retirement-analysis.js';
 import {initSimulationPlanEdit, destroySimulationPlanEdit} from './simulation-plan-edit-lifecycle.js';
+import {initRetirementSandbox, destroyRetirementSandbox} from './retirement-sandbox.js';
 
 let initializedPageRoot = null;
 
@@ -29,6 +30,7 @@ function initializePage() {
     initAssetDetail();
     initRetirementAnalysis();
     initSimulationPlanEdit();
+    initRetirementSandbox();
 }
 
 function beforeCache() {
@@ -40,6 +42,7 @@ function beforeCache() {
     destroyAssetDetail();
     destroyRetirementAnalysis();
     destroySimulationPlanEdit();
+    destroyRetirementSandbox();
     document.querySelectorAll('canvas').forEach(canvas => window.Chart?.getChart?.(canvas)?.destroy?.());
     document.querySelectorAll('.iv-modal').forEach(modal => {
         if (modal.style.display !== 'none') modal.style.display = 'none';

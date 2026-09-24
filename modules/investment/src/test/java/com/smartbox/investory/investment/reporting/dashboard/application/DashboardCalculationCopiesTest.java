@@ -24,7 +24,7 @@ class DashboardPeriodProjectionTest {
     cached.setMonthlyPerformance(performance);
 
     Portfolio dashboard =
-        new DashboardPeriodFilterService().filter(cached, DashboardPeriod.YEAR_TO_DATE);
+        new DashboardPeriodFilterService("2020-01-01").filter(cached, DashboardPeriod.YEAR_TO_DATE);
 
     assertThat(dashboard.getMonthlyPerformance().getCalculateMonthlyPerformance())
         .containsKey("2026-01");

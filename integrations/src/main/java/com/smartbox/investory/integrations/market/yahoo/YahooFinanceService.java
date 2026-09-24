@@ -16,7 +16,6 @@ import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.TreeMap;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.JsonNode;
@@ -35,7 +34,6 @@ public class YahooFinanceService {
   private HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
   private String baseUrl = DEFAULT_BASE_URL;
 
-  @Autowired
   public YahooFinanceService(ObjectMapper objectMapper) {
     this.objectMapper = objectMapper;
   }

@@ -3,7 +3,6 @@ package com.smartbox.investory.ui.retirement.simulation;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import com.smartbox.investory.ui.profile.ProfileClient;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -19,28 +18,23 @@ public class SimulationTimelineController {
   private final ProfileClient profiles;
   private final RetirementPlanClient plans;
   private final RetirementTimelineClient timeline;
-  private final RetirementPresentationClient presentation;
   private final RetirementProjectionClient projections;
   private final Clock clock;
   private final SimulationTimelinePageAssembler pageAssembler;
-
-  @org.springframework.beans.factory.annotation.Autowired private PortfolioContextReader portfolios;
 
   public SimulationTimelineController(
       ProfileClient profiles,
       RetirementPlanClient plans,
       RetirementTimelineClient timeline,
-      RetirementPresentationClient presentation,
       RetirementProjectionClient projections,
-      Clock clock) {
+      Clock clock,
+      SimulationTimelinePageAssembler pageAssembler) {
     this.profiles = profiles;
     this.plans = plans;
     this.timeline = timeline;
-    this.presentation = presentation;
     this.projections = projections;
     this.clock = clock;
-    this.pageAssembler =
-        new SimulationTimelinePageAssembler(profiles, plans, timeline, presentation, projections);
+    this.pageAssembler = pageAssembler;
   }
 
   @PostMapping("/portfolios/{portfolioId}/simulation/timeline/past/{year}")
@@ -148,11 +142,7 @@ public class SimulationTimelineController {
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     timeline.saveCurrentManualValue(
-        portfolioId,
-        year,
-        metric,
-        presentation.fromDisplay(amount, planningDisplayCurrency, BigDecimal.ZERO),
-        note);
+        portfolioId, year, metric, amount, planningDisplayCurrency, note);
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
@@ -171,11 +161,7 @@ public class SimulationTimelineController {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     try {
       timeline.saveDraftManualValue(
-          portfolioId,
-          year,
-          metric,
-          presentation.fromDisplay(amount, planningDisplayCurrency, BigDecimal.ZERO),
-          note);
+          portfolioId, year, metric, amount, planningDisplayCurrency, note);
     } catch (IllegalArgumentException | IllegalStateException error) {
       redirectAttributes.addFlashAttribute("planningError", error.getMessage());
     }
@@ -234,10 +220,6 @@ public class SimulationTimelineController {
 
   private CurrencyType resolveCurrency(Long portfolioId, CurrencyType requested) {
     if (requested != null) return requested;
-    if (portfolios == null) return CurrencyType.PLN;
-    return portfolios
-        .findById(portfolioId)
-        .map(context -> context.localCurrency())
-        .orElse(CurrencyType.PLN);
+    return profiles.loadProfile(portfolioId).currency();
   }
 }

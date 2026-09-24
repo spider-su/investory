@@ -1,5 +1,6 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
+import com.smartbox.investory.retirement.api.model.PlanEditorInput;
 import com.smartbox.investory.retirement.api.model.PlanningBuckets;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
@@ -9,7 +10,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Year;
-import java.util.LinkedHashMap;
 import org.springframework.stereotype.Component;
 import org.springframework.ui.Model;
 
@@ -18,19 +18,16 @@ import org.springframework.ui.Model;
 final class SimulationPlanEditAssembler {
   private final ProfileClient profiles;
   private final RetirementPlanClient plans;
-  private final RetirementPresentationClient presentation;
   private final RetirementPreviewClient preview;
   private final Clock clock;
 
   SimulationPlanEditAssembler(
       ProfileClient profiles,
       RetirementPlanClient plans,
-      RetirementPresentationClient presentation,
       RetirementPreviewClient preview,
       Clock clock) {
     this.profiles = profiles;
     this.plans = plans;
-    this.presentation = presentation;
     this.preview = preview;
     this.clock = clock;
   }
@@ -49,7 +46,9 @@ final class SimulationPlanEditAssembler {
     SimulationAssumptions assumptions =
         details == null ? SimulationAssumptions.defaults(40, 95, year) : details.assumptions();
     model.addAttribute("profile", profile);
-    model.addAttribute("displayProfile", presentation.displayProfile(profile, currency));
+    var previewResponse =
+        preview.preview(portfolioId, selectedId, currency, editorInput(assumptions));
+    model.addAttribute("displayProfile", previewResponse.displayProfile());
     model.addAttribute("assumptions", assumptions);
     model.addAttribute(
         "planningBuckets",
@@ -69,7 +68,7 @@ final class SimulationPlanEditAssembler {
     model.addAttribute("selectedScenario", scenario);
     model.addAttribute("planningDisplayCurrency", currency);
     model.addAttribute("developMode", developMode);
-    var values = preview.preview(profile, assumptions, currency);
+    var values = previewResponse.preview();
     model.addAttribute("currentRentalIncome", values.rentalIncome());
     model.addAttribute("currentBondIncome", values.bondIncome());
     model.addAttribute("plannedIncomeReferenceYear", values.plannedIncomeReferenceYear());
@@ -86,45 +85,41 @@ final class SimulationPlanEditAssembler {
     model.addAttribute("plannedAnnualIncome", values.plannedAnnualIncome());
     if (developMode) model.addAttribute("planPreview", values);
     model.addAttribute("plans", plans.listPlans(portfolioId));
-    addMoney(
-        model,
-        "displayMonthlyLivingCosts",
-        assumptions.annualLivingExpenses().divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP),
-        currency);
-    addMoney(
-        model,
-        "displayTotalAnnualCosts",
-        assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
-        currency);
-    addMoney(model, "displayAnnualLivingCosts", assumptions.annualLivingExpenses(), currency);
-    addMoney(
-        model,
-        "displayMonthlyTotalCosts",
-        assumptions
-            .annualLivingExpenses()
-            .add(assumptions.annualDiscretionaryExpenses())
-            .divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP),
-        currency);
-    addMoney(
-        model, "displayDiscretionaryExpenses", assumptions.annualDiscretionaryExpenses(), currency);
-    addMoney(model, "displayAnnualPension", assumptions.annualPension(), currency);
-    addMoney(
-        model, "displayAnnualEmploymentIncome", assumptions.annualEmploymentIncome(), currency);
-    addMoney(
-        model,
-        "displayAnnualPreRetirementContribution",
-        assumptions.annualPreRetirementContribution(),
-        currency);
-    var eventAmounts = new LinkedHashMap<Long, BigDecimal>();
-    assumptions
-        .futureEvents()
-        .forEach(
-            event ->
-                eventAmounts.put(event.id(), presentation.toDisplay(event.amount(), currency)));
-    model.addAttribute("displayEventAmounts", eventAmounts);
+    previewResponse
+        .displayMoney()
+        .forEach((name, amount) -> model.addAttribute("display" + capitalize(name), amount));
+    model.addAttribute("displayEventAmounts", previewResponse.displayEventAmounts());
   }
 
-  private void addMoney(Model model, String name, BigDecimal amount, CurrencyType currency) {
-    model.addAttribute(name, presentation.toDisplay(amount, currency));
+  private static PlanEditorInput editorInput(SimulationAssumptions assumptions) {
+    var expenseProfile =
+        assumptions.expenseProfile().steps().stream()
+            .map(step -> new PlanEditorInput.ExpenseStageInput(step.fromYear(), step.factor()))
+            .toList();
+    return new PlanEditorInput(
+        assumptions.ageAtPlanStart(),
+        assumptions.planStartYear(),
+        assumptions.endAge(),
+        assumptions.retirementAge(),
+        assumptions.annualLivingExpenses().divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP),
+        assumptions.annualDiscretionaryExpenses(),
+        assumptions.inflationRate(),
+        assumptions.fixedIncomeReturnRate(),
+        assumptions.rentalIncomeGrowthSpread(),
+        assumptions.spendingGrowthSpread(),
+        assumptions.equityReturnRate(),
+        assumptions.safeReserveYears(),
+        assumptions.equityHarvestMinimumReturnRate(),
+        assumptions.equityGainHarvestRate(),
+        assumptions.allowEmergencyEquityWithdrawal(),
+        assumptions.annualEmploymentIncome(),
+        assumptions.annualPreRetirementContribution(),
+        assumptions.annualPension(),
+        assumptions.pensionStartAge(),
+        expenseProfile.isEmpty() ? null : expenseProfile);
+  }
+
+  private static String capitalize(String value) {
+    return Character.toUpperCase(value.charAt(0)) + value.substring(1);
   }
 }

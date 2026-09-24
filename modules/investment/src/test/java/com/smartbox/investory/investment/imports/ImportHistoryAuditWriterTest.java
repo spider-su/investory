@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Import History Audit Writer")
@@ -37,7 +38,9 @@ class ImportHistoryAuditWriterTest {
 
   @BeforeEach
   void setUp() {
-    auditWriter = new ImportBatchAuditWriter(importRepository, TIME);
+    auditWriter =
+        new ImportBatchAuditWriter(
+            importRepository, TIME, org.mockito.Mockito.mock(ObjectProvider.class));
   }
 
   @DisplayName("find Existing Applied Batch ignores Newer Failed Attempt")

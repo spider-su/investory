@@ -1,16 +1,13 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
-import com.smartbox.investory.retirement.api.RetirementSandboxApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationEventType;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import com.smartbox.investory.ui.profile.ProfileClient;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Year;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -27,43 +24,29 @@ public class RetirementSimulationController {
   private final SimulationPlanEditAssembler planEditPage;
 
   private final SimulationCommandService commands;
-  private final RetirementSandboxApi sandbox;
+  private final RetirementSandboxClient sandbox;
 
-  @Autowired private PortfolioContextReader portfolios;
+  private final boolean developMode;
 
-  @Value("${develop.mode:false}")
-  private boolean developMode;
-
-  @Autowired
   public RetirementSimulationController(
       ProfileClient profiles,
       RetirementPlanClient plans,
-      RetirementTimelineClient planningTimeline,
-      RetirementPresentationClient presentation,
-      RetirementPlanInputClient planInput,
-      RetirementProjectionClient projections,
       Clock clock,
-      RetirementPreviewClient planEditorPreview,
-      ScenarioObservationService scenarioObservations,
       SimulationCommandService commands,
-      RetirementSandboxApi sandbox) {
+      RetirementSandboxClient sandbox,
+      SimulationRequestMapper requestMapper,
+      SimulationPageAssembler simulationPage,
+      SimulationPlanEditAssembler planEditPage,
+      @Value("${develop.mode:false}") boolean developMode) {
     this.profiles = profiles;
     this.plans = plans;
     this.clock = clock;
-    this.requestMapper = new SimulationRequestMapper(presentation, planInput, clock);
-    this.simulationPage =
-        new SimulationPageAssembler(
-            plans,
-            planningTimeline,
-            presentation,
-            projections,
-            clock,
-            requestMapper,
-            scenarioObservations);
-    this.planEditPage =
-        new SimulationPlanEditAssembler(profiles, plans, presentation, planEditorPreview, clock);
+    this.requestMapper = requestMapper;
+    this.simulationPage = simulationPage;
+    this.planEditPage = planEditPage;
     this.commands = commands;
     this.sandbox = sandbox;
+    this.developMode = developMode;
   }
 
   @GetMapping("/portfolios/{portfolioId}/simulation/sandbox")
@@ -79,7 +62,7 @@ public class RetirementSimulationController {
       model.addAttribute("sandboxAnnualIncome", annualIncome(form));
       return "simulation-sandbox";
     }
-    var result = sandbox.simulate(form.input());
+    var result = sandbox.simulate(portfolioId, form.input());
     var rows =
         result.years().stream()
             .map(
@@ -114,10 +97,9 @@ public class RetirementSimulationController {
       @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @ModelAttribute SimulationQuery query,
       Model model) {
-    query.setPortfolioId(portfolioId);
     query.setPlanningDisplayCurrency(
-        resolveCurrency(query.getPortfolioId(), query.getPlanningDisplayCurrency()));
-    model.addAttribute("simulationPage", simulationPage.assemble(query));
+        resolveCurrency(portfolioId, query.getPlanningDisplayCurrency()));
+    model.addAttribute("simulationPage", simulationPage.assemble(portfolioId, query));
     return "simulation";
   }
 
@@ -182,8 +164,6 @@ public class RetirementSimulationController {
       @RequestParam int year,
       @RequestParam String name,
       @RequestParam BigDecimal amount,
-      @RequestParam(required = false) BigDecimal canonicalAmount,
-      @RequestParam(defaultValue = "false") boolean amountEdited,
       @RequestParam SimulationEventType type,
       @RequestParam(required = false) String notes,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
@@ -191,15 +171,7 @@ public class RetirementSimulationController {
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     commands.saveEvent(
-        portfolioId,
-        planId,
-        eventId,
-        year,
-        name,
-        requestMapper.resolveDisplayedMoney(
-            amount, canonicalAmount, amountEdited, planningDisplayCurrency, BigDecimal.ZERO),
-        type,
-        notes);
+        portfolioId, planId, eventId, year, name, amount, planningDisplayCurrency, type, notes);
     return returnToEdit
         ? SimulationRedirects.editPlan(
             portfolioId, planId, planningDisplayCurrency, selectedScenario)
@@ -247,10 +219,6 @@ public class RetirementSimulationController {
 
   private CurrencyType resolveCurrency(Long portfolioId, CurrencyType requested) {
     if (requested != null) return requested;
-    if (portfolios == null) return CurrencyType.PLN;
-    return portfolios
-        .findById(portfolioId)
-        .map(context -> context.localCurrency())
-        .orElse(CurrencyType.PLN);
+    return profiles.loadProfile(portfolioId).currency();
   }
 }

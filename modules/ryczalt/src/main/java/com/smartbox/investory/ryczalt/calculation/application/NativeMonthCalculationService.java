@@ -78,7 +78,7 @@ public class NativeMonthCalculationService {
                 new RyczaltCalculationInput(
                     input.revenueByRate(),
                     zusResult.deductibleSocial(),
-                    zusResult.health(),
+                    zusResult.healthPaidForDeduction(),
                     input.deductionsAlreadyConsumed()));
     VatCalculationResult vatResult = new VatCalculator(vatRules).calculate(input.vat());
 
@@ -92,7 +92,7 @@ public class NativeMonthCalculationService {
                 new RyczaltCalculationInput(
                     input.revenueByRate(),
                     zusResult.deductibleSocial(),
-                    zusResult.health(),
+                    zusResult.healthPaidForDeduction(),
                     input.deductionsAlreadyConsumed()),
                 ryczaltRules),
             ryczaltRules);

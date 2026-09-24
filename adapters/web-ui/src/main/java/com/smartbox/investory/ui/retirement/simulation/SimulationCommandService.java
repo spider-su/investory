@@ -1,9 +1,15 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.AssumptionsDto;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.BaselineDto;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.EventWriteRequest;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanCreateRequest;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanUpdateRequest;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.PlanningBaseline;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.api.model.SimulationEventType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import org.springframework.stereotype.Component;
 
@@ -26,11 +32,11 @@ final class SimulationCommandService {
     boolean create = planId == null || saveAs;
     if (create)
       return plans.createPlan(
-          new com.smartbox.investory.retirement.api.model.CreatePlanCommand(
-              portfolioId, name, assumptions, baseline));
+          portfolioId,
+          new PlanCreateRequest(
+              name, AssumptionsDto.from(assumptions), BaselineDto.from(baseline)));
     return plans.updatePlan(
-        new com.smartbox.investory.retirement.api.model.UpdatePlanCommand(
-            portfolioId, planId, name, assumptions));
+        portfolioId, planId, new PlanUpdateRequest(name, AssumptionsDto.from(assumptions)));
   }
 
   void saveEvent(
@@ -40,11 +46,14 @@ final class SimulationCommandService {
       int year,
       String name,
       BigDecimal amount,
+      CurrencyType displayCurrency,
       SimulationEventType type,
       String notes) {
     plans.savePlanEvent(
-        new com.smartbox.investory.retirement.api.model.SavePlanEventCommand(
-            portfolioId, planId, eventId, year, name, amount, type, notes));
+        portfolioId,
+        planId,
+        eventId,
+        new EventWriteRequest(year, name, amount, displayCurrency, type, notes));
   }
 
   void deleteEvent(Long portfolioId, Long planId, Long eventId) {

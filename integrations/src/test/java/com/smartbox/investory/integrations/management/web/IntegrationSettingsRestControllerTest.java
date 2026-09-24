@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.smartbox.investory.integrations.management.api.IntegrationJobExecutionApi;
 import com.smartbox.investory.integrations.management.api.model.ConnectionTestResult;
 import com.smartbox.investory.integrations.management.api.model.IntegrationJobCommand;
 import com.smartbox.investory.integrations.management.api.model.IntegrationSettingsCommand;
@@ -29,7 +30,11 @@ class IntegrationSettingsRestControllerTest {
   @BeforeEach
   void setUp() {
     facade = mock(IntegrationSettingsFacade.class);
-    mvc = MockMvcBuilders.standaloneSetup(new IntegrationSettingsRestController(facade)).build();
+    mvc =
+        MockMvcBuilders.standaloneSetup(
+                new IntegrationSettingsRestController(
+                    facade, mock(IntegrationJobExecutionApi.class)))
+            .build();
   }
 
   @DisplayName("crud Endpoints Pass Every Configuration Field And Secret Field")

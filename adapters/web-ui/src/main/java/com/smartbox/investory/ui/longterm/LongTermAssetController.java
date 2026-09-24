@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.longterm;
 
-import com.smartbox.investory.longterm.api.*;
+import com.smartbox.investory.longterm.api.LongTermAssetRateConversion;
 import com.smartbox.investory.longterm.api.model.*;
 import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.time.Clock;
@@ -14,7 +14,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 @RequiredArgsConstructor
 public class LongTermAssetController {
-  private final LongTermAssetsApi assets;
+  private final LongTermAssetsClient assets;
   private final Clock clock;
 
   @GetMapping("/portfolios/{portfolioId}/long-term-assets")

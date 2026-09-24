@@ -71,9 +71,35 @@ class RyczaltAccountingPageControllerTest {
     assertEquals(List.of(currentIncome, nextPayment), result);
   }
 
+  @Test
+  void counterpartyBillTotalSumsGrossAmountsExactly() {
+    var bills = List.of(invoice(1, new BigDecimal("100.10")), invoice(2, new BigDecimal("23.45")));
+
+    assertEquals(
+        new BigDecimal("123.55"), RyczaltAccountingPageController.counterpartyInvoiceTotal(bills));
+  }
+
   private static RyczaltWebAccountingClient.Transaction transaction(
       long id, LocalDate date, BigDecimal amount) {
     return new RyczaltWebAccountingClient.Transaction(
         id, date, amount, "PLN", "BANK-" + id, "Counterparty", null, BigDecimal.ZERO);
+  }
+
+  private static RyczaltWebAccountingClient.Invoice invoice(long id, BigDecimal grossAmount) {
+    return new RyczaltWebAccountingClient.Invoice(
+        id,
+        "COST",
+        "FV/" + id,
+        LocalDate.of(2026, 9, 1),
+        LocalDate.of(2026, 9, 1),
+        grossAmount,
+        BigDecimal.ZERO,
+        grossAmount,
+        "PLN",
+        "APPROVED",
+        null,
+        "REQUIRED",
+        "UNMATCHED",
+        "Supplier");
   }
 }

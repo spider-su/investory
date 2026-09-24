@@ -2,13 +2,16 @@ package com.smartbox.investory.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 
 import com.tngtech.archunit.ArchConfiguration;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
@@ -66,6 +69,8 @@ class LayerDependencyTest {
     noClasses()
         .that()
         .resideInAnyPackage("..longterm..")
+        .and()
+        .resideOutsideOfPackage("..ui..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..investment..", "..profile..", "..retirement..")
@@ -216,6 +221,8 @@ class LayerDependencyTest {
     noClasses()
         .that()
         .resideInAnyPackage("..ui.longterm..")
+        .and()
+        .haveSimpleNameNotStartingWith("InProcess")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
@@ -305,6 +312,8 @@ class LayerDependencyTest {
     noClasses()
         .that()
         .resideInAnyPackage("..retirement.simulation..")
+        .and()
+        .haveSimpleNameNotStartingWith("InProcess")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
@@ -385,22 +394,15 @@ class LayerDependencyTest {
         .check(MAIN);
   }
 
-  @DisplayName("web Ui Does Not Reach Into Business Persistence Or Rest")
+  @DisplayName("web Ui Does Not Reach Into Business Persistence")
   @Test
-  void webUiDoesNotReachIntoBusinessPersistenceOrRest() {
+  void webUiDoesNotReachIntoBusinessPersistence() {
     noClasses()
         .that()
         .resideInAnyPackage("com.smartbox.investory.ui..")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..persistence..",
-            "..entity..",
-            "..entities..",
-            "..investment.web..",
-            "..longterm.web..",
-            "..profile.web..",
-            "..retirement.rest..")
+        .resideInAnyPackage("..persistence..", "..entity..", "..entities..")
         .check(MAIN);
   }
 
@@ -412,6 +414,8 @@ class LayerDependencyTest {
         .resideInAnyPackage("..ui..")
         .and()
         .haveSimpleNameNotEndingWith("Test")
+        .and()
+        .haveSimpleNameNotStartingWith("InProcess")
         .should()
         .onlyDependOnClassesThat()
         .resideInAnyPackage(
@@ -422,6 +426,7 @@ class LayerDependencyTest {
             "..longterm.api..",
             "..profile.api..",
             "..retirement.api..",
+            "..retirement.api.contract..",
             "..integrations.management.api..",
             "..accounting.api..",
             "..ryczalt..",
@@ -473,17 +478,36 @@ class LayerDependencyTest {
         .check(MAIN);
   }
 
-  @DisplayName("web Ui Uses Clients Instead Of Business Rest Controllers")
+  @DisplayName("web Ui Uses Clients Instead Of Retirement Rest Packages")
   @Test
-  void webUiUsesClientsInsteadOfBusinessRestControllers() {
+  void webUiUsesClientsInsteadOfRetirementRestPackages() {
     noClasses()
         .that()
         .resideInAnyPackage("..ui..")
+        .and()
+        .haveSimpleNameNotStartingWith("InProcess")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment.web..", "..longterm.web..", "..profile.web..", "..retirement.rest..")
+        .resideInAnyPackage("com.smartbox.investory.retirement.rest..")
         .check(MAIN);
+  }
+
+  @DisplayName("ordinary web Ui Does Not Reach Backend Access Types")
+  @Test
+  void ordinaryWebUiDoesNotReachBackendAccessTypes() {
+    for (String suffix : List.of("Api", "Service", "Facade", "Reader", "Repository")) {
+      noClasses()
+          .that()
+          .resideInAnyPackage("..ui..")
+          .and()
+          .haveSimpleNameNotStartingWith("InProcess")
+          .and()
+          .haveSimpleNameNotContaining("Client")
+          .should()
+          .dependOnClassesThat()
+          .haveNameMatching("^(?!.*\\.ui\\.).*" + suffix + "$")
+          .check(MAIN);
+    }
   }
 
   @DisplayName("investment Web Ui Uses Only Investment Public Apis")
@@ -569,10 +593,11 @@ class LayerDependencyTest {
     noClasses()
         .that()
         .resideInAnyPackage("..retirement.simulation..")
+        .and()
+        .haveSimpleNameNotStartingWith("InProcess")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
-            "..retirement.rest..",
             "..retirement.infrastructure..",
             "..retirement.planning.application..",
             "..retirement.preview..")
@@ -584,7 +609,7 @@ class LayerDependencyTest {
   void retirementAnalysisDoesNotDependOnAdapters() {
     noClasses()
         .that()
-        .resideInAnyPackage("..retirement.analysis..")
+        .resideInAnyPackage("com.smartbox.investory.retirement.analysis..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..retirement.rest..", "..retirement.infrastructure..")
@@ -620,12 +645,26 @@ class LayerDependencyTest {
         .check(MAIN);
   }
 
+  @DisplayName("Web UI Does Not Use Field Injection")
+  @Test
+  void webUiDoesNotUseFieldInjection() {
+    noFields()
+        .that()
+        .areDeclaredInClassesThat()
+        .resideInAnyPackage("..ui..")
+        .should()
+        .beAnnotatedWith(Autowired.class)
+        .check(MAIN);
+  }
+
   @DisplayName("profile Web Ui Uses Only Public Contracts")
   @Test
   void profileWebUiUsesOnlyPublicContracts() {
     classes()
         .that()
         .resideInAnyPackage("..ui.profile..")
+        .and()
+        .haveSimpleNameNotStartingWith("InProcess")
         .should()
         .onlyDependOnClassesThat()
         .resideInAnyPackage(

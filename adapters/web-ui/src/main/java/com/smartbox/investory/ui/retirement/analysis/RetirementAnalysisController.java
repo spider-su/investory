@@ -4,9 +4,8 @@ import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.retirement.api.model.SimulationScenarioComparison;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
+import com.smartbox.investory.ui.profile.ProfileClient;
 import com.smartbox.investory.ui.retirement.simulation.RetirementPlanClient;
-import com.smartbox.investory.ui.retirement.simulation.RetirementPresentationClient;
 import com.smartbox.investory.ui.retirement.simulation.RetirementProjectionClient;
 import java.util.LinkedHashMap;
 import org.springframework.stereotype.Controller;
@@ -19,20 +18,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class RetirementAnalysisController {
   private final RetirementProjectionClient projections;
   private final RetirementAnalysisClient analyses;
-  private final RetirementPresentationClient presentation;
   private final RetirementPlanClient plans;
 
-  @org.springframework.beans.factory.annotation.Autowired private PortfolioContextReader portfolios;
+  private final ProfileClient profiles;
 
   public RetirementAnalysisController(
       RetirementProjectionClient projections,
       RetirementAnalysisClient analyses,
-      RetirementPresentationClient presentation,
-      RetirementPlanClient plans) {
+      RetirementPlanClient plans,
+      ProfileClient profiles) {
     this.projections = projections;
     this.analyses = analyses;
-    this.presentation = presentation;
     this.plans = plans;
+    this.profiles = profiles;
   }
 
   @GetMapping("/portfolios/{portfolioId}/analysis")
@@ -46,11 +44,9 @@ public class RetirementAnalysisController {
     Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
     var selectedPlan = selectedPlanId == null ? null : plans.details(portfolioId, selectedPlanId);
     var projection = projections.load(portfolioId, selectedPlanId, 40, 95);
-    var result = analyses.analyze(projection);
+    var result = analyses.analyze(portfolioId, selectedPlanId, 40, 95, planningDisplayCurrency);
     SimulationScenario displayedScenario = selectedScenario;
-    var displaySummaries =
-        new LinkedHashMap<>(
-            presentation.displaySummaries(projection.summaries(), planningDisplayCurrency));
+    var displaySummaries = new LinkedHashMap<>(result.displaySummaries());
     var page =
         new RetirementAnalysisPageView(
             portfolioId,
@@ -65,17 +61,9 @@ public class RetirementAnalysisController {
             displaySummaries.get(displayedScenario),
             SimulationScenarioComparison.from(
                 projection.summaries(), displaySummaries, displayedScenario),
-            result.available()
-                ? presentation.displayPlanRisks(
-                    result.sensitivity().value().orElseThrow(), planningDisplayCurrency)
-                : null,
-            result.available()
-                ? presentation.displayPlanningFlexibility(
-                    result.sustainableSpending().value().orElseThrow(),
-                    result.retirementAge().value().orElseThrow(),
-                    planningDisplayCurrency)
-                : null,
-            presentation.displayCharts(result.charts(), planningDisplayCurrency),
+            result.displayRisk(),
+            result.displayFlexibility(),
+            result.displayCharts(),
             result.available()
                 ? projection.projectedAssumptions().currentAge()
                     + "–"
@@ -87,10 +75,6 @@ public class RetirementAnalysisController {
 
   private CurrencyType resolveCurrency(Long portfolioId, CurrencyType requested) {
     if (requested != null) return requested;
-    if (portfolios == null) return CurrencyType.PLN;
-    return portfolios
-        .findById(portfolioId)
-        .map(context -> context.localCurrency())
-        .orElse(CurrencyType.PLN);
+    return profiles.loadProfile(portfolioId).currency();
   }
 }

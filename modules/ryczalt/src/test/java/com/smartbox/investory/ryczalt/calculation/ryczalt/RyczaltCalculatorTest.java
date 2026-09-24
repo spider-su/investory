@@ -76,6 +76,20 @@ class RyczaltCalculatorTest {
     assertAmount("114", result.calculatedTax());
   }
 
+  @Test
+  void matchesJanuaryWfirmaHealthDeductionAndRyczalt() {
+    RyczaltCalculationResult result =
+        calculator.calculate(
+            new RyczaltCalculationInput(
+                Map.of(new BigDecimal("0.12"), new BigDecimal("61771.23")),
+                BigDecimal.ZERO,
+                new BigDecimal("1384.98")));
+
+    assertAmount("692.49", result.healthDeduction());
+    assertAmount("61079", result.taxableBase());
+    assertAmount("7329", result.calculatedTax());
+  }
+
   private static void assertAmount(String expected, BigDecimal actual) {
     assertEquals(0, new BigDecimal(expected).compareTo(actual));
   }

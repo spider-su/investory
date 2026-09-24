@@ -1,4 +1,4 @@
-package com.smartbox.investory.retirement.rest;
+package com.smartbox.investory.retirement.api.contract;
 
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.RetirementProjection;
@@ -22,6 +22,21 @@ public final class RetirementProjectionContracts {
       @Min(0) @Max(150) Integer defaultCurrentAge,
       @Min(0) @Max(150) Integer defaultEndAge) {}
 
+  public record DisplayProjectionParameters(
+      Long planId,
+      @Min(0) @Max(150) Integer defaultCurrentAge,
+      @Min(0) @Max(150) Integer defaultEndAge,
+      CurrencyType displayCurrency) {}
+
+  public record ProjectionRequest(
+      com.smartbox.investory.profile.api.model.InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      PlanningBaseline baseline) {}
+
+  public record DisplayProjectionResponse(
+      RetirementProjection projection,
+      Map<SimulationScenario, SimulationDecisionSummaryMoney> summaries) {}
+
   public record ProjectionResponse(
       Long portfolioId,
       Long planId,
@@ -30,7 +45,7 @@ public final class RetirementProjectionContracts {
       int currentAge,
       int endAge,
       Map<SimulationScenario, ScenarioProjectionDto> scenarios) {
-    static ProjectionResponse from(
+    public static ProjectionResponse from(
         Long portfolioId, Long effectivePlanId, RetirementProjection projection) {
       return new ProjectionResponse(
           portfolioId,

@@ -23,23 +23,21 @@ class SimulationTimelineControllerTest {
   @Mock ProfileClient profiles;
   @Mock RetirementPlanClient plans;
   @Mock RetirementTimelineClient timeline;
-  @Mock RetirementPresentationClient presentation;
   @Mock RetirementProjectionClient projections;
+  @Mock SimulationTimelinePageAssembler pageAssembler;
 
   private SimulationTimelineController controller() {
     return new SimulationTimelineController(
         profiles,
         plans,
         timeline,
-        presentation,
         projections,
-        Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+        Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC),
+        pageAssembler);
   }
 
   @Test
   void pastManualValueConvertsAndPreservesDetailContext() {
-    when(presentation.fromDisplay(new BigDecimal("45000"), CurrencyType.PLN, BigDecimal.ZERO))
-        .thenReturn(new BigDecimal("11250"));
     RedirectAttributesModelMap flash = new RedirectAttributesModelMap();
 
     String redirect =
@@ -60,7 +58,8 @@ class SimulationTimelineControllerTest {
             1L,
             2025,
             PlanningMetric.CORE_SPENDING,
-            new BigDecimal("11250"),
+            new BigDecimal("45000"),
+            CurrencyType.PLN,
             "Actual household spending");
     assertEquals(
         "redirect:/portfolios/1/simulation/timeline/2025?planningDisplayCurrency=PLN&planId=7&selectedScenario=CONSERVATIVE",

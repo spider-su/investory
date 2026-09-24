@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,5 +27,10 @@ public class InvestmentReconciliationRestController {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "portfolioId must be positive");
     }
     return reconciliation.loadReconciliationReport(portfolioId);
+  }
+
+  @PostMapping("/refresh")
+  public void refresh(@PathVariable @Positive Long portfolioId) {
+    reconciliation.refreshReconciliationViews();
   }
 }

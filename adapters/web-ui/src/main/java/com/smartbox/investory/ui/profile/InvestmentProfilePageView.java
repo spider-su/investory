@@ -1,6 +1,5 @@
 package com.smartbox.investory.ui.profile;
 
-import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.profile.api.model.AssetHorizon;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
@@ -8,6 +7,8 @@ import com.smartbox.investory.profile.api.model.ProfileAllocation;
 import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
+import com.smartbox.investory.ui.investment.InvestmentPerformanceKpi;
+import com.smartbox.investory.ui.investment.InvestmentResult;
 import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -41,8 +42,8 @@ record InvestmentProfilePageView(
 
   static InvestmentProfilePageView from(
       InvestmentProfile profile,
-      InvestmentDashboardApi.PerformanceKpiView performance,
-      InvestmentDashboardApi.InvestmentResultView investmentResult,
+      InvestmentPerformanceKpi performance,
+      InvestmentResult investmentResult,
       com.smartbox.investory.retirement.api.model.AnnualCostView annualCost,
       int currentMonth) {
     BigDecimal marketAnnualIncome = profile.incomeSummary().marketAnnualIncome();
