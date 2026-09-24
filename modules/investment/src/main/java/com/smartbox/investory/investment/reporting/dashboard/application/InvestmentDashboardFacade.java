@@ -302,31 +302,34 @@ public class InvestmentDashboardFacade {
           BigDecimal.ZERO,
           "Benchmark estimate");
     }
-    ReturnMetric linearAnnualized =
+    YearMonth currentYear = YearMonth.from(historicalPerformance.period().endDate());
+    PerformanceResult currentYearPerformance =
+        performanceQuery.forPortfolioMonths(
+            portfolioId, YearMonth.of(currentYear.getYear(), 1), currentYear);
+    ReturnMetric currentYearAnnualized =
         ReturnEstimateCalculator.linearAnnualized(
-            metric(historicalPerformance, true),
-            historicalPerformance.period().startDate(),
-            historicalPerformance.period().endDate());
+            metric(currentYearPerformance, true),
+            currentYearPerformance.period().startDate(),
+            currentYearPerformance.period().endDate());
     ReturnMetric fiveYearAverage =
         ReturnEstimateCalculator.fiveYearAverage(
             historicalPerformance.period().endDate().getYear(),
-            linearAnnualized.status() == ReturnMetric.Status.AVAILABLE
-                ? linearAnnualized.value()
+            currentYearAnnualized.status() == ReturnMetric.Status.AVAILABLE
+                ? currentYearAnnualized.value()
                 : null,
             annualPortfolioReturns(
                 portfolioId,
                 historicalPerformance.period().endDate().getYear(),
                 YearMonth.parse(performanceKpiStart).atDay(1)),
-            spyAnnualReturns(benchmark));
-    if (fiveYearAverage.status() != ReturnMetric.Status.AVAILABLE) {
-      fiveYearAverage = ReturnMetric.available(benchmarkExpectedReturn);
-    }
+            ReturnEstimateCalculator.SPY_ANNUAL_RETURNS);
     return new PerformanceKpi(
         totalReturn,
         totalReturnPerformance == null || totalReturnPerformance.period() == null
             ? null
             : totalReturnPerformance.period().startDate().toString(),
-        fiveYearAverage,
+        ReturnMetric.unavailable(
+            ReturnMetric.Status.INSUFFICIENT_DATA,
+            "Historical annualized TWR is not a profile KPI"),
         fiveYearAverage.value(),
         BigDecimal.valueOf(
                 historicalPerformance
@@ -337,7 +340,7 @@ public class InvestmentDashboardFacade {
                         java.time.temporal.ChronoUnit.MONTHS))
             .add(BigDecimal.ONE)
             .divide(BigDecimal.valueOf(12), 8, java.math.RoundingMode.HALF_UP),
-        "Portfolio historical annual average before period start; missing years use SPY");
+        "Current-year full-month TWR annualized; prior years use portfolio TWR or fixed SPY");
   }
 
   private Map<Integer, BigDecimal> annualPortfolioReturns(
@@ -345,7 +348,9 @@ public class InvestmentDashboardFacade {
     if (performanceQuery == null || portfolioId == null || periodStart == null) return Map.of();
     Map<Integer, BigDecimal> result = new LinkedHashMap<>();
     for (int year = currentYear - 4; year < currentYear; year++) {
-      if (!LocalDate.of(year, 1, 1).isBefore(periodStart)) continue;
+      // Portfolio history before the configured KPI start is outside the observed scope.
+      // Those slots intentionally use the fixed SPY fallback in the caller.
+      if (LocalDate.of(year, 1, 1).isBefore(periodStart)) continue;
       PerformanceResult annual =
           performanceQuery.forPortfolioMonths(
               portfolioId, YearMonth.of(year, 1), YearMonth.of(year, 12));

@@ -38,7 +38,7 @@ public class RyczaltCalculationApplicationService {
       long profileId, YearMonth month, RyczaltCalculationInput input) {
     RyczaltPeriodEntity period =
         periods
-            .findByProfileIdAndYearAndMonth(profileId, month.getYear(), month.getMonthValue())
+            .findLocked(profileId, month.getYear(), month.getMonthValue())
             .orElseThrow(() -> new IllegalArgumentException("Period does not exist: " + month));
     String fingerprint = InputFingerprint.ryczalt(input, RULE_VERSION);
     RyczaltCalculationEntity current =

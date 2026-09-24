@@ -19,12 +19,15 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /** Native Ryczalt MVC adapter. Accounting conclusions stay in native read models. */
 @Controller
 public class RyczaltAccountingPageController {
   private static final String BASE = "/profiles/{profileId}/accounting";
+  private static final System.Logger LOG =
+      System.getLogger(RyczaltAccountingPageController.class.getName());
   private final RyczaltWebAccountingClient client;
 
   public RyczaltAccountingPageController(RyczaltWebAccountingClient client) {
@@ -316,7 +319,9 @@ public class RyczaltAccountingPageController {
           + "/accounting/documents/candidates/"
           + candidate.candidateKey();
     } catch (Exception exception) {
-      redirect.addFlashAttribute("accountingError", "Document recognition failed.");
+      logFailure("document-recognition", profileId, null, exception);
+      redirect.addFlashAttribute(
+          "accountingError", userMessage(exception, "Document recognition failed."));
       return "redirect:/profiles/" + profileId + "/accounting";
     }
   }
@@ -366,7 +371,9 @@ public class RyczaltAccountingPageController {
       redirect.addFlashAttribute(
           "accountingMessage", approve ? "Invoice approved." : "Candidate saved for review.");
     } catch (Exception exception) {
-      redirect.addFlashAttribute("accountingError", "Candidate could not be saved.");
+      logFailure("candidate-approval", profileId, null, exception);
+      redirect.addFlashAttribute(
+          "accountingError", userMessage(exception, "Candidate could not be saved."));
       return "redirect:/profiles/" + profileId + "/accounting/documents/candidates/" + candidateKey;
     }
     return "redirect:/profiles/" + profileId + "/accounting";
@@ -451,7 +458,8 @@ public class RyczaltAccountingPageController {
       redirect.addFlashAttribute(
           "accountingMessage", "Bank import complete: " + result.imported() + " imported.");
     } catch (Exception exception) {
-      redirect.addFlashAttribute("accountingError", "Bank import failed.");
+      logFailure("bank-import", profileId, null, exception);
+      redirect.addFlashAttribute("accountingError", userMessage(exception, "Bank import failed."));
     }
     return "redirect:/profiles/" + profileId + "/accounting";
   }
@@ -464,7 +472,8 @@ public class RyczaltAccountingPageController {
       redirect.addFlashAttribute(
           "accountingMessage", "KSeF sync complete: " + result.imported() + " imported.");
     } catch (Exception exception) {
-      redirect.addFlashAttribute("accountingError", "KSeF sync failed.");
+      logFailure("ksef-sync", profileId, month, exception);
+      redirect.addFlashAttribute("accountingError", userMessage(exception, "KSeF sync failed."));
     }
     return accountingRedirect(profileId, month);
   }
@@ -499,9 +508,48 @@ public class RyczaltAccountingPageController {
       operation.run();
       redirect.addFlashAttribute("accountingMessage", "Ryczalt action completed: " + name + ".");
     } catch (RuntimeException exception) {
-      redirect.addFlashAttribute("accountingError", "Ryczalt action failed.");
+      logFailure(name, profileId, month, exception);
+      redirect.addFlashAttribute(
+          "accountingError", userMessage(exception, "Ryczalt action failed."));
     }
     return "redirect:/profiles/" + profileId + "/accounting?month=" + month;
+  }
+
+  private void logFailure(String operation, long profileId, YearMonth month, Exception exception) {
+    if (exception instanceof ResponseStatusException status
+        && status.getStatusCode().is4xxClientError()) {
+      LOG.log(
+          System.Logger.Level.WARNING,
+          "Web accounting operation rejected: operation="
+              + operation
+              + ", profileId="
+              + profileId
+              + ", month="
+              + month
+              + ", status="
+              + status.getStatusCode().value());
+    } else {
+      LOG.log(
+          System.Logger.Level.ERROR,
+          "Web accounting operation failed: operation="
+              + operation
+              + ", profileId="
+              + profileId
+              + ", month="
+              + month,
+          exception);
+    }
+  }
+
+  private static String userMessage(Exception exception, String fallback) {
+    if (!(exception instanceof ResponseStatusException status)) return fallback;
+    int code = status.getStatusCode().value();
+    if (code == 403) return "You are not allowed to perform this action.";
+    if (code == 404) return "The requested accounting record was not found.";
+    if (code == 409) return "The accounting period changed. Reload the page and try again.";
+    if (code == 400 && status.getReason() != null && !status.getReason().isBlank())
+      return status.getReason();
+    return fallback;
   }
 
   private static String redirect(long profileId, long counterpartyId) {

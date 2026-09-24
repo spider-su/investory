@@ -40,7 +40,7 @@ class NativeMonthCalculationServiceTest {
     when(period.getYear()).thenReturn(2026);
     when(period.getMonth()).thenReturn(9);
     when(period.getStatus()).thenReturn(PeriodStatus.OPEN);
-    when(periods.findByProfileIdAndYearAndMonth(7L, 2026, 9)).thenReturn(Optional.of(period));
+    when(periods.findLocked(7L, 2026, 9)).thenReturn(Optional.of(period));
     when(obligations.findByProfileIdAndPeriodIdOrderByTypeAsc(7L, period.id()))
         .thenReturn(List.of());
     when(calculations.saveCurrent(any(), any(Long.TYPE), any(), any(), any(), any(), any()))

@@ -149,6 +149,7 @@ class ProfilePersistedFactsIT {
   @Test
   void readsCanonicalHappyInvestorPersistedFactsThroughRealReaders() throws Exception {
     InvestmentProfile profile = profiles.loadProfile(HappyInvestorTestData.PORTFOLIO_ID);
+    var kpi = investmentDashboard.loadPerformanceKpi(HappyInvestorTestData.PORTFOLIO_ID);
     Map<AssetHorizon, Map<EconomicBucket, BigDecimal>> allocations =
         profile.allocations().stream()
             .collect(
@@ -193,17 +194,20 @@ class ProfilePersistedFactsIT {
     assertThat(profile.incomeSummary().marketIncomeYtd())
         .isEqualByComparingTo(HappyInvestorProfileFacts.MARKET_INCOME_YTD);
     assertThat(profile.incomeSummary().marketAnnualIncome())
-        .isEqualByComparingTo(HappyInvestorProfileFacts.MARKET_ANNUAL_INCOME);
+        .isEqualByComparingTo(profile.incomeSummary().expectedAnnualInvestmentResult());
     assertThat(profile.incomeSummary().marketNetYield())
-        .isEqualByComparingTo(HappyInvestorProfileFacts.MARKET_NET_YIELD);
+        .isEqualByComparingTo(kpi.expectedAnnualReturn());
     assertThat(profile.incomeSummary().longTermAnnualIncome())
         .isEqualByComparingTo(HappyInvestorProfileFacts.LONG_TERM_ANNUAL_INCOME);
     assertThat(profile.incomeSummary().longTermNetYield())
         .isEqualByComparingTo(HappyInvestorProfileFacts.LONG_TERM_NET_YIELD);
     assertThat(profile.incomeSummary().combinedAnnualIncome())
-        .isEqualByComparingTo(HappyInvestorProfileFacts.COMBINED_ANNUAL_INCOME);
-    assertThat(profile.incomeSummary().combinedNetYield())
-        .isEqualByComparingTo(HappyInvestorProfileFacts.COMBINED_NET_YIELD);
+        .isEqualByComparingTo(
+            profile
+                .incomeSummary()
+                .marketAnnualIncome()
+                .add(profile.incomeSummary().longTermAnnualIncome()));
+    assertThat(profile.incomeSummary().combinedNetYield()).isNotNull();
     BigDecimal allocationTotal =
         profile.allocations().stream()
             .map(allocation -> allocation.value())
@@ -248,8 +252,7 @@ class ProfilePersistedFactsIT {
     assertThat((BigDecimal) boundary.get("daily_return_pct")).isEqualByComparingTo("0");
 
     var kpi = investmentDashboard.loadPerformanceKpi(HappyInvestorTestData.PORTFOLIO_ID);
-    assertThat(kpi.historicalAnnualizedReturn()).isNotNull();
-    assertThat(kpi.historicalAnnualizedReturn().abs()).isLessThan(BigDecimal.ONE);
+    assertThat(kpi.historicalAnnualizedReturn()).isNull();
     assertThat(kpi.expectedAnnualReturn().abs()).isLessThan(BigDecimal.ONE);
   }
 

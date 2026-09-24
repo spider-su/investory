@@ -27,8 +27,6 @@ record InvestmentProfilePageView(
     String longTermAssetsPercentageDisplay,
     String expectedAnnualReturnDisplay,
     String expectedReturnMeta,
-    String historicalAnnualizedTwrDisplay,
-    String historicalTwrMeta,
     String marketInvestmentResultYtdDisplay,
     String marketYtdReturnDisplay,
     String longTermPlannedIncomeYtdDisplay,
@@ -58,8 +56,17 @@ record InvestmentProfilePageView(
         income.investmentIncomeBase() != null
             ? income.investmentIncomeBase()
             : profile.marketPortfolioValue();
-    BigDecimal annualizedInvestmentResult = annualize(investmentResultYtd, currentMonth);
-    BigDecimal annualizedInvestmentReturn = ratio(annualizedInvestmentResult, investmentBase);
+    BigDecimal forecastAnnualReturn = performance.expectedAnnualReturn();
+    BigDecimal forecastAnnualInvestmentResult =
+        forecastAnnualReturn == null || investmentBase == null
+            ? null
+            : investmentBase
+                .multiply(forecastAnnualReturn)
+                .setScale(8, java.math.RoundingMode.HALF_UP);
+    BigDecimal annualizedInvestmentResult =
+        forecastAnnualInvestmentResult != null
+            ? forecastAnnualInvestmentResult
+            : annualize(investmentResultYtd, currentMonth);
     boolean hasAnnualizedInvestmentResult = annualizedInvestmentResult != null;
     return new InvestmentProfilePageView(
         profile.portfolioId(),
@@ -75,26 +82,26 @@ record InvestmentProfilePageView(
         UiPresentation.percentage(profile.marketPortfolioPercentage()),
         UiPresentation.percentage(profile.longTermAssetPercentage()),
         hasAnnualizedInvestmentResult && investmentBase != null && investmentBase.signum() != 0
-            ? UiPresentation.percentage(annualizedInvestmentReturn)
-            : performance.expectedAnnualReturn() != null
-                ? UiPresentation.percentage(performance.expectedAnnualReturn())
+            ? UiPresentation.percentage(ratio(annualizedInvestmentResult, investmentBase))
+            : forecastAnnualReturn != null
+                ? UiPresentation.percentage(forecastAnnualReturn)
                 : "Unavailable",
-        hasAnnualizedInvestmentResult
-            ? "Annualized current result"
-            : performance.kpiStartDate() == null
-                ? "Total return"
-                : "Since " + performance.kpiStartDate(),
-        performance.historicalAnnualizedReturn() == null
-            ? "Unavailable"
-            : UiPresentation.percentage(performance.historicalAnnualizedReturn()),
-        "Cash-flow-neutral portfolio history",
+        forecastAnnualInvestmentResult != null
+            ? "Forecast annual return"
+            : hasAnnualizedInvestmentResult
+                ? "Annualized current result"
+                : performance.kpiStartDate() == null
+                    ? "Total return"
+                    : "Since " + performance.kpiStartDate(),
         money(
             hasInvestmentIncome
                 ? income.investmentResultYtd()
                 : investmentResult.available() ? investmentResult.amount() : null),
         hasAnnualizedInvestmentResult
             ? UiPresentation.percentage(ratio(investmentResultYtd, annualizedInvestmentResult))
-                + " of annualized current result"
+                + (forecastAnnualInvestmentResult != null
+                    ? " of forecast annual result"
+                    : " of annualized current result")
             : performance.totalReturn() == null
                 ? ""
                 : UiPresentation.percentage(performance.totalReturn()),

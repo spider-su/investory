@@ -88,13 +88,15 @@ holding first receives a usable valuation after an empty market-value boundary, 
 capital is opening capital for the observed scope: it is excluded from return and investor-flow
 totals, but included in the TWR denominator. Cash-only accounts never enter this performance scope.
 
-Expected annual return is a forward-looking projection assumption. Its default horizon is five years.
-When at least one year of portfolio history is usable, the expected value linearly weights the portfolio
-historical annualized return by observed years / five (capped at one) and fills the remaining weight with
-the configurable `app.portfolio.expected-return.benchmark` assumption. With no usable history, the
-benchmark assumption supplies the estimate. The default assumption is 7% and is configurable through
-`PORTFOLIO_EXPECTED_RETURN_BENCHMARK`; it is not the latest SPY trailing return and is not historical
-portfolio performance.
+Expected annual return is a forward-looking projection assumption built from five calendar-year slots.
+The current year uses the available complete calendar months, annualized linearly from its cash-flow-
+neutral TWR. Each of the prior four years uses that year's portfolio TWR only when the year is inside
+the configured KPI history scope; years before `app.portfolio.performance-kpi-start` use the fixed SPY
+annual total return for that year (2020-2025 constants in the investment module).
+The five slots are averaged arithmetically. If no usable slot exists, the configurable
+`app.portfolio.expected-return.benchmark` assumption supplies the estimate. The default assumption is
+7% and is configurable through `PORTFOLIO_EXPECTED_RETURN_BENCHMARK`; it is not the latest SPY trailing
+return and is not historical portfolio performance.
 
 Forward projections and expected annual investment results use expected annual return. Historical
 annualized TWR is displayed as context only and does not drive those projections.

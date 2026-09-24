@@ -76,19 +76,30 @@ public class IntegrationConfigurationService {
         instance.getId() == null ? new LinkedHashMap<>() : fromJson(instance.getConfigJson());
     Map<String, String> effective = new LinkedHashMap<>(persistedConfig);
     if (config != null) effective.putAll(config);
+    Set<String> requestedClear = clearSecrets == null ? Set.of() : clearSecrets;
+    Set<String> replacementKeys =
+        secrets == null
+            ? requestedClear
+            : new java.util.HashSet<>(
+                java.util.stream.Stream.concat(secrets.keySet().stream(), requestedClear.stream())
+                    .toList());
     Map<String, String> persistedSecrets = new LinkedHashMap<>();
+    Set<String> persistedSecretNames = new java.util.HashSet<>();
     if (instance.getId() != null) {
       secretRepository
           .findByIntegrationInstanceId(instance.getId())
           .forEach(
-              secret ->
+              secret -> {
+                persistedSecretNames.add(secret.getSecretName());
+                if (!replacementKeys.contains(secret.getSecretName())) {
                   persistedSecrets.put(
-                      secret.getSecretName(), secretCipher.decrypt(secret.getCiphertext())));
+                      secret.getSecretName(), secretCipher.decrypt(secret.getCiphertext()));
+                }
+              });
     }
     if (secrets != null) effective.putAll(secrets);
     // Provider-level enablement was retired; the instance flag is authoritative.
     effective.remove("enabled");
-    Set<String> requestedClear = clearSecrets == null ? Set.of() : clearSecrets;
     requestedClear.forEach(effective::remove);
     persistedSecrets
         .keySet()
@@ -111,7 +122,7 @@ public class IntegrationConfigurationService {
     instance.setPluginType(type);
     Map<String, String> storedConfig = new LinkedHashMap<>(effective);
     if (secrets != null) secrets.keySet().forEach(storedConfig::remove);
-    persistedSecrets.keySet().forEach(storedConfig::remove);
+    persistedSecretNames.forEach(storedConfig::remove);
     instance.setConfigJson(toJson(storedConfig));
     // Any configuration change invalidates the previous connectivity result.
     instance.setLastTestAt(null);

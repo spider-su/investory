@@ -273,7 +273,7 @@ public class RyczaltAccountingQueryService {
     for (CalculationType type : CalculationType.values()) {
       RyczaltCalculationEntity calculation =
           loaded.calculations.stream()
-              .filter(row -> row.getType() == type)
+              .filter(row -> row.getType() == type && row.isCurrent())
               .findFirst()
               .orElse(null);
       if (calculation == null) {

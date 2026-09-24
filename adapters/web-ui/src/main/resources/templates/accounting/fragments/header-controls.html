@@ -15,7 +15,7 @@
     </form>
     <form class="accounting-document-form" method="post" enctype="multipart/form-data" th:action="@{/profiles/{profileId}/accounting/documents/recognize(profileId=${profileId})}">
       <input type="hidden" name="month" th:value="${selectedMonth}">
-      <input id="accounting-document-file" class="accounting-bank-file-input" data-testid="accounting-document-file" type="file" name="file" accept="application/pdf,image/*" required onchange="this.form.requestSubmit()">
+  <input id="accounting-document-file" class="accounting-bank-file-input" data-testid="accounting-document-file" type="file" name="file" accept="application/pdf,.pdf" required onchange="this.form.requestSubmit()">
       <label class="btn btn-primary accounting-bank-file-label" for="accounting-document-file" data-testid="accounting-document-upload">Import document</label>
     </form>
     <a class="btn btn-outline-secondary accounting-counterparties-link" data-testid="accounting-counterparties" th:href="@{/profiles/{profileId}/accounting/counterparties(profileId=${profileId})}">Counterparties</a>

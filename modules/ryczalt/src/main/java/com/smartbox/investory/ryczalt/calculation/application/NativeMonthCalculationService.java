@@ -137,7 +137,7 @@ public class NativeMonthCalculationService {
 
   private RyczaltPeriodEntity period(long profileId, YearMonth month) {
     return periods
-        .findByProfileIdAndYearAndMonth(profileId, month.getYear(), month.getMonthValue())
+        .findLocked(profileId, month.getYear(), month.getMonthValue())
         .orElseGet(
             () ->
                 periods.save(

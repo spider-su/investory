@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class ReturnEstimateCalculatorTest {
@@ -90,6 +91,38 @@ class ReturnEstimateCalculatorTest {
     assertThat(fourYears.benchmarkWeight()).isEqualByComparingTo("0.2");
     assertThat(fiveYears.portfolioWeight()).isEqualByComparingTo("1");
     assertThat(fiveYears.benchmarkWeight()).isZero();
+  }
+
+  @Test
+  void averagesCurrentYearProjectionWithPriorYearsAndFixedSpyFallbacks() {
+    var result =
+        ReturnEstimateCalculator.fiveYearAverage(
+            2026, new BigDecimal("0.2175"), Map.of(), ReturnEstimateCalculator.SPY_ANNUAL_RETURNS);
+
+    assertThat(result.value()).isEqualByComparingTo("0.1449");
+  }
+
+  @Test
+  void currentYearAnnualizationUsesOnlyCompletedCalendarMonths() {
+    var result =
+        ReturnEstimateCalculator.linearAnnualized(
+            ReturnMetric.available(new BigDecimal("0.145")),
+            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, 9, 15));
+
+    assertThat(result.value()).isEqualByComparingTo("0.2175");
+  }
+
+  @Test
+  void prefersPortfolioReturnForAnAvailablePriorYear() {
+    var result =
+        ReturnEstimateCalculator.fiveYearAverage(
+            2026,
+            new BigDecimal("0.2175"),
+            Map.of(2024, new BigDecimal("0.10")),
+            ReturnEstimateCalculator.SPY_ANNUAL_RETURNS);
+
+    assertThat(result.value()).isEqualByComparingTo("0.1151");
   }
 
   @Test

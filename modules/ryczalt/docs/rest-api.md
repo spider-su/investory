@@ -96,7 +96,8 @@ Counterparty responses include `id`, `legalName`, `alias`, `displayName`, `taxId
 `field`, `inputType`, `required`, structured options (`value`, `labelKey`), `dependsOn`, and
 `dependsOnValues`; empty `requiredInputs` is valid and does not imply approval.
 
-Invoice responses expose a compact counterparty (`id`, `legalName`, `alias`) and the persisted
+Invoice responses expose a compact counterparty (`id`, `legalName`, `alias`, nullable
+`taxIdentifier`) and the persisted
 `approvalStatus`, `approvalMethod`, `paymentVerificationPolicy`, and canonical `paymentStatus`.
 `NOT_REQUIRED` always returns `NOT_REQUIRED`; required payment currently returns native persisted
 matching status, defaulting to `UNMATCHED` when no reliable invoice-level match exists.

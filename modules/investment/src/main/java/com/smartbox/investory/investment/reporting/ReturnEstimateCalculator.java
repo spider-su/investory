@@ -15,6 +15,17 @@ import java.util.Map;
 public final class ReturnEstimateCalculator {
   public static final BigDecimal DEFAULT_BENCHMARK_EXPECTATION = new BigDecimal("0.07");
   public static final int TARGET_YEARS = 5;
+
+  /** SPY NAV total returns used when a prior portfolio calendar year is unavailable. */
+  public static final Map<Integer, BigDecimal> SPY_ANNUAL_RETURNS =
+      Map.of(
+          2020, new BigDecimal("0.184"),
+          2021, new BigDecimal("0.286"),
+          2022, new BigDecimal("-0.181"),
+          2023, new BigDecimal("0.261"),
+          2024, new BigDecimal("0.249"),
+          2025, new BigDecimal("0.178"));
+
   private static final MathContext CONTEXT = new MathContext(20, RoundingMode.HALF_UP);
 
   private ReturnEstimateCalculator() {}
@@ -33,6 +44,8 @@ public final class ReturnEstimateCalculator {
           "A valid current-period return and date range are required");
     }
     long months = ChronoUnit.MONTHS.between(YearMonth.from(start), YearMonth.from(end)) + 1;
+    // The current calendar month is not usable until its last day has passed.
+    if (end.getDayOfMonth() < end.lengthOfMonth()) months--;
     if (months < 1 || months > 12) {
       return ReturnMetric.unavailable(
           ReturnMetric.Status.INSUFFICIENT_DATA,

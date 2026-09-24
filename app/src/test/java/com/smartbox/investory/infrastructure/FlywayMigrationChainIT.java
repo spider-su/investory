@@ -120,6 +120,19 @@ class FlywayMigrationChainIT {
   }
 
   @Test
+  void allowsKsefEInvoicingIntegrationInstances() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement()) {
+      connection.setAutoCommit(false);
+      statement.execute(
+          "INSERT INTO investory.integration_instances "
+              + "(owner_id, plugin_id, plugin_type) "
+              + "VALUES (NULL, 'ksef', 'E_INVOICING')");
+      connection.rollback();
+    }
+  }
+
+  @Test
   void temporalAnomaliesDetectStructuralPatternsWithoutCallingFlowsMarketMovement()
       throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);

@@ -22,15 +22,17 @@ The landing/error/static assets and `/actuator/health` are public. Exact matcher
 
 ## Session and CSRF model
 
-The application is stateless and disables form login. CSRF protection is currently disabled globally. This matches the current HTTP Basic/API-oriented security model but means UI write routes do not receive browser-CSRF protection.
+The application is stateless and disables form login. CSRF protection is enabled by default and uses a cookie token repository for browser mutations; the token-login endpoint is explicitly excluded because it is the API authentication boundary.
 
-Do not describe CSRF as implemented until the roadmap item for UI POST protection is completed and tested.
+Keep CSRF enabled for browser deployments. API clients must send the CSRF token for browser-session mutations or use the documented API authentication flow.
 
 ## Secrets
 
 Production must supply explicit admin/user credentials through configuration and must not use the development `change-me-*` defaults. Integration credentials and provider tokens must not be committed to source control.
 
 `INVESTORY_INTEGRATION_MASTER_KEY` protects persisted integration secrets. Treat changing or losing that key as an operational security event because encrypted integration configuration may become unreadable.
+
+Production also requires `APP_SECURITY_TOKEN_SECRET` (at least 32 characters). KSeF scheduled synchronization is opt-in through `RYCZALT_KSEF_SYNC_ENABLED`; manual authorized KSeF sync remains independent.
 
 ## Data isolation
 

@@ -68,9 +68,9 @@ class InvestmentProfileControllerTest {
     assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("8.00K");
     assertThat(page.annualCostDisplay()).isEqualTo("42.0K");
     assertThat(page.annualCostMeta()).isEqualTo("planned · 2026");
-    assertThat(page.expectedAnnualInvestmentResultDisplay()).isEqualTo("30.7K");
-    assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("18.3%");
-    assertThat(page.marketYtdReturnDisplay()).isEqualTo("66.7% of annualized current result");
+    assertThat(page.expectedAnnualInvestmentResultDisplay()).isEqualTo("47.2K");
+    assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("28.1%");
+    assertThat(page.marketYtdReturnDisplay()).isEqualTo("43.4% of forecast annual result");
     assertThat(page.allocationApproximate()).isFalse();
     verify(investment).investmentResultYtd(7L);
     verify(retirement).currentYearAnnualCost(7L, CurrencyType.PLN);

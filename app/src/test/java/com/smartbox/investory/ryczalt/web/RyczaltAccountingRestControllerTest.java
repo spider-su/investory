@@ -18,6 +18,9 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodListItem;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundException;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
 import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
+import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
+import com.smartbox.investory.ryczalt.domain.InvoicePaymentStatus;
+import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.persistence.InvoiceDirection;
 import com.smartbox.investory.ryczalt.reference.RyczaltObligationReferenceReader;
@@ -128,6 +131,55 @@ class RyczaltAccountingRestControllerTest {
             get("/api/profiles/7/accounting/periods/2026-08/invoices").principal(authentication))
         .andExpect(status().isOk())
         .andExpect(content().json("[{\"netAmount\":\"1234.56\",\"issueDate\":\"2026-08-20\"}]"));
+  }
+
+  @Test
+  void invoiceCounterpartyIncludesTaxIdentifierWhenKnownAndNullWhenMissing() throws Exception {
+    when(accounting.invoices(7L, YearMonth.of(2026, 8)))
+        .thenReturn(
+            List.of(
+                invoice(
+                    11,
+                    new RyczaltInvoiceReadModel.CounterpartyView(
+                        123L, "Example Sp. z o.o.", null, "1234567890")),
+                invoice(
+                    12,
+                    new RyczaltInvoiceReadModel.CounterpartyView(
+                        124L, "Unknown ID Sp. z o.o.", null, null))));
+
+    mvc.perform(
+            get("/api/profiles/7/accounting/periods/2026-08/invoices").principal(authentication))
+        .andExpect(status().isOk())
+        .andExpect(
+            content()
+                .json(
+                    "[{\"id\":11,\"counterparty\":{\"id\":123,\"legalName\":\"Example Sp. z o.o.\",\"alias\":null,\"taxIdentifier\":\"1234567890\"}},"
+                        + "{\"id\":12,\"counterparty\":{\"id\":124,\"legalName\":\"Unknown ID Sp. z o.o.\",\"alias\":null,\"taxIdentifier\":null}}]"));
+  }
+
+  private RyczaltInvoiceReadModel invoice(
+      long id, RyczaltInvoiceReadModel.CounterpartyView counterparty) {
+    return new RyczaltInvoiceReadModel(
+        id,
+        InvoiceDirection.INCOME,
+        "FV/" + id,
+        LocalDate.of(2026, 8, 20),
+        LocalDate.of(2026, 8, 20),
+        BigDecimal.TEN,
+        BigDecimal.ZERO,
+        BigDecimal.TEN,
+        CurrencyType.PLN,
+        BigDecimal.TEN,
+        new BigDecimal("0.12"),
+        null,
+        null,
+        counterparty,
+        ApprovalStatus.NEEDS_REVIEW,
+        null,
+        PaymentVerificationPolicy.REQUIRED,
+        InvoicePaymentStatus.UNMATCHED,
+        null,
+        null);
   }
 
   @Test

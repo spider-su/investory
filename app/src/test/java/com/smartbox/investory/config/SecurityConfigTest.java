@@ -151,4 +151,14 @@ class SecurityConfigTest {
     assertThatThrownBy(() -> productionUsers.loadUserByUsername("admin"))
         .isInstanceOf(UsernameNotFoundException.class);
   }
+
+  @Test
+  void tokenSecretMustBeExplicitAndStrong() {
+    var config = new SecurityConfig();
+    assertThatThrownBy(() -> config.tokenAuthenticationService("", java.time.Duration.ofHours(12)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("at least 32 characters");
+    assertThat(config.tokenAuthenticationService("a".repeat(32), java.time.Duration.ofHours(12)))
+        .isNotNull();
+  }
 }

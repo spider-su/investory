@@ -163,18 +163,27 @@ class InvestmentProfilePageViewTest {
         InvestmentProfilePageView.from(
             profile,
             new InvestmentDashboardApi.PerformanceKpiView(
-                true, new BigDecimal("0.083"), "8.3%", "2026-01-01"),
+                true,
+                null,
+                "Unavailable",
+                "2026-01-01",
+                null,
+                "Unavailable",
+                new BigDecimal("0.083"),
+                "8.3%",
+                null,
+                "Forecast annual return"),
             new InvestmentDashboardApi.InvestmentResultView(
                 true, new BigDecimal("12000"), CurrencyType.USD),
             com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
                 CurrencyType.USD, 2026),
             6);
 
-    assertThat(page.expectedAnnualInvestmentResultDisplay()).isEqualTo("24.0K");
-    assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("24.0%");
-    assertThat(page.incomeSummary().marketAnnualIncomeCompactDisplay()).isEqualTo("19.4K");
-    assertThat(page.incomeSummary().combinedAnnualIncomeCompactDisplay()).isEqualTo("31.4K");
-    assertThat(page.marketYtdReturnDisplay()).isEqualTo("50.0% of annualized current result");
+    assertThat(page.expectedAnnualInvestmentResultDisplay()).isEqualTo("8.30K");
+    assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("8.3%");
+    assertThat(page.incomeSummary().marketAnnualIncomeCompactDisplay()).isEqualTo("6.72K");
+    assertThat(page.incomeSummary().combinedAnnualIncomeCompactDisplay()).isEqualTo("18.7K");
+    assertThat(page.marketYtdReturnDisplay()).isEqualTo("144.6% of forecast annual result");
     assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("6.00K");
     assertThat(page.longTermYtdProgressDisplay()).isEqualTo("50.0%");
     assertThat(page.longTermYtdProgressClass()).isEqualTo("iv-ytd-progress--positive");

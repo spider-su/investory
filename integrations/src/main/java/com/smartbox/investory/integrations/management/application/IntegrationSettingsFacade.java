@@ -66,7 +66,7 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
   public IntegrationSettingsView saveConfiguration(IntegrationSettingsCommand command) {
     IntegrationPlugin plugin = plugin(command.type(), command.pluginId());
     validateKeys(plugin, command);
-    Map<String, String> effective = effective(plugin);
+    Map<String, String> effective = effectiveForSave(plugin, command);
     effective.putAll(command.configuration());
     command
         .secrets()
@@ -241,7 +241,7 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
       ConnectionTestResult result) {
     IntegrationInstanceEntity saved = instance(plugin);
     if (saved == null) return;
-    Map<String, String> persisted = configurationService.resolve(saved).values();
+    Map<String, String> persisted = defaults(plugin, configurationService.resolve(saved).values());
     if (!persisted.equals(testedConfiguration)) return;
     testResultRecorder.record(plugin.type(), plugin.id(), result, sanitize(result.message()));
   }
@@ -333,6 +333,13 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
     return instance == null
         ? new LinkedHashMap<>()
         : new LinkedHashMap<>(configurationService.resolve(instance).values());
+  }
+
+  private Map<String, String> effectiveForSave(
+      IntegrationPlugin plugin, IntegrationSettingsCommand command) {
+    if (command.secrets().isEmpty()) return effective(plugin);
+    IntegrationInstanceEntity instance = instance(plugin);
+    return instance == null ? new LinkedHashMap<>() : fromJson(instance.getConfigJson());
   }
 
   private Map<String, String> defaults(IntegrationPlugin plugin, Map<String, String> values) {

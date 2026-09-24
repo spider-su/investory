@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.smartbox.investory.ryczalt.application.ksef.RyczaltKsefImportService;
 import com.smartbox.investory.ryczalt.application.ksef.RyczaltKsefSyncResult;
+import com.smartbox.investory.ryczalt.application.query.RyczaltInvoiceQueryService;
 import com.smartbox.investory.ryczalt.domain.ApprovalMethod;
 import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
@@ -13,6 +14,8 @@ import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourceRecord;
 import com.smartbox.investory.ryczalt.integration.ksef.KsefSyncMode;
 import com.smartbox.investory.ryczalt.persistence.FrozenPeriodMutationException;
 import com.smartbox.investory.ryczalt.persistence.InvoiceDirection;
+import com.smartbox.investory.ryczalt.persistence.RyczaltCounterpartyEntity;
+import com.smartbox.investory.ryczalt.persistence.RyczaltCounterpartyJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository;
@@ -21,6 +24,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodLifecycleService;
 import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceJpaRepository;
 import com.smartbox.investory.testsupport.WorkerDatabase;
+import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -28,6 +32,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import javax.sql.DataSource;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,9 +61,12 @@ class RyczaltNativeKsefImportIT {
   @Autowired private ProgrammableInvoiceSource source;
   @Autowired private RyczaltPeriodJpaRepository periods;
   @Autowired private RyczaltInvoiceJpaRepository invoices;
+  @Autowired private RyczaltCounterpartyJpaRepository counterparties;
+  @Autowired private RyczaltInvoiceQueryService invoiceQueries;
   @Autowired private RyczaltSourceReferenceJpaRepository sourceReferences;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private DataSource dataSource;
+  @Autowired private EntityManagerFactory entityManagerFactory;
 
   @BeforeAll
   static void migrateSchema() {
@@ -202,6 +211,66 @@ class RyczaltNativeKsefImportIT {
   }
 
   @Test
+  void invoiceReadLoadsCounterpartyIdentifiersInConstantQueriesAndStaysProfileScoped() {
+    RyczaltPeriodEntity profileOne =
+        periods.save(new RyczaltPeriodEntity(1, 2026, 2, PeriodStatus.OPEN));
+    RyczaltPeriodEntity profileTwo =
+        periods.save(new RyczaltPeriodEntity(2, 2026, 2, PeriodStatus.OPEN));
+    RyczaltCounterpartyEntity identified =
+        counterparties.save(new RyczaltCounterpartyEntity(1, "1234567890", "PL", "Identified"));
+    RyczaltCounterpartyEntity missingIdentifier =
+        counterparties.save(new RyczaltCounterpartyEntity(1, null, "PL", "No identifier"));
+    RyczaltCounterpartyEntity otherProfile =
+        counterparties.save(new RyczaltCounterpartyEntity(2, "9999999999", "PL", "Other profile"));
+    for (int i = 0; i < 8; i++) {
+      invoices.save(invoice(profileOne, 1, i % 2 == 0 ? identified : missingIdentifier, i));
+    }
+    invoices.save(invoice(profileTwo, 2, otherProfile, 99));
+
+    Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+    statistics.clear();
+    statistics.setStatisticsEnabled(true);
+
+    var rows = invoiceQueries.getInvoices(1, YearMonth.of(2026, 2));
+
+    assertThat(rows).hasSize(8);
+    assertThat(rows)
+        .extracting(row -> row.counterparty().taxIdentifier())
+        .containsExactly(
+            "1234567890", null, "1234567890", null, "1234567890", null, "1234567890", null);
+    assertThat(statistics.getPrepareStatementCount())
+        .as("period lookup + invoice/counterparty fetch + bulk provenance read")
+        .isEqualTo(3);
+  }
+
+  private RyczaltInvoiceEntity invoice(
+      RyczaltPeriodEntity period,
+      long profileId,
+      RyczaltCounterpartyEntity counterparty,
+      int suffix) {
+    RyczaltInvoiceEntity invoice =
+        new RyczaltInvoiceEntity(
+            period,
+            profileId,
+            InvoiceDirection.INCOME,
+            "QUERY-" + profileId + "-" + suffix,
+            LocalDate.of(2026, 2, 10),
+            LocalDate.of(2026, 2, 10),
+            BigDecimal.TEN,
+            BigDecimal.ZERO,
+            BigDecimal.TEN,
+            com.smartbox.investory.shared.currency.CurrencyType.PLN,
+            BigDecimal.TEN,
+            new BigDecimal("0.12"),
+            null);
+    invoice.applyCounterpartyRule(
+        counterparty,
+        false,
+        com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy.REQUIRED);
+    return invoice;
+  }
+
+  @Test
   void frozenPeriodRejectsSync() {
     jdbc.update(
         "INSERT INTO investory.ryczalt_period(profile_id, period_year, period_month, status)"
@@ -257,6 +326,7 @@ class RyczaltNativeKsefImportIT {
       })
   @Import({
     RyczaltKsefImportService.class,
+    RyczaltInvoiceQueryService.class,
     com.smartbox.investory.ryczalt.application.RyczaltCounterpartyService.class,
     RyczaltPeriodLifecycleService.class,
     com.smartbox.investory.ryczalt.persistence.JdbcRyczaltAuditEventWriter.class
@@ -275,5 +345,6 @@ class RyczaltNativeKsefImportIT {
     registry.add("spring.datasource.password", DATABASE::password);
     registry.add("spring.jpa.hibernate.ddl-auto", () -> "none");
     registry.add("spring.flyway.enabled", () -> "false");
+    registry.add("spring.jpa.properties.hibernate.generate_statistics", () -> "true");
   }
 }

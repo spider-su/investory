@@ -6,6 +6,7 @@ import com.smartbox.investory.ryczalt.checker.PaymentCheckResult;
 import com.smartbox.investory.ryczalt.checker.PaymentCheckStatus;
 import com.smartbox.investory.ryczalt.checker.PaymentChecker;
 import com.smartbox.investory.ryczalt.checker.PaymentMatchType;
+import com.smartbox.investory.ryczalt.checker.TaxPaymentPeriodReference;
 import com.smartbox.investory.ryczalt.domain.ObligationStatus;
 import com.smartbox.investory.ryczalt.domain.Transaction;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationEntity;
@@ -134,8 +135,12 @@ public class SettlementService {
           matches.allocatedForObligation(profileId, obligation.id()),
           List.of(),
           List.of());
+    YearMonth obligationPeriod = YearMonth.of(period.getYear(), period.getMonth());
     List<Transaction> domainTransactions =
-        storedTransactions.stream().map(this::transaction).toList();
+        storedTransactions.stream()
+            .map(this::transaction)
+            .filter(candidate -> TaxPaymentPeriodReference.matches(obligationPeriod, candidate))
+            .toList();
     PaymentCheckResult result =
         checker.check(
             new com.smartbox.investory.ryczalt.domain.Obligation(

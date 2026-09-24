@@ -76,7 +76,7 @@ public class KsefIntegrationPlugin implements IntegrationPlugin, TestableIntegra
                 null,
                 null,
                 null)),
-        List.of());
+        List.of("sync-invoices"));
   }
 
   @Override
