@@ -98,6 +98,13 @@
                    th:type="${field.type.name() == 'URL' ? 'url' : (field.type.name() == 'INTEGER' ? 'number' : 'text')}"
                    th:name="${field.key}" th:id="${integration.pluginId + '-' + field.key}"
                    th:value="${integration.values[field.key] ?: field.defaultValue}">
+            <select th:if="${field.type.name() == 'ENUM'}"
+                    th:name="${field.key}" th:id="${integration.pluginId + '-' + field.key}">
+              <option th:each="option : ${field.allowedValues}"
+                      th:value="${option}"
+                      th:text="${option}"
+                      th:selected="${option == (integration.values[field.key] ?: field.defaultValue)}"></option>
+            </select>
             <input th:if="${field.type.name() == 'BOOLEAN'}" type="checkbox"
                    th:name="${field.key}" value="true" th:id="${integration.pluginId + '-' + field.key}"
                    th:checked="${integration.values[field.key] == 'true' or (integration.values[field.key] == null and field.defaultValue == 'true')}">

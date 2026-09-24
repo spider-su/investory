@@ -2,6 +2,11 @@ export function initDashboardActions() {
 /* Dashboard companion script. Only progressive-enhancement code that does not need Thymeleaf
    inlining belongs here (chart blocks stay in dashboard.html so they can read `${stats}`). */
 
+function csrfHeaders() {
+    const token = document.querySelector('meta[name="_csrf"]')?.content;
+    return token ? { 'X-CSRF-TOKEN': token } : {};
+}
+
 function setModalState(modal, open) {
     if (!modal) return;
     modal.style.display = open ? 'flex' : 'none';
@@ -181,7 +186,8 @@ if (fileInput) {
 
      fetch(url, {
          method: 'POST',
-         credentials: 'same-origin'
+         credentials: 'same-origin',
+         headers: csrfHeaders()
      })
          .then(response => {
              if (!response.ok) {
@@ -231,7 +237,11 @@ if (fileInput) {
          refreshCurrencyBtn.setAttribute('aria-busy', 'true');
          refreshCurrencyBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Updating exchange rates…';
          if (refreshCurrencyStatus) refreshCurrencyStatus.textContent = '';
-         fetch('/api/v1/investment/maintenance/refresh-currency', { method: 'POST', credentials: 'same-origin' })
+         fetch('/api/v1/investment/maintenance/refresh-currency', {
+             method: 'POST',
+             credentials: 'same-origin',
+             headers: csrfHeaders()
+         })
              .then(response => {
                  if (!response.ok) throw new Error('HTTP ' + response.status);
                  return response.json();
@@ -320,7 +330,7 @@ if (fileInput) {
          fetch('/api/v1/investment/maintenance/assets/' + encodeURIComponent(symbol) + '/price', {
              method: 'POST',
              credentials: 'same-origin',
-             headers: { 'Content-Type': 'application/json' },
+             headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
              body: JSON.stringify({ marketPrice: price })
          })
              .then(function (response) {
