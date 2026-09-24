@@ -4,7 +4,7 @@ export function initDashboardActions() {
 
 function csrfHeaders() {
     const token = document.querySelector('meta[name="_csrf"]')?.content;
-    return token ? { 'X-CSRF-TOKEN': token } : {};
+    return token ? { 'X-XSRF-TOKEN': token } : {};
 }
 
 function setModalState(modal, open) {
