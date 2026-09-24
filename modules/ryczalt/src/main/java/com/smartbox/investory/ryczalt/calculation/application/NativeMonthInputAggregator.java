@@ -1,6 +1,5 @@
 package com.smartbox.investory.ryczalt.calculation.application;
 
-import com.smartbox.investory.ryczalt.application.NeedsReviewException;
 import com.smartbox.investory.ryczalt.application.RyczaltNativeMonthInputService.Command;
 import com.smartbox.investory.ryczalt.calculation.vat.VatCalculationInput;
 import com.smartbox.investory.ryczalt.calculation.zus.ZusCalculationInput;
@@ -67,7 +66,6 @@ public class NativeMonthInputAggregator {
         invoices.findByProfileIdOrderByAccountingDateAscIdAsc(profileId).stream()
             .filter(invoice -> invoice.getDirection() == InvoiceDirection.INCOME)
             .filter(invoice -> invoice.getApprovalStatus() == ApprovalStatus.APPROVED)
-            .filter(invoice -> invoice.getAccountingDate().getYear() == month.getYear())
             .filter(invoice -> invoice.getAccountingDate().isBefore(firstDay))
             .map(RyczaltInvoiceEntity::getBookedNetPln)
             .filter(java.util.Objects::nonNull)
@@ -83,9 +81,9 @@ public class NativeMonthInputAggregator {
             previousZus.socialContributionDeduction(),
             previousZus.healthContributionOverride(),
             previousZus.healthContributionPaidOverride(),
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO);
+            previous.deductionsAlreadyConsumed(),
+            previous.salesCorrections(),
+            previous.explicitVatAdjustments());
     return monthInputs.save(new RyczaltNativeMonthInputEntity(profileId, month, command));
   }
 
@@ -113,12 +111,11 @@ public class NativeMonthInputAggregator {
         require(invoice.getBookedNetPln(), month, "income invoice has no booked PLN net amount");
         require(invoice.getRyczaltRate(), month, "income invoice has no ryczałt rate");
         revenueByRate.merge(invoice.getRyczaltRate(), invoice.getBookedNetPln(), BigDecimal::add);
-        if (invoice.getBookedVatPln() == null && invoice.getVatAmount().signum() != 0) {
-          throw needsReview(month, "income invoice has no booked PLN VAT amount");
+        if (invoice.getCurrency() != com.smartbox.investory.shared.currency.CurrencyType.PLN
+            && invoice.getVatAmount().signum() != 0) {
+          throw needsReview(month, "foreign-currency VAT requires PLN-normalized tax facts");
         }
-        outputVat =
-            outputVat.add(
-                invoice.getBookedVatPln() == null ? BigDecimal.ZERO : invoice.getBookedVatPln());
+        outputVat = outputVat.add(invoice.getVatAmount());
       } else {
         require(invoice.getDeductibleVat(), month, "cost invoice has unresolved deductible VAT");
         deductibleVat = deductibleVat.add(invoice.getDeductibleVat());
@@ -135,7 +132,7 @@ public class NativeMonthInputAggregator {
     if (value == null) throw needsReview(month, message);
   }
 
-  private NeedsReviewException needsReview(YearMonth month, String reason) {
-    return new NeedsReviewException(month, reason);
+  private IllegalStateException needsReview(YearMonth month, String reason) {
+    return new IllegalStateException("NEEDS_REVIEW for " + month + ": " + reason);
   }
 }
