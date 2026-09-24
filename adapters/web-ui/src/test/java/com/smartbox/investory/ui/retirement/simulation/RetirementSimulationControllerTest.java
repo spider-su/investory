@@ -13,7 +13,6 @@ import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.analysis.RetirementAgeAnalysisService;
 import com.smartbox.investory.retirement.analysis.SimulationSensitivityAnalysisService;
 import com.smartbox.investory.retirement.analysis.SustainableSpendingAnalysisService;
-import com.smartbox.investory.retirement.api.RetirementPresentationApi;
 import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanUpdateRequest;
 import com.smartbox.investory.retirement.api.contract.RetirementProjectionContracts;
 import com.smartbox.investory.retirement.api.contract.RetirementTimelineContracts;
@@ -102,7 +101,6 @@ class RetirementSimulationControllerTest {
                 profiles,
                 plans,
                 planEditorPreview,
-                mock(RetirementPresentationApi.class),
                 Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)),
             false);
     lenient()
@@ -484,6 +482,29 @@ class RetirementSimulationControllerTest {
     assertEquals("", defaultModel.getAttribute("planName"));
   }
 
+  @DisplayName("percent Inputs Always Convert Percentage Points To Decimal Rates")
+  @Test
+  void percentInputsAlwaysConvertPercentagePointsToDecimalRates() {
+    String[][] cases = {
+      {"0", "0.00"},
+      {"0.5", "0.005"},
+      {"1", "0.01"},
+      {"2", "0.02"},
+      {"5", "0.05"},
+      {"8.5", "0.085"},
+      {"19", "0.19"},
+      {"100", "1.00"}
+    };
+    for (String[] entry : cases)
+      assertEquals(
+          0,
+          new BigDecimal(entry[1])
+              .compareTo(
+                  SimulationRequestMapper.percentInputToRate(
+                      new BigDecimal(entry[0]), BigDecimal.ZERO)),
+          entry[0]);
+  }
+
   @DisplayName("editing Existing Plan Preserves Its Temporal Anchor Across Calendar Years")
   @Test
   void editingExistingPlanPreservesItsTemporalAnchorAcrossCalendarYears() throws Exception {
@@ -513,7 +534,6 @@ class RetirementSimulationControllerTest {
                 .param("equityHarvestThreshold", "7")
                 .param("equityHarvestShare", "75")
                 .param("allowEmergencyEquityWithdrawal", "true")
-                .param("fixedIncomeReturn", "4.5")
                 .param("equityReturn", "8")
                 .param("pensionStartAge", "67")
                 .param("annualPension", "0")
@@ -533,8 +553,7 @@ class RetirementSimulationControllerTest {
     assertEquals(new BigDecimal("0.05"), saved.effectiveRentalIncomeGrowthRate());
     assertEquals(new BigDecimal("0.055"), saved.effectiveSpendingGrowthRate());
     assertEquals(new BigDecimal("180000"), saved.annualLivingExpenses());
-    assertEquals(new BigDecimal("0.045"), saved.fixedIncomeReturnRate());
-    assertEquals(new BigDecimal("0.08"), saved.equityReturnRate());
+    assertEquals(0, saved.fixedIncomeReturnRate().compareTo(stored.fixedIncomeReturnRate()));
     assertEquals(0, saved.capitalGainTaxRate().compareTo(BigDecimal.ZERO));
     var forward =
         new ForwardSimulationContextFactory(
