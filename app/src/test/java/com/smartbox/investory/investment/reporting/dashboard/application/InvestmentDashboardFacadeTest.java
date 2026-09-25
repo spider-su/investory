@@ -175,12 +175,31 @@ class InvestmentDashboardFacadeTest {
                 null)));
     portfolio.setAccountBalances(
         List.of(
-            new AccountBalance(
-                1L, "USD one", 0d, 0d, 0d, 0d, 0d, 350d, 50d, CurrencyType.USD, 350d, 50d),
-            new AccountBalance(
-                2L, "USD two", 0d, 0d, 0d, 0d, 0d, 210d, 50d, CurrencyType.USD, 210d, 50d),
-            new AccountBalance(
-                3L, "PLN", 0d, 0d, 0d, 0d, 0d, 140d, 0d, CurrencyType.PLN, 140d, 0d)));
+            AccountBalance.builder()
+                .accountId(1L)
+                .accountName("USD one")
+                .balanceBase(BigDecimal.valueOf(350))
+                .cashBase(BigDecimal.valueOf(50))
+                .localCurrency(CurrencyType.USD)
+                .balanceLocal(BigDecimal.valueOf(350))
+                .cashLocal(BigDecimal.valueOf(50))
+                .build(),
+            AccountBalance.builder()
+                .accountId(2L)
+                .accountName("USD two")
+                .balanceBase(BigDecimal.valueOf(210))
+                .cashBase(BigDecimal.valueOf(50))
+                .localCurrency(CurrencyType.USD)
+                .balanceLocal(BigDecimal.valueOf(210))
+                .cashLocal(BigDecimal.valueOf(50))
+                .build(),
+            AccountBalance.builder()
+                .accountId(3L)
+                .accountName("PLN")
+                .balanceBase(BigDecimal.valueOf(140))
+                .localCurrency(CurrencyType.PLN)
+                .balanceLocal(BigDecimal.valueOf(140))
+                .build()));
     portfolio.setAccountBalancesTotal(new AccountBalance());
     var facade =
         new InvestmentDashboardFacade(
@@ -576,19 +595,20 @@ class InvestmentDashboardFacadeTest {
     Portfolio portfolio = new Portfolio();
     portfolio.setMonthlyPerformance(performance);
     AccountBalance account =
-        new AccountBalance(
-            1L,
-            "Main",
-            900.0,
-            1_000.0,
-            300.0,
-            300.0,
-            30.0,
-            1_300.0,
-            100.0,
-            com.smartbox.investory.shared.currency.CurrencyType.USD,
-            1_250.0,
-            100.0);
+        AccountBalance.builder()
+            .accountId(1L)
+            .accountName("Main")
+            .netDepositLocal(BigDecimal.valueOf(900))
+            .netDepositBase(BigDecimal.valueOf(1_000))
+            .profitBase(BigDecimal.valueOf(300))
+            .profitLocal(BigDecimal.valueOf(300))
+            .profitLossPercent(BigDecimal.valueOf(30))
+            .balanceBase(BigDecimal.valueOf(1_300))
+            .cashBase(BigDecimal.valueOf(100))
+            .localCurrency(CurrencyType.USD)
+            .balanceLocal(BigDecimal.valueOf(1_250))
+            .cashLocal(BigDecimal.valueOf(100))
+            .build();
     portfolio.setAccountBalances(List.of(account));
     portfolio.setAccountBalancesTotal(account);
 
@@ -627,26 +647,26 @@ class InvestmentDashboardFacadeTest {
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
 
     AccountBalance periodAccount = result.overview().accountBalances().getFirst();
-    assertEquals(900.0, periodAccount.getNetDeposit());
-    assertEquals(1_300.0, periodAccount.getBalance());
-    assertEquals(100.0, periodAccount.getCash());
-    assertEquals(200.0, periodAccount.getProfit());
-    assertEquals(300.0, periodAccount.getLocalProfit());
+    assertEquals(900.0, periodAccount.getNetDepositLocal());
+    assertEquals(1_300.0, periodAccount.getBalanceBase());
+    assertEquals(100.0, periodAccount.getCashBase());
+    assertEquals(200.0, periodAccount.getProfitBase());
+    assertEquals(300.0, periodAccount.getProfitLocal());
     assertEquals(10.25, periodAccount.getProfitLossPercent(), 0.001);
-    assertEquals(200.0, result.overview().accountBalancesTotal().getProfit());
+    assertEquals(200.0, result.overview().accountBalancesTotal().getProfitBase());
     assertEquals(10.25, result.overview().accountBalancesTotal().getProfitLossPercent(), 0.001);
-    assertEquals(300.0, maxResult.overview().accountBalances().getFirst().getProfit());
+    assertEquals(300.0, maxResult.overview().accountBalances().getFirst().getProfitBase());
     assertEquals(
         15.76, maxResult.overview().accountBalances().getFirst().getProfitLossPercent(), 0.001);
     assertEquals(
-        result.overview().accountBalances().getFirst().getBalance(),
-        maxResult.overview().accountBalances().getFirst().getBalance());
+        result.overview().accountBalances().getFirst().getBalanceBase(),
+        maxResult.overview().accountBalances().getFirst().getBalanceBase());
     assertEquals(
-        result.overview().accountBalances().getFirst().getNetDeposit(),
-        maxResult.overview().accountBalances().getFirst().getNetDeposit());
+        result.overview().accountBalances().getFirst().getNetDepositLocal(),
+        maxResult.overview().accountBalances().getFirst().getNetDepositLocal());
     assertEquals(
-        result.overview().accountBalances().getFirst().getCash(),
-        maxResult.overview().accountBalances().getFirst().getCash());
+        result.overview().accountBalances().getFirst().getCashBase(),
+        maxResult.overview().accountBalances().getFirst().getCashBase());
   }
 
   private void assertSnapshotMetrics(DashboardPageView page) {

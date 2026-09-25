@@ -56,23 +56,23 @@ class XtbAccountFundingCalculatorTest {
   @Test
   void knownXtbUsdReconciliationAdjustmentsAreRepresentedExactly() {
     CashOperationEntity firstOut =
-        transfer(1L, 51499241L, -801.47, "Transfer from 51993106 to 51499241");
+        transfer(1L, 90000002L, -801.47, "Transfer from 90000010 to 90000002");
     CashOperationEntity firstIn =
-        transfer(2L, 51499241L, 801.47, "Transfer from 51993106 to 51499241");
+        transfer(2L, 90000002L, 801.47, "Transfer from 90000010 to 90000002");
     CashOperationEntity secondOut =
-        transfer(3L, 51993106L, -995.31, "Transfer from 51499241 to 51993106");
+        transfer(3L, 90000010L, -995.31, "Transfer from 90000002 to 90000010");
     CashOperationEntity secondIn =
-        transfer(4L, 51993106L, 995.31, "Transfer from 51499241 to 51993106");
+        transfer(4L, 90000010L, 995.31, "Transfer from 90000002 to 90000010");
 
     Map<Long, Double> effects =
         calculator.calculate(
             List.of(firstOut, firstIn, secondOut, secondIn),
             Map.of(
-                51499241L, account(51499241L, "XTB", CurrencyType.USD),
-                51993106L, account(51993106L, "XTB", CurrencyType.USD)));
+                90000002L, account(90000002L, "XTB", CurrencyType.USD),
+                90000010L, account(90000010L, "XTB", CurrencyType.USD)));
 
-    assertEquals(801.47, effects.get(51499241L), 0.000001);
-    assertEquals(995.31, effects.get(51993106L), 0.000001);
+    assertEquals(801.47, effects.get(90000002L), 0.000001);
+    assertEquals(995.31, effects.get(90000010L), 0.000001);
   }
 
   @DisplayName("non Xtb And Non Usd Accounts Are Unaffected")

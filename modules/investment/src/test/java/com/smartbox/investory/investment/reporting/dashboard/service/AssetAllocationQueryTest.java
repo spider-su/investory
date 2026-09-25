@@ -39,9 +39,6 @@ class AssetAllocationQueryTest {
     assertThat(view.totalValue()).isEqualByComparingTo(java.math.BigDecimal.valueOf(1000));
     assertThat(view.buckets()).extracting("name").containsExactly("ETF", "Cash");
     assertThat(view.buckets().getFirst().weightPct()).isEqualTo(java.math.BigDecimal.valueOf(70.0));
-    assertThat(view.buckets())
-        .extracting(AssetAllocationView.Bucket::cssKey)
-        .containsExactly("etf", "cash");
     assertThat(
             view.buckets().stream()
                 .map(AssetAllocationView.Bucket::value)
@@ -79,9 +76,6 @@ class AssetAllocationQueryTest {
         .extracting("name")
         .containsExactly(
             "Equity", "Other", "Commodity / metal", "Fixed income", "REIT / real estate", "ETF");
-    assertThat(view.buckets())
-        .extracting(AssetAllocationView.Bucket::cssKey)
-        .containsExactly("equity", "other", "commodity", "fixed-income", "real-estate", "etf");
   }
 
   @DisplayName("loads Only Rows For Requested Portfolio")

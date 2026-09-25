@@ -90,7 +90,6 @@ resolved by changing the documentation.
   reconciliation and persisted data-quality manual checks.
 - [`quality/07-ai-ui-testing.md`](quality/07-ai-ui-testing.md): Codex-led read-only exploratory UI QA,
   mission/report conventions, and evidence rules.
-- [`reconciliation/local-profile-db-persistence-freeze-readiness.md`](reconciliation/local-profile-db-persistence-freeze-readiness.md): current database/persistence freeze-readiness audit and required remaining checks.
 
 ## Operational and investigation material
 

@@ -349,11 +349,22 @@ class RetirementBucketEngineTest {
 
   private static RetirementFundingPolicy policy() {
     return new RetirementFundingPolicy(
-        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, true, null);
+        SimulationFundingStrategy.RESERVE_AND_HARVEST,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ONE,
+        true,
+        null);
   }
 
   private static RetirementFundingPolicy policy(String threshold, String share) {
-    return new RetirementFundingPolicy(BigDecimal.ZERO, bd(threshold), bd(share), true, null);
+    return new RetirementFundingPolicy(
+        SimulationFundingStrategy.RESERVE_AND_HARVEST,
+        BigDecimal.ZERO,
+        bd(threshold),
+        bd(share),
+        true,
+        null);
   }
 
   private static BigDecimal bd(String value) {

@@ -106,7 +106,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         assertThat(page.locator("#property-value").inputValue()).isEqualTo("400000");
         assertThat(page.locator("#purchase-date").inputValue())
             .isEqualTo(HappyInvestorLongTermFacts.ACQUISITION_DATE.toString());
-        assertThat(page.locator("#land-register-number").inputValue()).isEqualTo("KR1P/4322432/0");
+        assertThat(page.locator("#land-register-number").inputValue())
+            .isEqualTo("TEST-LAND-REGISTER-001");
         assertThat(page.locator("#property-notes").inputValue())
             .isEqualTo("Happy Investor canonical profile");
 
@@ -119,7 +120,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
                 jdbc.queryForMap(
                     "SELECT acquisition_date, land_register_number, notes FROM investory.real_estate WHERE id = ?",
                     HappyInvestorLongTermFacts.APARTMENT_A_ID))
-            .containsEntry("land_register_number", "KR1P/4322432/0")
+            .containsEntry("land_register_number", "TEST-LAND-REGISTER-001")
             .containsEntry("notes", "Happy Investor canonical profile")
             .containsEntry(
                 "acquisition_date",
@@ -183,7 +184,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
             .fill(HappyInvestorTestData.APARTMENT_A_VALUE.toPlainString());
         page.locator("#property-create-date")
             .fill(HappyInvestorLongTermFacts.ACQUISITION_DATE.toString());
-        page.locator("#property-create-register").fill("KR1P/4322432/0-UI");
+        page.locator("#property-create-register").fill("TEST-LAND-REGISTER-001-UI");
         page.locator("#property-create-notes").fill("Happy Investor canonical profile copy");
         submit(
             page,

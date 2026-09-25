@@ -804,7 +804,7 @@ CREATE TABLE IF NOT EXISTS investory.integration_instances (
     created_at  timestamptz NOT NULL DEFAULT now(),
     updated_at  timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT chk_integration_instances_type
-        CHECK (plugin_type IN ('BROKER_IMPORT', 'MARKET_DATA', 'FX_DATA', 'NOTIFICATION', 'AI', 'EXPORT')),
+        CHECK (plugin_type IN ('BROKER_IMPORT', 'MARKET_DATA', 'FX_DATA', 'NOTIFICATION', 'AI', 'EXPORT', 'E_INVOICING')),
     CONSTRAINT ux_integration_instances_plugin_owner UNIQUE (owner_id, plugin_id, plugin_type)
 );
 CREATE INDEX IF NOT EXISTS ix_integration_instances_enabled ON investory.integration_instances(enabled);

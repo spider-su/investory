@@ -86,6 +86,7 @@ class SimulationScenarioComparisonTest {
         summary.failed(),
         summary.finalNetWorth(),
         summary.minimumLiquidAssets(),
+        summary.minimumLiquidAssets(),
         summary.lowestNetWorth(),
         summary.lifetimeActualWithdrawals(),
         summary.totalUnfundedAmount(),

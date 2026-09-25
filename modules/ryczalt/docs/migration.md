@@ -36,10 +36,10 @@ compares persisted monetary values with numeric equality. Run it with:
 ```
 
 Stage 2 deliberately owns normalized calculator inputs rather than importing accounting DTOs or
-fixtures. The test fixture `HappyInvestorStage2Fixture` is adapted from the existing
-`HappyInvestorAccounting2026Facts` JSON and Jan-Aug reference rows; its provenance is recorded in
-the source file. This verifies selected values without creating a production dependency on
-`accounting` or `test-support`.
+fixtures. The calculator-level fixture `February2026CalculatorFixture` is a small normalized
+February example. The complete operational story is owned by
+`test-support/.../happyinvestor/ryczalt`; this verifies selected values without creating a
+production dependency on `accounting` or `test-support`.
 
 Stage 4 keeps the importer and old accounting module independent. `ParityReport` and
 `ParityDifference` provide the diagnostic result contract for comparing revenue/cost, booked PLN,

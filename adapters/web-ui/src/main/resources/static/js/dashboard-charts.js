@@ -16,8 +16,6 @@ import {initPerformanceMode} from './dashboard-performance-mode.js';
 import {initPerformanceBoard} from './dashboard-performance-board.js';
 import {readPageData} from './page-data.js';
 
-let activeDashboardCharts = [];
-
 export function initDashboardCharts() {
     /* global Chart */
     const data = readPageData('dashboard-page-data');
@@ -95,13 +93,4 @@ export function initDashboardCharts() {
     }
     applyChartTheme();
     window.addEventListener('investory:themechange', applyChartTheme);
-    activeDashboardCharts = charts;
-    window.InvestoryDashboardCharts = {
-        destroy() {
-            window.removeEventListener('investory:themechange', applyChartTheme);
-            activeDashboardCharts.forEach(chart => chart?.destroy?.());
-            board.getPerformanceBoardChart()?.destroy?.();
-            activeDashboardCharts = [];
-        }
-    };
 }

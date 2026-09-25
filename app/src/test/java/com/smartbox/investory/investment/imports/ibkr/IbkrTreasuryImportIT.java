@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 @DisplayName("Ibkr Treasury Import")
 class IbkrTreasuryImportIT extends FastDatabaseTest {
 
-  private static final Long ACCOUNT_ID = 17959259L;
+  private static final Long ACCOUNT_ID = 90000001L;
 
   private static final String TREASURY_ROWS =
       String.join(
@@ -60,7 +60,7 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
     assertEquals("US91282CKB62", treasury.getSymbol());
     assertEquals("BOND", treasury.getAssetType());
     Set<Long> existingCashOperationIds =
-        cashOperationRepository.findAllByAccount(17959259L).stream()
+        cashOperationRepository.findAllByAccount(90000001L).stream()
             .map(CashOperationEntity::getId)
             .collect(Collectors.toSet());
 
@@ -69,7 +69,7 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
       result =
           ibkrImportService.importStatement(
               new ByteArrayInputStream(TREASURY_ROWS.getBytes(StandardCharsets.UTF_8)),
-              "U17959259.TRANSACTIONS.20250211.20260227.csv");
+              "U90000001.TRANSACTIONS.20250211.20260227.csv");
     }
 
     assertEquals(9, result.rowsTotal());
@@ -78,7 +78,7 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
     assertTrue(result.details().contains("0 skipped"));
 
     List<CashOperationEntity> operations =
-        cashOperationRepository.findAllByAccount(17959259L).stream()
+        cashOperationRepository.findAllByAccount(90000001L).stream()
             .filter(operation -> !existingCashOperationIds.contains(operation.getId()))
             .toList();
     assertEquals(9, operations.size());

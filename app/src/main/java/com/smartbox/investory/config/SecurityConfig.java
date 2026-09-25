@@ -76,14 +76,17 @@ public class SecurityConfig {
       UserDetailsService users,
       @Value("${app.security.token-login-enabled:true}") boolean tokenLoginEnabled,
       @Value("${app.security.google.enabled:false}") boolean googleLoginEnabled,
-      ObjectProvider<OAuth2UserService<OAuth2UserRequest, OAuth2User>> googleUsers) {
+      ObjectProvider<OAuth2UserService<OAuth2UserRequest, OAuth2User>> googleUsers,
+      ObjectProvider<LocalDevelopmentSecurityConfig.LocalDevelopmentAuthenticationFilter>
+          localDevelopmentAuthenticationFilter) {
     var authorization =
         http.csrf(
                 csrf -> {
                   if (csrfProtectionRequired) {
                     csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        .ignoringRequestMatchers("/api/v1/auth/login");
+                        .ignoringRequestMatchers(
+                            "/api/v1/auth/login", "/api/v1/auth/invitations/*/accept");
                   } else {
                     csrf.disable();
                   }
@@ -110,6 +113,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(
                             tokenLoginEnabled ? "/api/v1/auth/login" : "/disabled-token-login")
+                        .permitAll()
+                        .requestMatchers("/api/v1/auth/invitations/*/accept")
                         .permitAll()
                         .requestMatchers("/settings/**", "/api/v1/admin/**")
                         .hasRole("ADMIN")
@@ -142,6 +147,8 @@ public class SecurityConfig {
 
     authorization.addFilterBefore(
         new BearerTokenAuthenticationFilter(tokens, users), BasicAuthenticationFilter.class);
+    localDevelopmentAuthenticationFilter.ifAvailable(
+        filter -> authorization.addFilterBefore(filter, BearerTokenAuthenticationFilter.class));
 
     return authorization.build();
   }

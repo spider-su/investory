@@ -50,10 +50,10 @@ public final class HappyInvestorTestData {
   /** PostgreSQL NUMERIC(30,8) representation of {@link #PLN_USD_TRANSFER_AMOUNT}. */
   public static final BigDecimal PLN_USD_TRANSFER_PERSISTED_AMOUNT = new BigDecimal("125.97949054");
 
-  public static final long IBKR_USD_ACCOUNT_ID = 2017959259L;
-  public static final long XTB_USD_ACCOUNT_ID = 2051499241L;
-  public static final long XTB_PLN_ACCOUNT_ID = 2051551301L;
-  public static final long XTB_EUR_ACCOUNT_ID = 2051548444L;
+  public static final long IBKR_USD_ACCOUNT_ID = 91000001L;
+  public static final long XTB_USD_ACCOUNT_ID = 91000002L;
+  public static final long XTB_PLN_ACCOUNT_ID = 91000003L;
+  public static final long XTB_EUR_ACCOUNT_ID = 91000004L;
 
   public static final String WIG20_ETF_SYMBOL = "ETFBW20TR.PL";
   public static final AssetDefinition TREASURY_2026 =

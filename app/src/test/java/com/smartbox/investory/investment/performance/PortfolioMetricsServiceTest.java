@@ -149,9 +149,9 @@ class PortfolioMetricsServiceTest {
                 scopedAccount(2L),
                 scopedAccount(3L),
                 scopedAccount(12501L),
-                scopedAccount(17959259L),
-                scopedAccount(51499241L),
-                scopedAccount(51747407L)));
+                scopedAccount(90000001L),
+                scopedAccount(90000002L),
+                scopedAccount(90000005L)));
     org.mockito.Mockito.lenient()
         .when(openedPositionRepository.findOpenByAccountIn(any()))
         .thenAnswer(invocation -> openedPositionRepository.findOpen());
@@ -379,7 +379,7 @@ class PortfolioMetricsServiceTest {
             List.<Object[]>of(
                 new Object[] {
                   "PRICE",
-                  51499241L,
+                  90000002L,
                   12501L,
                   "STALE_PRICE",
                   12,
@@ -395,7 +395,7 @@ class PortfolioMetricsServiceTest {
 
     assertEquals(1, result.getDataQuality().issues().size());
     PortfolioDataQualityIssue issue = result.getDataQuality().issues().getFirst();
-    assertEquals("51499241", issue.accountId());
+    assertEquals("90000002", issue.accountId());
     assertEquals("12501", issue.assetId());
     assertEquals("STALE_PRICE", issue.code());
     assertEquals(LocalDate.of(2026, 7, 20), issue.priceDate());
@@ -456,7 +456,7 @@ class PortfolioMetricsServiceTest {
                     .performance(0.0, 0.0, 0.0)
                     .build()));
     AccountEntity account = new AccountEntity();
-    account.setId(17959259L);
+    account.setId(90000001L);
     account.setName("IBKR");
     account.setCurrency(CurrencyType.PLN);
     AccountEntity emptyAccount = new AccountEntity();
@@ -464,10 +464,22 @@ class PortfolioMetricsServiceTest {
     emptyAccount.setName("Empty");
     emptyAccount.setCurrency(CurrencyType.PLN);
     when(accountRepository.findMapByIdIn(any()))
-        .thenReturn(
-            Map.of(
-                17959259L, account,
-                999L, emptyAccount));
+        .thenAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              java.util.Collection<Long> accountIds = invocation.getArgument(0);
+              return accountIds.stream()
+                  .collect(
+                      java.util.stream.Collectors.toMap(
+                          accountId -> accountId,
+                          accountId ->
+                              accountId.equals(90000001L)
+                                  ? account
+                                  : accountId.equals(999L)
+                                      ? emptyAccount
+                                      : account(
+                                          accountId, "Account " + accountId, CurrencyType.USD)));
+            });
     when(currencyRateService.findRate(
             any(CurrencyType.class), any(CurrencyType.class), any(LocalDate.class)))
         .thenReturn(Optional.of(BigDecimal.valueOf(4.0)));
@@ -485,18 +497,18 @@ class PortfolioMetricsServiceTest {
     assertEquals(800.0, result.getNetDeposits(), 0.01);
     assertEquals(37.5, result.getRoi(), 0.01);
     assertEquals(1, result.getAccountBalances().size());
-    assertEquals(17959259L, result.getAccountBalances().getFirst().getAccountId());
+    assertEquals(90000001L, result.getAccountBalances().getFirst().getAccountId());
     assertEquals("IBKR", result.getAccountBalances().getFirst().getAccountName());
-    assertEquals(800.0, result.getAccountBalances().getFirst().getNetDeposit(), 0.01);
+    assertEquals(800.0, result.getAccountBalances().getFirst().getNetDepositLocal(), 0.01);
     assertEquals(800.0, result.getAccountBalances().getFirst().getNetDepositLocal(), 0.01);
     assertEquals(800.0, result.getAccountBalances().getFirst().getNetDepositBase(), 0.01);
     assertEquals(37.5, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.01);
-    assertEquals(1100.0, result.getAccountBalances().getFirst().getBalance(), 0.01);
+    assertEquals(1100.0, result.getAccountBalances().getFirst().getBalanceBase(), 0.01);
     assertEquals(4400.0, result.getAccountBalances().getFirst().getBalanceLocal(), 0.01);
     assertEquals(1100.0, result.getAccountBalances().getFirst().getBalanceBase(), 0.01);
-    assertEquals(125.0, result.getAccountBalances().getFirst().getCash(), 0.01);
+    assertEquals(125.0, result.getAccountBalances().getFirst().getCashBase(), 0.01);
     assertEquals(CurrencyType.PLN, result.getAccountBalances().getFirst().getLocalCurrency());
-    assertEquals(4400.0, result.getAccountBalances().getFirst().getLocalBalance(), 0.01);
+    assertEquals(4400.0, result.getAccountBalances().getFirst().getBalanceLocal(), 0.01);
     assertTrue(result.getOpenPositionValues().isEmpty());
     assertTrue(result.getDividendGainers().isEmpty());
   }
@@ -505,7 +517,7 @@ class PortfolioMetricsServiceTest {
   @Test
   void calculateTotalProfitLoss_keepsFundedZeroBalanceAccountsVisible() {
     AccountEntity account = new AccountEntity();
-    account.setId(51747407L);
+    account.setId(90000005L);
     account.setName("Trading EUR");
     account.setCurrency(CurrencyType.EUR);
     when(accountStatisticsRepository.findAll())
@@ -513,11 +525,11 @@ class PortfolioMetricsServiceTest {
             List.of(
                 PortfolioBuilders.accountStatistics()
                     .account(
-                        new AccountDefinition(51747407L, "Trading EUR", CurrencyType.EUR, "Broker"))
+                        new AccountDefinition(90000005L, "Trading EUR", CurrencyType.EUR, "Broker"))
                     .deposits(13370.17, 0.0)
                     .balances(0.0, 0.0, 0.0)
                     .build()));
-    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51747407L, account));
+    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(90000005L, account));
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
@@ -525,8 +537,8 @@ class PortfolioMetricsServiceTest {
     Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
 
     assertEquals(1, result.getAccountBalances().size());
-    assertEquals(51747407L, result.getAccountBalances().getFirst().getAccountId());
-    assertEquals(13370.17, result.getAccountBalances().getFirst().getNetDeposit(), 0.01);
+    assertEquals(90000005L, result.getAccountBalances().getFirst().getAccountId());
+    assertEquals(13370.17, result.getAccountBalances().getFirst().getNetDepositLocal(), 0.01);
     assertEquals(0.0, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.01);
   }
 
@@ -535,7 +547,7 @@ class PortfolioMetricsServiceTest {
   @Test
   void calculateTotalProfitLoss_usesTransferAwareNormalizedNetDepositsForAccountCards() {
     AccountEntity account = new AccountEntity();
-    account.setId(51747407L);
+    account.setId(90000005L);
     account.setName("Trading EUR");
     account.setCurrency(CurrencyType.EUR);
     when(accountStatisticsRepository.findAll())
@@ -543,12 +555,12 @@ class PortfolioMetricsServiceTest {
             List.of(
                 PortfolioBuilders.accountStatistics()
                     .account(
-                        new AccountDefinition(51747407L, "Trading EUR", CurrencyType.EUR, "Broker"))
+                        new AccountDefinition(90000005L, "Trading EUR", CurrencyType.EUR, "Broker"))
                     .deposits(13370.17, 0.0)
                     .netDeposits(13370.17, 13370.17)
                     .balances(0.0, 0.0, 0.0)
                     .build()));
-    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51747407L, account));
+    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(90000005L, account));
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
@@ -570,8 +582,8 @@ class PortfolioMetricsServiceTest {
   @Test
   void calculateTotalProfitLoss_keepsFundingLocalAndPortfolioBaseCurrenciesSeparate() {
     AccountEntity ibkr = account(1L, "IBKR", CurrencyType.USD);
-    AccountEntity ikeAlex = account(2L, "IKE Alex", CurrencyType.PLN);
-    AccountEntity ikeOlga = account(3L, "IKE Olga", CurrencyType.PLN);
+    AccountEntity ikePrimary = account(2L, "IKE Primary", CurrencyType.PLN);
+    AccountEntity ikeSecondary = account(3L, "IKE Secondary", CurrencyType.PLN);
     when(accountStatisticsRepository.findAll())
         .thenReturn(
             List.of(
@@ -580,15 +592,15 @@ class PortfolioMetricsServiceTest {
                     .netDeposits(48_500.0, 48_500.0)
                     .build(),
                 PortfolioBuilders.accountStatistics()
-                    .account(new AccountDefinition(2L, "IKE Alex", CurrencyType.PLN, "Broker"))
+                    .account(new AccountDefinition(2L, "IKE Primary", CurrencyType.PLN, "Broker"))
                     .netDeposits(53_754.0, 13_438.5)
                     .build(),
                 PortfolioBuilders.accountStatistics()
-                    .account(new AccountDefinition(3L, "IKE Olga", CurrencyType.PLN, "Broker"))
+                    .account(new AccountDefinition(3L, "IKE Secondary", CurrencyType.PLN, "Broker"))
                     .netDeposits(54_276.0, 13_569.0)
                     .build()));
     when(accountRepository.findMapByIdIn(any()))
-        .thenReturn(Map.of(1L, ibkr, 2L, ikeAlex, 3L, ikeOlga));
+        .thenReturn(Map.of(1L, ibkr, 2L, ikePrimary, 3L, ikeSecondary));
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
@@ -612,12 +624,12 @@ class PortfolioMetricsServiceTest {
   @DisplayName("calculate Total Profit Loss sums Each Funding Flow At Its Historical Base Amount")
   @Test
   void calculateTotalProfitLoss_sumsEachFundingFlowAtItsHistoricalBaseAmount() {
-    AccountEntity account = account(2L, "IKE Alex", CurrencyType.PLN);
+    AccountEntity account = account(2L, "IKE Primary", CurrencyType.PLN);
     when(accountStatisticsRepository.findAll())
         .thenReturn(
             List.of(
                 PortfolioBuilders.accountStatistics()
-                    .account(new AccountDefinition(2L, "IKE Alex", CurrencyType.PLN, "Broker"))
+                    .account(new AccountDefinition(2L, "IKE Primary", CurrencyType.PLN, "Broker"))
                     .netDeposits(50_000.0, 12_857.14)
                     .build()));
     when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(2L, account));
@@ -644,7 +656,7 @@ class PortfolioMetricsServiceTest {
   @Test
   void calculateTotalProfitLoss_usesBaseBalanceForBaseCurrencyAccountProfitLoss() {
     AccountEntity account = new AccountEntity();
-    account.setId(51499241L);
+    account.setId(90000002L);
     account.setName("Trading USD");
     account.setCurrency(CurrencyType.USD);
     when(accountStatisticsRepository.findAll())
@@ -652,12 +664,12 @@ class PortfolioMetricsServiceTest {
             List.of(
                 PortfolioBuilders.accountStatistics()
                     .account(
-                        new AccountDefinition(51499241L, "Trading USD", CurrencyType.USD, "Broker"))
+                        new AccountDefinition(90000002L, "Trading USD", CurrencyType.USD, "Broker"))
                     .deposits(0.0, 0.0)
                     .balances(69.0, 22035.0, 22104.0)
                     .netDeposits(21671.38, 21671.38)
                     .build()));
-    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51499241L, account));
+    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(90000002L, account));
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
@@ -665,8 +677,8 @@ class PortfolioMetricsServiceTest {
     Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
 
     assertEquals(1, result.getAccountBalances().size());
-    assertEquals(51499241L, result.getAccountBalances().getFirst().getAccountId());
-    assertEquals(22104.0, result.getAccountBalances().getFirst().getLocalBalance(), 0.01);
+    assertEquals(90000002L, result.getAccountBalances().getFirst().getAccountId());
+    assertEquals(22104.0, result.getAccountBalances().getFirst().getBalanceLocal(), 0.01);
     verify(currencyRateService, never())
         .convertToBaseCurrency(
             any(BigDecimal.class),
@@ -680,7 +692,7 @@ class PortfolioMetricsServiceTest {
   @Test
   void xtbUsdSubaccountTransferAdjustsAccountBasisNotPortfolioBasis() {
     AccountEntity account = new AccountEntity();
-    account.setId(51499241L);
+    account.setId(90000002L);
     account.setName("XTB USD");
     account.setProvider("XTB");
     account.setCurrency(CurrencyType.USD);
@@ -705,18 +717,18 @@ class PortfolioMetricsServiceTest {
         .thenReturn(
             List.of(
                 PortfolioBuilders.accountStatistics()
-                    .account(new AccountDefinition(51499241L, "XTB USD", CurrencyType.USD, "XTB"))
+                    .account(new AccountDefinition(90000002L, "XTB USD", CurrencyType.USD, "XTB"))
                     .netDeposits(21670.90, 21670.90)
                     .balances(0.0, 30000.0, 30000.0)
                     .build()));
-    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51499241L, account));
+    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(90000002L, account));
     when(normalizedCashOperationRepository.findAllByAccountIdIn(any()))
         .thenReturn(
-            List.of(normalizedCashOperationRow(51499241L, "EXTERNAL_DEPOSIT", 21670.90, 21670.90)));
+            List.of(normalizedCashOperationRow(90000002L, "EXTERNAL_DEPOSIT", 21670.90, 21670.90)));
     org.mockito.Mockito.doReturn(
             List.of(
-                subaccountTransfer(1L, -801.47, "Transfer from 51993106 to 51499241"),
-                subaccountTransfer(2L, 801.47, "Transfer from 51993106 to 51499241")))
+                subaccountTransfer(1L, -801.47, "Transfer from 90000010 to 90000002"),
+                subaccountTransfer(2L, 801.47, "Transfer from 90000010 to 90000002")))
         .when(cashOperationRepository)
         .findAllByAccountIn(any());
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
@@ -732,16 +744,16 @@ class PortfolioMetricsServiceTest {
     assertEquals(8329.10, accountBalance.getProfitBase(), 0.01);
     assertNull(accountBalance.getFxEffect());
     assertEquals(21670.90, result.getNetDeposits(), 0.01);
-    assertEquals(21670.90, result.getAccountBalancesTotal().getNetDeposit(), 0.01);
-    assertEquals(8329.10, result.getAccountBalancesTotal().getProfit(), 0.01);
+    assertEquals(21670.90, result.getAccountBalancesTotal().getNetDepositLocal(), 0.01);
+    assertEquals(8329.10, result.getAccountBalancesTotal().getProfitBase(), 0.01);
     assertEquals(
-        result.getAccountBalancesTotal().getBalance().doubleValue()
-            - result.getAccountBalancesTotal().getNetDeposit().doubleValue(),
-        result.getAccountBalancesTotal().getProfit(),
+        result.getAccountBalancesTotal().getBalanceBase().doubleValue()
+            - result.getAccountBalancesTotal().getNetDepositLocal().doubleValue(),
+        result.getAccountBalancesTotal().getProfitBase(),
         0.01);
     assertEquals(
-        result.getAccountBalancesTotal().getProfit().doubleValue()
-            / result.getAccountBalancesTotal().getNetDeposit().doubleValue()
+        result.getAccountBalancesTotal().getProfitBase().doubleValue()
+            / result.getAccountBalancesTotal().getNetDepositLocal().doubleValue()
             * 100.0,
         result.getAccountBalancesTotal().getProfitLossPercent(),
         0.01);
@@ -752,7 +764,7 @@ class PortfolioMetricsServiceTest {
   @Test
   void calculateTotalProfitLoss_derivesDashboardTotalProfitFromBalanceAndNetDeposit() {
     AccountEntity account = new AccountEntity();
-    account.setId(51499241L);
+    account.setId(90000002L);
     account.setName("Trading USD");
     account.setCurrency(CurrencyType.USD);
     when(portfolioKpiSummaryRepository.findAll())
@@ -777,11 +789,11 @@ class PortfolioMetricsServiceTest {
             List.of(
                 PortfolioBuilders.accountStatistics()
                     .account(
-                        new AccountDefinition(51499241L, "Trading USD", CurrencyType.USD, "XTB"))
+                        new AccountDefinition(90000002L, "Trading USD", CurrencyType.USD, "XTB"))
                     .netDeposits(143694.0, 143694.0)
                     .balances(0.0, 162745.0, 162745.0)
                     .build()));
-    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51499241L, account));
+    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(90000002L, account));
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAllByAccountIn(any())).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
@@ -789,16 +801,16 @@ class PortfolioMetricsServiceTest {
     Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
     AccountBalance total = result.getAccountBalancesTotal();
 
-    assertEquals(143694.0, total.getNetDeposit(), 0.01);
-    assertEquals(162745.0, total.getBalance(), 0.01);
-    assertEquals(19051.0, total.getProfit(), 0.01);
+    assertEquals(143694.0, total.getNetDepositLocal(), 0.01);
+    assertEquals(162745.0, total.getBalanceBase(), 0.01);
+    assertEquals(19051.0, total.getProfitBase(), 0.01);
     assertEquals(13.26, total.getProfitLossPercent(), 0.01);
     assertEquals(
-        total.getBalance().doubleValue() - total.getNetDeposit().doubleValue(),
-        total.getProfit(),
+        total.getBalanceBase().doubleValue() - total.getNetDepositLocal().doubleValue(),
+        total.getProfitBase(),
         0.01);
     assertEquals(
-        total.getProfit().doubleValue() / total.getNetDeposit().doubleValue() * 100.0,
+        total.getProfitBase().doubleValue() / total.getNetDepositLocal().doubleValue() * 100.0,
         total.getProfitLossPercent(),
         0.0001);
   }
@@ -840,7 +852,7 @@ class PortfolioMetricsServiceTest {
   private static NormalizedCashOperationRepository.NormalizedCashOperationRow
       normalizedCashOperationRow(String category, double amount, double amountInBaseCurrency) {
     return normalizedCashOperationRow(
-        51747407L, category, amount, amountInBaseCurrency, amountInBaseCurrency);
+        90000005L, category, amount, amountInBaseCurrency, amountInBaseCurrency);
   }
 
   private static NormalizedCashOperationRepository.NormalizedCashOperationRow
@@ -1471,7 +1483,7 @@ class PortfolioMetricsServiceTest {
   private static CashOperationEntity subaccountTransfer(long id, double amount, String comment) {
     CashOperationEntity operation = cash(CashOperationType.SUBACCOUNT_TRANSFER, amount, comment);
     operation.setId(id);
-    operation.setAccount(51499241L);
+    operation.setAccount(90000002L);
     operation.setDate(ZonedDateTime.parse("2026-01-01T12:00:00Z").plusMinutes(id));
     return operation;
   }

@@ -122,11 +122,11 @@ class XtbImportHistoryServiceTest {
               account.setProvider("XTB");
               account.setCurrency(
                   switch (accountId.intValue()) {
-                    case 51548444, 51747407 -> CurrencyType.EUR;
-                    case 51499241, 51822121, 51993106, 53582946 -> CurrencyType.USD;
+                    case 90000009, 90000005 -> CurrencyType.EUR;
+                    case 90000002, 90000004, 90000010, 90000006 -> CurrencyType.USD;
                     default -> CurrencyType.PLN;
                   });
-              account.setCashOnly(accountId == 51548444L);
+              account.setCashOnly(accountId == 90000009L);
               return java.util.Optional.of(account);
             });
   }
@@ -158,14 +158,14 @@ class XtbImportHistoryServiceTest {
   @DisplayName("import Zip parses New Xtb Bundle And Reconstructs Open Positions")
   @Test
   void importZip_parsesNewXtbBundleAndReconstructsOpenPositions() throws Exception {
-    try (InputStream inputStream = syntheticZip(List.of("51499241", "51993106"))) {
+    try (InputStream inputStream = syntheticZip(List.of("90000002", "90000010"))) {
       ImportExecutionResult result =
           xtbImportService.importZip(
-              inputStream, "50290466_51499241_51548444_51993106_2006-01-01_2026-07-05.zip");
+              inputStream, "90000008_90000002_90000009_90000010_2006-01-01_2026-07-05.zip");
 
       assertTrue(result.rowsApplied() > 0);
       assertTrue(result.details().contains("workbook"));
-      assertEquals(Set.of(51499241L, 51993106L), result.affectedAccountIds());
+      assertEquals(Set.of(90000002L, 90000010L), result.affectedAccountIds());
     }
 
     verify(cashOperationRepository, atLeastOnce()).saveAll(anyList());
@@ -190,20 +190,20 @@ class XtbImportHistoryServiceTest {
   @Test
   void importZip_parsesSecondXtbBundle() throws Exception {
     try (InputStream inputStream =
-        syntheticZip(List.of("51707603", "51747407", "51822121", "53582946", "51729109"))) {
+        syntheticZip(List.of("90000011", "90000005", "90000004", "90000006", "90000007"))) {
       ImportExecutionResult result =
           xtbImportService.importZip(
-              inputStream, "51707603_51747407_51822121_53582946_2025-12-31_2026-07-31.zip");
+              inputStream, "90000011_90000005_90000004_90000006_2025-12-31_2026-07-31.zip");
 
       assertTrue(result.rowsApplied() > 0);
       assertTrue(result.details().contains("imported 5 workbook"));
-      assertTrue(result.details().contains("acc=51707603"));
-      assertTrue(result.details().contains("acc=51747407"));
-      assertTrue(result.details().contains("acc=51822121"));
-      assertTrue(result.details().contains("acc=53582946"));
-      assertTrue(result.details().contains("acc=51729109"));
+      assertTrue(result.details().contains("acc=90000011"));
+      assertTrue(result.details().contains("acc=90000005"));
+      assertTrue(result.details().contains("acc=90000004"));
+      assertTrue(result.details().contains("acc=90000006"));
+      assertTrue(result.details().contains("acc=90000007"));
       assertEquals(
-          Set.of(51707603L, 51747407L, 51822121L, 53582946L, 51729109L),
+          Set.of(90000011L, 90000005L, 90000004L, 90000006L, 90000007L),
           result.affectedAccountIds());
     }
   }
@@ -217,7 +217,7 @@ class XtbImportHistoryServiceTest {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
       Row account = cashSheet.createRow(0);
       account.createCell(0).setCellValue("AccountEntity number");
-      account.createCell(1).setCellValue("51548444");
+      account.createCell(1).setCellValue("90000009");
       Row header = cashSheet.createRow(1);
       String[] cashHeaders = {"ID", "Type", "Ticker", "Time", "Amount", "Comment"};
       for (int index = 0; index < cashHeaders.length; index++) {
@@ -230,7 +230,7 @@ class XtbImportHistoryServiceTest {
       XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
       Row closedAccount = closedSheet.createRow(0);
       closedAccount.createCell(0).setCellValue("AccountEntity");
-      closedAccount.createCell(1).setCellValue("51548444");
+      closedAccount.createCell(1).setCellValue("90000009");
       Row closedHeader = closedSheet.createRow(1);
       closedHeader.createCell(0).setCellValue("Ticker");
       closedHeader.createCell(1).setCellValue("Type");
@@ -252,7 +252,7 @@ class XtbImportHistoryServiceTest {
     assertEquals(2, savedCash.size());
     assertTrue(savedCash.stream().allMatch(operation -> operation.getSymbol() == null));
     verify(closedPositionRepository).saveAll(org.mockito.ArgumentMatchers.anyList());
-    verify(openedPositionRepository).deleteOpenByAccount(51548444L);
+    verify(openedPositionRepository).deleteOpenByAccount(90000009L);
     verify(assetRepository, atLeastOnce())
         .findAllBySymbolIn(
             argThat(symbols -> !symbols.contains("TSLA.DE") && !symbols.contains("ASML.NL")));
@@ -262,7 +262,7 @@ class XtbImportHistoryServiceTest {
   @Test
   void importWorkbook_usesReportCurrencyInsteadOfAccountCurrency() throws Exception {
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
-      addMinimalSheetHeaders(workbook, "51729109");
+      addMinimalSheetHeaders(workbook, "90000007");
       Row cash = workbook.getSheet("Cash Operations").createRow(2);
       cash.createCell(0).setCellValue("Transfer");
       cash.createCell(1).setCellValue("2026-07-10 10:00:00");
@@ -271,7 +271,7 @@ class XtbImportHistoryServiceTest {
       workbook.write(output);
 
       xtbImportService.importWorkbook(
-          new ByteArrayInputStream(output.toByteArray()), "USD_51729109.xlsx");
+          new ByteArrayInputStream(output.toByteArray()), "USD_90000007.xlsx");
     }
     verify(cashOperationRepository).saveAll(cashOperationsCaptor.capture());
     CashOperationEntity saved = cashOperationsCaptor.getValue().iterator().next();
@@ -318,7 +318,7 @@ class XtbImportHistoryServiceTest {
   @DisplayName("supports detects New Format Workbook")
   @Test
   void supports_detectsNewFormatWorkbook() throws Exception {
-    try (InputStream inputStream = syntheticZip(List.of("51499241"))) {
+    try (InputStream inputStream = syntheticZip(List.of("90000002"))) {
       byte[] workbookBytes = firstXlsx(inputStream);
       assertTrue(xtbImportService.supports(new ByteArrayInputStream(workbookBytes)));
     }
@@ -328,7 +328,7 @@ class XtbImportHistoryServiceTest {
       "reconstruct Opened Positions Uses Existing Imported Cash Operations For Partial History")
   @Test
   void reconstructPositionEntitiesUsesExistingImportedCashOperationsForPartialHistory() {
-    Long account = 51707603L;
+    Long account = 90000011L;
     CashOperationEntity existingOpen =
         cashOperation(
             1L, account, CashOperationType.STOCK_PURCHASE, "AAPL.US", "OPEN BUY 10 @ 100");
@@ -371,7 +371,7 @@ class XtbImportHistoryServiceTest {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
       Row cashHeader1 = cashSheet.createRow(0);
       cashHeader1.createCell(0).setCellValue("AccountEntity number");
-      cashHeader1.createCell(1).setCellValue("51707603");
+      cashHeader1.createCell(1).setCellValue("90000011");
       Row cashHeader2 = cashSheet.createRow(1);
       cashHeader2.createCell(0).setCellValue("ID");
       cashHeader2.createCell(1).setCellValue("Type");
@@ -399,7 +399,7 @@ class XtbImportHistoryServiceTest {
       XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
       Row closedHeader1 = closedSheet.createRow(0);
       closedHeader1.createCell(0).setCellValue("AccountEntity");
-      closedHeader1.createCell(1).setCellValue("51707603");
+      closedHeader1.createCell(1).setCellValue("90000011");
       Row closedHeader2 = closedSheet.createRow(1);
       closedHeader2.createCell(0).setCellValue("Ticker");
       closedHeader2.createCell(1).setCellValue("Type");
@@ -505,7 +505,7 @@ class XtbImportHistoryServiceTest {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
       Row account = cashSheet.createRow(0);
       account.createCell(0).setCellValue("AccountEntity number");
-      account.createCell(1).setCellValue("51707603");
+      account.createCell(1).setCellValue("90000011");
       Row header = cashSheet.createRow(1);
       header.createCell(0).setCellValue("ID");
       header.createCell(1).setCellValue("Type");
@@ -524,7 +524,7 @@ class XtbImportHistoryServiceTest {
       XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
       Row closedAccount = closedSheet.createRow(0);
       closedAccount.createCell(0).setCellValue("AccountEntity");
-      closedAccount.createCell(1).setCellValue("51707603");
+      closedAccount.createCell(1).setCellValue("90000011");
       Row closedHeader = closedSheet.createRow(1);
       closedHeader.createCell(0).setCellValue("Ticker");
       closedHeader.createCell(1).setCellValue("Type");
@@ -577,7 +577,7 @@ class XtbImportHistoryServiceTest {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
       Row cashAccount = cashSheet.createRow(0);
       cashAccount.createCell(0).setCellValue("AccountEntity number");
-      cashAccount.createCell(1).setCellValue("51729109");
+      cashAccount.createCell(1).setCellValue("90000007");
       Row cashHeader = cashSheet.createRow(1);
       cashHeader.createCell(0).setCellValue("ID");
       cashHeader.createCell(1).setCellValue("Type");
@@ -589,7 +589,7 @@ class XtbImportHistoryServiceTest {
       XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
       Row closedAccount = closedSheet.createRow(0);
       closedAccount.createCell(0).setCellValue("AccountEntity");
-      closedAccount.createCell(1).setCellValue("51729109");
+      closedAccount.createCell(1).setCellValue("90000007");
       String[] headers = {
         "Ticker",
         "Type",

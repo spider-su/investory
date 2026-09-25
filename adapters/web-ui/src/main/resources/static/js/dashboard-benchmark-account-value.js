@@ -102,10 +102,7 @@ const transactionEventMarkerPlugin = {
         });
     }
 };
-if (!window.__investoryTransactionEventMarkersRegistered) {
-    Chart.register(transactionEventMarkerPlugin);
-    window.__investoryTransactionEventMarkersRegistered = true;
-}
+Chart.register(transactionEventMarkerPlugin);
 
 if (accountValueEl) {
     accountValueChart = new Chart(accountValueEl.getContext("2d"), {
@@ -373,6 +370,5 @@ enableKeyboardChart(accountValueChart, 'account-value-chart', index => accountVa
 
     return {benchmarkChart, accountValueChart, updateAccountValueChart};
 }
-
 
 

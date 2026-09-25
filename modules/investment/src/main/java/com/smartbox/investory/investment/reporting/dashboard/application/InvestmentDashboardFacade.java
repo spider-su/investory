@@ -726,7 +726,7 @@ public class InvestmentDashboardFacade {
                           ? BigDecimal.valueOf(series.portfolioPl())
                           : null;
               BigDecimal periodReturn = decimal(returnPercent(series));
-              BigDecimal localProfit = account.getLocalProfit();
+              BigDecimal localProfit = account.getProfitLocal();
               return account.toBuilder()
                   .profitBase(periodProfit)
                   .profitLocal(localProfit)
@@ -748,7 +748,9 @@ public class InvestmentDashboardFacade {
         benchmark.isPortfolioPerformanceAvailable()
             ? BigDecimal.valueOf(benchmark.getPortfolioPl())
             : accounts.stream()
-                .map(account -> account.getProfit() == null ? BigDecimal.ZERO : account.getProfit())
+                .map(
+                    account ->
+                        account.getProfitBase() == null ? BigDecimal.ZERO : account.getProfitBase())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal periodReturn = decimal(returnPercent(benchmark));
     BigDecimal localProfit = null;

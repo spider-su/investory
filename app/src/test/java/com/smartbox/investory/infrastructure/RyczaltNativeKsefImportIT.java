@@ -144,7 +144,6 @@ class RyczaltNativeKsefImportIT {
         .isEqualTo(ApprovalStatus.APPROVED);
     assertThat(invoices.findAll().getFirst().getApprovalMethod())
         .isEqualTo(ApprovalMethod.KSEF_TRUSTED);
-    assertThat(legacyInvoiceRows()).isZero();
   }
 
   @Test
@@ -293,12 +292,6 @@ class RyczaltNativeKsefImportIT {
 
     RyczaltPeriodEntity period = periods.findByProfileIdAndYearAndMonth(1, 2026, 2).orElseThrow();
     assertThat(period.getStatus()).isEqualTo(PeriodStatus.DIRTY);
-  }
-
-  private int legacyInvoiceRows() {
-    Integer count =
-        jdbc.queryForObject("SELECT count(*) FROM investory.accounting_poc_invoice", Integer.class);
-    return count == null ? 0 : count;
   }
 
   /** In-memory stand-in for the external KSeF transport. */

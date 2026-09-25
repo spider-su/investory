@@ -21,6 +21,16 @@ public final class ProfileIncomeSummaryFixtures {
         longTermIncome,
         ProfileIncomeSummary.ratio(longTermIncome, longTermValue),
         totalIncome,
-        ProfileIncomeSummary.ratio(totalIncome, totalValue));
+        ProfileIncomeSummary.ratio(totalIncome, totalValue),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        false,
+        marketIncome.multiply(new BigDecimal("0.81")),
+        marketIncome.multiply(new BigDecimal("0.81")),
+        marketIncome.multiply(new BigDecimal("0.81")).add(longTermIncome));
   }
 }

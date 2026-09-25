@@ -13,19 +13,19 @@ import org.junit.jupiter.api.Test;
 
 class HappyInvestorSettlementTest {
   @Test
-  void recognizesTheKnownJuly2026ZusPaymentAsPartial() {
+  void recognizesTheSyntheticJuly2026ZusPaymentAsPartial() {
     Obligation obligation =
         new Obligation(
             ObligationType.ZUS,
-            new BigDecimal("1495.04"),
+            new BigDecimal("3283.33"),
             Currency.getInstance("PLN"),
             LocalDate.of(2026, 8, 20),
             null);
     Transaction payment =
         new Transaction(
-            "HI-ACC-2026-07-ZUS",
+            "HI-RYC-2026-07-ZUS",
             LocalDate.of(2026, 8, 18),
-            new BigDecimal("-1495.00"),
+            new BigDecimal("-3283.29"),
             Currency.getInstance("PLN"),
             "ZUS",
             "ZUS_PAYMENT");
@@ -33,6 +33,6 @@ class HappyInvestorSettlementTest {
     PaymentCheckResult result = new PaymentChecker().check(obligation, List.of(payment));
 
     assertEquals(PaymentCheckStatus.PARTIALLY_PAID, result.status());
-    assertEquals(new BigDecimal("1495.00"), result.matchedAmount());
+    assertEquals(new BigDecimal("3283.29"), result.matchedAmount());
   }
 }

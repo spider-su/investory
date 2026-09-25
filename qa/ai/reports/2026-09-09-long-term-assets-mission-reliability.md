@@ -9,8 +9,8 @@
 
 The environment/data-scope finding was fully consistent across the three bounded probes. Every run
 returned HTTP 200, the same title, the same 28,545-byte response, and the same SHA-256:
-  `1000967aedc4b966b0c42f99e62b0dc06d1c0d959d3b1fd8b56b97aa5abb1222`. See the detailed
-  [repeated-probe evidence](evidence/2026-09-09-long-term-assets-reliability-probes.txt).
+  `1000967aedc4b966b0c42f99e62b0dc06d1c0d959d3b1fd8b56b97aa5abb1222`. Detailed probe evidence
+  was not retained in the repository.
 
 This is not a browser-agent reliability result. No live browser/Playwright MCP was available, so
 navigation, interaction, console, failed-request, screenshot, and responsive checks were not run.

@@ -27,10 +27,10 @@ ON CONFLICT (user_id, profile_id) DO UPDATE SET role = EXCLUDED.role;
 
 INSERT INTO accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only)
 VALUES
-    (2017959259, '17959259', 'USD', 'IBKR', 'IBKR USD investment account', 'Happy Investor', 2, false),
-    (2051499241, '51499241', 'USD', 'XTB', 'XTB USD investment account', 'Happy Investor', 2, false),
-    (2051551301, '51551301', 'PLN', 'XTB', 'XTB PLN investment account', 'Happy Investor', 2, false),
-    (2051548444, '51548444', 'EUR', 'XTB', 'XTB EUR cash-only account', 'Happy Investor', 2, true)
+    (91000001, '90000001', 'USD', 'IBKR', 'IBKR USD investment account', 'Happy Investor', 2, false),
+    (91000002, '90000002', 'USD', 'XTB', 'XTB USD investment account', 'Happy Investor', 2, false),
+    (91000003, '90000003', 'PLN', 'XTB', 'XTB PLN investment account', 'Happy Investor', 2, false),
+    (91000004, '90000009', 'EUR', 'XTB', 'XTB EUR cash-only account', 'Happy Investor', 2, true)
 ON CONFLICT (id) DO UPDATE SET external_account_id = EXCLUDED.external_account_id,
     currency = EXCLUDED.currency, provider = EXCLUDED.provider, name = EXCLUDED.name,
     owner = EXCLUDED.owner, portfolio_id = EXCLUDED.portfolio_id, cash_only = EXCLUDED.cash_only;
@@ -67,7 +67,7 @@ ON CONFLICT (id) DO UPDATE SET portfolio_id = EXCLUDED.portfolio_id, name = EXCL
 INSERT INTO real_estate (id, portfolio_id, name, currency, value, tax_base, acquisition_date,
                          land_register_number, archived_at, notes)
 VALUES
-    (9402, 2, 'Apartment A', 'PLN', 400000, 3200, DATE '2024-08-01', 'KR1P/4322432/0', NULL, 'Happy Investor canonical profile'),
+    (9402, 2, 'Apartment A', 'PLN', 400000, 3200, DATE '2024-08-01', 'TEST-LAND-REGISTER-001', NULL, 'Happy Investor canonical profile'),
     (9403, 2, 'Apartment B', 'PLN', 500000, 3000, DATE '2024-08-01', NULL, NULL, 'Happy Investor canonical profile')
 ON CONFLICT (id) DO UPDATE SET portfolio_id = EXCLUDED.portfolio_id, name = EXCLUDED.name,
     currency = EXCLUDED.currency, value = EXCLUDED.value, tax_base = EXCLUDED.tax_base, acquisition_date = EXCLUDED.acquisition_date,

@@ -177,7 +177,7 @@ app:
     yahoo:
       # Comma-separated account IDs to include in Yahoo CSV export.
       # Leave empty (or omit) to export ALL accounts.
-      # Example: accounts: 51499241,U17959259
+      # Example: accounts: 90000002,U90000001
       accounts: ${YAHOO_EXPORT_ACCOUNTS:}
   ksef:
     environment: ${INVESTORY_KSEF_ENVIRONMENT:TEST}

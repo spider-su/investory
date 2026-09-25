@@ -22,16 +22,16 @@ public final class PortfolioTestData {
   public static final LocalDate YEAR_END = LocalDate.of(2025, 12, 31);
   public static final LocalDate SECOND_YEAR_END = LocalDate.of(2026, 12, 31);
 
-  public static final long IBKR_USD_ACCOUNT_ID = 17959259L;
-  public static final long XTB_EUR_ACCOUNT_ID = 51499241L;
-  public static final long POLISH_BONDS_PLN_ACCOUNT_ID = 51551301L;
-  public static final long CRYPTO_USD_ACCOUNT_ID = 53582946L;
+  public static final long IBKR_USD_ACCOUNT_ID = 90000001L;
+  public static final long XTB_EUR_ACCOUNT_ID = 90000002L;
+  public static final long POLISH_BONDS_PLN_ACCOUNT_ID = 90000003L;
+  public static final long CRYPTO_USD_ACCOUNT_ID = 90000006L;
 
   /** Migration-backed identities for the complete reference scenario. */
-  public static final long HAPPY_XTB_USD_ACCOUNT_ID = 2051499241L;
+  public static final long HAPPY_XTB_USD_ACCOUNT_ID = 91000002L;
 
-  public static final long HAPPY_XTB_PLN_ACCOUNT_ID = 2051551301L;
-  public static final long HAPPY_XTB_EUR_ACCOUNT_ID = 2051548444L;
+  public static final long HAPPY_XTB_PLN_ACCOUNT_ID = 91000003L;
+  public static final long HAPPY_XTB_EUR_ACCOUNT_ID = 91000004L;
 
   public static final double DEFAULT_USD_DEPOSIT = 100_000.00;
   public static final double DEFAULT_EUR_DEPOSIT = 25_000.00;

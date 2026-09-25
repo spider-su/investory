@@ -87,8 +87,8 @@ class CsvBankTransactionSourceTest {
     var page =
         source(
                 "Data księgowania;Data waluty;Nadawca / Odbiorca;Adres nadawcy / odbiorcy;Rachunek źródłowy;Rachunek docelowy;Tytułem;Kwota operacji;Waluta;Numer referencyjny;Typ operacji\n"
-                    + "04.09.2026;04.09.2026;IT PLATFORM SOLUTIONS LIMITED;;'SACC;'16124046761978001147512542;Service Agreement;7 661,00;EUR;'RI5;SEPA CREDIT TRANSFER INCOMING\n"
-                    + "04.09.2026;04.09.2026;ALEX KOTIK;;'16124046761978001147512542;'7612;Transfer of funds;-7 661,00;EUR;'163;MOBILE TRANSFER\n")
+                    + "04.09.2026;04.09.2026;Example Services Ltd;;'SACC;'TEST_BANK_ACCOUNT_001;Service Agreement;7 661,00;EUR;'RI5;SEPA CREDIT TRANSFER INCOMING\n"
+                    + "04.09.2026;04.09.2026;Example Account Holder;;'TEST_BANK_ACCOUNT_001;'TEST_COUNTERPARTY_001;Transfer of funds;-7 661,00;EUR;'163;MOBILE TRANSFER\n")
             .transactions(query());
 
     assertThat(page.transactions()).hasSize(2);
@@ -99,9 +99,8 @@ class CsvBankTransactionSourceTest {
             ExternalBankTransaction::rawReference,
             ExternalBankTransaction::currency,
             ExternalBankTransaction::amount)
-        .containsExactly(
-            "16124046761978001147512542", "SACC", "RI5", "EUR", new BigDecimal("7661.00"));
-    assertThat(page.transactions().get(1).counterpartyAccount()).isEqualTo("7612");
+        .containsExactly("TEST_BANK_ACCOUNT_001", "SACC", "RI5", "EUR", new BigDecimal("7661.00"));
+    assertThat(page.transactions().get(1).counterpartyAccount()).isEqualTo("TEST_COUNTERPARTY_001");
   }
 
   private CsvBankTransactionSource source(String csv) {

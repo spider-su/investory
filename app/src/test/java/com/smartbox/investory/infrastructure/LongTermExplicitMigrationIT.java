@@ -28,7 +28,7 @@ class LongTermExplicitMigrationIT {
           VALUES (9406, 1, 'Term cash reserve', 'PLN', 50000, DATE '2024-08-01', 0.04, DATE '2027-08-01', 'Happy Investor interest-bearing cash reserve');
           INSERT INTO investory.real_estate
               (id, portfolio_id, name, currency, value, tax_base, acquisition_date, land_register_number, notes)
-          VALUES (9402, 1, 'Apartment A', 'PLN', 400000, 3200, DATE '2024-08-01', 'KR1P/4322432/0', 'Happy Investor canonical profile');
+          VALUES (9402, 1, 'Apartment A', 'PLN', 400000, 3200, DATE '2024-08-01', 'TEST-LAND-REGISTER-001', 'Happy Investor canonical profile');
           INSERT INTO investory.cash_reserve
               (id, portfolio_id, name, currency, value, acquisition_date, notes)
           VALUES (9401, 1, 'Cash reserve', 'PLN', 50000, DATE '2024-08-01', 'Happy Investor canonical profile');
@@ -68,7 +68,7 @@ class LongTermExplicitMigrationIT {
           1,
           MigrationTestDatabase.singleInt(
               statement,
-              "SELECT count(*) FROM investory.real_estate WHERE id = 9402 AND land_register_number = 'KR1P/4322432/0' AND tax_base = 3200"));
+              "SELECT count(*) FROM investory.real_estate WHERE id = 9402 AND land_register_number = 'TEST-LAND-REGISTER-001' AND tax_base = 3200"));
       assertEquals(
           1,
           MigrationTestDatabase.singleInt(
