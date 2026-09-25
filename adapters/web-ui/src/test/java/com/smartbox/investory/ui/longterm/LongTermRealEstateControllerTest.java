@@ -127,7 +127,7 @@ class LongTermRealEstateControllerTest {
                 77L,
                 "Ada Tenant",
                 "ada@example.test",
-                "+48123456789",
+                "+10000000000",
                 LocalDate.of(2026, 1, 1),
                 LocalDate.of(2027, 1, 1),
                 List.of(
@@ -206,7 +206,7 @@ class LongTermRealEstateControllerTest {
         77L,
         "Ada Tenant",
         "ada@example.test",
-        "+48123456789",
+        "+10000000000",
         LocalDate.of(2026, 1, 1),
         LocalDate.of(2027, 1, 1),
         null,
@@ -220,7 +220,8 @@ class LongTermRealEstateControllerTest {
             termView(CashFlowType.OTHER_INCOME, "125", Frequency.MONTHLY, false),
             termView(CashFlowType.OTHER_EXPENSE, "80", Frequency.MONTHLY, false),
             termView(CashFlowType.PROPERTY_TAX, "2400", Frequency.ANNUAL, true),
-            termView(CashFlowType.INSURANCE, "1200", Frequency.ANNUAL, false)));
+            termView(CashFlowType.INSURANCE, "1200", Frequency.ANNUAL, false)),
+        new BigDecimal("4625"));
   }
 
   private static RentalTermView termView(

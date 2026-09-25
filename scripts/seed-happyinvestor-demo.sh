@@ -34,10 +34,10 @@ common_data_file="$repo_dir/test-support/src/main/resources/db/snapshot/happyinv
 broker_data_file="$repo_dir/test-support/src/main/resources/db/snapshot/happyinvestor-broker.sql"
 portfolio_id="${HAPPYINVESTOR_PORTFOLIO_ID:-2}"
 user_id="${HAPPYINVESTOR_USER_ID:-2}"
-ibkr_account_id="${HAPPYINVESTOR_IBKR_ACCOUNT_ID:-2017959259}"
-xtb_usd_account_id="${HAPPYINVESTOR_XTB_USD_ACCOUNT_ID:-2051499241}"
-xtb_pln_account_id="${HAPPYINVESTOR_XTB_PLN_ACCOUNT_ID:-2051551301}"
-xtb_eur_account_id="${HAPPYINVESTOR_XTB_EUR_ACCOUNT_ID:-2051548444}"
+ibkr_account_id="${HAPPYINVESTOR_IBKR_ACCOUNT_ID:-91000001}"
+xtb_usd_account_id="${HAPPYINVESTOR_XTB_USD_ACCOUNT_ID:-91000002}"
+xtb_pln_account_id="${HAPPYINVESTOR_XTB_PLN_ACCOUNT_ID:-91000003}"
+xtb_eur_account_id="${HAPPYINVESTOR_XTB_EUR_ACCOUNT_ID:-91000004}"
 
 for configured_id in "$portfolio_id" "$user_id" "$ibkr_account_id" "$xtb_usd_account_id" \
   "$xtb_pln_account_id" "$xtb_eur_account_id"; do
@@ -77,19 +77,19 @@ XTB_EUR_ACCOUNT_ID="$xtb_eur_account_id" perl -0pe '
   s/portfolio_id = 2/portfolio_id = $ENV{PORTFOLIO_ID}/g;
   s/\((940[1-6]|9201|9301), 2,/($1, $ENV{PORTFOLIO_ID},/g;
   s/(\(\s*9301,\s*)2,/$1$ENV{PORTFOLIO_ID},/g;
-  s/2017959259/$ENV{IBKR_ACCOUNT_ID}/g;
-  s/2051499241/$ENV{XTB_USD_ACCOUNT_ID}/g;
-  s/2051551301/$ENV{XTB_PLN_ACCOUNT_ID}/g;
-  s/2051548444/$ENV{XTB_EUR_ACCOUNT_ID}/g;
+  s/91000001/$ENV{IBKR_ACCOUNT_ID}/g;
+  s/91000002/$ENV{XTB_USD_ACCOUNT_ID}/g;
+  s/91000003/$ENV{XTB_PLN_ACCOUNT_ID}/g;
+  s/91000004/$ENV{XTB_EUR_ACCOUNT_ID}/g;
 ' "$common_data_file" > "$parameterized_common_data_file"
 
 IBKR_ACCOUNT_ID="$ibkr_account_id" XTB_USD_ACCOUNT_ID="$xtb_usd_account_id" \
 XTB_PLN_ACCOUNT_ID="$xtb_pln_account_id" XTB_EUR_ACCOUNT_ID="$xtb_eur_account_id" \
 perl -0pe '
-  s/2017959259/$ENV{IBKR_ACCOUNT_ID}/g;
-  s/2051499241/$ENV{XTB_USD_ACCOUNT_ID}/g;
-  s/2051551301/$ENV{XTB_PLN_ACCOUNT_ID}/g;
-  s/2051548444/$ENV{XTB_EUR_ACCOUNT_ID}/g;
+  s/91000001/$ENV{IBKR_ACCOUNT_ID}/g;
+  s/91000002/$ENV{XTB_USD_ACCOUNT_ID}/g;
+  s/91000003/$ENV{XTB_PLN_ACCOUNT_ID}/g;
+  s/91000004/$ENV{XTB_EUR_ACCOUNT_ID}/g;
 ' "$broker_data_file" > "$parameterized_broker_data_file"
 
 export PGHOST="${PGHOST:-${DB_HOST:-localhost}}"
@@ -132,11 +132,11 @@ BEGIN
 
   IF EXISTS (SELECT 1 FROM investory.accounts
              WHERE portfolio_id = ${portfolio_id}
-               AND provider = 'IBKR' AND external_account_id = '17959259'
+               AND provider = 'IBKR' AND external_account_id = '90000001'
                AND id <> ${ibkr_account_id})
      OR EXISTS (SELECT 1 FROM investory.accounts
                WHERE portfolio_id = ${portfolio_id}
-                 AND provider = 'XTB' AND external_account_id IN ('51499241', '51551301', '51548444')
+                 AND provider = 'XTB' AND external_account_id IN ('90000002', '90000003', '90000009')
                  AND id NOT IN (${xtb_usd_account_id}, ${xtb_pln_account_id}, ${xtb_eur_account_id})) THEN
     RAISE EXCEPTION 'canonical HappyInvestor external account ID is already used';
   END IF;
@@ -204,10 +204,10 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name,
 -- them gives a newly created target portfolio the complete broker fixture.
 INSERT INTO accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only)
 VALUES
-    (:ibkr_account_id, '17959259', 'USD', 'IBKR', 'IBKR USD investment account', 'Happy Investor', :portfolio_id, false),
-    (:xtb_usd_account_id, '51499241', 'USD', 'XTB', 'XTB USD investment account', 'Happy Investor', :portfolio_id, false),
-    (:xtb_pln_account_id, '51551301', 'PLN', 'XTB', 'XTB PLN investment account', 'Happy Investor', :portfolio_id, false),
-    (:xtb_eur_account_id, '51548444', 'EUR', 'XTB', 'XTB EUR cash-only account', 'Happy Investor', :portfolio_id, true)
+    (:ibkr_account_id, '90000001', 'USD', 'IBKR', 'IBKR USD investment account', 'Happy Investor', :portfolio_id, false),
+    (:xtb_usd_account_id, '90000002', 'USD', 'XTB', 'XTB USD investment account', 'Happy Investor', :portfolio_id, false),
+    (:xtb_pln_account_id, '90000003', 'PLN', 'XTB', 'XTB PLN investment account', 'Happy Investor', :portfolio_id, false),
+    (:xtb_eur_account_id, '90000009', 'EUR', 'XTB', 'XTB EUR cash-only account', 'Happy Investor', :portfolio_id, true)
 ON CONFLICT (id) DO UPDATE SET external_account_id = EXCLUDED.external_account_id,
     currency = EXCLUDED.currency, provider = EXCLUDED.provider, name = EXCLUDED.name,
     owner = EXCLUDED.owner, portfolio_id = EXCLUDED.portfolio_id, cash_only = EXCLUDED.cash_only;

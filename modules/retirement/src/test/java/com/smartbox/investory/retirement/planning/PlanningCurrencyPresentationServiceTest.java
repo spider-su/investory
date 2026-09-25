@@ -56,8 +56,9 @@ class PlanningCurrencyPresentationServiceTest {
   void presentsSpendingDifferenceAsExtraCapacityOrOverLimit() {
     PlanningCurrencyPresentationService service =
         new PlanningCurrencyPresentationService(
-            Mockito.mock(CurrencyConversion.class),
-            Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC));
+            new PlanningMoneyConversionService(
+                Mockito.mock(CurrencyConversion.class),
+                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)));
     SustainableSpendingAnalysis positive =
         new SustainableSpendingAnalysis(
             new BigDecimal("15000"),
@@ -111,7 +112,8 @@ class PlanningCurrencyPresentationServiceTest {
         .thenAnswer(i -> ((BigDecimal) i.getArgument(0)).multiply(new BigDecimal("4")));
     PlanningCurrencyPresentationService service =
         new PlanningCurrencyPresentationService(
-            rates, Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC));
+            new PlanningMoneyConversionService(
+                rates, Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)));
     PastPlanningYear past =
         new PastPlanningYear(
             2025,
@@ -163,7 +165,8 @@ class PlanningCurrencyPresentationServiceTest {
         .thenAnswer(i -> ((BigDecimal) i.getArgument(0)).multiply(new BigDecimal("4")));
     PlanningCurrencyPresentationService service =
         new PlanningCurrencyPresentationService(
-            rates, Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC));
+            new PlanningMoneyConversionService(
+                rates, Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)));
     InvestmentProfile profile =
         new InvestmentProfile(
             1L,
@@ -233,8 +236,9 @@ class PlanningCurrencyPresentationServiceTest {
   void historicalPresentationHidesLegacyPassiveIncomeWithoutDeletingIt() {
     PlanningCurrencyPresentationService service =
         new PlanningCurrencyPresentationService(
-            Mockito.mock(CurrencyConversion.class),
-            Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC));
+            new PlanningMoneyConversionService(
+                Mockito.mock(CurrencyConversion.class),
+                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)));
     PastPlanningYear past =
         new PastPlanningYear(
             2025,
@@ -282,8 +286,9 @@ class PlanningCurrencyPresentationServiceTest {
 
     PlanningTimelineMoney displayed =
         new PlanningCurrencyPresentationService(
-                Mockito.mock(CurrencyConversion.class),
-                Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC))
+                new PlanningMoneyConversionService(
+                    Mockito.mock(CurrencyConversion.class),
+                    Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)))
             .displayTimelineMoney(timeline, CurrencyType.USD)
             .get(2025);
 
@@ -305,8 +310,9 @@ class PlanningCurrencyPresentationServiceTest {
 
     PlanningTimelineMoney displayed =
         new PlanningCurrencyPresentationService(
-                Mockito.mock(CurrencyConversion.class),
-                Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC))
+                new PlanningMoneyConversionService(
+                    Mockito.mock(CurrencyConversion.class),
+                    Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)))
             .displayTimelineMoney(timeline, CurrencyType.USD)
             .get(2025);
 
@@ -345,8 +351,9 @@ class PlanningCurrencyPresentationServiceTest {
 
     PlanningTimelineMoney displayed =
         new PlanningCurrencyPresentationService(
-                Mockito.mock(CurrencyConversion.class),
-                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
+                new PlanningMoneyConversionService(
+                    Mockito.mock(CurrencyConversion.class),
+                    Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)))
             .displayTimelineMoney(timeline, CurrencyType.USD, liveAssumptions())
             .get(2026);
 
@@ -380,7 +387,8 @@ class PlanningCurrencyPresentationServiceTest {
 
     PlanningTimelineMoney displayed =
         new PlanningCurrencyPresentationService(
-                rates, Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
+                new PlanningMoneyConversionService(
+                    rates, Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)))
             .displayTimelineMoney(timeline, CurrencyType.PLN, liveAssumptions())
             .get(2026);
 
@@ -421,8 +429,9 @@ class PlanningCurrencyPresentationServiceTest {
 
     PlanningTimelineMoney displayed =
         new PlanningCurrencyPresentationService(
-                Mockito.mock(CurrencyConversion.class),
-                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
+                new PlanningMoneyConversionService(
+                    Mockito.mock(CurrencyConversion.class),
+                    Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)))
             .displayTimelineMoney(timeline, CurrencyType.USD)
             .get(2027);
 
@@ -474,8 +483,9 @@ class PlanningCurrencyPresentationServiceTest {
   void currentYearReviewExposesSourceBaselineAndMissingPlanningInputs() {
     PlanningCurrencyPresentationService service =
         new PlanningCurrencyPresentationService(
-            Mockito.mock(CurrencyConversion.class),
-            Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC));
+            new PlanningMoneyConversionService(
+                Mockito.mock(CurrencyConversion.class),
+                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)));
     CurrentPlanningYear current =
         new CurrentPlanningYear(
             2026,
@@ -541,7 +551,8 @@ class PlanningCurrencyPresentationServiceTest {
             invocation -> ((BigDecimal) invocation.getArgument(0)).multiply(BigDecimal.valueOf(4)));
     PlanningCurrencyPresentationService service =
         new PlanningCurrencyPresentationService(
-            rates, Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC));
+            new PlanningMoneyConversionService(
+                rates, Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)));
     PlanProgress progress =
         PlanProgress.from(
             List.of(

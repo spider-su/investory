@@ -30,23 +30,23 @@ class HappyInvestorFixtureParityTest {
 
     List<String> accountIdentities =
         List.of(
-            "2017959259, '17959259', 'USD', 'IBKR'",
-            "2051499241, '51499241', 'USD', 'XTB'",
-            "2051551301, '51551301', 'PLN', 'XTB'",
-            "2051548444, '51548444', 'EUR', 'XTB'");
+            "91000001, '90000001', 'USD', 'IBKR'",
+            "91000002, '90000002', 'USD', 'XTB'",
+            "91000003, '90000003', 'PLN', 'XTB'",
+            "91000004, '90000009', 'EUR', 'XTB'");
     accountIdentities.forEach(identity -> assertThat(common).contains(identity));
 
     assertThat(HappyInvestorScenario.externalCashOperations()).hasSize(10);
     for (String operation :
         List.of(
-            "7001, 2017959259, 'DEPOSIT', 100000, 'USD'",
-            "7002, 2017959259, 'WITHDRAWAL', -3000, 'USD'",
-            "7024, 2017959259, 'WITHDRAWAL', -100000, 'USD'",
-            "7025, 2017959259, 'WITHDRAWAL', -7934.73331300, 'USD'",
-            "7003, 2051499241, 'DEPOSIT', 4000, 'USD'",
-            "7006, 2051551301, 'WITHDRAWAL', -1000, 'PLN'",
-            "7007, 2051548444, 'DEPOSIT', 8000, 'EUR'",
-            "7008, 2051548444, 'WITHDRAWAL', -2000, 'EUR'")) {
+            "7001, 91000001, 'DEPOSIT', 100000, 'USD'",
+            "7002, 91000001, 'WITHDRAWAL', -3000, 'USD'",
+            "7024, 91000001, 'WITHDRAWAL', -100000, 'USD'",
+            "7025, 91000001, 'WITHDRAWAL', -7934.73331300, 'USD'",
+            "7003, 91000002, 'DEPOSIT', 4000, 'USD'",
+            "7006, 91000003, 'WITHDRAWAL', -1000, 'PLN'",
+            "7007, 91000004, 'DEPOSIT', 8000, 'EUR'",
+            "7008, 91000004, 'WITHDRAWAL', -2000, 'EUR'")) {
       assertThat(broker).as("persisted operation %s", operation).contains(operation);
     }
 

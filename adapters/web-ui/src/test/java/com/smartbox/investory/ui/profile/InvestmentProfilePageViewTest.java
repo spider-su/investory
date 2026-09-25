@@ -181,11 +181,11 @@ class InvestmentProfilePageViewTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
-                new BigDecimal("48000"),
+                new BigDecimal("8300"),
                 new BigDecimal("48000"),
                 new BigDecimal("12000"),
                 new BigDecimal("12000"),
-                new BigDecimal("36000"),
+                new BigDecimal("20300"),
                 new BigDecimal("36000")),
             com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
     InvestmentProfilePageView page =

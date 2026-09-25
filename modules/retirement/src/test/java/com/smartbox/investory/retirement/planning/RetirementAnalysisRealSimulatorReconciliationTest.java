@@ -113,7 +113,8 @@ class RetirementAnalysisRealSimulatorReconciliationTest {
         .thenAnswer(
             invocation -> ((BigDecimal) invocation.getArgument(0)).multiply(new BigDecimal("4")));
     return new PlanningCurrencyPresentationService(
-        rates, Clock.fixed(Instant.parse("2026-08-24T00:00:00Z"), ZoneOffset.UTC));
+        new PlanningMoneyConversionService(
+            rates, Clock.fixed(Instant.parse("2026-08-24T00:00:00Z"), ZoneOffset.UTC)));
   }
 
   private static SimulationAssumptions assumptions(InvestmentProfile profile) {

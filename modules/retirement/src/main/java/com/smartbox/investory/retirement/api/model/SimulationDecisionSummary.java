@@ -33,64 +33,6 @@ public record SimulationDecisionSummary(
     BigDecimal finalSafeReserve,
     boolean recurringFundingGapRequired) {
 
-  /** Compatibility constructor for callers that predate the reserve-applicability flag. */
-  public SimulationDecisionSummary(
-      SimulationScenario scenario,
-      boolean failed,
-      BigDecimal finalNetWorth,
-      BigDecimal finalLiquidAssets,
-      BigDecimal finalIlliquidAssets,
-      BigDecimal minimumLiquidAssets,
-      int minimumLiquidYear,
-      int minimumLiquidAge,
-      BigDecimal lowestNetWorth,
-      int lowestNetWorthYear,
-      int lowestNetWorthAge,
-      BigDecimal lifetimeRequiredPortfolioFunding,
-      BigDecimal lifetimeActualWithdrawals,
-      Integer firstFailureYear,
-      Integer firstFailureAge,
-      BigDecimal totalUnfundedAmount,
-      BigDecimal firstYearPassiveIncomeCoverage,
-      BigDecimal minimumPassiveIncomeCoverage,
-      BigDecimal totalEquityHarvested,
-      BigDecimal totalEmergencyEquityWithdrawals,
-      BigDecimal totalManualLiquidReserveWithdrawals,
-      BigDecimal minimumManualLiquidReserve,
-      BigDecimal minimumSafeReserveCoverageYears,
-      int yearsWithEquityHarvest,
-      int yearsUsingEmergencyEquity,
-      BigDecimal finalSafeReserve) {
-    this(
-        scenario,
-        failed,
-        finalNetWorth,
-        finalLiquidAssets,
-        finalIlliquidAssets,
-        minimumLiquidAssets,
-        minimumLiquidYear,
-        minimumLiquidAge,
-        lowestNetWorth,
-        lowestNetWorthYear,
-        lowestNetWorthAge,
-        lifetimeRequiredPortfolioFunding,
-        lifetimeActualWithdrawals,
-        firstFailureYear,
-        firstFailureAge,
-        totalUnfundedAmount,
-        firstYearPassiveIncomeCoverage,
-        minimumPassiveIncomeCoverage,
-        totalEquityHarvested,
-        totalEmergencyEquityWithdrawals,
-        totalManualLiquidReserveWithdrawals,
-        minimumManualLiquidReserve,
-        minimumSafeReserveCoverageYears,
-        yearsWithEquityHarvest,
-        yearsUsingEmergencyEquity,
-        finalSafeReserve,
-        true);
-  }
-
   public static SimulationDecisionSummary from(
       SimulationResult result, SimulationAssumptions assumptions) {
     List<SimulationYear> years = result.years();

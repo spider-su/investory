@@ -568,9 +568,9 @@ public class PortfolioMetricsService {
   private AccountBalance accountBalancesTotal(
       List<AccountBalance> accounts, CurrencyType baseCurrency, double canonicalNetDeposit) {
     BigDecimal balance =
-        accounts.stream().map(a -> bd(a.getBalance())).reduce(BigDecimal.ZERO, BigDecimal::add);
+        accounts.stream().map(a -> bd(a.getBalanceBase())).reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal cash =
-        accounts.stream().map(a -> bd(a.getCash())).reduce(BigDecimal.ZERO, BigDecimal::add);
+        accounts.stream().map(a -> bd(a.getCashBase())).reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal netDeposit = bd(canonicalNetDeposit);
     BigDecimal profit = balance.subtract(netDeposit);
     Double roi =

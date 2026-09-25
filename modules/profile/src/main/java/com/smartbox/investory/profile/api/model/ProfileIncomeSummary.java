@@ -23,7 +23,10 @@ public record ProfileIncomeSummary(
     BigDecimal investmentResultYtd,
     BigDecimal investmentExpectedIncomeYtd,
     BigDecimal investmentExpectationProgress,
-    boolean investmentIncomeAvailable) {
+    boolean investmentIncomeAvailable,
+    BigDecimal marketNetIncomeYtd,
+    BigDecimal marketNetAnnualIncome,
+    BigDecimal combinedNetAnnualIncome) {
 
   public ProfileIncomeSummary(
       BigDecimal marketIncomeYtd,
@@ -47,7 +50,10 @@ public record ProfileIncomeSummary(
         null,
         null,
         null,
-        false);
+        false,
+        null,
+        null,
+        null);
   }
 
   public ProfileIncomeSummary {
@@ -58,6 +64,9 @@ public record ProfileIncomeSummary(
     longTermNetYield = zeroIfNull(longTermNetYield);
     combinedAnnualIncome = zeroIfNull(combinedAnnualIncome);
     combinedNetYield = zeroIfNull(combinedNetYield);
+    marketNetIncomeYtd = zeroIfNull(marketNetIncomeYtd);
+    marketNetAnnualIncome = zeroIfNull(marketNetAnnualIncome);
+    combinedNetAnnualIncome = zeroIfNull(combinedNetAnnualIncome);
   }
 
   public static BigDecimal ratio(BigDecimal amount, BigDecimal value) {

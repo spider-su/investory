@@ -13,29 +13,6 @@ public record PlanSustainabilityAssessment(
     BigDecimal finalNetWorth,
     boolean recurringFundingGapRequired) {
 
-  /**
-   * Compatibility constructor for synthetic assessments created before reserve applicability was
-   * explicit.
-   */
-  public PlanSustainabilityAssessment(
-      PlanSustainabilityStatus status,
-      Integer firstFailureYear,
-      Integer firstFailureAge,
-      BigDecimal totalUnfundedAmount,
-      BigDecimal minimumSafeReserveCoverageYears,
-      BigDecimal minimumSpendableAssets,
-      BigDecimal finalNetWorth) {
-    this(
-        status,
-        firstFailureYear,
-        firstFailureAge,
-        totalUnfundedAmount,
-        minimumSafeReserveCoverageYears,
-        minimumSpendableAssets,
-        finalNetWorth,
-        true);
-  }
-
   public boolean sustainable() {
     return status == PlanSustainabilityStatus.SUSTAINABLE;
   }

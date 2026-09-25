@@ -76,7 +76,9 @@ public class SecurityConfig {
       UserDetailsService users,
       @Value("${app.security.token-login-enabled:true}") boolean tokenLoginEnabled,
       @Value("${app.security.google.enabled:false}") boolean googleLoginEnabled,
-      ObjectProvider<OAuth2UserService<OAuth2UserRequest, OAuth2User>> googleUsers) {
+      ObjectProvider<OAuth2UserService<OAuth2UserRequest, OAuth2User>> googleUsers,
+      ObjectProvider<LocalDevelopmentSecurityConfig.LocalDevelopmentAuthenticationFilter>
+          localDevelopmentAuthenticationFilter) {
     var authorization =
         http.csrf(
                 csrf -> {
@@ -142,6 +144,8 @@ public class SecurityConfig {
 
     authorization.addFilterBefore(
         new BearerTokenAuthenticationFilter(tokens, users), BasicAuthenticationFilter.class);
+    localDevelopmentAuthenticationFilter.ifAvailable(
+        filter -> authorization.addFilterBefore(filter, BearerTokenAuthenticationFilter.class));
 
     return authorization.build();
   }

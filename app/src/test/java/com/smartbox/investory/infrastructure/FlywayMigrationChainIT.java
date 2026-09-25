@@ -39,59 +39,32 @@ class FlywayMigrationChainIT {
   }
 
   @Test
-  void installsReferenceBaselineAndLeavesOperationalWorkspaceEmpty() throws Exception {
+  void installsNativeRyczaltSchemaWithoutLegacyAccountingTables() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
+      assertEquals(
+          0,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM pg_class WHERE relnamespace = 'investory'::regnamespace "
+                  + "AND relname LIKE 'accounting_%'"));
       assertEquals(
           1,
           MigrationTestDatabase.singleInt(
               statement,
-              "SELECT count(*) FROM investory.accounting_poc_profile "
-                  + "WHERE id = 1 AND has_uop"));
-      assertEquals(
-          8,
-          MigrationTestDatabase.singleInt(
-              statement,
-              "SELECT count(*) FROM investory.accounting_reference_month "
-                  + "WHERE tax_period >= DATE '2026-01-01' AND tax_period < DATE '2026-09-01'"));
-      assertEquals(
-          0,
-          MigrationTestDatabase.singleInt(
-              statement, "SELECT count(*) FROM investory.accounting_poc_invoice"));
-      assertEquals(
-          0,
-          MigrationTestDatabase.singleInt(
-              statement, "SELECT count(*) FROM investory.accounting_poc_expense_invoice"));
-      assertEquals(
-          0,
-          MigrationTestDatabase.singleInt(
-              statement, "SELECT count(*) FROM investory.accounting_poc_bank_transaction"));
-      assertEquals(
-          0,
-          MigrationTestDatabase.singleInt(
-              statement, "SELECT count(*) FROM investory.accounting_tmp_invoice"));
+              "SELECT count(*) FROM pg_class WHERE relnamespace = 'investory'::regnamespace "
+                  + "AND relname = 'ryczalt_invoice'"));
     }
   }
 
   @Test
-  void copiesReferenceObligationsIntoRyczaltOwnedTable() throws Exception {
+  void keepsReferenceTableEmptyUntilManualTestDataIsApplied() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
       assertEquals(
           0,
           MigrationTestDatabase.singleInt(
-              statement,
-              "SELECT count(*) FROM investory.accounting_reference_obligation source "
-                  + "WHERE NOT EXISTS (SELECT 1 FROM investory.ryczalt_obligation_reference target "
-                  + "WHERE target.id = source.id "
-                  + "AND target.profile_id = source.profile_id "
-                  + "AND target.tax_period = source.tax_period "
-                  + "AND target.obligation_type = source.obligation_type "
-                  + "AND target.due_date IS NOT DISTINCT FROM source.due_date "
-                  + "AND target.paid_amount IS NOT DISTINCT FROM source.paid_amount "
-                  + "AND target.payment_date IS NOT DISTINCT FROM source.payment_date "
-                  + "AND target.status = source.status "
-                  + "AND target.note IS NOT DISTINCT FROM source.note)"));
+              statement, "SELECT count(*) FROM investory.ryczalt_obligation_reference"));
     }
   }
 

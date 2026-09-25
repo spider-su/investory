@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 
@@ -93,7 +94,7 @@ class PortfolioScenariosTest {
   void multiCurrencyScenarioUsesExplicitDeterministicFx() {
     PortfolioTestContext context = PortfolioScenarios.createMultiCurrencyScenario();
 
-    assertEquals(1.10, context.fxRates().eurUsd().getRate());
+    assertEquals(0, context.fxRates().eurUsd().getRate().compareTo(new BigDecimal("1.10")));
     assertEquals(27_500.0, context.expected().multiCurrency().convertedUsdAmount(), 0.000001);
   }
 }

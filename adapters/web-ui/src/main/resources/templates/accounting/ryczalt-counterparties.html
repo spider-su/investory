@@ -1,1 +1,0 @@
-<!doctype html><html xmlns:th="http://www.thymeleaf.org"><body><main data-testid="accounting-counterparties-page"><h1>Counterparties</h1><ul><li th:each="item : ${counterparties}"><a th:href="@{/profiles/{profileId}/accounting/counterparties/{id}(profileId=${profileId},id=${item.id})}" th:text="${item.displayName}"></a></li></ul></main></body></html>

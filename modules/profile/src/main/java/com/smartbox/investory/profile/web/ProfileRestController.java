@@ -1,6 +1,7 @@
 package com.smartbox.investory.profile.web;
 
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
+import com.smartbox.investory.profile.api.contract.ProfileResponse;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

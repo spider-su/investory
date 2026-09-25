@@ -26,8 +26,8 @@ files → import (cash_operations, positions, assets, import_history)
 - **Synthetic golden set** — small, deterministic, versioned test resource covering edge
   cases: cross-account currency conversion, cash-only account, `RESULT_ONLY` CFD,
   dividend + withholding tax, inception deposit, multi-file period boundary. Used in CI.
-- **Real fixture set** — the actual XTB zips + IBKR CSVs in `src/main/resources`, used for
-  staging reconciliation against the local DB.
+- **Staging fixture set** — broker-shaped XTB zips + IBKR CSVs in `src/main/resources`, used for
+  reconciliation against a configured local database.
 - **Expected-values manifest** — the source files themselves are the oracle for C0/C1;
   higher checkpoints assert invariants derived from lower ones.
 
@@ -85,9 +85,9 @@ Run:
 
 ```powershell
 $cp = (Get-Content target\cp.txt)   # from: mvn dependency:build-classpath -Dmdep.outputFile=target\cp.txt
-$jar = "C:\Users\alex\.m2\repository\org\postgresql\postgresql\42.7.11\postgresql-42.7.11.jar"
-$url = "jdbc:postgresql://192.168.1.60:5432/inventory?currentSchema=investory"
-java -cp "tools;$cp;$jar" ReconRunner "src\main\resources" $url postgres postgres
+$jar = "<path-to-postgresql-driver-jar>"
+$url = "<jdbc-url-for-a-configured-local-database>"
+java -cp "tools;$cp;$jar" ReconRunner "src\main\resources" $url $dbUser $dbPassword
 ```
 
 ### C0 — completeness
@@ -115,7 +115,7 @@ java -cp "tools;$cp;$jar" ReconRunner "src\main\resources" $url postgres postgre
 - **C0: PASS** — all 6 source files `COMPLETED`, `rows_failed = 0`
   (XTB zips 19151 / 9361 / 3201 / 2090 rows applied; IBKR CSVs 178 / 128).
 - **C1: PASS** — all 10 XTB accounts reconcile exactly on rows, `sum(amount)`, and
-  `max(date)`; IBKR account 17959259 `SKIP(non-XTB)`.
+  `max(date)`; IBKR account 90000001 `SKIP(non-XTB)`.
 
 ### Known gaps / next
 - **IBKR C1** not implemented yet: the IBKR importer expands one CSV transaction into
@@ -175,5 +175,4 @@ After the fix, all four surfaces agree exactly (local DB, base currency):
   `investory.account_daily_id_seq`, so `recalculateAll()` failed on insert. A fresh
   recreate from the current migrations creates the sequence; it was added live here to
   unblock testing.
-
 

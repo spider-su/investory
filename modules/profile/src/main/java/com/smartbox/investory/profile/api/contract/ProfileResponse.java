@@ -1,4 +1,4 @@
-package com.smartbox.investory.profile.web;
+package com.smartbox.investory.profile.api.contract;
 
 import com.smartbox.investory.profile.api.model.ProfileAllocation;
 import com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation;

@@ -67,7 +67,7 @@ class XtbPositionCurrencyResolverTest {
       double openRate,
       double closeRate) {
     PositionEntity position = new PositionEntity();
-    position.setAccount(51729109L);
+    position.setAccount(90000007L);
     position.setSymbol("NCLR.UK");
     position.setSourcePositionId("123");
     position.setVolume(java.math.BigDecimal.valueOf(volume));

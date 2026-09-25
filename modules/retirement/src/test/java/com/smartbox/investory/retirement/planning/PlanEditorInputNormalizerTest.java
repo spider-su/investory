@@ -30,7 +30,8 @@ class PlanEditorInputNormalizerTest {
   private final PlanEditorInputNormalizer normalizer =
       new PlanEditorInputNormalizer(
           new PlanningCurrencyPresentationService(
-              org.mockito.Mockito.mock(CurrencyConversion.class), clock),
+              new PlanningMoneyConversionService(
+                  org.mockito.Mockito.mock(CurrencyConversion.class), clock)),
           clock);
   private final SimulationAssumptions base = SimulationAssumptions.defaults(40, 95, 2026);
 

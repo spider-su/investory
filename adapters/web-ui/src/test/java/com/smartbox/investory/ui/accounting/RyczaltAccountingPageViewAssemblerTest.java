@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class RyczaltAccountingPageControllerTest {
+class RyczaltAccountingPageViewAssemblerTest {
   @Test
   void bankRowsUseCounterpartyAliasAndShowWholeAmountAndAllocationStatus() {
     var counterparties =
@@ -26,7 +26,7 @@ class RyczaltAccountingPageControllerTest {
                 "Invoice payment",
                 new BigDecimal("50.00")));
 
-    var rows = RyczaltAccountingPageController.bankTransactionRows(counterparties, transactions);
+    var rows = RyczaltAccountingPageViewAssembler.bankTransactionRows(counterparties, transactions);
 
     assertEquals(1, rows.size());
     assertEquals("Zabka", rows.getFirst().counterparty());
@@ -49,7 +49,7 @@ class RyczaltAccountingPageControllerTest {
                 null,
                 BigDecimal.ZERO));
 
-    var rows = RyczaltAccountingPageController.bankTransactionRows(List.of(), transactions);
+    var rows = RyczaltAccountingPageViewAssembler.bankTransactionRows(List.of(), transactions);
 
     assertEquals("Unlisted Client", rows.getFirst().counterparty());
     assertEquals("125", rows.getFirst().amount());
@@ -65,41 +65,15 @@ class RyczaltAccountingPageControllerTest {
     var nextPayment = transaction(4, LocalDate.of(2026, 3, 4), new BigDecimal("-75.00"));
 
     var result =
-        RyczaltAccountingPageController.bankTransactionsForDisplay(
+        RyczaltAccountingPageViewAssembler.bankTransactionsForDisplay(
             List.of(currentIncome, currentPayment), List.of(nextIncome, nextPayment));
 
     assertEquals(List.of(currentIncome, nextPayment), result);
-  }
-
-  @Test
-  void counterpartyBillTotalSumsGrossAmountsExactly() {
-    var bills = List.of(invoice(1, new BigDecimal("100.10")), invoice(2, new BigDecimal("23.45")));
-
-    assertEquals(
-        new BigDecimal("123.55"), RyczaltAccountingPageController.counterpartyInvoiceTotal(bills));
   }
 
   private static RyczaltWebAccountingClient.Transaction transaction(
       long id, LocalDate date, BigDecimal amount) {
     return new RyczaltWebAccountingClient.Transaction(
         id, date, amount, "PLN", "BANK-" + id, "Counterparty", null, BigDecimal.ZERO);
-  }
-
-  private static RyczaltWebAccountingClient.Invoice invoice(long id, BigDecimal grossAmount) {
-    return new RyczaltWebAccountingClient.Invoice(
-        id,
-        "COST",
-        "FV/" + id,
-        LocalDate.of(2026, 9, 1),
-        LocalDate.of(2026, 9, 1),
-        grossAmount,
-        BigDecimal.ZERO,
-        grossAmount,
-        "PLN",
-        "APPROVED",
-        null,
-        "REQUIRED",
-        "UNMATCHED",
-        "Supplier");
   }
 }

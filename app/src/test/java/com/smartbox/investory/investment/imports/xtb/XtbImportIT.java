@@ -41,7 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 @DisplayName("Xtb Import")
 class XtbImportIT extends FastDatabaseTest {
 
-  private static final long ACCOUNT_ID = 51729109L;
+  private static final long ACCOUNT_ID = 90000007L;
   @Autowired private AssetRepository assetRepository;
   @Autowired private CashOperationRepository cashOperationRepository;
   @Autowired private PositionRepository closedPositionRepository;
@@ -63,7 +63,7 @@ class XtbImportIT extends FastDatabaseTest {
         result =
             xtbImportService.importWorkbook(
                 new ByteArrayInputStream(workbookBytes()),
-                "IKE_51729109_2025-12-31_2026-07-31.xlsx");
+                "IKE_90000007_2025-12-31_2026-07-31.xlsx");
       }
     } finally {
       TimeZone.setDefault(originalTimeZone);
@@ -136,7 +136,7 @@ class XtbImportIT extends FastDatabaseTest {
       result =
           xtbImportService.importWorkbook(
               new ByteArrayInputStream(cashOnlyPlaceholderWorkbookBytes()),
-              "PLN_50290466_2025-12-31_2026-07-31.xlsx");
+              "PLN_90000008_2025-12-31_2026-07-31.xlsx");
     }
 
     assertEquals(1, result.rowsTotal());
@@ -144,7 +144,7 @@ class XtbImportIT extends FastDatabaseTest {
     assertEquals(0, result.rowsFailed());
 
     CashOperationEntity deposit =
-        cashOperationRepository.findAllByAccount(50290466L).stream()
+        cashOperationRepository.findAllByAccount(90000008L).stream()
             .filter(operation -> operation.getId() == 99101L)
             .findFirst()
             .orElseThrow();
@@ -245,7 +245,7 @@ class XtbImportIT extends FastDatabaseTest {
 
       XSSFSheet cash = workbook.createSheet("Cash Operations");
       cash.createRow(0).createCell(0).setCellValue("AccountEntity number");
-      cash.getRow(0).createCell(1).setCellValue("50290466");
+      cash.getRow(0).createCell(1).setCellValue("90000008");
       String[] cashHeaders = {
         "Type",
         "Instrument",
@@ -274,7 +274,7 @@ class XtbImportIT extends FastDatabaseTest {
 
       XSSFSheet closed = workbook.createSheet("Closed Positions");
       closed.createRow(0).createCell(0).setCellValue("AccountEntity");
-      closed.getRow(0).createCell(1).setCellValue("50290466");
+      closed.getRow(0).createCell(1).setCellValue("90000008");
       writeHeader(
           closed.createRow(1),
           new String[] {"Ticker", "Type", "Volume", "Open Time (UTC)", "Close Time (UTC)"});

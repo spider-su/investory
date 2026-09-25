@@ -22,10 +22,10 @@ class HappyInvestorSchemaCanonicalTest {
 
     List<String> canonicalAccounts =
         List.of(
-            "(2017959259, '17959259', 'USD', 'IBKR', 'IBKR USD investment account', 'Happy Investor', 2, false)",
-            "(2051499241, '51499241', 'USD', 'XTB', 'XTB USD investment account', 'Happy Investor', 2, false)",
-            "(2051551301, '51551301', 'PLN', 'XTB', 'XTB PLN investment account', 'Happy Investor', 2, false)",
-            "(2051548444, '51548444', 'EUR', 'XTB', 'XTB EUR cash-only account', 'Happy Investor', 2, true)");
+            "(91000001, '90000001', 'USD', 'IBKR', 'IBKR USD investment account', 'Happy Investor', 2, false)",
+            "(91000002, '90000002', 'USD', 'XTB', 'XTB USD investment account', 'Happy Investor', 2, false)",
+            "(91000003, '90000003', 'PLN', 'XTB', 'XTB PLN investment account', 'Happy Investor', 2, false)",
+            "(91000004, '90000009', 'EUR', 'XTB', 'XTB EUR cash-only account', 'Happy Investor', 2, true)");
     canonicalAccounts.forEach(account -> assertTrue(common.contains(account), account));
     assertTrue(common.contains("base_currency = EXCLUDED.base_currency"));
     assertTrue(common.contains("VALUES (2, 'Happy Investor Portfolio', 'PLN', 'PLN'"));
@@ -45,16 +45,16 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(snapshot.contains("1\t9501\tRENT\t3200.000000000000\tMONTHLY\tf"));
     assertTrue(snapshot.contains("3\t9503\tRENT\t3000.000000000000\tMONTHLY\tf"));
     assertTrue(snapshot.contains("Annual rental-tax base"));
-    assertTrue(snapshot.contains("7001\t2017959259\tDEPOSIT"));
-    assertTrue(snapshot.contains("7101\t2017959259\t1\tAAPL.US"));
-    assertTrue(snapshot.contains("7106\t2051499241\t1001\tTSLA.US"));
-    assertTrue(snapshot.contains("7103\t2017959259\t1151\tVWRA.UK"));
-    assertTrue(snapshot.contains("7105\t2051499241\t651\tNVDA.US"));
-    assertTrue(snapshot.contains("7107\t2051551301\t251\tGOOGL.US"));
+    assertTrue(snapshot.contains("7001\t91000001\tDEPOSIT"));
+    assertTrue(snapshot.contains("7101\t91000001\t1\tAAPL.US"));
+    assertTrue(snapshot.contains("7106\t91000002\t1001\tTSLA.US"));
+    assertTrue(snapshot.contains("7103\t91000001\t1151\tVWRA.UK"));
+    assertTrue(snapshot.contains("7105\t91000002\t651\tNVDA.US"));
+    assertTrue(snapshot.contains("7107\t91000003\t251\tGOOGL.US"));
     // Broker positions must stay in lockstep with HappyInvestorScenario: MSFT is an open IBKR
     // holding and NATGAS is the closed RESULT_ONLY CFD lot on the XTB USD account.
-    assertTrue(snapshot.contains("7108\t2017959259\t451\tMSFT.US\tMSFT"));
-    assertTrue(snapshot.contains("7110\t2051499241\t501\tNATGAS\tNATGAS"));
+    assertTrue(snapshot.contains("7108\t91000001\t451\tMSFT.US\tMSFT"));
+    assertTrue(snapshot.contains("7110\t91000002\t501\tNATGAS\tNATGAS"));
     assertTrue(snapshot.contains("BUY\tRESULT_ONLY\t0.01000000"));
     assertTrue(snapshot.contains("9405\t2\tTreasury 2026\tPLN\t10000.000000000000"));
     assertTrue(snapshot.contains("9406\t2\tTerm cash reserve\tPLN\t25000.000000000000"));
@@ -74,10 +74,10 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(common.contains("'CASH,BONDS,STOCKS', 2, 0.05, 0.25, true"));
     assertTrue(common.contains("0.035, 0.07, 67, 24000, 0.19"));
     assertTrue(common.contains("2025, 50000, 159307.015664, 970000, 74400, 74400, 1"));
-    assertTrue(broker.contains("(7108, 2017959259, 451, 'MSFT.US', 'MSFT', 'BUY', 'CASH_SETTLED'"));
-    assertTrue(broker.contains("(7110, 2051499241, 501, 'NATGAS', 'NATGAS', 'BUY', 'RESULT_ONLY'"));
-    assertTrue(broker.contains("(7111, 2017959259, 1201, 'US91282CKB62'"));
-    assertTrue(broker.contains("(7112, 2017959259, 1251, 'US91282CRC72'"));
+    assertTrue(broker.contains("(7108, 91000001, 451, 'MSFT.US', 'MSFT', 'BUY', 'CASH_SETTLED'"));
+    assertTrue(broker.contains("(7110, 91000002, 501, 'NATGAS', 'NATGAS', 'BUY', 'RESULT_ONLY'"));
+    assertTrue(broker.contains("(7111, 91000001, 1201, 'US91282CKB62'"));
+    assertTrue(broker.contains("(7112, 91000001, 1251, 'US91282CRC72'"));
     assertTrue(broker.contains("'HAPPYINVESTOR_FIXTURE', 'US91282CKB62'"));
     assertTrue(broker.contains("'FIXTURE_PERCENT_OF_PAR'"));
     assertTrue(!broker.contains("'AMZN.US'"), "AMZN must not be a seeded HappyInvestor position");
