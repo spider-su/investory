@@ -162,10 +162,6 @@ final class SimulationRequestMapper {
     return percent == null ? fallback : percent.movePointLeft(2);
   }
 
-  static BigDecimal percentInputToRate(BigDecimal percent, BigDecimal fallback) {
-    return rate(percent, fallback);
-  }
-
   record SavePlanForm(
       int currentAge,
       Integer ageAtPlanStart,
