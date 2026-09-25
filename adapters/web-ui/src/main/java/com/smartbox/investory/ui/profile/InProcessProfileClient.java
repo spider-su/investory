@@ -1,7 +1,7 @@
 package com.smartbox.investory.ui.profile;
 
+import com.smartbox.investory.profile.api.contract.ProfileResponse;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
-import com.smartbox.investory.profile.web.ProfileResponse;
 import com.smartbox.investory.profile.web.ProfileRestController;
 import org.springframework.stereotype.Component;
 
