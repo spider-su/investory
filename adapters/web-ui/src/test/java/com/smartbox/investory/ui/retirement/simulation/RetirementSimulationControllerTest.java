@@ -13,6 +13,7 @@ import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.analysis.RetirementAgeAnalysisService;
 import com.smartbox.investory.retirement.analysis.SimulationSensitivityAnalysisService;
 import com.smartbox.investory.retirement.analysis.SustainableSpendingAnalysisService;
+import com.smartbox.investory.retirement.api.RetirementPresentationApi;
 import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanUpdateRequest;
 import com.smartbox.investory.retirement.api.contract.RetirementProjectionContracts;
 import com.smartbox.investory.retirement.api.contract.RetirementTimelineContracts;
@@ -101,6 +102,7 @@ class RetirementSimulationControllerTest {
                 profiles,
                 plans,
                 planEditorPreview,
+                mock(RetirementPresentationApi.class),
                 Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)),
             false);
     lenient()
