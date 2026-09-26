@@ -27,14 +27,16 @@ class BearerTokenAuthenticationFilterTest {
     UserDetailsService users = username -> user;
     var filter = new BearerTokenAuthenticationFilter(tokens, users, "investory_web_session");
     var request = new MockHttpServletRequest();
-    request.setCookies(new jakarta.servlet.http.Cookie("investory_web_session", tokens.issue(user)));
+    request.setCookies(
+        new jakarta.servlet.http.Cookie("investory_web_session", tokens.issue(user)));
     var response = new MockHttpServletResponse();
     FilterChain chain = mock(FilterChain.class);
 
     filter.doFilter(request, response, chain);
 
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
-    assertThat(SecurityContextHolder.getContext().getAuthentication().getName()).isEqualTo("web-user");
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getName())
+        .isEqualTo("web-user");
     verify(chain).doFilter(request, response);
   }
 }

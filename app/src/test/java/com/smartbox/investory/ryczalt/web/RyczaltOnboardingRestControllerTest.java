@@ -13,11 +13,11 @@ import com.smartbox.investory.integrations.management.api.IntegrationSettingsApi
 import com.smartbox.investory.ryczalt.application.onboarding.RyczaltOnboardingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 class RyczaltOnboardingRestControllerTest {
   private final RyczaltOnboardingService onboarding = mock(RyczaltOnboardingService.class);
@@ -30,7 +30,10 @@ class RyczaltOnboardingRestControllerTest {
   void setUp() {
     when(authorization.canRead(7L, authentication)).thenReturn(true);
     when(authorization.canWrite(7L, authentication)).thenReturn(true);
-    mvc = MockMvcBuilders.standaloneSetup(new RyczaltOnboardingRestController(onboarding, authorization, integrations)).build();
+    mvc =
+        MockMvcBuilders.standaloneSetup(
+                new RyczaltOnboardingRestController(onboarding, authorization, integrations))
+            .build();
   }
 
   @Test
@@ -61,5 +64,4 @@ class RyczaltOnboardingRestControllerTest {
         .andExpect(status().isOk());
     verify(onboarding).skipKsef(7L);
   }
-
 }

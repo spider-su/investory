@@ -8,7 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.smartbox.investory.config.AuthorizationService;
 import com.smartbox.investory.ryczalt.application.onboarding.RyczaltReadinessService;
-import java.time.YearMonth;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
@@ -25,7 +24,10 @@ class RyczaltAccountingReadinessRestControllerTest {
   void setUp() {
     when(authorization.canRead(7L, authentication)).thenReturn(true);
     when(authorization.canWrite(7L, authentication)).thenReturn(true);
-    mvc = MockMvcBuilders.standaloneSetup(new RyczaltAccountingReadinessRestController(authorization, readiness)).build();
+    mvc =
+        MockMvcBuilders.standaloneSetup(
+                new RyczaltAccountingReadinessRestController(authorization, readiness))
+            .build();
   }
 
   @Test
@@ -37,8 +39,11 @@ class RyczaltAccountingReadinessRestControllerTest {
 
   @Test
   void rejectsUnsupportedActivityConfirmation() throws Exception {
-    mvc.perform(post("/api/profiles/7/accounting/periods/2026-09/activity-confirmation")
-            .principal(authentication).contentType("application/json").content("{\"type\":\"NO_COSTS\"}"))
+    mvc.perform(
+            post("/api/profiles/7/accounting/periods/2026-09/activity-confirmation")
+                .principal(authentication)
+                .contentType("application/json")
+                .content("{\"type\":\"NO_COSTS\"}"))
         .andExpect(status().isBadRequest());
   }
 }

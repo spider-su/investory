@@ -2,21 +2,21 @@ package com.smartbox.investory.user.web;
 
 import com.smartbox.investory.config.TokenAuthenticationService;
 import com.smartbox.investory.user.application.CurrentProfileService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.PostMapping;
-import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -66,7 +66,8 @@ public class AuthRestController {
 
   @PostMapping("/logout")
   public void logout(HttpServletResponse response) {
-    response.addHeader(HttpHeaders.SET_COOKIE, sessionCookie("", java.time.Duration.ZERO).toString());
+    response.addHeader(
+        HttpHeaders.SET_COOKIE, sessionCookie("", java.time.Duration.ZERO).toString());
   }
 
   private ResponseCookie sessionCookie(String value, java.time.Duration maxAge) {

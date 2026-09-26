@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpStatusCode;
@@ -23,14 +24,15 @@ public class VatWhiteListCompanyLookupClient implements CompanyLookupProvider {
   private final RestClient client;
   private final ObjectMapper mapper;
 
-  public VatWhiteListCompanyLookupClient(Properties properties, ObjectMapper mapper) {
+  public VatWhiteListCompanyLookupClient(
+      Properties properties, ObjectProvider<ObjectMapper> mapper) {
     var requestFactory =
         new JdkClientHttpRequestFactory(
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build());
     requestFactory.setReadTimeout(Duration.ofSeconds(8));
     this.client =
         RestClient.builder().baseUrl(properties.baseUrl()).requestFactory(requestFactory).build();
-    this.mapper = mapper;
+    this.mapper = mapper.getIfAvailable(ObjectMapper::new);
   }
 
   @Override
