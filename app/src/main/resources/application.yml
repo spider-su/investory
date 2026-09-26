@@ -184,6 +184,12 @@ app:
     nip: ${INVESTORY_KSEF_NIP:}
     token: ${INVESTORY_KSEF_TOKEN:change-me-ksef-token}
   ryczalt:
+    company-lookup:
+      gus:
+        base-url: ${GUS_BIR_URL:https://wyszukiwarkaregont.stat.gov.pl/wsBIR/UslugaBIRzewnPubl.svc}
+        api-key: ${GUS_BIR_API_KEY:}
+      vat-white-list:
+        base-url: ${VAT_WHITE_LIST_URL:https://wl-api.mf.gov.pl}
     ksef:
       sync:
         enabled: ${RYCZALT_KSEF_SYNC_ENABLED:false}
