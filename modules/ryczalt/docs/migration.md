@@ -1,7 +1,7 @@
 # Migration notes
 
-The replacement is staged so the existing `modules/accounting` implementation stays functional
-and remains the reference/oracle during migration.
+This document is historical migration evidence. The native Ryczalt runtime is active; the former
+Accounting implementation is not a Maven reactor dependency or a runtime source of truth.
 
 | Stage | Scope | Status |
 | --- | --- | --- |
@@ -10,13 +10,13 @@ and remains the reference/oracle during migration.
 | 3 | new persistence + migration | DONE |
 | 4 | systematic parity/corrections/lifecycle | DONE |
 | 5 | checkers/payment lifecycle | DONE |
-| 6 | native integrations | IN PROGRESS |
-| 7 | API/application cutover bridge | IN PROGRESS |
-| 8 | remove Accounting | future |
+| 6 | native integrations | COMPLETE for the currently supported adapters |
+| 7 | API/application cutover bridge | COMPLETE |
+| 8 | remove retained historical Accounting data | FUTURE database cleanup |
 
-The one-way legacy import utility and old aggregate persistence adapter have been removed. Native
-query services read only `ryczalt_*` tables. The old `accounting` module and historical tables
-remain only for planned cleanup.
+The one-way legacy import utility, old aggregate persistence adapter, and runtime bridge have been
+removed. Native query services read only `ryczalt_*` tables. Historical Accounting tables and
+reference artifacts remain only for planned retention/database cleanup.
 
 The authoritative historical calculation source is
 `accounting_calculation_snapshot.payload`, not `accounting_poc_obligation` or a newly executed
@@ -41,11 +41,11 @@ February example. The complete operational story is owned by
 `test-support/.../happyinvestor/ryczalt`; this verifies selected values without creating a
 production dependency on `accounting` or `test-support`.
 
-Stage 4 keeps the importer and old accounting module independent. `ParityReport` and
+Stage 4 kept the importer and old accounting module independent. `ParityReport` and
 `ParityDifference` provide the diagnostic result contract for comparing revenue/cost, booked PLN,
 rate buckets, deductions, tax, VAT, ZUS, and obligations across certified periods. The repository-
-wide old-versus-new execution is currently blocked by the pre-existing accounting compilation error
-documented in the handoff; no parity result is reported as green until that path runs.
+wide old-versus-new execution was migration-era evidence; it is not part of the active runtime
+validation path.
 
 Stage 4 limitations and explicit non-goals:
 
@@ -56,7 +56,7 @@ Stage 4 limitations and explicit non-goals:
 - the implemented ZUS and statutory rules are the explicit 2026 POC scenarios, not a general
   future-year rule engine.
 
-Stage 5 adds settlement only over canonical persisted obligations and transactions. Native NBP
+Stage 5 added settlement only over canonical persisted obligations and transactions. Native NBP
 historical FX acquisition is now available through `FxRateSourcePort` and `RyczaltFxRateService`.
 Bank, eZUS, KSeF, filing, and external verification integrations remain incomplete.
 

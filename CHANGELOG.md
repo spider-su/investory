@@ -2,6 +2,32 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-09-26
+
+### Safe profile cleanup
+
+- Removed the unused `EmploymentContext` / `EmploymentContextResolver` production slice and its
+  test; it had no runtime caller or Spring registration.
+- Retained `EmploymentPeriod` and `EmploymentType` because the application employment REST API
+  still uses them.
+- Removed the stale profile-module documentation that described the deleted resolver.
+- No runtime behavior or public employment API contract changed.
+
+### Module documentation alignment
+
+- Added module READMEs for Shared, Investment, Retirement, App, and Test Support.
+- Linked existing module READMEs to their maintainer KT pages and canonical domain or architecture
+  contracts.
+- Documented the executable composition boundary, test-support-only scope, and the active native
+  Ryczalt boundary.
+
+### Technical documentation alignment
+
+- Corrected the Maven reactor graph and removed stale claims about an active `accounting` module.
+- Reclassified the ZUS DRA document as an unimplemented design note because its referenced runtime
+  classes and fixture are not present.
+- Added agent-routing guidance and documented the tracked `.codex` configuration/skill boundaries.
+
 ## 2026-09-07
 
 ### Long-Term module hardening

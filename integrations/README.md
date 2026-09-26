@@ -2,6 +2,9 @@
 
 This module owns external-system adapters and their runtime management. Package ownership is vertical:
 
+This README is the module boundary summary. Provider-specific operational details and contracts
+belong in the relevant integration documentation under [`docs/`](../docs/).
+
 - `management`: integration metadata, base plugin SPI, configuration, persistence, and scheduling;
 - `market`, `fx`, `export`, and `importing`: external provider/file adapters grouped by provider;
 - `ksef`: KSeF 2.0 e-invoicing authentication, invoice metadata query, and structured invoice download;

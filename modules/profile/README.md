@@ -2,6 +2,9 @@
 
 `profile` composes a read-only whole-wealth view from Investment and Long-Term facts.
 
+This README is the module boundary summary; the maintainer walkthrough is
+[`docs/kt/profile-module-quick-kt.md`](../../docs/kt/profile-module-quick-kt.md).
+
 ## Dependency direction
 
 ```text

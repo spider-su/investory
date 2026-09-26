@@ -18,6 +18,9 @@ source of truth.
 
 - [`kt/business-modules-quick-kt.md`](kt/business-modules-quick-kt.md): index of the business-module KT pages.
 
+Module boundary summaries live beside their code in `README.md` files. The executable, adapter, and
+test-only module summaries are linked from the KT index.
+
 ## Domain contracts
 
 These define intended financial semantics. A code mismatch should be investigated, not silently
@@ -71,6 +74,11 @@ resolved by changing the documentation.
   workflow for coding agents.
 - [`development/production.md`](development/production.md): production configuration, startup,
   migrations, release verification, restart/recovery, and deployment boundaries.
+
+## Agent tooling
+
+- [`../.codex/README.md`](../.codex/README.md): repository-local Codex configuration and UI-skill
+  rules. Generated environment files are not edited manually.
 
 ## Quality
 
