@@ -40,6 +40,9 @@ Important rules:
 - Reopening is explicit and requires a reason. Corrections invalidate affected calculations.
 - Missing or stale FX must fail the affected calculation; never silently treat an unconverted amount
   as PLN.
+- PIT-28 is a narrow annual Web preview over Investory-managed JDG invoices only. It consumes
+  persisted `bookedNetPln`, supports one annual Ryczalt rate and PLN/EUR/USD source currencies, and
+  blocks incomplete or unsupported facts.
 - A counterparty rule match is exact and deterministic. No match or multiple matches means
   `NEEDS_REVIEW`.
 - Obligation due dates are calculated in the native Java application boundary. `RYCZALT` and `ZUS`
@@ -84,6 +87,7 @@ Core Ryczalt tables:
 | `ryczalt_counterparty` | Profile-owned legal counterparties. |
 | `ryczalt_counterparty_rule` | Counterparty-specific accounting and payment rules. |
 | `ryczalt_invoice_candidate` | Uploaded/recognized invoice candidate before approval. |
+| `ryczalt_profile` | Native taxpayer identity and payment configuration for annual previews and exports. |
 
 The first Ryczalt persistence migration is `V01.026__ryczalt_persistence.sql`. Later migrations add
 lifecycle history, payment matching, source identity, counterparties, candidate state, and approval
@@ -154,7 +158,7 @@ Ryczalt REST controllers and calls them directly, preserving REST request/respon
 loopback HTTP call. This is the current migration pattern. Do not add a direct Web dependency on
 Ryczalt repositories or application services.
 
-The MVC controller should remain thin: read a Web contract, populate the model, select a template, and send commands through the client. Upload, KSeF, bank import, and lifecycle commands are native; filing/JPK remains outside the current scope.
+The MVC controller should remain thin: read a Web contract, populate the model, select a template, and send commands through the client. Upload, KSeF, bank import, lifecycle commands, and the JPK download are native; JPK remains a read-only projection and is not submitted externally.
 
 ## 6. Review points and current answers
 
@@ -201,7 +205,7 @@ The MVC controller should remain thin: read a Web contract, populate the model, 
 
 - Native CSV bank import, KSeF sync, invoice recognition, month input settings, and calculation
   commands persist canonical Ryczalt facts.
-- The old `/accounting` compatibility routes and bridge have been removed. Native bank and KSeF commands are exposed through dedicated native REST controllers. Third-party KSeF evidence and JPK/filing remain outside the native module.
+- The old `/accounting` compatibility routes and bridge have been removed. Native bank and KSeF commands are exposed through dedicated native REST controllers. Third-party KSeF evidence and external JPK filing/submission remain outside the native module; native JPK XML download is supported.
 - The native invoice upload flow is candidate-based and purchase-oriented. Web upload creates a
   candidate, then a review form approves it or leaves it in `NEEDS_REVIEW`; source amounts and dates
   remain server-owned. `rememberRule` must be explicitly selected.
@@ -236,7 +240,8 @@ The MVC controller should remain thin: read a Web contract, populate the model, 
 | KSeF acquisition | Native sync control for sales and purchases; no filing/submission |
 | Bank transaction import | Native CSV import control; no bank provider connection |
 | External ZUS/eZUS verification | Not supported |
-| Filing/JPK submission | Not supported |
+| JPK XML download | Native read-only `GET /api/profiles/{profileId}/accounting/periods/{month}/jpk`; submission not supported |
+| ZUS DRA XML download | Native unsigned draft `GET /api/profiles/{profileId}/accounting/periods/{month}/zus-dra`; signing/submission not supported |
 
 ## 8. Tests, CI, and rollout
 

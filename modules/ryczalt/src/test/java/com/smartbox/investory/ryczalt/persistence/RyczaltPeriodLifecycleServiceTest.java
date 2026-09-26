@@ -6,7 +6,9 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.ryczalt.application.port.RyczaltAuditEventWriter;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
+import java.time.Clock;
 import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +31,8 @@ class RyczaltPeriodLifecycleServiceTest {
         .thenReturn(Optional.empty());
 
     var service =
-        new RyczaltPeriodLifecycleService(periods, calculations, obligations, auditEvents);
+        new RyczaltPeriodLifecycleService(
+            periods, calculations, obligations, auditEvents, Clock.system(ZoneOffset.UTC));
 
     assertThrows(
         IllegalStateException.class,

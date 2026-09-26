@@ -22,6 +22,8 @@ public record InvoiceResponse(
     String ryczaltRate,
     String deductibleVat,
     String classification,
+    String vatTreatment,
+    String vatDeductionRatio,
     CounterpartyView counterparty,
     ApprovalStatus approvalStatus,
     ApprovalMethod approvalMethod,

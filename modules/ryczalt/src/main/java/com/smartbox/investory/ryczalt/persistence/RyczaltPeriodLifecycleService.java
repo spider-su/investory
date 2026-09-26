@@ -4,6 +4,7 @@ import com.smartbox.investory.ryczalt.application.port.RyczaltAuditEventWriter;
 import com.smartbox.investory.ryczalt.calculation.CalculationInvalidationPolicy;
 import com.smartbox.investory.ryczalt.calculation.InputChange;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.util.Set;
@@ -17,16 +18,19 @@ public class RyczaltPeriodLifecycleService {
   private final RyczaltCalculationJpaRepository calculations;
   private final RyczaltObligationJpaRepository obligations;
   private final RyczaltAuditEventWriter auditEvents;
+  private final Clock clock;
 
   public RyczaltPeriodLifecycleService(
       RyczaltPeriodJpaRepository periods,
       RyczaltCalculationJpaRepository calculations,
       RyczaltObligationJpaRepository obligations,
-      RyczaltAuditEventWriter auditEvents) {
+      RyczaltAuditEventWriter auditEvents,
+      Clock clock) {
     this.periods = periods;
     this.calculations = calculations;
     this.obligations = obligations;
     this.auditEvents = auditEvents;
+    this.clock = clock;
   }
 
   @Transactional
@@ -43,7 +47,7 @@ public class RyczaltPeriodLifecycleService {
       throw new IllegalStateException(
           "Period needs current calculations and settled obligations before freezing");
     }
-    period.markFrozen(Instant.now());
+    period.markFrozen(Instant.now(clock));
     periods.save(period);
     calculations
         .findByProfileIdAndPeriodIdAndCurrentTrue(profileId, period.id())
@@ -52,7 +56,7 @@ public class RyczaltPeriodLifecycleService {
               calculation.markFrozen();
               calculations.save(calculation);
             });
-    auditEvents.write(profileId, period.id(), "PERIOD_FROZEN", reason, actor, Instant.now());
+    auditEvents.write(profileId, period.id(), "PERIOD_FROZEN", reason, actor, Instant.now(clock));
   }
 
   @Transactional
@@ -60,9 +64,9 @@ public class RyczaltPeriodLifecycleService {
     requireReason(reason);
     RyczaltPeriodEntity period = findLocked(profileId, month);
     if (!period.getStatus().isFrozen()) throw new IllegalStateException("Period is not frozen");
-    period.markReopened(reason, Instant.now());
+    period.markReopened(reason, Instant.now(clock));
     periods.save(period);
-    auditEvents.write(profileId, period.id(), "PERIOD_REOPENED", reason, actor, Instant.now());
+    auditEvents.write(profileId, period.id(), "PERIOD_REOPENED", reason, actor, Instant.now(clock));
   }
 
   @Transactional
@@ -87,8 +91,55 @@ public class RyczaltPeriodLifecycleService {
       period.markDirty();
       periods.save(period);
     }
+    if (affected.contains(CalculationType.VAT)) {
+      invalidateFollowingVat(profileId, month, actor);
+    }
     auditEvents.write(
-        profileId, period.id(), "CALCULATION_INVALIDATED", change.name(), actor, Instant.now());
+        profileId,
+        period.id(),
+        "CALCULATION_INVALIDATED",
+        change.name(),
+        actor,
+        Instant.now(clock));
+  }
+
+  private void invalidateFollowingVat(long profileId, YearMonth month, String actor) {
+    periods.findByProfileIdOrderByYearDescMonthDesc(profileId).stream()
+        .filter(candidate -> YearMonth.of(candidate.getYear(), candidate.getMonth()).isAfter(month))
+        .sorted(
+            (left, right) ->
+                YearMonth.of(left.getYear(), left.getMonth())
+                    .compareTo(YearMonth.of(right.getYear(), right.getMonth())))
+        .takeWhile(
+            candidate ->
+                !candidate.getStatus().isFrozen()
+                    && calculations
+                        .findByProfileIdAndPeriodIdAndTypeAndCurrentTrue(
+                            profileId, candidate.id(), CalculationType.VAT)
+                        .isPresent())
+        .forEach(
+            candidate -> {
+              if (candidate.getStatus().isFrozen()) return;
+              calculations
+                  .findByProfileIdAndPeriodIdAndTypeAndCurrentTrue(
+                      profileId, candidate.id(), CalculationType.VAT)
+                  .ifPresent(
+                      calculation -> {
+                        calculation.markStale();
+                        calculations.save(calculation);
+                      });
+              if (candidate.getStatus() != PeriodStatus.OPEN) {
+                candidate.markDirty();
+                periods.save(candidate);
+              }
+              auditEvents.write(
+                  profileId,
+                  candidate.id(),
+                  "CALCULATION_INVALIDATED",
+                  "VAT_CARRY_FORWARD",
+                  actor,
+                  Instant.now(clock));
+            });
   }
 
   private RyczaltPeriodEntity findLocked(long profileId, YearMonth month) {

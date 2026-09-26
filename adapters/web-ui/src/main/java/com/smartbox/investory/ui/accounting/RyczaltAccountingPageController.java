@@ -3,6 +3,7 @@ package com.smartbox.investory.ui.accounting;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.Year;
 import java.time.YearMonth;
 import java.util.List;
 import org.springframework.stereotype.Controller;
@@ -83,6 +84,12 @@ public class RyczaltAccountingPageController {
             LocalDate.now(clock));
 
     model.addAttribute("profileId", profileId);
+    model.addAttribute(
+        "jpkUrl", "/api/profiles/%d/accounting/periods/%s/jpk".formatted(profileId, selected));
+    model.addAttribute(
+        "zusDraUrl",
+        "/api/profiles/%d/accounting/periods/%s/zus-dra".formatted(profileId, selected));
+    model.addAttribute("pit28Url", "/profiles/%d/accounting/pit28".formatted(profileId));
     model.addAttribute("selectedMonth", page.selectedMonth());
     model.addAttribute("previousMonth", page.previousMonth());
     model.addAttribute("nextMonth", page.nextMonth());
@@ -103,5 +110,21 @@ public class RyczaltAccountingPageController {
     model.addAttribute("nextDueDate", page.nextDueDate());
     model.addAttribute("taxCards", page.taxCards());
     return "accounting/ryczalt";
+  }
+
+  @GetMapping("/pit28")
+  public String pit28(
+      @PathVariable long profileId,
+      @RequestParam(required = false) Integer year,
+      Model model,
+      HttpServletRequest request) {
+    int selectedYear = year == null ? Year.now(clock).getValue() : year;
+    model.addAttribute("profileId", profileId);
+    model.addAttribute("year", selectedYear);
+    model.addAttribute("previousYear", selectedYear - 1);
+    model.addAttribute("nextYear", selectedYear + 1);
+    model.addAttribute("pit28", client.pit28(profileId, selectedYear));
+    model.addAttribute("canWrite", RyczaltAccountingWebSupport.canWrite(request));
+    return "accounting/pit28";
   }
 }

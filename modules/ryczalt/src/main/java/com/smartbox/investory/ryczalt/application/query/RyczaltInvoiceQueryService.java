@@ -106,6 +106,8 @@ public class RyczaltInvoiceQueryService {
         row.getRyczaltRate(),
         row.getDeductibleVat(),
         row.getClassification(),
+        row.getVatTreatment(),
+        row.getVatDeductionRatio(),
         row.getCounterparty() == null
             ? null
             : new RyczaltInvoiceReadModel.CounterpartyView(

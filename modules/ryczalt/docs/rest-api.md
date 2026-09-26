@@ -19,8 +19,9 @@ Its API paths are defined in `src/api/accountingPaths.ts` and calls are made by
 | native counterparty and invoice-recognition routes | web target | native Ryczalt | dedicated Ryczalt controllers | stable native contract |
 | `POST .../periods/{month}/calculate` | web/API | no current mobile use | native Ryczalt | aggregates persisted facts and completes one month |
 | `POST .../bank/import` and `POST .../ksef/sync` | web/API | no current mobile use | native Ryczalt adapters | source acquisition is native; filing remains separate |
+| `GET .../periods/{month}/jpk` | web/API | no current mobile use | native Ryczalt JPK adapter | downloads a generated JPK_V7M(3) XML projection |
+| `GET .../periods/{month}/zus-dra` | web/API | no current mobile use | native Ryczalt ZUS adapter | downloads an unsigned ZUS DRA KEDU draft |
 | old `/api/v1` mobile and `/accounting/months` routes | removed | none in active native path | none | historical docs only |
-| filing, confirmation, and JPK commands | not exposed | no current native consumer | none | outside the current native accounting scope |
 
 The mobile client consumes monthly facts for revenue, Ryczałt/VAT/ZUS amounts, payment rows,
 issues, document rows, source/review/payment statuses, bank/reconciliation summaries, filing
@@ -61,6 +62,9 @@ POST /api/profiles/{profileId}/accounting/periods/{month}/reopen
 POST /api/profiles/{profileId}/accounting/periods/{month}/calculate
 POST /api/profiles/{profileId}/accounting/bank/import
 POST /api/profiles/{profileId}/accounting/ksef/sync
+GET  /api/profiles/{profileId}/accounting/periods/{month}/jpk
+GET  /api/profiles/{profileId}/accounting/periods/{month}/zus-dra
+GET  /api/profiles/{profileId}/accounting/pit28/{year}
 ```
 
 The top-level period response is a factual summary only:
@@ -80,9 +84,21 @@ the backend moves it to the next working day. Clients display the returned value
 tax deadlines locally. The current holiday policy includes Poland's fixed holidays and Easter,
 Easter Monday, Pentecost, and Corpus Christi.
 
-Detailed invoices, transactions, obligations, and issues are separate collections. No filing,
-KSeF transport, bank DTO, JPA entity, Thymeleaf model, or mobile screen model crosses this
-contract.
+Detailed invoices, transactions, obligations, and issues are separate collections. The JPK route
+returns an `application/xml` attachment named `JPK_V7M_{profileId}_{month}.xml`; it reads the
+completed native period and profile-owned taxpayer configuration. It does not submit to KSeF or
+the tax authority. KSeF transport, bank DTO, JPA entity, Thymeleaf model, or mobile screen model
+does not cross this contract.
+
+The ZUS DRA route returns an `application/xml` attachment named
+`ZUS_DRA_{profileId}_{month}.xml`. It is an unsigned native draft based on the completed period's
+ZUS amount and `ryczalt_profile` identity. It is not a signed submission, authority confirmation,
+or eZUS integration.
+
+The PIT-28 route returns a JSON draft preview. Version 1 supports only Investory-managed JDG
+invoices, one annual Ryczalt rate, PLN/EUR/USD source currencies, persisted booked PLN values,
+deductible contribution facts, and reconciled Ryczalt payments. It returns `READY`, `BLOCKED`, or
+`UNSUPPORTED`; it does not generate official PIT-28 XML or submit to e-Deklaracje.
 
 Amounts are decimal JSON strings, dates are ISO local dates, and public period lifecycle values are
 `OPEN` and `FROZEN`. Internal calculation and obligation states are separate. `allowedActions` contains
@@ -127,6 +143,8 @@ PUT    /api/profiles/{profileId}/accounting/counterparties/{id}/rules/{ruleId}
 DELETE /api/profiles/{profileId}/accounting/counterparties/{id}/rules/{ruleId}
 POST   /api/profiles/{profileId}/accounting/bank/import              multipart CSV
 POST   /api/profiles/{profileId}/accounting/ksef/sync                month and modes
+GET    /api/profiles/{profileId}/accounting/periods/{month}/jpk     JPK_V7M(3) XML download
+GET    /api/profiles/{profileId}/accounting/periods/{month}/zus-dra  unsigned ZUS DRA KEDU draft
 ```
 
 The native month-input settings endpoint is:
@@ -143,7 +161,8 @@ Upload stores source identity and a candidate, but never accepts client-provided
 dates as authoritative. Approval creates the canonical invoice only after the user supplies the
 required classification and counterparty decision. `rememberRule` is explicit. Bank CSV and KSeF
 sync are native acquisition controls; they persist only `ryczalt_*` facts and invalidate affected
-open-period calculations. They do not provide filing or external KSeF submission.
+open-period calculations. JPK and ZUS DRA are read-only projections of a complete native period;
+neither provides filing, signing, or external KSeF/eZUS submission.
 
 ## Migration policy
 

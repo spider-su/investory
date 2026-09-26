@@ -25,4 +25,36 @@ public record InvoiceSourceRecord(
     String counterpartyName,
     String counterpartyTaxId,
     BigDecimal ryczaltRate,
-    BigDecimal deductibleVat) {}
+    BigDecimal deductibleVat,
+    String counterpartyCountry) {
+  public InvoiceSourceRecord(
+      String sourceExternalId,
+      InvoiceDirection direction,
+      String reference,
+      LocalDate issueDate,
+      LocalDate accountingDate,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      String currency,
+      String counterpartyName,
+      String counterpartyTaxId,
+      BigDecimal ryczaltRate,
+      BigDecimal deductibleVat) {
+    this(
+        sourceExternalId,
+        direction,
+        reference,
+        issueDate,
+        accountingDate,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        currency,
+        counterpartyName,
+        counterpartyTaxId,
+        ryczaltRate,
+        deductibleVat,
+        "PL");
+  }
+}

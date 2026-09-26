@@ -9,6 +9,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodLifecycleService;
 import com.smartbox.investory.testsupport.WorkerDatabase;
+import java.time.Clock;
 import java.time.YearMonth;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -23,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -102,7 +104,12 @@ class RyczaltPeriodLifecycleConcurrencyIT {
     RyczaltPeriodLifecycleService.class,
     com.smartbox.investory.ryczalt.persistence.JdbcRyczaltAuditEventWriter.class
   })
-  static class TestConfiguration {}
+  static class TestConfiguration {
+    @Bean
+    Clock applicationClock() {
+      return Clock.systemUTC();
+    }
+  }
 
   @DynamicPropertySource
   static void databaseProperties(DynamicPropertyRegistry registry) {

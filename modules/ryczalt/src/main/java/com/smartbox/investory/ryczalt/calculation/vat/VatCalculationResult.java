@@ -9,4 +9,6 @@ public record VatCalculationResult(
     BigDecimal deductibleInputVat,
     BigDecimal explicitAdjustments,
     BigDecimal calculatedVat,
+    BigDecimal carryForwardInputVat,
+    BigDecimal excessVatCarryForward,
     String ruleVersion) {}

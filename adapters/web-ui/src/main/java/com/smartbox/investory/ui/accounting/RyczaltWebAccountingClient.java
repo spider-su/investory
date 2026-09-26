@@ -22,6 +22,8 @@ public interface RyczaltWebAccountingClient {
 
   List<Issue> issues(long profileId, YearMonth month);
 
+  Pit28Draft pit28(long profileId, int year);
+
   List<PaymentHistory> paymentHistory(long profileId, YearMonth from, YearMonth to, String type);
 
   List<Counterparty> counterparties(long profileId);
@@ -123,6 +125,7 @@ public interface RyczaltWebAccountingClient {
 
   record Invoice(
       long id,
+      long counterpartyId,
       String direction,
       String reference,
       LocalDate issueDate,
@@ -135,7 +138,46 @@ public interface RyczaltWebAccountingClient {
       String approvalMethod,
       String paymentVerificationPolicy,
       String paymentStatus,
-      String counterparty) {}
+      String counterparty,
+      String classification,
+      String vatTreatment,
+      String vatDeductionRatio) {
+    Invoice(
+        long id,
+        String direction,
+        String reference,
+        LocalDate issueDate,
+        LocalDate accountingDate,
+        BigDecimal netAmount,
+        BigDecimal vatAmount,
+        BigDecimal grossAmount,
+        String currency,
+        String approvalStatus,
+        String approvalMethod,
+        String paymentVerificationPolicy,
+        String paymentStatus,
+        String counterparty) {
+      this(
+          id,
+          0,
+          direction,
+          reference,
+          issueDate,
+          accountingDate,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          currency,
+          approvalStatus,
+          approvalMethod,
+          paymentVerificationPolicy,
+          paymentStatus,
+          counterparty,
+          null,
+          null,
+          null);
+    }
+  }
 
   record Transaction(
       long id,
@@ -244,4 +286,28 @@ public interface RyczaltWebAccountingClient {
       List<String> requiredInputs) {}
 
   record ImportResult(int received, int imported, int duplicates, int updated, int failed) {}
+
+  record Pit28Draft(
+      int year,
+      String status,
+      Pit28Revenue revenue,
+      Pit28Deductions deductions,
+      Pit28Tax tax,
+      Pit28Payments payments,
+      List<Pit28Issue> issues,
+      List<Pit28Monthly> monthlyReconciliation) {}
+
+  record Pit28Revenue(String totalPln, java.util.Map<String, String> byOriginalCurrency) {}
+
+  record Pit28Deductions(
+      String socialPaid, String deductibleSocial, String healthPaid, String deductibleHealth) {}
+
+  record Pit28Tax(String taxableRevenue, String ryczaltRate, String annualTax) {}
+
+  record Pit28Payments(String taxPaid, String amountDue, String overpayment) {}
+
+  record Pit28Issue(String code, String message, String reference) {}
+
+  record Pit28Monthly(
+      YearMonth month, String revenue, String monthlyTax, String taxPaid, String status) {}
 }

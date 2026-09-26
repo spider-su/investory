@@ -8,6 +8,9 @@
       <input type="hidden" name="month" th:value="${selectedMonth}">
       <button class="btn btn-primary" data-testid="ksef-sync-all" type="submit">Sync KSeF</button>
     </form>
+    <a class="btn btn-outline-primary" data-testid="accounting-jpk-download" th:href="${jpkUrl}">Download JPK</a>
+    <a class="btn btn-outline-primary" data-testid="accounting-zus-dra-download" th:href="${zusDraUrl}">Download ZUS DRA</a>
+    <a class="btn btn-outline-secondary" data-testid="accounting-pit28" th:href="${pit28Url}">Annual PIT-28</a>
     <form method="post" enctype="multipart/form-data" th:action="@{/profiles/{profileId}/accounting/bank/import(profileId=${profileId})}">
       <input type="hidden" name="month" th:value="${selectedMonth}">
       <input id="accounting-bank-file" class="accounting-bank-file-input" data-testid="accounting-bank-file" type="file" name="file" accept=".csv,text/csv" required onchange="this.form.requestSubmit()">

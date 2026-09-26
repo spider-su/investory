@@ -17,6 +17,6 @@ Canonical bank outflows may be stored as negative transaction amounts. Settlemen
 absolute payment value and persists a positive `matched_amount`; incoming transactions remain
 eligible only when explicit obligation evidence makes them a candidate.
 
-Obligations use `OPEN`, `PARTIALLY_PAID`, `PAID`, `OVERPAID`, and transitional `FROZEN`. Due-date payment is reported as `PAID`; payment after the due date is `PAID_LATE`. A frozen period cannot be matched, unmatched, or have its settlement state changed. External eZUS verification and filing/JPK remain outside the native accounting scope.
+Obligations use `OPEN`, `PARTIALLY_PAID`, `PAID`, `OVERPAID`, and transitional `FROZEN`. Due-date payment is reported as `PAID`; payment after the due date is `PAID_LATE`. A frozen period cannot be matched, unmatched, or have its settlement state changed. External eZUS verification and external filing/submission remain outside the native accounting scope; native JPK XML download is read-only.
 
 Settlement is invoked by native calculation and bank-import orchestration. Both `import → calculate` and `calculate → import` flows converge on the same idempotent matches; there is no separate public settle command.

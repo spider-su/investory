@@ -18,6 +18,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionJpaRepository;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.util.Currency;
@@ -36,6 +37,7 @@ public class SettlementService {
   private final RyczaltPaymentAccountResolver paymentAccounts;
   private final PaymentChecker checker;
   private final BigDecimal paymentTolerance;
+  private final Clock clock;
 
   public SettlementService(
       RyczaltPeriodJpaRepository periods,
@@ -43,7 +45,8 @@ public class SettlementService {
       RyczaltTransactionJpaRepository transactions,
       RyczaltPaymentMatchJpaRepository matches,
       RyczaltPaymentAccountResolver paymentAccounts,
-      @Value("${app.ryczalt.payment.tolerance-pln:0}") BigDecimal paymentTolerance) {
+      @Value("${app.ryczalt.payment.tolerance-pln:0}") BigDecimal paymentTolerance,
+      Clock clock) {
     this.periods = periods;
     this.obligations = obligations;
     this.transactions = transactions;
@@ -51,16 +54,21 @@ public class SettlementService {
     this.paymentAccounts = paymentAccounts;
     this.checker = new PaymentChecker();
     this.paymentTolerance = paymentTolerance == null ? BigDecimal.ZERO : paymentTolerance;
+    this.clock = clock;
   }
 
   @Transactional
   public List<PaymentCheckResult> settlePeriod(long profileId, YearMonth month) {
-    RyczaltPeriodEntity period = findPeriod(profileId, month);
+    RyczaltPeriodEntity period =
+        periods
+            .findLocked(profileId, month.getYear(), month.getMonthValue())
+            .orElseThrow(() -> new IllegalArgumentException("Period does not exist: " + month));
     List<RyczaltTransactionEntity> storedTransactions =
         transactions
             .findByProfileIdAndPeriodIdOrderByBookingDateAscIdAsc(profileId, period.id())
             .stream()
             .filter(transaction -> !transaction.isExcludedFromPaymentMatching())
+            .filter(transaction -> transaction.getAmount().signum() < 0)
             .toList();
     PaymentAccountRules accountRules = paymentAccounts.forProfile(profileId);
     return obligations.findByProfileIdAndPeriodIdOrderByTypeAsc(profileId, period.id()).stream()
@@ -76,14 +84,17 @@ public class SettlementService {
     if (matchedAmount == null || matchedAmount.signum() <= 0) {
       throw new IllegalArgumentException("Matched amount must be positive");
     }
-    RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
-    RyczaltTransactionEntity transaction = transactions.findById(transactionId).orElseThrow();
+    RyczaltObligationEntity obligation = obligations.findLockedById(obligationId).orElseThrow();
+    RyczaltTransactionEntity transaction = transactions.findLockedById(transactionId).orElseThrow();
     requireSameProfile(profileId, obligation.getProfileId(), transaction.getProfileId());
     if (obligation.isManuallyPaid()) {
       throw new IllegalStateException("Obligation is already manually confirmed as paid");
     }
     if (transaction.isExcludedFromPaymentMatching()) {
       throw new IllegalArgumentException("Transaction is excluded from Ryczalt payment matching");
+    }
+    if (transaction.getAmount().signum() >= 0) {
+      throw new IllegalArgumentException("Only outgoing transactions can match tax obligations");
     }
     requireMutable(obligation.getPeriod());
     if (!obligation.getCurrency().equals(transaction.getCurrency())) {
@@ -110,17 +121,18 @@ public class SettlementService {
                 transaction,
                 matchedAmount,
                 PaymentMatchType.MANUAL,
-                Instant.now()));
+                Instant.now(clock)));
     refreshStatus(profileId, obligation);
     return saved;
   }
 
   @Transactional
   public void unmatchPayment(long profileId, long paymentMatchId) {
-    RyczaltPaymentMatchEntity match = matches.findById(paymentMatchId).orElseThrow();
+    RyczaltPaymentMatchEntity match = matches.findLockedById(paymentMatchId).orElseThrow();
     if (match.getProfileId() != profileId) throw new IllegalArgumentException("Profile mismatch");
-    requireMutable(match.getObligation().getPeriod());
-    RyczaltObligationEntity obligation = match.getObligation();
+    RyczaltObligationEntity obligation =
+        obligations.findLockedById(match.getObligation().id()).orElseThrow();
+    requireMutable(obligation.getPeriod());
     matches.delete(match);
     refreshStatus(profileId, obligation);
   }
@@ -128,7 +140,7 @@ public class SettlementService {
   @Transactional
   public void markObligationPaid(
       long profileId, long obligationId, java.time.LocalDate paidDate, String note) {
-    RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
+    RyczaltObligationEntity obligation = obligations.findLockedById(obligationId).orElseThrow();
     if (obligation.getProfileId() != profileId)
       throw new IllegalArgumentException("Profile mismatch");
     requireMutable(obligation.getPeriod());
@@ -141,7 +153,7 @@ public class SettlementService {
 
   @Transactional
   public void markObligationUnpaid(long profileId, long obligationId) {
-    RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
+    RyczaltObligationEntity obligation = obligations.findLockedById(obligationId).orElseThrow();
     if (obligation.getProfileId() != profileId)
       throw new IllegalArgumentException("Profile mismatch");
     requireMutable(obligation.getPeriod());
@@ -221,7 +233,12 @@ public class SettlementService {
     if (accepted.signum() <= 0) return;
     matches.save(
         new RyczaltPaymentMatchEntity(
-            profileId, obligation, transaction, accepted, PaymentMatchType.AUTO, Instant.now()));
+            profileId,
+            obligation,
+            transaction,
+            accepted,
+            PaymentMatchType.AUTO,
+            Instant.now(clock)));
   }
 
   private void refreshStatus(long profileId, RyczaltObligationEntity obligation) {

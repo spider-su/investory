@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PIT-28 draft</title>
+</head>
+<body>
+<main class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <a th:href="@{/profiles/{id}/accounting(id=${profileId})}">← Accounting</a>
+      <h1 class="h3 mb-1">PIT-28 · JDG draft</h1>
+      <p class="text-secondary mb-0">Based on Investory-managed JDG facts</p>
+    </div>
+    <form method="get" th:action="@{/profiles/{id}/accounting/pit28(id=${profileId})}">
+      <label for="pit28-year" class="visually-hidden">Tax year</label>
+      <select id="pit28-year" name="year" class="form-select" onchange="this.form.submit()">
+        <option th:value="${previousYear}" th:text="${previousYear}" th:selected="${year == previousYear}">2025</option>
+        <option th:value="${year}" th:text="${year}" selected>2026</option>
+        <option th:value="${nextYear}" th:text="${nextYear}" th:selected="${year == nextYear}">2027</option>
+      </select>
+    </form>
+  </div>
+
+  <section class="alert" th:classappend="${pit28.status == 'READY' ? ' alert-success' : ' alert-warning'}">
+    <strong th:text="${pit28.status}">BLOCKED</strong>
+    <span th:if="${pit28.status == 'READY'}"> Annual draft is calculated from authoritative PLN facts.</span>
+    <span th:unless="${pit28.status == 'READY'}"> Resolve the listed issues before using any tax amount.</span>
+  </section>
+
+  <section class="card mb-3">
+    <div class="card-body">
+      <h2 class="h5">Revenue</h2>
+      <div>Total JDG revenue <strong th:text="${pit28.revenue.totalPln + ' PLN'}">0 PLN</strong></div>
+      <div th:each="entry : ${pit28.revenue.byOriginalCurrency}" th:text="${entry.key + ' invoices: ' + entry.value + ' PLN equivalent'}">EUR invoices</div>
+    </div>
+  </section>
+
+  <section class="card mb-3">
+    <div class="card-body">
+      <h2 class="h5">Deductions</h2>
+      <div>Social ZUS paid: <strong th:text="${pit28.deductions.socialPaid + ' PLN'}">0 PLN</strong></div>
+      <div>Deductible social ZUS: <strong th:text="${pit28.deductions.deductibleSocial + ' PLN'}">0 PLN</strong></div>
+      <div>Health contributions paid: <strong th:text="${pit28.deductions.healthPaid + ' PLN'}">0 PLN</strong></div>
+      <div>Deductible health amount: <strong th:text="${pit28.deductions.deductibleHealth + ' PLN'}">0 PLN</strong></div>
+    </div>
+  </section>
+
+  <section class="card mb-3" th:if="${pit28.tax != null}">
+    <div class="card-body">
+      <h2 class="h5">Tax</h2>
+      <div>Taxable revenue: <strong th:text="${pit28.tax.taxableRevenue + ' PLN'}">0 PLN</strong></div>
+      <div>Ryczałt rate: <strong th:text="${pit28.tax.ryczaltRate}">0.12</strong></div>
+      <div>Annual ryczałt: <strong th:text="${pit28.tax.annualTax + ' PLN'}">0 PLN</strong></div>
+      <div>Tax paid during year: <strong th:text="${pit28.payments.taxPaid + ' PLN'}">0 PLN</strong></div>
+      <div th:if="${pit28.payments.amountDue != null}">To pay: <strong th:text="${pit28.payments.amountDue + ' PLN'}">0 PLN</strong></div>
+      <div th:if="${pit28.payments.overpayment != null and pit28.payments.overpayment != '0'}">Overpayment: <strong th:text="${pit28.payments.overpayment + ' PLN'}">0 PLN</strong></div>
+    </div>
+  </section>
+
+  <section class="card mb-3" th:if="${not #lists.isEmpty(pit28.issues)}">
+    <div class="card-body">
+      <h2 class="h5">Issues</h2>
+      <ul><li th:each="issue : ${pit28.issues}" th:text="${issue.code + ': ' + issue.message + (issue.reference == null ? '' : ' [' + issue.reference + ']')}">Issue</li></ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-body">
+      <h2 class="h5">Monthly reconciliation</h2>
+      <table class="table"><thead><tr><th>Month</th><th>Revenue</th><th>Monthly ryczałt</th><th>Tax paid</th><th>Status</th></tr></thead>
+        <tbody><tr th:each="month : ${pit28.monthlyReconciliation}"><td th:text="${month.month}">2026-01</td><td th:text="${month.revenue}">0</td><td th:text="${month.monthlyTax}">0</td><td th:text="${month.taxPaid}">0</td><td th:text="${month.status}">COMPLETE</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+</body>
+</html>

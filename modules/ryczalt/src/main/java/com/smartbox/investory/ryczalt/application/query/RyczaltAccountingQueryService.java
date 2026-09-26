@@ -18,6 +18,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionJpaRepository;
+import com.smartbox.investory.ryczalt.pit28.Pit28MonthlyZusFacts;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -265,6 +266,14 @@ public class RyczaltAccountingQueryService {
   public List<RyczaltPaymentHistoryReadModel> getPaymentHistory(
       long profileId, YearMonth from, YearMonth to, String obligationType) {
     return paymentQueries.getPaymentHistory(profileId, from, to, obligationType);
+  }
+
+  @Transactional(readOnly = true)
+  public Pit28MonthlyZusFacts zusFacts(long profileId, YearMonth month) {
+    Loaded loaded = load(profileId, month);
+    JsonNode zus = result(loaded.calculations, CalculationType.ZUS);
+    return new Pit28MonthlyZusFacts(
+        number(zus, "social"), number(zus, "health"), number(zus, "total"));
   }
 
   private List<RyczaltIssueReadModel> issues(
