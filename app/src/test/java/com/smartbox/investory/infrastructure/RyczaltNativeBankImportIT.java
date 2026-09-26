@@ -11,7 +11,11 @@ import com.smartbox.investory.ryczalt.calculation.vat.VatCalculationInput;
 import com.smartbox.investory.ryczalt.calculation.zus.ZusCalculationInput;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.integration.bank.CsvBankTransactionSourceAdapter;
+import com.smartbox.investory.ryczalt.persistence.CalculationStatus;
+import com.smartbox.investory.ryczalt.persistence.CalculationType;
 import com.smartbox.investory.ryczalt.persistence.FrozenPeriodMutationException;
+import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationEntity;
+import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltInvoiceJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltNativeMonthInputJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository;
@@ -25,6 +29,8 @@ import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
+import java.time.Clock;
+import java.time.Instant;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -34,6 +40,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -53,6 +60,7 @@ class RyczaltNativeBankImportIT {
   @Autowired private RyczaltPeriodJpaRepository periods;
   @Autowired private RyczaltTransactionJpaRepository transactions;
   @Autowired private RyczaltSourceReferenceJpaRepository sourceReferences;
+  @Autowired private RyczaltCalculationJpaRepository calculations;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private DataSource dataSource;
 
@@ -143,6 +151,21 @@ class RyczaltNativeBankImportIT {
 
   @Test
   void newMonthCalculatesAllTaxesCreatesObligationsAndSettlesBankPayments() {
+    RyczaltPeriodEntity previous =
+        periods.save(new RyczaltPeriodEntity(1, 2026, 8, PeriodStatus.CALCULATED));
+    calculations.save(
+        new RyczaltCalculationEntity(
+            previous,
+            1,
+            CalculationType.VAT,
+            CalculationStatus.CALCULATED,
+            "{\"excessVatCarryForward\":0}",
+            "test",
+            "VAT_2026_POC_V1",
+            "native-month-1",
+            Instant.parse("2026-08-31T00:00:00Z"),
+            1,
+            true));
     var result =
         monthCalculation.calculate(
             1,
@@ -168,7 +191,9 @@ class RyczaltNativeBankImportIT {
     assertThat(result.zus()).isPositive();
     assertThat(
             jdbc.queryForObject(
-                "SELECT count(*) FROM investory.ryczalt_calculation WHERE profile_id=1",
+                "SELECT count(*) FROM investory.ryczalt_calculation WHERE profile_id=1"
+                    + " AND period_id=(SELECT id FROM investory.ryczalt_period WHERE profile_id=1"
+                    + " AND period_year=2026 AND period_month=9)",
                 Integer.class))
         .isEqualTo(3);
     assertThat(
@@ -180,6 +205,8 @@ class RyczaltNativeBankImportIT {
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM investory.ryczalt_calculation WHERE profile_id=1"
+                    + " AND period_id=(SELECT id FROM investory.ryczalt_period WHERE profile_id=1"
+                    + " AND period_year=2026 AND period_month=9)"
                     + " AND status='CALCULATED' AND is_current=true",
                 Integer.class))
         .isEqualTo(3);
@@ -342,7 +369,12 @@ class RyczaltNativeBankImportIT {
     SettlementService.class,
     RyczaltPaymentAccountResolver.class
   })
-  static class TestConfiguration {}
+  static class TestConfiguration {
+    @Bean
+    Clock applicationClock() {
+      return Clock.systemUTC();
+    }
+  }
 
   @DynamicPropertySource
   static void databaseProperties(DynamicPropertyRegistry registry) {
