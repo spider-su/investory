@@ -8,19 +8,39 @@ public record VatCalculationInput(
     BigDecimal outputVatBeforeCorrections,
     BigDecimal salesCorrections,
     BigDecimal deductibleInputVat,
-    BigDecimal explicitAdjustments) {
+    BigDecimal explicitAdjustments,
+    BigDecimal carryForwardInputVat) {
   public VatCalculationInput {
     outputVatBeforeCorrections = required(outputVatBeforeCorrections, "outputVatBeforeCorrections");
     salesCorrections = required(salesCorrections, "salesCorrections");
     deductibleInputVat = required(deductibleInputVat, "deductibleInputVat");
     explicitAdjustments = required(explicitAdjustments, "explicitAdjustments");
+    carryForwardInputVat = required(carryForwardInputVat, "carryForwardInputVat");
   }
 
   public VatCalculationInput(
       BigDecimal outputVatBeforeCorrections,
       BigDecimal salesCorrections,
       BigDecimal deductibleInputVat) {
-    this(outputVatBeforeCorrections, salesCorrections, deductibleInputVat, BigDecimal.ZERO);
+    this(
+        outputVatBeforeCorrections,
+        salesCorrections,
+        deductibleInputVat,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO);
+  }
+
+  public VatCalculationInput(
+      BigDecimal outputVatBeforeCorrections,
+      BigDecimal salesCorrections,
+      BigDecimal deductibleInputVat,
+      BigDecimal explicitAdjustments) {
+    this(
+        outputVatBeforeCorrections,
+        salesCorrections,
+        deductibleInputVat,
+        explicitAdjustments,
+        BigDecimal.ZERO);
   }
 
   private static BigDecimal required(BigDecimal value, String name) {

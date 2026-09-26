@@ -58,6 +58,21 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
   @Column(name = "booked_net_pln", precision = 19, scale = 4)
   private BigDecimal bookedNetPln;
 
+  @Column(name = "booked_vat_pln", precision = 19, scale = 4)
+  private BigDecimal bookedVatPln;
+
+  @Column(name = "fx_rate", precision = 19, scale = 8)
+  private BigDecimal fxRate;
+
+  @Column(name = "fx_effective_date")
+  private LocalDate fxEffectiveDate;
+
+  @Column(name = "fx_provider", length = 64)
+  private String fxProvider;
+
+  @Column(name = "fx_provider_reference", length = 256)
+  private String fxProviderReference;
+
   @Column(name = "ryczalt_rate", precision = 7, scale = 4)
   private BigDecimal ryczaltRate;
 
@@ -121,6 +136,7 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
     this.grossAmount = grossAmount;
     this.currency = currency;
     this.bookedNetPln = bookedNetPln;
+    this.bookedVatPln = currency == CurrencyType.PLN ? vatAmount : null;
     this.ryczaltRate = ryczaltRate;
     this.deductibleVat = deductibleVat;
   }
@@ -176,6 +192,43 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
 
   public BigDecimal getRyczaltRate() {
     return ryczaltRate;
+  }
+
+  public BigDecimal getFxRate() {
+    return fxRate;
+  }
+
+  public BigDecimal getBookedVatPln() {
+    return bookedVatPln;
+  }
+
+  public LocalDate getFxEffectiveDate() {
+    return fxEffectiveDate;
+  }
+
+  public String getFxProvider() {
+    return fxProvider;
+  }
+
+  public String getFxProviderReference() {
+    return fxProviderReference;
+  }
+
+  public void setBookedNetPln(
+      BigDecimal bookedNetPln,
+      BigDecimal rate,
+      LocalDate effectiveDate,
+      String provider,
+      String providerReference) {
+    this.bookedNetPln = bookedNetPln;
+    this.fxRate = rate;
+    this.fxEffectiveDate = effectiveDate;
+    this.fxProvider = provider;
+    this.fxProviderReference = providerReference;
+  }
+
+  public void setBookedVatPln(BigDecimal bookedVatPln) {
+    this.bookedVatPln = bookedVatPln;
   }
 
   public BigDecimal getDeductibleVat() {
@@ -272,13 +325,19 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
       BigDecimal netAmount,
       BigDecimal vatAmount,
       BigDecimal grossAmount,
-      CurrencyType currency) {
+      CurrencyType currency,
+      BigDecimal bookedNetPln,
+      BigDecimal fxRate,
+      LocalDate fxEffectiveDate,
+      String fxProvider,
+      String fxProviderReference) {
     this.issueDate = issueDate;
     this.accountingDate = accountingDate;
     this.netAmount = netAmount;
     this.vatAmount = vatAmount;
     this.grossAmount = grossAmount;
     this.currency = currency;
+    setBookedNetPln(bookedNetPln, fxRate, fxEffectiveDate, fxProvider, fxProviderReference);
   }
 
   public Long id() {

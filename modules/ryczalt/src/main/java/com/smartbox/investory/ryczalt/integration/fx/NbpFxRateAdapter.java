@@ -4,6 +4,7 @@ import com.smartbox.investory.integrations.fx.nbp.NbpClient;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -25,7 +26,7 @@ public class NbpFxRateAdapter implements FxRateSourcePort {
 
   @Override
   public FxRate fetch(String currency, LocalDate effectiveDate) {
-    String code = Objects.requireNonNull(currency, "currency").toUpperCase();
+    String code = Objects.requireNonNull(currency, "currency").toUpperCase(Locale.ROOT);
     if ("PLN".equals(code)) {
       return new FxRate(code, effectiveDate, effectiveDate, BigDecimal.ONE, PROVIDER, "NBP-PLN");
     }

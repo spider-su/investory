@@ -17,11 +17,14 @@ public final class VatCalculator {
 
   public VatCalculationResult calculate(VatCalculationInput input) {
     BigDecimal output = input.outputVatBeforeCorrections().add(input.salesCorrections());
-    BigDecimal payable =
+    BigDecimal availableInputVat =
+        RoundingPolicy.roundVatSettlementAmount(input.deductibleInputVat())
+            .add(RoundingPolicy.roundVatSettlementAmount(input.carryForwardInputVat()));
+    BigDecimal grossPayable =
         RoundingPolicy.roundVatSettlementAmount(output)
-            .add(RoundingPolicy.roundVatSettlementAmount(input.explicitAdjustments()))
-            .subtract(RoundingPolicy.roundVatSettlementAmount(input.deductibleInputVat()))
-            .max(BigDecimal.ZERO);
+            .add(RoundingPolicy.roundVatSettlementAmount(input.explicitAdjustments()));
+    BigDecimal payable = grossPayable.subtract(availableInputVat).max(BigDecimal.ZERO);
+    BigDecimal excess = availableInputVat.subtract(grossPayable).max(BigDecimal.ZERO);
     return new VatCalculationResult(
         input.outputVatBeforeCorrections(),
         input.salesCorrections(),
@@ -29,6 +32,8 @@ public final class VatCalculator {
         input.deductibleInputVat(),
         input.explicitAdjustments(),
         payable,
+        input.carryForwardInputVat(),
+        excess,
         ruleVersion);
   }
 }

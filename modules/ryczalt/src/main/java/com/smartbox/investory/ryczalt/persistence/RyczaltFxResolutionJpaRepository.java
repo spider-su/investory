@@ -10,29 +10,27 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface RyczaltFxRateJpaRepository extends JpaRepository<RyczaltFxRateEntity, Long> {
-  Optional<RyczaltFxRateEntity> findByProviderAndCurrencyAndEffectiveDate(
-      String provider, CurrencyType currency, LocalDate effectiveDate);
-
-  Optional<RyczaltFxRateEntity>
-      findTopByProviderAndCurrencyAndEffectiveDateLessThanEqualOrderByEffectiveDateDesc(
-          String provider, CurrencyType currency, LocalDate effectiveDate);
+public interface RyczaltFxResolutionJpaRepository
+    extends JpaRepository<RyczaltFxResolutionEntity, Long> {
+  Optional<RyczaltFxResolutionEntity> findByProviderAndCurrencyAndRequestedDate(
+      String provider, CurrencyType currency, LocalDate requestedDate);
 
   @Modifying
   @Query(
       value =
           """
-          insert into investory.ryczalt_fx_rate
-              (currency, effective_date, rate, provider, provider_reference, fetched_at)
-          values (:currency, :effectiveDate, :rate, :provider, :providerReference, :fetchedAt)
-          on conflict (provider, currency, effective_date) do nothing
+          insert into investory.ryczalt_fx_resolution
+              (currency, requested_date, effective_date, rate, provider, provider_reference, resolved_at)
+          values (:currency, :requestedDate, :effectiveDate, :rate, :provider, :providerReference, :resolvedAt)
+          on conflict (provider, currency, requested_date) do nothing
           """,
       nativeQuery = true)
   int insertIfAbsent(
       @Param("currency") String currency,
+      @Param("requestedDate") LocalDate requestedDate,
       @Param("effectiveDate") LocalDate effectiveDate,
       @Param("rate") BigDecimal rate,
       @Param("provider") String provider,
       @Param("providerReference") String providerReference,
-      @Param("fetchedAt") Instant fetchedAt);
+      @Param("resolvedAt") Instant resolvedAt);
 }
