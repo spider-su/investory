@@ -326,6 +326,7 @@ class RyczaltNativeKsefImportIT {
       })
   @Import({
     RyczaltKsefImportService.class,
+    com.smartbox.investory.ryczalt.application.ksef.RyczaltKsefSyncStatusService.class,
     RyczaltInvoiceQueryService.class,
     com.smartbox.investory.ryczalt.application.RyczaltCounterpartyService.class,
     RyczaltPeriodLifecycleService.class,
