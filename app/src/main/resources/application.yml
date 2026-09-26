@@ -123,6 +123,9 @@ app:
     token-login-enabled: ${APP_SECURITY_TOKEN_LOGIN_ENABLED:true}
     token-secret: ${APP_SECURITY_TOKEN_SECRET:change-me-token-secret-change-me-token-secret}
     token-lifetime: ${APP_SECURITY_TOKEN_LIFETIME:PT12H}
+    web-session-cookie-name: ${APP_SECURITY_WEB_SESSION_COOKIE_NAME:investory_web_session}
+    web-session-cookie-secure: ${APP_SECURITY_WEB_SESSION_COOKIE_SECURE:true}
+    web-session-cookie-same-site: ${APP_SECURITY_WEB_SESSION_COOKIE_SAME_SITE:Lax}
     google:
       enabled: ${APP_SECURITY_GOOGLE_ENABLED:false}
       client-id: ${APP_SECURITY_GOOGLE_CLIENT_ID:}

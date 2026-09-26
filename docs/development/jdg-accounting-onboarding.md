@@ -16,6 +16,8 @@ POST /api/profiles/{profileId}/onboarding/zus
 GET  /api/profiles/{profileId}/onboarding/ksef
 POST /api/profiles/{profileId}/onboarding/ksef/skip
 POST /api/profiles/{profileId}/onboarding/complete
+GET  /api/profiles/{profileId}/accounting/readiness?month=YYYY-MM
+POST /api/profiles/{profileId}/accounting/periods/{YYYY-MM}/activity-confirmation
 ```
 
 All operations require authentication. Reads require profile membership; writes require the profile
@@ -35,6 +37,18 @@ Migration `V01.023__ryczalt_onboarding.sql` adds the profile-scoped onboarding d
 profiles are initialized as completed compatibility records with the supported configuration and
 remain usable without a new onboarding prompt. KSeF is independent: `/ksef/skip` stores `SKIPPED`,
 and completion never requires KSeF credentials.
+
+## Home readiness
+
+The readiness endpoint is the backend-owned source for the mobile Home context. It reports company,
+accounting, ZUS, KSeF, selected-period, and individual calculation states. `NO_INVOICES` means only
+that Investory has no invoices for the selected period; it never means zero revenue. KSeF may be
+`OPTIONAL` and does not block Home, manual invoice entry, invoice review, or supported calculations.
+
+The `no-activity` endpoint stores an authenticated, profile-and-period-scoped `NO_REVENUE`
+confirmation with timestamp, actor, and invoice/transaction snapshot. A later invoice makes the
+confirmation stale in the readiness assessment. The migration is
+`V01.024__ryczalt_period_activity_confirmation.sql`.
 
 Provider settings:
 

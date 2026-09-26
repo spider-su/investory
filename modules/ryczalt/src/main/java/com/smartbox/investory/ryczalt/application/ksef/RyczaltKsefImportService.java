@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,7 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
   private final RyczaltPeriodLifecycleService lifecycle;
   private final RyczaltCounterpartyService counterparties;
   private final RyczaltInvoicePlnNormalizer plnNormalizer;
+  private final RyczaltKsefSyncStatusService syncStatus;
 
   public RyczaltKsefImportService(
       InvoiceSourcePort source,
@@ -60,7 +62,8 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
       RyczaltSourceReferenceJpaRepository sourceReferences,
       RyczaltPeriodLifecycleService lifecycle,
       RyczaltCounterpartyService counterparties,
-      RyczaltInvoicePlnNormalizer plnNormalizer) {
+      RyczaltInvoicePlnNormalizer plnNormalizer,
+      RyczaltKsefSyncStatusService syncStatus) {
     this.source = source;
     this.periods = periods;
     this.invoices = invoices;
@@ -68,6 +71,7 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
     this.lifecycle = lifecycle;
     this.counterparties = counterparties;
     this.plnNormalizer = plnNormalizer;
+    this.syncStatus = syncStatus;
   }
 
   @Override
@@ -84,7 +88,14 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
 
   private RyczaltKsefSyncResult acquire(
       long profileId, YearMonth month, Set<KsefSyncMode> modes, boolean reimport) {
-    var records = source.fetch(new KsefSyncCommand(month, modes));
+    syncStatus.set(profileId, month, "PENDING", null);
+    List<InvoiceSourceRecord> records;
+    try {
+      records = source.fetch(new KsefSyncCommand(month, modes));
+    } catch (RuntimeException exception) {
+      syncStatus.set(profileId, month, "FAILED", "SOURCE_UNAVAILABLE");
+      throw exception;
+    }
     int imported = 0;
     int duplicates = 0;
     int updated = 0;
@@ -214,6 +225,11 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
                             ? InputChange.INCOME_INVOICE_CHANGED
                             : InputChange.COST_INVOICE_CHANGED,
                         ACTOR)));
+    syncStatus.set(
+        profileId,
+        month,
+        failed == 0 ? "SUCCEEDED" : "FAILED",
+        failed == 0 ? null : "INVOICE_IMPORT_FAILED");
     return new RyczaltKsefSyncResult(records.size(), imported, duplicates, updated, failed);
   }
 

@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import jakarta.servlet.http.Cookie;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -14,11 +15,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
   private final TokenAuthenticationService tokens;
   private final UserDetailsService users;
+  private final String webSessionCookieName;
 
   public BearerTokenAuthenticationFilter(
-      TokenAuthenticationService tokens, UserDetailsService users) {
+      TokenAuthenticationService tokens, UserDetailsService users, String webSessionCookieName) {
     this.tokens = tokens;
     this.users = users;
+    this.webSessionCookieName = webSessionCookieName;
   }
 
   @Override
@@ -26,10 +29,9 @@ public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
       HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
     String header = request.getHeader("Authorization");
-    if (header != null
-        && header.startsWith("Bearer ")
-        && SecurityContextHolder.getContext().getAuthentication() == null) {
-      String username = tokens.subject(header.substring(7).trim());
+    String token = header != null && header.startsWith("Bearer ") ? header.substring(7).trim() : cookieToken(request);
+    if (token != null && !token.isBlank() && SecurityContextHolder.getContext().getAuthentication() == null) {
+      String username = tokens.subject(token);
       if (username != null)
         try {
           var user = users.loadUserByUsername(username);
@@ -42,5 +44,14 @@ public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
         }
     }
     chain.doFilter(request, response);
+  }
+
+  private String cookieToken(HttpServletRequest request) {
+    Cookie[] cookies = request.getCookies();
+    if (cookies == null) return null;
+    for (Cookie cookie : cookies) {
+      if (webSessionCookieName.equals(cookie.getName())) return cookie.getValue();
+    }
+    return null;
   }
 }

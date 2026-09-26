@@ -13,6 +13,8 @@ import com.smartbox.investory.config.AuthorizationService;
 import com.smartbox.investory.config.RestApiExceptionHandler;
 import com.smartbox.investory.ryczalt.application.RyczaltAccountingApi;
 import com.smartbox.investory.ryczalt.application.RyczaltInvoicePaymentService;
+import com.smartbox.investory.ryczalt.application.RyczaltJpkService;
+import com.smartbox.investory.ryczalt.application.RyczaltZusDraService;
 import com.smartbox.investory.ryczalt.application.query.RyczaltInvoiceReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodListItem;
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundException;
@@ -23,6 +25,12 @@ import com.smartbox.investory.ryczalt.domain.InvoicePaymentStatus;
 import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.persistence.InvoiceDirection;
+import com.smartbox.investory.ryczalt.pit28.Pit28AnnualFacts;
+import com.smartbox.investory.ryczalt.pit28.Pit28Calculation;
+import com.smartbox.investory.ryczalt.pit28.Pit28Draft;
+import com.smartbox.investory.ryczalt.pit28.Pit28PreviewService;
+import com.smartbox.investory.ryczalt.pit28.Pit28Readiness;
+import com.smartbox.investory.ryczalt.pit28.Pit28ReadinessStatus;
 import com.smartbox.investory.ryczalt.reference.RyczaltObligationReferenceReader;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.time.ApplicationTime;
@@ -30,6 +38,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +53,9 @@ class RyczaltAccountingRestControllerTest {
   private final AuthorizationService authorization = mock(AuthorizationService.class);
   private final RyczaltObligationReferenceReader referenceObligations =
       mock(RyczaltObligationReferenceReader.class);
+  private final RyczaltJpkService jpk = mock(RyczaltJpkService.class);
+  private final RyczaltZusDraService zusDra = mock(RyczaltZusDraService.class);
+  private final Pit28PreviewService pit28 = mock(Pit28PreviewService.class);
   private final Authentication authentication = mock(Authentication.class);
   private MockMvc mvc;
 
@@ -55,7 +67,13 @@ class RyczaltAccountingRestControllerTest {
     mvc =
         MockMvcBuilders.standaloneSetup(
                 new RyczaltAccountingRestController(
-                    accounting, invoicePayments, authorization, referenceObligations))
+                    accounting,
+                    invoicePayments,
+                    authorization,
+                    referenceObligations,
+                    jpk,
+                    zusDra,
+                    pit28))
             .setControllerAdvice(new RestApiExceptionHandler(mock(ApplicationTime.class)))
             .build();
   }
@@ -87,6 +105,79 @@ class RyczaltAccountingRestControllerTest {
         .andExpect(content().json("[{\"type\":\"RYCZALT\",\"expected\":5809.00}]"));
 
     verify(referenceObligations).find(7L, YearMonth.of(2026, 8));
+  }
+
+  @Test
+  void jpkIsReturnedAsAnAttachmentFromTheNativeRoute() throws Exception {
+    when(jpk.generate(7L, YearMonth.of(2026, 8)))
+        .thenReturn(
+            new RyczaltJpkService.Document(
+                "JPK_V7M_7_2026-08.xml",
+                "<JPK/>".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+
+    mvc.perform(get("/api/profiles/7/accounting/periods/2026-08/jpk").principal(authentication))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith("application/xml"))
+        .andExpect(content().string("<JPK/>"));
+
+    verify(jpk).generate(7L, YearMonth.of(2026, 8));
+  }
+
+  @Test
+  void zusDraIsReturnedAsAnAttachmentFromTheNativeRoute() throws Exception {
+    when(zusDra.generate(7L, YearMonth.of(2026, 8)))
+        .thenReturn(
+            new RyczaltZusDraService.Document(
+                "ZUS_DRA_7_2026-08.xml",
+                "<KEDU/>".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+
+    mvc.perform(get("/api/profiles/7/accounting/periods/2026-08/zus-dra").principal(authentication))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith("application/xml"))
+        .andExpect(content().string("<KEDU/>"));
+
+    verify(zusDra).generate(7L, YearMonth.of(2026, 8));
+  }
+
+  @Test
+  void pit28PreviewExposesReadyAnnualValues() throws Exception {
+    var facts =
+        new Pit28AnnualFacts(
+            2026,
+            new BigDecimal("100000"),
+            Map.of("PLN", new BigDecimal("100000")),
+            new BigDecimal("1000"),
+            new BigDecimal("1000"),
+            new BigDecimal("500"),
+            new BigDecimal("250"),
+            new BigDecimal("0.12"),
+            new BigDecimal("10000"));
+    var calculation =
+        new Pit28Calculation(
+            2026,
+            new BigDecimal("100000"),
+            new BigDecimal("1000"),
+            new BigDecimal("250"),
+            new BigDecimal("98750"),
+            new BigDecimal("0.12"),
+            new BigDecimal("11850"),
+            new BigDecimal("10000"),
+            new BigDecimal("1850"),
+            BigDecimal.ZERO);
+    when(pit28.preview(7L, 2026))
+        .thenReturn(
+            new Pit28Draft(
+                2026,
+                new Pit28Readiness(Pit28ReadinessStatus.READY, List.of()),
+                facts,
+                calculation,
+                List.of()));
+
+    mvc.perform(get("/api/profiles/7/accounting/pit28/2026").principal(authentication))
+        .andExpect(status().isOk())
+        .andExpect(
+            content()
+                .json("{\"year\":2026,\"status\":\"READY\",\"tax\":{\"annualTax\":\"11850\"}}"));
   }
 
   @Test
@@ -153,8 +244,9 @@ class RyczaltAccountingRestControllerTest {
         .andExpect(
             content()
                 .json(
-                    "[{\"id\":11,\"counterparty\":{\"id\":123,\"legalName\":\"Example Sp. z o.o.\",\"alias\":null,\"taxIdentifier\":\"1234567890\"}},"
-                        + "{\"id\":12,\"counterparty\":{\"id\":124,\"legalName\":\"Unknown ID Sp. z o.o.\",\"alias\":null,\"taxIdentifier\":null}}]"));
+                    "[{\"id\":11,\"counterparty\":{\"id\":123,\"legalName\":\"Example Sp. z"
+                        + " o.o.\",\"alias\":null,\"taxIdentifier\":\"1234567890\"}},{\"id\":12,\"counterparty\":{\"id\":124,\"legalName\":\"Unknown"
+                        + " ID Sp. z o.o.\",\"alias\":null,\"taxIdentifier\":null}}]"));
   }
 
   private RyczaltInvoiceReadModel invoice(

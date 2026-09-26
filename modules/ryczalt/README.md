@@ -86,6 +86,7 @@ Current capability:
 RYCZALT  calculation ✓  persistence ✓  payment detection ✓  manual matching ✓  external verify ✗
 VAT      calculation ✓  persistence ✓  payment detection ✓  manual matching ✓  external verify ✗
 ZUS      calculation ✓  persistence ✓  payment detection ✓  manual matching ✓  eZUS verify ✗
+PIT-28   annual JDG draft ✓  one rate ✓  PLN/EUR/USD ✓  XML/submission ✗
 ```
 
 Source integration matrix:
@@ -96,6 +97,34 @@ Transactions / Bank    YES  native CSV import persists canonical Ryczalt transac
 FX / NBP               YES  NbpClient -> NbpFxRateAdapter -> FxRateSourcePort -> ryczalt_fx_rate
 ZUS external verify    NO   no reusable production eZUS verification client
 ```
+
+## Taxpayer profile and JPK download
+
+`investory.ryczalt_profile` is the native profile-scoped source for taxpayer identity and payment
+configuration. Migration `V01.022__ryczalt_profile.sql` copies existing rows from the historical
+`accounting_poc_profile` table when that table is present; the historical table is retained for
+rollback and comparison only.
+
+The native JPK flow is read-only:
+
+```text
+GET /api/profiles/{profileId}/accounting/periods/{month}/jpk
+```
+
+The endpoint requires a complete native accounting period and taxpayer fields (NIP, full name,
+tax office, and email). It returns a downloadable `JPK_V7M(3)` XML projection built from persisted
+native invoices and calculations. The Accounting page exposes the same endpoint through its
+`Download JPK` button. It does not submit a filing to KSeF or the tax authority.
+
+The same read-only export flow generates an unsigned ZUS DRA KEDU draft:
+
+```text
+GET /api/profiles/{profileId}/accounting/periods/{month}/zus-dra
+```
+
+It reads the native ZUS amount and taxpayer identity from the completed period/profile and returns
+`ZUS_DRA_{profileId}_{month}.xml`. The XML is a review draft only; Investory does not sign, submit,
+or confirm it with ZUS. The Accounting page exposes it through `Download ZUS DRA`.
 
 `docs/cutover-audit.md` is historical audit evidence, not a description of the active runtime.
 

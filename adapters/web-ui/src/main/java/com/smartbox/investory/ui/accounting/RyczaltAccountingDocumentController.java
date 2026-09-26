@@ -1,6 +1,8 @@
 package com.smartbox.investory.ui.accounting;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.YearMonth;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -54,9 +56,18 @@ public class RyczaltAccountingDocumentController {
       @PathVariable UUID candidateKey,
       Model model,
       HttpServletRequest request) {
+    var candidate = client.candidate(profileId, candidateKey);
+    var previousMonth =
+        YearMonth.of(candidate.periodYear(), candidate.periodMonth()).minusMonths(1);
+    var previousInvoices =
+        client.periods(profileId).stream().anyMatch(item -> item.month().equals(previousMonth))
+            ? client.invoices(profileId, previousMonth)
+            : List.<RyczaltWebAccountingClient.Invoice>of();
     model.addAttribute("profileId", profileId);
-    model.addAttribute("candidate", client.candidate(profileId, candidateKey));
+    model.addAttribute("candidate", candidate);
     model.addAttribute("counterparties", client.counterparties(profileId));
+    model.addAttribute("previousMonth", previousMonth);
+    model.addAttribute("previousInvoices", previousInvoices);
     model.addAttribute("canWrite", RyczaltAccountingWebSupport.canWrite(request));
     return "accounting/ryczalt-candidate";
   }

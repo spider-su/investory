@@ -193,6 +193,15 @@ public class RyczaltOnboardingService {
     return read(profileId);
   }
 
+  @Transactional
+  public RyczaltOnboarding markKsefConnected(long profileId) {
+    requireProfile(profileId);
+    jdbc.update(
+        "UPDATE investory.ryczalt_onboarding SET ksef_state = 'CONNECTED', updated_at = CURRENT_TIMESTAMP WHERE profile_id = ?",
+        profileId);
+    return read(profileId);
+  }
+
   private RyczaltOnboarding read(long profileId) {
     return jdbc.queryForObject(
         """

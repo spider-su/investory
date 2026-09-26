@@ -1,6 +1,10 @@
 package com.smartbox.investory.ryczalt.web;
 
 import com.smartbox.investory.config.AuthorizationService;
+import com.smartbox.investory.integrations.management.api.IntegrationSettingsApi;
+import com.smartbox.investory.integrations.management.api.model.ConnectionTestResult;
+import com.smartbox.investory.integrations.management.api.model.IntegrationSettingsCommand;
+import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.ryczalt.application.onboarding.CompanyLookupResult;
 import com.smartbox.investory.ryczalt.application.onboarding.RyczaltOnboarding;
 import com.smartbox.investory.ryczalt.application.onboarding.RyczaltOnboardingService;
@@ -19,11 +23,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class RyczaltOnboardingRestController {
   private final RyczaltOnboardingService onboarding;
   private final AuthorizationService authorization;
+  private final IntegrationSettingsApi integrations;
 
   public RyczaltOnboardingRestController(
-      RyczaltOnboardingService onboarding, AuthorizationService authorization) {
+      RyczaltOnboardingService onboarding,
+      AuthorizationService authorization,
+      IntegrationSettingsApi integrations) {
     this.onboarding = onboarding;
     this.authorization = authorization;
+    this.integrations = integrations;
   }
 
   @GetMapping
@@ -94,6 +102,32 @@ public class RyczaltOnboardingRestController {
     return onboarding.skipKsef(profileId);
   }
 
+  @PostMapping("/ksef/connect")
+  public RyczaltOnboarding connectKsef(
+      @PathVariable long profileId,
+      @RequestBody KsefConnectRequest request,
+      Authentication authentication) {
+    write(profileId, authentication);
+    if (request == null || request.ksefToken() == null || request.ksefToken().isBlank())
+      throw badRequest("ksef_token_required");
+    RyczaltOnboarding current = onboarding.get(profileId);
+    if (current.nip() == null || current.nip().isBlank()) throw badRequest("company_nip_required");
+    var configuration = java.util.Map.of(
+        "environment", request.environment() == null || request.environment().isBlank() ? "TEST" : request.environment(),
+        "nip", current.nip());
+    var command = new IntegrationSettingsCommand(
+        IntegrationType.E_INVOICING,
+        "ksef",
+        configuration,
+        java.util.Map.of("ksefToken", request.ksefToken().trim()),
+        java.util.Set.of());
+    ConnectionTestResult result = integrations.testConnection(command);
+    if (!result.success()) throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "ksef_connection_failed");
+    integrations.saveConfiguration(command);
+    integrations.setEnabled(IntegrationType.E_INVOICING, "ksef", true);
+    return onboarding.markKsefConnected(profileId);
+  }
+
   @PostMapping("/complete")
   public RyczaltOnboarding complete(
       @PathVariable long profileId,
@@ -120,6 +154,8 @@ public class RyczaltOnboardingRestController {
   public record LookupRequest(String nip) {}
 
   public record CompleteRequest(String ksefState) {}
+
+  public record KsefConnectRequest(String environment, String ksefToken) {}
 
   public record SupportedConfiguration(
       String legalForm,

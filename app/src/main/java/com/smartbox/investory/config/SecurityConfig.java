@@ -58,7 +58,7 @@ public class SecurityConfig {
     var configuration = new CorsConfiguration();
     configuration.setAllowedOrigins(java.util.List.of(mobileApiAllowedOrigins.split(",")));
     configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "OPTIONS"));
-    configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type"));
+    configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "X-Investory-Client", "X-XSRF-TOKEN"));
     configuration.setAllowCredentials(true);
 
     var source = new UrlBasedCorsConfigurationSource();
@@ -76,6 +76,7 @@ public class SecurityConfig {
       UserDetailsService users,
       @Value("${app.security.token-login-enabled:true}") boolean tokenLoginEnabled,
       @Value("${app.security.google.enabled:false}") boolean googleLoginEnabled,
+      @Value("${app.security.web-session-cookie-name:investory_web_session}") String webSessionCookieName,
       ObjectProvider<OAuth2UserService<OAuth2UserRequest, OAuth2User>> googleUsers,
       ObjectProvider<LocalDevelopmentSecurityConfig.LocalDevelopmentAuthenticationFilter>
           localDevelopmentAuthenticationFilter) {
@@ -146,7 +147,7 @@ public class SecurityConfig {
     }
 
     authorization.addFilterBefore(
-        new BearerTokenAuthenticationFilter(tokens, users), BasicAuthenticationFilter.class);
+        new BearerTokenAuthenticationFilter(tokens, users, webSessionCookieName), BasicAuthenticationFilter.class);
     localDevelopmentAuthenticationFilter.ifAvailable(
         filter -> authorization.addFilterBefore(filter, BearerTokenAuthenticationFilter.class));
 
