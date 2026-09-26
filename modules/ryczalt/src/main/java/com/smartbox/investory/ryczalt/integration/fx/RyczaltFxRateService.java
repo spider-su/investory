@@ -72,6 +72,11 @@ public class RyczaltFxRateService {
         stored.getProvider(),
         stored.getProviderReference(),
         now);
+    stored =
+        rates
+            .findByProviderAndCurrencyAndEffectiveDate(
+                acquired.provider(), currency, acquired.effectiveDate())
+            .orElseThrow();
     var resolved =
         resolutions
             .findByProviderAndCurrencyAndRequestedDate(acquired.provider(), currency, requestedDate)

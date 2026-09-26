@@ -55,12 +55,16 @@ public class SettlementService {
 
   @Transactional
   public List<PaymentCheckResult> settlePeriod(long profileId, YearMonth month) {
-    RyczaltPeriodEntity period = findPeriod(profileId, month);
+    RyczaltPeriodEntity period =
+        periods
+            .findLocked(profileId, month.getYear(), month.getMonthValue())
+            .orElseThrow(() -> new IllegalArgumentException("Period does not exist: " + month));
     List<RyczaltTransactionEntity> storedTransactions =
         transactions
             .findByProfileIdAndPeriodIdOrderByBookingDateAscIdAsc(profileId, period.id())
             .stream()
             .filter(transaction -> !transaction.isExcludedFromPaymentMatching())
+            .filter(transaction -> transaction.getAmount().signum() < 0)
             .toList();
     PaymentAccountRules accountRules = paymentAccounts.forProfile(profileId);
     return obligations.findByProfileIdAndPeriodIdOrderByTypeAsc(profileId, period.id()).stream()
@@ -76,8 +80,8 @@ public class SettlementService {
     if (matchedAmount == null || matchedAmount.signum() <= 0) {
       throw new IllegalArgumentException("Matched amount must be positive");
     }
-    RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
-    RyczaltTransactionEntity transaction = transactions.findById(transactionId).orElseThrow();
+    RyczaltObligationEntity obligation = obligations.findLockedById(obligationId).orElseThrow();
+    RyczaltTransactionEntity transaction = transactions.findLockedById(transactionId).orElseThrow();
     requireSameProfile(profileId, obligation.getProfileId(), transaction.getProfileId());
     if (obligation.isManuallyPaid()) {
       throw new IllegalStateException("Obligation is already manually confirmed as paid");
@@ -128,7 +132,7 @@ public class SettlementService {
   @Transactional
   public void markObligationPaid(
       long profileId, long obligationId, java.time.LocalDate paidDate, String note) {
-    RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
+    RyczaltObligationEntity obligation = obligations.findLockedById(obligationId).orElseThrow();
     if (obligation.getProfileId() != profileId)
       throw new IllegalArgumentException("Profile mismatch");
     requireMutable(obligation.getPeriod());
@@ -141,7 +145,7 @@ public class SettlementService {
 
   @Transactional
   public void markObligationUnpaid(long profileId, long obligationId) {
-    RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
+    RyczaltObligationEntity obligation = obligations.findLockedById(obligationId).orElseThrow();
     if (obligation.getProfileId() != profileId)
       throw new IllegalArgumentException("Profile mismatch");
     requireMutable(obligation.getPeriod());

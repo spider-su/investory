@@ -14,6 +14,7 @@ import com.smartbox.investory.ryczalt.domain.ObligationType;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.persistence.CalculationType;
 import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationEntity;
+import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationPersistenceAdapter;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository;
@@ -24,6 +25,7 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,19 +39,32 @@ public class NativeMonthCalculationService {
   private final RyczaltCalculationPersistenceAdapter calculations;
   private final RyczaltObligationJpaRepository obligations;
   private final SettlementService settlement;
+  private final RyczaltCalculationJpaRepository calculationRows;
   private final ObjectMapper json = new ObjectMapper();
 
+  @Autowired
   public NativeMonthCalculationService(
       RyczaltPeriodJpaRepository periods,
       NativeMonthInputAggregator inputAggregator,
       RyczaltCalculationPersistenceAdapter calculations,
       RyczaltObligationJpaRepository obligations,
-      SettlementService settlement) {
+      SettlementService settlement,
+      RyczaltCalculationJpaRepository calculationRows) {
     this.periods = periods;
     this.inputAggregator = inputAggregator;
     this.calculations = calculations;
     this.obligations = obligations;
     this.settlement = settlement;
+    this.calculationRows = calculationRows;
+  }
+
+  NativeMonthCalculationService(
+      RyczaltPeriodJpaRepository periods,
+      NativeMonthInputAggregator inputAggregator,
+      RyczaltCalculationPersistenceAdapter calculations,
+      RyczaltObligationJpaRepository obligations,
+      SettlementService settlement) {
+    this(periods, inputAggregator, calculations, obligations, settlement, null);
   }
 
   @Transactional
@@ -80,7 +95,8 @@ public class NativeMonthCalculationService {
                     zusResult.deductibleSocial(),
                     zusResult.healthPaidForDeduction(),
                     input.deductionsAlreadyConsumed()));
-    VatCalculationResult vatResult = new VatCalculator(vatRules).calculate(input.vat());
+    NativeMonthCalculationInput calculationInput = withVatCarryForward(profileId, month, input);
+    VatCalculationResult vatResult = new VatCalculator(vatRules).calculate(calculationInput.vat());
 
     RyczaltCalculationEntity ryczaltCalculation =
         save(
@@ -90,10 +106,10 @@ public class NativeMonthCalculationService {
             json(ryczaltResult),
             InputFingerprint.ryczalt(
                 new RyczaltCalculationInput(
-                    input.revenueByRate(),
+                    calculationInput.revenueByRate(),
                     zusResult.deductibleSocial(),
                     zusResult.healthPaidForDeduction(),
-                    input.deductionsAlreadyConsumed()),
+                    calculationInput.deductionsAlreadyConsumed()),
                 ryczaltRules),
             ryczaltRules);
     RyczaltCalculationEntity vatCalculation =
@@ -102,7 +118,7 @@ public class NativeMonthCalculationService {
             profileId,
             CalculationType.VAT,
             json(vatResult),
-            fingerprint(input.vat(), vatRules),
+            fingerprint(calculationInput.vat(), vatRules),
             vatRules);
     RyczaltCalculationEntity zusCalculation =
         save(
@@ -110,7 +126,7 @@ public class NativeMonthCalculationService {
             profileId,
             CalculationType.ZUS,
             json(zusResult),
-            fingerprint(input.zus(), zusRules),
+            fingerprint(calculationInput.zus(), zusRules),
             zusRules);
 
     upsertObligation(
@@ -197,5 +213,40 @@ public class NativeMonthCalculationService {
 
   private String ruleVersion(String type, YearMonth month) {
     return type + "_" + month.getYear() + "_POC_V1";
+  }
+
+  private NativeMonthCalculationInput withVatCarryForward(
+      long profileId, YearMonth month, NativeMonthCalculationInput input) {
+    YearMonth previousMonth = month.minusMonths(1);
+    BigDecimal carry =
+        calculationRows == null
+            ? BigDecimal.ZERO
+            : periods
+                .findByProfileIdAndYearAndMonth(
+                    profileId, previousMonth.getYear(), previousMonth.getMonthValue())
+                .flatMap(
+                    previous ->
+                        calculationRows.findByProfileIdAndPeriodIdAndTypeAndCurrentTrue(
+                            profileId, previous.id(), CalculationType.VAT))
+                .map(row -> readCarryForward(row.getResultJson()))
+                .orElse(BigDecimal.ZERO);
+    var vat = input.vat();
+    var withCarry =
+        new com.smartbox.investory.ryczalt.calculation.vat.VatCalculationInput(
+            vat.outputVatBeforeCorrections(),
+            vat.salesCorrections(),
+            vat.deductibleInputVat(),
+            vat.explicitAdjustments(),
+            carry);
+    return new NativeMonthCalculationInput(
+        input.revenueByRate(), withCarry, input.zus(), input.deductionsAlreadyConsumed());
+  }
+
+  private BigDecimal readCarryForward(String resultJson) {
+    try {
+      return json.readTree(resultJson).path("excessVatCarryForward").decimalValue();
+    } catch (Exception exception) {
+      return BigDecimal.ZERO;
+    }
   }
 }
