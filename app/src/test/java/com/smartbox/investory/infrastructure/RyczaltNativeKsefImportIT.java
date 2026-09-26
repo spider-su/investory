@@ -3,12 +3,15 @@ package com.smartbox.investory.infrastructure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.smartbox.investory.ryczalt.application.RyczaltInvoicePlnNormalizer;
 import com.smartbox.investory.ryczalt.application.ksef.RyczaltKsefImportService;
 import com.smartbox.investory.ryczalt.application.ksef.RyczaltKsefSyncResult;
 import com.smartbox.investory.ryczalt.application.query.RyczaltInvoiceQueryService;
-import com.smartbox.investory.ryczalt.domain.ApprovalMethod;
 import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
+import com.smartbox.investory.ryczalt.integration.fx.FxRate;
+import com.smartbox.investory.ryczalt.integration.fx.FxRateSourcePort;
+import com.smartbox.investory.ryczalt.integration.fx.RyczaltFxRateService;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourcePort;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourceRecord;
 import com.smartbox.investory.ryczalt.integration.ksef.KsefSyncMode;
@@ -26,8 +29,11 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceJpaRepos
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -141,9 +147,8 @@ class RyczaltNativeKsefImportIT {
     assertThat(reference.getEntityType()).isEqualTo("INVOICE");
     assertThat(reference.getExternalId()).isEqualTo("KSEF-1");
     assertThat(invoices.findAll().getFirst().getApprovalStatus())
-        .isEqualTo(ApprovalStatus.APPROVED);
-    assertThat(invoices.findAll().getFirst().getApprovalMethod())
-        .isEqualTo(ApprovalMethod.KSEF_TRUSTED);
+        .isEqualTo(ApprovalStatus.NEEDS_REVIEW);
+    assertThat(invoices.findAll().getFirst().getApprovalMethod()).isNull();
   }
 
   @Test
@@ -314,6 +319,8 @@ class RyczaltNativeKsefImportIT {
         com.smartbox.investory.ryczalt.persistence.RyczaltCounterpartyJpaRepository.class,
         com.smartbox.investory.ryczalt.persistence.RyczaltCounterpartyRuleJpaRepository.class,
         RyczaltSourceReferenceJpaRepository.class,
+        com.smartbox.investory.ryczalt.persistence.RyczaltFxRateJpaRepository.class,
+        com.smartbox.investory.ryczalt.persistence.RyczaltFxResolutionJpaRepository.class,
         RyczaltObligationJpaRepository.class,
         com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository.class
       })
@@ -322,12 +329,25 @@ class RyczaltNativeKsefImportIT {
     RyczaltInvoiceQueryService.class,
     com.smartbox.investory.ryczalt.application.RyczaltCounterpartyService.class,
     RyczaltPeriodLifecycleService.class,
+    RyczaltFxRateService.class,
+    RyczaltInvoicePlnNormalizer.class,
     com.smartbox.investory.ryczalt.persistence.JdbcRyczaltAuditEventWriter.class
   })
   static class TestConfiguration {
     @Bean
     ProgrammableInvoiceSource programmableInvoiceSource() {
       return new ProgrammableInvoiceSource();
+    }
+
+    @Bean
+    FxRateSourcePort fxRateSource() {
+      return (currency, effectiveDate) ->
+          new FxRate(currency, effectiveDate, effectiveDate, BigDecimal.ONE, "TEST", "TEST");
+    }
+
+    @Bean
+    Clock applicationClock() {
+      return Clock.fixed(Instant.parse("2026-02-01T00:00:00Z"), ZoneOffset.UTC);
     }
   }
 

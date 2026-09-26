@@ -18,6 +18,7 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltTransactionJpaRepository;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.util.Currency;
@@ -36,6 +37,7 @@ public class SettlementService {
   private final RyczaltPaymentAccountResolver paymentAccounts;
   private final PaymentChecker checker;
   private final BigDecimal paymentTolerance;
+  private final Clock clock;
 
   public SettlementService(
       RyczaltPeriodJpaRepository periods,
@@ -43,7 +45,8 @@ public class SettlementService {
       RyczaltTransactionJpaRepository transactions,
       RyczaltPaymentMatchJpaRepository matches,
       RyczaltPaymentAccountResolver paymentAccounts,
-      @Value("${app.ryczalt.payment.tolerance-pln:0}") BigDecimal paymentTolerance) {
+      @Value("${app.ryczalt.payment.tolerance-pln:0}") BigDecimal paymentTolerance,
+      Clock clock) {
     this.periods = periods;
     this.obligations = obligations;
     this.transactions = transactions;
@@ -51,6 +54,7 @@ public class SettlementService {
     this.paymentAccounts = paymentAccounts;
     this.checker = new PaymentChecker();
     this.paymentTolerance = paymentTolerance == null ? BigDecimal.ZERO : paymentTolerance;
+    this.clock = clock;
   }
 
   @Transactional
@@ -89,6 +93,9 @@ public class SettlementService {
     if (transaction.isExcludedFromPaymentMatching()) {
       throw new IllegalArgumentException("Transaction is excluded from Ryczalt payment matching");
     }
+    if (transaction.getAmount().signum() >= 0) {
+      throw new IllegalArgumentException("Only outgoing transactions can match tax obligations");
+    }
     requireMutable(obligation.getPeriod());
     if (!obligation.getCurrency().equals(transaction.getCurrency())) {
       throw new IllegalArgumentException("Obligation and transaction currencies differ");
@@ -114,17 +121,18 @@ public class SettlementService {
                 transaction,
                 matchedAmount,
                 PaymentMatchType.MANUAL,
-                Instant.now()));
+                Instant.now(clock)));
     refreshStatus(profileId, obligation);
     return saved;
   }
 
   @Transactional
   public void unmatchPayment(long profileId, long paymentMatchId) {
-    RyczaltPaymentMatchEntity match = matches.findById(paymentMatchId).orElseThrow();
+    RyczaltPaymentMatchEntity match = matches.findLockedById(paymentMatchId).orElseThrow();
     if (match.getProfileId() != profileId) throw new IllegalArgumentException("Profile mismatch");
-    requireMutable(match.getObligation().getPeriod());
-    RyczaltObligationEntity obligation = match.getObligation();
+    RyczaltObligationEntity obligation =
+        obligations.findLockedById(match.getObligation().id()).orElseThrow();
+    requireMutable(obligation.getPeriod());
     matches.delete(match);
     refreshStatus(profileId, obligation);
   }
@@ -225,7 +233,12 @@ public class SettlementService {
     if (accepted.signum() <= 0) return;
     matches.save(
         new RyczaltPaymentMatchEntity(
-            profileId, obligation, transaction, accepted, PaymentMatchType.AUTO, Instant.now()));
+            profileId,
+            obligation,
+            transaction,
+            accepted,
+            PaymentMatchType.AUTO,
+            Instant.now(clock)));
   }
 
   private void refreshStatus(long profileId, RyczaltObligationEntity obligation) {

@@ -231,6 +231,23 @@ public class RyczaltInvoiceEntity extends RyczaltEntity {
     this.bookedVatPln = bookedVatPln;
   }
 
+  public void setDerivedPlnValues(
+      BigDecimal bookedNetPln,
+      BigDecimal bookedVatPln,
+      BigDecimal deductibleVat,
+      BigDecimal fxRate,
+      LocalDate fxEffectiveDate,
+      String fxProvider,
+      String fxProviderReference) {
+    this.bookedNetPln = bookedNetPln;
+    this.bookedVatPln = bookedVatPln;
+    this.deductibleVat = deductibleVat;
+    this.fxRate = fxRate;
+    this.fxEffectiveDate = fxEffectiveDate;
+    this.fxProvider = fxProvider;
+    this.fxProviderReference = fxProviderReference;
+  }
+
   public BigDecimal getDeductibleVat() {
     return deductibleVat;
   }
