@@ -92,6 +92,7 @@ public class RyczaltPaymentQueryService {
 
   private RyczaltObligationReadModel obligation(long profileId, RyczaltObligationEntity row) {
     BigDecimal paid = matches.allocatedForObligation(profileId, row.id());
+    if (row.isManuallyPaid()) paid = paid.add(row.getAmount());
     BigDecimal rawOutstanding = row.getAmount().subtract(paid).max(BigDecimal.ZERO);
     BigDecimal outstanding = withinTolerance(rawOutstanding) ? BigDecimal.ZERO : rawOutstanding;
     ObligationStatus status =
@@ -110,7 +111,9 @@ public class RyczaltPaymentQueryService {
         outstanding,
         row.getCurrency(),
         row.getDueDate(),
-        status);
+        status,
+        row.isManuallyPaid(),
+        row.getManualPaidDate());
   }
 
   private RyczaltPaymentHistoryReadModel history(
@@ -119,7 +122,7 @@ public class RyczaltPaymentQueryService {
         matches.findByProfileIdAndObligationId(profileId, obligation.id()).stream()
             .map(match -> match.getTransaction().getBookingDate())
             .max(Comparator.naturalOrder())
-            .orElse(null);
+            .orElse(obligation.manualPaidDate());
     return new RyczaltPaymentHistoryReadModel(
         obligation.type(),
         month,

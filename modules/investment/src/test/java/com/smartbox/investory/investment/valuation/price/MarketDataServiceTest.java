@@ -131,7 +131,7 @@ class MarketDataServiceTest {
   void syncIbkrPositions_appliesMarketPriceWithoutChangingAccountCashOrEquity() {
     PositionEntity ibkr = new PositionEntity();
     ibkr.setSymbol("AAPL");
-    ibkr.setAccount(17959259L);
+    ibkr.setAccount(90000001L);
     ibkr.setPriceCurrency(CurrencyType.USD);
     ibkr.setCostCurrency(CurrencyType.USD);
     ibkr.setProfitCurrency(CurrencyType.USD);
@@ -143,8 +143,8 @@ class MarketDataServiceTest {
     price.setMarketPrice(java.math.BigDecimal.valueOf(180.0));
 
     when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
-        .thenReturn(List.of(account(17959259L, "IBKR")));
-    when(positionRepository.findOpenByAccountIn(List.of(17959259L))).thenReturn(List.of(ibkr));
+        .thenReturn(List.of(account(90000001L, "IBKR")));
+    when(positionRepository.findOpenByAccountIn(List.of(90000001L))).thenReturn(List.of(ibkr));
     when(assetRepository.findAllBySymbolIn(java.util.Set.of("AAPL"))).thenReturn(List.of(price));
 
     marketDataService.syncIbkrPositions();
@@ -158,8 +158,8 @@ class MarketDataServiceTest {
   @Test
   void syncIbkrPositions_isNoopWhenNoPositions() {
     when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
-        .thenReturn(List.of(account(17959259L, "IBKR")));
-    when(positionRepository.findOpenByAccountIn(List.of(17959259L))).thenReturn(List.of());
+        .thenReturn(List.of(account(90000001L, "IBKR")));
+    when(positionRepository.findOpenByAccountIn(List.of(90000001L))).thenReturn(List.of());
 
     marketDataService.syncIbkrPositions();
 
@@ -170,21 +170,21 @@ class MarketDataServiceTest {
   @Test
   void repairXtbReconstructedPositionProfitsResetsOnlyXtbReconstructedRows() {
     PositionEntity xtb = new PositionEntity();
-    xtb.setAccount(51551301L);
+    xtb.setAccount(90000003L);
     xtb.setComment("Reconstructed from Cash Operations");
     xtb.setProfit(java.math.BigDecimal.valueOf(243.94));
     PositionEntity secondXtb = new PositionEntity();
-    secondXtb.setAccount(51499241L);
+    secondXtb.setAccount(90000002L);
     secondXtb.setComment("Reconstructed from Cash Operations");
     secondXtb.setProfit(java.math.BigDecimal.valueOf(-12.5));
     PositionEntity ibkr = new PositionEntity();
-    ibkr.setAccount(17959259L);
+    ibkr.setAccount(90000001L);
     ibkr.setComment("IBKR position snapshot");
     ibkr.setProfit(java.math.BigDecimal.valueOf(243.94));
 
     when(accountRepository.findAllByProviderIgnoreCase("XTB"))
-        .thenReturn(List.of(account(51551301L, "XTB"), account(51499241L, "XTB")));
-    when(positionRepository.findOpenByAccountIn(List.of(51551301L, 51499241L)))
+        .thenReturn(List.of(account(90000003L, "XTB"), account(90000002L, "XTB")));
+    when(positionRepository.findOpenByAccountIn(List.of(90000003L, 90000002L)))
         .thenReturn(List.of(xtb, secondXtb));
 
     assertEquals(2, marketDataService.repairXtbReconstructedPositionProfits());
@@ -200,7 +200,7 @@ class MarketDataServiceTest {
     PositionEntity ibkr = new PositionEntity();
     ibkr.setId(42L);
     ibkr.setSymbol("GOOGL.US");
-    ibkr.setAccount(17959259L);
+    ibkr.setAccount(90000001L);
     ibkr.setPriceCurrency(CurrencyType.USD);
     ibkr.setProfitCurrency(CurrencyType.PLN);
     ibkr.setVolume(java.math.BigDecimal.valueOf(2.0));
@@ -210,8 +210,8 @@ class MarketDataServiceTest {
     price.setMarketPrice(java.math.BigDecimal.valueOf(320.0));
 
     when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
-        .thenReturn(List.of(account(17959259L, "IBKR")));
-    when(positionRepository.findOpenByAccountIn(List.of(17959259L))).thenReturn(List.of(ibkr));
+        .thenReturn(List.of(account(90000001L, "IBKR")));
+    when(positionRepository.findOpenByAccountIn(List.of(90000001L))).thenReturn(List.of(ibkr));
     when(assetRepository.findAllBySymbolIn(java.util.Set.of("GOOGL.US")))
         .thenReturn(List.of(price));
 

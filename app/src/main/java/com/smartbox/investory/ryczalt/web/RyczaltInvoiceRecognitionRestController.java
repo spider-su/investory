@@ -60,6 +60,33 @@ public class RyczaltInvoiceRecognitionRestController {
     return recognition.recognize(profileId, safeFilename, contentType, content);
   }
 
+  @PostMapping("/manual-candidates")
+  @ResponseStatus(HttpStatus.CREATED)
+  public RyczaltInvoiceRecognitionService.CandidateView manualCandidate(
+      @PathVariable long profileId,
+      @RequestBody ManualCandidateRequest request,
+      Authentication authentication) {
+    write(profileId, authentication);
+    return recognition.createManual(
+        profileId,
+        RyczaltInvoiceRecognitionService.ManualCandidateCommand.of(
+            request.direction(),
+            request.reference(),
+            request.issueDate(),
+            request.saleDate(),
+            request.dueDate(),
+            request.currency(),
+            request.netAmount(),
+            request.vatAmount(),
+            request.grossAmount(),
+            request.counterparty() == null
+                ? null
+                : new RyczaltInvoiceRecognitionService.ManualCounterparty(
+                    request.counterparty().legalName(),
+                    request.counterparty().taxIdentifier(),
+                    request.counterparty().country())));
+  }
+
   @GetMapping("/candidates/{candidateKey}")
   public RyczaltInvoiceRecognitionService.CandidateView candidate(
       @PathVariable long profileId,
@@ -124,4 +151,18 @@ public class RyczaltInvoiceRecognitionRestController {
       }
     }
   }
+
+  public record ManualCandidateRequest(
+      String direction,
+      String reference,
+      String issueDate,
+      String saleDate,
+      String dueDate,
+      String currency,
+      String netAmount,
+      String vatAmount,
+      String grossAmount,
+      ManualCounterpartyRequest counterparty) {}
+
+  public record ManualCounterpartyRequest(String legalName, String taxIdentifier, String country) {}
 }

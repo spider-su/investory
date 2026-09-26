@@ -68,6 +68,27 @@ class ZusCalculatorTest {
     assertAmount("1518.98", result.deductibleSocial());
   }
 
+  @Test
+  void keepsPayableHealthSeparateFromPaidHealthUsedForRyczaltDeduction() {
+    ZusCalculationResult result =
+        calculator.calculate(
+            new ZusCalculationInput(
+                true,
+                false,
+                "JDG",
+                false,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                ZusRules2026.HealthBand.HIGH,
+                BigDecimal.ZERO,
+                new BigDecimal("1495.04"),
+                new BigDecimal("1384.98")));
+
+    assertAmount("1495.04", result.health());
+    assertAmount("1495.04", result.total());
+    assertAmount("1384.98", result.healthPaidForDeduction());
+  }
+
   private static void assertAmount(String expected, BigDecimal actual) {
     assertEquals(0, new BigDecimal(expected).compareTo(actual));
   }

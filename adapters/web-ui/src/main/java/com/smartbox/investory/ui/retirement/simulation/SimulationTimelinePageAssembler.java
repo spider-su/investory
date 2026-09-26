@@ -16,19 +16,16 @@ final class SimulationTimelinePageAssembler {
   private final ProfileClient profiles;
   private final RetirementPlanClient plans;
   private final RetirementTimelineClient timeline;
-  private final RetirementPresentationClient presentation;
   private final RetirementProjectionClient projections;
 
   SimulationTimelinePageAssembler(
       ProfileClient profiles,
       RetirementPlanClient plans,
       RetirementTimelineClient timeline,
-      RetirementPresentationClient presentation,
       RetirementProjectionClient projections) {
     this.profiles = profiles;
     this.plans = plans;
     this.timeline = timeline;
-    this.presentation = presentation;
     this.projections = projections;
   }
 
@@ -42,22 +39,19 @@ final class SimulationTimelinePageAssembler {
     var profile = profiles.loadProfile(portfolioId);
     model.addAttribute("profile", profile);
     model.addAttribute("planningDisplayCurrency", currency);
-    model.addAttribute("planningPresentation", presentation);
     model.addAttribute("selectedPlanId", planId);
     model.addAttribute("selectedScenario", scenario);
     YearReviewMode mode = timeline.reviewMode(portfolioId, year);
     if (mode == YearReviewMode.LIVE) {
       var projection = projections.load(portfolioId, planId);
-      var forwardTimeline = timeline.loadForwardTimeline(portfolioId, projection, scenario);
+      var forwardTimeline =
+          timeline.loadForwardTimeline(portfolioId, projection, scenario, currency);
       var row =
-          forwardTimeline.years().stream()
+          forwardTimeline.timeline().years().stream()
               .filter(r -> r.state() == PlanningTimelineState.LIVE && r.year() == year)
               .findFirst()
               .orElseThrow(() -> new IllegalArgumentException("Live planning year is unavailable"));
-      var money =
-          presentation
-              .displayTimelineMoney(forwardTimeline, currency, projection.projectedAssumptions())
-              .get(year);
+      var money = forwardTimeline.money().get(year);
       model.addAttribute(
           "liveReview",
           new LiveYearReviewView(
@@ -67,11 +61,11 @@ final class SimulationTimelinePageAssembler {
     if (mode == YearReviewMode.NONE)
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Projected year has no review");
     var stored = timeline.pastYear(portfolioId, year);
-    model.addAttribute("planningYear", presentation.display(stored, currency));
-    var reconciliation = timeline.reconcile(portfolioId, stored);
-    model.addAttribute(
-        "planningReconciliation", presentation.displayReconciliation(reconciliation, currency));
-    model.addAttribute("yearReview", timeline.yearReview(stored));
+    var displayReview = timeline.displayYearReview(portfolioId, stored, currency);
+    model.addAttribute("planningYear", displayReview.planningYear());
+    model.addAttribute("planningReconciliation", displayReview.reconciliation());
+    model.addAttribute("yearReview", displayReview.yearReview());
+    model.addAttribute("displayYearReview", displayReview.displayYearReview());
     Set<PlanningMetric> editable = EnumSet.noneOf(PlanningMetric.class);
     stored
         .values()

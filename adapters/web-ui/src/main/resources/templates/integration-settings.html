@@ -218,8 +218,7 @@
       });
     };
 
-    document.addEventListener('DOMContentLoaded', initializeSchedules, {once: true});
-    document.addEventListener('turbo:load', initializeSchedules);
+    initializeSchedules();
   })();
 </script>
 </body>

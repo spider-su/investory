@@ -46,6 +46,9 @@ public class RyczaltNativeMonthInputEntity extends RyczaltEntity {
   @Column(name = "health_contribution_override", precision = 19, scale = 4)
   private BigDecimal healthContributionOverride;
 
+  @Column(name = "health_contribution_paid_override", precision = 19, scale = 4)
+  private BigDecimal healthContributionPaidOverride;
+
   @Column(name = "deductions_already_consumed", nullable = false, precision = 19, scale = 4)
   private BigDecimal deductionsAlreadyConsumed;
 
@@ -73,6 +76,7 @@ public class RyczaltNativeMonthInputEntity extends RyczaltEntity {
     this.fullJdgSocial = command.fullJdgSocial();
     this.socialContributionDeduction = command.socialContributionDeduction();
     this.healthContributionOverride = command.healthContributionOverride();
+    this.healthContributionPaidOverride = command.healthContributionPaidOverride();
     this.deductionsAlreadyConsumed = command.deductionsAlreadyConsumed();
     this.salesCorrections = command.salesCorrections();
     this.explicitVatAdjustments = command.explicitVatAdjustments();
@@ -87,7 +91,8 @@ public class RyczaltNativeMonthInputEntity extends RyczaltEntity {
         || !sameAmount(ytdRyczaltRevenue, command.ytdRyczaltRevenue())
         || !sameAmount(fullJdgSocial, command.fullJdgSocial())
         || !sameAmount(socialContributionDeduction, command.socialContributionDeduction())
-        || !sameAmount(healthContributionOverride, command.healthContributionOverride())) {
+        || !sameAmount(healthContributionOverride, command.healthContributionOverride())
+        || !sameAmount(healthContributionPaidOverride, command.healthContributionPaidOverride())) {
       changes.add(InputChange.ZUS_INPUT_CHANGED);
     }
     if (!sameAmount(deductionsAlreadyConsumed, command.deductionsAlreadyConsumed())) {
@@ -115,7 +120,8 @@ public class RyczaltNativeMonthInputEntity extends RyczaltEntity {
         ytdRyczaltRevenue,
         fullJdgSocial,
         socialContributionDeduction,
-        healthContributionOverride);
+        healthContributionOverride,
+        healthContributionPaidOverride);
   }
 
   public BigDecimal deductionsAlreadyConsumed() {
@@ -138,5 +144,6 @@ public class RyczaltNativeMonthInputEntity extends RyczaltEntity {
       BigDecimal ytdRyczaltRevenue,
       BigDecimal fullJdgSocial,
       BigDecimal socialContributionDeduction,
-      BigDecimal healthContributionOverride) {}
+      BigDecimal healthContributionOverride,
+      BigDecimal healthContributionPaidOverride) {}
 }

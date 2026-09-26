@@ -3,13 +3,13 @@
   "files": [
     {
       "path": "README.md",
-      "sha256": "efd26a5aad2058267e2b4f31ba4f78fd52cd8065472f28edba5a9d72fe20b834",
-      "size_bytes": 2478
+      "sha256": "b96b3c995441762614e1fa357e47d9a6576b0723c478eaa51b67ceb40c1593bb",
+      "size_bytes": 2468
     },
     {
       "path": "expected/checkpoints.json",
-      "sha256": "bfa2fe562865461348543efe93d020495a32192f8c28a7586ad72d918b984a92",
-      "size_bytes": 3489
+      "sha256": "1d047f949f7cd8eb1869dc637442cc347f3583de5e1a87d928b24e104765de64",
+      "size_bytes": 3467
     },
     {
       "path": "expected/provenance.json",
@@ -17,7 +17,7 @@
       "size_bytes": 970
     },
     {
-      "path": "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv",
+      "path": "ibkr/U90000001.TRANSACTIONS.GOLDEN.csv",
       "sha256": "0d8b132bb01c34ee5d5b55c69160d289e30bba1b0a3fb9326c3cb0e06cde5591",
       "size_bytes": 3179
     },
@@ -28,8 +28,8 @@
     },
     {
       "path": "xtb/investory_xtb_golden.zip",
-      "sha256": "cad7fed0ec31b157b598089f5caf256c4077b6346fcb91ce98f89af81050e412",
-      "size_bytes": 22234
+      "sha256": "7fe7f6d0ae41a680503c755b1e9fcda343692973ea4a17624b886e8af238390b",
+      "size_bytes": 22768
     }
   ]
 }

@@ -47,14 +47,4 @@ public class InvestmentPerformanceController {
         new PerformanceBoardQuery(
             ids, aggregation, PerformanceMetric.PROFIT, PerformanceStyle.BARS, null, portfolioId));
   }
-
-  /** Compatibility alias for clients released before the monthly endpoint was named explicitly. */
-  @Deprecated(forRemoval = false)
-  @GetMapping("/account")
-  public InvestmentPerformanceApi.PerformanceBoardView accountPerformance(
-      @RequestParam String accountIds,
-      @RequestParam(defaultValue = "monthly") PerformanceAggregation aggregation,
-      @PathVariable @Positive Long portfolioId) {
-    return monthlyPerformance(accountIds, aggregation, portfolioId);
-  }
 }

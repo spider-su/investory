@@ -5,24 +5,6 @@
     <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
     <script>
         (function () {
-            function addCsrfInputs() {
-                const token = document.querySelector('meta[name="_csrf"]')?.content;
-                if (!token) return;
-                document.querySelectorAll('form[method="post"], form[method="POST"]').forEach(function (form) {
-                    if (form.querySelector('input[name="_csrf"]')) return;
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = '_csrf';
-                    input.value = token;
-                    form.appendChild(input);
-                });
-            }
-            document.addEventListener('DOMContentLoaded', addCsrfInputs);
-            document.addEventListener('turbo:load', addCsrfInputs);
-        }());
-    </script>
-    <script>
-        (function () {
             try {
                 const saved = localStorage.getItem('investory.theme');
                 const theme = saved === 'dark' || saved === 'light'
@@ -41,15 +23,8 @@
     <link href="/css/tokens.css" rel="stylesheet">
     <link href="/css/base.css" rel="stylesheet">
     <link href="/css/components.css" rel="stylesheet">
-    <!-- Hotwire Turbo Drive v8.0.23, vendored from https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.23/dist/turbo.es2017-umd.js -->
-    <script src="/js/turbo-8.0.23.js" data-turbo-track="reload"></script>
-    <script src="/webjars/chart.js/4.4.1/dist/chart.umd.js" data-turbo-track="reload"></script>
-    <script src="/js/tabler.min.js" data-turbo-track="reload"></script>
-    <script type="module" src="/js/investory-navigation.js" data-turbo-track="reload"></script>
+    <script type="module" src="/js/investory-navigation.js"></script>
     <script th:inline="javascript">window.investoryCapabilities = {canEdit: /*[[${canEdit != null ? canEdit : true}]]*/ true, canImport: /*[[${canImport != null ? canImport : true}]]*/ true, canManageProfile: /*[[${canManageProfile != null ? canManageProfile : true}]]*/ true, canManageIntegrations: /*[[${canManageIntegrations != null ? canManageIntegrations : false}]]*/ false};</script>
-    <script src="/js/investory-authorization.js" data-turbo-track="reload"></script>
-    <script th:src="@{/js/theme.js}" data-turbo-track="reload"></script>
 </th:block>
 </body>
 </html>
-

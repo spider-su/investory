@@ -5,11 +5,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.longterm.api.model.BondView;
 import com.smartbox.investory.longterm.api.model.CashReserveCommand;
 import com.smartbox.investory.longterm.api.model.CashReserveView;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.ui.profile.ProfileClient;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -25,7 +25,7 @@ class LongTermFixedIncomeFormControllerTest {
 
   @Test
   void cashEditPrepopulatesAcquisitionAndPercentageRateAndSaveUsesCanonicalRate() {
-    LongTermAssetsApi assets = mock(LongTermAssetsApi.class);
+    LongTermAssetsClient assets = mock(LongTermAssetsClient.class);
     when(assets.cashReserve(PORTFOLIO_ID, 42L)).thenReturn(cash());
     LongTermAssetController controller = new LongTermAssetController(assets, fixedClock());
     var model = new ConcurrentModel();
@@ -46,11 +46,12 @@ class LongTermFixedIncomeFormControllerTest {
 
   @Test
   void bondEditPrepopulatesAcquisitionAndPercentageRate() {
-    LongTermAssetsApi assets = mock(LongTermAssetsApi.class);
+    LongTermAssetsClient assets = mock(LongTermAssetsClient.class);
     when(assets.bond(PORTFOLIO_ID, 41L)).thenReturn(bond());
     var model = new ConcurrentModel();
 
-    new LongTermBondController(assets).editBond(PORTFOLIO_ID, 41L, model);
+    new LongTermBondController(assets, mock(ProfileClient.class))
+        .editBond(PORTFOLIO_ID, 41L, model);
     BondForm form = (BondForm) model.getAttribute("asset");
     assertThat(form.getAcquisitionDate()).isEqualTo(LocalDate.of(2024, 7, 31));
     assertThat(form.getAnnualRatePercent()).isEqualByComparingTo("5.9");

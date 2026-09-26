@@ -9,7 +9,7 @@ read models and profile-scoped repository queries. The common resources below ar
 
 ## Consumer evidence
 
-The mobile client was inspected at `/home/alex/projects/ryczalt_it` (`investory-accounting-mobile`).
+The mobile client was inspected in the companion `investory-accounting-mobile` checkout.
 Its API paths are defined in `src/api/accountingPaths.ts` and calls are made by
 `src/api/accountingApi.ts`. The mobile mapper is `src/api/mappers/accountingMapper.ts`.
 

@@ -19,7 +19,7 @@ workflow. Keep current project facts in `AGENTS.md`.
 
 ## Duplication Found
 
-- Repeated account ids: `51499241`, `50290466`, `17959259`.
+- Repeated account ids: `90000002`, `90000008`, `90000001`.
 - Repeated symbols: `AAPL.US`, `MSFT.US`, `NVDA.US`, `VWRA.UK`, `VWRA`.
 - Repeated dates created with `ZonedDateTime.now()` or inline `ZonedDateTime.of(...)`.
 - Repeated open-position setup: id, account, symbol, currency, volume, price,

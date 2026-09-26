@@ -83,7 +83,7 @@ class YahooExportServiceTest {
             List.of(
                 PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
                     .withId(1L)
-                    .forAccount(51499241L)
+                    .forAccount(90000002L)
                     .quantity(10.0)
                     .price(100.0)
                     .marketPrice(130.0)
@@ -91,7 +91,7 @@ class YahooExportServiceTest {
                     .build(),
                 PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
                     .withId(2L)
-                    .forAccount(51499241L)
+                    .forAccount(90000002L)
                     .quantity(2.0)
                     .price(120.0)
                     .marketPrice(130.0)
@@ -129,7 +129,7 @@ class YahooExportServiceTest {
             List.of(
                 PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
                     .withId(1L)
-                    .forAccount(51499241L)
+                    .forAccount(90000002L)
                     .symbol("NVDA.US")
                     .quantity(1.0)
                     .price(146.0)
@@ -138,7 +138,7 @@ class YahooExportServiceTest {
                     .build(),
                 PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
                     .withId(2L)
-                    .forAccount(50290466L)
+                    .forAccount(90000008L)
                     .symbol("NVDA.US")
                     .currency(CurrencyType.PLN)
                     .quantity(1.0)
@@ -173,7 +173,7 @@ class YahooExportServiceTest {
             List.of(
                 PortfolioBuilders.openPosition(PortfolioTestData.IWDA_AS)
                     .withId(1L)
-                    .forAccount(51499241L)
+                    .forAccount(90000002L)
                     .symbol("VWRA.UK")
                     .currency(CurrencyType.USD)
                     .quantity(5.0)
@@ -183,7 +183,7 @@ class YahooExportServiceTest {
                     .build(),
                 PortfolioBuilders.openPosition(PortfolioTestData.IWDA_AS)
                     .withId(2L)
-                    .forAccount(51499241L)
+                    .forAccount(90000002L)
                     .symbol("VWRA")
                     .currency(CurrencyType.USD)
                     .quantity(10.0)
@@ -216,7 +216,7 @@ class YahooExportServiceTest {
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(accountStatisticsRepository.findAll())
         .thenReturn(
-            List.of(accountStatistics(51499241L, 12699.0), accountStatistics(51548444L, 8000.0)));
+            List.of(accountStatistics(90000002L, 12699.0), accountStatistics(90000009L, 8000.0)));
 
     service.exportToYahooCsv(1L, output.toString());
 
@@ -242,14 +242,14 @@ class YahooExportServiceTest {
             List.of(
                 PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
                     .withId(1L)
-                    .forAccount(51499241L)
+                    .forAccount(90000002L)
                     .quantity(10.0)
                     .price(100.0)
                     .marketPrice(130.0)
                     .on(PortfolioTestData.YEAR_END)
                     .build()));
     when(accountStatisticsRepository.findAll())
-        .thenReturn(List.of(accountStatistics(51499241L, 0.0)));
+        .thenReturn(List.of(accountStatistics(90000002L, 0.0)));
 
     service.exportToYahooCsv(1L, output.toString());
 

@@ -25,13 +25,13 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_classifiesExplicitTransferInOutAsInternalNotExternal() {
     CashOperationEntity out =
-        cash(1L, 50290466L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
-    out.setComment("Transfer out operation on account with id 50290466");
+        cash(1L, 90000008L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
+    out.setComment("Transfer out operation on account with id 90000008");
     out.setDate(ZonedDateTime.parse("2025-02-03T13:34:00Z"));
 
     CashOperationEntity in =
-        cash(2L, 51551301L, CashOperationType.DEPOSIT, 5200.0, CurrencyType.PLN);
-    in.setComment("Transfer in operation on account with id 51551301");
+        cash(2L, 90000003L, CashOperationType.DEPOSIT, 5200.0, CurrencyType.PLN);
+    in.setComment("Transfer in operation on account with id 90000003");
     in.setDate(ZonedDateTime.parse("2025-02-03T13:34:52Z"));
 
     List<NormalizedCashOperation> rows = normalizer.normalize(List.of(out, in));
@@ -48,15 +48,15 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_classifiesCurrencyConversionAsInternalFx() {
     CashOperationEntity pln =
-        cash(10L, 50290466L, CashOperationType.TRANSFER, -20000.0, CurrencyType.PLN);
+        cash(10L, 90000008L, CashOperationType.TRANSFER, -20000.0, CurrencyType.PLN);
     pln.setComment(
-        "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
+        "Currency conversion, PLN to USD from TA: 90000008 to: 90000002, Exchange rate:0.250206");
     pln.setDate(ZonedDateTime.parse("2026-01-10T12:00:00Z"));
 
     CashOperationEntity usd =
-        cash(11L, 51499241L, CashOperationType.TRANSFER, 5004.12, CurrencyType.USD);
+        cash(11L, 90000002L, CashOperationType.TRANSFER, 5004.12, CurrencyType.USD);
     usd.setComment(
-        "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
+        "Currency conversion, PLN to USD from TA: 90000008 to: 90000002, Exchange rate:0.250206");
     usd.setDate(ZonedDateTime.parse("2026-01-10T12:01:00Z"));
 
     List<NormalizedCashOperation> rows = normalizer.normalize(List.of(pln, usd));
@@ -74,10 +74,10 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_classifiesDividendAndTaxReversalsBySign() {
     CashOperationEntity negativeDividend =
-        cash(20L, 51993106L, CashOperationType.DIVIDEND, -12.34, CurrencyType.USD);
+        cash(20L, 90000010L, CashOperationType.DIVIDEND, -12.34, CurrencyType.USD);
     negativeDividend.setComment("Dividend correction");
     CashOperationEntity positiveTax =
-        cash(21L, 51993106L, CashOperationType.WITHHOLDING_TAX, 15.0, CurrencyType.USD);
+        cash(21L, 90000010L, CashOperationType.WITHHOLDING_TAX, 15.0, CurrencyType.USD);
     positiveTax.setComment("Tax reversal");
 
     List<NormalizedCashOperation> rows =
@@ -93,12 +93,12 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_pairsZeroNetSubaccountTransfers() {
     CashOperationEntity left =
-        cash(30L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
-    left.setComment("Transfer from 51548444 to 51551130");
+        cash(30L, 90000009L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
+    left.setComment("Transfer from 90000009 to 51551130");
     left.setDate(ZonedDateTime.parse("2024-11-30T00:48:00Z"));
     CashOperationEntity right =
-        cash(31L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
-    right.setComment("Transfer from 51548444 to 51551130");
+        cash(31L, 90000009L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
+    right.setComment("Transfer from 90000009 to 51551130");
     right.setDate(ZonedDateTime.parse("2024-11-30T00:49:00Z"));
 
     List<NormalizedCashOperation> rows = normalizer.normalize(List.of(left, right));
@@ -115,7 +115,7 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_doesNotTreatUnexplainedNegativeDepositAsExternalWithdrawal() {
     CashOperationEntity negativeDeposit =
-        cash(40L, 51499241L, CashOperationType.DEPOSIT, -42.50, CurrencyType.USD);
+        cash(40L, 90000002L, CashOperationType.DEPOSIT, -42.50, CurrencyType.USD);
     negativeDeposit.setComment("manual correction without transfer hint");
 
     NormalizedCashOperation row = normalizer.normalize(List.of(negativeDeposit)).getFirst();
@@ -128,7 +128,7 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_doesNotTreatPositiveWithdrawalAsExternalDeposit() {
     CashOperationEntity positiveWithdrawal =
-        cash(41L, 51499241L, CashOperationType.WITHDRAWAL, 42.50, CurrencyType.USD);
+        cash(41L, 90000002L, CashOperationType.WITHDRAWAL, 42.50, CurrencyType.USD);
     positiveWithdrawal.setComment("withdrawal reversal");
 
     NormalizedCashOperation row = normalizer.normalize(List.of(positiveWithdrawal)).getFirst();
@@ -141,7 +141,7 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_zeroDepositDoesNotBecomeNormalCapitalFlow() {
     CashOperationEntity zeroDeposit =
-        cash(42L, 51499241L, CashOperationType.DEPOSIT, 0.0, CurrencyType.USD);
+        cash(42L, 90000002L, CashOperationType.DEPOSIT, 0.0, CurrencyType.USD);
     zeroDeposit.setComment("zero adjustment");
 
     NormalizedCashOperation row = normalizer.normalize(List.of(zeroDeposit)).getFirst();
@@ -155,8 +155,8 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_unmatchedInternalTransferRemainsVisibleAndUnpaired() {
     CashOperationEntity transferOut =
-        cash(43L, 50290466L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
-    transferOut.setComment("Transfer out operation on account with id 50290466");
+        cash(43L, 90000008L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
+    transferOut.setComment("Transfer out operation on account with id 90000008");
     transferOut.setDate(ZonedDateTime.parse("2025-02-03T13:34:00Z"));
 
     NormalizedCashOperation row = normalizer.normalize(List.of(transferOut)).getFirst();
@@ -170,17 +170,17 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_transferBetweenAccountsUsesAccountCluesNotOnlyAmountAndTime() {
     CashOperationEntity legA =
-        cash(50L, 51499241L, CashOperationType.TRANSFER, -1000.0, CurrencyType.USD);
-    legA.setComment("Transfer from 51499241 to 51993106");
+        cash(50L, 90000002L, CashOperationType.TRANSFER, -1000.0, CurrencyType.USD);
+    legA.setComment("Transfer from 90000002 to 90000010");
     legA.setDate(ZonedDateTime.parse("2026-01-10T10:00:00Z"));
 
     CashOperationEntity legB =
-        cash(51L, 51993106L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
-    legB.setComment("Transfer from 51499241 to 51993106");
+        cash(51L, 90000010L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
+    legB.setComment("Transfer from 90000002 to 90000010");
     legB.setDate(ZonedDateTime.parse("2026-01-10T10:01:00Z"));
 
     CashOperationEntity unrelated =
-        cash(52L, 53582946L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
+        cash(52L, 90000006L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
     unrelated.setComment("Transfer from 11111111 to 22222222");
     unrelated.setDate(ZonedDateTime.parse("2026-01-10T10:02:00Z"));
 
@@ -196,12 +196,12 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_subaccountTransferPairingIsInputOrderIndependent() {
     CashOperationEntity left =
-        cash(60L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
-    left.setComment("Transfer from 51548444 to 51551130");
+        cash(60L, 90000009L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
+    left.setComment("Transfer from 90000009 to 51551130");
     left.setDate(ZonedDateTime.parse("2024-11-30T00:48:00Z"));
     CashOperationEntity right =
-        cash(61L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
-    right.setComment("Transfer from 51548444 to 51551130");
+        cash(61L, 90000009L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
+    right.setComment("Transfer from 90000009 to 51551130");
     right.setDate(ZonedDateTime.parse("2024-11-30T00:49:00Z"));
 
     List<NormalizedCashOperation> forward = normalizer.normalize(List.of(left, right));
@@ -217,7 +217,7 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_negativeInterestBecomesInterestReversal() {
     CashOperationEntity interest =
-        cash(70L, 51499241L, CashOperationType.FREE_FUNDS_INTEREST, -1.23, CurrencyType.USD);
+        cash(70L, 90000002L, CashOperationType.FREE_FUNDS_INTEREST, -1.23, CurrencyType.USD);
 
     NormalizedCashOperation row = normalizer.normalize(List.of(interest)).getFirst();
 
@@ -229,7 +229,7 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_ibkrBondRedemptionIsSettlementNotFunding() {
     CashOperationEntity redemption =
-        cash(75L, 17959259L, CashOperationType.TRANSFER, 10_000.0, CurrencyType.USD);
+        cash(75L, 90000001L, CashOperationType.TRANSFER, 10_000.0, CurrencyType.USD);
     redemption.setComment("(US91282CKB62) Full Call / Early Redemption for USD 1.00 per Bond");
 
     NormalizedCashOperation row = normalizer.normalize(List.of(redemption)).getFirst();
@@ -244,11 +244,11 @@ class CashOperationNormalizerTest {
   @Test
   void normalize_feeCorrectionsBecomeFeeReversals() {
     CashOperationEntity commissionRefund =
-        cash(71L, 51499241L, CashOperationType.CORRECTION, 5.00, CurrencyType.USD);
+        cash(71L, 90000002L, CashOperationType.CORRECTION, 5.00, CurrencyType.USD);
     commissionRefund.setComment("Commission Refund");
 
     CashOperationEntity secFeeAdjustment =
-        cash(72L, 51499241L, CashOperationType.CORRECTION, 0.01, CurrencyType.USD);
+        cash(72L, 90000002L, CashOperationType.CORRECTION, 0.01, CurrencyType.USD);
     secFeeAdjustment.setComment("corr Sec Fee adj");
 
     List<NormalizedCashOperation> rows =

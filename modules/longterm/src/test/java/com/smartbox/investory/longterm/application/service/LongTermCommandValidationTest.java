@@ -42,7 +42,7 @@ class LongTermCommandValidationTest {
   @BeforeEach
   void portfolioExists() {
     when(portfolios.findById(1L))
-        .thenReturn(Optional.of(new PortfolioContext(1L, CurrencyType.PLN)));
+        .thenReturn(Optional.of(new PortfolioContext(1L, CurrencyType.PLN, CurrencyType.PLN)));
   }
 
   @Test

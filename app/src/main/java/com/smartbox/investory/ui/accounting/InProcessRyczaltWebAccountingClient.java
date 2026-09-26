@@ -96,6 +96,15 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
   }
 
   @Override
+  public List<Invoice> invoices(long profileId, Long counterpartyId) {
+    return accounting
+        .invoicesByCounterparty(profileId, null, counterpartyId, authentication())
+        .stream()
+        .map(this::invoice)
+        .toList();
+  }
+
+  @Override
   public List<Transaction> transactions(long profileId, YearMonth month) {
     return accounting.transactions(profileId, month, authentication()).stream()
         .map(
@@ -125,8 +134,26 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
                     decimal(v.outstandingAmount()),
                     v.currency().name(),
                     v.dueDate(),
-                    v.status().name()))
+                    v.status().name(),
+                    v.manuallyPaid(),
+                    v.manualPaidDate()))
         .toList();
+  }
+
+  @Override
+  public void manualObligationPaid(
+      long profileId, YearMonth month, long obligationId, LocalDate paidDate, String note) {
+    accounting.markObligationPaid(
+        profileId,
+        month,
+        obligationId,
+        new RyczaltAccountingRestController.ManualPaidRequest(paidDate, note),
+        authentication());
+  }
+
+  @Override
+  public void manualObligationUnpaid(long profileId, YearMonth month, long obligationId) {
+    accounting.markObligationUnpaid(profileId, month, obligationId, authentication());
   }
 
   @Override

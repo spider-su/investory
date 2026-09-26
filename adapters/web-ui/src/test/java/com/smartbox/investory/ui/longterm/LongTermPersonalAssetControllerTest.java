@@ -5,7 +5,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.longterm.api.model.PersonalAssetCategory;
 import com.smartbox.investory.longterm.api.model.PersonalAssetView;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -20,7 +19,7 @@ import org.springframework.ui.ConcurrentModel;
 class LongTermPersonalAssetControllerTest {
   @Test
   void editLoadsPersistedCategoryAndUnrelatedFields() {
-    LongTermAssetsApi assets = mock(LongTermAssetsApi.class);
+    LongTermAssetsClient assets = mock(LongTermAssetsClient.class);
     var controller =
         new LongTermPersonalAssetController(
             assets, Clock.fixed(Instant.parse("2026-09-07T00:00:00Z"), ZoneOffset.UTC));

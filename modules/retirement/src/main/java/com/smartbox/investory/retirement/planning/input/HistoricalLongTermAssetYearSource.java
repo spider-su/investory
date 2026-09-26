@@ -43,13 +43,9 @@ public class HistoricalLongTermAssetYearSource {
       BigDecimal bondIncome,
       boolean cashReserveValueAvailable,
       BigDecimal cashReserveValue) {
-    /** Compatibility constructor for callers that only supplied rental facts. */
-    public HistoricalLongTermAssetYear(boolean available, BigDecimal rentalIncome) {
-      this(available, rentalIncome, false, null, false, null, false, null, false, null);
-    }
-
     static HistoricalLongTermAssetYear unavailable() {
-      return new HistoricalLongTermAssetYear(false, null);
+      return new HistoricalLongTermAssetYear(
+          false, null, false, null, false, null, false, null, false, null);
     }
   }
 }

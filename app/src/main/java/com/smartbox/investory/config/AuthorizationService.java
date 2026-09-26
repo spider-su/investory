@@ -1,7 +1,6 @@
 package com.smartbox.investory.config;
 
 import java.util.Locale;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
@@ -13,11 +12,6 @@ public class AuthorizationService {
   private final JdbcTemplate jdbc;
   private final boolean profileOwnershipRequired;
 
-  public AuthorizationService(JdbcTemplate jdbc) {
-    this(jdbc, true);
-  }
-
-  @Autowired
   public AuthorizationService(
       JdbcTemplate jdbc,
       @Value("${app.security.profile-ownership-required:true}") boolean profileOwnershipRequired) {

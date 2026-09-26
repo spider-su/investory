@@ -12,7 +12,3 @@ export function initDashboard() {
     initDashboardCharts();
 }
 
-export function destroyDashboard() {
-    window.InvestoryDashboardCharts?.destroy?.();
-}
-

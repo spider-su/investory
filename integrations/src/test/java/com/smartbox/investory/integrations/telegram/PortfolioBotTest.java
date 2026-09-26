@@ -18,14 +18,14 @@ class PortfolioBotTest {
   @ParameterizedTest
   @CsvSource({
     // explicit XTB keyword always wins
-    "account_51499241.xlsx, XTB",
+    "account_90000002.xlsx, XTB",
     "XTB_export.bin, XTB",
     "xtb-march-2026.csv, XTB",
     // explicit IBKR keyword always wins (even with .xlsx)
     "ibkr-2026.csv, IBKR",
     "IBKR_jan.xlsx, IBKR",
     // IBKR activity files: U + digits + dotted transaction name + .csv
-    "U17959259.TRANSACTIONS.20250211.20260612.csv, IBKR",
+    "U90000001.TRANSACTIONS.20250211.20260612.csv, IBKR",
     // extension fallbacks
     "statement-2026.xlsx, XTB"
   })
@@ -94,6 +94,6 @@ class PortfolioBotTest {
   void detectBroker_isCaseInsensitive() {
     assertEquals("XTB", PortfolioBot.detectBroker("AccountEntity.XLSX"));
     assertEquals("IBKR", PortfolioBot.detectBroker("MyIbkrAccount.CSV"));
-    assertEquals("IBKR", PortfolioBot.detectBroker("U17959259.TRANSACTIONS.20250211.20251231.CSV"));
+    assertEquals("IBKR", PortfolioBot.detectBroker("U90000001.TRANSACTIONS.20250211.20251231.CSV"));
   }
 }

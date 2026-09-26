@@ -112,7 +112,8 @@ class RetirementAgeAnalysisServiceTest {
                       sustainable ? BigDecimal.ZERO : BigDecimal.ONE,
                       BigDecimal.ONE,
                       BigDecimal.ONE,
-                      BigDecimal.ONE));
+                      BigDecimal.ONE,
+                      true));
             });
 
     var result =
@@ -166,7 +167,8 @@ class RetirementAgeAnalysisServiceTest {
                       sustainable ? BigDecimal.ZERO : new BigDecimal("100"),
                       BigDecimal.ONE,
                       BigDecimal.ONE,
-                      BigDecimal.ONE));
+                      BigDecimal.ONE,
+                      true));
             });
     return evaluations;
   }

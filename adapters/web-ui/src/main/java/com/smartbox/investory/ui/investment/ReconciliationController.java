@@ -27,7 +27,7 @@ public class ReconciliationController {
 
   @PostMapping("/portfolios/{portfolioId}/dashboard/reconciliation/refresh")
   public String refresh(@org.springframework.web.bind.annotation.PathVariable Long portfolioId) {
-    reconciliation.refreshReconciliationViews();
+    reconciliation.refreshReconciliationViews(portfolioId);
     return "redirect:/portfolios/" + portfolioId + "/dashboard/reconciliation?refreshed=true";
   }
 }

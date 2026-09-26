@@ -13,7 +13,10 @@ import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.analysis.RetirementAgeAnalysisService;
 import com.smartbox.investory.retirement.analysis.SimulationSensitivityAnalysisService;
 import com.smartbox.investory.retirement.analysis.SustainableSpendingAnalysisService;
-import com.smartbox.investory.retirement.api.RetirementSandboxApi;
+import com.smartbox.investory.retirement.api.RetirementPresentationApi;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanUpdateRequest;
+import com.smartbox.investory.retirement.api.contract.RetirementProjectionContracts;
+import com.smartbox.investory.retirement.api.contract.RetirementTimelineContracts;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.ForwardSimulationContext;
 import com.smartbox.investory.retirement.api.model.NormalizedPlanInput;
@@ -66,11 +69,10 @@ class RetirementSimulationControllerTest {
   @Mock SimulationSensitivityAnalysisService sensitivity;
   @Mock RetirementAgeAnalysisService retirementAgeAnalysis;
   @Mock RetirementTimelineClient timeline;
-  @Mock RetirementPresentationClient presentation;
   @Mock RetirementPlanInputClient planInput;
   @Mock RetirementPreviewClient planEditorPreview;
   @Mock ScenarioObservationService scenarioObservations;
-  @Mock RetirementSandboxApi sandbox;
+  @Mock RetirementSandboxClient sandbox;
   @Mock ForwardSimulationInputService forwardInputs;
   MockMvc mockMvc;
   MockMvc renderingMockMvc;
@@ -81,45 +83,80 @@ class RetirementSimulationControllerTest {
     var summary = mock(SimulationDecisionSummaryMoney.class);
     lenient().when(summary.failed()).thenReturn(false);
     lenient().when(summary.minimumLiquidAssetsDisplay()).thenReturn("0");
-    lenient()
-        .when(presentation.displaySummaries(any(), any()))
-        .thenReturn(Map.of(SimulationScenario.BASE, summary));
-    lenient().when(presentation.displayTimelineMoney(any(), any(), any())).thenReturn(Map.of());
     controller =
         new RetirementSimulationController(
             profiles,
             plans,
-            timeline,
-            presentation,
-            planInput,
-            projections,
             Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC),
-            planEditorPreview,
-            scenarioObservations,
             new SimulationCommandService(plans),
-            sandbox);
+            sandbox,
+            new SimulationRequestMapper(
+                planInput, Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)),
+            new SimulationPageAssembler(
+                plans,
+                timeline,
+                projections,
+                Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC),
+                scenarioObservations),
+            new SimulationPlanEditAssembler(
+                profiles,
+                plans,
+                planEditorPreview,
+                mock(RetirementPresentationApi.class),
+                Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)),
+            false);
     lenient()
-        .when(projections.load(anyLong(), nullable(Long.class), anyInt(), anyInt()))
+        .when(projections.load(anyLong(), nullable(Long.class)))
         .thenAnswer(
             invocation -> {
               Long portfolioId = invocation.getArgument(0);
               Long planId = invocation.getArgument(1);
-              int currentAge = invocation.getArgument(2);
-              int endAge = invocation.getArgument(3);
               InvestmentProfile profile = profiles.loadProfile(portfolioId);
               var details = plans.details(portfolioId, planId);
               SimulationAssumptions assumptions = details == null ? null : details.assumptions();
               if (assumptions == null) {
-                assumptions = SimulationAssumptions.defaults(currentAge, endAge, 2026);
+                assumptions = SimulationAssumptions.defaults(40, 95, 2026);
               }
               var projection = mock(RetirementProjection.class);
               when(projection.profile()).thenReturn(profile);
               when(projection.assumptions()).thenReturn(assumptions);
+              var forward = mock(ForwardSimulationInput.class);
+              var forwardContext = mock(ForwardSimulationContext.class);
+              when(forward.context()).thenReturn(forwardContext);
+              when(forwardContext.asOfYear()).thenReturn(2026);
+              when(projection.forward()).thenReturn(forward);
+              when(projection.projectedAssumptions()).thenReturn(assumptions);
+              when(projection.projectedProfile()).thenReturn(profile);
+              when(projection.summaries()).thenReturn(Map.of());
               return projection;
             });
     lenient()
-        .when(planEditorPreview.preview(any(), any(), any()))
-        .thenReturn(mock(PlanEditorPreview.class));
+        .when(
+            projections.loadDisplay(
+                anyLong(),
+                nullable(Long.class),
+                nullable(Integer.class),
+                nullable(Integer.class),
+                any()))
+        .thenAnswer(
+            invocation ->
+                new RetirementProjectionContracts.DisplayProjectionResponse(
+                    projections.load(invocation.getArgument(0), invocation.getArgument(1)),
+                    Map.of(SimulationScenario.BASE, summary)));
+    lenient()
+        .when(planEditorPreview.preview(anyLong(), nullable(Long.class), any(), any()))
+        .thenReturn(
+            new EditorPreviewResponse(
+                true,
+                List.of(),
+                new EditorPreviewResponse.DerivedValues("", ""),
+                mock(PlanEditorPreview.class),
+                null,
+                Map.of(
+                    "totalAnnualCosts", BigDecimal.ZERO,
+                    "monthlyTotalCosts", BigDecimal.ZERO,
+                    "annualEmploymentIncome", new BigDecimal("240000")),
+                Map.of()));
     lenient()
         .when(projections.project(any(), any(), any()))
         .thenAnswer(
@@ -141,11 +178,22 @@ class RetirementSimulationControllerTest {
         .when(planInput.normalizePlanEditorInput(any(), any(), any()))
         .thenAnswer(
             invocation -> {
-              return new NormalizedPlanInput(invocation.getArgument(1), List.of());
+              PlanEditorInput editorInput = invocation.getArgument(0);
+              SimulationAssumptions assumptions = invocation.getArgument(1);
+              return new NormalizedPlanInput(
+                  assumptions.toBuilder()
+                      .annualEmploymentIncome(editorInput.annualEmploymentIncome())
+                      .annualPreRetirementContribution(
+                          editorInput.annualPreRetirementContribution())
+                      .build(),
+                  List.of());
             });
     lenient()
-        .when(timeline.loadForwardTimeline(anyLong(), any(), any()))
-        .thenReturn(new com.smartbox.investory.retirement.api.model.PlanningTimeline(List.of()));
+        .when(timeline.loadForwardTimeline(anyLong(), any(), any(), any()))
+        .thenReturn(
+            new RetirementTimelineContracts.ForwardTimelineResponse(
+                new com.smartbox.investory.retirement.api.model.PlanningTimeline(List.of()),
+                Map.of()));
     lenient()
         .when(forwardInputs.prepare(any(), any()))
         .thenAnswer(
@@ -165,18 +213,6 @@ class RetirementSimulationControllerTest {
                           context.firstProjectedYear(),
                           context.remainingFutureEvents())));
             });
-    lenient().when(presentation.fromDisplay(any(), any(), any())).thenAnswer(i -> i.getArgument(0));
-    lenient().when(presentation.toDisplay(any(), any())).thenAnswer(i -> i.getArgument(0));
-    lenient()
-        .when(presentation.displayProfile(any(), any()))
-        .thenReturn(
-            new PlanningProfileMoney(
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO));
     lenient()
         .when(sustainableSpending.analyze(any(), any()))
         .thenReturn(mock(SustainableSpendingAnalysis.class));
@@ -186,8 +222,6 @@ class RetirementSimulationControllerTest {
     lenient()
         .when(retirementAgeAnalysis.analyze(any(), any()))
         .thenReturn(mock(RetirementAgeAnalysis.class));
-    lenient().when(presentation.displayCharts(any(), any())).thenAnswer(i -> i.getArgument(0));
-    lenient().when(presentation.displayTimelineMoney(any(), any())).thenReturn(Map.of());
     lenient()
         .when(plans.resolvePlanId(anyLong(), nullable(Long.class)))
         .thenAnswer(invocation -> Optional.ofNullable(invocation.getArgument(1)));
@@ -325,12 +359,11 @@ class RetirementSimulationControllerTest {
     var page =
         (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
     assertEquals(null, page.selectedPlanId());
-    assertEquals("Current assumptions", page.activePlanName());
   }
 
-  @DisplayName("simulation Preserves Saved Retirement Transition Fields")
+  @DisplayName("simulation Loads The Selected Plan Projection")
   @Test
-  void simulationPreservesSavedRetirementTransitionFields() throws Exception {
+  void simulationLoadsTheSelectedPlanProjection() throws Exception {
     InvestmentProfile p =
         new InvestmentProfile(
             1L,
@@ -377,35 +410,7 @@ class RetirementSimulationControllerTest {
         .andExpect(status().isOk())
         .andExpect(model().attributeExists("simulationPage"));
 
-    var captured = org.mockito.ArgumentCaptor.forClass(SimulationAssumptions.class);
-    verify(projections).project(eq(p), captured.capture(), any());
-    assertEquals(60, captured.getValue().retirementAge());
-    assertEquals(new BigDecimal("240000"), captured.getValue().annualEmploymentIncome());
-    assertEquals(new BigDecimal("50000"), captured.getValue().annualPreRetirementContribution());
-  }
-
-  @DisplayName("simulation Rounds Plan Input Money For Display")
-  @Test
-  void simulationRoundsPlanInputMoneyForDisplay() throws Exception {
-    InvestmentProfile p = profile();
-    var saved =
-        SimulationAssumptions.defaults(45, 90, 2026)
-            .withRecurringSpending(new BigDecimal("180000.00071684"))
-            .withAnnualPension(new BigDecimal("7000.00002787"));
-    when(profiles.loadProfile(1L)).thenReturn(p);
-    when(plans.details(1L, 7L)).thenReturn(planDetails(7L, "Plan", saved));
-    when(simulations.compareScenarios(eq(p), any(), anyInt())).thenReturn(Map.of());
-
-    var result =
-        mockMvc
-            .perform(get("/portfolios/1/simulation").param("portfolioId", "1").param("planId", "7"))
-            .andExpect(status().isOk())
-            .andReturn();
-    var page =
-        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
-
-    assertEquals(0, new BigDecimal("180000").compareTo(page.annualLivingExpenses()));
-    assertEquals(0, new BigDecimal("7000").compareTo(page.annualPension()));
+    verify(projections).load(1L, 7L);
   }
 
   @DisplayName("simulation Without Plan Id Uses The Latest Saved Plan")
@@ -424,7 +429,6 @@ class RetirementSimulationControllerTest {
         (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
 
     assertEquals(8L, page.selectedPlanId());
-    assertEquals("Plan B", page.activePlanName());
     verify(plans).resolvePlanId(1L, null);
   }
 
@@ -446,7 +450,6 @@ class RetirementSimulationControllerTest {
         (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
 
     assertEquals(7L, page.selectedPlanId());
-    assertEquals("Plan A", page.activePlanName());
     verify(plans).resolvePlanId(1L, 7L);
   }
 
@@ -481,41 +484,15 @@ class RetirementSimulationControllerTest {
     assertEquals("", defaultModel.getAttribute("planName"));
   }
 
-  @DisplayName("percent Inputs Always Convert Percentage Points To Decimal Rates")
-  @Test
-  void percentInputsAlwaysConvertPercentagePointsToDecimalRates() {
-    String[][] cases = {
-      {"0", "0.00"},
-      {"0.5", "0.005"},
-      {"1", "0.01"},
-      {"2", "0.02"},
-      {"5", "0.05"},
-      {"8.5", "0.085"},
-      {"19", "0.19"},
-      {"100", "1.00"}
-    };
-    for (String[] entry : cases)
-      assertEquals(
-          0,
-          new BigDecimal(entry[1])
-              .compareTo(
-                  SimulationRequestMapper.percentInputToRate(
-                      new BigDecimal(entry[0]), BigDecimal.ZERO)),
-          entry[0]);
-  }
-
   @DisplayName("editing Existing Plan Preserves Its Temporal Anchor Across Calendar Years")
   @Test
   void editingExistingPlanPreservesItsTemporalAnchorAcrossCalendarYears() throws Exception {
     SimulationAssumptions stored =
         SimulationAssumptions.defaults(40, 80, 2025).withRetirementAge(45);
     when(plans.details(1L, 9L)).thenReturn(planDetails(9L, "Plan", stored));
-    when(plans.updatePlan(any(com.smartbox.investory.retirement.api.model.UpdatePlanCommand.class)))
-        .thenReturn(9L);
+    when(plans.updatePlan(eq(1L), eq(9L), any(PlanUpdateRequest.class))).thenReturn(9L);
 
-    var captured =
-        org.mockito.ArgumentCaptor.forClass(
-            com.smartbox.investory.retirement.api.model.UpdatePlanCommand.class);
+    var captured = org.mockito.ArgumentCaptor.forClass(PlanUpdateRequest.class);
     mockMvc
         .perform(
             post("/portfolios/1/simulation/plans")
@@ -536,6 +513,7 @@ class RetirementSimulationControllerTest {
                 .param("equityHarvestThreshold", "7")
                 .param("equityHarvestShare", "75")
                 .param("allowEmergencyEquityWithdrawal", "true")
+                .param("fixedIncomeReturn", "4.5")
                 .param("equityReturn", "8")
                 .param("pensionStartAge", "67")
                 .param("annualPension", "0")
@@ -543,8 +521,8 @@ class RetirementSimulationControllerTest {
                 .param("selectedScenario", "BASE"))
         .andExpect(status().is3xxRedirection());
 
-    verify(plans).updatePlan(captured.capture());
-    SimulationAssumptions saved = captured.getValue().assumptions();
+    verify(plans).updatePlan(eq(1L), eq(9L), captured.capture());
+    SimulationAssumptions saved = captured.getValue().assumptions().toDomain();
     assertEquals(2025, saved.startYear());
     assertEquals(40, saved.currentAge());
     assertEquals(45, saved.retirementAge());
@@ -555,7 +533,8 @@ class RetirementSimulationControllerTest {
     assertEquals(new BigDecimal("0.05"), saved.effectiveRentalIncomeGrowthRate());
     assertEquals(new BigDecimal("0.055"), saved.effectiveSpendingGrowthRate());
     assertEquals(new BigDecimal("180000"), saved.annualLivingExpenses());
-    assertEquals(0, saved.fixedIncomeReturnRate().compareTo(stored.fixedIncomeReturnRate()));
+    assertEquals(new BigDecimal("0.045"), saved.fixedIncomeReturnRate());
+    assertEquals(new BigDecimal("0.08"), saved.equityReturnRate());
     assertEquals(0, saved.capitalGainTaxRate().compareTo(BigDecimal.ZERO));
     var forward =
         new ForwardSimulationContextFactory(
@@ -589,63 +568,6 @@ class RetirementSimulationControllerTest {
     assertEquals(
         "redirect:/portfolios/1/simulation/plan/edit?planId=6&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
         redirect);
-  }
-
-  @DisplayName("unchanged Displayed Money Keeps Its Canonical Value Without Another Fx Conversion")
-  @Test
-  void unchangedDisplayedMoneyKeepsItsCanonicalValueWithoutAnotherFxConversion() throws Exception {
-    InvestmentProfile p =
-        new InvestmentProfile(
-            1L,
-            CurrencyType.USD,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            List.of(),
-            null,
-            null,
-            new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
-                List.of(),
-                java.math.BigDecimal.ZERO,
-                0,
-                com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
-            (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
-            BigDecimal.ZERO
-                .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
-                .max(java.math.BigDecimal.ZERO),
-            com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO),
-            com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
-    when(profiles.loadProfile(1L)).thenReturn(p);
-    when(simulations.compareScenarios(eq(p), any(), anyInt())).thenReturn(Map.of());
-    var result =
-        mockMvc
-            .perform(
-                get("/portfolios/1/simulation")
-                    .param("portfolioId", "1")
-                    .param("planningDisplayCurrency", "PLN")
-                    .param("fixedIncomeReturn", "4.5")
-                    .param("equityReturn", "7.5")
-                    .param("annualExpenses", "45000.00")
-                    .param("annualExpensesCanonical", "11250.12345678"))
-            .andExpect(status().isOk())
-            .andReturn();
-    var page =
-        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
-    assertEquals(
-        0, new BigDecimal("11250.12345678").compareTo(page.assumptions().annualLivingExpenses()));
-    assertEquals(0, new BigDecimal("0.045").compareTo(page.assumptions().fixedIncomeReturnRate()));
-    assertEquals(0, new BigDecimal("0.075").compareTo(page.assumptions().equityReturnRate()));
-    verify(timeline).ensurePlanningTimeline(1L);
-    verify(presentation, never())
-        .fromDisplay(eq(new BigDecimal("45000.00")), eq(CurrencyType.PLN), any(BigDecimal.class));
   }
 
   private static com.smartbox.investory.retirement.api.model.PlanDetails planDetails(

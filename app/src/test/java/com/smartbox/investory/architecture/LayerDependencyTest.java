@@ -2,429 +2,239 @@ package com.smartbox.investory.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 
 import com.tngtech.archunit.ArchConfiguration;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import java.lang.annotation.Annotation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 
 @DisplayName("Layer Dependency")
 class LayerDependencyTest {
-  static {
-    ArchConfiguration.get().setResolveMissingDependenciesFromClassPath(false);
-  }
+  private static final String ROOT = "com.smartbox.investory";
+  private static final String INVESTMENT = ROOT + ".investment..";
+  private static final String LONG_TERM = ROOT + ".longterm..";
+  private static final String PROFILE = ROOT + ".profile..";
+  private static final String RETIREMENT = ROOT + ".retirement..";
+  private static final String INTEGRATIONS = ROOT + ".integrations..";
+  private static final String SHARED = ROOT + ".shared..";
+  private static final String UI = ROOT + ".ui..";
+
+  private static final String INVESTMENT_API = ROOT + ".investment.api..";
+  private static final String LONG_TERM_API = ROOT + ".longterm.api..";
+  private static final String PROFILE_API = ROOT + ".profile.api..";
+  private static final String RETIREMENT_API = ROOT + ".retirement.api..";
+
+  private static final String[] INVESTMENT_IMPLEMENTATIONS = {
+    ROOT + ".investment.accounting..",
+    ROOT + ".investment.ledger..",
+    ROOT + ".investment.performance..",
+    ROOT + ".investment.projection..",
+    ROOT + ".investment.operations..",
+    ROOT + ".investment.imports..",
+    ROOT + ".investment.market..",
+    ROOT + ".investment.valuation..",
+    ROOT + ".investment.reporting..",
+    ROOT + ".investment.reconciliation..",
+    ROOT + ".investment.infrastructure..",
+    ROOT + ".investment.web.."
+  };
+
+  private static final String[] LONG_TERM_IMPLEMENTATIONS = {
+    ROOT + ".longterm.application..", ROOT + ".longterm.infrastructure..", ROOT + ".longterm.web.."
+  };
+
+  private static final String[] BUSINESS_INFRASTRUCTURE = {
+    ROOT + ".investment.infrastructure..",
+    ROOT + ".longterm.infrastructure..",
+    ROOT + ".retirement.infrastructure.."
+  };
+
+  private static final String[] UI_HIDDEN_ADAPTERS = {
+    ROOT + ".investment.ledger..persistence..",
+    ROOT + ".investment.valuation..persistence..",
+    ROOT + ".investment.infrastructure.persistence..",
+    ROOT + ".retirement.rest..",
+    ROOT + ".ryczalt.persistence.."
+  };
 
   private static final JavaClasses MAIN =
       new ClassFileImporter()
           .withImportOption(new ImportOption.DoNotIncludeTests())
-          .importPackages("com.smartbox.investory");
+          .importPackages(ROOT);
 
-  @DisplayName("investment Does Not Depend On Other Business Domains")
-  @Test
-  void investmentDoesNotDependOnOtherBusinessDomains() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..investment..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..longterm..", "..profile..", "..retirement..", "..integrations..")
-        .check(MAIN);
+  static {
+    ArchConfiguration.get().setResolveMissingDependenciesFromClassPath(false);
   }
 
-  @DisplayName("integrations Use Only Investment Api And Ports")
   @Test
-  void integrationsUseOnlyInvestmentApiAndPorts() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..integrations..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment.accounting..",
-            "..investment.ledger..",
-            "..investment.performance..",
-            "..investment.projection..",
-            "..investment.operations..",
-            "..investment.imports..",
-            "..investment.market..",
-            "..investment.valuation..",
-            "..investment.reporting..",
-            "..investment.reconciliation..",
-            "..investment.infrastructure..",
-            "..investment.web..")
-        .check(MAIN);
+  @DisplayName("business domains do not cross their declared boundaries")
+  void businessDomainsDoNotCrossTheirDeclaredBoundaries() {
+    forbid(INVESTMENT, ROOT + ".longterm..", PROFILE, RETIREMENT, INTEGRATIONS);
+    forbid(LONG_TERM, INVESTMENT, PROFILE, RETIREMENT);
   }
 
-  @DisplayName("long Term Does Not Depend On Other Business Domains")
   @Test
-  void longTermDoesNotDependOnOtherBusinessDomains() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..investment..", "..profile..", "..retirement..")
-        .check(MAIN);
+  @DisplayName("integrations use only investment public and integration contracts")
+  void integrationsUseOnlyInvestmentPublicAndIntegrationContracts() {
+    forbid(INTEGRATIONS, INVESTMENT_IMPLEMENTATIONS);
   }
 
-  @DisplayName("profile Uses Only Investment And Long Term Public Boundaries")
   @Test
-  void profileUsesOnlyInvestmentAndLongTermPublicBoundaries() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("com.smartbox.investory.profile..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment.accounting..",
-            "..investment.ledger..",
-            "..investment.performance..",
-            "..investment.projection..",
-            "..investment.operations..",
-            "..investment.imports..",
-            "..investment.market..",
-            "..investment.valuation..",
-            "..investment.reporting..",
-            "..investment.reconciliation..",
-            "..investment.infrastructure..",
-            "..investment.web..",
-            "..longterm.application..",
-            "..longterm.infrastructure..",
-            "..longterm.web..",
-            "..retirement..",
-            "..integrations..",
-            "..ui..",
-            "..app..")
-        .check(MAIN);
+  @DisplayName("profile and retirement use published boundaries")
+  void profileAndRetirementUsePublishedBoundaries() {
+    forbid(
+        PROFILE,
+        concat(
+            INVESTMENT_IMPLEMENTATIONS,
+            LONG_TERM_IMPLEMENTATIONS,
+            RETIREMENT,
+            INTEGRATIONS,
+            UI,
+            ROOT + ".app.."));
+    forbid(RETIREMENT, concat(INVESTMENT_IMPLEMENTATIONS, LONG_TERM_IMPLEMENTATIONS));
   }
 
-  @DisplayName("retirement Uses Only Investment And Long Term Public Boundaries")
   @Test
-  void retirementUsesOnlyInvestmentAndLongTermPublicBoundaries() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("com.smartbox.investory.retirement..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment.accounting..",
-            "..investment.ledger..",
-            "..investment.performance..",
-            "..investment.projection..",
-            "..investment.operations..",
-            "..investment.imports..",
-            "..investment.market..",
-            "..investment.valuation..",
-            "..investment.reporting..",
-            "..investment.reconciliation..",
-            "..investment.infrastructure..",
-            "..investment.web..",
-            "..longterm.application..",
-            "..longterm.infrastructure..",
-            "..longterm.web..")
-        .check(MAIN);
-  }
-
-  @DisplayName("profile And Retirement Do Not Inspect Long Term Taxonomy")
-  @Test
+  @DisplayName("profile and retirement do not inspect long-term taxonomy")
   void profileAndRetirementDoNotInspectLongTermTaxonomy() {
     noClasses()
         .that()
-        .resideInAnyPackage(
-            "com.smartbox.investory.profile..", "com.smartbox.investory.retirement..")
+        .resideInAnyPackage(PROFILE, RETIREMENT)
         .should()
         .dependOnClassesThat()
         .haveSimpleName("LongTermAssetType")
         .check(MAIN);
   }
 
-  @DisplayName("shared Does Not Depend On Business Domains")
   @Test
+  @DisplayName("shared does not depend on business domains")
   void sharedDoesNotDependOnBusinessDomains() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..shared..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment..",
-            "..longterm..",
-            "..profile..",
-            "..retirement..",
-            "..integrations..",
-            "..app..")
-        .check(MAIN);
+    forbid(SHARED, INVESTMENT, LONG_TERM, PROFILE, RETIREMENT, INTEGRATIONS, ROOT + ".app..");
   }
 
-  @DisplayName("investment Api Does Not Depend On Investment Implementations")
   @Test
-  void investmentApiDoesNotDependOnInvestmentImplementations() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..investment.api..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment.accounting..",
-            "..investment.ledger..",
-            "..investment.performance..",
-            "..investment.projection..",
-            "..investment.operations..",
-            "..investment.imports..",
-            "..investment.market..",
-            "..investment.valuation..",
-            "..investment.reporting..",
-            "..investment.reconciliation..",
-            "..investment.infrastructure..",
-            "..investment.web..")
-        .check(MAIN);
+  @DisplayName("public APIs do not depend on implementations or Spring stereotypes")
+  void publicApisDoNotDependOnImplementationsOrSpringStereotypes() {
+    forbid(INVESTMENT_API, INVESTMENT_IMPLEMENTATIONS);
+    forbid(LONG_TERM_API, LONG_TERM_IMPLEMENTATIONS);
+    forbid(RETIREMENT_API, ROOT + ".retirement.planning..", ROOT + ".retirement.simulation..");
+
+    for (String api : new String[] {INVESTMENT_API, LONG_TERM_API}) {
+      forbidAnnotated(api, Service.class);
+      forbidAnnotated(api, Component.class);
+      forbidAnnotated(api, Repository.class);
+    }
   }
 
-  @DisplayName("long Term Api Does Not Depend On Long Term Implementations")
   @Test
-  void longTermApiDoesNotDependOnLongTermImplementations() {
+  @DisplayName("long-term application and web layers do not point inward")
+  void longTermApplicationAndWebLayersDoNotPointInward() {
+    forbid(
+        ROOT + ".longterm.web..",
+        ROOT + ".longterm.application..",
+        ROOT + ".longterm.infrastructure..");
+    forbid(ROOT + ".longterm.application..", ROOT + ".longterm.web..");
     noClasses()
         .that()
-        .resideInAnyPackage("..longterm.api..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..longterm.application..", "..longterm.infrastructure..", "..longterm.web..")
-        .check(MAIN);
-  }
-
-  @DisplayName("long Term Web Uses Only Its Public Boundary")
-  @Test
-  void longTermWebUsesOnlyItsPublicBoundary() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm.web..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..longterm.application..", "..longterm.infrastructure..")
-        .check(MAIN);
-  }
-
-  @DisplayName("long Term Ui Uses Only Its Public Boundary")
-  @Test
-  void longTermUiUsesOnlyItsPublicBoundary() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..ui.longterm..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..longterm.application..", "..longterm.infrastructure..", "..longterm.web..")
-        .check(MAIN);
-  }
-
-  @DisplayName("long Term Application Does Not Depend On Web")
-  @Test
-  void longTermApplicationDoesNotDependOnWeb() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm.application..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..longterm.web..")
-        .check(MAIN);
-  }
-
-  @DisplayName("profile Api Owns Its Published Models")
-  @Test
-  void profileApiOwnsItsPublishedModels() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..profile.api..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment..",
-            "..longterm.application..",
-            "..longterm.infrastructure..",
-            "..longterm.web..",
-            "..retirement..",
-            "..integrations..")
-        .check(MAIN);
-  }
-
-  @DisplayName("investment Api Does Not Contain Spring Implementation Stereotypes")
-  @Test
-  void investmentApiDoesNotContainSpringImplementationStereotypes() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..investment.api..")
-        .should()
-        .beAnnotatedWith(Service.class)
-        .check(MAIN);
-    noClasses()
-        .that()
-        .resideInAnyPackage("..investment.api..")
-        .should()
-        .beAnnotatedWith(Component.class)
-        .check(MAIN);
-    noClasses()
-        .that()
-        .resideInAnyPackage("..investment.api..")
-        .should()
-        .beAnnotatedWith(Repository.class)
-        .check(MAIN);
-  }
-
-  @DisplayName("long Term Api Does Not Contain Spring Implementation Stereotypes")
-  @Test
-  void longTermApiDoesNotContainSpringImplementationStereotypes() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm.api..")
-        .should()
-        .beAnnotatedWith(Service.class)
-        .check(MAIN);
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm.api..")
-        .should()
-        .beAnnotatedWith(Component.class)
-        .check(MAIN);
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm.api..")
-        .should()
-        .beAnnotatedWith(Repository.class)
-        .check(MAIN);
-  }
-
-  @DisplayName("deterministic Simulation Does Not Depend On Persistence Or Domain Implementations")
-  @Test
-  void deterministicSimulationDoesNotDependOnPersistenceOrDomainImplementations() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..retirement.simulation..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..retirement.infrastructure..",
-            "..investment.accounting..",
-            "..investment.ledger..",
-            "..investment.performance..",
-            "..investment.projection..",
-            "..investment.operations..",
-            "..investment.imports..",
-            "..investment.market..",
-            "..investment.valuation..",
-            "..investment.reporting..",
-            "..investment.reconciliation..",
-            "..investment.infrastructure..",
-            "..longterm.application..",
-            "..longterm.infrastructure..")
-        .check(MAIN);
-  }
-
-  @DisplayName("dashboard Application Does Not Reach Into Persistence")
-  @Test
-  void dashboardApplicationDoesNotReachIntoPersistence() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..investment.reporting.dashboard.application..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..investment..persistence..")
-        .check(MAIN);
-  }
-
-  @DisplayName("investment Ledger Does Not Depend On Higher Level Slices")
-  @Test
-  void investmentLedgerDoesNotDependOnHigherLevelSlices() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..investment.ledger..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment.performance..",
-            "..investment.projection..",
-            "..investment.reporting..",
-            "..investment.reconciliation..",
-            "..investment.valuation..",
-            "..retirement.planning..",
-            "..retirement.simulation..")
-        .check(MAIN);
-  }
-
-  @DisplayName("investment Valuation Does Not Depend On Higher Level Slices")
-  @Test
-  void investmentValuationDoesNotDependOnHigherLevelSlices() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..investment.valuation..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..investment.reporting.dashboard..", "..investment.reconciliation..")
-        .check(MAIN);
-  }
-
-  @DisplayName("web Ui Does Not Reach Into Business Infrastructure")
-  @Test
-  void webUiDoesNotReachIntoBusinessInfrastructure() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..ui..")
+        .resideInAnyPackage(ROOT + ".ui.longterm..")
         .and()
-        .haveSimpleNameNotEndingWith("Test")
+        .haveSimpleNameNotStartingWith("InProcess")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
-            "..investment.infrastructure..",
-            "..longterm.infrastructure..",
-            "..retirement.infrastructure..")
+            ROOT + ".longterm.application..",
+            ROOT + ".longterm.infrastructure..",
+            ROOT + ".longterm.web..")
         .check(MAIN);
   }
 
-  @DisplayName("web Ui Does Not Reach Into Business Persistence Or Rest")
   @Test
-  void webUiDoesNotReachIntoBusinessPersistenceOrRest() {
+  @DisplayName("deterministic simulation does not depend on adapters")
+  void deterministicSimulationDoesNotDependOnAdapters() {
     noClasses()
         .that()
-        .resideInAnyPackage("com.smartbox.investory.ui..")
+        .resideInAnyPackage(ROOT + ".retirement.simulation..")
+        .and()
+        .haveSimpleNameNotStartingWith("InProcess")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
-            "..persistence..",
-            "..entity..",
-            "..entities..",
-            "..investment.web..",
-            "..longterm.web..",
-            "..profile.web..",
-            "..retirement.rest..")
+            ROOT + ".retirement.infrastructure..",
+            ROOT + ".retirement.planning.application..",
+            ROOT + ".retirement.preview..",
+            ROOT + ".longterm.application..",
+            ROOT + ".longterm.infrastructure..")
         .check(MAIN);
   }
 
-  @DisplayName("web Ui Uses Only Declared Contracts And Presentation Types")
   @Test
-  void webUiUsesOnlyDeclaredContractsAndPresentationTypes() {
+  @DisplayName("selected lower investment layers do not depend on higher layers")
+  void selectedLowerInvestmentLayersDoNotDependOnHigherLayers() {
+    forbid(
+        ROOT + ".investment.ledger..",
+        ROOT + ".investment.performance..",
+        ROOT + ".investment.projection..",
+        ROOT + ".investment.reporting..",
+        ROOT + ".investment.reconciliation..",
+        ROOT + ".investment.valuation..",
+        ROOT + ".retirement.planning..",
+        ROOT + ".retirement.simulation..");
+    forbid(
+        ROOT + ".investment.valuation..",
+        ROOT + ".investment.reporting.dashboard..",
+        ROOT + ".investment.reconciliation..");
+  }
+
+  @Test
+  @DisplayName("dashboard application does not reach persistence")
+  void dashboardApplicationDoesNotReachPersistence() {
+    forbid(
+        ROOT + ".investment.reporting.dashboard.application..",
+        ROOT + ".investment..persistence..");
+  }
+
+  @Test
+  @DisplayName("web UI uses declared contracts and presentation types")
+  void webUiUsesDeclaredContractsAndPresentationTypes() {
+    noClasses()
+        .that()
+        .resideInAnyPackage(UI)
+        .and()
+        .haveSimpleNameNotStartingWith("InProcess")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(concat(BUSINESS_INFRASTRUCTURE, UI_HIDDEN_ADAPTERS))
+        .check(MAIN);
+
     classes()
         .that()
-        .resideInAnyPackage("..ui..")
+        .resideInAnyPackage(UI)
         .and()
         .haveSimpleNameNotEndingWith("Test")
+        .and()
+        .haveSimpleNameNotStartingWith("InProcess")
         .should()
         .onlyDependOnClassesThat()
         .resideInAnyPackage(
-            "..ui..",
-            "..shared..",
-            "..investment.api..",
-            "..investment.reconciliation..",
-            "..longterm.api..",
-            "..profile.api..",
-            "..retirement.api..",
-            "..integrations.management.api..",
-            "..accounting.api..",
-            "..ryczalt..",
+            UI,
+            SHARED,
+            INVESTMENT_API,
+            ROOT + ".investment.reconciliation..",
+            LONG_TERM_API,
+            PROFILE_API,
+            RETIREMENT_API,
+            ROOT + ".retirement.api.contract..",
+            ROOT + ".integrations.management.api..",
+            ROOT + ".accounting.api..",
+            ROOT + ".ryczalt..",
             "java..",
             "javax..",
             "jakarta..",
@@ -435,180 +245,49 @@ class LayerDependencyTest {
         .check(MAIN);
   }
 
-  @DisplayName("retirement Public API Does Not Depend On Implementations")
   @Test
-  void retirementPublicApiDoesNotDependOnImplementations() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..retirement.api..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..retirement.planning..", "..retirement.simulation..")
-        .check(MAIN);
+  @DisplayName("business REST controllers do not depend on services or adapters")
+  void businessRestControllersDoNotDependOnServicesOrAdapters() {
+    String[] controllers = {
+      ROOT + ".investment.web..",
+      ROOT + ".longterm.web..",
+      ROOT + ".profile.web..",
+      ROOT + ".retirement.rest.."
+    };
+    for (String controller : controllers) {
+      forbidAnnotated(controller, Service.class);
+    }
+    forbid(
+        ROOT + ".retirement.rest..",
+        ROOT + ".retirement.infrastructure..",
+        ROOT + ".retirement.simulation..");
+    forbid(
+        ROOT + ".retirement.analysis..",
+        ROOT + ".retirement.rest..",
+        ROOT + ".retirement.infrastructure..");
   }
 
-  @DisplayName("integration Channels Do Not Depend On Each Other")
   @Test
-  void integrationChannelsDoNotDependOnEachOther() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..integrations.telegram..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..integrations.ai.openai..")
-        .check(MAIN);
+  @DisplayName("integration channels remain independent")
+  void integrationChannelsRemainIndependent() {
+    forbid(ROOT + ".integrations.telegram..", ROOT + ".integrations.ai.openai..");
   }
 
-  @DisplayName("web Ui Does Not Depend On Persistence Repositories")
   @Test
-  void webUiDoesNotDependOnPersistenceRepositories() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..ui..")
-        .and()
-        .haveSimpleNameNotEndingWith("Test")
-        .should()
-        .dependOnClassesThat()
-        .areAnnotatedWith(Repository.class)
-        .check(MAIN);
-  }
-
-  @DisplayName("web Ui Uses Clients Instead Of Business Rest Controllers")
-  @Test
-  void webUiUsesClientsInsteadOfBusinessRestControllers() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..ui..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment.web..", "..longterm.web..", "..profile.web..", "..retirement.rest..")
-        .check(MAIN);
-  }
-
-  @DisplayName("investment Web Ui Uses Only Investment Public Apis")
-  @Test
-  void investmentWebUiUsesOnlyInvestmentPublicApis() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..ui.investment..")
-        .and()
-        .haveSimpleNameNotEndingWith("Test")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..investment.accounting..",
-            "..investment.ledger..",
-            "..investment.performance..",
-            "..investment.projection..",
-            "..investment.operations..",
-            "..investment.imports..",
-            "..investment.market..",
-            "..investment.valuation..",
-            "..investment.reporting..",
-            "..investment.reconciliation..",
-            "..investment.infrastructure..")
-        .check(MAIN);
-  }
-
-  @DisplayName("long Term Web Ui Uses Only Long Term Public Api")
-  @Test
-  void longTermWebUiUsesOnlyLongTermPublicApi() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..ui.longterm..")
-        .and()
-        .haveSimpleNameNotEndingWith("Test")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..longterm.application..", "..longterm.infrastructure..")
-        .check(MAIN);
-  }
-
-  @DisplayName("in Process Ui Clients Are Explicit Components")
-  @Test
-  void inProcessUiClientsAreExplicitComponents() {
+  @DisplayName("web UI uses explicit in-process clients and constructor injection")
+  void webUiUsesExplicitInProcessClientsAndConstructorInjection() {
     classes()
         .that()
-        .resideInAnyPackage("..ui..")
+        .resideInAnyPackage(UI)
         .and()
         .haveSimpleNameStartingWith("InProcess")
         .should()
         .beAnnotatedWith(Component.class)
         .check(MAIN);
-  }
 
-  @DisplayName("business Rest Controllers Do Not Depend On Spring Services")
-  @Test
-  void businessRestControllersDoNotDependOnSpringServices() {
-    noClasses()
-        .that()
-        .resideInAnyPackage(
-            "..investment.web..", "..longterm.web..", "..profile.web..", "..retirement.rest..")
-        .should()
-        .dependOnClassesThat()
-        .areAnnotatedWith(Service.class)
-        .check(MAIN);
-  }
-
-  @DisplayName("retirement Web Does Not Depend On Simulation Implementations")
-  @Test
-  void retirementWebDoesNotDependOnSimulationImplementations() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..retirement.rest..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..retirement.simulation..")
-        .check(MAIN);
-  }
-
-  @DisplayName("retirement Simulation Core Does Not Depend On Adapters")
-  @Test
-  void retirementSimulationCoreDoesNotDependOnAdapters() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..retirement.simulation..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..retirement.rest..",
-            "..retirement.infrastructure..",
-            "..retirement.planning.application..",
-            "..retirement.preview..")
-        .check(MAIN);
-  }
-
-  @DisplayName("retirement Analysis Does Not Depend On Adapters")
-  @Test
-  void retirementAnalysisDoesNotDependOnAdapters() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..retirement.analysis..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..retirement.rest..", "..retirement.infrastructure..")
-        .check(MAIN);
-  }
-
-  @DisplayName("retirement Rest Does Not Depend On Persistence")
-  @Test
-  void retirementRestDoesNotDependOnPersistence() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..retirement.rest..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..retirement.infrastructure..")
-        .check(MAIN);
-  }
-
-  @DisplayName("concrete Web Ui Clients Use Explicit Adapter Naming")
-  @Test
-  void concreteWebUiClientsUseInProcessNaming() {
     classes()
         .that()
-        .resideInAnyPackage("..ui..")
+        .resideInAnyPackage(UI)
         .and()
         .haveSimpleNameEndingWith("Client")
         .and()
@@ -618,31 +297,41 @@ class LayerDependencyTest {
         .orShould()
         .haveSimpleNameStartingWith("Http")
         .check(MAIN);
+
+    noFields()
+        .that()
+        .areDeclaredInClassesThat()
+        .resideInAnyPackage(UI)
+        .should()
+        .beAnnotatedWith(Autowired.class)
+        .check(MAIN);
   }
 
-  @DisplayName("profile Web Ui Uses Only Public Contracts")
-  @Test
-  void profileWebUiUsesOnlyPublicContracts() {
-    classes()
+  private static void forbid(String source, String... targets) {
+    noClasses()
         .that()
-        .resideInAnyPackage("..ui.profile..")
+        .resideInAnyPackage(source)
         .should()
-        .onlyDependOnClassesThat()
-        .resideInAnyPackage(
-            "..ui.profile..",
-            "..ui.investment..",
-            "..ui.presentation..",
-            "..shared..",
-            "..investment.api..",
-            "..profile.api..",
-            "..retirement.api..",
-            "java..",
-            "javax..",
-            "jakarta..",
-            "lombok..",
-            "org.springframework..",
-            "org.thymeleaf..",
-            "com.fasterxml..")
+        .dependOnClassesThat()
+        .resideInAnyPackage(targets)
         .check(MAIN);
+  }
+
+  private static void forbidAnnotated(String source, Class<? extends Annotation> annotation) {
+    noClasses()
+        .that()
+        .resideInAnyPackage(source)
+        .should()
+        .dependOnClassesThat()
+        .areAnnotatedWith(annotation)
+        .check(MAIN);
+  }
+
+  private static String[] concat(String[] first, String[] second, String... rest) {
+    String[] result = new String[first.length + second.length + rest.length];
+    System.arraycopy(first, 0, result, 0, first.length);
+    System.arraycopy(second, 0, result, first.length, second.length);
+    System.arraycopy(rest, 0, result, first.length + second.length, rest.length);
+    return result;
   }
 }

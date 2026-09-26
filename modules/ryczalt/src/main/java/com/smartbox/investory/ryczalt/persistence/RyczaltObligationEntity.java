@@ -48,6 +48,12 @@ public class RyczaltObligationEntity extends RyczaltEntity {
   @Column(name = "calculation_id")
   private Long calculationId;
 
+  @Column(name = "manual_paid_date")
+  private LocalDate manualPaidDate;
+
+  @Column(name = "manual_paid_note", length = 1000)
+  private String manualPaidNote;
+
   protected RyczaltObligationEntity() {}
 
   public RyczaltObligationEntity(
@@ -114,6 +120,28 @@ public class RyczaltObligationEntity extends RyczaltEntity {
 
   public Long getCalculationId() {
     return calculationId;
+  }
+
+  public LocalDate getManualPaidDate() {
+    return manualPaidDate;
+  }
+
+  public String getManualPaidNote() {
+    return manualPaidNote;
+  }
+
+  public boolean isManuallyPaid() {
+    return manualPaidDate != null;
+  }
+
+  public void markManuallyPaid(LocalDate paidDate, String note) {
+    manualPaidDate = paidDate == null ? LocalDate.now() : paidDate;
+    manualPaidNote = note == null || note.isBlank() ? null : note.trim();
+  }
+
+  public void markManuallyUnpaid() {
+    manualPaidDate = null;
+    manualPaidNote = null;
   }
 
   public Long id() {

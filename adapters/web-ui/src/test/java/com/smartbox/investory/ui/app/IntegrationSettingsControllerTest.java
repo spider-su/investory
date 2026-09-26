@@ -97,6 +97,7 @@ class IntegrationSettingsControllerTest {
         true,
         "0 0 * * * *",
         "UTC",
+        "save",
         redirect);
     verify(settings)
         .saveJob(

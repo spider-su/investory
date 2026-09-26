@@ -21,7 +21,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collection;
 import java.util.Locale;
 
 /** Stable display formatting and labels for the planning pages. */
@@ -74,11 +73,6 @@ public final class UiPresentation {
     return FinancialPresentation.compactMoney(value);
   }
 
-  /** Converts an annual amount to the legacy monthly display unit. */
-  public static BigDecimal monthly(BigDecimal annualAmount) {
-    return zeroIfNull(annualAmount).divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
-  }
-
   public static String compactMoneyTrimmed(BigDecimal value) {
     return FinancialPresentation.compactMoneyTrimmed(value);
   }
@@ -124,24 +118,6 @@ public final class UiPresentation {
     return value == null
         ? ""
         : value.setScale(0, FinancialPrecision.REPORTING_ROUNDING).toPlainString();
-  }
-
-  /** Monthly total for all rental income terms, including parking and other income. */
-  public static BigDecimal monthlyIncome(
-      Collection<com.smartbox.investory.longterm.api.model.RentalTermView> terms) {
-    if (terms == null) return BigDecimal.ZERO;
-    return terms.stream()
-        .filter(
-            term ->
-                term.type() == CashFlowType.RENT
-                    || term.type() == CashFlowType.PARKING_RENT
-                    || term.type() == CashFlowType.OTHER_INCOME)
-        .map(
-            term ->
-                term.frequency() == Frequency.MONTHLY
-                    ? term.amount()
-                    : term.amount().divide(BigDecimal.valueOf(12), 18, RoundingMode.HALF_UP))
-        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
   /** Browser-safe percentage-point input, for example 0.075 becomes 7.5. */

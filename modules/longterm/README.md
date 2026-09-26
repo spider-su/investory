@@ -3,6 +3,9 @@
 Long-Term owns real estate, rental contracts, bonds, cash reserves, and personal assets. Canonical
 financial semantics live in [`docs/domain/long-term-assets.md`](../../docs/domain/long-term-assets.md).
 
+This README is the module boundary summary; the maintainer walkthrough is
+[`docs/kt/longterm-module-quick-kt.md`](../../docs/kt/longterm-module-quick-kt.md).
+
 ## Boundaries
 
 - `api`: persistence-free management, Profile, Retirement, and payment-audit contracts.

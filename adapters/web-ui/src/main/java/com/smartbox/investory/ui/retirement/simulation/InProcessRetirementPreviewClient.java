@@ -1,25 +1,21 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
-import com.smartbox.investory.profile.api.model.InvestmentProfile;
-import com.smartbox.investory.retirement.api.RetirementPreviewApi;
-import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.PlanEditorPreview;
-import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
+import com.smartbox.investory.retirement.api.model.EditorPreviewResponse;
+import com.smartbox.investory.retirement.api.model.PlanEditorInput;
+import com.smartbox.investory.retirement.rest.RetirementPreviewRestController;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InProcessRetirementPreviewClient implements RetirementPreviewClient {
-  private final RetirementPreviewApi retirementPreviewApi;
+  private final RetirementPreviewRestController rest;
 
-  public InProcessRetirementPreviewClient(
-      @Qualifier("retirementPreviewApplicationService") RetirementPreviewApi retirementPreviewApi) {
-    this.retirementPreviewApi = retirementPreviewApi;
+  public InProcessRetirementPreviewClient(RetirementPreviewRestController rest) {
+    this.rest = rest;
   }
 
-  public PlanEditorPreview preview(
-      InvestmentProfile profile, SimulationAssumptions assumptions, CurrencyType displayCurrency) {
-    return retirementPreviewApi.preview(profile, assumptions, displayCurrency);
+  public EditorPreviewResponse preview(
+      Long portfolioId, Long planId, CurrencyType displayCurrency, PlanEditorInput input) {
+    return rest.editorPreview(portfolioId, planId, displayCurrency, input);
   }
 }

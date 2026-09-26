@@ -1,0 +1,72 @@
+{
+  "profile": {
+    "reference": "HI-RYC-2026",
+    "nip": "1112223334",
+    "taxOffice": "POC1",
+    "taxMicroAccount": "PL00000000000000000000000000",
+    "zusPaymentAccount": "PL00000000000000000000000000",
+    "reportingCurrency": "PLN"
+  },
+  "businessPeriods": [
+    {"from":"2026-01-01", "to":"2026-07-31", "jdgActive":true, "vatRegistered":true, "ryczaltRate":0.12}
+  ],
+  "employmentPeriods": [
+    {"from":"2026-01-01", "to":"2026-02-28", "qualifyingAsPrimaryInsuranceTitle":true}
+  ],
+  "salesDocuments": [
+    {"taxPeriod":"2026-01-01", "issueDate":"2026-01-31", "saleDate":"2026-01-31", "reference":"HI-RYC-2026-01-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "net":29600.00, "vat":6808.00, "gross":36408.00},
+    {"taxPeriod":"2026-01-01", "issueDate":"2026-01-31", "saleDate":"2026-01-31", "reference":"HI-RYC-2026-01-SALE-EU", "counterparty":"CUSTOMER_EU_001", "currency":"EUR", "net":7636.00, "vat":0.00, "gross":7636.00, "fxRateDate":"2026-01-30", "bookedNetPln":32171.23},
+    {"taxPeriod":"2026-02-01", "issueDate":"2026-02-28", "saleDate":"2026-02-28", "reference":"HI-RYC-2026-02-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "net":29600.00, "vat":6808.00, "gross":36408.00},
+    {"taxPeriod":"2026-02-01", "issueDate":"2026-02-28", "saleDate":"2026-02-28", "reference":"HI-RYC-2026-02-SALE-EU", "counterparty":"CUSTOMER_EU_001", "currency":"EUR", "net":7636.00, "vat":0.00, "gross":7636.00, "fxRateDate":"2026-02-27", "bookedNetPln":32249.12},
+    {"taxPeriod":"2026-03-01", "issueDate":"2026-03-31", "saleDate":"2026-03-31", "reference":"HI-RYC-2026-03-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "net":32560.00, "vat":7488.80, "gross":40048.80},
+    {"taxPeriod":"2026-03-01", "issueDate":"2026-03-31", "saleDate":"2026-03-31", "reference":"HI-RYC-2026-03-SALE-EU", "counterparty":"CUSTOMER_EU_001", "currency":"EUR", "net":7636.00, "vat":0.00, "gross":7636.00, "fxRateDate":"2026-03-30", "bookedNetPln":32706.52},
+    {"taxPeriod":"2026-04-01", "issueDate":"2026-04-30", "saleDate":"2026-04-30", "reference":"HI-RYC-2026-04-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "net":31080.00, "vat":7148.40, "gross":38228.40},
+    {"taxPeriod":"2026-04-01", "issueDate":"2026-04-30", "saleDate":"2026-04-30", "reference":"HI-RYC-2026-04-SALE-EU", "counterparty":"CUSTOMER_EU_001", "currency":"EUR", "net":7636.00, "vat":0.00, "gross":7636.00, "fxRateDate":"2026-04-29", "bookedNetPln":32481.25},
+    {"taxPeriod":"2026-05-01", "issueDate":"2026-05-29", "saleDate":"2026-05-29", "reference":"HI-RYC-2026-05-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "net":29600.00, "vat":6808.00, "gross":36408.00},
+    {"taxPeriod":"2026-05-01", "issueDate":"2026-05-29", "saleDate":"2026-05-29", "reference":"HI-RYC-2026-05-SALE-EU", "counterparty":"CUSTOMER_EU_001", "currency":"EUR", "net":7636.00, "vat":0.00, "gross":7636.00, "fxRateDate":"2026-05-29", "bookedNetPln":32317.08},
+    {"taxPeriod":"2026-06-01", "issueDate":"2026-07-02", "saleDate":"2026-06-30", "reference":"HI-RYC-2026-06-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "net":32560.00, "vat":7488.80, "gross":40048.80},
+    {"taxPeriod":"2026-06-01", "issueDate":"2026-06-30", "saleDate":"2026-06-30", "reference":"HI-RYC-2026-06-SALE-EU", "counterparty":"CUSTOMER_EU_001", "currency":"EUR", "net":7636.00, "vat":0.00, "gross":7636.00, "fxRateDate":"2026-06-29", "bookedNetPln":32750.80},
+    {"taxPeriod":"2026-07-01", "issueDate":"2026-07-31", "saleDate":"2026-07-31", "reference":"HI-RYC-2026-07-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "net":16250.00, "vat":3737.50, "gross":19987.50},
+    {"taxPeriod":"2026-07-01", "issueDate":"2026-07-31", "saleDate":"2026-07-31", "reference":"HI-RYC-2026-07-SALE-EU", "counterparty":"CUSTOMER_EU_001", "currency":"EUR", "net":7636.00, "vat":0.00, "gross":7636.00, "fxRateDate":"2026-07-30", "bookedNetPln":32908.87}
+  ],
+  "expenseDocuments": [
+    {"taxPeriod":"2026-01-01", "invoiceDate":"2026-01-15", "reference":"HI-RYC-2026-01-FUEL", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":253.34, "vat":58.27, "gross":311.61, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-01-01", "invoiceDate":"2026-01-31", "reference":"HI-RYC-2026-01-OFFICE", "supplier":"SUPPLIER_OFFICE_001", "category":"ACCOUNTING_SERVICE", "currency":"PLN", "net":280.00, "vat":64.40, "gross":344.40, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-02-01", "invoiceDate":"2026-02-27", "reference":"HI-RYC-2026-02-OFFICE", "supplier":"SUPPLIER_OFFICE_001", "category":"ACCOUNTING_SERVICE", "currency":"PLN", "net":298.00, "vat":68.54, "gross":366.54, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-02-01", "invoiceDate":"2026-02-15", "reference":"HI-RYC-2026-02-FUEL", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":278.32, "vat":64.01, "gross":342.33, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-03-01", "invoiceDate":"2026-03-06", "reference":"HI-RYC-2026-03-SERVICE", "supplier":"SUPPLIER_BUSINESS_001", "category":"BUSINESS_SERVICE", "currency":"PLN", "net":406.50, "vat":93.50, "gross":500.00, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-03-01", "invoiceDate":"2026-03-10", "reference":"HI-RYC-2026-03-FUEL-01", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":323.58, "vat":74.42, "gross":398.00, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-03-01", "invoiceDate":"2026-03-20", "reference":"HI-RYC-2026-03-OFFICE", "supplier":"SUPPLIER_OFFICE_001", "category":"ACCOUNTING_SERVICE", "currency":"PLN", "net":298.00, "vat":68.54, "gross":366.54, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-03-01", "invoiceDate":"2026-03-28", "reference":"HI-RYC-2026-03-FUEL-02", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":340.20, "vat":78.25, "gross":418.45, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-04-01", "invoiceDate":"2026-04-10", "reference":"HI-RYC-2026-04-OFFICE", "supplier":"SUPPLIER_OFFICE_001", "category":"ACCOUNTING_SERVICE", "currency":"PLN", "net":468.00, "vat":107.64, "gross":575.64, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-04-01", "invoiceDate":"2026-04-20", "reference":"HI-RYC-2026-04-FUEL", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":313.81, "vat":25.11, "gross":338.92, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-05-01", "invoiceDate":"2026-05-02", "reference":"HI-RYC-2026-05-FUEL-01", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":279.42, "vat":22.35, "gross":301.77, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-05-01", "invoiceDate":"2026-05-16", "reference":"HI-RYC-2026-05-FUEL-02", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":359.39, "vat":28.75, "gross":388.14, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-05-01", "invoiceDate":"2026-05-29", "reference":"HI-RYC-2026-05-OFFICE", "supplier":"SUPPLIER_OFFICE_001", "category":"ACCOUNTING_SERVICE", "currency":"PLN", "net":298.00, "vat":68.54, "gross":366.54, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-05-01", "invoiceDate":"2026-05-30", "reference":"HI-RYC-2026-05-FUEL-03", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":356.56, "vat":28.52, "gross":385.08, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-05-01", "invoiceDate":"2026-05-31", "reference":"HI-RYC-2026-05-EQUIPMENT", "supplier":"SUPPLIER_EQUIPMENT_001", "category":"EQUIPMENT", "currency":"PLN", "net":430.68, "vat":99.06, "gross":529.74, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-06-01", "invoiceDate":"2026-06-01", "reference":"HI-RYC-2026-06-OFFICE", "supplier":"SUPPLIER_OFFICE_001", "category":"ACCOUNTING_SERVICE", "currency":"PLN", "net":298.00, "vat":68.54, "gross":366.54, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-06-01", "invoiceDate":"2026-06-10", "reference":"HI-RYC-2026-06-SERVICE", "supplier":"SUPPLIER_BUSINESS_001", "category":"BUSINESS_SERVICE", "currency":"PLN", "net":185.37, "vat":42.63, "gross":228.00, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-06-01", "invoiceDate":"2026-06-20", "reference":"HI-RYC-2026-06-FUEL-01", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":336.33, "vat":26.91, "gross":363.24, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-06-01", "invoiceDate":"2026-06-25", "reference":"HI-RYC-2026-06-FUEL-02", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":323.55, "vat":25.88, "gross":349.43, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-06-01", "invoiceDate":"2026-06-30", "reference":"HI-RYC-2026-06-EQUIPMENT", "supplier":"SUPPLIER_EQUIPMENT_001", "category":"EQUIPMENT", "currency":"PLN", "net":254.46, "vat":58.53, "gross":312.99, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-07-01", "invoiceDate":"2026-07-01", "reference":"HI-RYC-2026-07-OFFICE", "supplier":"SUPPLIER_OFFICE_001", "category":"ACCOUNTING_SERVICE", "currency":"PLN", "net":298.00, "vat":68.54, "gross":366.54, "vatDeductionRatio":1.00},
+    {"taxPeriod":"2026-07-01", "invoiceDate":"2026-07-15", "reference":"HI-RYC-2026-07-FUEL-01", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":376.62, "vat":86.62, "gross":463.24, "vatDeductionRatio":0.50},
+    {"taxPeriod":"2026-07-01", "invoiceDate":"2026-07-29", "reference":"HI-RYC-2026-07-FUEL-02", "supplier":"SUPPLIER_FUEL_001", "category":"VEHICLE_FUEL", "currency":"PLN", "net":296.82, "vat":68.27, "gross":365.09, "vatDeductionRatio":0.50}
+  ],
+  "bankTransactions": [
+    {"bookingDate":"2026-02-13", "relatedPeriod":"2026-01-01", "reference":"HI-RYC-2026-01-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "amount":36408.00, "transactionType":"CUSTOMER_RECEIPT", "scope":"BUSINESS"},
+    {"bookingDate":"2026-03-13", "relatedPeriod":"2026-02-01", "reference":"HI-RYC-2026-02-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "amount":36408.00, "transactionType":"CUSTOMER_RECEIPT", "scope":"BUSINESS"},
+    {"bookingDate":"2026-03-05", "relatedPeriod":"2026-02-01", "reference":"HI-RYC-2026-02-SALE-EU", "counterparty":"CUSTOMER_EU_001", "currency":"EUR", "amount":7636.00, "transactionType":"CUSTOMER_RECEIPT", "scope":"BUSINESS"},
+    {"bookingDate":"2026-04-14", "relatedPeriod":"2026-03-01", "reference":"HI-RYC-2026-03-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "amount":40048.80, "transactionType":"CUSTOMER_RECEIPT", "scope":"BUSINESS"},
+    {"bookingDate":"2026-05-14", "relatedPeriod":"2026-04-01", "reference":"HI-RYC-2026-04-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "amount":38228.40, "transactionType":"CUSTOMER_RECEIPT", "scope":"BUSINESS"},
+    {"bookingDate":"2026-06-12", "relatedPeriod":"2026-05-01", "reference":"HI-RYC-2026-05-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "amount":36408.00, "transactionType":"CUSTOMER_RECEIPT", "scope":"BUSINESS"},
+    {"bookingDate":"2026-07-16", "relatedPeriod":"2026-06-01", "reference":"HI-RYC-2026-06-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "amount":40048.80, "transactionType":"CUSTOMER_RECEIPT", "scope":"BUSINESS"},
+    {"bookingDate":"2026-08-05", "relatedPeriod":"2026-07-01", "reference":"HI-RYC-2026-07-SALE-EU", "counterparty":"CUSTOMER_EU_001", "currency":"EUR", "amount":7636.00, "transactionType":"CUSTOMER_RECEIPT", "scope":"BUSINESS"},
+    {"bookingDate":"2026-08-13", "relatedPeriod":"2026-07-01", "reference":"HI-RYC-2026-07-SALE-PL", "counterparty":"CUSTOMER_PL_001", "currency":"PLN", "amount":19987.50, "transactionType":"CUSTOMER_RECEIPT", "scope":"BUSINESS"},
+    {"bookingDate":"2026-08-18", "relatedPeriod":"2026-07-01", "reference":"HI-RYC-2026-07-ZUS", "counterparty":"ZUS", "currency":"PLN", "amount":-3283.29, "transactionType":"ZUS_PAYMENT", "scope":"BUSINESS"}
+  ],
+  "authorityEvidence": [
+    {"taxPeriod":"2026-07-01", "type":"ZUS_DRA_ACCEPTANCE", "amount":3283.33, "reference":"HI-RYC-2026-07-ZUS", "provenance":"SYNTHETIC"}
+  ]
+}

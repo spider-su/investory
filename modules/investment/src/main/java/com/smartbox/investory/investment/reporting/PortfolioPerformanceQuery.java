@@ -13,7 +13,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +25,6 @@ public class PortfolioPerformanceQuery {
   private final PortfolioMonthlyPerformanceRepository repository;
   private final AccountDailyRepository dailyRepository;
 
-  @Autowired
   public PortfolioPerformanceQuery(
       PortfolioMonthlyPerformanceRepository repository, AccountDailyRepository dailyRepository) {
     this.repository = repository;

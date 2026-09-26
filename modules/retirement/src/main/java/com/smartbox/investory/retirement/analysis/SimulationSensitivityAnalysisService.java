@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Analysis-owned, deterministic one-driver-at-a-time catalogue. */
@@ -28,11 +27,11 @@ public class SimulationSensitivityAnalysisService {
   private final SimulationEvaluationService evaluations;
   private final FrozenBondCashFlowProjection bondProjection;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public SimulationSensitivityAnalysisService(SimulationEvaluationService evaluations) {
     this(evaluations, new FrozenBondCashFlowProjection());
   }
 
-  @Autowired
   public SimulationSensitivityAnalysisService(
       SimulationEvaluationService evaluations, FrozenBondCashFlowProjection bondProjection) {
     this.evaluations = evaluations;

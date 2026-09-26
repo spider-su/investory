@@ -380,7 +380,8 @@ class SimulationSensitivityAnalysisServiceTest {
                       failed ? new BigDecimal("1000") : BigDecimal.ZERO,
                       reserve,
                       spendable,
-                      wealth);
+                      wealth,
+                      true);
               return new SimulationEvaluation(null, null, assessment);
             });
     return evaluations;
