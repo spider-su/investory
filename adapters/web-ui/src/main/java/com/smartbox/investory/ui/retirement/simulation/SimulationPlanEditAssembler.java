@@ -1,5 +1,6 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
+import com.smartbox.investory.retirement.api.RetirementPresentationApi;
 import com.smartbox.investory.retirement.api.model.PlanEditorInput;
 import com.smartbox.investory.retirement.api.model.PlanningBuckets;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
@@ -19,16 +20,21 @@ final class SimulationPlanEditAssembler {
   private final ProfileClient profiles;
   private final RetirementPlanClient plans;
   private final RetirementPreviewClient preview;
+  private final RetirementPresentationApi presentation;
   private final Clock clock;
 
   SimulationPlanEditAssembler(
       ProfileClient profiles,
       RetirementPlanClient plans,
       RetirementPreviewClient preview,
+      @org.springframework.beans.factory.annotation.Qualifier(
+              "retirementPlanningApplicationService")
+          RetirementPresentationApi presentation,
       Clock clock) {
     this.profiles = profiles;
     this.plans = plans;
     this.preview = preview;
+    this.presentation = presentation;
     this.clock = clock;
   }
 
@@ -47,7 +53,7 @@ final class SimulationPlanEditAssembler {
         details == null ? SimulationAssumptions.defaults(40, 95, year) : details.assumptions();
     model.addAttribute("profile", profile);
     var previewResponse =
-        preview.preview(portfolioId, selectedId, currency, editorInput(assumptions));
+        preview.preview(portfolioId, selectedId, currency, editorInput(assumptions, currency));
     model.addAttribute("displayProfile", previewResponse.displayProfile());
     model.addAttribute("assumptions", assumptions);
     model.addAttribute(
@@ -91,7 +97,8 @@ final class SimulationPlanEditAssembler {
     model.addAttribute("displayEventAmounts", previewResponse.displayEventAmounts());
   }
 
-  private static PlanEditorInput editorInput(SimulationAssumptions assumptions) {
+  private PlanEditorInput editorInput(
+      SimulationAssumptions assumptions, CurrencyType displayCurrency) {
     var expenseProfile =
         assumptions.expenseProfile().steps().stream()
             .map(step -> new PlanEditorInput.ExpenseStageInput(step.fromYear(), step.factor()))
@@ -101,8 +108,12 @@ final class SimulationPlanEditAssembler {
         assumptions.planStartYear(),
         assumptions.endAge(),
         assumptions.retirementAge(),
-        assumptions.annualLivingExpenses().divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP),
-        assumptions.annualDiscretionaryExpenses(),
+        presentation.toDisplay(
+            assumptions
+                .annualLivingExpenses()
+                .divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP),
+            displayCurrency),
+        presentation.toDisplay(assumptions.annualDiscretionaryExpenses(), displayCurrency),
         assumptions.inflationRate(),
         assumptions.fixedIncomeReturnRate(),
         assumptions.rentalIncomeGrowthSpread(),
@@ -112,9 +123,9 @@ final class SimulationPlanEditAssembler {
         assumptions.equityHarvestMinimumReturnRate(),
         assumptions.equityGainHarvestRate(),
         assumptions.allowEmergencyEquityWithdrawal(),
-        assumptions.annualEmploymentIncome(),
-        assumptions.annualPreRetirementContribution(),
-        assumptions.annualPension(),
+        presentation.toDisplay(assumptions.annualEmploymentIncome(), displayCurrency),
+        presentation.toDisplay(assumptions.annualPreRetirementContribution(), displayCurrency),
+        presentation.toDisplay(assumptions.annualPension(), displayCurrency),
         assumptions.pensionStartAge(),
         expenseProfile.isEmpty() ? null : expenseProfile);
   }
