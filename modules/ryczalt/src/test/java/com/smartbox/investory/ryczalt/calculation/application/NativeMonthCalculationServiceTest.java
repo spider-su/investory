@@ -11,13 +11,16 @@ import com.smartbox.investory.ryczalt.calculation.vat.VatCalculationInput;
 import com.smartbox.investory.ryczalt.calculation.zus.ZusCalculationInput;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationEntity;
+import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltCalculationPersistenceAdapter;
 import com.smartbox.investory.ryczalt.persistence.RyczaltObligationJpaRepository;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,16 +34,18 @@ class NativeMonthCalculationServiceTest {
   private final RyczaltObligationJpaRepository obligations =
       mock(RyczaltObligationJpaRepository.class);
   private final SettlementService settlement = mock(SettlementService.class);
+  private final RyczaltCalculationJpaRepository calculationRows =
+      mock(RyczaltCalculationJpaRepository.class);
 
   @Test
   void calculatesAllTaxesAndCreatesThreeObligationsForNewMonth() {
-    YearMonth month = YearMonth.of(2026, 9);
+    YearMonth month = YearMonth.of(2026, 1);
     RyczaltPeriodEntity period = mock(RyczaltPeriodEntity.class);
     when(period.id()).thenReturn(10L);
     when(period.getYear()).thenReturn(2026);
-    when(period.getMonth()).thenReturn(9);
+    when(period.getMonth()).thenReturn(1);
     when(period.getStatus()).thenReturn(PeriodStatus.OPEN);
-    when(periods.findLocked(7L, 2026, 9)).thenReturn(Optional.of(period));
+    when(periods.findLocked(7L, 2026, 1)).thenReturn(Optional.of(period));
     when(obligations.findByProfileIdAndPeriodIdOrderByTypeAsc(7L, period.id()))
         .thenReturn(List.of());
     when(calculations.saveCurrent(any(), any(Long.TYPE), any(), any(), any(), any(), any()))
@@ -48,7 +53,13 @@ class NativeMonthCalculationServiceTest {
 
     var service =
         new NativeMonthCalculationService(
-            periods, inputAggregator, calculations, obligations, settlement);
+            periods,
+            inputAggregator,
+            calculations,
+            obligations,
+            settlement,
+            calculationRows,
+            Clock.system(ZoneOffset.UTC));
     var result =
         service.calculate(
             7L,

@@ -3,6 +3,8 @@ package com.smartbox.investory.ryczalt.web;
 import com.smartbox.investory.config.AuthorizationService;
 import com.smartbox.investory.ryczalt.application.RyczaltAccountingApi;
 import com.smartbox.investory.ryczalt.application.RyczaltInvoicePaymentService;
+import com.smartbox.investory.ryczalt.application.RyczaltJpkService;
+import com.smartbox.investory.ryczalt.application.RyczaltZusDraService;
 import com.smartbox.investory.ryczalt.application.query.RyczaltInvoiceReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltIssueReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltObligationReadModel;
@@ -12,11 +14,17 @@ import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodNotFoundExc
 import com.smartbox.investory.ryczalt.application.query.RyczaltPeriodReadModel;
 import com.smartbox.investory.ryczalt.application.query.RyczaltTransactionReadModel;
 import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
+import com.smartbox.investory.ryczalt.pit28.Pit28Draft;
+import com.smartbox.investory.ryczalt.pit28.Pit28Issue;
+import com.smartbox.investory.ryczalt.pit28.Pit28PreviewService;
 import com.smartbox.investory.ryczalt.reference.RyczaltObligationReferenceReader;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,16 +45,25 @@ public class RyczaltAccountingRestController {
   private final RyczaltInvoicePaymentService invoicePayments;
   private final AuthorizationService authorization;
   private final RyczaltObligationReferenceReader referenceObligations;
+  private final RyczaltJpkService jpk;
+  private final RyczaltZusDraService zusDra;
+  private final Pit28PreviewService pit28;
 
   public RyczaltAccountingRestController(
       RyczaltAccountingApi accounting,
       RyczaltInvoicePaymentService invoicePayments,
       AuthorizationService authorization,
-      RyczaltObligationReferenceReader referenceObligations) {
+      RyczaltObligationReferenceReader referenceObligations,
+      RyczaltJpkService jpk,
+      RyczaltZusDraService zusDra,
+      Pit28PreviewService pit28) {
     this.accounting = accounting;
     this.invoicePayments = invoicePayments;
     this.authorization = authorization;
     this.referenceObligations = referenceObligations;
+    this.jpk = jpk;
+    this.zusDra = zusDra;
+    this.pit28 = pit28;
   }
 
   @GetMapping("/periods")
@@ -160,6 +177,51 @@ public class RyczaltAccountingRestController {
     return referenceObligations.find(profileId, month).stream()
         .map(value -> new ReferenceObligationResponse(value.type(), value.expected()))
         .toList();
+  }
+
+  @GetMapping(value = "/periods/{month}/jpk", produces = MediaType.APPLICATION_XML_VALUE)
+  public ResponseEntity<byte[]> jpk(
+      @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
+    read(profileId, authentication);
+    try {
+      var document = jpk.generate(profileId, month);
+      return ResponseEntity.ok()
+          .contentType(MediaType.APPLICATION_XML)
+          .header(
+              HttpHeaders.CONTENT_DISPOSITION,
+              ContentDisposition.attachment().filename(document.filename()).build().toString())
+          .body(document.content());
+    } catch (RyczaltPeriodNotFoundException exception) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, exception.getMessage(), exception);
+    } catch (IllegalStateException exception) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, exception.getMessage(), exception);
+    }
+  }
+
+  @GetMapping(value = "/periods/{month}/zus-dra", produces = MediaType.APPLICATION_XML_VALUE)
+  public ResponseEntity<byte[]> zusDra(
+      @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
+    read(profileId, authentication);
+    try {
+      var document = zusDra.generate(profileId, month);
+      return ResponseEntity.ok()
+          .contentType(MediaType.APPLICATION_XML)
+          .header(
+              HttpHeaders.CONTENT_DISPOSITION,
+              ContentDisposition.attachment().filename(document.filename()).build().toString())
+          .body(document.content());
+    } catch (RyczaltPeriodNotFoundException exception) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, exception.getMessage(), exception);
+    } catch (IllegalStateException exception) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, exception.getMessage(), exception);
+    }
+  }
+
+  @GetMapping("/pit28/{year}")
+  public Pit28Response pit28(
+      @PathVariable long profileId, @PathVariable int year, Authentication authentication) {
+    read(profileId, authentication);
+    return pit28Response(pit28.preview(profileId, year));
   }
 
   @GetMapping("/periods/{month}/issues")
@@ -333,6 +395,8 @@ public class RyczaltAccountingRestController {
         decimal(value.ryczaltRate()),
         decimal(value.deductibleVat()),
         value.classification(),
+        value.vatTreatment(),
+        decimal(value.vatDeductionRatio()),
         value.counterparty() == null
             ? null
             : new InvoiceResponse.CounterpartyView(
@@ -398,6 +462,74 @@ public class RyczaltAccountingRestController {
         value.paymentDate(),
         value.status());
   }
+
+  private Pit28Response pit28Response(Pit28Draft draft) {
+    var facts = draft.facts();
+    var calculation = draft.calculation();
+    return new Pit28Response(
+        draft.year(),
+        draft.readiness().status().name(),
+        new Pit28Revenue(
+            decimal(facts.revenuePln()),
+            facts.revenueByOriginalCurrency().entrySet().stream()
+                .collect(
+                    java.util.stream.Collectors.toMap(
+                        java.util.Map.Entry::getKey, entry -> decimal(entry.getValue())))),
+        new Pit28Deductions(
+            decimal(facts.socialContributionsPaid()),
+            decimal(facts.deductibleSocialContributions()),
+            decimal(facts.healthContributionsPaid()),
+            decimal(facts.deductibleHealthContributions())),
+        calculation == null
+            ? null
+            : new Pit28Tax(
+                decimal(calculation.taxableRevenue()),
+                decimal(calculation.ryczaltRate()),
+                decimal(calculation.annualTax())),
+        new Pit28Payments(
+            decimal(facts.ryczaltPaidDuringYear()),
+            calculation == null ? null : decimal(calculation.amountDue()),
+            calculation == null ? null : decimal(calculation.overpayment())),
+        draft.readiness().issues().stream().map(this::pit28Issue).toList(),
+        draft.monthlyReconciliation().stream()
+            .map(
+                value ->
+                    new Pit28Monthly(
+                        value.month(),
+                        decimal(value.revenue()),
+                        decimal(value.monthlyTax()),
+                        decimal(value.paidTax()),
+                        value.status()))
+            .toList());
+  }
+
+  private Pit28IssueResponse pit28Issue(Pit28Issue value) {
+    return new Pit28IssueResponse(value.code(), value.message(), value.reference());
+  }
+
+  public record Pit28Response(
+      int year,
+      String status,
+      Pit28Revenue revenue,
+      Pit28Deductions deductions,
+      Pit28Tax tax,
+      Pit28Payments payments,
+      List<Pit28IssueResponse> issues,
+      List<Pit28Monthly> monthlyReconciliation) {}
+
+  public record Pit28Revenue(String totalPln, java.util.Map<String, String> byOriginalCurrency) {}
+
+  public record Pit28Deductions(
+      String socialPaid, String deductibleSocial, String healthPaid, String deductibleHealth) {}
+
+  public record Pit28Tax(String taxableRevenue, String ryczaltRate, String annualTax) {}
+
+  public record Pit28Payments(String taxPaid, String amountDue, String overpayment) {}
+
+  public record Pit28IssueResponse(String code, String message, String reference) {}
+
+  public record Pit28Monthly(
+      YearMonth month, String revenue, String monthlyTax, String taxPaid, String status) {}
 
   private String decimal(BigDecimal value) {
     return value == null ? null : value.toPlainString();

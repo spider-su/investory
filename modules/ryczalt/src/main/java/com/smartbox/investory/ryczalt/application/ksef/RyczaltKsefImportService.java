@@ -1,6 +1,7 @@
 package com.smartbox.investory.ryczalt.application.ksef;
 
 import com.smartbox.investory.ryczalt.application.RyczaltCounterpartyService;
+import com.smartbox.investory.ryczalt.application.RyczaltInvoicePlnNormalizer;
 import com.smartbox.investory.ryczalt.calculation.InputChange;
 import com.smartbox.investory.ryczalt.domain.ApprovalMethod;
 import com.smartbox.investory.ryczalt.domain.ApprovalStatus;
@@ -9,8 +10,6 @@ import com.smartbox.investory.ryczalt.domain.InvoiceCandidate;
 import com.smartbox.investory.ryczalt.domain.PaymentVerificationPolicy;
 import com.smartbox.investory.ryczalt.domain.PeriodStatus;
 import com.smartbox.investory.ryczalt.domain.RuleMatchResult;
-import com.smartbox.investory.ryczalt.integration.fx.FxRate;
-import com.smartbox.investory.ryczalt.integration.fx.RyczaltFxRateService;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourcePort;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourcePort.KsefSyncCommand;
 import com.smartbox.investory.ryczalt.integration.ksef.InvoiceSourceRecord;
@@ -26,10 +25,10 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceEntity;
 import com.smartbox.investory.ryczalt.persistence.RyczaltSourceReferenceJpaRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.YearMonth;
 import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
@@ -53,7 +52,8 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
   private final RyczaltSourceReferenceJpaRepository sourceReferences;
   private final RyczaltPeriodLifecycleService lifecycle;
   private final RyczaltCounterpartyService counterparties;
-  private final RyczaltFxRateService fxRates;
+  private final RyczaltInvoicePlnNormalizer plnNormalizer;
+  private final RyczaltKsefSyncStatusService syncStatus;
 
   public RyczaltKsefImportService(
       InvoiceSourcePort source,
@@ -62,14 +62,16 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
       RyczaltSourceReferenceJpaRepository sourceReferences,
       RyczaltPeriodLifecycleService lifecycle,
       RyczaltCounterpartyService counterparties,
-      RyczaltFxRateService fxRates) {
+      RyczaltInvoicePlnNormalizer plnNormalizer,
+      RyczaltKsefSyncStatusService syncStatus) {
     this.source = source;
     this.periods = periods;
     this.invoices = invoices;
     this.sourceReferences = sourceReferences;
     this.lifecycle = lifecycle;
     this.counterparties = counterparties;
-    this.fxRates = fxRates;
+    this.plnNormalizer = plnNormalizer;
+    this.syncStatus = syncStatus;
   }
 
   @Override
@@ -86,7 +88,14 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
 
   private RyczaltKsefSyncResult acquire(
       long profileId, YearMonth month, Set<KsefSyncMode> modes, boolean reimport) {
-    var records = source.fetch(new KsefSyncCommand(month, modes));
+    syncStatus.set(profileId, month, "PENDING", null);
+    List<InvoiceSourceRecord> records;
+    try {
+      records = source.fetch(new KsefSyncCommand(month, modes));
+    } catch (RuntimeException exception) {
+      syncStatus.set(profileId, month, "FAILED", "SOURCE_UNAVAILABLE");
+      throw exception;
+    }
     int imported = 0;
     int duplicates = 0;
     int updated = 0;
@@ -130,7 +139,7 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
         if (!current.equals(target)) {
           invoice.moveToPeriod(requireMutable(profileId, target));
         }
-        FxRate fx = fxRate(record);
+        var normalized = normalize(record, invoice.getVatDeductionRatio());
         invoice.update(
             record.issueDate(),
             record.accountingDate(),
@@ -138,12 +147,19 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
             record.vatAmount(),
             record.grossAmount(),
             currency(record.currency()),
-            bookedNetPln(record, fx),
-            fx == null ? null : fx.rate(),
-            fx == null ? null : fx.effectiveDate(),
-            fx == null ? null : fx.provider(),
-            fx == null ? null : fx.providerReference());
-        invoice.setBookedVatPln(bookedVatPln(record, fx));
+            normalized.bookedNetPln(),
+            normalized.fxRate(),
+            normalized.fxEffectiveDate(),
+            normalized.fxProvider(),
+            normalized.fxProviderReference());
+        invoice.setDerivedPlnValues(
+            normalized.bookedNetPln(),
+            normalized.bookedVatPln(),
+            normalized.deductibleVatPln(),
+            normalized.fxRate(),
+            normalized.fxEffectiveDate(),
+            normalized.fxProvider(),
+            normalized.fxProviderReference());
         invoices.save(invoice);
         updated++;
         touched.computeIfAbsent(record.direction(), ignored -> new HashSet<>()).add(current);
@@ -151,13 +167,13 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
         continue;
       }
       RyczaltPeriodEntity period = requireMutable(profileId, target);
-      FxRate fx = fxRate(record);
       CounterpartyRule matchedRule = rule;
       ApprovalStatus status =
           matchedRule != null && matchedRule.autoApprove()
               ? ApprovalStatus.APPROVED
               : ApprovalStatus.NEEDS_REVIEW;
-      BigDecimal deductibleVat = deductibleVat(record, matchedRule);
+      var normalized =
+          normalize(record, matchedRule == null ? null : matchedRule.vatDeductionRatio());
       RyczaltInvoiceEntity saved =
           invoices.save(
               new RyczaltInvoiceEntity(
@@ -171,16 +187,17 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
                   record.vatAmount(),
                   record.grossAmount(),
                   currency(record.currency()),
-                  bookedNetPln(record, fx),
+                  normalized.bookedNetPln(),
                   rule == null ? record.ryczaltRate() : rule.ryczaltRate(),
-                  deductibleVat));
-      saved.setBookedNetPln(
-          bookedNetPln(record, fx),
-          fx == null ? null : fx.rate(),
-          fx == null ? null : fx.effectiveDate(),
-          fx == null ? null : fx.provider(),
-          fx == null ? null : fx.providerReference());
-      saved.setBookedVatPln(bookedVatPln(record, fx));
+                  normalized.deductibleVatPln()));
+      saved.setDerivedPlnValues(
+          normalized.bookedNetPln(),
+          normalized.bookedVatPln(),
+          normalized.deductibleVatPln(),
+          normalized.fxRate(),
+          normalized.fxEffectiveDate(),
+          normalized.fxProvider(),
+          normalized.fxProviderReference());
       saved.applyDecision(
           counterparty,
           rule == null ? null : rule.classification(),
@@ -189,7 +206,7 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
           rule == null ? record.ryczaltRate() : rule.ryczaltRate(),
           rule == null ? PaymentVerificationPolicy.REQUIRED : rule.paymentVerificationPolicy(),
           status,
-          rule == null ? ApprovalMethod.KSEF_TRUSTED : ApprovalMethod.COUNTERPARTY_RULE);
+          status == ApprovalStatus.APPROVED ? ApprovalMethod.COUNTERPARTY_RULE : null);
       saved = invoices.save(saved);
       sourceReferences.save(
           new RyczaltSourceReferenceEntity(
@@ -208,6 +225,11 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
                             ? InputChange.INCOME_INVOICE_CHANGED
                             : InputChange.COST_INVOICE_CHANGED,
                         ACTOR)));
+    syncStatus.set(
+        profileId,
+        month,
+        failed == 0 ? "SUCCEEDED" : "FAILED",
+        failed == 0 ? null : "INVOICE_IMPORT_FAILED");
     return new RyczaltKsefSyncResult(records.size(), imported, duplicates, updated, failed);
   }
 
@@ -232,26 +254,13 @@ public class RyczaltKsefImportService implements RyczaltKsefApi {
         : CurrencyType.valueOf(code.toUpperCase(java.util.Locale.ROOT));
   }
 
-  private FxRate fxRate(InvoiceSourceRecord record) {
-    return currency(record.currency()) == CurrencyType.PLN
-        ? null
-        : fxRates.rateFor(record.currency(), record.accountingDate());
-  }
-
-  private BigDecimal bookedNetPln(InvoiceSourceRecord record, FxRate fx) {
-    return fx == null
-        ? record.netAmount()
-        : record.netAmount().multiply(fx.rate()).setScale(4, RoundingMode.HALF_UP);
-  }
-
-  private BigDecimal bookedVatPln(InvoiceSourceRecord record, FxRate fx) {
-    return fx == null
-        ? record.vatAmount()
-        : record.vatAmount().multiply(fx.rate()).setScale(4, RoundingMode.HALF_UP);
-  }
-
-  private BigDecimal deductibleVat(InvoiceSourceRecord record, CounterpartyRule rule) {
-    if (rule == null || rule.vatDeductionRatio() == null) return null;
-    return record.vatAmount().multiply(rule.vatDeductionRatio()).setScale(4, RoundingMode.HALF_UP);
+  private RyczaltInvoicePlnNormalizer.Normalized normalize(
+      InvoiceSourceRecord record, BigDecimal vatDeductionRatio) {
+    return plnNormalizer.normalize(
+        record.currency(),
+        record.accountingDate(),
+        record.netAmount(),
+        record.vatAmount(),
+        vatDeductionRatio);
   }
 }

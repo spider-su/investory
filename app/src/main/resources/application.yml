@@ -123,6 +123,9 @@ app:
     token-login-enabled: ${APP_SECURITY_TOKEN_LOGIN_ENABLED:true}
     token-secret: ${APP_SECURITY_TOKEN_SECRET:change-me-token-secret-change-me-token-secret}
     token-lifetime: ${APP_SECURITY_TOKEN_LIFETIME:PT12H}
+    web-session-cookie-name: ${APP_SECURITY_WEB_SESSION_COOKIE_NAME:investory_web_session}
+    web-session-cookie-secure: ${APP_SECURITY_WEB_SESSION_COOKIE_SECURE:true}
+    web-session-cookie-same-site: ${APP_SECURITY_WEB_SESSION_COOKIE_SAME_SITE:Lax}
     google:
       enabled: ${APP_SECURITY_GOOGLE_ENABLED:false}
       client-id: ${APP_SECURITY_GOOGLE_CLIENT_ID:}
@@ -184,6 +187,12 @@ app:
     nip: ${INVESTORY_KSEF_NIP:}
     token: ${INVESTORY_KSEF_TOKEN:change-me-ksef-token}
   ryczalt:
+    company-lookup:
+      gus:
+        base-url: ${GUS_BIR_URL:https://wyszukiwarkaregont.stat.gov.pl/wsBIR/UslugaBIRzewnPubl.svc}
+        api-key: ${GUS_BIR_API_KEY:}
+      vat-white-list:
+        base-url: ${VAT_WHITE_LIST_URL:https://wl-api.mf.gov.pl}
     ksef:
       sync:
         enabled: ${RYCZALT_KSEF_SYNC_ENABLED:false}

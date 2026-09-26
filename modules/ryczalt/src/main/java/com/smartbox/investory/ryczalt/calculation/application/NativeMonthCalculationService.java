@@ -1,6 +1,7 @@
 package com.smartbox.investory.ryczalt.calculation.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smartbox.investory.ryczalt.application.NeedsReviewException;
 import com.smartbox.investory.ryczalt.calculation.InputFingerprint;
 import com.smartbox.investory.ryczalt.calculation.ryczalt.RyczaltCalculationInput;
 import com.smartbox.investory.ryczalt.calculation.ryczalt.RyczaltCalculationResult;
@@ -23,6 +24,8 @@ import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodJpaRepository;
 import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.YearMonth;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +43,7 @@ public class NativeMonthCalculationService {
   private final RyczaltObligationJpaRepository obligations;
   private final SettlementService settlement;
   private final RyczaltCalculationJpaRepository calculationRows;
+  private final Clock clock;
   private final ObjectMapper json = new ObjectMapper();
 
   @Autowired
@@ -49,22 +53,15 @@ public class NativeMonthCalculationService {
       RyczaltCalculationPersistenceAdapter calculations,
       RyczaltObligationJpaRepository obligations,
       SettlementService settlement,
-      RyczaltCalculationJpaRepository calculationRows) {
+      RyczaltCalculationJpaRepository calculationRows,
+      Clock clock) {
     this.periods = periods;
     this.inputAggregator = inputAggregator;
     this.calculations = calculations;
     this.obligations = obligations;
     this.settlement = settlement;
     this.calculationRows = calculationRows;
-  }
-
-  NativeMonthCalculationService(
-      RyczaltPeriodJpaRepository periods,
-      NativeMonthInputAggregator inputAggregator,
-      RyczaltCalculationPersistenceAdapter calculations,
-      RyczaltObligationJpaRepository obligations,
-      SettlementService settlement) {
-    this(periods, inputAggregator, calculations, obligations, settlement, null);
+    this.clock = clock;
   }
 
   @Transactional
@@ -138,7 +135,7 @@ public class NativeMonthCalculationService {
     upsertObligation(
         profileId, period, ObligationType.VAT, vatResult.calculatedVat(), vatCalculation);
     upsertObligation(profileId, period, ObligationType.ZUS, zusResult.total(), zusCalculation);
-    period.markCalculated(java.time.Instant.now());
+    period.markCalculated(Instant.now(clock));
     periods.save(period);
     settlement.settlePeriod(profileId, month);
     return new NativeMonthCalculationResult(
@@ -217,19 +214,31 @@ public class NativeMonthCalculationService {
 
   private NativeMonthCalculationInput withVatCarryForward(
       long profileId, YearMonth month, NativeMonthCalculationInput input) {
+    if (month.getMonthValue() == 1) return withVatCarry(input, BigDecimal.ZERO);
     YearMonth previousMonth = month.minusMonths(1);
-    BigDecimal carry =
-        calculationRows == null
-            ? BigDecimal.ZERO
-            : periods
-                .findByProfileIdAndYearAndMonth(
-                    profileId, previousMonth.getYear(), previousMonth.getMonthValue())
-                .flatMap(
-                    previous ->
-                        calculationRows.findByProfileIdAndPeriodIdAndTypeAndCurrentTrue(
-                            profileId, previous.id(), CalculationType.VAT))
-                .map(row -> readCarryForward(row.getResultJson()))
-                .orElse(BigDecimal.ZERO);
+    RyczaltPeriodEntity previous =
+        periods
+            .findByProfileIdAndYearAndMonth(
+                profileId, previousMonth.getYear(), previousMonth.getMonthValue())
+            .orElseThrow(
+                () ->
+                    new NeedsReviewException(
+                        month, "Previous VAT calculation is missing for " + previousMonth));
+    RyczaltCalculationEntity previousVat =
+        calculationRows
+            .findByProfileIdAndPeriodIdAndTypeAndCurrentTrue(
+                profileId, previous.id(), CalculationType.VAT)
+            .orElseThrow(
+                () ->
+                    new NeedsReviewException(
+                        month,
+                        "Previous VAT calculation is stale or missing for " + previousMonth));
+    BigDecimal carry = readCarryForward(previousVat.getResultJson(), month);
+    return withVatCarry(input, carry);
+  }
+
+  private NativeMonthCalculationInput withVatCarry(
+      NativeMonthCalculationInput input, BigDecimal carry) {
     var vat = input.vat();
     var withCarry =
         new com.smartbox.investory.ryczalt.calculation.vat.VatCalculationInput(
@@ -242,11 +251,17 @@ public class NativeMonthCalculationService {
         input.revenueByRate(), withCarry, input.zus(), input.deductionsAlreadyConsumed());
   }
 
-  private BigDecimal readCarryForward(String resultJson) {
+  private BigDecimal readCarryForward(String resultJson, YearMonth month) {
     try {
-      return json.readTree(resultJson).path("excessVatCarryForward").decimalValue();
+      var node = json.readTree(resultJson);
+      var carry = node.get("excessVatCarryForward");
+      if (carry == null || !carry.isNumber()) {
+        throw new NeedsReviewException(month, "Previous VAT carry-forward is missing");
+      }
+      return carry.decimalValue();
     } catch (Exception exception) {
-      return BigDecimal.ZERO;
+      if (exception instanceof NeedsReviewException needsReview) throw needsReview;
+      throw new NeedsReviewException(month, "Previous VAT calculation JSON is malformed");
     }
   }
 }

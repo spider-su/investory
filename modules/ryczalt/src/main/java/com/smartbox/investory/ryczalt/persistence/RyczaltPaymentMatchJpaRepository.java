@@ -1,9 +1,11 @@
 package com.smartbox.investory.ryczalt.persistence;
 
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,6 +18,10 @@ public interface RyczaltPaymentMatchJpaRepository
 
   Optional<RyczaltPaymentMatchEntity> findByProfileIdAndObligationIdAndTransactionId(
       long profileId, long obligationId, long transactionId);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select m from RyczaltPaymentMatchEntity m where m.id = :id")
+  Optional<RyczaltPaymentMatchEntity> findLockedById(@Param("id") long id);
 
   @Query(
       "select coalesce(sum(m.matchedAmount), 0) from RyczaltPaymentMatchEntity m "

@@ -10,7 +10,7 @@ non-frozen period to `DIRTY` and invalidates only dependent calculation types th
 `FrozenPeriodMutationException`. Reopening requires a reason and writes an audit event; a later
 calculation creates a new revision instead of deleting the frozen result.
 
-`RyczaltCorrectionService` records the original period, affected entity, reason, actor, and optional correction period. It does not rewrite the original facts. Filing/JPK remains outside the native accounting scope.
+`RyczaltCorrectionService` records the original period, affected entity, reason, actor, and optional correction period. It does not rewrite the original facts. External filing/submission remains outside the native accounting scope; native JPK XML download is read-only.
 
 Payment matches and obligation settlement are separate from calculation state. A frozen period cannot
 be matched, unmatched, or have its obligation status changed. Reopen/correction is required first.

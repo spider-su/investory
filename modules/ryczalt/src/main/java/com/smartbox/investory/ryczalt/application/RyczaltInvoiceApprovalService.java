@@ -21,6 +21,7 @@ public class RyczaltInvoiceApprovalService {
   private final RyczaltSourceReferenceJpaRepository sources;
   private final RyczaltPeriodLifecycleService lifecycle;
   private final RyczaltCounterpartyService counterpartyService;
+  private final RyczaltInvoicePlnNormalizer plnNormalizer;
 
   public RyczaltInvoiceApprovalService(
       RyczaltInvoiceCandidateJpaRepository candidates,
@@ -29,7 +30,8 @@ public class RyczaltInvoiceApprovalService {
       RyczaltPeriodJpaRepository periods,
       RyczaltSourceReferenceJpaRepository sources,
       RyczaltPeriodLifecycleService lifecycle,
-      RyczaltCounterpartyService counterpartyService) {
+      RyczaltCounterpartyService counterpartyService,
+      RyczaltInvoicePlnNormalizer plnNormalizer) {
     this.candidates = candidates;
     this.counterparties = counterparties;
     this.invoices = invoices;
@@ -37,6 +39,7 @@ public class RyczaltInvoiceApprovalService {
     this.sources = sources;
     this.lifecycle = lifecycle;
     this.counterpartyService = counterpartyService;
+    this.plnNormalizer = plnNormalizer;
   }
 
   @Transactional
@@ -110,6 +113,13 @@ public class RyczaltInvoiceApprovalService {
                 ? ApprovalMethod.COUNTERPARTY_RULE
                 : ApprovalMethod.MANUAL)
             : null;
+    var normalized =
+        plnNormalizer.normalize(
+            candidate.getCurrency(),
+            candidate.getSaleDate() == null ? candidate.getIssueDate() : candidate.getSaleDate(),
+            candidate.getNetAmount(),
+            candidate.getVatAmount(),
+            ratio);
     candidate.apply(classification, vatTreatment, ratio, rate, policy, status, method);
     candidate.setCounterpartyId(cpId);
     RyczaltInvoiceEntity invoice;
@@ -129,9 +139,17 @@ public class RyczaltInvoiceApprovalService {
                   candidate.getVatAmount(),
                   candidate.getGrossAmount(),
                   CurrencyType.valueOf(candidate.getCurrency()),
-                  null,
+                  normalized.bookedNetPln(),
                   rate,
-                  ratio));
+                  normalized.deductibleVatPln()));
+      invoice.setDerivedPlnValues(
+          normalized.bookedNetPln(),
+          normalized.bookedVatPln(),
+          normalized.deductibleVatPln(),
+          normalized.fxRate(),
+          normalized.fxEffectiveDate(),
+          normalized.fxProvider(),
+          normalized.fxProviderReference());
       invoice.applyDecision(cp, classification, vatTreatment, ratio, rate, policy, status, method);
       invoices.save(invoice);
       sources.save(

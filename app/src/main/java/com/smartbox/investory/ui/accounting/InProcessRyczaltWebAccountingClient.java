@@ -180,6 +180,41 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
   }
 
   @Override
+  public Pit28Draft pit28(long profileId, int year) {
+    var value = accounting.pit28(profileId, year, authentication());
+    return new Pit28Draft(
+        value.year(),
+        value.status(),
+        new Pit28Revenue(value.revenue().totalPln(), value.revenue().byOriginalCurrency()),
+        new Pit28Deductions(
+            value.deductions().socialPaid(),
+            value.deductions().deductibleSocial(),
+            value.deductions().healthPaid(),
+            value.deductions().deductibleHealth()),
+        value.tax() == null
+            ? null
+            : new Pit28Tax(
+                value.tax().taxableRevenue(), value.tax().ryczaltRate(), value.tax().annualTax()),
+        new Pit28Payments(
+            value.payments().taxPaid(),
+            value.payments().amountDue(),
+            value.payments().overpayment()),
+        value.issues().stream()
+            .map(issue -> new Pit28Issue(issue.code(), issue.message(), issue.reference()))
+            .toList(),
+        value.monthlyReconciliation().stream()
+            .map(
+                month ->
+                    new Pit28Monthly(
+                        month.month(),
+                        month.revenue(),
+                        month.monthlyTax(),
+                        month.taxPaid(),
+                        month.status()))
+            .toList());
+  }
+
+  @Override
   public List<PaymentHistory> paymentHistory(
       long profileId, YearMonth from, YearMonth to, String type) {
     return accounting.paymentHistory(profileId, from, to, type, authentication()).stream()
@@ -371,6 +406,7 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
   private Invoice invoice(com.smartbox.investory.ryczalt.web.InvoiceResponse v) {
     return new Invoice(
         v.id(),
+        v.counterparty() == null ? 0 : v.counterparty().id(),
         v.direction(),
         v.reference(),
         v.issueDate(),
@@ -387,7 +423,10 @@ public final class InProcessRyczaltWebAccountingClient implements RyczaltWebAcco
             ? null
             : (v.counterparty().alias() == null
                 ? v.counterparty().legalName()
-                : v.counterparty().alias()));
+                : v.counterparty().alias()),
+        v.classification(),
+        v.vatTreatment(),
+        v.vatDeductionRatio());
   }
 
   private Candidate candidate(
