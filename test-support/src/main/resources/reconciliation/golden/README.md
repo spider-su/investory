@@ -14,7 +14,7 @@ Covered cases:
 - IBKR C1 source-to-ledger conservation by operation, currency, business date, row count, and
   signed Net Amount.
 - XTB VHYD investment-plan/subaccount rebooking that previously produced a false ~6k P/L jump.
-- XTB real tracked-account transfer (`2051993106 -> 2051499241`, 325 USD).
+- XTB real tracked-account transfer (`91000010 -> 91000002`, 325 USD).
 - XTB RESULT_ONLY NATGAS CFD with rollover and swap.
 - XTB IKE PLN account with USD-quoted VWRA, PLN-quoted PKN, dividend and withholding tax.
 - XTB cash-only funding -> IKE allocation plus interest/tax.
@@ -28,8 +28,8 @@ validates its case IDs and assertion structure, implements the high-value assert
 machine-readable `READY` / `NOT_READY` report. A failed check is an `ERROR` and causes Maven to exit
 non-zero.
 
-Checkpoint account IDs are Investory's canonical internal IDs: IBKR `2017959259`, XTB USD
-`2051499241`, and XTB PLN `2051551301`. Broker fixture filenames and provider-native account values
+Checkpoint account IDs are Investory's canonical internal IDs: IBKR `91000001`, XTB USD
+`91000002`, and XTB PLN `91000003`. Broker fixture filenames and provider-native account values
 retain their external IDs.
 
 The golden test must remain offline. Do not add live market/FX calls. Committed broker-derived

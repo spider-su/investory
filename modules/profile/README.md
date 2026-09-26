@@ -2,6 +2,9 @@
 
 `profile` composes a read-only whole-wealth view from Investment and Long-Term facts.
 
+This README is the module boundary summary; the maintainer walkthrough is
+[`docs/kt/profile-module-quick-kt.md`](../../docs/kt/profile-module-quick-kt.md).
+
 ## Dependency direction
 
 ```text
@@ -40,9 +43,3 @@ LongTerm API ─────┘
   scenario rate when creating effective simulation assumptions.
 - The persisted contract test covers empty, brokerage-only, Long-Term-only, and mixed portfolios,
   and verifies repeated reads do not change source tables.
-# Employment history
-
-Employment is represented by inclusive, date-bounded `EmploymentPeriod` rows. UOP and JDG may
-overlap, multiple periods of the same type are preserved, and `to = null` means active. Current
-employment state is derived by `EmploymentContextResolver`; gaps are not merged. Accounting should
-consume that resolver rather than a current-state employment flag.

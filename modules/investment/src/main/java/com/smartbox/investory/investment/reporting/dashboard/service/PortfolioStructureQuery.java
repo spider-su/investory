@@ -137,7 +137,7 @@ public class PortfolioStructureQuery {
       CurrencyType currency, List<AccountBalance> accounts, double total) {
     double value =
         accounts.stream()
-            .map(AccountBalance::getBalance)
+            .map(AccountBalance::getBalanceBase)
             .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
             .doubleValue();
     return new PortfolioStructureView.CurrencyBucket(

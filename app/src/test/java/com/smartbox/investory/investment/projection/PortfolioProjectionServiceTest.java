@@ -34,6 +34,7 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -51,6 +52,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -88,6 +90,8 @@ class PortfolioProjectionServiceTest {
   @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
   @Mock private PortfolioProjectionRefreshService projectionRefreshService;
   @Mock private ApplicationTime applicationTime;
+  @Mock private JdbcTemplate jdbcTemplate;
+  @Mock private EntityManager entityManager;
 
   @InjectMocks private PortfolioProjectionService service;
 
@@ -136,9 +140,20 @@ class PortfolioProjectionServiceTest {
             invocation -> {
               @SuppressWarnings("unchecked")
               java.util.Collection<Long> accountIds = invocation.getArgument(0);
-              return accountRepository.findAll().stream()
-                  .filter(
-                      account -> account.getId() != null && accountIds.contains(account.getId()))
+              return accountIds.stream()
+                  .map(
+                      accountId ->
+                          java.util.Optional.ofNullable(accountRepository.findAll())
+                              .orElseGet(List::of)
+                              .stream()
+                              .filter(account -> accountId.equals(account.getId()))
+                              .findFirst()
+                              .orElseGet(
+                                  () ->
+                                      defaultAccounts().stream()
+                                          .filter(account -> accountId.equals(account.getId()))
+                                          .findFirst()
+                                          .orElseGet(() -> account(accountId, CurrencyType.USD))))
                   .toList();
             });
     org.mockito.Mockito.lenient()
@@ -147,20 +162,18 @@ class PortfolioProjectionServiceTest {
             invocation -> {
               @SuppressWarnings("unchecked")
               java.util.Collection<Long> accountIds = invocation.getArgument(0);
-              return accountRepository.findAll().stream()
-                  .filter(
-                      account -> account.getId() != null && accountIds.contains(account.getId()))
+              return accountIds.stream()
                   .<AccountRepository.AccountPortfolioCurrencyRow>map(
-                      account ->
+                      accountId ->
                           new AccountRepository.AccountPortfolioCurrencyRow() {
                             @Override
                             public Long getAccountId() {
-                              return account.getId();
+                              return accountId;
                             }
 
                             @Override
                             public String getBaseCurrency() {
-                              return defaultPortfolioBaseCurrency(account).name();
+                              return CurrencyType.USD.name();
                             }
                           })
                   .toList();
@@ -357,7 +370,7 @@ class PortfolioProjectionServiceTest {
   @SuppressWarnings("unchecked")
   void recalculateAll_storesPlnAccountStatisticsInUsd() {
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51551301L);
+    opened.setAccount(90000003L);
     opened.setSymbol("AAPL.US");
     setCurrencies(opened, CurrencyType.PLN);
     opened.setType(PositionType.BUY);
@@ -367,7 +380,7 @@ class PortfolioProjectionServiceTest {
     opened.setOpenTime(ZonedDateTime.now().minusDays(1));
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(51551301L);
+    deposit.setAccount(90000003L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(java.math.BigDecimal.valueOf(400.0));
     deposit.setCurrency(CurrencyType.PLN);
@@ -414,7 +427,7 @@ class PortfolioProjectionServiceTest {
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
     AccountDailyEntity latest =
         toList(accountDailyCaptor.getValue()).stream()
-            .filter(row -> row.getAccountId().equals(51551301L))
+            .filter(row -> row.getAccountId().equals(90000003L))
             .max(java.util.Comparator.comparing(AccountDailyEntity::getDate))
             .orElseThrow();
 
@@ -430,7 +443,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51499241L);
+    opened.setAccount(90000002L);
     opened.setSymbol("AAPL.US");
     setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
@@ -440,7 +453,7 @@ class PortfolioProjectionServiceTest {
     opened.setOpenTime(tradeDate);
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(51499241L);
+    deposit.setAccount(90000002L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(java.math.BigDecimal.valueOf(1000.0));
     deposit.setCurrency(CurrencyType.USD);
@@ -502,7 +515,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime splitDate = ZonedDateTime.parse("2025-11-16T13:51:04Z");
 
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51499241L);
+    opened.setAccount(90000002L);
     opened.setSymbol("NFLX.US");
     setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
@@ -564,7 +577,7 @@ class PortfolioProjectionServiceTest {
   @SuppressWarnings("unchecked")
   void recalculateAll_treatsCashOnlyTradesAsReportingBoundaryFlows() {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
-    long accountId = 51707603L;
+    long accountId = 90000011L;
 
     AccountEntity cashOnlyAccount = account(accountId, CurrencyType.USD);
     cashOnlyAccount.setCashOnly(true);
@@ -661,7 +674,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51499241L);
+    opened.setAccount(90000002L);
     opened.setSymbol("AAPL.US");
     setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
@@ -725,7 +738,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51499241L);
+    opened.setAccount(90000002L);
     opened.setSymbol("EMIM.UK");
     setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
@@ -781,7 +794,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51499241L);
+    opened.setAccount(90000002L);
     opened.setSymbol("AAPL.US");
     setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
@@ -834,14 +847,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(51499241L);
+    deposit.setAccount(90000002L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(1000.0));
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(tradeDate.minusDays(1));
 
     CashOperationEntity stockPurchase = new CashOperationEntity();
-    stockPurchase.setAccount(51499241L);
+    stockPurchase.setAccount(90000002L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(BigDecimal.valueOf(-1000.0));
     stockPurchase.setCurrency(CurrencyType.USD);
@@ -849,7 +862,7 @@ class PortfolioProjectionServiceTest {
     stockPurchase.setSymbol("AAPL.US");
 
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51499241L);
+    opened.setAccount(90000002L);
     opened.setSymbol("AAPL.US");
     setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
@@ -899,14 +912,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-02-13T12:00:00Z");
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(51499241L);
+    deposit.setAccount(90000002L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(5000.0));
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(tradeDate.minusDays(1));
 
     CashOperationEntity stockPurchase = new CashOperationEntity();
-    stockPurchase.setAccount(51499241L);
+    stockPurchase.setAccount(90000002L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(BigDecimal.valueOf(-1901.80));
     stockPurchase.setCurrency(CurrencyType.USD);
@@ -914,7 +927,7 @@ class PortfolioProjectionServiceTest {
     stockPurchase.setSymbol("DTLA.UK");
 
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51499241L);
+    opened.setAccount(90000002L);
     opened.setSymbol("DTLA.UK");
     setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
@@ -964,14 +977,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2025-12-05T12:00:00Z");
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(51499241L);
+    deposit.setAccount(90000002L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(5000.0));
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(tradeDate.minusDays(1));
 
     CashOperationEntity stockPurchase = new CashOperationEntity();
-    stockPurchase.setAccount(51499241L);
+    stockPurchase.setAccount(90000002L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(BigDecimal.valueOf(-2329.205436));
     stockPurchase.setCurrency(CurrencyType.USD);
@@ -979,7 +992,7 @@ class PortfolioProjectionServiceTest {
     stockPurchase.setSymbol("JGPI.DE");
 
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51499241L);
+    opened.setAccount(90000002L);
     opened.setSymbol("JGPI.DE");
     setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
@@ -1034,14 +1047,14 @@ class PortfolioProjectionServiceTest {
     String symbol = "CSPX.UK";
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(51499241L);
+    deposit.setAccount(90000002L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(2500.0));
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(depositDate);
 
     CashOperationEntity purchase = new CashOperationEntity();
-    purchase.setAccount(51499241L);
+    purchase.setAccount(90000002L);
     purchase.setType(CashOperationType.STOCK_PURCHASE);
     purchase.setAmount(BigDecimal.valueOf(-2500.0));
     purchase.setCurrency(CurrencyType.USD);
@@ -1049,7 +1062,7 @@ class PortfolioProjectionServiceTest {
     purchase.setSymbol(symbol);
 
     CashOperationEntity sale = new CashOperationEntity();
-    sale.setAccount(51499241L);
+    sale.setAccount(90000002L);
     sale.setType(CashOperationType.STOCK_SELL);
     sale.setAmount(BigDecimal.valueOf(2600.0));
     sale.setCurrency(CurrencyType.USD);
@@ -1058,7 +1071,7 @@ class PortfolioProjectionServiceTest {
 
     PositionEntity closed = new PositionEntity();
     closed.setId(9001L);
-    closed.setAccount(51499241L);
+    closed.setAccount(90000002L);
     closed.setSymbol(symbol);
     setCurrencies(closed, CurrencyType.USD);
     closed.setType(PositionType.BUY);
@@ -1149,7 +1162,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime closeDate = ZonedDateTime.parse("2026-02-25T11:26:38Z");
 
     CashOperationEntity stockPurchase = new CashOperationEntity();
-    stockPurchase.setAccount(51707603L);
+    stockPurchase.setAccount(90000011L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(BigDecimal.valueOf(-1006.50));
     stockPurchase.setCurrency(CurrencyType.PLN);
@@ -1157,7 +1170,7 @@ class PortfolioProjectionServiceTest {
     stockPurchase.setSymbol("ETFBW20TR.PL");
 
     CashOperationEntity stockSell = new CashOperationEntity();
-    stockSell.setAccount(51707603L);
+    stockSell.setAccount(90000011L);
     stockSell.setType(CashOperationType.STOCK_SELL);
     stockSell.setAmount(BigDecimal.valueOf(1031.25));
     stockSell.setCurrency(CurrencyType.PLN);
@@ -1165,7 +1178,7 @@ class PortfolioProjectionServiceTest {
     stockSell.setSymbol("ETFBW20TR.PL");
 
     PositionEntity closed = new PositionEntity();
-    closed.setAccount(51707603L);
+    closed.setAccount(90000011L);
     closed.setSymbol("ETFBW20TR.PL");
     setCurrencies(closed, CurrencyType.PLN);
     closed.setType(PositionType.BUY);
@@ -1216,7 +1229,7 @@ class PortfolioProjectionServiceTest {
 
     PositionEntity cfd = new PositionEntity();
     cfd.setId(2422831730L);
-    cfd.setAccount(51499241L);
+    cfd.setAccount(90000002L);
     cfd.setSymbol("NATGAS");
     setCurrencies(cfd, CurrencyType.USD);
     cfd.setType(PositionType.BUY);
@@ -1233,7 +1246,7 @@ class PortfolioProjectionServiceTest {
 
     CashOperationEntity closeResult = new CashOperationEntity();
     closeResult.setId(2422831730L);
-    closeResult.setAccount(51499241L);
+    closeResult.setAccount(90000002L);
     closeResult.setType(CashOperationType.CLOSE_TRADE);
     closeResult.setAmount(BigDecimal.valueOf(40.50));
     closeResult.setCurrency(CurrencyType.USD);
@@ -1242,7 +1255,7 @@ class PortfolioProjectionServiceTest {
 
     CashOperationEntity swap = new CashOperationEntity();
     swap.setId(2422831731L);
-    swap.setAccount(51499241L);
+    swap.setAccount(90000002L);
     swap.setType(CashOperationType.SWAP);
     swap.setAmount(BigDecimal.valueOf(-0.54));
     swap.setCurrency(CurrencyType.USD);
@@ -1283,7 +1296,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime februaryClose = ZonedDateTime.parse("2026-02-11T12:00:00Z");
 
     PositionEntity januaryHolding = new PositionEntity();
-    januaryHolding.setAccount(51499241L);
+    januaryHolding.setAccount(90000002L);
     januaryHolding.setSymbol("AAPL.US");
     setCurrencies(januaryHolding, CurrencyType.USD);
     januaryHolding.setType(PositionType.BUY);
@@ -1293,7 +1306,7 @@ class PortfolioProjectionServiceTest {
     januaryHolding.setOpenTime(january);
 
     PositionEntity februaryRoundTrip = new PositionEntity();
-    februaryRoundTrip.setAccount(51499241L);
+    februaryRoundTrip.setAccount(90000002L);
     februaryRoundTrip.setSymbol("MSFT.US");
     setCurrencies(februaryRoundTrip, CurrencyType.USD);
     februaryRoundTrip.setType(PositionType.BUY);
@@ -1358,7 +1371,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     PositionEntity opened = new PositionEntity();
-    opened.setAccount(51551301L);
+    opened.setAccount(90000003L);
     opened.setSymbol("PKO.WA");
     setCurrencies(opened, CurrencyType.PLN);
     opened.setType(PositionType.BUY);
@@ -1368,14 +1381,14 @@ class PortfolioProjectionServiceTest {
     opened.setOpenTime(tradeDate);
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(51551301L);
+    deposit.setAccount(90000003L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(1000.0));
     deposit.setCurrency(CurrencyType.PLN);
     deposit.setDate(tradeDate.minusDays(1));
 
     CashOperationEntity stockPurchase = new CashOperationEntity();
-    stockPurchase.setAccount(51551301L);
+    stockPurchase.setAccount(90000003L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(BigDecimal.valueOf(-990.0));
     stockPurchase.setCurrency(CurrencyType.PLN);
@@ -1422,14 +1435,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(17959259L);
+    deposit.setAccount(90000001L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(1000.0));
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(depositDate);
 
     CashOperationEntity stockPurchase = new CashOperationEntity();
-    stockPurchase.setAccount(17959259L);
+    stockPurchase.setAccount(90000001L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(BigDecimal.valueOf(-900.0));
     stockPurchase.setCurrency(CurrencyType.USD);
@@ -1471,14 +1484,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime transferDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     CashOperationEntity transferOut = new CashOperationEntity();
-    transferOut.setAccount(51499241L);
+    transferOut.setAccount(90000002L);
     transferOut.setType(CashOperationType.SUBACCOUNT_TRANSFER);
     transferOut.setAmount(BigDecimal.valueOf(-500.0));
     transferOut.setCurrency(CurrencyType.USD);
     transferOut.setDate(transferDate);
 
     CashOperationEntity transferIn = new CashOperationEntity();
-    transferIn.setAccount(51822121L);
+    transferIn.setAccount(90000004L);
     transferIn.setType(CashOperationType.SUBACCOUNT_TRANSFER);
     transferIn.setAmount(BigDecimal.valueOf(500.0));
     transferIn.setCurrency(CurrencyType.USD);
@@ -1506,7 +1519,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime callDate = ZonedDateTime.parse("2026-02-27T12:00:00Z");
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(17959259L);
+    deposit.setAccount(90000001L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(48_131.0));
     deposit.setCurrency(CurrencyType.USD);
@@ -1514,7 +1527,7 @@ class PortfolioProjectionServiceTest {
     deposit.setComment("Electronic Fund Transfer");
 
     CashOperationEntity bondPurchase = new CashOperationEntity();
-    bondPurchase.setAccount(17959259L);
+    bondPurchase.setAccount(90000001L);
     bondPurchase.setType(CashOperationType.STOCK_PURCHASE);
     bondPurchase.setAmount(BigDecimal.valueOf(-10_000.0));
     bondPurchase.setCurrency(CurrencyType.USD);
@@ -1523,7 +1536,7 @@ class PortfolioProjectionServiceTest {
     bondPurchase.setComment("T 4 5/8 02/28/26");
 
     CashOperationEntity bondCall = new CashOperationEntity();
-    bondCall.setAccount(17959259L);
+    bondCall.setAccount(90000001L);
     bondCall.setType(CashOperationType.TRANSFER);
     bondCall.setAmount(BigDecimal.valueOf(10_000.0));
     bondCall.setCurrency(CurrencyType.USD);
@@ -1533,7 +1546,7 @@ class PortfolioProjectionServiceTest {
             + "(T 4 5/8 02/28/26, T 4 5/8 02/28/26, US91282CKB62)");
 
     PositionEntity closedBond = new PositionEntity();
-    closedBond.setAccount(17959259L);
+    closedBond.setAccount(90000001L);
     closedBond.setSymbol("US91282CKB62");
     setCurrencies(closedBond, CurrencyType.USD);
     closedBond.setType(PositionType.BUY);
@@ -1567,22 +1580,22 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime conversionDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     CashOperationEntity plnOut = new CashOperationEntity();
-    plnOut.setAccount(50290466L);
+    plnOut.setAccount(90000008L);
     plnOut.setType(CashOperationType.TRANSFER);
     plnOut.setAmount(BigDecimal.valueOf(-20_000.0));
     plnOut.setCurrency(CurrencyType.PLN);
     plnOut.setDate(conversionDate);
     plnOut.setComment(
-        "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
+        "Currency conversion, PLN to USD from TA: 90000008 to: 90000002, Exchange rate:0.250206");
 
     CashOperationEntity usdIn = new CashOperationEntity();
-    usdIn.setAccount(51499241L);
+    usdIn.setAccount(90000002L);
     usdIn.setType(CashOperationType.TRANSFER);
     usdIn.setAmount(BigDecimal.valueOf(5_004.12));
     usdIn.setCurrency(CurrencyType.USD);
     usdIn.setDate(conversionDate.plusMinutes(1));
     usdIn.setComment(
-        "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
+        "Currency conversion, PLN to USD from TA: 90000008 to: 90000002, Exchange rate:0.250206");
 
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
@@ -1605,7 +1618,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-05-08T12:00:00Z");
 
     CashOperationEntity forex = new CashOperationEntity();
-    forex.setAccount(17959259L);
+    forex.setAccount(90000001L);
     forex.setType(CashOperationType.DEPOSIT);
     forex.setAmount(BigDecimal.valueOf(-0.0158696));
     forex.setCurrency(CurrencyType.USD);
@@ -1634,12 +1647,12 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime transferDate = ZonedDateTime.parse("2026-04-20T12:00:00Z");
 
     CashOperationEntity transferOut = new CashOperationEntity();
-    transferOut.setAccount(50290466L);
+    transferOut.setAccount(90000008L);
     transferOut.setType(CashOperationType.DEPOSIT);
     transferOut.setAmount(BigDecimal.valueOf(-5_000.0));
     transferOut.setCurrency(CurrencyType.PLN);
     transferOut.setDate(transferDate);
-    transferOut.setComment("Transfer out operation on account with id 50290466");
+    transferOut.setComment("Transfer out operation on account with id 90000008");
 
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
@@ -1663,20 +1676,20 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime withdrawalDate = ZonedDateTime.parse("2026-03-10T12:00:00Z");
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(51548444L);
+    deposit.setAccount(90000009L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(100.0));
     deposit.setCurrency(CurrencyType.EUR);
     deposit.setDate(depositDate);
 
     CashOperationEntity withdrawal = new CashOperationEntity();
-    withdrawal.setAccount(51548444L);
+    withdrawal.setAccount(90000009L);
     withdrawal.setType(CashOperationType.WITHDRAWAL);
     withdrawal.setAmount(BigDecimal.valueOf(-100.0));
     withdrawal.setCurrency(CurrencyType.EUR);
     withdrawal.setDate(withdrawalDate);
 
-    when(accountRepository.findAll()).thenReturn(List.of(account(51548444L, CurrencyType.EUR)));
+    when(accountRepository.findAll()).thenReturn(List.of(account(90000009L, CurrencyType.EUR)));
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, withdrawal));
@@ -1714,16 +1727,16 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime transferDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     CashOperationEntity residualFunding = new CashOperationEntity();
-    residualFunding.setAccount(50290466L);
+    residualFunding.setAccount(90000008L);
     residualFunding.setType(CashOperationType.TRANSFER);
     residualFunding.setAmount(BigDecimal.valueOf(127.0));
     residualFunding.setCurrency(CurrencyType.USD);
     residualFunding.setDate(transferDate);
     residualFunding.setComment(
-        "Currency conversion, USD to PLN from TA: 51499241 to: 50290466, Exchange rate:3.569154");
+        "Currency conversion, USD to PLN from TA: 90000002 to: 90000008, Exchange rate:3.569154");
 
     CashOperationEntity residualCashOut = new CashOperationEntity();
-    residualCashOut.setAccount(50290466L);
+    residualCashOut.setAccount(90000008L);
     residualCashOut.setType(CashOperationType.CORRECTION);
     residualCashOut.setAmount(BigDecimal.valueOf(-114.0));
     residualCashOut.setCurrency(CurrencyType.USD);
@@ -1753,14 +1766,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime day2 = ZonedDateTime.parse("2026-01-11T12:00:00Z");
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(17959259L);
+    deposit.setAccount(90000001L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(100.0));
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(day1);
 
     CashOperationEntity dividend = new CashOperationEntity();
-    dividend.setAccount(17959259L);
+    dividend.setAccount(90000001L);
     dividend.setType(CashOperationType.DIVIDEND);
     dividend.setAmount(BigDecimal.valueOf(4.0));
     dividend.setCurrency(CurrencyType.USD);
@@ -1768,28 +1781,28 @@ class PortfolioProjectionServiceTest {
     dividend.setSymbol("AAPL.US");
 
     CashOperationEntity interest = new CashOperationEntity();
-    interest.setAccount(17959259L);
+    interest.setAccount(90000001L);
     interest.setType(CashOperationType.FREE_FUNDS_INTEREST);
     interest.setAmount(BigDecimal.valueOf(3.0));
     interest.setCurrency(CurrencyType.USD);
     interest.setDate(day2);
 
     CashOperationEntity commission = new CashOperationEntity();
-    commission.setAccount(17959259L);
+    commission.setAccount(90000001L);
     commission.setType(CashOperationType.COMMISSION);
     commission.setAmount(BigDecimal.valueOf(-54.34));
     commission.setCurrency(CurrencyType.USD);
     commission.setDate(day2);
 
     CashOperationEntity secFee = new CashOperationEntity();
-    secFee.setAccount(17959259L);
+    secFee.setAccount(90000001L);
     secFee.setType(CashOperationType.SEC_FEE);
     secFee.setAmount(BigDecimal.valueOf(-0.03));
     secFee.setCurrency(CurrencyType.USD);
     secFee.setDate(day2);
 
     CashOperationEntity commissionRefund = new CashOperationEntity();
-    commissionRefund.setAccount(17959259L);
+    commissionRefund.setAccount(90000001L);
     commissionRefund.setType(CashOperationType.CORRECTION);
     commissionRefund.setAmount(BigDecimal.valueOf(10.00));
     commissionRefund.setCurrency(CurrencyType.USD);
@@ -1797,7 +1810,7 @@ class PortfolioProjectionServiceTest {
     commissionRefund.setComment("Commission Refund");
 
     CashOperationEntity secFeeAdjustment = new CashOperationEntity();
-    secFeeAdjustment.setAccount(17959259L);
+    secFeeAdjustment.setAccount(90000001L);
     secFeeAdjustment.setType(CashOperationType.CORRECTION);
     secFeeAdjustment.setAmount(BigDecimal.valueOf(0.01));
     secFeeAdjustment.setCurrency(CurrencyType.USD);
@@ -1805,7 +1818,7 @@ class PortfolioProjectionServiceTest {
     secFeeAdjustment.setComment("corr Sec Fee adj");
 
     CashOperationEntity withholdingTax = new CashOperationEntity();
-    withholdingTax.setAccount(17959259L);
+    withholdingTax.setAccount(90000001L);
     withholdingTax.setType(CashOperationType.WITHHOLDING_TAX);
     withholdingTax.setAmount(BigDecimal.valueOf(-1.25));
     withholdingTax.setCurrency(CurrencyType.USD);
@@ -1813,13 +1826,13 @@ class PortfolioProjectionServiceTest {
     withholdingTax.setSymbol("AAPL.US");
 
     CashOperationEntity withdrawal = new CashOperationEntity();
-    withdrawal.setAccount(17959259L);
+    withdrawal.setAccount(90000001L);
     withdrawal.setType(CashOperationType.WITHDRAWAL);
     withdrawal.setAmount(BigDecimal.valueOf(-20.0));
     withdrawal.setCurrency(CurrencyType.USD);
     withdrawal.setDate(day2);
 
-    when(accountRepository.findAll()).thenReturn(List.of(account(17959259L, CurrencyType.USD)));
+    when(accountRepository.findAll()).thenReturn(List.of(account(90000001L, CurrencyType.USD)));
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll())
@@ -1851,13 +1864,13 @@ class PortfolioProjectionServiceTest {
 
     AccountDailyEntity firstDay =
         rows.stream()
-            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getAccountId().equals(90000001L))
             .filter(row -> row.getDate().equals(day1.toLocalDate()))
             .findFirst()
             .orElseThrow();
     AccountDailyEntity secondDay =
         rows.stream()
-            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getAccountId().equals(90000001L))
             .filter(row -> row.getDate().equals(day2.toLocalDate()))
             .findFirst()
             .orElseThrow();
@@ -1895,20 +1908,20 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime day = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
     CashOperationEntity commission = new CashOperationEntity();
-    commission.setAccount(17959259L);
+    commission.setAccount(90000001L);
     commission.setType(CashOperationType.COMMISSION);
     commission.setAmount(BigDecimal.valueOf(-54.34));
     commission.setCurrency(CurrencyType.USD);
     commission.setDate(day);
 
     CashOperationEntity secFee = new CashOperationEntity();
-    secFee.setAccount(17959259L);
+    secFee.setAccount(90000001L);
     secFee.setType(CashOperationType.SEC_FEE);
     secFee.setAmount(BigDecimal.valueOf(-0.03));
     secFee.setCurrency(CurrencyType.USD);
     secFee.setDate(day);
 
-    when(accountRepository.findAll()).thenReturn(List.of(account(17959259L, CurrencyType.USD)));
+    when(accountRepository.findAll()).thenReturn(List.of(account(90000001L, CurrencyType.USD)));
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(commission, secFee));
@@ -2031,20 +2044,20 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime day2 = ZonedDateTime.parse("2026-01-11T12:00:00Z");
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(17959259L);
+    deposit.setAccount(90000001L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(100.0));
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(day1);
 
     CashOperationEntity withdrawal = new CashOperationEntity();
-    withdrawal.setAccount(17959259L);
+    withdrawal.setAccount(90000001L);
     withdrawal.setType(CashOperationType.WITHDRAWAL);
     withdrawal.setAmount(BigDecimal.valueOf(-20.0));
     withdrawal.setCurrency(CurrencyType.USD);
     withdrawal.setDate(day2);
 
-    when(accountRepository.findAll()).thenReturn(List.of(account(17959259L, CurrencyType.USD)));
+    when(accountRepository.findAll()).thenReturn(List.of(account(90000001L, CurrencyType.USD)));
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, withdrawal));
@@ -2065,13 +2078,13 @@ class PortfolioProjectionServiceTest {
 
     AccountDailyEntity firstDay =
         rows.stream()
-            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getAccountId().equals(90000001L))
             .filter(row -> row.getDate().equals(day1.toLocalDate()))
             .findFirst()
             .orElseThrow();
     AccountDailyEntity secondDay =
         rows.stream()
-            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getAccountId().equals(90000001L))
             .filter(row -> row.getDate().equals(day2.toLocalDate()))
             .findFirst()
             .orElseThrow();
@@ -2088,29 +2101,29 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime day2 = ZonedDateTime.parse("2026-06-17T12:00:00Z");
 
     CashOperationEntity deposit = new CashOperationEntity();
-    deposit.setAccount(17959259L);
+    deposit.setAccount(90000001L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(BigDecimal.valueOf(10000.0));
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(day1);
 
     CashOperationEntity bookkeeping = new CashOperationEntity();
-    bookkeeping.setAccount(17959259L);
+    bookkeeping.setAccount(90000001L);
     bookkeeping.setType(CashOperationType.SUBACCOUNT_TRANSFER);
     bookkeeping.setAmount(BigDecimal.valueOf(6044.12));
     bookkeeping.setCurrency(CurrencyType.USD);
-    bookkeeping.setComment("Transfer from 51993106 to 17959259");
+    bookkeeping.setComment("Transfer from 90000010 to 90000001");
     bookkeeping.setDate(day2);
 
     CashOperationEntity rebookedPurchase = new CashOperationEntity();
-    rebookedPurchase.setAccount(17959259L);
+    rebookedPurchase.setAccount(90000001L);
     rebookedPurchase.setType(CashOperationType.STOCK_PURCHASE);
     rebookedPurchase.setAmount(BigDecimal.valueOf(-6044.12));
     rebookedPurchase.setCurrency(CurrencyType.USD);
     rebookedPurchase.setSymbol("VHYD");
     rebookedPurchase.setDate(day2);
 
-    when(accountRepository.findAll()).thenReturn(List.of(account(17959259L, CurrencyType.USD)));
+    when(accountRepository.findAll()).thenReturn(List.of(account(90000001L, CurrencyType.USD)));
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll())
@@ -2130,7 +2143,7 @@ class PortfolioProjectionServiceTest {
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity rebookingDay =
         toList(dailyCaptor.getValue()).stream()
-            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getAccountId().equals(90000001L))
             .filter(row -> row.getDate().equals(day2.toLocalDate()))
             .findFirst()
             .orElseThrow();
@@ -2255,12 +2268,12 @@ class PortfolioProjectionServiceTest {
   private static List<AccountEntity> defaultAccounts() {
     return List.of(
         account(PortfolioTestData.IBKR_USD_ACCOUNT_ID, CurrencyType.USD),
-        account(50290466L, CurrencyType.PLN),
-        account(51499241L, CurrencyType.USD),
-        account(51548444L, CurrencyType.EUR),
+        account(90000008L, CurrencyType.PLN),
+        account(90000002L, CurrencyType.USD),
+        account(90000009L, CurrencyType.EUR),
         account(PortfolioTestData.POLISH_BONDS_PLN_ACCOUNT_ID, CurrencyType.PLN),
-        account(51707603L, CurrencyType.PLN),
-        account(51822121L, CurrencyType.USD),
+        account(90000011L, CurrencyType.PLN),
+        account(90000004L, CurrencyType.USD),
         account(PortfolioTestData.CRYPTO_USD_ACCOUNT_ID, CurrencyType.USD));
   }
 

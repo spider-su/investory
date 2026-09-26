@@ -1,4 +1,4 @@
-function applyAuthorizationCapabilities() {
+export function applyAuthorizationCapabilities() {
     const capabilities = window.investoryCapabilities || {};
     if (capabilities.canEdit !== false) return;
     document.querySelectorAll('form[method="post"], form[method="POST"]').forEach(form => {
@@ -14,6 +14,3 @@ function applyAuthorizationCapabilities() {
         link.addEventListener('click', event => event.preventDefault(), {once: true});
     });
 }
-
-document.addEventListener('DOMContentLoaded', applyAuthorizationCapabilities, {once: true});
-document.addEventListener('turbo:load', applyAuthorizationCapabilities);

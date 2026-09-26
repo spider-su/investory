@@ -14,7 +14,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class IntegrationSettingsController {
   private final IntegrationSettingsClient settings;
 
-  /** Compatibility constructor for UI tests that cover provider settings only. */
   public IntegrationSettingsController(IntegrationSettingsClient settings) {
     this.settings = settings;
   }
@@ -53,7 +52,8 @@ public class IntegrationSettingsController {
           if (key.startsWith("secret.")) secrets.put(key.substring(7), value);
           else if (key.startsWith("clearSecret.") && "true".equals(value))
             clearSecrets.add(key.substring(12));
-          else if (!key.equals("enabled") && !key.equals("action")) configuration.put(key, value);
+          else if (!key.equals("enabled") && !key.equals("action") && !key.equals("_csrf"))
+            configuration.put(key, value);
         });
     try {
       if ("test".equals(params.get("action"))) {
@@ -93,17 +93,6 @@ public class IntegrationSettingsController {
       redirect.addFlashAttribute("error", e.getMessage());
     }
     return "redirect:/settings/integrations";
-  }
-
-  String job(
-      IntegrationType type,
-      String pluginId,
-      String jobType,
-      boolean enabled,
-      String cron,
-      String timezone,
-      RedirectAttributes redirect) {
-    return job(type, pluginId, jobType, enabled, cron, timezone, "save", redirect);
   }
 
   @PostMapping("/settings/integrations/{type}/{pluginId}/enabled")

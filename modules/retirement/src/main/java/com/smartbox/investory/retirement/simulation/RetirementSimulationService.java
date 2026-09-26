@@ -7,7 +7,6 @@ import com.smartbox.investory.retirement.api.model.FrozenBondCashFlowProjection;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Canonical retirement orchestrator. Asset mechanics remain behind public module APIs. */
@@ -20,7 +19,6 @@ public class RetirementSimulationService implements RetirementSimulation {
     this(new FrozenBondCashFlowProjection());
   }
 
-  @Autowired
   public RetirementSimulationService(FrozenBondCashFlowProjection bondCashFlows) {
     this.bondCashFlows = bondCashFlows;
   }

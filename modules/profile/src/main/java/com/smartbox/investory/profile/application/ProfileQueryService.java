@@ -21,7 +21,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
@@ -39,7 +38,7 @@ public class ProfileQueryService implements ProfileSnapshotReader {
   private final ProfilePlanningCalculator planningCalculator;
   private final InvestmentIncomeSummaryReader investmentIncome;
 
-  @Autowired
+  @org.springframework.beans.factory.annotation.Autowired
   public ProfileQueryService(
       BrokeragePortfolioReader brokeragePortfolioReadService,
       LongTermAssetProfileReader longTermAssets,

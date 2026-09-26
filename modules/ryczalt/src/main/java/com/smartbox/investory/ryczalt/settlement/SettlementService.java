@@ -79,6 +79,9 @@ public class SettlementService {
     RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
     RyczaltTransactionEntity transaction = transactions.findById(transactionId).orElseThrow();
     requireSameProfile(profileId, obligation.getProfileId(), transaction.getProfileId());
+    if (obligation.isManuallyPaid()) {
+      throw new IllegalStateException("Obligation is already manually confirmed as paid");
+    }
     if (transaction.isExcludedFromPaymentMatching()) {
       throw new IllegalArgumentException("Transaction is excluded from Ryczalt payment matching");
     }
@@ -122,12 +125,44 @@ public class SettlementService {
     refreshStatus(profileId, obligation);
   }
 
+  @Transactional
+  public void markObligationPaid(
+      long profileId, long obligationId, java.time.LocalDate paidDate, String note) {
+    RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
+    if (obligation.getProfileId() != profileId)
+      throw new IllegalArgumentException("Profile mismatch");
+    requireMutable(obligation.getPeriod());
+    if (matches.allocatedForObligation(profileId, obligationId).signum() > 0) {
+      throw new IllegalStateException("Bank payment is already matched to this obligation");
+    }
+    obligation.markManuallyPaid(paidDate, note);
+    refreshStatus(profileId, obligation);
+  }
+
+  @Transactional
+  public void markObligationUnpaid(long profileId, long obligationId) {
+    RyczaltObligationEntity obligation = obligations.findById(obligationId).orElseThrow();
+    if (obligation.getProfileId() != profileId)
+      throw new IllegalArgumentException("Profile mismatch");
+    requireMutable(obligation.getPeriod());
+    obligation.markManuallyUnpaid();
+    refreshStatus(profileId, obligation);
+  }
+
   private PaymentCheckResult settleOne(
       long profileId,
       RyczaltPeriodEntity period,
       RyczaltObligationEntity obligation,
       List<RyczaltTransactionEntity> storedTransactions,
       PaymentAccountRules accountRules) {
+    if (obligation.isManuallyPaid()) {
+      return new PaymentCheckResult(
+          PaymentCheckStatus.PAID,
+          obligation.getAmount(),
+          obligation.getAmount(),
+          List.of(),
+          List.of());
+    }
     if (period.getStatus().isFrozen())
       return new PaymentCheckResult(
           PaymentCheckStatus.NOT_FOUND,
@@ -192,6 +227,7 @@ public class SettlementService {
   private void refreshStatus(long profileId, RyczaltObligationEntity obligation) {
     if (obligation.getStatus() == ObligationStatus.FROZEN) return;
     BigDecimal paid = matches.allocatedForObligation(profileId, obligation.id());
+    if (obligation.isManuallyPaid()) paid = paid.add(obligation.getAmount());
     BigDecimal difference = paid.subtract(obligation.getAmount());
     ObligationStatus status =
         paid.signum() == 0

@@ -142,7 +142,8 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("Projection starts at retirement age")),
         () -> assertTrue(html.contains("<th>Unfunded</th>")),
         () -> assertTrue(html.contains("Yearly values")),
-        () -> assertTrue(javascript.contains("turbo:load")),
+        () -> assertTrue(javascript.contains("export function initRetirementSandbox()")),
+        () -> assertTrue(javascript.contains("export function destroyRetirementSandbox()")),
         () -> assertTrue(javascript.contains("sandboxChart?.destroy()")),
         () -> assertTrue(javascript.contains("label: 'Unfunded'")),
         () -> assertFalse(html.contains("name=\"portfolioId\"")),
@@ -160,7 +161,8 @@ class SimulationTemplateContractTest {
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
     String script =
         Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/static/js/simulation-plan-edit.js"));
+            Path.of(
+                "../adapters/web-ui/src/main/resources/static/js/simulation-plan-edit-lifecycle.js"));
     String header =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
@@ -359,7 +361,8 @@ class SimulationTemplateContractTest {
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
     String script =
         Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/static/js/simulation-plan-edit.js"));
+            Path.of(
+                "../adapters/web-ui/src/main/resources/static/js/simulation-plan-edit-lifecycle.js"));
     assertTrue(script.contains("form.addEventListener('submit'"));
     assertTrue(script.contains("form.addEventListener('formdata'"));
   }

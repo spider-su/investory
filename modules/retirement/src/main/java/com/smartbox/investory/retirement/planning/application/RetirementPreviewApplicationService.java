@@ -35,6 +35,7 @@ public class RetirementPreviewApplicationService implements RetirementPreviewApi
   private final PlanEditorPreviewService previews;
   private final PlanEditorInputNormalizer normalizer;
   private final Clock clock;
+  private final PlanningCurrencyPresentationService presentation;
 
   @Autowired
   public RetirementPreviewApplicationService(
@@ -42,12 +43,23 @@ public class RetirementPreviewApplicationService implements RetirementPreviewApi
       RetirementPlanApi plans,
       PlanEditorPreviewService previews,
       PlanEditorInputNormalizer normalizer,
-      Clock clock) {
+      Clock clock,
+      PlanningCurrencyPresentationService presentation) {
     this.profiles = profiles;
     this.plans = plans;
     this.previews = previews;
     this.normalizer = normalizer;
     this.clock = clock;
+    this.presentation = presentation;
+  }
+
+  public RetirementPreviewApplicationService(
+      ProfileSnapshotReader profiles,
+      RetirementPlanApi plans,
+      PlanEditorPreviewService previews,
+      PlanEditorInputNormalizer normalizer,
+      Clock clock) {
+    this(profiles, plans, previews, normalizer, clock, null);
   }
 
   @Override
@@ -78,8 +90,62 @@ public class RetirementPreviewApplicationService implements RetirementPreviewApi
                       normalized.assumptions().effectiveRentalIncomeGrowthRate()),
                   FinancialPresentation.percentage(
                       normalized.assumptions().effectiveSpendingGrowthRate())),
-              previews.preview(profile, normalized.assumptions(), planningDisplayCurrency));
+              previews.preview(profile, normalized.assumptions(), planningDisplayCurrency),
+              presentation == null
+                  ? null
+                  : presentation.displayProfile(profile, planningDisplayCurrency),
+              presentation == null
+                  ? java.util.Map.of()
+                  : displayMoney(normalized.assumptions(), planningDisplayCurrency),
+              presentation == null
+                  ? java.util.Map.of()
+                  : normalized.assumptions().futureEvents().stream()
+                      .collect(
+                          java.util.stream.Collectors.toMap(
+                              SimulationEvent::id,
+                              event ->
+                                  presentation.toDisplay(event.amount(), planningDisplayCurrency),
+                              (left, right) -> right,
+                              java.util.LinkedHashMap::new)));
         });
+  }
+
+  private java.util.Map<String, java.math.BigDecimal> displayMoney(
+      SimulationAssumptions assumptions, CurrencyType currency) {
+    var values = new java.util.LinkedHashMap<String, java.math.BigDecimal>();
+    values.put(
+        "monthlyLivingCosts",
+        presentation.toDisplay(
+            assumptions
+                .annualLivingExpenses()
+                .divide(java.math.BigDecimal.valueOf(12), 12, java.math.RoundingMode.HALF_UP),
+            currency));
+    values.put(
+        "totalAnnualCosts",
+        presentation.toDisplay(
+            assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
+            currency));
+    values.put(
+        "annualLivingCosts", presentation.toDisplay(assumptions.annualLivingExpenses(), currency));
+    values.put(
+        "monthlyTotalCosts",
+        presentation.toDisplay(
+            assumptions
+                .annualLivingExpenses()
+                .add(assumptions.annualDiscretionaryExpenses())
+                .divide(java.math.BigDecimal.valueOf(12), 12, java.math.RoundingMode.HALF_UP),
+            currency));
+    values.put(
+        "discretionaryExpenses",
+        presentation.toDisplay(assumptions.annualDiscretionaryExpenses(), currency));
+    values.put("annualPension", presentation.toDisplay(assumptions.annualPension(), currency));
+    values.put(
+        "annualEmploymentIncome",
+        presentation.toDisplay(assumptions.annualEmploymentIncome(), currency));
+    values.put(
+        "annualPreRetirementContribution",
+        presentation.toDisplay(assumptions.annualPreRetirementContribution(), currency));
+    return values;
   }
 
   private <T> T operation(String name, java.util.function.Supplier<T> action) {

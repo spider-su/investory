@@ -5,8 +5,11 @@ import com.smartbox.investory.ryczalt.application.port.InvoiceRecognitionPort.Pa
 import com.smartbox.investory.ryczalt.domain.*;
 import com.smartbox.investory.ryczalt.persistence.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -16,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RyczaltInvoiceRecognitionService {
   private static final String SOURCE = "UPLOAD";
+  public static final String MANUAL_SOURCE = "MANUAL";
   private final InvoiceRecognitionPort recognizer;
   private final RyczaltInvoiceCandidateJpaRepository candidates;
   private final RyczaltSourceReferenceJpaRepository sources;
@@ -135,6 +139,103 @@ public class RyczaltInvoiceRecognitionService {
     return result;
   }
 
+  @Transactional
+  public CandidateView createManual(long profileId, ManualCandidateCommand command) {
+    validateManual(command);
+    String externalId =
+        sha256(command.identity().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    if (sources
+        .findByProfileIdAndEntityTypeAndSourceAndExternalId(
+            profileId, "INVOICE", MANUAL_SOURCE, externalId)
+        .isPresent()) throw new RyczaltInvoiceSourceConflictException();
+    var existing =
+        candidates.findByProfileIdAndSourceTypeAndSourceExternalId(
+            profileId, MANUAL_SOURCE, externalId);
+    if (existing.isPresent()) return view(existing.get(), SourceState.EXISTING_CANDIDATE);
+
+    LocalDate accountingDate =
+        command.saleDate() == null ? command.issueDate() : command.saleDate();
+    var row =
+        new RyczaltInvoiceCandidateEntity(
+            profileId,
+            UUID.randomUUID(),
+            MANUAL_SOURCE,
+            externalId,
+            "MANUAL",
+            InvoiceDirection.COST,
+            command.issueDate(),
+            command.saleDate(),
+            command.dueDate(),
+            command.reference(),
+            command.counterparty().legalName(),
+            command.counterparty().taxIdentifier(),
+            command.counterparty().country(),
+            null,
+            null,
+            null,
+            command.currency(),
+            command.netAmount(),
+            command.vatAmount(),
+            command.grossAmount(),
+            null,
+            null,
+            accountingDate.getYear(),
+            accountingDate.getMonthValue());
+    var cp =
+        counterparties.resolveByTaxId(
+            profileId,
+            command.counterparty().taxIdentifier(),
+            command.counterparty().country(),
+            command.counterparty().legalName());
+    if (cp != null) row.setCounterpartyId(cp.id());
+    if (cp != null) {
+      var match =
+          counterparties.match(
+              new InvoiceCandidate(cp.id(), MANUAL_SOURCE, "MANUAL", null), profileId);
+      row.setRuleMatchStatus(match.kind());
+      if (match.kind() == RuleMatchResult.Kind.MATCHED) {
+        var rule = match.rule();
+        row.apply(
+            rule.classification(),
+            rule.vatTreatment(),
+            rule.vatDeductionRatio(),
+            rule.ryczaltRate(),
+            rule.paymentVerificationPolicy(),
+            rule.autoApprove() ? ApprovalStatus.APPROVED : ApprovalStatus.NEEDS_REVIEW,
+            rule.autoApprove() ? ApprovalMethod.COUNTERPARTY_RULE : null);
+      }
+    }
+    try {
+      row = persistence.persist(row, null);
+    } catch (DataIntegrityViolationException exception) {
+      if (knownRecognitionConflict(exception)) {
+        return candidates
+            .findByProfileIdAndSourceTypeAndSourceExternalId(profileId, MANUAL_SOURCE, externalId)
+            .map(winner -> view(winner, SourceState.EXISTING_CANDIDATE))
+            .orElseThrow(() -> exception);
+      }
+      throw exception;
+    }
+    CandidateView result = view(row, SourceState.NEW_CANDIDATE);
+    if (row.getApprovalStatus() == ApprovalStatus.APPROVED) {
+      approval.approve(
+          profileId,
+          row.getCandidateKey(),
+          new RyczaltInvoiceApprovalService.ApproveCommand(
+              row.getCounterpartyId(),
+              row.getClassification(),
+              row.getVatTreatment(),
+              row.getVatDeductionRatio(),
+              row.getRyczaltRate(),
+              row.getPaymentVerificationPolicy(),
+              true,
+              false,
+              null,
+              null));
+    }
+    return result;
+  }
+
   @Transactional(readOnly = true)
   public CandidateView get(long profileId, UUID key) {
     return candidates
@@ -218,6 +319,46 @@ public class RyczaltInvoiceRecognitionService {
     }
   }
 
+  private static void validateManual(ManualCandidateCommand c) {
+    if (c == null) throw new IllegalArgumentException("Manual invoice is required");
+    if (c.direction() != InvoiceDirection.COST)
+      throw new IllegalArgumentException("Manual invoice direction must be COST");
+    if (blank(c.reference()) || c.reference().length() > 128)
+      throw new IllegalArgumentException("Manual invoice reference is required");
+    if (c.issueDate() == null) throw new IllegalArgumentException("issueDate is required");
+    if (c.currency() == null || c.currency().length() != 3)
+      throw new IllegalArgumentException("currency must be a three-letter code");
+    try {
+      CurrencyType.valueOf(c.currency());
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("Unsupported invoice currency", e);
+    }
+    amount(c.netAmount(), "netAmount");
+    amount(c.vatAmount(), "vatAmount");
+    amount(c.grossAmount(), "grossAmount");
+    if (c.counterparty() == null || blank(c.counterparty().legalName()))
+      throw new IllegalArgumentException("counterparty.legalName is required");
+    if (c.counterparty().country() == null || !c.counterparty().country().matches("[A-Z]{2}"))
+      throw new IllegalArgumentException(
+          "counterparty.country must be an uppercase ISO country code");
+  }
+
+  private static BigDecimal amount(BigDecimal value, String field) {
+    if (value == null || value.signum() < 0 || value.scale() > 4)
+      throw new IllegalArgumentException(
+          field + " must be a non-negative decimal with at most 4 places");
+    return value;
+  }
+
+  private static LocalDate date(String value, String field) {
+    if (value == null) return null;
+    try {
+      return LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE);
+    } catch (DateTimeParseException exception) {
+      throw new IllegalArgumentException(field + " must use YYYY-MM-DD", exception);
+    }
+  }
+
   private static boolean blank(String s) {
     return s == null || s.isBlank();
   }
@@ -292,5 +433,84 @@ public class RyczaltInvoiceRecognitionService {
   public enum SourceState {
     NEW_CANDIDATE,
     EXISTING_CANDIDATE
+  }
+
+  public record ManualCandidateCommand(
+      InvoiceDirection direction,
+      String reference,
+      LocalDate issueDate,
+      LocalDate saleDate,
+      LocalDate dueDate,
+      String currency,
+      BigDecimal netAmount,
+      BigDecimal vatAmount,
+      BigDecimal grossAmount,
+      ManualCounterparty counterparty) {
+    public static ManualCandidateCommand of(
+        String direction,
+        String reference,
+        String issueDate,
+        String saleDate,
+        String dueDate,
+        String currency,
+        String netAmount,
+        String vatAmount,
+        String grossAmount,
+        ManualCounterparty counterparty) {
+      return new ManualCandidateCommand(
+          enumValue(direction, "direction"),
+          reference,
+          date(issueDate, "issueDate"),
+          date(saleDate, "saleDate"),
+          date(dueDate, "dueDate"),
+          currency,
+          decimal(netAmount, "netAmount"),
+          decimal(vatAmount, "vatAmount"),
+          decimal(grossAmount, "grossAmount"),
+          counterparty);
+    }
+
+    String identity() {
+      return String.join(
+          "\u001f",
+          direction.name(),
+          reference,
+          issueDate.toString(),
+          String.valueOf(saleDate),
+          String.valueOf(dueDate),
+          currency,
+          netAmount.toPlainString(),
+          vatAmount.toPlainString(),
+          grossAmount.toPlainString(),
+          counterparty == null ? "null" : counterparty.identity());
+    }
+
+    private static InvoiceDirection enumValue(String value, String field) {
+      try {
+        return InvoiceDirection.valueOf(value);
+      } catch (Exception exception) {
+        throw new IllegalArgumentException(field + " must be COST");
+      }
+    }
+
+    private static BigDecimal decimal(String value, String field) {
+      if (value == null || !value.matches("(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,4})?"))
+        throw new IllegalArgumentException(field + " must be an exact decimal string");
+      try {
+        return new BigDecimal(value);
+      } catch (NumberFormatException exception) {
+        throw new IllegalArgumentException(field + " must be an exact decimal string", exception);
+      }
+    }
+  }
+
+  public record ManualCounterparty(String legalName, String taxIdentifier, String country) {
+    String identity() {
+      return String.join(
+          "\u001f",
+          String.valueOf(legalName),
+          String.valueOf(taxIdentifier),
+          String.valueOf(country));
+    }
   }
 }

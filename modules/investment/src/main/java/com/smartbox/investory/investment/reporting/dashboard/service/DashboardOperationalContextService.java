@@ -15,7 +15,6 @@ import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,19 +27,12 @@ public class DashboardOperationalContextService {
   private final AccountRepository accountRepository;
   private final SecondaryAdapterStatusReader secondaryAdapterStatus;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public DashboardOperationalContextService(
       ImportRepository importRepository, AccountStatisticsRepository accountStatisticsRepository) {
     this(importRepository, accountStatisticsRepository, null, null);
   }
 
-  public DashboardOperationalContextService(
-      ImportRepository importRepository,
-      AccountStatisticsRepository accountStatisticsRepository,
-      SecondaryAdapterStatusReader secondaryAdapterStatus) {
-    this(importRepository, accountStatisticsRepository, secondaryAdapterStatus, null);
-  }
-
-  @Autowired
   public DashboardOperationalContextService(
       ImportRepository importRepository,
       AccountStatisticsRepository accountStatisticsRepository,

@@ -1,23 +1,35 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
-import com.smartbox.investory.retirement.api.RetirementAnalysisApi;
-import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.RetirementAnalysisResult;
-import com.smartbox.investory.retirement.api.model.RetirementProjection;
+import com.smartbox.investory.retirement.api.contract.RetirementAnalysisContracts.AnalysisParameters;
+import com.smartbox.investory.retirement.rest.RetirementAnalysisRestController;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.ui.retirement.analysis.RetirementAnalysisClient;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.smartbox.investory.ui.retirement.analysis.RetirementAnalysisView;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InProcessRetirementAnalysisClient implements RetirementAnalysisClient {
-  private final RetirementAnalysisApi retirementAnalysisApi;
+  private final RetirementAnalysisRestController rest;
 
-  public InProcessRetirementAnalysisClient(
-      @Qualifier("retirementAnalysisService") RetirementAnalysisApi retirementAnalysisApi) {
-    this.retirementAnalysisApi = retirementAnalysisApi;
+  public InProcessRetirementAnalysisClient(RetirementAnalysisRestController rest) {
+    this.rest = rest;
   }
 
-  public RetirementAnalysisResult analyze(RetirementProjection projection) {
-    return retirementAnalysisApi.analyze(projection);
+  public RetirementAnalysisView analyze(
+      Long portfolioId,
+      Long planId,
+      Integer defaultCurrentAge,
+      Integer defaultEndAge,
+      CurrencyType displayCurrency) {
+    var response =
+        rest.analyze(
+            portfolioId,
+            new AnalysisParameters(planId, defaultCurrentAge, defaultEndAge, displayCurrency));
+    return new RetirementAnalysisView(
+        response.available(),
+        response.displaySummaries(),
+        response.displayRisk(),
+        response.displayFlexibility(),
+        response.displayCharts());
   }
 }

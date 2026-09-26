@@ -39,7 +39,7 @@ class XtbBrokerImportHistoryParserTest {
 
   @Test
   void importFile_delegatesNewXlsxToV2Service() throws Exception {
-    BrokerImportResult expected = new BrokerImportResult(21, 21, 0, "acc=51499241 ...");
+    BrokerImportResult expected = new BrokerImportResult(21, 21, 0, "acc=90000002 ...");
     when(xtbImportPort.isZipReport("report.xlsx")).thenReturn(false);
     when(xtbImportPort.supports(any())).thenReturn(true);
     when(xtbImportPort.importWorkbook(any(), anyString())).thenReturn(expected);

@@ -2,13 +2,14 @@ package com.smartbox.investory.ui.profile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.profile.api.model.AssetHorizon;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.api.model.Liquidity;
 import com.smartbox.investory.profile.api.model.ProfileAllocation;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.ui.investment.InvestmentPerformanceKpi;
+import com.smartbox.investory.ui.investment.InvestmentResult;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -74,9 +75,18 @@ class InvestmentProfilePageViewTest {
     InvestmentProfilePageView page =
         InvestmentProfilePageView.from(
             emptyProfile(),
-            new InvestmentDashboardApi.PerformanceKpiView(false, null, "Unavailable", null),
-            new InvestmentDashboardApi.InvestmentResultView(
-                true, new BigDecimal("20483"), CurrencyType.USD),
+            new InvestmentPerformanceKpi(
+                false,
+                null,
+                "Unavailable",
+                null,
+                null,
+                "Unavailable",
+                null,
+                "Unavailable",
+                null,
+                null),
+            new InvestmentResult(true, new BigDecimal("20483"), CurrencyType.USD),
             com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
                 CurrencyType.USD, 2026),
             8);
@@ -101,8 +111,18 @@ class InvestmentProfilePageViewTest {
     InvestmentProfilePageView page =
         InvestmentProfilePageView.from(
             profile,
-            new InvestmentDashboardApi.PerformanceKpiView(false, null, "Unavailable", null),
-            InvestmentDashboardApi.InvestmentResultView.unavailable(CurrencyType.USD),
+            new InvestmentPerformanceKpi(
+                false,
+                null,
+                "Unavailable",
+                null,
+                null,
+                "Unavailable",
+                null,
+                "Unavailable",
+                null,
+                null),
+            new InvestmentResult(false, null, CurrencyType.USD),
             com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
                 CurrencyType.USD, 2026),
             8);
@@ -119,9 +139,18 @@ class InvestmentProfilePageViewTest {
     InvestmentProfilePageView page =
         InvestmentProfilePageView.from(
             emptyProfile(),
-            new InvestmentDashboardApi.PerformanceKpiView(false, null, "Unavailable", null),
-            new InvestmentDashboardApi.InvestmentResultView(
-                true, new BigDecimal("20483"), CurrencyType.USD),
+            new InvestmentPerformanceKpi(
+                false,
+                null,
+                "Unavailable",
+                null,
+                null,
+                "Unavailable",
+                null,
+                "Unavailable",
+                null,
+                null),
+            new InvestmentResult(true, new BigDecimal("20483"), CurrencyType.USD),
             com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
                 CurrencyType.USD, 2026),
             8);
@@ -152,17 +181,17 @@ class InvestmentProfilePageViewTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
-                new BigDecimal("48000"),
+                new BigDecimal("8300"),
                 new BigDecimal("48000"),
                 new BigDecimal("12000"),
                 new BigDecimal("12000"),
-                new BigDecimal("36000"),
+                new BigDecimal("20300"),
                 new BigDecimal("36000")),
             com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
     InvestmentProfilePageView page =
         InvestmentProfilePageView.from(
             profile,
-            new InvestmentDashboardApi.PerformanceKpiView(
+            new InvestmentPerformanceKpi(
                 true,
                 null,
                 "Unavailable",
@@ -173,8 +202,7 @@ class InvestmentProfilePageViewTest {
                 "8.3%",
                 null,
                 "Forecast annual return"),
-            new InvestmentDashboardApi.InvestmentResultView(
-                true, new BigDecimal("12000"), CurrencyType.USD),
+            new InvestmentResult(true, new BigDecimal("12000"), CurrencyType.USD),
             com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
                 CurrencyType.USD, 2026),
             6);
@@ -262,7 +290,7 @@ class InvestmentProfilePageViewTest {
   private static InvestmentProfilePageView pageWithReturn(InvestmentProfile profile, String value) {
     return InvestmentProfilePageView.from(
         profile,
-        new InvestmentDashboardApi.PerformanceKpiView(
+        new InvestmentPerformanceKpi(
             true,
             null,
             "Unavailable",
@@ -273,7 +301,7 @@ class InvestmentProfilePageViewTest {
             "ignored",
             null,
             null),
-        InvestmentDashboardApi.InvestmentResultView.unavailable(CurrencyType.USD),
+        new InvestmentResult(false, null, CurrencyType.USD),
         com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
             CurrencyType.USD, 2026),
         8);
@@ -282,8 +310,9 @@ class InvestmentProfilePageViewTest {
   private static InvestmentProfilePageView pageWithDefaults(InvestmentProfile profile) {
     return InvestmentProfilePageView.from(
         profile,
-        new InvestmentDashboardApi.PerformanceKpiView(false, null, "Unavailable", null),
-        InvestmentDashboardApi.InvestmentResultView.unavailable(profile.currency()),
+        new InvestmentPerformanceKpi(
+            false, null, "Unavailable", null, null, "Unavailable", null, "Unavailable", null, null),
+        new InvestmentResult(false, null, profile.currency()),
         com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
             profile.currency(), 0),
         12);

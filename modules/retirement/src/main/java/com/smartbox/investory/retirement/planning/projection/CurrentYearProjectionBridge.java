@@ -23,7 +23,6 @@ import java.time.Year;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Bridges live state to the next projection without reproducing asset calculations. */
@@ -34,11 +33,11 @@ public class CurrentYearProjectionBridge {
   private final RetirementSimulation simulations;
   private final ForwardSimulationContextFactory contexts;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public CurrentYearProjectionBridge(Clock clock, RetirementSimulation simulations) {
     this(clock, simulations, new ForwardSimulationContextFactory(clock));
   }
 
-  @Autowired
   public CurrentYearProjectionBridge(
       Clock clock, RetirementSimulation simulations, ForwardSimulationContextFactory contexts) {
     this.clock = clock;

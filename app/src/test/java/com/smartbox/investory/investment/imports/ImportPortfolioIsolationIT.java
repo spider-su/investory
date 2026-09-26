@@ -21,8 +21,8 @@ class ImportPortfolioIsolationIT extends FastDatabaseTest {
   private static final long EXISTING_PORTFOLIO_ID = 1L;
   private static final long SECOND_PORTFOLIO_ID = 910001L;
   private static final long SECOND_ACCOUNT_ID = 910002L;
-  private static final String EXTERNAL_ACCOUNT_ID = "17959259";
-  private static final String FILE_NAME = "U17959259.TRANSACTIONS.20260801.csv";
+  private static final String EXTERNAL_ACCOUNT_ID = "90000001";
+  private static final String FILE_NAME = "U90000001.TRANSACTIONS.20260801.csv";
 
   @Autowired private InvestmentImportApi investmentImport;
   @Autowired private JdbcTemplate jdbc;
@@ -94,7 +94,7 @@ class ImportPortfolioIsolationIT extends FastDatabaseTest {
     assertThat(duplicate.batchId()).isNotEqualTo(second.batchId());
     assertThat(countImportedBatches(SECOND_PORTFOLIO_ID)).isEqualTo(2);
     assertThat(countCashOperationsForAccount(SECOND_ACCOUNT_ID)).isEqualTo(1);
-    assertThat(countCashOperationsForAccount(17959259L)).isEqualTo(1);
+    assertThat(countCashOperationsForAccount(90000001L)).isEqualTo(1);
   }
 
   private InvestmentImportApi.ImportResult importFile(long portfolioId, String sourceRef) {

@@ -1,12 +1,11 @@
 package com.smartbox.investory.ui.app;
 
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
-import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardPageView;
-import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardQuery;
 import com.smartbox.investory.ui.common.BuildMetadata;
 import com.smartbox.investory.ui.investment.InvestmentDashboardClient;
+import com.smartbox.investory.ui.investment.InvestmentDashboardPageView;
+import com.smartbox.investory.ui.investment.InvestmentDashboardQuery;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -19,22 +18,19 @@ public class HomeController {
   private final InvestmentDashboardClient investmentDashboardFacade;
   private final BuildMetadata buildMetadata;
 
-  public HomeController(InvestmentDashboardClient investmentDashboardFacade) {
-    this(investmentDashboardFacade, BuildMetadata.development());
-  }
-
-  @Autowired
   public HomeController(
-      InvestmentDashboardClient investmentDashboardFacade, BuildMetadata buildMetadata) {
+      InvestmentDashboardClient investmentDashboardFacade,
+      BuildMetadata buildMetadata,
+      @Value("${app.ui.yahoo-url:}") String yahooFinanceUrl,
+      @Value("${app.security.google.enabled:false}") boolean googleLoginEnabled) {
     this.investmentDashboardFacade = investmentDashboardFacade;
     this.buildMetadata = buildMetadata;
+    this.yahooFinanceUrl = yahooFinanceUrl;
+    this.googleLoginEnabled = googleLoginEnabled;
   }
 
-  @Value("${app.ui.yahoo-url:}")
-  private String yahooFinanceUrl;
-
-  @Value("${app.security.google.enabled:false}")
-  private boolean googleLoginEnabled;
+  private final String yahooFinanceUrl;
+  private final boolean googleLoginEnabled;
 
   @GetMapping("/")
   public String home(org.springframework.ui.Model model) {
@@ -59,10 +55,11 @@ public class HomeController {
       String period,
       Long portfolioId) {
     DashboardPeriod selectedPeriod = DashboardPeriod.fromUrlValue(period);
-    DashboardPageView dashboard =
+    List<Long> selectedAccountIds = accountIds == null ? List.of() : List.copyOf(accountIds);
+    InvestmentDashboardPageView dashboard =
         investmentDashboardFacade.loadDashboard(
-            new DashboardQuery(
-                accountIds, benchmarkAccountsSubmitted, selectedPeriod, portfolioId));
+            new InvestmentDashboardQuery(
+                selectedAccountIds, benchmarkAccountsSubmitted, selectedPeriod, portfolioId));
     model.addAttribute("dashboard", dashboard);
     model.addAttribute("selectedPeriod", dashboard.selectedPeriod());
     model.addAttribute("periods", dashboard.periods());

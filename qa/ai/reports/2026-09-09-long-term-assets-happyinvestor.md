@@ -19,8 +19,8 @@ an application FAIL.
 
 | Check | Result | Observation / evidence |
 | --- | --- | --- |
-| Endpoint reachability | PASS | HTTP 200, HTML response, expected Long-term assets title. [`GET probe`](evidence/2026-09-09-long-term-assets-get-probe.txt) |
-| HappyInvestor portfolio identity/data | SUSPICIOUS / blocked | Expected Apartment A/B, Family Car, Treasury 2026, Term cash reserve, and canonical totals; observed unrelated asset names/counts and totals. [`GET probe`](evidence/2026-09-09-long-term-assets-get-probe.txt) |
+| Endpoint reachability | PASS | HTTP 200, HTML response, expected Long-term assets title. |
+| HappyInvestor portfolio identity/data | SUSPICIOUS / blocked | Expected Apartment A/B, Family Car, Treasury 2026, Term cash reserve, and canonical totals; observed unrelated asset names/counts and totals. |
 | Navigation and safe interactions | UNEXECUTED | No browser MCP available. |
 | Totals, facts, labels, and formatting | UNEXECUTED | Cannot validate the intended fixture against rendered browser state. |
 | Loading/empty/error states | UNEXECUTED | No browser lifecycle or alternate state exploration. |

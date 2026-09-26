@@ -275,7 +275,7 @@ class DatabaseReportingContractIT {
       connection.setAutoCommit(false);
       try {
         long assetId = insertAsset(connection, "UNPRICED.CONTRACT", "USD");
-        insertPosition(connection, 51499241L, assetId, "USD", LocalDate.of(2026, 1, 31));
+        insertPosition(connection, 90000002L, assetId, "USD", LocalDate.of(2026, 1, 31));
 
         try (PreparedStatement statement =
             connection.prepareStatement(
@@ -301,7 +301,7 @@ class DatabaseReportingContractIT {
     try (Connection connection = connection()) {
       connection.setAutoCommit(false);
       try {
-        long accountId = 2051551301L;
+        long accountId = 91000003L;
         long unpricedAssetId = insertAsset(connection, "UNPRICED.MIXED.CONTRACT", "PLN");
         long pricedAssetId = insertAsset(connection, "PRICED.MIXED.CONTRACT", "PLN");
         insertPosition(connection, accountId, unpricedAssetId, "PLN", LocalDate.of(2026, 1, 31));
@@ -749,38 +749,38 @@ class DatabaseReportingContractIT {
       try {
         long targetNegative =
             insertSubaccountTransfer(
-                connection, 51499241L, -801.47, "Transfer from 51993106 to 51499241");
+                connection, 90000002L, -801.47, "Transfer from 90000010 to 90000002");
         long targetPositive =
             insertSubaccountTransfer(
-                connection, 51499241L, 801.47, "Transfer from 51993106 to 51499241");
+                connection, 90000002L, 801.47, "Transfer from 90000010 to 90000002");
         refreshNormalizedCashOperations(connection);
         assertFlowSums(connection, targetNegative, targetPositive, 801.47, 0.0, 0.0);
 
         long sourceNegative =
             insertSubaccountTransfer(
-                connection, 51499241L, -801.47, "Transfer from 51499241 to 51993106");
+                connection, 90000002L, -801.47, "Transfer from 90000002 to 90000010");
         long sourcePositive =
             insertSubaccountTransfer(
-                connection, 51499241L, 801.47, "Transfer from 51499241 to 51993106");
+                connection, 90000002L, 801.47, "Transfer from 90000002 to 90000010");
         refreshNormalizedCashOperations(connection);
         assertFlowSums(connection, sourceNegative, sourcePositive, -801.47, 0.0, 0.0);
 
         long virtualDepositNegative =
             insertSubaccountTransfer(
-                connection, 51499241L, -801.47, "Transfer from 99999999 to 51499241");
+                connection, 90000002L, -801.47, "Transfer from 99999999 to 90000002");
         long virtualDepositPositive =
             insertSubaccountTransfer(
-                connection, 51499241L, 801.47, "Transfer from 99999999 to 51499241");
+                connection, 90000002L, 801.47, "Transfer from 99999999 to 90000002");
         refreshNormalizedCashOperations(connection);
         assertFlowSums(
             connection, virtualDepositNegative, virtualDepositPositive, 801.47, 0.0, 0.0);
 
         long virtualWithdrawalNegative =
             insertSubaccountTransfer(
-                connection, 51499241L, -801.47, "Transfer from 51499241 to 99999999");
+                connection, 90000002L, -801.47, "Transfer from 90000002 to 99999999");
         long virtualWithdrawalPositive =
             insertSubaccountTransfer(
-                connection, 51499241L, 801.47, "Transfer from 51499241 to 99999999");
+                connection, 90000002L, 801.47, "Transfer from 90000002 to 99999999");
         refreshNormalizedCashOperations(connection);
         assertFlowSums(
             connection, virtualWithdrawalNegative, virtualWithdrawalPositive, -801.47, 0.0, 0.0);
@@ -798,15 +798,15 @@ class DatabaseReportingContractIT {
       try {
         double[] before = portfolioContributionSummary(connection, 1L);
 
-        insertCashOperation(connection, "DEPOSIT", 51499241L, 100.0, "external funding");
-        insertCashOperation(connection, "WITHDRAWAL", 51499241L, -30.0, "external withdrawal");
-        insertSubaccountTransfer(connection, 51499241L, 50.0, "Transfer from 99999999 to 51499241");
+        insertCashOperation(connection, "DEPOSIT", 90000002L, 100.0, "external funding");
+        insertCashOperation(connection, "WITHDRAWAL", 90000002L, -30.0, "external withdrawal");
+        insertSubaccountTransfer(connection, 90000002L, 50.0, "Transfer from 99999999 to 90000002");
         insertSubaccountTransfer(
-            connection, 51499241L, -20.0, "Transfer from 51499241 to 99999999");
+            connection, 90000002L, -20.0, "Transfer from 90000002 to 99999999");
         insertSubaccountTransfer(
-            connection, 51499241L, 200.0, "Transfer from 51993106 to 51499241");
+            connection, 90000002L, 200.0, "Transfer from 90000010 to 90000002");
         insertSubaccountTransfer(
-            connection, 51993106L, -200.0, "Transfer from 51993106 to 51499241");
+            connection, 90000010L, -200.0, "Transfer from 90000010 to 90000002");
 
         try (Statement statement = connection.createStatement()) {
           statement.execute("REFRESH MATERIALIZED VIEW investory.app_v_portfolio_daily_fx_rate_mv");
@@ -832,54 +832,54 @@ class DatabaseReportingContractIT {
       connection.setAutoCommit(false);
       try {
         long externalDeposit =
-            insertCashOperation(connection, "DEPOSIT", 51499241L, 100.0, "external funding");
+            insertCashOperation(connection, "DEPOSIT", 90000002L, 100.0, "external funding");
         long externalWithdrawal =
-            insertCashOperation(connection, "WITHDRAWAL", 51499241L, -50.0, "external funding");
+            insertCashOperation(connection, "WITHDRAWAL", 90000002L, -50.0, "external funding");
         long internalTransferIn =
             insertCashOperation(
                 connection,
                 "DEPOSIT",
-                51499241L,
+                90000002L,
                 25.0,
-                "Transfer in operation on account 51499241");
+                "Transfer in operation on account 90000002");
         long internalTransferOut =
             insertCashOperation(
                 connection,
                 "DEPOSIT",
-                51499241L,
+                90000002L,
                 -25.0,
-                "Transfer out operation on account 51499241");
+                "Transfer out operation on account 90000002");
         long trackedTransferOut =
             insertCashOperation(
                 connection,
                 "DEPOSIT",
-                51499241L,
+                90000002L,
                 -40.0,
-                "Transfer out operation on account 51993106");
+                "Transfer out operation on account 90000010");
         long trackedTransferIn =
             insertCashOperation(
                 connection,
                 "DEPOSIT",
-                51993106L,
+                90000010L,
                 40.0,
-                "Transfer in operation on account 51499241");
+                "Transfer in operation on account 90000002");
         long bookkeeping =
             insertCashOperation(
                 connection,
                 "SUBACCOUNT_TRANSFER",
-                51499241L,
+                90000002L,
                 6044.12,
-                "Transfer from 51993106 to 51499241");
+                "Transfer from 90000010 to 90000002");
         long fxConversion =
             insertCashOperation(
                 connection,
                 "TRANSFER",
-                51499241L,
+                90000002L,
                 75.0,
                 "Currency conversion, USD to EUR, exchange rate: 1.1");
         long correction =
             insertCashOperation(
-                connection, "CORRECTION", 51499241L, 30.0, "bookkeeping correction");
+                connection, "CORRECTION", 90000002L, 30.0, "bookkeeping correction");
 
         try (Statement statement = connection.createStatement()) {
           statement.execute("REFRESH MATERIALIZED VIEW investory.app_v_normalized_cash_operations");

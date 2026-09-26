@@ -277,7 +277,7 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
               .isEqualTo("Annual rental tax base");
           assertThat(page.locator("#tax-base").inputValue()).isEqualTo("3200");
           assertThat(page.locator("#land-register-number").inputValue())
-              .isEqualTo("KR1P/4322432/0");
+              .isEqualTo("TEST-LAND-REGISTER-001");
         });
 
     assertPage(

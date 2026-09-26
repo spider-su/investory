@@ -50,6 +50,7 @@ class IntegrationSettingsControllerTest {
         "missing-market",
         Map.of(
             "baseUrl", "https://market.test",
+            "_csrf", "csrf-token",
             "secret.apiKey", "secret",
             "clearSecret.old", "true",
             "enabled", "true"),
@@ -96,6 +97,7 @@ class IntegrationSettingsControllerTest {
         true,
         "0 0 * * * *",
         "UTC",
+        "save",
         redirect);
     verify(settings)
         .saveJob(

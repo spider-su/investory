@@ -50,22 +50,6 @@ public record RetirementFundingPolicy(
         DEFAULT_ORDER);
   }
 
-  /** Compatibility constructor for persisted/API callers using the pre-policy shape. */
-  public RetirementFundingPolicy(
-      BigDecimal reserveTargetYears,
-      BigDecimal equityHarvestThresholdRate,
-      BigDecimal equityHarvestShare,
-      boolean allowEmergencyEquityWithdrawal,
-      List<RetirementFundingSource> fundingOrder) {
-    this(
-        SimulationFundingStrategy.RESERVE_AND_HARVEST,
-        reserveTargetYears,
-        equityHarvestThresholdRate,
-        equityHarvestShare,
-        allowEmergencyEquityWithdrawal,
-        fundingOrder);
-  }
-
   /** Domain-neutral names used by the active policy. */
   public BigDecimal investmentHarvestThresholdRate() {
     return equityHarvestThresholdRate;

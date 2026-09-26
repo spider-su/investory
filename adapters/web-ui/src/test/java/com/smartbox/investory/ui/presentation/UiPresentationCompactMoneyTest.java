@@ -2,11 +2,7 @@ package com.smartbox.investory.ui.presentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.longterm.api.model.CashFlowType;
-import com.smartbox.investory.longterm.api.model.Frequency;
-import com.smartbox.investory.longterm.api.model.RentalTermView;
 import java.math.BigDecimal;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -49,22 +45,5 @@ class UiPresentationCompactMoneyTest {
     assertThat(UiPresentation.compactMoneyTrimmed(new BigDecimal("710000"))).isEqualTo("710K");
     assertThat(UiPresentation.compactMoneyTrimmed(new BigDecimal("2642"))).isEqualTo("2.64K");
     assertThat(UiPresentation.wholeNumber(new BigDecimal("2642.49"))).isEqualTo("2,642");
-  }
-
-  @Test
-  void sumsAllRentalIncomeAsMonthlyAmount() {
-    assertThat(
-            UiPresentation.monthlyIncome(
-                List.of(
-                    new RentalTermView(
-                        CashFlowType.RENT, new BigDecimal("2800"), Frequency.MONTHLY, false),
-                    new RentalTermView(
-                        CashFlowType.PARKING_RENT, new BigDecimal("400"), Frequency.MONTHLY, false),
-                    new RentalTermView(
-                        CashFlowType.OTHER_INCOME,
-                        new BigDecimal("1200"),
-                        Frequency.ANNUAL,
-                        false))))
-        .isEqualByComparingTo("3300");
   }
 }

@@ -62,12 +62,7 @@ public class PortfolioPerformanceQueryService {
       BigDecimal fees = nz(row.getFees());
       BigDecimal taxes = nz(row.getTaxes());
       BigDecimal marketFx =
-          profit
-              .subtract(realized)
-              .subtract(dividends)
-              .subtract(interest)
-              .subtract(fees)
-              .subtract(taxes);
+          profit.subtract(realized).subtract(dividends).subtract(interest).add(fees).add(taxes);
       attributions.put(
           bucketKey,
           new MonthlyAttribution(

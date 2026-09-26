@@ -7,27 +7,26 @@ application Java sources.
 ## Reactor
 
 ```text
+shared
+investment
+longterm
+profile
+retirement
+ryczalt
+integrations
+test-support (test scope)
+adapters/web-ui
 app
-├── shared
-├── investment
-├── longterm
-├── profile
-├── retirement
-├── accounting
-├── ryczalt
-├── integrations
-├── adapters/web-ui
-└── test-support (test scope)
 
 investment -> shared
 longterm -> shared
 profile -> shared + investment public API + longterm public API
 retirement -> shared + investment/longterm/profile public APIs
-integrations -> investment public/integration contracts
-accounting -> shared + integrations
-ryczalt -> JDK-only domain model initially; application composition includes it
+ryczalt -> shared + integrations
+integrations -> investment/longterm public and integration contracts
 adapters/web-ui -> investment/longterm/profile/retirement/integrations public APIs
 test-support -> shared + investment + profile (fixtures and PostgreSQL test infrastructure only)
+app -> all production modules plus adapters/web-ui; owns executable composition
 ```
 
 Investment does not depend on Long-Term or Retirement. Long-Term does not depend on Investment or
@@ -38,7 +37,8 @@ Maven test scope by feature modules and `app`; it is not packaged as production 
 
 Feature controllers and tests live with their owning module. External adapters, notifications, and
 optional integrations live in `integrations`; tightly coupled market/FX/export adapters remain inside
-Investment behind its infrastructure boundary.
+Investment behind its infrastructure boundary. The native Ryczalt runtime is in `modules/ryczalt`;
+the former `modules/accounting` tree is historical reference material, not a reactor module.
 
 Shared utility wrappers are allowed only when they preserve module-level vocabulary or isolate a
 third-party dependency. `shared.util.StringUtils.isBlank` is intentionally a one-line wrapper: it
@@ -65,7 +65,7 @@ Therefore, a UI client injecting a module public API is an accepted architecture
 boundary violation or a defect. The boundary violation is direct MVC/UI coupling to a business REST
 controller or to business infrastructure.
 
-Flyway migrations and application configuration remain in `app`. Schema isolation is intentionally not
-part of this work. The next separate epic is **Database Module Isolation**, covering core, investment,
-longterm, and retirement PostgreSQL schemas, producer-owned read views, and optional DB-level permission
-isolation.
+Flyway migrations, application configuration, security, and executable composition remain in `app`.
+Schema isolation is intentionally not part of this work. The next separate epic is **Database Module
+Isolation**, covering core, investment, longterm, and retirement PostgreSQL schemas, producer-owned
+read views, and optional DB-level permission isolation.

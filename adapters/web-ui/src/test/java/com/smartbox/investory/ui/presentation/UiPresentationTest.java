@@ -30,8 +30,6 @@ class UiPresentationTest {
         .isEqualTo("Personal assets");
     assertThat(UiPresentation.moneyWhole(new java.math.BigDecimal("177200.9")))
         .isEqualTo("177,201");
-    assertThat(UiPresentation.monthly(new java.math.BigDecimal("102")))
-        .isEqualByComparingTo("8.50");
   }
 
   @Test

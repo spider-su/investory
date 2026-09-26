@@ -48,9 +48,37 @@ public class RyczaltNativeMonthInputService {
       java.math.BigDecimal fullJdgSocial,
       java.math.BigDecimal socialContributionDeduction,
       java.math.BigDecimal healthContributionOverride,
+      java.math.BigDecimal healthContributionPaidOverride,
       java.math.BigDecimal deductionsAlreadyConsumed,
       java.math.BigDecimal salesCorrections,
       java.math.BigDecimal explicitVatAdjustments) {
+    public Command(
+        boolean jdgActive,
+        boolean qualifyingUop,
+        String zusRegime,
+        boolean voluntarySickness,
+        java.math.BigDecimal ytdRyczaltRevenue,
+        java.math.BigDecimal fullJdgSocial,
+        java.math.BigDecimal socialContributionDeduction,
+        java.math.BigDecimal healthContributionOverride,
+        java.math.BigDecimal deductionsAlreadyConsumed,
+        java.math.BigDecimal salesCorrections,
+        java.math.BigDecimal explicitVatAdjustments) {
+      this(
+          jdgActive,
+          qualifyingUop,
+          zusRegime,
+          voluntarySickness,
+          ytdRyczaltRevenue,
+          fullJdgSocial,
+          socialContributionDeduction,
+          healthContributionOverride,
+          null,
+          deductionsAlreadyConsumed,
+          salesCorrections,
+          explicitVatAdjustments);
+    }
+
     public Command {
       ytdRyczaltRevenue = nonNegative(ytdRyczaltRevenue, "ytdRyczaltRevenue");
       deductionsAlreadyConsumed =
@@ -63,6 +91,8 @@ public class RyczaltNativeMonthInputService {
         throw new IllegalArgumentException("socialContributionDeduction must not be negative");
       if (healthContributionOverride != null && healthContributionOverride.signum() < 0)
         throw new IllegalArgumentException("healthContributionOverride must not be negative");
+      if (healthContributionPaidOverride != null && healthContributionPaidOverride.signum() < 0)
+        throw new IllegalArgumentException("healthContributionPaidOverride must not be negative");
     }
 
     private static java.math.BigDecimal nonNegative(java.math.BigDecimal value, String name) {

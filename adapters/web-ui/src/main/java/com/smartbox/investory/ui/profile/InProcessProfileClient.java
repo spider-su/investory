@@ -1,21 +1,36 @@
 package com.smartbox.investory.ui.profile;
 
-import com.smartbox.investory.profile.api.ProfileSnapshotReader;
+import com.smartbox.investory.profile.api.contract.ProfileResponse;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.smartbox.investory.profile.web.ProfileRestController;
 import org.springframework.stereotype.Component;
 
-/** Calls the Profile public application API while UI and backend share one JVM. */
 @Component
 public class InProcessProfileClient implements ProfileClient {
-  private final ProfileSnapshotReader profiles;
+  private final ProfileRestController rest;
 
-  public InProcessProfileClient(@Qualifier("profileQueryService") ProfileSnapshotReader profiles) {
-    this.profiles = profiles;
+  public InProcessProfileClient(ProfileRestController rest) {
+    this.rest = rest;
   }
 
   @Override
   public InvestmentProfile loadProfile(Long portfolioId) {
-    return profiles.loadProfile(portfolioId);
+    ProfileResponse response = rest.profile(portfolioId);
+    return new InvestmentProfile(
+        response.portfolioId(),
+        response.currency(),
+        response.marketPortfolioValue(),
+        response.longTermAssetValue(),
+        response.totalNetWorth(),
+        response.liquidAssets(),
+        response.illiquidAssets(),
+        response.allocations(),
+        response.currentRentalIncome(),
+        response.currentBondIncome(),
+        response.longTermPlanningState(),
+        response.retirementReserve(),
+        response.investmentCapital(),
+        response.incomeSummary(),
+        response.allocationReconciliation());
   }
 }

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head><meta charset="UTF-8"><title>Live year review · Investory</title><link href="/css/tabler.min.css" rel="stylesheet"><th:block th:replace="~{fragments/theme-head :: theme}"></th:block>  <link href="/css/planning.css" rel="stylesheet" data-turbo-track="reload">
+<head><meta charset="UTF-8"><title>Live year review · Investory</title><link href="/css/tabler.min.css" rel="stylesheet"><th:block th:replace="~{fragments/theme-head :: theme}"></th:block>  <link href="/css/planning.css" rel="stylesheet">
 </head>
 <body><main class="iv-app iv-planning-page"><div th:replace="~{fragments/app-header :: planningHeader('simulation', ${profile.portfolioId}, 'Live year review', 'Year', ${liveReview.year}, null, 'Status', 'Live', null, 'Currency', ${planningDisplayCurrency}, null, ${planningDisplayCurrency}, 'simulation', null, null)}"></div>
   <a class="btn btn-link px-0 mb-2" th:href="@{/portfolios/{portfolioId}/simulation(portfolioId=${profile.portfolioId},planId=${selectedPlanId},planningDisplayCurrency=${planningDisplayCurrency},selectedScenario=${selectedScenario})}">← Back to simulation</a>

@@ -4,16 +4,13 @@ import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.RetirementFinancialCalculations;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
-import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Backend-authoritative canonical/display conversion for planning presentation only. */
@@ -24,16 +21,10 @@ public class PlanningCurrencyPresentationService {
   private final PlanningMoneyConversionService money;
   private final RetirementAnalysisPresentation analysisPresentation;
 
-  @Autowired
+  @org.springframework.beans.factory.annotation.Autowired
   public PlanningCurrencyPresentationService(PlanningMoneyConversionService money) {
     this.money = money;
     this.analysisPresentation = new RetirementAnalysisPresentation(money);
-  }
-
-  /** Test factory compatibility; production wiring uses the single service dependency above. */
-  @Deprecated
-  public PlanningCurrencyPresentationService(CurrencyConversion rates, Clock clock) {
-    this(new PlanningMoneyConversionService(rates, clock));
   }
 
   public BigDecimal toDisplay(BigDecimal canonical, CurrencyType display) {

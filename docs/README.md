@@ -18,6 +18,9 @@ source of truth.
 
 - [`kt/business-modules-quick-kt.md`](kt/business-modules-quick-kt.md): index of the business-module KT pages.
 
+Module boundary summaries live beside their code in `README.md` files. The executable, adapter, and
+test-only module summaries are linked from the KT index.
+
 ## Domain contracts
 
 These define intended financial semantics. A code mismatch should be investigated, not silently
@@ -72,6 +75,11 @@ resolved by changing the documentation.
 - [`development/production.md`](development/production.md): production configuration, startup,
   migrations, release verification, restart/recovery, and deployment boundaries.
 
+## Agent tooling
+
+- [`../.codex/README.md`](../.codex/README.md): repository-local Codex configuration and UI-skill
+  rules. Generated environment files are not edited manually.
+
 ## Quality
 
 - [`quality/reconciliation.md`](quality/reconciliation.md): C0-C7 pipeline checkpoints,
@@ -90,7 +98,6 @@ resolved by changing the documentation.
   reconciliation and persisted data-quality manual checks.
 - [`quality/07-ai-ui-testing.md`](quality/07-ai-ui-testing.md): Codex-led read-only exploratory UI QA,
   mission/report conventions, and evidence rules.
-- [`reconciliation/local-profile-db-persistence-freeze-readiness.md`](reconciliation/local-profile-db-persistence-freeze-readiness.md): current database/persistence freeze-readiness audit and required remaining checks.
 
 ## Operational and investigation material
 

@@ -98,7 +98,6 @@ class RyczaltNativeBankImportIT {
     assertThat(reference.getEntityType()).isEqualTo("TRANSACTION");
     assertThat(reference.getExternalId()).contains("CSV:JDG_MAIN_ACCOUNT:");
     assertThat(periods.findByProfileIdAndYearAndMonth(1, 2026, 2)).isPresent();
-    assertThat(legacyBankRows()).isZero();
   }
 
   @Test
@@ -315,13 +314,6 @@ class RyczaltNativeBankImportIT {
                 + " event_type='CALCULATION_INVALIDATED'",
             Integer.class);
     assertThat(audits).isEqualTo(1);
-  }
-
-  private int legacyBankRows() {
-    Integer count =
-        jdbc.queryForObject(
-            "SELECT count(*) FROM investory.accounting_poc_bank_transaction", Integer.class);
-    return count == null ? 0 : count;
   }
 
   @Configuration(proxyBeanMethods = false)

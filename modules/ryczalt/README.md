@@ -4,6 +4,9 @@
 `modules/accounting` tree is outside the Maven runtime reactor and remains historical reference
 material until a separate cleanup decision.
 
+This README documents the active runtime boundary and migration state. Accounting rules and API
+contracts remain canonical in [`docs/domain/`](../../docs/domain/) and the accounting documentation.
+
 ```text
 ryczalt    = active implementation
 accounting = retired historical/reference source

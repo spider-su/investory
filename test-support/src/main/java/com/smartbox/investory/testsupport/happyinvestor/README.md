@@ -58,9 +58,9 @@ accounts are allowed for UI/account-management realism, but must remain empty un
 added to the canonical story. They are not silently included in canonical parity assertions.
 
 Identity is fixture-backed: user ID `2`, portfolio ID `2`, `Happy Investor`, `Happy Investor Portfolio`,
-PLN, Europe/Warsaw, 2024-07-31 through 2025-12-31. Internal account IDs are IBKR `2017959259`,
-XTB USD `2051499241`, XTB PLN `2051551301`, and cash-only XTB EUR `2051548444`; their broker
-external IDs remain `17959259`, `51499241`, `51551301`, and `51548444`. The WIG20 ETF is `ETFBW20TR.PL`; the seeded
+PLN, Europe/Warsaw, 2024-07-31 through 2025-12-31. Internal account IDs are IBKR `91000001`,
+XTB USD `91000002`, XTB PLN `91000003`, and cash-only XTB EUR `91000004`; their broker
+external IDs remain `90000001`, `90000002`, `90000003`, and `90000009`. The WIG20 ETF is `ETFBW20TR.PL`; the seeded
 Treasury identities are `US91282CKB62` and `US91282CRC72`. The original `US91282CKB62` is owned from
 `2024-07-31`, matures/redempts on `2026-02-28`, and returns principal `10000`. That principal is reinvested on
 `2026-03-01` into `US91282CRC72` (`United States Treasury 4 3/8 07/31/33`, coupon `4.375%`, maturity `2033-07-31`).
@@ -83,7 +83,7 @@ and independent boundary arithmetic live in `HappyInvestorBrokerFacts`, not in r
 or Profile output. Treasury prices are percent-of-par, so `10000 * 98.81 / 100 * FX` is required.
 
 Dashboard account-scope invariant: whole-portfolio Dashboard balance/equity and cash include all
-four accounts, including the cash-only EUR account `2051548444`. The Dashboard Accounts popup
+four accounts, including the cash-only EUR account `91000004`. The Dashboard Accounts popup
 intentionally lists only visible non-cash-only investment accounts and its `Total` is therefore a
 three-account investment subtotal, not whole-portfolio equity. The expected difference is the
 cash-only account's remaining `-2000 EUR` converted to PLN; do not classify this scope difference

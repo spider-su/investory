@@ -7,13 +7,11 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 /**
- * Small owned Stage 2 fixture adapted from the existing HappyInvestor accounting facts.
+ * Small calculator-level February fixture. The complete Jan-Jul story lives in test-support.
  *
- * <p>Source provenance: {@code test-support/.../happyinvestor-accounting-2026.json} and the Jan-Aug
- * branch rows in {@code V01.011__accounting_poc_test_data.sql}. The new module copies only
- * normalized values and has no dependency on accounting or test-support.
+ * <p>The module copies only normalized values and has no dependency on test-support.
  */
-final class HappyInvestorStage2Fixture {
+final class February2026CalculatorFixture {
   static final RyczaltCalculationInput FEBRUARY_RYCZALT =
       new RyczaltCalculationInput(
           Map.of(new BigDecimal("0.12"), new BigDecimal("29600")),
@@ -24,5 +22,5 @@ final class HappyInvestorStage2Fixture {
   static final ZusCalculationInput FEBRUARY_ZUS_UOP =
       new ZusCalculationInput(true, true, "JDG", false, new BigDecimal("60000"), null);
 
-  private HappyInvestorStage2Fixture() {}
+  private February2026CalculatorFixture() {}
 }

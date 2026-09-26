@@ -24,7 +24,7 @@ class InvestmentAssetDetailTemplateContractTest {
             Path.of("../adapters/web-ui/src/main/resources/static/js/asset-detail.js"));
 
     assertTrue(html.contains("Back to Investment"));
-    assertTrue(html.contains("data-turbo=\"false\""));
+    assertFalse(html.contains("data-turbo"));
     assertTrue(html.contains(">Quantity</div>"));
     assertTrue(html.contains(">Manual price</h2>"));
     assertTrue(html.contains(">Save price</button>"));

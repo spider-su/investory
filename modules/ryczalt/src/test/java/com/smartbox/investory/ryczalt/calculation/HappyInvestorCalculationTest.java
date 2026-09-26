@@ -16,11 +16,11 @@ class HappyInvestorCalculationTest {
   @Test
   void reproducesNormalizedFebruaryReferenceValues() {
     RyczaltCalculationResult ryczalt =
-        new RyczaltCalculator().calculate(HappyInvestorStage2Fixture.FEBRUARY_RYCZALT);
+        new RyczaltCalculator().calculate(February2026CalculatorFixture.FEBRUARY_RYCZALT);
     VatCalculationResult vat =
-        new VatCalculator().calculate(HappyInvestorStage2Fixture.FEBRUARY_VAT);
+        new VatCalculator().calculate(February2026CalculatorFixture.FEBRUARY_VAT);
     ZusCalculationResult zus =
-        new ZusCalculator().calculate(HappyInvestorStage2Fixture.FEBRUARY_ZUS_UOP);
+        new ZusCalculator().calculate(February2026CalculatorFixture.FEBRUARY_ZUS_UOP);
 
     assertAmount("3552", ryczalt.calculatedTax());
     assertAmount("6739", vat.calculatedVat());

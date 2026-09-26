@@ -19,7 +19,7 @@
           <span class="iv-rental-contract__date"><small>Effective end</small><strong th:text="${contract.effectiveEndDate == null ? 'Open' : T(com.smartbox.investory.ui.presentation.UiPresentation).date(contract.effectiveEndDate)}">Open</strong></span>
           <span class="iv-rental-contract__tenant" th:text="${contract.tenantName ?: 'Tenant not specified'}">Tenant not specified</span>
           <span class="badge iv-rental-contract__status" th:text="${#strings.capitalize(#strings.toLowerCase(contract.status.name()))}">Current</span>
-          <span class="iv-rental-contract__rent" th:with="monthlyIncome=${T(com.smartbox.investory.ui.presentation.UiPresentation).monthlyIncome(contract.terms)}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(monthlyIncome) + ' ' + asset.currency + ' / month'}">3,700 PLN / month</span>
+          <span class="iv-rental-contract__rent" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(contract.monthlyIncome) + ' ' + asset.currency + ' / month'}">3,700 PLN / month</span>
           <span class="iv-rental-contract__indicator" aria-hidden="true">›</span>
         </summary>
 

@@ -2,6 +2,7 @@ package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.api.model.*;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -259,7 +260,9 @@ public class LongTermAssetsApplicationService
                 term ->
                     new RentalTermView(
                         term.type(), term.amount(), term.frequency(), term.paidByTenant()))
-            .toList());
+            .toList(),
+        LongTermAssetEconomics.rental(contract.terms(), BigDecimal.ZERO, BigDecimal.ZERO)
+            .monthlyPayment());
   }
 
   private static List<RentalContractModel.Term> rentalTerms(List<RentalTermCommand> terms) {

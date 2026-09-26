@@ -44,6 +44,6 @@ public class InvestmentDashboardRestController {
     return dashboard.investmentResultYtd(portfolioId);
   }
 
-  record DashboardRequest(
+  public record DashboardRequest(
       List<Long> accountIds, boolean benchmarkAccountsSubmitted, DashboardPeriod period) {}
 }

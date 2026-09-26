@@ -13,4 +13,6 @@ public record ObligationResponse(
     String outstandingAmount,
     CurrencyType currency,
     LocalDate dueDate,
-    ObligationStatus status) {}
+    ObligationStatus status,
+    boolean manuallyPaid,
+    LocalDate manualPaidDate) {}

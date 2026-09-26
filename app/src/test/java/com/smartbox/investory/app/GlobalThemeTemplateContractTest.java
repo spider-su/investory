@@ -52,18 +52,43 @@ class GlobalThemeTemplateContractTest {
         .contains("investory.theme")
         .contains("dataset.theme")
         .contains("dataset.bsTheme")
-        .contains("/js/theme.js")
-        .contains("/js/turbo-8.0.23.js")
         .contains("/js/investory-navigation.js")
-        .contains("data-turbo-track=\"reload\"");
+        .doesNotContain("turbo")
+        .doesNotContain("data-turbo");
   }
 
-  @DisplayName("Dashboard import remains outside Turbo Drive")
+  @DisplayName("Dashboard import remains a normal multipart POST")
   @Test
-  void dashboardImportRemainsOutsideTurboDrive() throws Exception {
+  void dashboardImportRemainsNormalMultipartPost() throws Exception {
     String html =
         HtmlTestSupport.readTemplateWithFragments(
             Path.of("../adapters/web-ui/src/main/resources/templates/dashboard.html"));
-    assertThat(html).contains("id=\"xtb-upload-form\"").contains("data-turbo=\"false\"");
+    assertThat(html).contains("id=\"xtb-upload-form\"").contains("method=\"POST\"");
+    assertThat(html).doesNotContain("data-turbo");
+  }
+
+  @DisplayName("shared navigation owns the browser lifecycle")
+  @Test
+  void sharedNavigationOwnsTheBrowserLifecycle() throws Exception {
+    String navigation =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/investory-navigation.js"),
+            StandardCharsets.UTF_8);
+    String theme =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/theme.js"),
+            StandardCharsets.UTF_8);
+    String authorization =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/investory-authorization.js"),
+            StandardCharsets.UTF_8);
+
+    assertThat(navigation)
+        .contains("document.addEventListener('DOMContentLoaded', initializePage")
+        .contains("initTheme()")
+        .contains("applyAuthorizationCapabilities()")
+        .doesNotContain("turbo:");
+    assertThat(theme).doesNotContain("DOMContentLoaded", "turbo:");
+    assertThat(authorization).doesNotContain("DOMContentLoaded", "turbo:");
   }
 }

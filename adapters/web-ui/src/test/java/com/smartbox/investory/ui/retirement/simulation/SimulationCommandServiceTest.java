@@ -5,6 +5,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.AssumptionsDto;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanCreateRequest;
+import com.smartbox.investory.retirement.api.contract.RetirementPlanContracts.PlanUpdateRequest;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.PlanningBaseline;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
@@ -19,31 +22,33 @@ class SimulationCommandServiceTest {
   @Test
   @DisplayName("updates an existing plan without changing its baseline")
   void updatesExistingPlanWithoutChangingItsBaseline() {
-    SimulationAssumptions assumptions = mock(SimulationAssumptions.class);
+    SimulationAssumptions assumptions = assumptions();
     PlanningBaseline baseline = mock(PlanningBaseline.class);
-    var command =
-        new com.smartbox.investory.retirement.api.model.UpdatePlanCommand(
-            1L, 7L, "Plan", assumptions);
-    when(plans.updatePlan(command)).thenReturn(7L);
+    var request = new PlanUpdateRequest("Plan", AssumptionsDto.from(assumptions));
+    when(plans.updatePlan(1L, 7L, request)).thenReturn(7L);
 
     Long saved = commands.savePlan(1L, 7L, "Plan", assumptions, baseline, false);
 
     assertEquals(7L, saved);
-    verify(plans).updatePlan(command);
+    verify(plans).updatePlan(1L, 7L, request);
   }
 
   @Test
   @DisplayName("save as creates a new plan")
   void saveAsCreatesNewPlan() {
-    SimulationAssumptions assumptions = mock(SimulationAssumptions.class);
-    var command =
-        new com.smartbox.investory.retirement.api.model.CreatePlanCommand(
-            1L, "Copy", assumptions, null);
-    when(plans.createPlan(command)).thenReturn(8L);
+    SimulationAssumptions assumptions = assumptions();
+    var request = new PlanCreateRequest("Copy", AssumptionsDto.from(assumptions), null);
+    when(plans.createPlan(1L, request)).thenReturn(8L);
 
     Long saved = commands.savePlan(1L, 7L, "Copy", assumptions, null, true);
 
     assertEquals(8L, saved);
-    verify(plans).createPlan(command);
+    verify(plans).createPlan(1L, request);
+  }
+
+  private static SimulationAssumptions assumptions() {
+    return SimulationAssumptions.defaults(40, 80, 2025).toBuilder()
+        .expenseProfile(ExpenseProfile.EMPTY)
+        .build();
   }
 }

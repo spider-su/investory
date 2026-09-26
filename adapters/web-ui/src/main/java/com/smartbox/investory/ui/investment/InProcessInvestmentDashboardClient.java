@@ -1,31 +1,54 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.smartbox.investory.investment.web.InvestmentDashboardRestController;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InProcessInvestmentDashboardClient implements InvestmentDashboardClient {
-  private final InvestmentDashboardApi investmentDashboardApi;
+  private final InvestmentDashboardRestController rest;
 
-  public InProcessInvestmentDashboardClient(
-      @Qualifier("investmentDashboardApplicationService")
-          InvestmentDashboardApi investmentDashboardApi) {
-    this.investmentDashboardApi = investmentDashboardApi;
+  public InProcessInvestmentDashboardClient(InvestmentDashboardRestController rest) {
+    this.rest = rest;
   }
 
   @Override
-  public DashboardPageView loadDashboard(DashboardQuery query) {
-    return investmentDashboardApi.loadDashboard(query);
+  public InvestmentDashboardPageView loadDashboard(InvestmentDashboardQuery query) {
+    var page =
+        rest.dashboard(
+            query.portfolioId(),
+            new InvestmentDashboardRestController.DashboardRequest(
+                query.accountIds(), query.benchmarkAccountsSubmitted(), query.period()));
+    return new InvestmentDashboardPageView(
+        page.overview(),
+        page.performance(),
+        page.positions(),
+        page.cashFlow(),
+        page.risk(),
+        page.dataQuality(),
+        page.selectedPeriod(),
+        page.periods(),
+        page.navigation());
   }
 
   @Override
-  public PerformanceKpiView loadPerformanceKpi(Long portfolioId) {
-    return investmentDashboardApi.loadPerformanceKpi(portfolioId);
+  public InvestmentPerformanceKpi loadPerformanceKpi(Long portfolioId) {
+    var value = rest.performanceKpi(portfolioId);
+    return new InvestmentPerformanceKpi(
+        value.available(),
+        value.totalReturn(),
+        value.totalReturnDisplay(),
+        value.kpiStartDate(),
+        value.historicalAnnualizedReturn(),
+        value.historicalAnnualizedReturnDisplay(),
+        value.expectedAnnualReturn(),
+        value.expectedAnnualReturnDisplay(),
+        value.historyYears(),
+        value.historyContext());
   }
 
   @Override
-  public InvestmentResultView investmentResultYtd(Long portfolioId) {
-    return investmentDashboardApi.investmentResultYtd(portfolioId);
+  public InvestmentResult investmentResultYtd(Long portfolioId) {
+    var value = rest.investmentResultYtd(portfolioId);
+    return new InvestmentResult(value.available(), value.amount(), value.currency());
   }
 }

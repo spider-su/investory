@@ -340,6 +340,6 @@ Accounting has two separate test modes:
 - Historical reconstruction verifies captured 2026 history against historical comparison data.
 - The HappyInvestor Accounting 2026 POC verifies operational behavior from an independent source-fact fixture.
 
-The operational fixture is owned by `test-support/.../happyinvestor/accounting` and does not depend
+The operational fixture is owned by `test-support/.../happyinvestor/ryczalt` and does not depend
 on investment HappyInvestor fixtures or historical Accounting golden-result fixtures. Neither mode
 represents runtime production data.

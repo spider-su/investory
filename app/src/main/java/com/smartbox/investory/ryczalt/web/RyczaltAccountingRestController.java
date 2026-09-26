@@ -124,6 +124,35 @@ public class RyczaltAccountingRestController {
     return accounting.obligations(profileId, month).stream().map(this::obligation).toList();
   }
 
+  @PostMapping("/periods/{month}/obligations/{obligationId}/manual-paid")
+  public ResponseEntity<Void> markObligationPaid(
+      @PathVariable long profileId,
+      @PathVariable YearMonth month,
+      @PathVariable long obligationId,
+      @RequestBody ManualPaidRequest request,
+      Authentication authentication) {
+    write(profileId, authentication);
+    command(
+        () ->
+            accounting.markObligationPaid(
+                profileId,
+                obligationId,
+                request == null ? null : request.paidDate(),
+                request == null ? null : request.note()));
+    return ResponseEntity.noContent().build();
+  }
+
+  @DeleteMapping("/periods/{month}/obligations/{obligationId}/manual-paid")
+  public ResponseEntity<Void> markObligationUnpaid(
+      @PathVariable long profileId,
+      @PathVariable YearMonth month,
+      @PathVariable long obligationId,
+      Authentication authentication) {
+    write(profileId, authentication);
+    command(() -> accounting.markObligationUnpaid(profileId, obligationId));
+    return ResponseEntity.noContent().build();
+  }
+
   @GetMapping("/periods/{month}/reference-obligations")
   public List<ReferenceObligationResponse> referenceObligations(
       @PathVariable long profileId, @PathVariable YearMonth month, Authentication authentication) {
@@ -340,7 +369,9 @@ public class RyczaltAccountingRestController {
         decimal(value.outstandingAmount()),
         value.currency(),
         value.dueDate(),
-        value.status());
+        value.status(),
+        value.manuallyPaid(),
+        value.manualPaidDate());
   }
 
   private IssueResponse issue(RyczaltIssueReadModel value) {

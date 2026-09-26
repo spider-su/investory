@@ -42,7 +42,7 @@ export function initDashboardAccessibility() {
         });
     });
 
-    if (!window.__investoryDashboardAccessibilityGlobals) document.addEventListener('keydown', function (event) {
+    document.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape') return;
         const openModal = Array.from(document.querySelectorAll('.iv-modal'))
             .find(function (modal) { return modal.style.display !== 'none'; });
@@ -69,7 +69,7 @@ export function initDashboardAccessibility() {
         });
     });
 
-    if (!window.__investoryDashboardAccessibilityGlobals) document.addEventListener('click', function (event) {
+    document.addEventListener('click', function (event) {
         if (event.target.closest && event.target.closest('details')) return;
         document.querySelectorAll('details.iv-compact-popover[open][data-disclosure-group]').forEach(function (details) {
             details.removeAttribute('open');
@@ -109,10 +109,8 @@ export function initDashboardAccessibility() {
         const open = document.querySelector('details.iv-compact-popover[open]');
         if (open) placeCompactPopover(open);
     }
-    if (!window.__investoryDashboardAccessibilityGlobals) {
-        window.addEventListener('resize', repositionOpenCompactPopover);
-        window.addEventListener('scroll', repositionOpenCompactPopover, true);
-    }
+    window.addEventListener('resize', repositionOpenCompactPopover);
+    window.addEventListener('scroll', repositionOpenCompactPopover, true);
 
     const uploadBox = document.querySelector('.iv-upload-box');
     const xtbInput = document.getElementById('xtb-file-input');
@@ -172,11 +170,7 @@ export function initDashboardAccessibility() {
                 });
 
             const destination = target.pathname + target.search + target.hash;
-            if (window.Turbo?.session?.drive) {
-                window.Turbo.visit(destination);
-            } else {
-                window.location.assign(destination);
-            }
+            window.location.assign(destination);
         });
     });
 
@@ -216,20 +210,4 @@ export function initDashboardAccessibility() {
         const hours = Number(reconciledTime.dataset.reconciledHours || 0);
         reconciledTime.textContent = hours === 0 ? 'Last reconciled: just now' : `Last reconciled: ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
     }
-    window.__investoryDashboardAccessibilityGlobals = true;
 }
-/* Legacy block intentionally removed: page setup is driven by turbo:load. */
-/*
-    const fxInfo = document.querySelector('.iv-chip--fx-info');
-    if (fxInfo) {
-        fxInfo.addEventListener('click', event => { event.stopPropagation(); fxInfo.classList.toggle('is-tooltip-open'); });
-        document.addEventListener('click', () => fxInfo.classList.remove('is-tooltip-open'));
-        fxInfo.addEventListener('keydown', event => { if (event.key === 'Escape') fxInfo.classList.remove('is-tooltip-open'); });
-    }
-    const reconciledTime = document.querySelector('[data-reconciled-hours]');
-    if (reconciledTime) {
-        const hours = Number(reconciledTime.dataset.reconciledHours || 0);
-        reconciledTime.textContent = hours === 0 ? 'Last reconciled: just now' : `Last reconciled: ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
-    }
-});
-*/

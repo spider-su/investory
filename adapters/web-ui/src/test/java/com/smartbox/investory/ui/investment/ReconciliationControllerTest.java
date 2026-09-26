@@ -68,6 +68,6 @@ class ReconciliationControllerTest {
         .andExpect(status().is3xxRedirection())
         .andExpect(view().name("redirect:/portfolios/7/dashboard/reconciliation?refreshed=true"));
 
-    verify(reconciliationApi).refreshReconciliationViews();
+    verify(reconciliationApi).refreshReconciliationViews(7L);
   }
 }

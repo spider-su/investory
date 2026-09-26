@@ -26,7 +26,7 @@ public class JdbcRyczaltPaymentAccountRulesReader implements RyczaltPaymentAccou
                        AND r.obligation_type = 'RYCZALT'
                      ORDER BY r.id
                      LIMIT 1),
-                   p.tax_micro_account) AS ryczalt_payment_account,
+                   NULL) AS ryczalt_payment_account,
                COALESCE(
                    (SELECT r.account_number
                       FROM investory.ryczalt_payment_account_rule r
@@ -34,7 +34,7 @@ public class JdbcRyczaltPaymentAccountRulesReader implements RyczaltPaymentAccou
                        AND r.obligation_type = 'VAT'
                      ORDER BY r.id
                      LIMIT 1),
-                   p.tax_micro_account) AS vat_payment_account,
+                   NULL) AS vat_payment_account,
                COALESCE(
                    (SELECT r.account_number
                       FROM investory.ryczalt_payment_account_rule r
@@ -42,7 +42,7 @@ public class JdbcRyczaltPaymentAccountRulesReader implements RyczaltPaymentAccou
                        AND r.obligation_type = 'ZUS'
                      ORDER BY r.id
                      LIMIT 1),
-                   p.zus_payment_account) AS zus_payment_account
+                   NULL) AS zus_payment_account
           FROM investory.portfolios p
          WHERE p.id = ?
         """,

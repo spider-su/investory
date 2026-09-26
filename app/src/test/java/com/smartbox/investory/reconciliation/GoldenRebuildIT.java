@@ -67,14 +67,14 @@ class GoldenRebuildIT {
       Set.of(
           HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
           HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
-          2051993106L,
+          91000010L,
           HappyInvestorTestData.XTB_PLN_ACCOUNT_ID,
-          2050290466L);
+          91000009L);
 
   // The two additional XTB accounts belong to the reduced reconciliation corpus, not the
   // four-account canonical Happy Investor profile.
   private static final String CORE_RECON_ACCOUNTS =
-      "%d,%d,2051993106,%d,2050290466"
+      "%d,%d,91000010,%d,91000009"
           .formatted(
               HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
               HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
@@ -84,7 +84,7 @@ class GoldenRebuildIT {
           "README.md",
           "expected/checkpoints.json",
           "expected/provenance.json",
-          "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv",
+          "ibkr/U90000001.TRANSACTIONS.GOLDEN.csv",
           "reference/exchange_rates.csv",
           "xtb/investory_xtb_golden.zip");
   private static final Set<String> EXPECTED_CHECKPOINTS =
@@ -179,7 +179,7 @@ class GoldenRebuildIT {
     runCheck("local-fx-fixture", "reference/exchange_rates.csv", this::loadDeterministicFxFixture);
     runCheck(
         "canonical-initial-data", "HappyInvestor portfolio 2", this::assertCanonicalImportScope);
-    runCheck("ibkr-import", "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv", this::importIbkrFixture);
+    runCheck("ibkr-import", "ibkr/U90000001.TRANSACTIONS.GOLDEN.csv", this::importIbkrFixture);
     runCheck("xtb-import", "xtb/investory_xtb_golden.zip", this::importXtbFixture);
     runCheck("source-statistics", "imported fixture tables", this::analyzeImportedSources);
     runCheck("complete-fx-coverage", "all fixture valuation dates", this::completeGoldenFxCoverage);
@@ -230,15 +230,15 @@ class GoldenRebuildIT {
         this::assertIbkrSourceToLedger);
     runCheck(
         "xtb-vhyd-rebooking",
-        "XTB account 2051993106",
+        "XTB account 91000010",
         this::assertSubaccountRebookingIsPerformanceNeutral);
     runCheck(
         "xtb-interaccount-transfer",
-        "XTB accounts 2051993106/" + HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
+        "XTB accounts 91000010/" + HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
         this::assertTrackedAccountTransferIsPerformanceFlowButPortfolioNeutral);
     runCheck(
         "xtb-cash-only-funding",
-        "XTB accounts 2050290466/" + HappyInvestorTestData.XTB_PLN_ACCOUNT_ID,
+        "XTB accounts 91000009/" + HappyInvestorTestData.XTB_PLN_ACCOUNT_ID,
         this::assertCashOnlyFundingAndIkeAllocation);
     runCheck(
         "xtb-result-only-cfd",
@@ -308,9 +308,9 @@ class GoldenRebuildIT {
   private void importIbkrFixture() throws Exception {
     try (ImportPortfolioContext.Scope ignored =
             ImportPortfolioContext.open(HappyInvestorTestData.PORTFOLIO_ID);
-        InputStream input = resource("ibkr/U17959259.TRANSACTIONS.GOLDEN.csv")) {
+        InputStream input = resource("ibkr/U90000001.TRANSACTIONS.GOLDEN.csv")) {
       ImportExecutionResult result =
-          ibkrImportService.importStatement(input, "U17959259.TRANSACTIONS.GOLDEN.csv");
+          ibkrImportService.importStatement(input, "U90000001.TRANSACTIONS.GOLDEN.csv");
       assertEquals(19, result.rowsTotal(), result.details());
       assertEquals(19, result.rowsApplied(), result.details());
       assertEquals(0, result.rowsFailed(), result.details());
@@ -336,14 +336,14 @@ class GoldenRebuildIT {
         jdbc.queryForObject(
             """
             select count(*) from investory.accounts
-            where id = 2017959259 and portfolio_id = 2 and provider = 'IBKR'
-              and external_account_id = '17959259'
+            where id = 91000001 and portfolio_id = 2 and provider = 'IBKR'
+              and external_account_id = '90000001'
             """,
             Integer.class));
     assertEquals(
         1,
         jdbc.queryForObject(
-            "select count(*) from investory.accounts where portfolio_id = 2 and provider = 'IBKR' and external_account_id = '17959259'",
+            "select count(*) from investory.accounts where portfolio_id = 2 and provider = 'IBKR' and external_account_id = '90000001'",
             Integer.class));
   }
 
@@ -507,7 +507,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(volume), 0)::double precision
                     from investory.positions
-                    where account_id = 2017959259
+                    where account_id = 91000001
                       and asset_id = ?
                       and close_time is null
                     """,
@@ -524,7 +524,7 @@ class GoldenRebuildIT {
                         reconstructed_market_value_base::double precision as market_value,
                         fx_rate_to_base::double precision as fx_rate_to_base
                     from investory.app_v_reconstructed_position_daily
-                    where account_id = 2017959259
+                    where account_id = 91000001
                       and asset_id = ?
                       and valuation_date = date '2026-02-26'
                     """,
@@ -547,7 +547,7 @@ class GoldenRebuildIT {
                         amount::double precision as amount,
                         date::date as business_date
                     from investory.app_v_normalized_cash_operation_flows
-                    where account_id = 2017959259
+                    where account_id = 91000001
                       and normalized_category = 'BOND_REDEMPTION'
                     """);
     assertEquals("BOND_REDEMPTION", redemption.get("normalized_category"));
@@ -564,7 +564,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(amount), 0)::double precision
                     from investory.cash_operations
-                    where account_id = 2017959259
+                    where account_id = 91000001
                       and operation = 'FREE_FUNDS_INTEREST'
                       and comment ilike '%Bond Coupon Payment%'
                       and amount > 0
@@ -579,7 +579,7 @@ class GoldenRebuildIT {
             """
                     select date::date
                     from investory.cash_operations
-                    where account_id = 2017959259
+                    where account_id = 91000001
                       and amount = 8793
                     """,
             LocalDate.class);
@@ -590,7 +590,7 @@ class GoldenRebuildIT {
             """
                     select count(*)
                     from investory.cash_operations
-                    where account_id = 2017959259
+                    where account_id = 91000001
                       and amount = 8793
                       and date::date = date '2026-05-06'
                     """,
@@ -603,7 +603,7 @@ class GoldenRebuildIT {
     List<String> lines =
         new BufferedReader(
                 new InputStreamReader(
-                    resource("ibkr/U17959259.TRANSACTIONS.GOLDEN.csv"), StandardCharsets.UTF_8))
+                    resource("ibkr/U90000001.TRANSACTIONS.GOLDEN.csv"), StandardCharsets.UTF_8))
             .lines()
             .toList();
     String baseCurrency = null;
@@ -651,7 +651,7 @@ class GoldenRebuildIT {
                     select co.operation::text as operation, co.currency, cast(co.date as date) as operation_date,
                            count(*) as row_count, coalesce(sum(co.amount), 0) as amount
             from investory.cash_operations co
-            where co.account_id = 2017959259
+            where co.account_id = 91000001
                     group by co.operation, co.currency, co.date::date
                     """,
         rs -> {
@@ -743,7 +743,7 @@ class GoldenRebuildIT {
                         sum(performance_flow_amount)::double precision as performance_flow,
                         sum(portfolio_flow_amount)::double precision as portfolio_flow
                     from investory.app_v_normalized_cash_operation_flows
-                    where account_id = 2051993106
+                    where account_id = 91000010
                       and raw_operation = 'SUBACCOUNT_TRANSFER'
                       and abs(amount) = 6044.12
                     """);
@@ -761,14 +761,14 @@ class GoldenRebuildIT {
                         sum(performance_flow_amount)::double precision as performance_flow,
                         sum(portfolio_flow_amount)::double precision as portfolio_flow
                     from investory.app_v_normalized_cash_operation_flows
-                    where comment = 'Transfer from 51993106 to 51499241'
+                    where comment = 'Transfer from 90000010 to 90000002'
                     group by account_id
                     order by account_id
                     """);
     assertEquals(2, rows.size(), rows.toString());
 
     Map<String, Object> target = rowForAccount(rows, HappyInvestorTestData.XTB_USD_ACCOUNT_ID);
-    Map<String, Object> source = rowForAccount(rows, 2051993106L);
+    Map<String, Object> source = rowForAccount(rows, 91000010L);
     assertClose(325.0, number(target.get("performance_flow")), 0.000001, "target performance flow");
     assertClose(
         -325.0, number(source.get("performance_flow")), 0.000001, "source performance flow");
@@ -779,7 +779,7 @@ class GoldenRebuildIT {
   private void assertCashOnlyFundingAndIkeAllocation() {
     Boolean cashOnly =
         jdbc.queryForObject(
-            "select cash_only from investory.accounts where id = 2050290466", Boolean.class);
+            "select cash_only from investory.accounts where id = 91000009", Boolean.class);
     assertEquals(Boolean.TRUE, cashOnly);
 
     Double externalFunding =
@@ -787,7 +787,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(portfolio_flow_amount), 0)::double precision
                     from investory.app_v_normalized_cash_operation_flows
-                    where account_id = 2050290466
+                    where account_id = 91000009
                       and normalized_category = 'EXTERNAL_DEPOSIT'
                       and amount = 14200
                     """,
@@ -799,7 +799,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(portfolio_flow_amount), 0)::double precision
                     from investory.app_v_normalized_cash_operation_flows
-                    where account_id in (2050290466, 2051551301)
+                    where account_id in (91000009, 91000003)
                       and normalized_category in ('INTERNAL_TRANSFER_IN', 'INTERNAL_TRANSFER_OUT')
                       and abs(amount) = 14200
                     """,
@@ -816,7 +816,7 @@ class GoldenRebuildIT {
                         profit::double precision as profit,
                         swap::double precision as swap
                     from investory.positions
-                    where account_id = 2051499241
+                    where account_id = 91000002
                       and source_position_id = '2040572606'
                       and close_time is not null
                     """);
@@ -835,7 +835,7 @@ class GoldenRebuildIT {
                         coalesce(sum(amount) filter (where operation = 'SWAP'), 0)::double precision
                             as cash_swap
                     from investory.cash_operations
-                    where account_id = 2051499241
+                    where account_id = 91000002
                       and comment like '%2040572606%'
                     """);
     assertClose(
@@ -848,7 +848,7 @@ class GoldenRebuildIT {
             """
                     select coalesce(sum(profit), 0)::double precision
                     from investory.positions
-                    where account_id = 2051499241
+                    where account_id = 91000002
                       and source_position_id = '2040572606'
                       and close_time::date = date '2025-09-26'
                     """,
@@ -972,7 +972,7 @@ class GoldenRebuildIT {
         """
             select account_id, operation_id, raw_operation, amount, comment, date
             from investory.app_v_normalized_cash_operations
-            where account_id in (2017959259,2051499241,2051993106,2051551301,2050290466)
+            where account_id in (91000001,91000002,91000010,91000003,91000009)
               and normalized_category = 'UNCLASSIFIED'
             order by account_id, date, operation_id
             limit 20

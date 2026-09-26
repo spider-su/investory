@@ -38,10 +38,14 @@ Read only the documents relevant to the task:
 | Tests and database-test strategy | `docs/development/testing.md` |
 | Dev Container / local environment | `docs/development/dev-container.md` |
 | Isolated agent worktrees and validation | `docs/development/agent-workflow.md` |
+| Module-local implementation or package boundary | nearest module `README.md`, then `docs/kt/business-modules-quick-kt.md` |
+| UI browser regression | matching `.codex/skills/investory-ui-*/SKILL.md`, then `docs/development/testing.md` |
 | Future work | `ROADMAP.md` |
 | Completed work | `CHANGELOG.md` |
 
 Package-local `README.md` files are authoritative for the code immediately around them.
+The tracked `.codex/README.md` and skill files describe agent-specific execution and reporting; they
+must not override source code or canonical domain/architecture contracts.
 
 ## Source-of-truth order
 
@@ -50,6 +54,7 @@ Package-local `README.md` files are authoritative for the code immediately aroun
 - `docs/architecture/` describes stable system boundaries and data flow, including `docs/architecture/modularization.md` for Maven module dependencies and where feature code, adapters, and tests belong.
 - `docs/development/` describes reproducible engineering procedures.
 - `docs/quality/` describes validation contracts.
+- `.codex/skills/` describes repeatable Codex UI checks and their evidence/reporting rules.
 - `README.md` is the concise product/operator entry point.
 - `ROADMAP.md` contains future work only; `CHANGELOG.md` contains completed work.
 - `docs/archive/` is historical only. Do not use it as current project context unless asked to investigate history.
@@ -77,3 +82,5 @@ Package-local `README.md` files are authoritative for the code immediately aroun
 - One fact, one canonical home. Link instead of copying.
 - Update the relevant canonical document when a domain contract or stable architecture boundary changes.
 - Update this file only when agent workflow or documentation routing changes.
+- Keep `.codex/environments/environment.toml` generated; change the source/setup process rather than
+  editing that file by hand.

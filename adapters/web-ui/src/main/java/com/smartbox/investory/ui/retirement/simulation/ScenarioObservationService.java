@@ -1,6 +1,5 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
-import com.smartbox.investory.retirement.api.RetirementScenarioObservationApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.PlanningTimeline;
 import java.util.LinkedHashMap;
@@ -10,9 +9,9 @@ import org.springframework.stereotype.Component;
 /** Adapts retirement-owned observations to the Web UI presentation model. */
 @Component
 public class ScenarioObservationService {
-  private final RetirementScenarioObservationApi observations;
+  private final RetirementScenarioObservationClient observations;
 
-  public ScenarioObservationService(RetirementScenarioObservationApi observations) {
+  public ScenarioObservationService(RetirementScenarioObservationClient observations) {
     this.observations = observations;
   }
 

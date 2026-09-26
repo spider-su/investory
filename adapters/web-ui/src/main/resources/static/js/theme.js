@@ -1,5 +1,4 @@
-(function () {
-    'use strict';
+'use strict';
 
     const STORAGE_KEY = 'investory.theme';
     const DARK_QUERY = window.matchMedia('(prefers-color-scheme: dark)');
@@ -65,37 +64,24 @@
         });
     }
 
-    applyTheme(preferredTheme(), false, false);
+    let systemThemeListenerWired = false;
 
-    document.addEventListener('turbo:load', wireToggle);
-    if (document.readyState !== 'loading') wireToggle();
-
-    const followSystemTheme = function (event) {
+    function initTheme() {
+        wireToggle();
+        if (systemThemeListenerWired) return;
+        systemThemeListenerWired = true;
+        const followSystemTheme = function (event) {
         if (!storedTheme()) {
             applyTheme(event.matches ? 'dark' : 'light', false, true);
         }
-    };
+        };
 
-    if (typeof DARK_QUERY.addEventListener === 'function') {
-        DARK_QUERY.addEventListener('change', followSystemTheme);
-    } else if (typeof DARK_QUERY.addListener === 'function') {
-        DARK_QUERY.addListener(followSystemTheme);
+        if (typeof DARK_QUERY.addEventListener === 'function') {
+            DARK_QUERY.addEventListener('change', followSystemTheme);
+        } else if (typeof DARK_QUERY.addListener === 'function') {
+            DARK_QUERY.addListener(followSystemTheme);
+        }
+
     }
 
-    window.InvestoryTheme = {
-        current: function () {
-            return root.dataset.theme || preferredTheme();
-        },
-        set: function (theme) {
-            applyTheme(theme, true, true);
-        },
-        useSystem: function () {
-            try {
-                window.localStorage.removeItem(STORAGE_KEY);
-            } catch (ignored) {
-                // Ignore unavailable storage and still apply the current system preference.
-            }
-            applyTheme(DARK_QUERY.matches ? 'dark' : 'light', false, true);
-        }
-    };
-})();
+    export {initTheme};

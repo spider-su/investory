@@ -34,6 +34,7 @@ class RetirementFundingPolicyTest {
     assertThatThrownBy(
             () ->
                 new RetirementFundingPolicy(
+                    SimulationFundingStrategy.RESERVE_AND_HARVEST,
                     BigDecimal.ONE,
                     BigDecimal.ZERO,
                     new BigDecimal("1.01"),
