@@ -12,6 +12,7 @@ import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalcula
 import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationResult;
 import com.smartbox.investory.ryczalt.calculation.application.NativeMonthCalculationService;
 import com.smartbox.investory.ryczalt.persistence.RyczaltPeriodLifecycleService;
+import com.smartbox.investory.ryczalt.pit28.Pit28MonthlyZusFacts;
 import com.smartbox.investory.ryczalt.settlement.SettlementService;
 import java.time.YearMonth;
 import java.util.List;
@@ -86,6 +87,11 @@ public class RyczaltAccountingFacade implements RyczaltAccountingApi {
   public List<RyczaltPaymentHistoryReadModel> paymentHistory(
       long profileId, YearMonth from, YearMonth to, String type) {
     return queries.getPaymentHistory(profileId, from, to, type);
+  }
+
+  @Override
+  public Pit28MonthlyZusFacts zusFacts(long profileId, YearMonth month) {
+    return queries.zusFacts(profileId, month);
   }
 
   @Override
