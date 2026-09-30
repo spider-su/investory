@@ -13,18 +13,8 @@ SOURCE_ROOTS = (
     Path("modules/investment/src/test"),
     Path("modules/retirement/src/test"),
 )
-DISABLED_SOURCE_PARTS = (
-    "/accounting/",
-    "/poc/accounting/",
-)
-DISABLED_TEST_NAMES = {
-    "AccountingPocUiIT",
-}
-
-
 def is_disabled(path: Path) -> bool:
-    normalized = f"/{path.as_posix()}"
-    return any(part in normalized for part in DISABLED_SOURCE_PARTS) or path.stem in DISABLED_TEST_NAMES
+    return False
 
 
 def main() -> int:

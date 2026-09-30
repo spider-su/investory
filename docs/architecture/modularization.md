@@ -12,7 +12,6 @@ investment
 longterm
 profile
 retirement
-ryczalt
 integrations
 test-support (test scope)
 adapters/web-ui
@@ -22,7 +21,6 @@ investment -> shared
 longterm -> shared
 profile -> shared + investment public API + longterm public API
 retirement -> shared + investment/longterm/profile public APIs
-ryczalt -> shared + integrations
 integrations -> investment/longterm public and integration contracts
 adapters/web-ui -> investment/longterm/profile/retirement/integrations public APIs
 test-support -> shared + investment + profile (fixtures and PostgreSQL test infrastructure only)
@@ -37,8 +35,7 @@ Maven test scope by feature modules and `app`; it is not packaged as production 
 
 Feature controllers and tests live with their owning module. External adapters, notifications, and
 optional integrations live in `integrations`; tightly coupled market/FX/export adapters remain inside
-Investment behind its infrastructure boundary. The native Ryczalt runtime is in `modules/ryczalt`;
-the former `modules/accounting` tree is historical reference material, not a reactor module.
+Investment behind its infrastructure boundary.
 
 Shared utility wrappers are allowed only when they preserve module-level vocabulary or isolate a
 third-party dependency. `shared.util.StringUtils.isBlank` is intentionally a one-line wrapper: it

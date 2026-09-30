@@ -39,36 +39,6 @@ class FlywayMigrationChainIT {
   }
 
   @Test
-  void installsNativeRyczaltSchemaWithoutLegacyAccountingTables() throws Exception {
-    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
-        Statement statement = connection.createStatement()) {
-      assertEquals(
-          0,
-          MigrationTestDatabase.singleInt(
-              statement,
-              "SELECT count(*) FROM pg_class WHERE relnamespace = 'investory'::regnamespace "
-                  + "AND relname LIKE 'accounting_%'"));
-      assertEquals(
-          1,
-          MigrationTestDatabase.singleInt(
-              statement,
-              "SELECT count(*) FROM pg_class WHERE relnamespace = 'investory'::regnamespace "
-                  + "AND relname = 'ryczalt_invoice'"));
-    }
-  }
-
-  @Test
-  void keepsReferenceTableEmptyUntilManualTestDataIsApplied() throws Exception {
-    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
-        Statement statement = connection.createStatement()) {
-      assertEquals(
-          0,
-          MigrationTestDatabase.singleInt(
-              statement, "SELECT count(*) FROM investory.ryczalt_obligation_reference"));
-    }
-  }
-
-  @Test
   void installsTemporalAnomalyContractAndParameters() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
@@ -89,19 +59,6 @@ class FlywayMigrationChainIT {
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.recon_v_temporal_anomaly " + "WHERE false"));
-    }
-  }
-
-  @Test
-  void allowsKsefEInvoicingIntegrationInstances() throws Exception {
-    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
-        Statement statement = connection.createStatement()) {
-      connection.setAutoCommit(false);
-      statement.execute(
-          "INSERT INTO investory.integration_instances "
-              + "(owner_id, plugin_id, plugin_type) "
-              + "VALUES (NULL, 'ksef', 'E_INVOICING')");
-      connection.rollback();
     }
   }
 

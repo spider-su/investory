@@ -30,8 +30,6 @@ Investment and Long-Term reads; Retirement consumes public APIs.
   support boundaries.
 - [`integrations/README.md`](../../integrations/README.md) --- external providers, jobs, and
   notification adapters.
-- [`modules/ryczalt/README.md`](../../modules/ryczalt/README.md) --- native accounting runtime and
-  staged migration boundary.
 - [`app/README.md`](../../app/README.md) --- executable composition, configuration, security, and
   migrations.
 - [`adapters/web-ui/README.md`](../../adapters/web-ui/README.md) --- server-rendered MVC, in-process

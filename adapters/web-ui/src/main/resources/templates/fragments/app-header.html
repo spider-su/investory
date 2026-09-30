@@ -2,7 +2,7 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <body>
 <th:block th:fragment="emptyRail"></th:block>
-<header th:fragment="appHeader(title, subtitle, activePage, portfolioId, kpi1Label, kpi1Value, kpi2Label, kpi2Value, kpi3Label, kpi3Value, kpi1Meta, kpi2Meta, kpi3Meta, kpi1PaymentMeta, kpi2PaymentMeta, kpi3PaymentMeta, kpi1PaymentStatus, kpi2PaymentStatus, kpi3PaymentStatus, kpi1PaymentStatusClass, kpi2PaymentStatusClass, kpi3PaymentStatusClass, actions, brandDetails, railRight)"
+<header th:fragment="appHeader(title, subtitle, activePage, portfolioId, kpi1Label, kpi1Value, kpi2Label, kpi2Value, kpi3Label, kpi3Value, kpi1Meta, kpi2Meta, kpi3Meta, actions, brandDetails, railRight)"
         class="iv-topbar iv-shared-topbar"
         th:classappend="${actions != null} ? ' iv-shared-topbar--with-actions'">
     <div class="iv-brand">
@@ -21,32 +21,21 @@
             <div th:if="${brandDetails != null}" th:insert="${brandDetails}"></div>
         </div>
     </div>
-    <div class="iv-topbar-summary iv-shared-topbar__summary" th:if="${taxCards == null}">
+    <div class="iv-topbar-summary iv-shared-topbar__summary">
         <div class="iv-kpi iv-shared-topbar__kpi">
             <span class="iv-topbar-metric__label" th:text="${kpi1Label}">KPI 1</span>
             <span class="iv-kpi__value" th:text="${kpi1Value}">—</span>
             <small class="iv-shared-topbar__meta" th:if="${kpi1Meta != null}" th:text="${kpi1Meta}"></small>
-            <small class="iv-shared-topbar__meta iv-accounting-payment-meta" th:if="${kpi1PaymentMeta != null}"><span th:text="${kpi1PaymentMeta}"></span><span class="iv-accounting-payment-status" th:classappend="${kpi1PaymentStatusClass}" th:text="${kpi1PaymentStatus}">✓ Paid</span></small>
         </div>
         <div class="iv-kpi iv-shared-topbar__kpi">
             <span class="iv-topbar-metric__label" th:text="${kpi2Label}">KPI 2</span>
             <span class="iv-kpi__value" th:text="${kpi2Value}">—</span>
             <small class="iv-shared-topbar__meta" th:if="${kpi2Meta != null}" th:text="${kpi2Meta}"></small>
-            <small class="iv-shared-topbar__meta iv-accounting-payment-meta" th:if="${kpi2PaymentMeta != null}"><span th:text="${kpi2PaymentMeta}"></span><span class="iv-accounting-payment-status" th:classappend="${kpi2PaymentStatusClass}" th:text="${kpi2PaymentStatus}">✓ Paid</span></small>
         </div>
         <div class="iv-kpi iv-shared-topbar__kpi">
             <span class="iv-topbar-metric__label" th:text="${kpi3Label}">KPI 3</span>
             <span class="iv-kpi__value" th:text="${kpi3Value}">—</span>
             <small class="iv-shared-topbar__meta" th:if="${kpi3Meta != null}" th:text="${kpi3Meta}"></small>
-            <small class="iv-shared-topbar__meta iv-accounting-payment-meta" th:if="${kpi3PaymentMeta != null}"><span th:text="${kpi3PaymentMeta}"></span><span class="iv-accounting-payment-status" th:classappend="${kpi3PaymentStatusClass}" th:text="${kpi3PaymentStatus}">✓ Paid</span></small>
-        </div>
-    </div>
-    <div class="iv-topbar-summary iv-shared-topbar__summary iv-accounting-tax-summary" th:if="${taxCards != null}">
-        <div class="iv-kpi iv-shared-topbar__kpi" th:each="card : ${taxCards}">
-            <span class="iv-topbar-metric__label" th:text="${card.type}">RYCZALT</span>
-            <div class="iv-accounting-tax-card__main"><span class="iv-kpi__value" th:text="${card.calculated}">0</span><span class="iv-accounting-tax-card__status" th:classappend="${card.statusClass}" th:text="${card.status}">○ Unpaid</span></div>
-            <div class="iv-accounting-tax-card__line"><span>Reference</span><strong th:text="${card.reference}">—</strong><small th:if="${card.referenceDiff != null}" th:text="${'diff ' + card.referenceDiff}">diff +0</small></div>
-            <div class="iv-accounting-tax-card__line"><span>Bank</span><strong th:text="${card.bank}">0</strong><small th:if="${card.bankDiff != null}" th:text="${'diff ' + card.bankDiff}">diff +0</small></div>
         </div>
     </div>
     <div class="iv-shared-topbar__actions" th:if="${actions != null}" th:insert="${actions}"></div>
@@ -146,11 +135,6 @@
        th:if="${portfolioId != null}"
        href="/portfolios/1/dashboard/reconciliation"
        th:href="@{/portfolios/{portfolioId}/dashboard/reconciliation(portfolioId=${portfolioId})}">Reconciliation</a>
-    <span th:if="${activePage == 'accounting'}" class="is-active" aria-current="page">Accounting</span>
-    <a th:unless="${activePage == 'accounting'}"
-       th:if="${portfolioId != null}"
-       href="/profiles/1/accounting"
-       th:href="@{/profiles/{profileId}/accounting(profileId=${portfolioId})}">Accounting</a>
     <a href="/settings/integrations"
        th:href="@{/settings/integrations}">Settings</a>
 </nav>

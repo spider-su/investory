@@ -32,7 +32,7 @@ Production must supply explicit admin/user credentials through configuration and
 
 `INVESTORY_INTEGRATION_MASTER_KEY` protects persisted integration secrets. Treat changing or losing that key as an operational security event because encrypted integration configuration may become unreadable.
 
-Production also requires `APP_SECURITY_TOKEN_SECRET` (at least 32 characters). KSeF scheduled synchronization is opt-in through `RYCZALT_KSEF_SYNC_ENABLED`; manual authorized KSeF sync remains independent.
+Production also requires `APP_SECURITY_TOKEN_SECRET` (at least 32 characters).
 
 ## Data isolation
 
