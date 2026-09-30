@@ -49,7 +49,7 @@ class StaleImportHistoryAlertRuleTest {
   @Test
   void evaluate_firesWhenLastBatchIsOlderThanThreshold() {
     when(investment.latestImport(1L))
-        .thenReturn(Optional.of(batch("COMPLETED", ZonedDateTime.now().minusDays(30))));
+        .thenReturn(Optional.of(batch("COMPLETED", TIME.now(TIME.businessZone()).minusDays(30))));
 
     Optional<String> result = rule.evaluate();
 
@@ -60,7 +60,8 @@ class StaleImportHistoryAlertRuleTest {
   @DisplayName("evaluate fires When Last Batch Failed")
   @Test
   void evaluate_firesWhenLastBatchFailed() {
-    when(investment.latestImport(1L)).thenReturn(Optional.of(batch("FAILED", ZonedDateTime.now())));
+    when(investment.latestImport(1L))
+        .thenReturn(Optional.of(batch("FAILED", TIME.now(TIME.businessZone()))));
 
     assertTrue(rule.evaluate().isPresent());
   }
@@ -69,7 +70,7 @@ class StaleImportHistoryAlertRuleTest {
   @Test
   void evaluate_isQuietForFreshAppliedBatch() {
     when(investment.latestImport(1L))
-        .thenReturn(Optional.of(batch("COMPLETED", ZonedDateTime.now())));
+        .thenReturn(Optional.of(batch("COMPLETED", TIME.now(TIME.businessZone()))));
 
     assertFalse(rule.evaluate().isPresent());
   }

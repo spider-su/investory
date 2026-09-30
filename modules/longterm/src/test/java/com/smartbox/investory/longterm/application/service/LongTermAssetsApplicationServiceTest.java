@@ -610,30 +610,56 @@ class LongTermAssetsApplicationServiceTest {
   }
 
   @Test
-  void realEstateGroupMonthlyTaxIsTheDirectSumOfPropertyRows() {
-    RealEstateEntity first = estate(30L, "First", "3200");
-    RealEstateEntity second = estate(31L, "Second", "3000");
+  void realEstateGroupKeepsRentalIncomeTaxAndPropertyCostsSeparate() {
+    RealEstateEntity first = estate(30L, "First", "2900");
+    RealEstateEntity second = estate(31L, "Second", "2900");
+    RealEstateEntity third = estate(32L, "Third", "0");
+    RealEstateEntity fourth = estate(33L, "Fourth", "0");
+    RealEstateEntity fifth = estate(34L, "Fifth", "3080");
     when(realEstates.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID))
-        .thenReturn(List.of(first, second));
-    when(contracts.findAllWithTermsByAssetIdIn(List.of(30L, 31L))).thenReturn(List.of());
+        .thenReturn(List.of(first, second, third, fourth, fifth));
+    when(contracts.findAllWithTermsByAssetIdIn(List.of(30L, 31L, 32L, 33L, 34L)))
+        .thenReturn(
+            List.of(
+                annualCostsContract(30L, "340", "250"),
+                annualCostsContract(31L, "320", "240"),
+                annualCostsContract(32L, "320", "200"),
+                annualCostsContract(33L, "330", "200"),
+                annualCostsContract(34L, "330", "240")));
 
     var group = group(service.overview(PORTFOLIO_ID, DATE), LongTermAssetType.REAL_ESTATE);
 
     assertThat(group.assets())
         .satisfiesExactly(
             row -> {
-              assertThat(row.annualEconomics().monthlyTaxBase())
-                  .isEqualByComparingTo("266.666666666667");
-              assertThat(row.annualEconomics().monthlyTax())
-                  .isEqualByComparingTo("22.666666666667");
+              assertThat(row.annualEconomics().annualRentalTaxBase()).isEqualByComparingTo("2900");
+              assertThat(row.annualEconomics().annualRentalIncomeTax())
+                  .isEqualByComparingTo("246.5");
+              assertThat(row.annualEconomics().monthlyPropertyTaxAndInsurance())
+                  .isEqualByComparingTo("49.166666666667");
             },
             row -> {
-              assertThat(row.annualEconomics().monthlyTaxBase()).isEqualByComparingTo("250");
-              assertThat(row.annualEconomics().monthlyTax()).isEqualByComparingTo("21.25");
-            });
-    assertThat(group.annualEconomics().monthlyTaxBase()).isEqualByComparingTo("516.666666666667");
-    assertThat(group.annualEconomics().monthlyTax()).isEqualByComparingTo("43.916666666667");
-    assertThat(group.annualEconomics().annualTax()).isEqualByComparingTo("527");
+              assertThat(row.annualEconomics().monthlyPropertyTaxAndInsurance())
+                  .isEqualByComparingTo("46.666666666667");
+            },
+            row ->
+                assertThat(row.annualEconomics().monthlyPropertyTaxAndInsurance())
+                    .isEqualByComparingTo("43.333333333333"),
+            row ->
+                assertThat(row.annualEconomics().monthlyPropertyTaxAndInsurance())
+                    .isEqualByComparingTo("44.166666666667"),
+            row ->
+                assertThat(row.annualEconomics().monthlyPropertyTaxAndInsurance())
+                    .isEqualByComparingTo("47.5"));
+    assertThat(group.annualEconomics().annualRentalTaxBase()).isEqualByComparingTo("8880");
+    assertThat(group.annualEconomics().annualRentalIncomeTax()).isEqualByComparingTo("754.8");
+    assertThat(group.annualEconomics().monthlyRentalIncomeTax()).isEqualByComparingTo("62.9");
+    assertThat(group.annualEconomics().annualPropertyTax()).isEqualByComparingTo("1640");
+    assertThat(group.annualEconomics().annualInsurance()).isEqualByComparingTo("1130");
+    assertThat(group.annualEconomics().annualPropertyTaxAndInsurance())
+        .isEqualByComparingTo("2770");
+    assertThat(group.annualEconomics().monthlyPropertyTaxAndInsurance())
+        .isEqualByComparingTo("230.833333333333");
   }
 
   private AssetSummaryView realEstateWithTerms(LongTermAssetRentalContractTermEntity... terms) {
@@ -712,6 +738,25 @@ class LongTermAssetsApplicationServiceTest {
     estate.setValue(new BigDecimal("100000"));
     estate.setTaxBase(new BigDecimal(annualTaxBase));
     return estate;
+  }
+
+  private LongTermAssetRentalContractEntity annualCostsContract(
+      Long assetId, String annualPropertyTax, String annualInsurance) {
+    LongTermAssetRentalContractEntity contract = new LongTermAssetRentalContractEntity();
+    contract.setAssetId(assetId);
+    contract.setStartDate(DATE.minusDays(1));
+    contract.setTerms(
+        List.of(
+            annualTerm(CashFlowType.PROPERTY_TAX, annualPropertyTax),
+            annualTerm(CashFlowType.INSURANCE, annualInsurance)));
+    return contract;
+  }
+
+  private static LongTermAssetRentalContractTermEntity annualTerm(
+      CashFlowType type, String amount) {
+    var term = newTerm(type, amount, false);
+    term.setFrequency(Frequency.ANNUAL);
+    return term;
   }
 
   private static com.smartbox.investory.longterm.api.model.AssetGroupView group(

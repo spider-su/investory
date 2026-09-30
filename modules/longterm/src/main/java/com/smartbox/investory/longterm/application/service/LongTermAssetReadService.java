@@ -399,12 +399,29 @@ public class LongTermAssetReadService {
             .filter(row -> !row.integrityWarning())
             .map(row -> row.annualEconomics().annualTax())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal monthlyTaxBase =
+    BigDecimal annualRentalTaxBase =
         rows.stream()
             .filter(row -> !row.integrityWarning())
-            .map(row -> row.annualEconomics().monthlyTaxBase())
+            .map(row -> row.annualEconomics().annualRentalTaxBase())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    return LongTermAssetEconomics.economics(gross, expenses, valueOf(rows), tax, monthlyTaxBase);
+    BigDecimal annualPropertyTax =
+        rows.stream()
+            .filter(row -> !row.integrityWarning())
+            .map(row -> row.annualEconomics().annualPropertyTax())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal annualInsurance =
+        rows.stream()
+            .filter(row -> !row.integrityWarning())
+            .map(row -> row.annualEconomics().annualInsurance())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    return LongTermAssetEconomics.economics(
+        gross,
+        expenses,
+        valueOf(rows),
+        tax,
+        annualRentalTaxBase,
+        annualPropertyTax,
+        annualInsurance);
   }
 
   private LongTermAssetProjectionModel projection(

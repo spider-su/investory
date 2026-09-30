@@ -35,7 +35,7 @@ class LongTermAssetsTemplateContractTest {
     assertFalse(header.contains("new/deposit"));
     assertTrue(header.contains(">Personal</a>"));
     assertTrue(html.contains("Net income / month"));
-    assertTrue(html.contains("Rent tax / month"));
+    assertTrue(html.contains("Property tax + insurance / month"));
     assertTrue(html.contains("Total payment / month"));
     assertTrue(html.contains("asset.totalPaymentMonthly"));
     assertFalse(html.contains("<th>Value</th><th>Tax base / month</th>"));
@@ -65,7 +65,7 @@ class LongTermAssetsTemplateContractTest {
     assertFalse(combined.contains("InterestTreatment"));
     assertFalse(combined.contains("PAY_OUT"));
     assertFalse(combined.contains("CAPITALIZE"));
-    assertTrue(html.contains("monthlyTax"));
+    assertTrue(html.contains("monthlyPropertyTaxAndInsurance"));
     assertFalse(combined.contains("realEstatePlanning"));
     assertFalse(combined.contains("bondPlanning"));
     assertFalse(combined.contains("annualReturnPercent"));
@@ -73,18 +73,18 @@ class LongTermAssetsTemplateContractTest {
   }
 
   @Test
-  void rentalOverviewKeepsMonthlyTaxBaseAndMonthlyTaxDistinct() throws Exception {
+  void rentalOverviewKeepsPropertyCostsSeparateFromRentalIncomeTax() throws Exception {
     String html = Files.readString(TEMPLATE);
 
-    assertTrue(html.contains("<th>Rent tax / month</th>"));
-    assertTrue(html.contains("Rent tax / month"));
+    assertTrue(html.contains("<th>Property tax + insurance / month</th>"));
+    assertTrue(html.contains("Property tax + insurance / month"));
     assertTrue(
-        html.contains("format.compactMoney(asset.annualEconomics.monthlyTaxBase) + ' / month'"));
+        html.contains(
+            "format.compactMoney(asset.annualEconomics.monthlyPropertyTaxAndInsurance) + ' / month'"));
     assertTrue(
-        html.contains("format.compactMoney(group.annualEconomics.monthlyTaxBase) + ' / month'"));
-    assertFalse(
-        html.contains("format.compactMoney(group.annualEconomics.monthlyTax) + ' / month'"));
-    assertFalse(html.contains("monthly(group.annualEconomics.annualTax)"));
+        html.contains(
+            "format.compactMoney(group.annualEconomics.monthlyPropertyTaxAndInsurance) + ' / month'"));
+    assertFalse(html.contains("Rent tax / month"));
   }
 
   @Test

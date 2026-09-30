@@ -18,10 +18,12 @@ final class LongTermAssetEconomics {
   private LongTermAssetEconomics() {}
 
   static RentalEconomics rental(
-      List<RentalContractModel.Term> terms, BigDecimal annualTaxBase, BigDecimal value) {
+      List<RentalContractModel.Term> terms, BigDecimal annualRentalTaxBase, BigDecimal value) {
     BigDecimal income = BigDecimal.ZERO;
     BigDecimal expenses = BigDecimal.ZERO;
     BigDecimal monthlyPayment = BigDecimal.ZERO;
+    BigDecimal annualPropertyTax = BigDecimal.ZERO;
+    BigDecimal annualInsurance = BigDecimal.ZERO;
     for (var term : terms) {
       BigDecimal annual = annualize(term.amount(), term.frequency());
       if (isRentalIncome(term.type())) {
@@ -29,21 +31,30 @@ final class LongTermAssetEconomics {
       } else if (isRentalExpense(term.type())) {
         if (!term.paidByTenant()) {
           expenses = expenses.add(annual);
+          if (term.type() == CashFlowType.PROPERTY_TAX) {
+            annualPropertyTax = annualPropertyTax.add(annual);
+          } else if (term.type() == CashFlowType.INSURANCE) {
+            annualInsurance = annualInsurance.add(annual);
+          }
         }
       }
       if (isRentalIncome(term.type())) {
         monthlyPayment = monthlyPayment.add(monthlyAmount(term.amount(), term.frequency()));
       }
     }
-    BigDecimal normalizedTaxBase = annualTaxBase == null ? BigDecimal.ZERO : annualTaxBase;
-    BigDecimal tax = normalizedTaxBase.multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE);
+    BigDecimal normalizedTaxBase =
+        annualRentalTaxBase == null ? BigDecimal.ZERO : annualRentalTaxBase;
+    BigDecimal rentalIncomeTax =
+        normalizedTaxBase.multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE);
     return new RentalEconomics(
-        economics(
+        rentalEconomics(
             income,
             expenses,
             value,
-            tax,
-            normalizedTaxBase.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP)),
+            normalizedTaxBase,
+            rentalIncomeTax,
+            annualPropertyTax,
+            annualInsurance),
         monthlyPayment);
   }
 
@@ -101,15 +112,46 @@ final class LongTermAssetEconomics {
       BigDecimal expenses,
       BigDecimal value,
       BigDecimal tax,
-      BigDecimal monthlyTaxBase) {
+      BigDecimal annualRentalTaxBase) {
+    return rentalEconomics(
+        gross, expenses, value, annualRentalTaxBase, tax, BigDecimal.ZERO, BigDecimal.ZERO);
+  }
+
+  static AnnualEconomicsView economics(
+      BigDecimal gross,
+      BigDecimal expenses,
+      BigDecimal value,
+      BigDecimal tax,
+      BigDecimal annualRentalTaxBase,
+      BigDecimal annualPropertyTax,
+      BigDecimal annualInsurance) {
+    return rentalEconomics(
+        gross, expenses, value, annualRentalTaxBase, tax, annualPropertyTax, annualInsurance);
+  }
+
+  private static AnnualEconomicsView rentalEconomics(
+      BigDecimal gross,
+      BigDecimal expenses,
+      BigDecimal value,
+      BigDecimal annualRentalTaxBase,
+      BigDecimal annualRentalIncomeTax,
+      BigDecimal annualPropertyTax,
+      BigDecimal annualInsurance) {
     BigDecimal beforeTax = gross.subtract(expenses);
-    BigDecimal afterTax = beforeTax.subtract(tax);
+    BigDecimal afterTax = beforeTax.subtract(annualRentalIncomeTax);
     return new AnnualEconomicsView(
         gross,
         expenses,
-        tax,
-        monthlyTaxBase,
-        tax.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        annualRentalIncomeTax,
+        annualRentalTaxBase,
+        annualRentalIncomeTax,
+        annualRentalTaxBase.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        annualRentalIncomeTax.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        annualRentalIncomeTax.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        annualPropertyTax,
+        annualInsurance,
+        annualPropertyTax.add(annualInsurance),
+        annualPropertyTax.add(annualInsurance).divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
         beforeTax,
         afterTax,
         afterTax.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),

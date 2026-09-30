@@ -31,7 +31,7 @@
                    th:classappend="| long-term-assets-table--${group.key.toLowerCase().replace('_', '-')}|">
               <thead>
               <tr th:if="${group.key == 'REAL_ESTATE'}">
-                <th>Name</th><th>Total payment / month</th><th>Yield</th><th>Net income / month</th><th>End date</th><th>Rent tax / month</th><th>Actions</th>
+                <th>Name</th><th>Total payment / month</th><th>Yield</th><th>Net income / month</th><th>End date</th><th>Property tax + insurance / month</th><th>Actions</th>
               </tr>
               <tr th:if="${group.key == 'BOND'}">
                 <th>Name</th><th>Value</th><th>Yield</th><th>Net income / year</th><th>End date</th><th>Tax / year</th><th>Actions</th>
@@ -54,7 +54,7 @@
                 <td class="text-end" th:if="${!asset.integrityWarning}" th:text="${format.compactMoney(asset.annualEconomics.monthlyNetIncomeAfterTax) + ' / month'}">0 / month</td>
                 <td class="text-end" th:if="${asset.integrityWarning}">Unavailable</td>
                 <td class="text-end" th:text="${format.date(asset.rentEnd)}">—</td>
-                <td class="text-end" th:if="${!asset.integrityWarning}" th:text="${format.compactMoney(asset.annualEconomics.monthlyTaxBase) + ' / month'}">0 / month</td>
+                <td class="text-end" th:if="${!asset.integrityWarning}" th:text="${format.compactMoney(asset.annualEconomics.monthlyPropertyTaxAndInsurance) + ' / month'}">0 / month</td>
                 <td class="text-end" th:if="${asset.integrityWarning}">Unavailable</td>
                 <td><form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/archive(portfolioId=${portfolioId},id=${asset.id})}"><button class="btn btn-sm btn-outline-danger">Archive</button></form></td>
               </tr>
@@ -99,7 +99,7 @@
             <td class="text-end iv-yield-cell"><strong th:text="${format.percentage(group.annualEconomics.netYieldAfterTax)}">0.0%</strong><small th:text="${'Gross ' + format.percentage(group.annualEconomics.grossYield)}">Gross 0.0%</small></td>
             <td class="text-end" th:text="${format.compactMoney(group.annualEconomics.monthlyNetIncomeAfterTax) + ' / month'}">0 / month</td>
             <td class="text-end">—</td>
-            <td class="text-end" th:text="${format.compactMoney(group.annualEconomics.monthlyTaxBase) + ' / month'}">0 / month</td><td></td>
+            <td class="text-end" th:text="${format.compactMoney(group.annualEconomics.monthlyPropertyTaxAndInsurance) + ' / month'}">0 / month</td><td></td>
           </tr>
           <tr th:if="${group.key == 'BOND'}">
             <td>TOTAL</td><td class="text-end" th:text="${format.compactMoney(group.totalValue)}">0</td>
@@ -125,7 +125,7 @@
         <th:block th:if="${group.key == 'REAL_ESTATE'}">
           <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Net income / month</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.monthlyNetIncomeAfterTax) + ' / month'}">0 / month</strong></div>
           <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Net yield</span><strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax)}">0.0%</strong><small class="iv-collapsed-summary__meta" th:text="${'Gross ' + format.percentage(group.annualEconomics.grossYield)}">Gross 0.0%</small></div>
-          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Rent tax / month</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.monthlyTaxBase) + ' / month'}">0 / month</strong></div>
+          <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Property tax + insurance / month</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.monthlyPropertyTaxAndInsurance) + ' / month'}">0 / month</strong></div>
         </th:block>
         <th:block th:if="${group.key == 'BOND'}">
           <div class="iv-collapsed-summary__metric"><span class="iv-collapsed-summary__label">Net income / year</span><strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</strong></div>

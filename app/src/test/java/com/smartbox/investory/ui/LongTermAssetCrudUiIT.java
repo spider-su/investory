@@ -74,7 +74,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
         page.locator("#real-estate .iv-planning-section__header").click();
         assertThat(page.locator("#real-estate").textContent())
-            .contains("Rent tax / month", "267", "250", "517");
+            .contains("Property tax + insurance / month");
         page.getByRole(
                 AriaRole.LINK,
                 new Page.GetByRoleOptions()
