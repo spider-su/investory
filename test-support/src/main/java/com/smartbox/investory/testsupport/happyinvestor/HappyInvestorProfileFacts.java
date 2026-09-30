@@ -35,7 +35,7 @@ public final class HappyInvestorProfileFacts {
   public static final BigDecimal MARKET_NET_YIELD = new BigDecimal("0.07");
   public static final BigDecimal LONG_TERM_ANNUAL_INCOME =
       HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL;
-  public static final BigDecimal LONG_TERM_NET_YIELD = new BigDecimal("0.07818503");
+  public static final BigDecimal LONG_TERM_NET_YIELD = new BigDecimal("0.07172253");
   public static final BigDecimal COMBINED_ANNUAL_INCOME =
       MARKET_ANNUAL_INCOME.add(LONG_TERM_ANNUAL_INCOME);
   public static final BigDecimal COMBINED_NET_YIELD = new BigDecimal("0.09188922");
