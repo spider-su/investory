@@ -235,10 +235,10 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
               .contains(
                   "Apartment A",
                   "Apartment B",
-                  "Rent tax / month",
+                  "Property tax + insurance / month",
                   "267",
                   "250",
-                  "Rent tax / month",
+                  "Property tax + insurance / month",
                   "517",
                   "9.5%",
                   "7.1%");
