@@ -11,7 +11,31 @@ public record RealEstateCommand(
     String name,
     CurrencyType currency,
     BigDecimal value,
+    BigDecimal acquisitionValue,
     BigDecimal taxBase,
     LocalDate acquisitionDate,
     String landRegisterNumber,
-    String notes) {}
+    String notes) {
+  public RealEstateCommand(
+      Long portfolioId,
+      Long id,
+      String name,
+      CurrencyType currency,
+      BigDecimal value,
+      BigDecimal taxBase,
+      LocalDate acquisitionDate,
+      String landRegisterNumber,
+      String notes) {
+    this(
+        portfolioId,
+        id,
+        name,
+        currency,
+        value,
+        null,
+        taxBase,
+        acquisitionDate,
+        landRegisterNumber,
+        notes);
+  }
+}

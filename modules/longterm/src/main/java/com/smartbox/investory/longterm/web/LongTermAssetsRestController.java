@@ -94,6 +94,14 @@ public class LongTermAssetsRestController {
     return assets.realEstateSummary(portfolioId, id, date);
   }
 
+  @GetMapping("/real-estate/{id}/total-return")
+  public RealEstateReturnView realEstateReturn(
+      @PathVariable @Positive Long portfolioId,
+      @PathVariable @Positive Long id,
+      @RequestParam LocalDate date) {
+    return assets.realEstateReturn(portfolioId, id, date);
+  }
+
   @GetMapping("/cash-reserve/{id}")
   public CashReserveView cashReserve(
       @PathVariable @Positive Long portfolioId, @PathVariable @Positive Long id) {
@@ -244,6 +252,7 @@ public class LongTermAssetsRestController {
         command.name(),
         command.currency(),
         command.value(),
+        command.acquisitionValue(),
         command.taxBase(),
         command.acquisitionDate(),
         command.landRegisterNumber(),

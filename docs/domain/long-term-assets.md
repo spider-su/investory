@@ -56,6 +56,12 @@ Expected real-estate growth is an assumption, not a valuation fact. Long-Term st
 property value directly; it does not persist a synthetic dated valuation history.
 `land_register_number` is the optional factual property-register identifier.
 
+For rental-property total return, an optional immutable-currency acquisition value is the
+denominator. Long-Term adds contract-derived rental profit through the requested date to current
+property value, subtracts acquisition value, and divides by acquisition value. Rental profit
+includes rental-income terms, landlord-paid expense terms, and accrued rental tax. It is unavailable
+until an acquisition value is supplied; acquisition date is not part of this calculation.
+
 ## Rental source of truth
 
 Real-estate rental economics are stored and read through rental contracts and their terms. Projection,

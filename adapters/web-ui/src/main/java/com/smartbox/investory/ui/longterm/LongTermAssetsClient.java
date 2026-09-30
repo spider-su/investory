@@ -24,6 +24,8 @@ public interface LongTermAssetsClient {
 
   AssetSummaryView realEstateSummary(Long portfolioId, Long id, LocalDate date);
 
+  RealEstateReturnView realEstateReturn(Long portfolioId, Long id, LocalDate date);
+
   CashReserveView createCashReserve(CashReserveCommand command);
 
   CashReserveView updateCashReserve(CashReserveCommand command);

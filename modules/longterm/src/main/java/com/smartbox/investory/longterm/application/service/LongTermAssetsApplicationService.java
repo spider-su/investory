@@ -113,6 +113,11 @@ public class LongTermAssetsApplicationService
   }
 
   @Override
+  public RealEstateReturnView realEstateReturn(Long portfolioId, Long id, LocalDate date) {
+    return reads.realEstateReturn(portfolioId, id, date);
+  }
+
+  @Override
   public CashReserveView createCashReserve(CashReserveCommand command) {
     return cashReserves.create(command);
   }

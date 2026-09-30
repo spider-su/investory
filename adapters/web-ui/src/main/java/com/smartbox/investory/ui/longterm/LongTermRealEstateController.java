@@ -51,6 +51,7 @@ public class LongTermRealEstateController {
               form.name(),
               form.currency(),
               form.value(),
+              form.acquisitionValue(),
               form.taxBase(),
               form.acquisitionDate(),
               form.landRegisterNumber(),
@@ -159,6 +160,7 @@ public class LongTermRealEstateController {
     LocalDate today = LocalDate.now(clock);
     RealEstateView asset = assets.realEstate(portfolioId, id);
     AssetSummaryView summary = assets.realEstateSummary(portfolioId, id, today);
+    var totalReturn = assets.realEstateReturn(portfolioId, id, today);
     var contracts = assets.rentalContracts(portfolioId, id, today);
     var contractForms =
         contracts.stream()
@@ -168,6 +170,7 @@ public class LongTermRealEstateController {
     model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("asset", asset);
     model.addAttribute("summary", summary);
+    model.addAttribute("totalReturn", totalReturn);
     model.addAttribute("rentalTaxRate", FinancialPolicyDefaults.RENTAL_TAX_RATE);
     model.addAttribute("contracts", contracts);
     model.addAttribute("contractForms", contractForms);

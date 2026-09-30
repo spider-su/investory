@@ -13,6 +13,7 @@ import com.smartbox.investory.longterm.api.model.CashFlowType;
 import com.smartbox.investory.longterm.api.model.Frequency;
 import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RealEstateCommand;
+import com.smartbox.investory.longterm.api.model.RealEstateReturnView;
 import com.smartbox.investory.longterm.api.model.RealEstateView;
 import com.smartbox.investory.longterm.api.model.RentalContractStatusModel;
 import com.smartbox.investory.longterm.api.model.RentalContractView;
@@ -44,6 +45,10 @@ class LongTermRealEstateControllerTest {
     RentalContractView contract = rentalContract();
     when(assets.realEstate(PORTFOLIO_ID, ASSET_ID)).thenReturn(asset);
     when(assets.realEstateSummary(PORTFOLIO_ID, ASSET_ID, TODAY)).thenReturn(summary);
+    var totalReturn =
+        new RealEstateReturnView(
+            new BigDecimal("250000"), new BigDecimal("50000"), new BigDecimal("0.45"));
+    when(assets.realEstateReturn(PORTFOLIO_ID, ASSET_ID, TODAY)).thenReturn(totalReturn);
     when(assets.rentalContracts(PORTFOLIO_ID, ASSET_ID, TODAY)).thenReturn(List.of(contract));
     var model = new ConcurrentModel();
 
@@ -53,6 +58,7 @@ class LongTermRealEstateControllerTest {
     assertThat(model.getAttribute("portfolioId")).isEqualTo(PORTFOLIO_ID);
     assertThat(model.getAttribute("asset")).isSameAs(asset);
     assertThat(model.getAttribute("summary")).isSameAs(summary);
+    assertThat(model.getAttribute("totalReturn")).isSameAs(totalReturn);
     @SuppressWarnings("unchecked")
     List<RentalContractView> contracts = (List<RentalContractView>) model.getAttribute("contracts");
     assertThat(contracts).containsExactly(contract);
@@ -65,6 +71,7 @@ class LongTermRealEstateControllerTest {
     assertThat(model.getAttribute("suggestedNextContractStart")).isEqualTo(TODAY);
     verify(assets).realEstate(PORTFOLIO_ID, ASSET_ID);
     verify(assets).realEstateSummary(PORTFOLIO_ID, ASSET_ID, TODAY);
+    verify(assets).realEstateReturn(PORTFOLIO_ID, ASSET_ID, TODAY);
     verify(assets).rentalContracts(PORTFOLIO_ID, ASSET_ID, TODAY);
   }
 
@@ -87,6 +94,7 @@ class LongTermRealEstateControllerTest {
             "Riverside flat",
             CurrencyType.EUR,
             new BigDecimal("312500.00"),
+            new BigDecimal("250000.00"),
             new BigDecimal("8700.00"),
             LocalDate.of(2020, 4, 15),
             "KW1A/00012345/6",
@@ -107,6 +115,7 @@ class LongTermRealEstateControllerTest {
                 form.name(),
                 form.currency(),
                 form.value(),
+                form.acquisitionValue(),
                 form.taxBase(),
                 form.acquisitionDate(),
                 form.landRegisterNumber(),

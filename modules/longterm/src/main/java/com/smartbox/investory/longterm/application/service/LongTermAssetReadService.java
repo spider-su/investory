@@ -114,6 +114,23 @@ public class LongTermAssetReadService {
     return realEstate(estate, currency, date, contracts(List.of(estate)));
   }
 
+  public RealEstateReturnView realEstateReturn(Long portfolioId, Long id, LocalDate date) {
+    var estate =
+        realEstateRepository
+            .findByIdAndPortfolioId(id, portfolioId)
+            .orElseThrow(() -> new ResourceNotFoundException("Real estate not found"));
+    var rentalContracts =
+        contracts(List.of(estate)).getOrDefault(estate.getId(), List.of()).stream()
+            .map(this::rentalContractModel)
+            .toList();
+    return LongTermAssetEconomics.totalReturn(
+        estate.getAcquisitionValue(),
+        estate.getValue(),
+        estate.getTaxBase(),
+        rentalContracts,
+        date);
+  }
+
   public LongTermAssetProfileSnapshotModel snapshot(Long portfolioId, LocalDate date) {
     CurrencyType currency = localCurrency(portfolioId);
     var data = load(portfolioId, false, date);
@@ -211,6 +228,26 @@ public class LongTermAssetReadService {
         .findAllWithTermsByAssetIdIn(estates.stream().map(RealEstateEntity::getId).toList())
         .stream()
         .collect(Collectors.groupingBy(LongTermAssetRentalContractEntity::getAssetId));
+  }
+
+  private RentalContractModel rentalContractModel(LongTermAssetRentalContractEntity contract) {
+    return new RentalContractModel(
+        contract.getId(),
+        contract.getStartDate(),
+        contract.getEndDate(),
+        contract.getTerminatedDate(),
+        contract.getTenantName(),
+        contract.getTenantEmail(),
+        contract.getTenantPhone(),
+        contract.getTerms().stream()
+            .map(
+                term ->
+                    new RentalContractModel.Term(
+                        term.getType(),
+                        term.getAmount(),
+                        term.getFrequency(),
+                        term.isPaidByTenant()))
+            .toList());
   }
 
   private List<AssetSummaryView> summaries(
