@@ -47,7 +47,10 @@ class HappyInvestorFactsTest {
     assertThat(apartmentBTax).isEqualByComparingTo("255");
     assertThat(boundaryTax)
         .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_TAX_ANNUAL);
-    assertThat(boundaryAnnualized.subtract(boundaryTax))
+    assertThat(
+            boundaryAnnualized
+                .subtract(boundaryTax)
+                .subtract(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_PROPERTY_COSTS_ANNUAL))
         .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_NET_ANNUAL);
   }
 

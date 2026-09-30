@@ -23,7 +23,7 @@ public final class HappyInvestorProfileFacts {
   public static final BigDecimal ILLIQUID_ASSETS = new BigDecimal("945000");
 
   /** Planning-source income at the fixed 2025-12-31 read-model boundary. */
-  public static final BigDecimal CURRENT_RENTAL_INCOME = new BigDecimal("73873.00");
+  public static final BigDecimal CURRENT_RENTAL_INCOME = new BigDecimal("67669.00");
 
   public static final BigDecimal CURRENT_BOND_INCOME = new BigDecimal("374.625");
   public static final BigDecimal INVESTMENT_CAPITAL = HappyInvestorBrokerFacts.OPEN_POSITIONS_VALUE;

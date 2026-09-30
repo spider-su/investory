@@ -103,7 +103,11 @@ INSERT INTO rental_contract_term (rental_contract_id, cash_flow_type, amount, fr
 VALUES
     (9501, 'RENT', 3200, 'MONTHLY', false),
     (9502, 'RENT', 2800, 'MONTHLY', false),
-    (9503, 'RENT', 3000, 'MONTHLY', false)
+    (9503, 'RENT', 3000, 'MONTHLY', false),
+    (9501, 'PROPERTY_TAX', 1602, 'ANNUAL', false),
+    (9501, 'INSURANCE', 1602, 'ANNUAL', false),
+    (9503, 'PROPERTY_TAX', 1500, 'ANNUAL', false),
+    (9503, 'INSURANCE', 1500, 'ANNUAL', false)
 ON CONFLICT (rental_contract_id, cash_flow_type) DO UPDATE SET amount = EXCLUDED.amount,
     frequency = EXCLUDED.frequency, paid_by_tenant = EXCLUDED.paid_by_tenant;
 
