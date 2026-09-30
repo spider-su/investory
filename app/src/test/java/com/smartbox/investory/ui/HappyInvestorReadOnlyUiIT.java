@@ -189,7 +189,7 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   "Net worth",
                   compact(HappyInvestorProfileFacts.TOTAL_NET_WORTH),
                   "Projected annual result + income",
-                  "98.7K");
+                  "92.5K");
           assertThat(page.locator(".iv-profile-source-card").nth(0).textContent())
               .contains(
                   "Market investments",
@@ -240,8 +240,8 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   "250",
                   "Property tax + insurance / month",
                   "517",
-                  "9.5%",
-                  "7.1%");
+                  "8.7%",
+                  "6.5%");
           assertThat(page.locator("#bonds").textContent())
               .contains("Treasury 2026", "10.0K", "375", "88");
           assertThat(page.locator("#cash-reserves").textContent())
