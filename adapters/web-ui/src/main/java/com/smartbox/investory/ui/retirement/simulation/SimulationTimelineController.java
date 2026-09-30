@@ -72,10 +72,7 @@ public class SimulationTimelineController {
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
-  @PostMapping({
-    "/portfolios/{portfolioId}/simulation/timeline/past/{year}/refresh-derived",
-    "/portfolios/{portfolioId}/simulation/timeline/past/{year}/refresh-accounting"
-  })
+  @PostMapping("/portfolios/{portfolioId}/simulation/timeline/past/{year}/refresh-derived")
   public String refreshPastDerivedValues(
       @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable int year,

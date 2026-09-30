@@ -25,6 +25,8 @@ class RealEstateRentalContractTemplateContractTest {
     assertThat(html + script)
         .contains(
             "iv-property-hero__metrics",
+            "Total return",
+            "totalReturn.totalReturn",
             "Monthly net income",
             "Net income yield",
             "summary.annualEconomics.grossYield",
@@ -59,6 +61,8 @@ class RealEstateRentalContractTemplateContractTest {
         .contains(
             "name=\"acquisitionDate\"",
             "th:value=\"${asset.acquisitionDate}\"",
+            "name=\"acquisitionValue\"",
+            "th:value=\"${asset.acquisitionValue == null ? '' : T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.acquisitionValue)}\"",
             "name=\"landRegisterNumber\"",
             "th:value=\"${asset.landRegisterNumber}\"",
             "name=\"notes\"",

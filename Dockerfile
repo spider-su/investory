@@ -13,7 +13,6 @@ COPY modules/investment/pom.xml modules/investment/pom.xml
 COPY modules/longterm/pom.xml modules/longterm/pom.xml
 COPY modules/profile/pom.xml modules/profile/pom.xml
 COPY modules/retirement/pom.xml modules/retirement/pom.xml
-COPY modules/ryczalt/pom.xml modules/ryczalt/pom.xml
 COPY integrations/pom.xml integrations/pom.xml
 COPY test-support/pom.xml test-support/pom.xml
 COPY adapters/web-ui/pom.xml adapters/web-ui/pom.xml
@@ -26,7 +25,6 @@ COPY modules/investment modules/investment
 COPY modules/longterm modules/longterm
 COPY modules/profile modules/profile
 COPY modules/retirement modules/retirement
-COPY modules/ryczalt modules/ryczalt
 COPY integrations integrations
 COPY test-support test-support
 COPY adapters adapters

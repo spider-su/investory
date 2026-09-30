@@ -34,6 +34,9 @@ public class RealEstateEntity {
   @Column(nullable = false, precision = 30, scale = 12)
   private BigDecimal value;
 
+  @Column(name = "acquisition_value", precision = 30, scale = 12)
+  private BigDecimal acquisitionValue;
+
   @Column(name = "tax_base", precision = 30, scale = 12)
   private BigDecimal taxBase;
 

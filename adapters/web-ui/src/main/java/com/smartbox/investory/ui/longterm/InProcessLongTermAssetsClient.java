@@ -60,6 +60,11 @@ public class InProcessLongTermAssetsClient implements LongTermAssetsClient {
   }
 
   @Override
+  public RealEstateReturnView realEstateReturn(Long portfolioId, Long id, LocalDate date) {
+    return rest.realEstateReturn(portfolioId, id, date);
+  }
+
+  @Override
   public CashReserveView createCashReserve(CashReserveCommand command) {
     return rest.createCashReserve(command.portfolioId(), command);
   }

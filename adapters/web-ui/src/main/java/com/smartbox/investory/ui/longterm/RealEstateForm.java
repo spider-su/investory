@@ -10,7 +10,20 @@ public record RealEstateForm(
     String name,
     CurrencyType currency,
     BigDecimal value,
+    BigDecimal acquisitionValue,
     BigDecimal taxBase,
     LocalDate acquisitionDate,
     String landRegisterNumber,
-    String notes) {}
+    String notes) {
+  public RealEstateForm(
+      Long id,
+      String name,
+      CurrencyType currency,
+      BigDecimal value,
+      BigDecimal taxBase,
+      LocalDate acquisitionDate,
+      String landRegisterNumber,
+      String notes) {
+    this(id, name, currency, value, null, taxBase, acquisitionDate, landRegisterNumber, notes);
+  }
+}

@@ -53,6 +53,41 @@ class LongTermAssetEconomicsTest {
     assertThat(zeroValue.netYieldAfterTax()).isZero();
   }
 
+  @Test
+  void totalReturnUsesAcquisitionValueAndContractDerivedRentalProfit() {
+    var result =
+        LongTermAssetEconomics.totalReturn(
+            new BigDecimal("100000"),
+            new BigDecimal("110000"),
+            new BigDecimal("12000"),
+            List.of(
+                new RentalContractModel(
+                    1L,
+                    LocalDate.of(2025, 1, 1),
+                    LocalDate.of(2025, 12, 31),
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of(
+                        term(CashFlowType.RENT, "1000", Frequency.MONTHLY, false),
+                        term(CashFlowType.ADMIN_FEE, "200", Frequency.MONTHLY, false)))),
+            LocalDate.of(2025, 12, 31));
+
+    assertThat(result.rentalProfit()).isEqualByComparingTo("8580.000000000000");
+    assertThat(result.totalReturn()).isEqualByComparingTo("0.185800000000");
+  }
+
+  @Test
+  void totalReturnIsUnavailableWithoutAcquisitionValue() {
+    var result =
+        LongTermAssetEconomics.totalReturn(
+            null, new BigDecimal("110000"), BigDecimal.ZERO, List.of(), LocalDate.of(2025, 1, 1));
+
+    assertThat(result.available()).isFalse();
+    assertThat(result.rentalProfit()).isZero();
+  }
+
   @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.MethodSource("interestCases")
   void interestStopsAtMaturityButValueRemainsAvailable(

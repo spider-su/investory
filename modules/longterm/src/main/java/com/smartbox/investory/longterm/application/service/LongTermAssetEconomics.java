@@ -3,6 +3,7 @@ package com.smartbox.investory.longterm.application.service;
 import com.smartbox.investory.longterm.api.model.AnnualEconomicsView;
 import com.smartbox.investory.longterm.api.model.CashFlowType;
 import com.smartbox.investory.longterm.api.model.Frequency;
+import com.smartbox.investory.longterm.api.model.RealEstateReturnView;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
@@ -146,6 +147,55 @@ final class LongTermAssetEconomics {
       return BigDecimal.ZERO;
     }
     return monthlyAmount(amount, frequency);
+  }
+
+  static RealEstateReturnView totalReturn(
+      BigDecimal acquisitionValue,
+      BigDecimal currentValue,
+      BigDecimal annualTaxBase,
+      List<RentalContractModel> contracts,
+      LocalDate date) {
+    BigDecimal rentalProfit = BigDecimal.ZERO;
+    for (var contract : contracts) {
+      if (contract.startDate() == null || date == null || contract.startDate().isAfter(date))
+        continue;
+      LocalDate end = effectiveEnd(contract);
+      LocalDate through = end == null || end.isAfter(date) ? date : end;
+      if (through.isBefore(contract.startDate())) continue;
+      for (var term : contract.terms()) {
+        BigDecimal accrued =
+            accruedAmount(term.amount(), term.frequency(), contract.startDate(), through);
+        if (isRentalIncome(term.type())) rentalProfit = rentalProfit.add(accrued);
+        if (isRentalExpense(term.type()) && !term.paidByTenant())
+          rentalProfit = rentalProfit.subtract(accrued);
+      }
+      rentalProfit =
+          rentalProfit.subtract(
+              accruedAmount(
+                      annualTaxBase == null ? BigDecimal.ZERO : annualTaxBase,
+                      Frequency.ANNUAL,
+                      contract.startDate(),
+                      through)
+                  .multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE));
+    }
+    if (acquisitionValue == null || acquisitionValue.signum() <= 0) {
+      return new RealEstateReturnView(acquisitionValue, rentalProfit, null);
+    }
+    return new RealEstateReturnView(
+        acquisitionValue,
+        rentalProfit,
+        currentValue
+            .add(rentalProfit)
+            .subtract(acquisitionValue)
+            .divide(acquisitionValue, 12, RoundingMode.HALF_UP));
+  }
+
+  private static LocalDate effectiveEnd(RentalContractModel contract) {
+    if (contract.endDate() == null) return contract.terminatedDate();
+    if (contract.terminatedDate() == null) return contract.endDate();
+    return contract.endDate().isBefore(contract.terminatedDate())
+        ? contract.endDate()
+        : contract.terminatedDate();
   }
 
   private static BigDecimal monthlyAmount(BigDecimal amount, Frequency frequency) {

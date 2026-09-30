@@ -182,22 +182,3 @@ app:
       # Leave empty (or omit) to export ALL accounts.
       # Example: accounts: 90000002,U90000001
       accounts: ${YAHOO_EXPORT_ACCOUNTS:}
-  ksef:
-    environment: ${INVESTORY_KSEF_ENVIRONMENT:TEST}
-    nip: ${INVESTORY_KSEF_NIP:}
-    token: ${INVESTORY_KSEF_TOKEN:change-me-ksef-token}
-  ryczalt:
-    company-lookup:
-      gus:
-        base-url: ${GUS_BIR_URL:https://wyszukiwarkaregont.stat.gov.pl/wsBIR/UslugaBIRzewnPubl.svc}
-        api-key: ${GUS_BIR_API_KEY:}
-      vat-white-list:
-        base-url: ${VAT_WHITE_LIST_URL:https://wl-api.mf.gov.pl}
-    ksef:
-      sync:
-        enabled: ${RYCZALT_KSEF_SYNC_ENABLED:false}
-        cron: ${RYCZALT_KSEF_SYNC_CRON:0 0 2 * * *}
-        zone: ${RYCZALT_KSEF_SYNC_ZONE:Europe/Warsaw}
-    payment:
-      # Treat small bank/reference rounding differences as settled.
-      tolerance-pln: ${RYCZALT_PAYMENT_TOLERANCE_PLN:5.00}

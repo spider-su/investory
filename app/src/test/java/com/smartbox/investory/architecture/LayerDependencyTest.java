@@ -61,8 +61,7 @@ class LayerDependencyTest {
     ROOT + ".investment.ledger..persistence..",
     ROOT + ".investment.valuation..persistence..",
     ROOT + ".investment.infrastructure.persistence..",
-    ROOT + ".retirement.rest..",
-    ROOT + ".ryczalt.persistence.."
+    ROOT + ".retirement.rest.."
   };
 
   private static final JavaClasses MAIN =
@@ -233,8 +232,6 @@ class LayerDependencyTest {
             RETIREMENT_API,
             ROOT + ".retirement.api.contract..",
             ROOT + ".integrations.management.api..",
-            ROOT + ".accounting.api..",
-            ROOT + ".ryczalt..",
             "java..",
             "javax..",
             "jakarta..",

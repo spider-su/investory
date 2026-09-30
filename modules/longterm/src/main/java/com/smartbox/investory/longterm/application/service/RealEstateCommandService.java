@@ -55,6 +55,8 @@ public class RealEstateCommandService {
       throw new IllegalArgumentException("Real-estate facts are incomplete");
     if (command.taxBase() != null && command.taxBase().signum() < 0)
       throw new IllegalArgumentException("Real-estate tax base cannot be negative");
+    if (command.acquisitionValue() != null && command.acquisitionValue().signum() <= 0)
+      throw new IllegalArgumentException("Real-estate acquisition value must be positive");
     if (command.landRegisterNumber() != null && command.landRegisterNumber().length() > 128)
       throw new IllegalArgumentException("Land register number is too long");
     if (portfolios.findById(command.portfolioId()).isEmpty())
@@ -74,6 +76,7 @@ public class RealEstateCommandService {
     estate.setName(command.name());
     estate.setCurrency(command.currency());
     estate.setValue(command.value());
+    estate.setAcquisitionValue(command.acquisitionValue());
     estate.setTaxBase(command.taxBase());
     estate.setAcquisitionDate(command.acquisitionDate());
     estate.setLandRegisterNumber(command.landRegisterNumber());
@@ -96,6 +99,7 @@ public class RealEstateCommandService {
         estate.getCurrency(),
         estate.getAcquisitionDate(),
         estate.getValue(),
+        estate.getAcquisitionValue(),
         estate.getTaxBase(),
         estate.getLandRegisterNumber(),
         estate.getArchivedAt() == null,

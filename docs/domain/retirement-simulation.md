@@ -509,3 +509,90 @@ whether Equity principal may be used for spending.
 
 Current/live source changes affect CURRENT immediately. Future changes only after an explicit
 review/rebaseline updates the saved plan baseline.
+
+## Recommended direction: policy-driven retirement simulation
+
+The Investment Policy Statement should become a named, explainable funding policy applied by the
+canonical yearly simulation. Keep Simulation deterministic: each year receives an explicit starting
+portfolio state, spending need, realized or scenario return, inflation observation, allocation target,
+and policy state. It returns both bucket balances and a decision trace. Analysis may evaluate
+alternative return paths, but must call this same yearly engine rather than implement another funding
+order.
+
+The policy should default to the following behavior:
+
+1. Add reliable recurring income to available spending cash. Measure planned spending after that
+   income when calculating the bond reserve need. Keep irregular income and investment returns out of
+   reliable recurring income.
+2. Maintain a bond reserve target of 15 years of net planned spending. Show both the target amount
+   and actual coverage in years. Use Bonds for spending when the ETF withdrawal gate is closed; when
+   Bonds cannot cover the gap, continue through the configured emergency funding order and report the
+   reserve breach and any unfunded amount.
+3. Permit an Equity withdrawal for spending only when all three gates pass: the defined annual ETF
+   return exceeds 7%, the flow-adjusted portfolio is above its prior high-water mark, and Equity
+   allocation is above its target. Record each gate result and the amount withdrawn. Do not count
+   internal rebalancing transfers as spending withdrawals.
+4. Rebalance only when allocation is outside the target band. The default band is target allocation
+   plus or minus 5 percentage points. Model rebalancing as a transfer between Bonds and Equities,
+   separate from cash-flow funding.
+5. Grow spending by the rolling three-year average of observed inflation. When the portfolio is more
+   than 15% below its prior high-water mark, omit that year's inflation increase and expose the freeze
+   in the decision trace. A single annual inflation observation must not replace the rolling average.
+6. Treat a 20% or greater Equity decline from its prior high-water mark as a crash state: suspend
+   Equity spending withdrawals and use Bonds. Keep the suspension active until the chosen recovery
+   condition is reached; define that condition as part of policy configuration rather than assuming it.
+
+The yearly decision trace should contain the inputs that explain its actions: flow-adjusted portfolio
+peak and drawdown, annual Equity return, current and target allocation, reserve target and coverage,
+inflation average, crash state, spending-withdrawal gates, rebalance decision, funding sources, and
+ending bucket values. This makes timeline review auditable and lets the UI explain why spending came
+from Bonds or Equities.
+
+### Separate policy inputs from investment facts
+
+The policy owns target allocation, rebalancing band, reserve years, spending rules, return gate,
+crash threshold, and recovery rule. Investment and Long-Term continue to own observed balances,
+returns, bond cash flows, maturities, taxes, and factual inflation/yield inputs where available. Save
+policy inputs with the plan baseline. Do not have the engine query mutable source services during a
+projection.
+
+Add IKE contributions as explicit annual planning events with a contribution limit supplied for the
+relevant year. Track the contribution separately from spending and investment return. Funding source
+(realized gains or bond cash) should be recorded as an internal transfer/contribution decision; do not
+assume an annual limit or tax treatment that is not in the reviewed inputs.
+
+Bond-yield bands and active-portfolio-versus-benchmark review should initially produce annual review
+indicators, not automatic allocation or sale actions. Their thresholds need a specified source,
+measurement period, and treatment of taxes and fees before they can safely alter the projected path.
+
+### Implementation sequence
+
+1. Specify units and edge cases for return, high-water mark, drawdown, allocation, crash recovery,
+   reserve basis, and inflation history. In particular, use a flow-adjusted high-water mark so
+   contributions and withdrawals do not look like market performance.
+2. Extend the immutable yearly input/result contracts with explicit policy state and decision trace;
+   keep the current deterministic engine as the only owner of yearly bucket transitions.
+3. Implement and validate bond-first spending, the three-part ETF gate, the 15-year reserve, and
+   allocation-band rebalancing with controlled annual examples.
+4. Add rolling inflation and drawdown spending freeze, then crash suspension and its recovery
+   condition. Ensure state carries forward year to year and resets only under a documented rule.
+5. Add IKE contribution events and annual yield/benchmark review indicators after their year-specific
+   factual inputs and display semantics are settled.
+6. Add historical stress paths or Monte Carlo as Analysis inputs to the same deterministic engine.
+   Keep the base projection explainable and show sequence risk as a range of outcomes, not as a
+   replacement for the saved plan.
+
+### Decisions required before implementation
+
+- Whether the 7% return gate is nominal or real, before or after tax, and calendar-year or trailing
+  return.
+- Whether the high-water mark and crash drawdown are measured on total portfolio value or Equities,
+  nominal or inflation-adjusted, with external flows removed.
+- Whether “above target” means above target weight or above the upper rebalance band.
+- Whether the 15-year reserve covers gross spending or net spending after reliable income. The
+  recommendation above uses net spending.
+- Whether crash suspension ends at a new high-water mark or at a defined drawdown recovery threshold.
+- How to fund required spending when the bond reserve is depleted and the ETF gate remains closed.
+- The IKE annual limit and eligible funding/tax treatment for each calendar year.
+- The factual source and observation period for inflation and bond yields, and the benchmark series,
+  fees, and tax basis used for active-investment review.
