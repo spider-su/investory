@@ -625,7 +625,8 @@ public class PlanningTimelineFacade {
         annualizedSpending,
         bridge == null ? null : bridge.projectedBondReturn(),
         bridge == null ? null : bridge.projectedEquityReturn(),
-        bridge == null ? null : bridge.start(EconomicBucket.EQUITY));
+        bridge == null ? null : bridge.start(EconomicBucket.EQUITY),
+        bridge == null ? null : bridge.contributionApplied());
   }
 
   private static BigDecimal eventAmount(
