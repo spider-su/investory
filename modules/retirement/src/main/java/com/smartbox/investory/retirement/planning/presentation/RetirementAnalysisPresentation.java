@@ -294,6 +294,7 @@ final class RetirementAnalysisPresentation {
         assessment.firstFailureYear() == null ? "—" : assessment.firstFailureYear().toString(),
         PlanningPresentation.compactMoney(
                 toDisplay(assessment.minimumSpendableAssets(), source, display))
+
             + " "
             + display);
   }
