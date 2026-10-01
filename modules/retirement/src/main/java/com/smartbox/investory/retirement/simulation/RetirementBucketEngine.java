@@ -48,6 +48,31 @@ public final class RetirementBucketEngine {
       BigDecimal bondReturnRate,
       BigDecimal equityReturnRate,
       BigDecimal safeReserveTargetAmount) {
+    return simulate(
+        start,
+        annualCosts,
+        cashIncome,
+        policy,
+        bondReturnRate,
+        equityReturnRate,
+        safeReserveTargetAmount,
+        ZERO,
+        new BigDecimal("0.70"),
+        new BigDecimal("0.30"));
+  }
+
+  /** A one-time real-estate sale can fund the remaining gap and reinvest its surplus. */
+  public Result simulate(
+      PlanningBuckets start,
+      BigDecimal annualCosts,
+      BigDecimal cashIncome,
+      RetirementFundingPolicy policy,
+      BigDecimal bondReturnRate,
+      BigDecimal equityReturnRate,
+      BigDecimal safeReserveTargetAmount,
+      BigDecimal realEstateSaleFraction,
+      BigDecimal bondReinvestmentShare,
+      BigDecimal equityReinvestmentShare) {
     annualCosts = nz(annualCosts);
     cashIncome = nz(cashIncome);
     policy = policy == null ? RetirementFundingPolicy.defaults() : policy;
@@ -76,9 +101,22 @@ public final class RetirementBucketEngine {
     BigDecimal bondEmergencyWithdrawal = gap.min(bonds);
     bonds = bonds.subtract(bondEmergencyWithdrawal);
     gap = gap.subtract(bondEmergencyWithdrawal);
-    BigDecimal realEstateWithdrawal = gap.min(realEstate);
-    realEstate = realEstate.subtract(realEstateWithdrawal);
-    gap = gap.subtract(realEstateWithdrawal);
+    BigDecimal realEstateWithdrawal = ZERO;
+    BigDecimal realEstateSaleTransfer = ZERO;
+    BigDecimal saleProceeds = ZERO;
+    if (gap.signum() > 0 && nz(realEstateSaleFraction).signum() > 0) {
+      saleProceeds = realEstate.multiply(realEstateSaleFraction.min(BigDecimal.ONE));
+      realEstate = realEstate.subtract(saleProceeds);
+      realEstateWithdrawal = gap.min(saleProceeds);
+      gap = gap.subtract(realEstateWithdrawal);
+      realEstateSaleTransfer = saleProceeds.subtract(realEstateWithdrawal);
+      bonds = bonds.add(realEstateSaleTransfer.multiply(nz(bondReinvestmentShare)));
+      equities = equities.add(realEstateSaleTransfer.multiply(nz(equityReinvestmentShare)));
+    } else {
+      realEstateWithdrawal = gap.min(realEstate);
+      realEstate = realEstate.subtract(realEstateWithdrawal);
+      gap = gap.subtract(realEstateWithdrawal);
+    }
     BigDecimal harvest = ZERO;
     if (equityReturn.signum() > 0
         && nz(equityReturnRate).compareTo(policy.equityHarvestThresholdRate()) >= 0) {
@@ -104,7 +142,7 @@ public final class RetirementBucketEngine {
             EconomicBucket.FIXED_INCOME,
             bondsStart,
             bondReturn,
-            harvest,
+            harvest.add(realEstateSaleTransfer.multiply(nz(bondReinvestmentShare))),
             bondNormalWithdrawal.add(bondEmergencyWithdrawal),
             bonds.max(ZERO)));
     rows.put(
@@ -113,7 +151,7 @@ public final class RetirementBucketEngine {
             EconomicBucket.EQUITY,
             equitiesStart,
             equityReturn,
-            harvest.negate(),
+            harvest.negate().add(realEstateSaleTransfer.multiply(nz(equityReinvestmentShare))),
             equityWithdrawal,
             equities.max(ZERO)));
     rows.put(
@@ -122,7 +160,7 @@ public final class RetirementBucketEngine {
             EconomicBucket.REAL_ESTATE,
             realEstateStart,
             realEstateReturn,
-            ZERO,
+            realEstateSaleTransfer.negate(),
             realEstateWithdrawal,
             realEstate.max(ZERO)));
     return new Result(
@@ -132,7 +170,8 @@ public final class RetirementBucketEngine {
         harvest,
         safeReserveTargetAmount,
         bondNormalWithdrawal,
-        bondEmergencyWithdrawal);
+        bondEmergencyWithdrawal,
+        saleProceeds);
   }
 
   public record Result(
@@ -142,7 +181,8 @@ public final class RetirementBucketEngine {
       BigDecimal equityHarvestToBonds,
       BigDecimal safeReserveTargetAmount,
       BigDecimal normalBondWithdrawal,
-      BigDecimal emergencyBondWithdrawal) {
+      BigDecimal emergencyBondWithdrawal,
+      BigDecimal realEstateSaleProceeds) {
     public Result {
       buckets = Map.copyOf(buckets);
       unfunded = nz(unfunded);
@@ -151,6 +191,7 @@ public final class RetirementBucketEngine {
       safeReserveTargetAmount = nz(safeReserveTargetAmount).max(ZERO);
       normalBondWithdrawal = nz(normalBondWithdrawal);
       emergencyBondWithdrawal = nz(emergencyBondWithdrawal);
+      realEstateSaleProceeds = nz(realEstateSaleProceeds);
     }
   }
 

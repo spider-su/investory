@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class RetirementSimulationService implements RetirementSimulation {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
+  private static final BigDecimal ONE_APARTMENT_SHARE = new BigDecimal("0.20");
+  private static final BigDecimal SALE_BOND_SHARE = new BigDecimal("0.70");
+  private static final BigDecimal SALE_EQUITY_SHARE = new BigDecimal("0.30");
   private final FrozenBondCashFlowProjection bondCashFlows;
 
   public RetirementSimulationService() {
@@ -88,6 +91,7 @@ public class RetirementSimulationService implements RetirementSimulation {
     Map<Integer, BigDecimal> eventExpenseByYear =
         eventTotals(assumptions, SimulationEventType.ONE_OFF_EXPENSE);
     PlanningBuckets current = buckets;
+    boolean apartmentSold = false;
     for (int age = assumptions.currentAge(); age <= assumptions.endAge(); age++) {
       int year = assumptions.startYear() + age - assumptions.currentAge();
       BigDecimal recurringFraction =
@@ -117,6 +121,7 @@ public class RetirementSimulationService implements RetirementSimulation {
       BigDecimal annualBondReturn = effective.capitalBondReturnRate().multiply(recurringFraction);
       BigDecimal annualEquityReturn = effective.equityReturnRate().multiply(recurringFraction);
       PlanningBuckets annualBuckets = annualBuckets(current, annualBondReturn, annualEquityReturn);
+      boolean sellApartment = scenario == SimulationScenario.CONSERVATIVE && !apartmentSold;
       var result =
           engine.simulate(
               annualBuckets,
@@ -125,7 +130,11 @@ public class RetirementSimulationService implements RetirementSimulation {
               assumptions.fundingPolicy(),
               annualBondReturn,
               annualEquityReturn,
-              safeReserveTargetAmount(assumptions.fundingPolicy(), costs, reliableRecurringIncome));
+              safeReserveTargetAmount(assumptions.fundingPolicy(), costs, reliableRecurringIncome),
+              sellApartment ? ONE_APARTMENT_SHARE : ZERO,
+              SALE_BOND_SHARE,
+              SALE_EQUITY_SHARE);
+      apartmentSold = apartmentSold || result.realEstateSaleProceeds().signum() > 0;
       BigDecimal safeReserveTarget = result.safeReserveTargetAmount();
       var c = result.buckets().get(EconomicBucket.LIQUID_CASH);
       var b = result.buckets().get(EconomicBucket.FIXED_INCOME);
@@ -165,6 +174,8 @@ public class RetirementSimulationService implements RetirementSimulation {
       BigDecimal nextEquities = e.expectedEndValue();
       current = nextBuckets(current, c, b, nextEquities, re, rental);
       rental = rental.multiply(BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()));
+      if (result.realEstateSaleProceeds().signum() > 0)
+        rental = rental.multiply(new BigDecimal("0.80"));
       if (retired) spending = spending.multiply(BigDecimal.ONE.add(effective.spendingGrowthRate()));
       if (firstYearOnly) break;
     }

@@ -68,7 +68,7 @@ public record SimulationScenarioComparison(
       return "Plan remains sustainable in all scenarios. "
           + label(limiting)
           + " is the limiting scenario; minimum liquid assets are "
-          + PlanningPresentation.wholeNumber(worst.minimumLiquidAssets())
+          + PlanningPresentation.compactMoney(worst.minimumLiquidAssets())
           + ".";
     }
     long failed = summaries.values().stream().filter(SimulationDecisionSummary::failed).count();
