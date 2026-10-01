@@ -78,7 +78,7 @@ class PlanningCurrencyPresentationServiceTest {
                 SustainableSpendingResultState.BOUNDARY_FOUND));
     SustainableSpendingAnalysisMoney extra =
         service.displaySustainableSpending(positive, CurrencyType.PLN, CurrencyType.PLN);
-    assertEquals("+5,000", extra.conservativeHeadroom());
+    assertEquals("+5.00K", extra.conservativeHeadroom());
     assertFalse(extra.conservativeHeadroom().contains("-"));
 
     SustainableSpendingAnalysis negative =
@@ -98,7 +98,7 @@ class PlanningCurrencyPresentationServiceTest {
                 SustainableSpendingResultState.BOUNDARY_FOUND));
     SustainableSpendingAnalysisMoney overLimit =
         service.displaySustainableSpending(negative, CurrencyType.PLN, CurrencyType.PLN);
-    assertEquals("5,000", overLimit.conservativeHeadroom());
+    assertEquals("5.00K", overLimit.conservativeHeadroom());
     assertFalse(overLimit.conservativeHeadroom().contains("-"));
   }
 
