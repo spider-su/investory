@@ -11,8 +11,8 @@ import com.smartbox.investory.retirement.api.model.PlanningMetricValue;
 import com.smartbox.investory.retirement.planning.application.PlanningMetricDerivationService;
 import com.smartbox.investory.retirement.planning.input.HistoricalLongTermAssetYearSource;
 import com.smartbox.investory.retirement.planning.presentation.PlanningMoneyConversionService;
-import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.portfolio.PortfolioContext;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
@@ -35,8 +35,7 @@ class PlanningMetricDerivationServiceTest {
           historicalLongTermAssets,
           portfolioContexts,
           new PlanningMoneyConversionService(
-              rates,
-              Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)));
+              rates, Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)));
 
   PlanningMetricDerivationServiceTest() {
     when(portfolioContexts.findById(7L))
@@ -124,8 +123,7 @@ class PlanningMetricDerivationServiceTest {
             historicalPortfolio,
             null,
             portfolioContexts,
-            new PlanningMoneyConversionService(
-                rates, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC)));
+            new PlanningMoneyConversionService(rates, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC)));
 
     assertThat(withoutLongTerm.historicalLongTermAssets(7L, 2025)).isEmpty();
   }

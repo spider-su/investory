@@ -188,7 +188,7 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
               .contains(
                   "Net worth",
                   compact(HappyInvestorProfileFacts.TOTAL_NET_WORTH),
-                  "Projected annual result + income",
+                  "Annual Income / year planned · 2026",
                   "86.7K");
           assertThat(page.locator(".iv-profile-source-card").nth(0).textContent())
               .contains(
