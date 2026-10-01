@@ -396,7 +396,8 @@ class XtbImportHistoryServiceTest {
   void reconstructOpenPositionsRejectsUnparsedTradeBeforePersistence() {
     Long account = 90000011L;
     CashOperationEntity malformedTrade =
-        cashOperation(1L, account, CashOperationType.STOCK_PURCHASE, "TSLA.US", "OPEN BUY invalid");
+        cashOperation(
+            1L, account, CashOperationType.STOCK_PURCHASE, "TSLA.US", "OPEN BUY invalid");
     org.mockito.Mockito.when(cashOperationRepository.findAllByAccount(account))
         .thenReturn(List.of());
 
