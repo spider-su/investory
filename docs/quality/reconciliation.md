@@ -166,9 +166,11 @@ For source-row provenance, an observation is accounted for when it directly link
 cash operation or position, or when the same provider-scoped `logical_row_sha256` is linked by an
 equivalent observation from another overlapping file. This hash includes the source section, sheet,
 broker record ID, occurrence, and normalized row content while excluding file and import identity.
-Rows with no directly or equivalently linked canonical fact remain C0 failures. A repeated broker
-record ID alone is not enough to suppress an orphan because broker IDs can repeat across scopes or
-refer to changed row content.
+For XTB cash operations, a changed row-content hash can still resolve to a canonical cash operation
+when the provider, account scope, cash-operation sheet, broker operation ID, and occurrence match.
+The canonical operation ID must also equal the broker operation ID. A broker ID by itself is not
+enough because IDs can repeat across accounts. Rows with no directly or equivalently linked
+canonical fact remain C0 failures.
 C1 reconstructs cash-flow differences from `account_daily` and `normalized_cash_operation_flows`, using
 account-level flow amounts so internal transfer legs are included, and
 uses `reconciliation_values_match` at full precision. Rounded reporting columns are evidence for

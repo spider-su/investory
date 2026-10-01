@@ -56,14 +56,69 @@ class FlywayMigrationChainIT {
             "INSERT INTO investory.accounts(external_account_id,currency,provider,name,owner,portfolio_id) "
                 + "SELECT 'c0-overlap-test','USD','XTB','C0 overlap test','test',id "
                 + "FROM investory.portfolios WHERE name='C0 overlap test'");
+        statement.execute(
+            "INSERT INTO investory.accounts(external_account_id,currency,provider,name,owner,portfolio_id) "
+                + "SELECT 'c0-overlap-other','USD','XTB','C0 other account','test',id "
+                + "FROM investory.portfolios WHERE name='C0 overlap test'");
 
         long firstImport = insertCompletedImport(statement, "a1".repeat(32), "overlap-first.zip");
         long secondImport = insertCompletedImport(statement, "a2".repeat(32), "overlap-second.zip");
         long firstFile = insertEvidenceFile(statement, firstImport, "a1".repeat(32), "first.xlsx");
-        long secondFile = insertEvidenceFile(statement, secondImport, "a2".repeat(32), "second.xlsx");
-        long linkedRow = insertEvidenceRow(statement, firstImport, firstFile, "member-a", "same-event");
-        long overlapRow = insertEvidenceRow(statement, secondImport, secondFile, "member-b", "same-event");
-        insertEvidenceRow(statement, secondImport, secondFile, "member-b", "unmapped-event");
+        long secondFile =
+            insertEvidenceFile(statement, secondImport, "a2".repeat(32), "second.xlsx");
+        long linkedRow =
+            insertEvidenceRow(
+                statement,
+                firstImport,
+                firstFile,
+                "c0-overlap-test/USD_first.xlsx",
+                "hash-event",
+                "d".repeat(64),
+                "{}");
+        long overlapRow =
+            insertEvidenceRow(
+                statement,
+                secondImport,
+                secondFile,
+                "c0-overlap-test/USD_second.xlsx",
+                "hash-event",
+                "d".repeat(64),
+                "{}");
+        long originalCashRow =
+            insertEvidenceRow(
+                statement,
+                firstImport,
+                firstFile,
+                "c0-overlap-test/USD_first.xlsx",
+                "88002602",
+                "f".repeat(64),
+                "{\"value\":\"old\"}");
+        long correctedCashRow =
+            insertEvidenceRow(
+                statement,
+                secondImport,
+                secondFile,
+                "c0-overlap-test/USD_second.xlsx",
+                "88002602",
+                "0".repeat(64),
+                "{\"value\":\"corrected\"}");
+        long otherAccountSameIdRow =
+            insertEvidenceRow(
+                statement,
+                secondImport,
+                secondFile,
+                "c0-overlap-other/USD_second.xlsx",
+                "88002602",
+                "1".repeat(64),
+                "{\"value\":\"other account\"}");
+        insertEvidenceRow(
+            statement,
+            secondImport,
+            secondFile,
+            "c0-overlap-test/USD_second.xlsx",
+            "unmapped-event",
+            "e".repeat(64),
+            "{}");
 
         statement.execute(
             "INSERT INTO investory.cash_operations(id,account_id,operation,amount,currency,comment,date,import_history_id,import_source_row_id) "
@@ -72,9 +127,16 @@ class FlywayMigrationChainIT {
                 + ","
                 + linkedRow
                 + " FROM investory.accounts WHERE external_account_id='c0-overlap-test'");
+        statement.execute(
+            "INSERT INTO investory.cash_operations(id,account_id,operation,amount,currency,comment,date,import_history_id,import_source_row_id) "
+                + "SELECT 88002602,id,'DIVIDEND',1,'USD','C0 corrected XTB cash row',now(),"
+                + firstImport
+                + ","
+                + originalCashRow
+                + " FROM investory.accounts WHERE external_account_id='c0-overlap-test'");
 
         assertEquals(
-            1,
+            2,
             MigrationTestDatabase.singleInt(
                 statement,
                 "SELECT count(*) FROM investory.recon_v_import_provenance_issues "
@@ -87,6 +149,22 @@ class FlywayMigrationChainIT {
                 "SELECT count(*) FROM investory.recon_v_import_provenance_issues "
                     + "WHERE issue_code='ORPHAN_SOURCE_ROW' AND financial_row_id='"
                     + overlapRow
+                    + "'"));
+        assertEquals(
+            0,
+            MigrationTestDatabase.singleInt(
+                statement,
+                "SELECT count(*) FROM investory.recon_v_import_provenance_issues "
+                    + "WHERE issue_code='ORPHAN_SOURCE_ROW' AND financial_row_id='"
+                    + correctedCashRow
+                    + "'"));
+        assertEquals(
+            1,
+            MigrationTestDatabase.singleInt(
+                statement,
+                "SELECT count(*) FROM investory.recon_v_import_provenance_issues "
+                    + "WHERE issue_code='ORPHAN_SOURCE_ROW' AND financial_row_id='"
+                    + otherAccountSameIdRow
                     + "'"));
       } finally {
         connection.rollback();
@@ -125,9 +203,14 @@ class FlywayMigrationChainIT {
   }
 
   private static long insertEvidenceRow(
-      Statement statement, long importId, long fileId, String member, String sourceRecordId)
+      Statement statement,
+      long importId,
+      long fileId,
+      String member,
+      String sourceRecordId,
+      String logicalHash,
+      String rawValues)
       throws Exception {
-    String logicalHash = sourceRecordId.equals("same-event") ? "d".repeat(64) : "e".repeat(64);
     try (ResultSet result =
         statement.executeQuery(
             "INSERT INTO investory.import_source_rows(import_history_id,source_file_id,provider,section_name,sheet_name,archive_member_name,source_row_number,source_record_id,source_row_occurrence,logical_row_sha256,raw_values) VALUES ("
@@ -140,7 +223,9 @@ class FlywayMigrationChainIT {
                 + sourceRecordId
                 + "',1,'"
                 + logicalHash
-                + "','{}'::jsonb) RETURNING id")) {
+                + "','"
+                + rawValues
+                + "'::jsonb) RETURNING id")) {
       result.next();
       return result.getLong(1);
     }
