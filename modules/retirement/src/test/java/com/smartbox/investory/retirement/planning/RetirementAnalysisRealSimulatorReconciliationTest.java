@@ -79,11 +79,11 @@ class RetirementAnalysisRealSimulatorReconciliationTest {
 
     assertThat(spendingMoney.baseLimit())
         .isEqualTo(
-            PlanningPresentation.wholeNumber(
+            PlanningPresentation.compactMoney(
                 spending.base().sustainableSpending().multiply(new BigDecimal("4"))));
     assertThat(spendingMoney.baseHeadroom())
         .contains(
-            PlanningPresentation.wholeNumber(
+            PlanningPresentation.compactMoney(
                 spending.base().headroom().multiply(new BigDecimal("4")).abs()));
     assertThat(retirementMoney.base().planned())
         .isEqualTo(
@@ -94,12 +94,11 @@ class RetirementAnalysisRealSimulatorReconciliationTest {
     assertThat(sensitivityMoney.drivers()).isNotEmpty();
     assertThat(sensitivityMoney.drivers().getFirst().base().minimumLiquidAssets())
         .isEqualTo(
-            canonical
-                    .sustainability()
-                    .minimumSpendableAssets()
-                    .multiply(new BigDecimal("4"))
-                    .stripTrailingZeros()
-                    .toPlainString()
+            PlanningPresentation.compactMoney(
+                    canonical
+                        .sustainability()
+                        .minimumSpendableAssets()
+                        .multiply(new BigDecimal("4")))
                 + " PLN");
   }
 

@@ -130,6 +130,39 @@ class RetirementBucketEngineTest {
     assertThat(r.unfunded()).isEqualByComparingTo("5");
   }
 
+  @DisplayName("sells one fifth of real estate and invests sale surplus 70/30")
+  @Test
+  void sellsOneApartmentAndInvestsSaleSurplus() {
+    var result =
+        engine.simulate(
+            buckets("0", "0", "0", "500", "0", "0"),
+            bd("50"),
+            BigDecimal.ZERO,
+            policy(),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            bd("0.20"),
+            bd("0.70"),
+            bd("0.30"));
+
+    assertThat(result.realEstateSaleProceeds()).isEqualByComparingTo("100");
+    assertThat(result.buckets().get(EconomicBucket.REAL_ESTATE).withdrawal())
+        .isEqualByComparingTo("50");
+    assertThat(result.buckets().get(EconomicBucket.REAL_ESTATE).transfer())
+        .isEqualByComparingTo("-50");
+    assertThat(result.buckets().get(EconomicBucket.REAL_ESTATE).expectedEndValue())
+        .isEqualByComparingTo("400");
+    assertThat(result.buckets().get(EconomicBucket.FIXED_INCOME).transfer())
+        .isEqualByComparingTo("35");
+    assertThat(result.buckets().get(EconomicBucket.FIXED_INCOME).expectedEndValue())
+        .isEqualByComparingTo("35");
+    assertThat(result.buckets().get(EconomicBucket.EQUITY).transfer()).isEqualByComparingTo("15");
+    assertThat(result.buckets().get(EconomicBucket.EQUITY).expectedEndValue())
+        .isEqualByComparingTo("15");
+    assertThat(result.unfunded()).isZero();
+  }
+
   @DisplayName("bond Return Carries And Equity Profit Refills Only To Target")
   @Test
   void bondReturnCarriesAndEquityProfitRefillsOnlyToTarget() {

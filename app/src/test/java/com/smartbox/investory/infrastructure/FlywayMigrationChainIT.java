@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.Statement;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -35,6 +36,113 @@ class FlywayMigrationChainIT {
               statement,
               "SELECT count(*) FROM investory.flyway_schema_history "
                   + "WHERE success AND version IS NOT NULL"));
+    }
+  }
+
+  @Test
+  void overlappingSourceObservationIsAccountedForByLinkedLogicalIdentity() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement()) {
+      connection.setAutoCommit(false);
+      try {
+        statement.execute(
+            "INSERT INTO investory.app_users(username,display_name) "
+                + "VALUES ('c0-overlap-test','C0 overlap test')");
+        statement.execute(
+            "INSERT INTO investory.portfolios(name,base_currency,user_id) "
+                + "SELECT 'C0 overlap test','USD',id FROM investory.app_users "
+                + "WHERE username='c0-overlap-test'");
+        statement.execute(
+            "INSERT INTO investory.accounts(external_account_id,currency,provider,name,owner,portfolio_id) "
+                + "SELECT 'c0-overlap-test','USD','XTB','C0 overlap test','test',id "
+                + "FROM investory.portfolios WHERE name='C0 overlap test'");
+
+        long firstImport = insertCompletedImport(statement, "a1".repeat(32), "overlap-first.zip");
+        long secondImport = insertCompletedImport(statement, "a2".repeat(32), "overlap-second.zip");
+        long firstFile = insertEvidenceFile(statement, firstImport, "a1".repeat(32), "first.xlsx");
+        long secondFile = insertEvidenceFile(statement, secondImport, "a2".repeat(32), "second.xlsx");
+        long linkedRow = insertEvidenceRow(statement, firstImport, firstFile, "member-a", "same-event");
+        long overlapRow = insertEvidenceRow(statement, secondImport, secondFile, "member-b", "same-event");
+        insertEvidenceRow(statement, secondImport, secondFile, "member-b", "unmapped-event");
+
+        statement.execute(
+            "INSERT INTO investory.cash_operations(id,account_id,operation,amount,currency,comment,date,import_history_id,import_source_row_id) "
+                + "SELECT 88002601,id,'DEPOSIT',1,'USD','C0 overlap test',now(),"
+                + firstImport
+                + ","
+                + linkedRow
+                + " FROM investory.accounts WHERE external_account_id='c0-overlap-test'");
+
+        assertEquals(
+            1,
+            MigrationTestDatabase.singleInt(
+                statement,
+                "SELECT count(*) FROM investory.recon_v_import_provenance_issues "
+                    + "WHERE issue_code='ORPHAN_SOURCE_ROW' AND import_history_id="
+                    + secondImport));
+        assertEquals(
+            0,
+            MigrationTestDatabase.singleInt(
+                statement,
+                "SELECT count(*) FROM investory.recon_v_import_provenance_issues "
+                    + "WHERE issue_code='ORPHAN_SOURCE_ROW' AND financial_row_id='"
+                    + overlapRow
+                    + "'"));
+      } finally {
+        connection.rollback();
+      }
+    }
+  }
+
+  private static long insertCompletedImport(Statement statement, String checksum, String fileName)
+      throws Exception {
+    try (ResultSet result =
+        statement.executeQuery(
+            "INSERT INTO investory.import_history(provider,file_name,file_sha256,started_at,finished_at,status,rows_total,rows_applied,rows_failed) VALUES ('XTB','"
+                + fileName
+                + "','"
+                + checksum
+                + "',now(),now(),'COMPLETED',1,1,0) RETURNING id")) {
+      result.next();
+      return result.getLong(1);
+    }
+  }
+
+  private static long insertEvidenceFile(
+      Statement statement, long importId, String checksum, String fileName) throws Exception {
+    try (ResultSet result =
+        statement.executeQuery(
+            "INSERT INTO investory.import_source_files(provider,import_history_id,file_name,content_type,file_sha256,original_size,raw_payload) VALUES ('XTB',"
+                + importId
+                + ",'"
+                + fileName
+                + "','application/octet-stream','"
+                + checksum
+                + "',1,decode('00','hex')) RETURNING id")) {
+      result.next();
+      return result.getLong(1);
+    }
+  }
+
+  private static long insertEvidenceRow(
+      Statement statement, long importId, long fileId, String member, String sourceRecordId)
+      throws Exception {
+    String logicalHash = sourceRecordId.equals("same-event") ? "d".repeat(64) : "e".repeat(64);
+    try (ResultSet result =
+        statement.executeQuery(
+            "INSERT INTO investory.import_source_rows(import_history_id,source_file_id,provider,section_name,sheet_name,archive_member_name,source_row_number,source_record_id,source_row_occurrence,logical_row_sha256,raw_values) VALUES ("
+                + importId
+                + ","
+                + fileId
+                + ",'XTB','Cash Operations','Cash Operations','"
+                + member
+                + "',1,'"
+                + sourceRecordId
+                + "',1,'"
+                + logicalHash
+                + "','{}'::jsonb) RETURNING id")) {
+      result.next();
+      return result.getLong(1);
     }
   }
 

@@ -26,11 +26,11 @@ public record SimulationDecisionSummaryMoney(
     BigDecimal finalSafeReserve,
     boolean recurringFundingGapRequired) {
   public String finalNetWorthDisplay() {
-    return PlanningPresentation.wholeNumber(finalNetWorth);
+    return PlanningPresentation.compactMoney(finalNetWorth);
   }
 
   public String minimumSpendableAssetsDisplay() {
-    return PlanningPresentation.wholeNumber(minimumSpendableAssets);
+    return PlanningPresentation.compactMoney(minimumSpendableAssets);
   }
 
   /** Canonical bucket-model name; the record field remains for API compatibility. */
@@ -53,7 +53,7 @@ public record SimulationDecisionSummaryMoney(
   }
 
   public String finalSpendableAssetsDisplay() {
-    return PlanningPresentation.wholeNumber(finalSpendableAssets);
+    return PlanningPresentation.compactMoney(finalSpendableAssets);
   }
 
   public String lifetimeActualWithdrawalsDisplay() {
