@@ -275,8 +275,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
 
       String header = page.locator(".iv-planning-topbar").textContent();
       assertThat(header)
-          .contains(
-              "Net worth", "Projected annual result + income", "Annual cost / year", "projected")
+          .contains("Net worth", "Annual Income / year planned · 2026", "Annual cost / year")
           .doesNotContain("Market return");
 
       Locator sourceCards = page.locator(".iv-profile-source-card");
@@ -284,11 +283,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
       String marketCard = sourceCards.nth(0).textContent();
       String longTermCard = sourceCards.nth(1).textContent();
       assertThat(marketCard)
-          .contains(
-              "Income YTD",
-              "Annual income:",
-              "Annualized current result",
-              "Annualized return (net)")
+          .contains("Income YTD", "Annual income:", "Annualized return (net)")
           .doesNotContain("p.a.");
       assertThat(
               sourceCards
@@ -429,22 +424,22 @@ class UiPageSmokeIT extends FastDatabaseTest {
     }
   }
 
-  @DisplayName("investment Profile Income Summary Popover Opens")
+  @DisplayName("investment Profile Shows Income Summary")
   @Test
-  void investmentProfileIncomeSummaryPopoverOpens() {
+  void investmentProfileShowsIncomeSummary() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
       page.navigate(baseUrl() + "/portfolios/2/investment-profile?");
 
-      Locator incomeSummary = page.locator(".iv-planning-summary__item.iv-hover-context");
-      Locator popover = incomeSummary.locator("[role='tooltip']");
-
-      assertThat(incomeSummary.isVisible()).isTrue();
-      incomeSummary.hover();
-
-      assertThat(popover.isVisible()).isTrue();
-      assertThat(popover.textContent())
-          .contains("Annual income", "Market projected", "Long-term expected", "Total");
+      Locator sourceCards = page.locator(".iv-profile-source-card");
+      assertThat(sourceCards.count()).isEqualTo(2);
+      assertThat(sourceCards.nth(0).isVisible()).isTrue();
+      assertThat(sourceCards.nth(0).textContent())
+          .contains(
+              "Market investments", "Annual income:", "Annualized return (net)", "Income YTD");
+      assertThat(sourceCards.nth(1).isVisible()).isTrue();
+      assertThat(sourceCards.nth(1).textContent())
+          .contains("Long-term assets", "Annual income:", "Annualized return (net)", "Income YTD");
     }
   }
 
