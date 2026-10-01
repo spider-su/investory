@@ -244,6 +244,9 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("performanceBoardRebasedReturn"));
     assertTrue(charts.contains("selectedDashboardPeriod"));
     assertTrue(charts.contains("period: selectedDashboardPeriod"));
+    assertTrue(charts.contains("performanceBoardBaselineLabel(labels[0], aggregation)"));
+    assertTrue(charts.contains("labels = [baseline, ...labels]"));
+    assertTrue(charts.contains("dataset.data = [0, ...(dataset.data || [])]"));
     assertTrue(charts.contains("data.portfolioId"));
     assertTrue(html.contains("performance-scope-aggregation"));
     assertTrue(charts.contains("const percentValue ="));

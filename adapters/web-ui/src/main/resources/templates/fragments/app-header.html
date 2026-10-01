@@ -47,7 +47,7 @@
     </div>
 </header>
 
-<header th:fragment="planningHeader(activePage, portfolioId, summaryLabel, kpi1Label, kpi1Value, kpi1Meta, kpi2Label, kpi2Value, kpi2Meta, kpi3Label, kpi3Value, kpi3Meta, currency, actionMode, contextPlanId, contextScenario)"
+<header th:fragment="planningHeader(activePage, portfolioId, summaryLabel, kpi1Label, kpi1Value, kpi1Meta, kpi2Label, kpi2Value, kpi2Meta, kpi3Label, kpi3Value, kpi3Meta, currency, actionMode, contextPlanId, contextScenario, contextYear)"
         class="iv-topbar iv-app-header-shell iv-planning-topbar"
         th:with="header=${T(com.smartbox.investory.ui.presentation.PlanningHeaderView).of(activePage, portfolioId, summaryLabel, kpi1Label, kpi1Value, kpi1Meta, kpi2Label, kpi2Value, kpi2Meta, kpi3Label, kpi3Value, kpi3Meta, currency, actionMode, contextPlanId, contextScenario)}"
         th:classappend="${header.actionMode == 'assets'} ? ' iv-planning-topbar--assets' : (${header.actionMode == 'simulation' or header.actionMode == 'analysis'} ? ' iv-planning-topbar--retirement' : '')">
@@ -77,6 +77,7 @@
         </div>
         <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions iv-planning-actions--simulation" th:if="${header.actionMode == 'simulation'}" aria-label="Simulation actions">
             <div class="iv-planning-actions__row">
+                <a class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/annual-costs(portfolioId=${header.portfolioId},planId=${header.contextPlanId},year=${header.contextYear},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Annual costs</a>
                 <a th:if="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Edit plan</a>
                 <a th:unless="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Edit plan</a>
                 <a class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/sandbox(portfolioId=${header.portfolioId})}">Sandbox</a>

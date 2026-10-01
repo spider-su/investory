@@ -237,7 +237,17 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
       PerformanceAggregation aggregation,
       boolean returns,
       boolean bars) {
-    if (!bars || aggregation == PerformanceAggregation.MONTHLY) return values;
+    if (aggregation == PerformanceAggregation.MONTHLY) return values;
+    if (!bars) {
+      List<Double> result = new ArrayList<>();
+      for (String group : groupedLabels(labels, aggregation)) {
+        Double last = null;
+        for (int i = 0; i < labels.size(); i++)
+          if (group.equals(group(labels.get(i), aggregation))) last = values.get(i);
+        result.add(last);
+      }
+      return result;
+    }
     List<Double> period = returns ? periodValues(values) : differenceValues(values);
     List<Double> result = new ArrayList<>();
     for (String group : groupedLabels(labels, aggregation)) {

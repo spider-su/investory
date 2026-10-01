@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Annual costs · Investory</title>
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+  <link href="/css/planning.css" rel="stylesheet">
+</head>
+<body>
+<main class="iv-app iv-planning-page iv-retirement-surface iv-annual-costs-page">
+  <div th:replace="~{fragments/app-header :: planningHeader('simulation', ${portfolioId}, 'Annual costs', 'Plan', ${noSavedPlan ? 'Not selected' : planName}, null, 'Monthly costs', ${noSavedPlan ? '—' : format.compactMoney(monthlyLivingCosts)}, null, 'Currency', ${planningDisplayCurrency}, null, ${planningDisplayCurrency}, 'simulation', ${selectedPlanId}, ${selectedScenario}, ${selectedYear})}"></div>
+  <a class="btn btn-link px-0 mb-2" th:href="@{/portfolios/{portfolioId}/simulation(portfolioId=${portfolioId},planId=${selectedPlanId},planningDisplayCurrency=${planningDisplayCurrency},selectedScenario=${selectedScenario})}">← Back to retirement simulation</a>
+
+  <section class="card mb-3">
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div><h2 class="h3 mb-1">Annual costs</h2><p class="text-secondary mb-0">Monthly groups describe this plan’s living costs. Annual costs are kept in the plan’s existing annual extras amount.</p></div>
+        <form th:if="${!noSavedPlan}" method="get" th:action="@{/portfolios/{portfolioId}/simulation/annual-costs(portfolioId=${portfolioId})}" class="d-flex align-items-center gap-2">
+          <label for="annual-cost-plan" class="form-label mb-0">Plan</label>
+          <select id="annual-cost-plan" class="form-select" name="planId" onchange="this.form.submit()">
+            <option th:each="plan : ${plans}" th:value="${plan.id}" th:selected="${plan.id == selectedPlanId}" th:text="${plan.name}">Plan</option>
+          </select>
+          <label for="annual-cost-year" class="form-label mb-0">Year</label><input id="annual-cost-year" class="form-control" type="number" name="year" min="1900" max="2200" required th:value="${selectedYear}" style="width: 6.5rem">
+          <button class="btn btn-outline-secondary" type="submit">Open</button>
+          <input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}">
+        </form>
+      </div>
+
+      <div th:if="${annualCostsError != null}" class="alert alert-danger" role="alert" th:text="${annualCostsError}">Unable to save annual costs.</div>
+      <div th:if="${noSavedPlan}" class="alert alert-info mb-0">Save a simulation plan before adding cost groups. <a th:href="@{/portfolios/{portfolioId}/simulation/plan/edit(portfolioId=${portfolioId},planningDisplayCurrency=${planningDisplayCurrency},selectedScenario=${selectedScenario})}">Create a plan</a>.</div>
+
+      <div th:unless="${noSavedPlan}">
+        <section class="iv-annual-costs__distribution" aria-label="Monthly cost distribution">
+          <div class="iv-annual-costs__donut" role="img" th:attr="aria-label=${'Monthly costs distribution, total ' + format.compactMoney(distributionTotal)}" th:style="'background: ' + ${distributionGradient}">
+            <div class="iv-annual-costs__donut-center"><span>Monthly total</span><strong th:text="${format.compactMoney(distributionTotal)}">16,000</strong></div>
+          </div>
+          <div class="iv-annual-costs__legend" aria-label="Cost groups">
+            <div class="iv-annual-costs__legend-row" th:each="row : ${distributionRows}">
+              <span class="iv-annual-costs__legend-name"><i aria-hidden="true" th:style="'--distribution-color: ' + ${row.color}"></i><span th:text="${row.name}">Housing</span></span>
+              <strong th:text="${format.compactMoney(row.monthlyAmount)}">2,500</strong>
+            </div>
+            <p th:if="${#lists.isEmpty(distributionRows)}" class="text-secondary mb-0">Add monthly cost groups to see their distribution.</p>
+          </div>
+        </section>
+        <div class="table-responsive iv-annual-costs__table-wrap">
+          <table class="table table-vcenter iv-annual-costs__table">
+            <thead><tr><th>Cost group</th><th class="text-end">Monthly amount</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+              <tr th:each="group : ${costGroups}">
+                <td><form th:id="${'save-cost-group-' + group.id}" method="post" th:action="@{/portfolios/{portfolioId}/simulation/annual-costs/groups(portfolioId=${portfolioId})}"><input type="hidden" name="planId" th:value="${selectedPlanId}"><input type="hidden" name="year" th:value="${selectedYear}"><input type="hidden" name="groupId" th:value="${group.id}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"></form><input class="form-control" th:attr="form=${'save-cost-group-' + group.id}" name="name" maxlength="120" required th:value="${group.name}" th:aria-label="${'Cost group name ' + group.name}"></td>
+                <td class="text-end"><input class="form-control text-end" th:attr="form=${'save-cost-group-' + group.id}" name="monthlyAmount" type="number" min="0" step="0.01" required th:value="${format.moneyInput(group.monthlyAmount)}" th:aria-label="${'Monthly amount ' + group.name}"></td>
+                <td class="text-end text-nowrap"><button class="btn btn-sm btn-outline-primary" th:attr="form=${'save-cost-group-' + group.id}" type="submit">Save</button><form class="d-inline" method="post" th:action="@{/portfolios/{portfolioId}/simulation/annual-costs/groups/{groupId}/delete(portfolioId=${portfolioId},groupId=${group.id})}"><input type="hidden" name="planId" th:value="${selectedPlanId}"><input type="hidden" name="year" th:value="${selectedYear}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form></td>
+              </tr>
+              <tr><td colspan="3"><form class="row g-2 align-items-center" method="post" th:action="@{/portfolios/{portfolioId}/simulation/annual-costs/groups(portfolioId=${portfolioId})}"><input type="hidden" name="planId" th:value="${selectedPlanId}"><input type="hidden" name="year" th:value="${selectedYear}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"><div class="col-md-6"><label class="visually-hidden" for="new-cost-group-name">New cost group</label><input id="new-cost-group-name" class="form-control" name="name" maxlength="120" placeholder="New cost group" required></div><div class="col-md-3"><label class="visually-hidden" for="new-cost-group-monthly">Monthly amount</label><input id="new-cost-group-monthly" class="form-control text-end" name="monthlyAmount" type="number" min="0" step="0.01" placeholder="Monthly amount" required></div><div class="col-md-3"><button class="btn btn-outline-primary" type="submit">Add group</button></div></form></td></tr>
+            </tbody>
+            <tfoot><tr><th>Assigned monthly costs</th><th class="text-end" th:text="${format.compactMoney(assignedMonthlyCosts)}">16,000</th><th></th></tr></tfoot>
+          </table>
+        </div>
+        <div class="iv-annual-costs__totals">
+          <div><span>Monthly living costs</span><strong th:text="${format.compactMoney(monthlyLivingCosts)}">16,000</strong></div>
+          <div><span>Monthly additional costs</span><strong th:text="${format.compactMoney(monthlyAdditionalCosts)}">5,000</strong></div>
+        </div>
+
+        <section class="card bg-light mt-3" th:if="${otherMonthlyCosts.signum() > 0}">
+          <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div><h3 class="h4 mb-1">Other</h3><p class="text-secondary mb-0" th:if="${approvedYear != null}" th:text="${'Unassigned amount from approved ' + approvedYear + ' living costs. Increase the groups above to distribute it.'}">Unassigned amount from approved year-end living costs.</p><p class="text-secondary mb-0" th:unless="${approvedYear != null}">Unassigned plan costs. Increase the groups above to distribute this amount.</p><small class="text-secondary" th:if="${approvedYear != null}" th:text="${'Approved monthly living costs · ' + format.compactMoney(approvedMonthlyLivingCosts)}">Approved monthly living costs · 17,600</small></div>
+            <strong class="fs-2" th:text="${format.compactMoney(otherMonthlyCosts)}">1,600</strong>
+          </div>
+        </section>
+
+        <section class="card mt-3">
+          <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div><h3 class="h4 mb-1">Annual</h3><p class="text-secondary mb-0">Additional annual cost already stored with this simulation plan.</p></div>
+            <form class="d-flex align-items-center gap-2" method="post" th:action="@{/portfolios/{portfolioId}/simulation/annual-costs/annual(portfolioId=${portfolioId})}"><input type="hidden" name="planId" th:value="${selectedPlanId}"><input type="hidden" name="year" th:value="${selectedYear}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"><label class="visually-hidden" for="annual-extra-amount">Annual additional cost</label><input id="annual-extra-amount" class="form-control text-end" name="annualAmount" type="number" min="0" step="0.01" required th:value="${format.moneyInput(annualExtras)}"><button class="btn btn-primary" type="submit">Save annual cost</button></form>
+          </div>
+        </section>
+        <div class="d-flex justify-content-between border-top mt-3 pt-3"><strong>Total annual costs</strong><strong th:text="${format.compactMoney(totalAnnualCosts)}">252,000</strong></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div th:replace="~{fragments/app-footer :: buildFooter}"></div>
+</body>
+</html>

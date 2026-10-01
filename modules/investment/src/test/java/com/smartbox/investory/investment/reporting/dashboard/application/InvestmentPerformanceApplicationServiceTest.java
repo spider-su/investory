@@ -85,6 +85,32 @@ class InvestmentPerformanceApplicationServiceTest {
     assertEquals("2026-01", view.kpis().worstPeriod());
   }
 
+  @DisplayName("line Returns Stay Aligned With Quarterly Labels For Other Periods")
+  @Test
+  void lineReturnsStayAlignedWithQuarterlyLabelsForOtherPeriods() {
+    Benchmark benchmark = benchmark();
+    benchmark.setPortfolioReturnCurve(List.of(0.0, 10.0, 21.0));
+    benchmark.setBenchmarkReturnCurve(List.of(0.0, 5.0, 10.25));
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+
+    PerformanceBoardView view =
+        service("2025-12")
+            .load(
+                new PerformanceBoardQuery(
+                    null,
+                    PerformanceAggregation.QUARTERLY,
+                    PerformanceMetric.RETURN,
+                    PerformanceStyle.LINE,
+                    com.smartbox.investory.investment.api.reporting.DashboardPeriod.ONE_YEAR,
+                    1L));
+
+    assertEquals(List.of("2025-Q4", "2026-Q1"), view.labels());
+    assertEquals(view.labels().size(), view.series().getFirst().values().size());
+    assertEquals(view.labels().size(), view.benchmarkValues().size());
+    assertEquals(bd(21), view.series().getFirst().values().getLast());
+    assertEquals(bd(10.25), view.benchmarkValues().getLast());
+  }
+
   @DisplayName("missing Profit Boundary Returns Unavailable")
   @Test
   void missingProfitBoundaryReturnsUnavailable() {

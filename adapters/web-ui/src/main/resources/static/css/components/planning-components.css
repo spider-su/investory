@@ -94,6 +94,7 @@
     background: transparent;
 }
 .iv-planning-actions__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.iv-planning-actions--simulation .iv-planning-actions__row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .iv-planning-actions__row > a,
 .iv-planning-actions__row > form,
 .iv-planning-actions__row button { width: 100%; height: 38px; min-height: 38px; }
@@ -679,6 +680,31 @@
 .iv-simulation-editor__spending-summary > span { color: var(--iv-text-muted); font-size: .72rem; font-weight: 750; }
 .iv-simulation-editor__spending-summary strong { color: var(--iv-text); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .iv-simulation-editor__spending-summary small { color: var(--iv-text-muted); font-size: .76rem; }
+.iv-annual-costs__totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.iv-annual-costs__totals > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--iv-border); border-radius: 6px; }
+.iv-annual-costs__totals span { color: var(--iv-text-muted); }
+.iv-annual-costs__totals strong { font-variant-numeric: tabular-nums; }
+.iv-annual-costs-page > section.card { width: min(100%, 1080px); margin-inline: auto; }
+.iv-annual-costs-page > section.card > .card-body { padding: clamp(16px, 2.2vw, 26px); }
+.iv-annual-costs-page .iv-annual-costs__table { width: 100%; min-width: 0; table-layout: fixed; }
+.iv-annual-costs-page .iv-annual-costs__table th:first-child { width: 48%; }
+.iv-annual-costs-page .iv-annual-costs__table th:nth-child(2) { width: 25%; }
+.iv-annual-costs-page .iv-annual-costs__table th:nth-child(3) { width: 27%; }
+.iv-annual-costs-page .iv-annual-costs__table .form-control { min-height: 34px; padding: 5px 9px; border-color: var(--iv-border); border-radius: var(--iv-radius-sm); background: var(--iv-surface); color: var(--iv-text); font-size: .84rem; }
+.iv-annual-costs-page .iv-annual-costs__table .btn { border-radius: var(--iv-radius-sm); }
+.iv-annual-costs__distribution { display: grid; grid-template-columns: 156px minmax(0, 1fr); align-items: center; gap: 20px; margin: 0 0 16px; padding: 16px; border: 1px solid var(--iv-border); border-radius: var(--iv-radius); background: var(--iv-surface-muted); }
+.iv-annual-costs__donut { display: grid; width: 148px; aspect-ratio: 1; place-items: center; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iv-border) 65%, transparent); }
+.iv-annual-costs__donut-center { display: grid; width: 94px; aspect-ratio: 1; place-content: center; gap: 2px; border: 1px solid var(--iv-border); border-radius: 50%; background: var(--iv-surface); text-align: center; }
+.iv-annual-costs__donut-center span { color: var(--iv-text-muted); font-size: .62rem; }
+.iv-annual-costs__donut-center strong { font-size: .92rem; font-variant-numeric: tabular-nums; }
+.iv-annual-costs__legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; max-height: 180px; overflow: auto; }
+.iv-annual-costs__legend-row { display: flex; min-width: 0; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--iv-border); font-size: .8rem; }
+.iv-annual-costs__legend-name { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.iv-annual-costs__legend-name > i { flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; background: var(--distribution-color); }
+.iv-annual-costs__legend-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iv-annual-costs__legend-row strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .iv-annual-costs__totals { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .iv-annual-costs__distribution { grid-template-columns: 1fr; justify-items: center; } .iv-annual-costs__legend { width: 100%; grid-template-columns: 1fr; } .iv-annual-costs-page .iv-annual-costs__table th:first-child { width: 42%; } .iv-annual-costs-page .iv-annual-costs__table th:nth-child(2) { width: 25%; } .iv-annual-costs-page .iv-annual-costs__table th:nth-child(3) { width: 33%; } }
 .iv-simulation-editor__lifecycle { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--iv-border); }
 .iv-simulation-editor__lifecycle > div { display: grid; gap: 2px; }
 .iv-simulation-editor__lifecycle strong { font-size: .95rem; font-variant-numeric: tabular-nums; }

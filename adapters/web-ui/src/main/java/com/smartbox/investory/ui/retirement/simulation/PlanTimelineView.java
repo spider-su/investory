@@ -125,7 +125,11 @@ public record PlanTimelineView(
       String lifecycleLabel,
       CashFlowSectionView cashFlow) {
     public String heading() {
-      return year + " · Age " + age + (lifecycleLabel == null ? "" : " · " + lifecycleLabel);
+      return "Jan "
+          + year
+          + " · Age "
+          + age
+          + (lifecycleLabel == null ? "" : " · " + lifecycleLabel);
     }
 
     public List<CashFlowFlowView> incomeSources() {

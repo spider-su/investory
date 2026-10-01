@@ -442,6 +442,15 @@ retirement spending instead of resetting it. This is deliberate: `annualLivingEx
 `annualDiscretionaryExpenses` represent retirement spending, not a household budget before
 retirement.
 
+Saved plans may describe monthly living costs with named cost groups. Group allocations are stored
+per plan and calendar year; creating a year copies the prior year's groups, which can then be edited
+independently. They allocate the plan's monthly living-cost amount; editing groups does not change
+`annualLivingExpenses`. The plan's existing `annualDiscretionaryExpenses` remains the separate
+additional annual cost; it is not copied into the group table. After a closed year has an approved
+Core Spending value, any approved monthly amount above that year's assigned groups is shown as
+**Other** until the user distributes it among groups. Annual amounts are converted to monthly
+display values with two decimal places and half-up rounding.
+
 Long-Term supplies rental and fixed-income flows through its public planning API. Rental values in
 the current-year bridge are canonical facts; the next projected year is produced by the Long-Term
 contract/period projection and effective growth rules, so it need not equal a naive rounded
