@@ -203,11 +203,7 @@ class RetirementScenarioObservationServiceTest {
                 bonds,
                 performance,
                 Clock.fixed(Instant.parse("2026-08-29T00:00:00Z"), ZoneOffset.UTC))
-            .load(
-                7L,
-                new PlanningTimeline(
-                    com.smartbox.investory.shared.currency.CurrencyType.PLN,
-                    List.of(closedYear(2025, "0"))));
+            .load(7L, new PlanningTimeline(com.smartbox.investory.shared.currency.CurrencyType.PLN, List.of(closedYear(2025, "0"))));
 
     assertEquals(
         ScenarioObservationAvailability.INSUFFICIENT_HISTORY,
@@ -236,10 +232,7 @@ class RetirementScenarioObservationServiceTest {
 
     var result =
         new RetirementScenarioObservationService(longTerm, current, bonds, performance, clock)
-            .load(
-                7L,
-                new PlanningTimeline(
-                    com.smartbox.investory.shared.currency.CurrencyType.PLN, java.util.List.of()));
+            .load(7L, new PlanningTimeline(com.smartbox.investory.shared.currency.CurrencyType.PLN, java.util.List.of()));
 
     assertEquals(
         com.smartbox.investory.retirement.api.model.ScenarioObservationAvailability.AVAILABLE,
