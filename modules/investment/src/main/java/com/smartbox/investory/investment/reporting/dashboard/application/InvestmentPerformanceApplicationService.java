@@ -70,26 +70,40 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
 
     boolean returns = query.metric() == PerformanceMetric.RETURN;
     boolean allSelected = query.accountIds() == null || selected.size() == accounts.size();
-    List<String> sourceLabels = benchmark.getLabels();
+    List<String> allSourceLabels = benchmark.getLabels();
+    YearMonth currentMonth = YearMonth.from(applicationTime.now(applicationTime.businessZone()));
+    int completedMonthCount = allSourceLabels.size();
+    if (YearMonth.parse(allSourceLabels.getLast()).equals(currentMonth)) completedMonthCount--;
+    if (completedMonthCount == 0) {
+      return new PerformanceBoardView(
+          false, List.of(), List.of(), List.of(), List.of(), emptyKpis(), accounts);
+    }
+    final int plottedMonthCount = completedMonthCount;
+    List<String> sourceLabels = allSourceLabels.subList(0, completedMonthCount);
     List<PerformanceSeries> fullSeries =
         allSelected
             ? List.of(
                 new PerformanceSeries(
-                    null, "Portfolio", decimalValues(sourceCurve(benchmark, returns))))
+                    null,
+                    "Portfolio",
+                    decimalValues(trimCurve(sourceCurve(benchmark, returns), completedMonthCount))))
             : selected.stream()
                 .map(
                     series ->
                         new PerformanceSeries(
                             series.id(),
                             accountName(accounts, series.id()),
-                            decimalValues(accountCurve(series, returns))))
+                            decimalValues(
+                                trimCurve(accountCurve(series, returns), plottedMonthCount))))
                 .toList();
     int scopeStart = scopeStart(sourceLabels, query.period());
     List<String> scopedLabels = sourceLabels.subList(scopeStart, sourceLabels.size());
     List<PerformanceSeries> sourceSeries =
         fullSeries.stream().map(row -> scopedSeries(row, scopeStart, returns)).toList();
     List<Double> fullBenchmarkCurve =
-        returns ? benchmark.getBenchmarkReturnCurve() : benchmark.getBenchmarkCurve();
+        trimCurve(
+            returns ? benchmark.getBenchmarkReturnCurve() : benchmark.getBenchmarkCurve(),
+            completedMonthCount);
     List<Double> benchmarkCurve = scopedCurve(fullBenchmarkCurve, scopeStart, returns);
     List<String> labels = groupedLabels(scopedLabels, query.aggregation());
     List<PerformanceSeries> series =
@@ -124,14 +138,20 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     List<Double> excessValues =
         transform(
             differenceCurve(
-                scopedCurve(benchmark.getPortfolioReturnCurve(), scopeStart, true),
-                scopedCurve(benchmark.getBenchmarkReturnCurve(), scopeStart, true)),
+                scopedCurve(
+                    trimCurve(benchmark.getPortfolioReturnCurve(), completedMonthCount),
+                    scopeStart,
+                    true),
+                scopedCurve(
+                    trimCurve(benchmark.getBenchmarkReturnCurve(), completedMonthCount),
+                    scopeStart,
+                    true)),
             scopedLabels,
             query.aggregation(),
             true,
             query.style() == PerformanceStyle.BARS);
-    List<Double> kpiSource = benchmark.getPortfolioReturnCurve();
-    List<Double> kpiBenchmark = benchmark.getBenchmarkReturnCurve();
+    List<Double> kpiSource = trimCurve(benchmark.getPortfolioReturnCurve(), completedMonthCount);
+    List<Double> kpiBenchmark = trimCurve(benchmark.getBenchmarkReturnCurve(), completedMonthCount);
     List<Double> scopedKpiSource = scopedCurve(kpiSource, scopeStart, true);
     List<Double> scopedKpiBenchmark = scopedCurve(kpiBenchmark, scopeStart, true);
     Double portfolioReturn = last(scopedKpiSource);
@@ -376,6 +396,10 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
 
   private List<Double> doubleValues(List<BigDecimal> values) {
     return values.stream().map(value -> value == null ? null : value.doubleValue()).toList();
+  }
+
+  private List<Double> trimCurve(List<Double> values, int size) {
+    return values.subList(0, Math.min(values.size(), size));
   }
 
   private BigDecimal decimal(Double value) {

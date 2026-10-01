@@ -204,12 +204,39 @@
     .iv-simulation-sensitivity-list article > small:last-child { grid-column: auto; }
 }
 
-/* Performance board: compact metrics and one calm control row. */
+/* Performance board: left controls, centered metrics, and header-level benchmark toggle. */
+.iv-performance-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+.iv-performance-section-header .iv-card-section-header__title { margin-right: auto; }
+.iv-performance-benchmark-toggle {
+    flex: 0 0 auto;
+    min-height: 30px;
+    margin: 0;
+    padding: 4px 9px;
+    border: 1px solid var(--iv-border);
+    border-radius: 8px;
+    background: var(--iv-surface-muted);
+    color: var(--iv-text-muted);
+    font-size: .76rem;
+}
+.iv-performance-benchmark-toggle input { width: 15px; height: 15px; }
+.iv-performance-summary-row {
+    display: grid;
+    grid-template-columns: minmax(390px, 1fr) minmax(0, 2.2fr);
+    align-items: center;
+    gap: 22px;
+    margin-bottom: 8px;
+}
 .iv-performance-metrics {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0;
-    margin-bottom: 10px;
+    min-width: 0;
+    margin-bottom: 0;
     align-items: stretch;
     justify-content: normal;
 }
@@ -251,11 +278,16 @@
     color: var(--iv-negative-text);
 }
 .iv-performance-toolbar {
+    display: grid;
+    justify-items: start;
+    gap: 6px;
+    width: auto;
+    margin: 0;
+}
+.iv-performance-toolbar__row {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    width: 100%;
-    margin: 6px 0 6px;
     gap: 7px;
 }
 .iv-build-info { position: relative; }
@@ -596,20 +628,6 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
     max-height: 280px;
     overflow-y: auto;
 }
-.iv-performance-toolbar .iv-account-filter__item--benchmark {
-    min-height: 0;
-    margin-left: auto;
-    padding: 5px 8px;
-    border: 1px solid var(--iv-border);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--iv-text-muted);
-    font-size: .76rem;
-}
-.iv-performance-toolbar .iv-account-filter__item--benchmark input {
-    width: 15px;
-    height: 15px;
-}
 #portfolio-performance .iv-chart {
     height: 280px;
 }
@@ -630,15 +648,19 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
 }
 #portfolio-performance .iv-chart-table { margin-top: 6px; }
 @media (max-width: 760px) {
-    .iv-performance-metrics {
-        display: flex;
-        gap: 12px;
-        align-items: baseline;
-    }
+    .iv-performance-toolbar { grid-template-columns: 1fr; }
+    .iv-performance-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 10px; }
+    .iv-performance-metrics .iv-performance-metric--group-start { margin-left: 0; padding-left: 0; border-left: 0; }
     .iv-performance-metric--risk,
     .iv-performance-metric--relative { margin-left: 0; }
-    .iv-performance-toolbar .iv-account-filter__item--benchmark { margin-left: 0; }
     #portfolio-performance .iv-chart { height: 240px; }
+}
+@media (max-width: 980px) {
+    .iv-performance-summary-row { grid-template-columns: 1fr; gap: 12px; }
+}
+@media (max-width: 460px) {
+    .iv-performance-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .iv-performance-section-header { align-items: flex-start; }
 }
 
 /* Compact portfolio overview cards. */
@@ -1123,11 +1145,6 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
 }
 
 @media (max-width: 1400px) and (min-width: 601px) {
-    .iv-planning-topbar--retirement .iv-planning-context-slot .iv-planning-scenario-selector {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        row-gap: 3px;
-    }
-
     .iv-planning-topbar--retirement .iv-planning-topbar__secondary {
         grid-template-areas:
             "main main"
@@ -1166,10 +1183,6 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
         grid-template-rows: repeat(2, 38px);
     }
 
-    .iv-planning-context-slot .iv-planning-scenario-selector {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        row-gap: 3px;
-    }
 }
 
 @media (max-width: 600px) {

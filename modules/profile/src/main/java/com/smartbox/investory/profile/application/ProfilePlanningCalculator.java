@@ -48,9 +48,9 @@ final class ProfilePlanningCalculator {
                     new ProjectedLongTermAsset.Period(
                         period.validFrom(),
                         period.validTo(),
-                        currencyNormalizer.toBase(
+                        toBaseIfPresent(
                             period.annualIncome(), input.currency(), baseCurrency, date),
-                        currencyNormalizer.toBase(
+                        toBaseIfPresent(
                             period.annualExpense(), input.currency(), baseCurrency, date),
                         period.annualReturnRate(),
                         period.cashFlowType(),
@@ -60,6 +60,11 @@ final class ProfilePlanningCalculator {
             .map(contract -> rentalContract(contract, input.currency(), baseCurrency, date))
             .toList(),
         input.maturityDate());
+  }
+
+  private BigDecimal toBaseIfPresent(
+      BigDecimal value, CurrencyType source, CurrencyType target, LocalDate date) {
+    return value == null ? null : currencyNormalizer.toBase(value, source, target, date);
   }
 
   private RentalContractProjectionModel rentalContract(

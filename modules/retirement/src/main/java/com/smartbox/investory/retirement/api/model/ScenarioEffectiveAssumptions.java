@@ -19,18 +19,9 @@ public record ScenarioEffectiveAssumptions(
       int baselineYear) {
     SimulationScenarioSettings selected =
         SimulationScenarioSettings.forScenario(scenario, assumptions);
-    FrozenBondCashFlowProjection bondProjection = new FrozenBondCashFlowProjection();
-    BigDecimal capitalBondReturnRate;
-    if (bondProjection.hasFrozenBondAssets(profile)
-        && !bondProjection.hasCapitalizedBondYield(profile, baselineYear)) {
-      // A source bond with income facts already supplies spendable cash; its principal must not
-      // also receive a scenario capital return. This prevents double-counting the same return.
-      capitalBondReturnRate = BigDecimal.ZERO;
-    } else {
-      // Allocation-only planning uses the explicit plan assumption plus scenario delta. Source
-      // yields remain observed/current data and never replace the plan value.
-      capitalBondReturnRate = selected.fixedIncomeReturnRate();
-    }
+    // Bond cash income is a spendable cash flow; the plan return applies separately to the
+    // defensive capital bucket. Keep this consistent for frozen assets and allocation-only plans.
+    BigDecimal capitalBondReturnRate = selected.fixedIncomeReturnRate();
     return new ScenarioEffectiveAssumptions(
         selected.inflationRate(),
         assumptions.fixedIncomeReturnRate(),

@@ -95,7 +95,10 @@ class RetirementBondBoundaryIntegrationTest {
     assertThat(firstProjected.realEstateStart())
         .isEqualByComparingTo(current.expectedEnd(EconomicBucket.REAL_ESTATE));
     assertThat(firstProjected.fixedIncomeEnd())
-        .isEqualByComparingTo(firstProjected.fixedIncomeStart());
+        .isEqualByComparingTo(
+            firstProjected
+                .fixedIncomeStart()
+                .multiply(BigDecimal.ONE.add(forwardAssumptions.fixedIncomeReturnRate())));
   }
 
   @Test

@@ -292,8 +292,8 @@ class DashboardPerformanceTemplateContractTest {
     int kpiStripStart = html.indexOf("<div class=\"iv-benchmark iv-performance-metrics\">");
     int performanceControlsStart =
         html.indexOf("<div class=\"iv-card__controls iv-performance-toolbar\"");
-    assertTrue(kpiStripStart >= 0 && performanceControlsStart > kpiStripStart);
-    String kpiStrip = html.substring(kpiStripStart, performanceControlsStart);
+    assertTrue(performanceControlsStart >= 0 && kpiStripStart > performanceControlsStart);
+    String kpiStrip = html.substring(kpiStripStart);
     assertTrue(kpiStrip.contains("Current drawdown"));
     assertTrue(kpiStrip.contains("Max drawdown"));
     assertTrue(kpiStrip.contains("Period return"));

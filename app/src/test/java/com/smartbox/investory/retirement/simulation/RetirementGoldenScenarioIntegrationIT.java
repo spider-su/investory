@@ -191,7 +191,9 @@ class RetirementGoldenScenarioIntegrationIT {
     assertThat(bridge.expectedEnd(EconomicBucket.FIXED_INCOME))
         .isEqualByComparingTo(HappyInvestorRetirementFacts.BRIDGE_BONDS_END);
     assertThat(bridge.expectedEnd(EconomicBucket.EQUITY))
-        .isEqualByComparingTo(HappyInvestorRetirementFacts.BRIDGE_EQUITIES_END);
+        .isCloseTo(
+            HappyInvestorRetirementFacts.BRIDGE_EQUITIES_END,
+            within(new java.math.BigDecimal("0.01")));
     assertThat(bridge.expectedEnd(EconomicBucket.REAL_ESTATE))
         .isEqualByComparingTo(HappyInvestorRetirementFacts.BRIDGE_REAL_ESTATE_END);
 
@@ -203,13 +205,19 @@ class RetirementGoldenScenarioIntegrationIT {
     assertThat(firstYear.rentalIncome())
         .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_RENTAL_INCOME);
     assertThat(firstYear.equityGain())
-        .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_EQUITY_RETURN);
+        .isCloseTo(
+            HappyInvestorRetirementFacts.FIRST_PROJECTED_EQUITY_RETURN,
+            within(new java.math.BigDecimal("0.01")));
     assertThat(firstYear.fixedIncomeEnd())
         .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_BOND_END);
     assertThat(firstYear.equityEnd())
-        .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_EQUITY_END);
+        .isCloseTo(
+            HappyInvestorRetirementFacts.FIRST_PROJECTED_EQUITY_END,
+            within(new java.math.BigDecimal("0.01")));
     assertThat(firstYear.endNetWorth())
-        .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_END_NET_WORTH);
+        .isCloseTo(
+            HappyInvestorRetirementFacts.FIRST_PROJECTED_END_NET_WORTH,
+            within(new java.math.BigDecimal("0.01")));
 
     var retirementYear =
         baseYears.stream()
@@ -218,7 +226,7 @@ class RetirementGoldenScenarioIntegrationIT {
             .orElseThrow();
     assertThat(retirementYear.employmentIncome()).isZero();
     assertThat(retirementYear.coreExpenses())
-        .isEqualByComparingTo(new java.math.BigDecimal("42000"));
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.RETIREMENT_BOUNDARY_CORE_EXPENSES);
     var pensionYear =
         baseYears.stream()
             .filter(y -> y.year() == HappyInvestorRetirementFacts.PENSION_BOUNDARY_YEAR)

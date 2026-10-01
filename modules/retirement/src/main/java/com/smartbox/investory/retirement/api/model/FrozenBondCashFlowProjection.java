@@ -66,14 +66,14 @@ public class FrozenBondCashFlowProjection {
             });
   }
 
-  /**
-   * True when the plan Bond return assumption changes capital during at least one forward year.
-   * Reviewed fixed-income assets are applicable only when their active period carries a return.
-   */
+  /** True when the plan Bond return assumption applies to capital during a forward year. */
   public boolean hasPlanBondReturnExposure(InvestmentProfile profile, int firstYear, int lastYear) {
     if (firstYear > lastYear) return false;
     if (hasFrozenBondAssets(profile)) {
-      return hasCapitalizedBondYield(profile, firstYear, lastYear);
+      return frozenAssets(profile).stream()
+          .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
+          .map(asset -> zeroIfNull(asset.currentValue()))
+          .anyMatch(value -> value.signum() != 0);
     }
     return profile.allocations().stream()
         .anyMatch(a -> a.bucket() == EconomicBucket.FIXED_INCOME && a.isNonZero());

@@ -32,6 +32,10 @@ public final class HappyInvestorProfileFacts {
   public static final BigDecimal MARKET_INCOME_YTD = new BigDecimal("29103.10594433");
 
   public static final BigDecimal MARKET_ANNUAL_INCOME = new BigDecimal("29221.17380549");
+
+  /** Investment API's weighted opening capital at the fixed 2025 reporting boundary. */
+  public static final BigDecimal MARKET_INVESTMENT_INCOME_BASE = new BigDecimal("417445.34007846");
+
   public static final BigDecimal MARKET_NET_YIELD = new BigDecimal("0.07");
   public static final BigDecimal LONG_TERM_ANNUAL_INCOME =
       HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL;
