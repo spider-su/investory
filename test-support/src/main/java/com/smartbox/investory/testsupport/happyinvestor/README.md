@@ -105,10 +105,10 @@ profile total is 1010000.
 Apartment A rents for
 3200/month and Apartment B has 2800/month through 2025-06-30, then 3000/month. Calendar-2025
 collected gross rent is 73200; historical snapshots use this calendar measure. The 2025-12-31
-boundary-date annualized gross economics are 74400. The persisted annual rental-tax bases
-are 3200 and 3000, supporting annual tax 527. Owner-paid property tax and insurance total 3204
-for Apartment A and 3000 for Apartment B, so boundary-date net annual income is 67669.
-Apartment A's own annual tax is 272. These facts live in
+boundary-date annualized gross economics are 74400. The persisted monthly rental-tax bases
+are 3200 and 3000, supporting annual tax 6324 (monthly tax 527). Owner-paid property tax and
+insurance total 3204 for Apartment A and 3000 for Apartment B, so boundary-date net annual income
+is 61872. Apartment A's own annual tax is 3264 (monthly tax 272). These facts live in
 `HappyInvestorLongTermFacts`. The persisted planning identity is `Happy Investor Plan`, with its
 independent assumptions in `HappyInvestorPlanFacts`; F11 joins this state to the F1-F4 investment
 facts, and F12-F14 consume the same plan identity. The scenario's tax assumptions are not a full

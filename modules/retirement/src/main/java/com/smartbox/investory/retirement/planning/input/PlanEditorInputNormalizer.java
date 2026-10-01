@@ -233,7 +233,7 @@ public final class PlanEditorInputNormalizer {
   }
 
   private BigDecimal money(BigDecimal value, CurrencyType currency, BigDecimal fallback) {
-    return value == null ? fallback : presentation.fromDisplay(value, currency, fallback);
+    return value == null ? fallback : value;
   }
 
   private static BigDecimal rate(BigDecimal value, BigDecimal fallback) {

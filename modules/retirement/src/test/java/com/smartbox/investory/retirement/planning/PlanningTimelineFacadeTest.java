@@ -55,8 +55,7 @@ class PlanningTimelineFacadeTest {
             clock,
             mock(LongTermAssetProfileReader.class),
             new PlanningProgressService(),
-            new PlanningYearReviewService(new PlanningProgressService()),
-            mock(PlanningMoneyConversionService.class));
+            new PlanningYearReviewService(new PlanningProgressService()));
   }
 
   @Test

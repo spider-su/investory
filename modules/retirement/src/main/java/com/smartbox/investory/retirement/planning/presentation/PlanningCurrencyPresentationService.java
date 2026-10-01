@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
-/** Backend-authoritative canonical/display conversion for planning presentation only. */
+/** Keeps planning amounts in the portfolio local currency used by the whole module. */
 @Service
 public class PlanningCurrencyPresentationService {
   private static final DateTimeFormatter PLAN_PROGRESS_BOUNDARY =
@@ -391,11 +391,7 @@ public class PlanningCurrencyPresentationService {
       PlanningTimeline timeline, CurrencyType currency, SimulationAssumptions assumptions) {
     Map<Integer, PlanningTimelineMoney> result = new LinkedHashMap<>();
     for (PlanningTimelineYear row : timeline.years()) {
-      CurrencyType sourceCurrency =
-          row.state() == PlanningTimelineState.LIVE
-                  || row.state() == PlanningTimelineState.PROJECTED
-              ? timeline.currency()
-              : com.smartbox.investory.shared.policy.FinancialPolicyDefaults.CANONICAL_CURRENCY;
+      CurrencyType sourceCurrency = timeline.currency();
       BigDecimal annualCosts = null,
           totalIncome = null,
           rentalIncome = null,
@@ -439,17 +435,13 @@ public class PlanningCurrencyPresentationService {
                 row.past().values(), PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
         bondIncome = planningValue(row.past().values(), PlanningMetric.BOND_INCOME);
         totalIncome = sumKnown(rentalIncome, bondIncome);
-        cashEnd =
-            firstValue(
-                row.past().values(),
-                PlanningMetric.CASH_RESERVE_VALUE,
-                PlanningMetric.SAFE_RESERVE,
-                PlanningMetric.MANUAL_LIQUID_RESERVE);
+        // Historical reserve, safe reserve, and manual liquidity are distinct facts. Do not
+        // present either reserve metric as a historical cash balance when cash is unavailable.
+        cashEnd = planningValue(row.past().values(), PlanningMetric.CASH_RESERVE_VALUE);
         reserveEnd = cashEnd;
-        bondsEnd =
-            firstValue(row.past().values(), PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
-        equitiesEnd =
-            firstValue(row.past().values(), PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        // Historical fixed income and total Market assets are not asset-class balances.
+        bondsEnd = planningValue(row.past().values(), PlanningMetric.BOND_VALUE);
+        equitiesEnd = planningValue(row.past().values(), PlanningMetric.EQUITY);
         realEstateEnd = planningValue(row.past().values(), PlanningMetric.REAL_ESTATE);
       } else if (row.state() == PlanningTimelineState.LIVE) {
         Map<PlanningMetric, PlanningMetricValue> currentValues = row.current().actualValues();

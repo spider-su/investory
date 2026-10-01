@@ -5,6 +5,7 @@ import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
 import com.smartbox.investory.investment.api.portfolio.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioSnapshot;
 import com.smartbox.investory.investment.api.reporting.InvestmentIncomeSummaryReader;
+import com.smartbox.investory.investment.api.reporting.InvestmentIncomeSummaryReader.InvestmentIncomeSummary;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
@@ -16,6 +17,7 @@ import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
 import com.smartbox.investory.shared.assets.AssetEconomicCategory;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -37,6 +39,7 @@ public class ProfileQueryService implements ProfileSnapshotReader {
   private final ProfileLiquidityCalculator liquidityCalculator;
   private final ProfilePlanningCalculator planningCalculator;
   private final InvestmentIncomeSummaryReader investmentIncome;
+  private final PortfolioContextReader portfolioContexts;
 
   @org.springframework.beans.factory.annotation.Autowired
   public ProfileQueryService(
@@ -45,7 +48,8 @@ public class ProfileQueryService implements ProfileSnapshotReader {
       BrokerageAssetClassificationReader brokerageAssetClassificationReader,
       CurrencyConversion currencyRates,
       Clock clock,
-      InvestmentIncomeSummaryReader investmentIncome) {
+      InvestmentIncomeSummaryReader investmentIncome,
+      PortfolioContextReader portfolioContexts) {
     this.brokeragePortfolioReadService = brokeragePortfolioReadService;
     this.longTermAssets = longTermAssets;
     this.clock = clock;
@@ -56,6 +60,7 @@ public class ProfileQueryService implements ProfileSnapshotReader {
     this.planningCalculator =
         new ProfilePlanningCalculator(allocationCalculator, currencyNormalizer);
     this.investmentIncome = investmentIncome;
+    this.portfolioContexts = portfolioContexts;
   }
 
   public ProfileQueryService(
@@ -70,6 +75,7 @@ public class ProfileQueryService implements ProfileSnapshotReader {
         brokerageAssetClassificationReader,
         currencyRates,
         clock,
+        null,
         null);
   }
 
@@ -92,24 +98,31 @@ public class ProfileQueryService implements ProfileSnapshotReader {
     SharedBrokeragePortfolioSnapshot market =
         brokeragePortfolioReadService.currentSnapshot(portfolioId);
     CurrencyType base = market.baseCurrency();
+    CurrencyType display =
+        portfolioContexts == null
+            ? base
+            : portfolioContexts
+                .findById(portfolioId)
+                .map(context -> context.localCurrency())
+                .orElse(base);
     LongTermAssetProfileSummaryModel longTerm = longTermSnapshot.summary();
     var longTermAssetRows = longTermSnapshot.assets();
-    BigDecimal marketCash = market.cash();
+    BigDecimal marketCash = currencyNormalizer.toBase(market.cash(), base, display, date);
     Map<ProfileAllocationCalculator.AllocationKey, BigDecimal> values =
         allocationCalculator.values(
             market,
             longTermAssetRows,
             marketCash,
-            (value, source) -> currencyNormalizer.toBase(value, source, base, date));
-    BigDecimal marketValue = market.balance();
-    BigDecimal longTermValue =
-        currencyNormalizer.toBase(longTerm.totalCurrentValue(), longTerm.currency(), base, date);
+            (value, source) -> currencyNormalizer.toBase(value, source, display, date));
+    BigDecimal marketValue = currencyNormalizer.toBase(market.balance(), base, display, date);
+    BigDecimal longTermValue = longTerm.totalCurrentValue();
     BigDecimal longTermInvestmentValue =
         longTermAssetRows.stream()
             .filter(asset -> asset.category() != AssetEconomicCategory.PERSONAL_ASSET)
             .map(
                 asset ->
-                    currencyNormalizer.toBase(asset.currentValue(), asset.currency(), base, date))
+                    currencyNormalizer.toBase(
+                        asset.currentValue(), asset.currency(), display, date))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     ProfileAllocationReconciliation reconciliation =
         new ProfileAllocationReconciliation(
@@ -126,11 +139,10 @@ public class ProfileQueryService implements ProfileSnapshotReader {
             : incomeSnapshot.baseCurrency();
     BigDecimal marketIncome =
         incomeSnapshot == null
-            ? market.dividends().add(market.interest())
-            : currencyNormalizer.toBase(incomeSnapshot.netIncome(), incomeCurrency, base, date);
-    BigDecimal longTermIncome =
-        currencyNormalizer.toBase(
-            longTerm.netAnnualIncomeAfterTax(), longTerm.currency(), base, date);
+            ? currencyNormalizer.toBase(
+                market.dividends().add(market.interest()), base, display, date)
+            : currencyNormalizer.toBase(incomeSnapshot.netIncome(), incomeCurrency, display, date);
+    BigDecimal longTermIncome = longTerm.netAnnualIncomeAfterTax();
     ProfileIncomeSummary income =
         incomeCalculator.calculate(
             marketIncome,
@@ -140,39 +152,46 @@ public class ProfileQueryService implements ProfileSnapshotReader {
             longTermIncome,
             longTermInvestmentValue,
             totalInvestmentValue,
-            base,
+            display,
             date);
     if (investmentIncome != null) {
       var summary = investmentIncome.load(portfolioId);
       if (summary.available()) {
+        CurrencyType investmentCurrency = summary.currency() == null ? base : summary.currency();
+        var displaySummary =
+            new InvestmentIncomeSummary(
+                summary.available(),
+                display,
+                currencyNormalizer.toBase(
+                    summary.investmentBase(), investmentCurrency, display, date),
+                currencyNormalizer.toBase(
+                    summary.expectedAnnualInvestmentResult(), investmentCurrency, display, date),
+                summary.expectedAnnualReturn(),
+                currencyNormalizer.toBase(
+                    summary.investmentResultYtd(), investmentCurrency, display, date),
+                currencyNormalizer.toBase(
+                    summary.expectedInvestmentResultYtd(), investmentCurrency, display, date),
+                summary.expectationProgress());
         income =
             incomeCalculator.calculate(
-                summary, longTermIncome, longTermInvestmentValue, totalInvestmentValue);
+                displaySummary, longTermIncome, longTermInvestmentValue, totalInvestmentValue);
       }
     }
     var liquidity =
         liquidityCalculator.calculate(
-            values, longTermAssetRows, marketCash, marketValue, base, date);
+            values, longTermAssetRows, marketCash, marketValue, display, date);
     return new InvestmentProfile(
         portfolioId,
-        base,
+        display,
         marketValue,
         longTermValue,
         total,
         liquidity.liquid(),
         liquidity.illiquid(),
         allocationCalculator.allocations(values),
-        currencyNormalizer.toBase(
-            longTermSnapshot.annualSnapshot().rentalIncome(),
-            longTermSnapshot.annualSnapshot().currency(),
-            base,
-            date),
-        currencyNormalizer.toBase(
-            longTermSnapshot.annualSnapshot().bondIncome(),
-            longTermSnapshot.annualSnapshot().currency(),
-            base,
-            date),
-        planningCalculator.state(longTermSnapshot.projectionInputs(), base, date),
+        longTermSnapshot.annualSnapshot().rentalIncome(),
+        longTermSnapshot.annualSnapshot().bondIncome(),
+        planningCalculator.state(longTermSnapshot.projectionInputs(), display, date),
         liquidity.reserve(),
         liquidity.investmentCapital(),
         income,

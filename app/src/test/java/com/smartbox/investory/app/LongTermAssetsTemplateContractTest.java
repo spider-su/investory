@@ -1,5 +1,6 @@
 package com.smartbox.investory.app;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -76,6 +77,12 @@ class LongTermAssetsTemplateContractTest {
   void rentalOverviewKeepsPropertyCostsSeparateFromRentalIncomeTax() throws Exception {
     String html = Files.readString(TEMPLATE);
 
+    assertEquals(
+        1,
+        Pattern.compile(Pattern.quote("th:id=\"${group.key == 'REAL_ESTATE'"))
+            .matcher(html)
+            .results()
+            .count());
     assertTrue(html.contains("<th>Property tax + insurance / month</th>"));
     assertTrue(html.contains("Property tax + insurance / month"));
     assertTrue(
@@ -84,11 +91,14 @@ class LongTermAssetsTemplateContractTest {
     assertTrue(
         html.contains(
             "format.compactMoney(group.annualEconomics.monthlyPropertyTaxAndInsurance) + ' / month'"));
-    assertFalse(html.contains("Rent tax / month"));
+    assertTrue(html.contains("Rental tax / month"));
+    assertTrue(
+        html.contains(
+            "format.compactMoney(group.annualEconomics.monthlyRentalIncomeTax) + ' / month'"));
   }
 
   @Test
-  void realEstateFormsLabelThePersistedTaxBaseAsAnnual() throws Exception {
+  void realEstateFormsLabelThePersistedTaxBaseAsMonthly() throws Exception {
     String forms =
         Files.readString(
                 Path.of("../adapters/web-ui/src/main/resources/templates/real-estate-form.html"))
@@ -96,8 +106,8 @@ class LongTermAssetsTemplateContractTest {
                 Path.of(
                     "../adapters/web-ui/src/main/resources/templates/real-estate/fragments/settings.html"));
 
-    assertTrue(forms.contains("Annual rental tax base"));
-    assertFalse(forms.contains("Monthly rental tax base"));
+    assertTrue(forms.contains("Monthly rental tax base"));
+    assertFalse(forms.contains("Annual rental tax base"));
     assertTrue(forms.contains("name=\"taxBase\""));
   }
 
@@ -109,7 +119,7 @@ class LongTermAssetsTemplateContractTest {
                 "../adapters/web-ui/src/main/resources/templates/real-estate/fragments/contracts.html"));
 
     assertTrue(html.contains("<h3>Tax</h3>"));
-    assertTrue(html.contains("Annual tax base"));
+    assertTrue(html.contains("Monthly tax base"));
     assertTrue(html.contains("Tax rate"));
     assertTrue(html.contains("Tax / year"));
     assertTrue(html.contains("Tax / month"));

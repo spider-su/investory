@@ -2,6 +2,7 @@ package com.smartbox.investory.ui.retirement.simulation;
 
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationEventType;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.ui.profile.ProfileClient;
 import jakarta.validation.Valid;
@@ -218,7 +219,7 @@ public class RetirementSimulationController {
   }
 
   private CurrencyType resolveCurrency(Long portfolioId, CurrencyType requested) {
-    if (requested != null) return requested;
-    return profiles.loadProfile(portfolioId).currency();
+    InvestmentProfile profile = profiles.loadProfile(portfolioId);
+    return profile == null ? CurrencyType.PLN : profile.currency();
   }
 }

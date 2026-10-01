@@ -112,7 +112,7 @@ public class LongTermAssetHistoricalSnapshotService {
         }
         BigDecimal tax =
             accruedAmount(
-                    estate.getTaxBase() == null ? BigDecimal.ZERO : estate.getTaxBase(),
+                    LongTermAssetEconomics.annualize(estate.getTaxBase(), Frequency.MONTHLY),
                     Frequency.ANNUAL,
                     period.from(),
                     period.to())

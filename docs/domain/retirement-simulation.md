@@ -127,9 +127,16 @@ canonical 0% yield. Real Estate capital appreciation and `otherReturnRate` are a
 fields and are not modeled by the aggregate Retirement bucket engine; Real Estate currently changes
 through rental cash income/growth only. Scenario selection never writes the saved plan.
 
-All values cross the plan boundary in the plan currency. Source-currency asset values are converted
-once, using the shared target-currency-first conversion service, before they become a flow, capital
-projection, or page view value. A display-currency change only formats the already-normalized value.
+All Retirement monetary values are stored and calculated in the portfolio `local_currency`. The
+Investment module may report in its `base_currency` (currently USD); Retirement converts those
+incoming values to `local_currency` immediately at the module boundary using the current FX rate.
+Long-Term and Profile values already use `local_currency` and pass through unchanged. Retirement
+pages always show `local_currency`; request parameters cannot switch the module into a second
+currency. Plan assumptions, events, baseline snapshots, and reviewed planning-year values are all
+local amounts. The one-time data migration converts existing stored amounts using the current FX
+rate and records the conversion in `retirement_currency_conversions` so it cannot be applied twice.
+Neon was converted on 2026-10-01 at USD/PLN 3.845. When `V01.022` runs there, the recorded
+conversion makes the migration skip those already-converted rows and let Flyway record the version.
 
 ## Planned cash flows
 

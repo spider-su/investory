@@ -331,7 +331,7 @@ class LongTermAssetsApplicationServiceTest {
   }
 
   @Test
-  void realEstateUsesAnnualTaxBaseAndExposesDerivedMonthlyValues() {
+  void realEstateUsesMonthlyTaxBaseAndExposesAnnualAndMonthlyValues() {
     RealEstateEntity realEstate = new RealEstateEntity();
     realEstate.setId(3L);
     realEstate.setPortfolioId(PORTFOLIO_ID);
@@ -360,10 +360,11 @@ class LongTermAssetsApplicationServiceTest {
             .assets()
             .getFirst();
 
-    assertThat(asset.annualEconomics().annualTax()).isEqualByComparingTo("739.5");
-    assertThat(asset.annualEconomics().monthlyTaxBase()).isEqualByComparingTo("725");
-    assertThat(asset.annualEconomics().monthlyTax()).isEqualByComparingTo("61.625");
-    assertThat(asset.annualEconomics().monthlyNetIncomeAfterTax()).isEqualByComparingTo("38.375");
+    assertThat(asset.annualEconomics().annualRentalTaxBase()).isEqualByComparingTo("104400");
+    assertThat(asset.annualEconomics().annualTax()).isEqualByComparingTo("8874");
+    assertThat(asset.annualEconomics().monthlyTaxBase()).isEqualByComparingTo("8700");
+    assertThat(asset.annualEconomics().monthlyTax()).isEqualByComparingTo("739.5");
+    assertThat(asset.annualEconomics().monthlyNetIncomeAfterTax()).isEqualByComparingTo("-639.5");
   }
 
   @Test
@@ -513,10 +514,10 @@ class LongTermAssetsApplicationServiceTest {
     assertThat(asset.currentValue()).isEqualByComparingTo("1000000");
     assertThat(asset.annualEconomics().grossAnnualIncome()).isEqualByComparingTo("60000");
     assertThat(asset.annualEconomics().annualExpenses()).isEqualByComparingTo("10000");
-    assertThat(asset.annualEconomics().annualTax()).isEqualByComparingTo("85");
-    assertThat(asset.annualEconomics().netAnnualIncomeAfterTax()).isEqualByComparingTo("49915");
+    assertThat(asset.annualEconomics().annualTax()).isEqualByComparingTo("1020");
+    assertThat(asset.annualEconomics().netAnnualIncomeAfterTax()).isEqualByComparingTo("48980");
     assertThat(asset.annualEconomics().grossYield()).isEqualByComparingTo("0.06");
-    assertThat(asset.annualEconomics().netYieldAfterTax()).isEqualByComparingTo("0.049915");
+    assertThat(asset.annualEconomics().netYieldAfterTax()).isEqualByComparingTo("0.04898");
   }
 
   @Test
@@ -577,7 +578,7 @@ class LongTermAssetsApplicationServiceTest {
   }
 
   @Test
-  void historicalRentalIncomeUsesCalendarContractsAndAnnualTaxBase() {
+  void historicalRentalIncomeUsesCalendarContractsAndMonthlyTaxBase() {
     RealEstateEntity estate = new RealEstateEntity();
     estate.setId(20L);
     estate.setPortfolioId(PORTFOLIO_ID);
@@ -604,7 +605,7 @@ class LongTermAssetsApplicationServiceTest {
 
     var historical = service.historicalAnnualSnapshot(PORTFOLIO_ID, 2025);
 
-    assertThat(historical.rentalIncome()).isEqualByComparingTo("5984.615");
+    assertThat(historical.rentalIncome()).isEqualByComparingTo("5815.38");
     assertThat(historical.realEstateValue()).isNull();
     assertThat(historical.bondIncome()).isNull();
   }
@@ -632,8 +633,11 @@ class LongTermAssetsApplicationServiceTest {
     assertThat(group.assets())
         .satisfiesExactly(
             row -> {
-              assertThat(row.annualEconomics().annualRentalTaxBase()).isEqualByComparingTo("2900");
+              assertThat(row.annualEconomics().annualRentalTaxBase()).isEqualByComparingTo("34800");
               assertThat(row.annualEconomics().annualRentalIncomeTax())
+                  .isEqualByComparingTo("2958");
+              assertThat(row.annualEconomics().monthlyTaxBase()).isEqualByComparingTo("2900");
+              assertThat(row.annualEconomics().monthlyRentalIncomeTax())
                   .isEqualByComparingTo("246.5");
               assertThat(row.annualEconomics().monthlyPropertyTaxAndInsurance())
                   .isEqualByComparingTo("49.166666666667");
@@ -651,9 +655,13 @@ class LongTermAssetsApplicationServiceTest {
             row ->
                 assertThat(row.annualEconomics().monthlyPropertyTaxAndInsurance())
                     .isEqualByComparingTo("47.5"));
-    assertThat(group.annualEconomics().annualRentalTaxBase()).isEqualByComparingTo("8880");
-    assertThat(group.annualEconomics().annualRentalIncomeTax()).isEqualByComparingTo("754.8");
-    assertThat(group.annualEconomics().monthlyRentalIncomeTax()).isEqualByComparingTo("62.9");
+    assertThat(group.annualEconomics().annualRentalTaxBase()).isEqualByComparingTo("106560");
+    assertThat(group.annualEconomics().annualRentalIncomeTax()).isEqualByComparingTo("9057.6");
+    assertThat(group.annualEconomics().monthlyRentalIncomeTax()).isEqualByComparingTo("754.8");
+    assertThat(group.annualEconomics().monthlyTaxBase()).isEqualByComparingTo("8880");
+    assertThat(group.annualEconomics().annualExpenses()).isEqualByComparingTo("2770");
+    assertThat(group.annualEconomics().netAnnualIncomeBeforeTax()).isEqualByComparingTo("-2770");
+    assertThat(group.annualEconomics().netAnnualIncomeAfterTax()).isEqualByComparingTo("-11827.6");
     assertThat(group.annualEconomics().annualPropertyTax()).isEqualByComparingTo("1640");
     assertThat(group.annualEconomics().annualInsurance()).isEqualByComparingTo("1130");
     assertThat(group.annualEconomics().annualPropertyTaxAndInsurance())
@@ -729,14 +737,14 @@ class LongTermAssetsApplicationServiceTest {
     return personal;
   }
 
-  private static RealEstateEntity estate(Long id, String name, String annualTaxBase) {
+  private static RealEstateEntity estate(Long id, String name, String monthlyTaxBase) {
     RealEstateEntity estate = new RealEstateEntity();
     estate.setId(id);
     estate.setPortfolioId(PORTFOLIO_ID);
     estate.setName(name);
     estate.setCurrency(CurrencyType.PLN);
     estate.setValue(new BigDecimal("100000"));
-    estate.setTaxBase(new BigDecimal(annualTaxBase));
+    estate.setTaxBase(new BigDecimal(monthlyTaxBase));
     return estate;
   }
 

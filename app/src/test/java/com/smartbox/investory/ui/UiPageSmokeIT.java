@@ -285,10 +285,10 @@ class UiPageSmokeIT extends FastDatabaseTest {
       String longTermCard = sourceCards.nth(1).textContent();
       assertThat(marketCard)
           .contains(
-              "Investment result YTD",
-              "Annualized current investment result",
+              "Income YTD",
+              "Annual income:",
               "Annualized current result",
-              "Annualized current return")
+              "Annualized return (net)")
           .doesNotContain("p.a.");
       assertThat(
               sourceCards
@@ -298,7 +298,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
                   .locator("strong")
                   .textContent())
           .matches("-?\\d+\\.\\d%|Unavailable");
-      assertThat(longTermCard).contains("Planned income YTD").doesNotContain("Basis");
+      assertThat(longTermCard).contains("Income YTD").doesNotContain("Basis");
 
       String allocation = page.locator(".iv-profile-allocation").textContent();
       assertThat(allocation)

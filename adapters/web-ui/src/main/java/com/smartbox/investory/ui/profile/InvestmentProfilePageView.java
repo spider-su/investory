@@ -77,16 +77,12 @@ record InvestmentProfilePageView(
         UiPresentation.compactMoney(profile.marketPortfolioValue()),
         UiPresentation.percentage(profile.longTermAssetPercentage()) + " of net worth",
         UiPresentation.compactMoney(profile.longTermAssetValue()),
-        hasAnnualizedInvestmentResult
-            ? UiPresentation.compactMoney(annualizedInvestmentResult)
-            : UiPresentation.compactMoney(income.marketAnnualIncome()),
+        UiPresentation.compactMoney(income.marketNetAnnualIncome()),
         UiPresentation.percentage(profile.marketPortfolioPercentage()),
         UiPresentation.percentage(profile.longTermAssetPercentage()),
-        hasAnnualizedInvestmentResult && investmentBase != null && investmentBase.signum() != 0
-            ? UiPresentation.percentage(ratio(annualizedInvestmentResult, investmentBase))
-            : forecastAnnualReturn != null
-                ? UiPresentation.percentage(forecastAnnualReturn)
-                : "Unavailable",
+        investmentBase != null && investmentBase.signum() != 0
+            ? UiPresentation.percentage(ratio(income.marketNetAnnualIncome(), investmentBase))
+            : "Unavailable",
         forecastAnnualInvestmentResult != null
             ? "Forecast annual return"
             : hasAnnualizedInvestmentResult

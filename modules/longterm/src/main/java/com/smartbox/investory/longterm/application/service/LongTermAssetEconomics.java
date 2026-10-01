@@ -18,7 +18,7 @@ final class LongTermAssetEconomics {
   private LongTermAssetEconomics() {}
 
   static RentalEconomics rental(
-      List<RentalContractModel.Term> terms, BigDecimal annualRentalTaxBase, BigDecimal value) {
+      List<RentalContractModel.Term> terms, BigDecimal monthlyRentalTaxBase, BigDecimal value) {
     BigDecimal income = BigDecimal.ZERO;
     BigDecimal expenses = BigDecimal.ZERO;
     BigDecimal monthlyPayment = BigDecimal.ZERO;
@@ -42,16 +42,19 @@ final class LongTermAssetEconomics {
         monthlyPayment = monthlyPayment.add(monthlyAmount(term.amount(), term.frequency()));
       }
     }
-    BigDecimal normalizedTaxBase =
-        annualRentalTaxBase == null ? BigDecimal.ZERO : annualRentalTaxBase;
+    BigDecimal normalizedMonthlyTaxBase =
+        monthlyRentalTaxBase == null ? BigDecimal.ZERO : monthlyRentalTaxBase;
+    BigDecimal annualTaxBase = normalizedMonthlyTaxBase.multiply(MONTHS_PER_YEAR);
     BigDecimal rentalIncomeTax =
-        normalizedTaxBase.multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE);
+        normalizedMonthlyTaxBase
+            .multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE)
+            .multiply(MONTHS_PER_YEAR);
     return new RentalEconomics(
         rentalEconomics(
             income,
             expenses,
             value,
-            normalizedTaxBase,
+            annualTaxBase,
             rentalIncomeTax,
             annualPropertyTax,
             annualInsurance),
@@ -194,7 +197,7 @@ final class LongTermAssetEconomics {
   static RealEstateReturnView totalReturn(
       BigDecimal acquisitionValue,
       BigDecimal currentValue,
-      BigDecimal annualTaxBase,
+      BigDecimal monthlyRentalTaxBase,
       List<RentalContractModel> contracts,
       LocalDate date) {
     BigDecimal rentalProfit = BigDecimal.ZERO;
@@ -214,7 +217,8 @@ final class LongTermAssetEconomics {
       rentalProfit =
           rentalProfit.subtract(
               accruedAmount(
-                      annualTaxBase == null ? BigDecimal.ZERO : annualTaxBase,
+                      (monthlyRentalTaxBase == null ? BigDecimal.ZERO : monthlyRentalTaxBase)
+                          .multiply(MONTHS_PER_YEAR),
                       Frequency.ANNUAL,
                       contract.startDate(),
                       through)

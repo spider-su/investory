@@ -181,6 +181,7 @@ class PlanningProgressServiceTest {
     CurrentPlanningYear live = new CurrentPlanningYear(2026, 7L, null, Map.of(), Map.of());
     PlanningTimeline timeline =
         new PlanningTimeline(
+            com.smartbox.investory.shared.currency.CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(
                     2025, 40, PlanningTimelineState.ACTUAL, closed, null, null),

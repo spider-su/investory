@@ -34,10 +34,9 @@ class InvestmentProfileTemplateContractTest {
         .contains("Market investments")
         .contains("Long-term assets")
         .contains("Income sources")
-        .contains("Investment result YTD")
-        .contains("Annualized current investment result")
-        .contains("Annualized current return")
-        .contains("Planned income YTD")
+        .contains("Income YTD")
+        .contains("Annual income:")
+        .contains("Annualized return (net)")
         .contains("profile.longTermPlannedIncomeYtdDisplay");
     assertThat(profileHtml).doesNotContain("profileMarketInvestmentResult");
     assertThat(profileHtml)

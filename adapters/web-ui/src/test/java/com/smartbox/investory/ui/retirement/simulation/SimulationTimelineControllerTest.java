@@ -101,7 +101,7 @@ class SimulationTimelineControllerTest {
 
     verify(timeline).prefillHistoricalYears(1L, 2026);
     assertEquals(
-        "redirect:/portfolios/1/simulation?planningDisplayCurrency=EUR&selectedScenario=OPTIMISTIC",
+        "redirect:/portfolios/1/simulation?planningDisplayCurrency=PLN&selectedScenario=OPTIMISTIC",
         redirect);
   }
 

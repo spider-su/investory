@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
+import com.smartbox.investory.investment.reporting.BenchmarkMarketDataService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService;
 import com.smartbox.investory.investment.valuation.price.MarketDataService;
@@ -28,6 +29,7 @@ class InvestmentMaintenanceApplicationServiceTest {
   private final CurrencyRateUpdaterService currencyRates = mock();
   private final PriceHistoryCoverageService coverage = mock();
   private final ApplicationTime applicationTime = mock();
+  private final BenchmarkMarketDataService benchmarkMarketData = mock();
   private InvestmentMaintenanceApplicationService service;
 
   @BeforeEach
@@ -40,7 +42,8 @@ class InvestmentMaintenanceApplicationServiceTest {
             projectionRefresh,
             currencyRates,
             coverage,
-            applicationTime);
+            applicationTime,
+            benchmarkMarketData);
   }
 
   @Test
@@ -49,8 +52,15 @@ class InvestmentMaintenanceApplicationServiceTest {
 
     assertEquals("OK", result.status());
     verify(market).fullPortfolioUpdate();
+    verify(benchmarkMarketData).refreshMonthlyCloses();
     verifyNoMoreInteractions(
-        market, manualPrices, projections, projectionRefresh, currencyRates, coverage);
+        market,
+        manualPrices,
+        projections,
+        projectionRefresh,
+        currencyRates,
+        coverage,
+        benchmarkMarketData);
   }
 
   @Test
@@ -72,8 +82,9 @@ class InvestmentMaintenanceApplicationServiceTest {
   void updateHistoryPreservesRefreshOrder() {
     service.updateHistory();
 
-    InOrder order = inOrder(market, coverage, projections, projectionRefresh);
+    InOrder order = inOrder(market, benchmarkMarketData, coverage, projections, projectionRefresh);
     order.verify(market).refreshMarketPricesAndPositions();
+    order.verify(benchmarkMarketData).refreshMonthlyCloses();
     order.verify(coverage).ensurePortfolioCoverage(null);
     order.verify(projections).recalculateAll();
     order
@@ -81,7 +92,7 @@ class InvestmentMaintenanceApplicationServiceTest {
         .refreshApplicationViews(
             PortfolioProjectionRefreshService.ApplicationRefreshScope.MARKET_HISTORY);
     order.verify(projections).refreshReconciliationViews();
-    verifyNoMoreInteractions(market, coverage, projections, projectionRefresh);
+    verifyNoMoreInteractions(market, benchmarkMarketData, coverage, projections, projectionRefresh);
   }
 
   @Test

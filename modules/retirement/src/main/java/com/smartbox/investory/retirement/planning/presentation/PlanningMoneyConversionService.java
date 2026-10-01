@@ -3,10 +3,7 @@ package com.smartbox.investory.retirement.planning.presentation;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
-import java.math.MathContext;
-import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import org.springframework.stereotype.Service;
@@ -14,7 +11,6 @@ import org.springframework.stereotype.Service;
 /** Currency-only boundary used by planning presentation models. */
 @Service
 public class PlanningMoneyConversionService {
-  private static final CurrencyType CANONICAL = FinancialPolicyDefaults.CANONICAL_CURRENCY;
   private final CurrencyConversion rates;
   private final Clock clock;
 
@@ -24,9 +20,7 @@ public class PlanningMoneyConversionService {
   }
 
   public BigDecimal toDisplay(BigDecimal canonical, CurrencyType display) {
-    return canonical == null || display == CANONICAL
-        ? canonical
-        : rates.convertToBaseCurrency(canonical, display, CANONICAL, LocalDate.now(clock));
+    return canonical;
   }
 
   public BigDecimal toDisplay(BigDecimal amount, CurrencyType source, CurrencyType display) {
@@ -35,21 +29,7 @@ public class PlanningMoneyConversionService {
         : rates.convertToBaseCurrency(amount, display, source, LocalDate.now(clock));
   }
 
-  /** Normalize an explicitly denominated source-domain amount for planning calculations. */
-  public BigDecimal toCanonical(BigDecimal amount, CurrencyType source) {
-    return amount == null || source == CANONICAL
-        ? amount
-        : rates.convertToBaseCurrency(amount, CANONICAL, source, LocalDate.now(clock));
-  }
-
   public BigDecimal fromDisplay(BigDecimal amount, CurrencyType display, BigDecimal fallback) {
-    return amount == null
-        ? fallback
-        : display == CANONICAL
-            ? amount
-            : amount.divide(
-                rates.convertToBaseCurrency(
-                    BigDecimal.ONE, display, CANONICAL, LocalDate.now(clock)),
-                new MathContext(18, RoundingMode.HALF_UP));
+    return amount == null ? fallback : amount;
   }
 }

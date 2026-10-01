@@ -49,6 +49,20 @@ public class CashFlowAggregator {
 
   public CashFlowSummary aggregate(
       List<CashOperationEntity> operations, CurrencyType baseCurrency) {
+    List<LocalDate> valuationDates =
+        operations.stream()
+            .filter(operation -> operation.getType() != null)
+            .map(
+                operation ->
+                    operation.getDate() == null
+                        ? applicationTime.today()
+                        : operation.getDate().toLocalDate())
+            .toList();
+    if (!valuationDates.isEmpty()) {
+      currencyConversion.warmValuationMatrices(
+          valuationDates.stream().min(LocalDate::compareTo).orElseThrow(),
+          valuationDates.stream().max(LocalDate::compareTo).orElseThrow());
+    }
     Map<CurrencyType, List<CashOperationEntity>> byCurrency =
         operations.stream().collect(Collectors.groupingBy(CashOperationEntity::getCurrency));
 

@@ -2,6 +2,15 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-09-30
+
+### Monthly rental-tax base
+
+- Defined `real_estate.tax_base` as a monthly amount; monthly rental-income tax is 8.5% of that
+  amount and annual tax is the monthly tax multiplied by 12.
+- Updated current, historical, and total-return calculations, labels, documentation, and fixtures.
+- Existing stored numbers are preserved and now interpreted as monthly values.
+
 ## 2026-09-26
 
 ### Safe profile cleanup

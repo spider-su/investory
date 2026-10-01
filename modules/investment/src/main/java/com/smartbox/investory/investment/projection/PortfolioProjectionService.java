@@ -87,6 +87,9 @@ public class PortfolioProjectionService {
       // entities until the transaction ends and can exhaust the Cloud Run heap.
       for (Long accountId : accountIds) {
         recalculateAccountsInternal(Set.of(accountId));
+        // saveAll() queues the derived rows in the persistence context. Flush them before clear()
+        // so this per-account memory bound does not discard the pending account_daily inserts.
+        entityManager.flush();
         entityManager.clear();
       }
       log.info(

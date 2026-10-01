@@ -189,13 +189,14 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   "Net worth",
                   compact(HappyInvestorProfileFacts.TOTAL_NET_WORTH),
                   "Projected annual result + income",
-                  "92.5K");
+                  "86.7K");
           assertThat(page.locator(".iv-profile-source-card").nth(0).textContent())
               .contains(
                   "Market investments",
-                  "Investment base",
-                  "Annualized current investment result",
-                  "Investment result YTD");
+                  "Base:",
+                  "Annual income:",
+                  "Annualized return (net)",
+                  "Income YTD");
           assertThat(page.locator(".iv-profile-source-card").nth(1).textContent())
               .contains(
                   "Long-term assets",
@@ -231,17 +232,29 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                   compact(HappyInvestorLongTermFacts.LONG_TERM_TOTAL),
                   FinancialPresentation.wholeNumber(
                       HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL));
-          assertThat(page.locator("#real-estate").textContent())
+          var realEstate = page.locator("#real-estate");
+          var details = realEstate.locator(":scope > .iv-planning-section__details-row > details");
+          var summary = details.locator(":scope > summary");
+          var collapsed = realEstate.locator(".iv-collapsed-summary");
+          assertThat(details.evaluate("element => element.open")).isEqualTo(false);
+          assertThat(collapsed.isVisible()).isTrue();
+          assertThat(collapsed.textContent()).contains("Rental tax / month", "527 / month");
+          summary.click();
+          assertThat(details.evaluate("element => element.open")).isEqualTo(true);
+          var propertyTable = realEstate.locator("table.long-term-assets-table--real-estate");
+          assertThat(propertyTable.isVisible()).isTrue();
+          assertThat(collapsed.isVisible()).isFalse();
+          assertThat(propertyTable.textContent())
               .contains(
                   "Apartment A",
                   "Apartment B",
                   "Property tax + insurance / month",
                   "267",
                   "250",
-                  "Property tax + insurance / month",
-                  "517",
-                  "8.7%",
-                  "6.5%");
+                  "8.0%",
+                  "6.0%");
+          assertThat(realEstate.locator("table.long-term-assets-table__total").textContent())
+              .contains("517");
           assertThat(page.locator("#bonds").textContent())
               .contains("Treasury 2026", "10.0K", "375", "88");
           assertThat(page.locator("#cash-reserves").textContent())
@@ -263,18 +276,18 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
               .contains(
                   "Rental contracts",
                   "Property settings",
-                  "Annual tax base",
+                  "Monthly tax base",
                   "Tax rate",
                   "Tax / year",
                   "Tax / month",
                   "3,200 PLN",
                   "8.5%",
+                  "3,264 PLN",
                   "272 PLN",
-                  "22.67 PLN",
                   FinancialPresentation.money(HappyInvestorTestData.APARTMENT_A_MONTHLY_RENT),
                   "Monthly");
           assertThat(page.locator("label[for='tax-base']").textContent())
-              .isEqualTo("Annual rental tax base");
+              .isEqualTo("Monthly rental tax base");
           assertThat(page.locator("#tax-base").inputValue()).isEqualTo("3200");
           assertThat(page.locator("#land-register-number").inputValue())
               .isEqualTo("TEST-LAND-REGISTER-001");

@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,23 +23,33 @@ import org.springframework.util.CollectionUtils;
 
 /** Owns provider fetching and persistence of benchmark market history. */
 @Service
-class BenchmarkMarketDataService {
+public class BenchmarkMarketDataService {
 
-  private static final String SYMBOL = "SPY";
   private static final int FETCH_MONTHS = 120;
 
   private final BenchmarkMonthlyCloseRepository repository;
   private final MarketDataProvider marketDataProvider;
   private final ApplicationTime applicationTime;
+  private final String symbol;
   private LocalDate fetchAttemptedOn;
 
-  BenchmarkMarketDataService(
+  public BenchmarkMarketDataService(
       BenchmarkMonthlyCloseRepository repository,
       MarketDataProvider marketDataProvider,
       ApplicationTime applicationTime) {
+    this(repository, marketDataProvider, applicationTime, "SPY");
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public BenchmarkMarketDataService(
+      BenchmarkMonthlyCloseRepository repository,
+      MarketDataProvider marketDataProvider,
+      ApplicationTime applicationTime,
+      @Value("${app.benchmark.symbol:SPY}") String symbol) {
     this.repository = repository;
     this.marketDataProvider = marketDataProvider;
     this.applicationTime = applicationTime;
+    this.symbol = symbol;
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -45,20 +57,34 @@ class BenchmarkMarketDataService {
     NavigableMap<String, Double> cached = loadCachedCloses();
     if (!hasRequiredCloses(cached, requiredLabels)
         && !applicationTime.today().equals(fetchAttemptedOn)) {
-      NavigableMap<String, Double> fetched =
-          marketDataProvider.fetchMonthlyCloses(SYMBOL, FETCH_MONTHS);
-      fetchAttemptedOn = applicationTime.today();
-      if (!CollectionUtils.isEmpty(fetched)) {
-        persistFetchedCloses(fetched);
+      if (fetchAndPersist()) {
         cached = loadCachedCloses();
       }
     }
     return cached;
   }
 
+  /** Refresh benchmark history with the market price job, including the current month-to-date. */
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  @CacheEvict(cacheNames = "benchmark", allEntries = true)
+  public synchronized void refreshMonthlyCloses() {
+    fetchAndPersist();
+  }
+
+  private boolean fetchAndPersist() {
+    LocalDate today = applicationTime.today();
+    if (today.equals(fetchAttemptedOn)) return false;
+    NavigableMap<String, Double> fetched =
+        marketDataProvider.fetchMonthlyCloses(symbol, FETCH_MONTHS);
+    fetchAttemptedOn = today;
+    if (CollectionUtils.isEmpty(fetched)) return false;
+    persistFetchedCloses(fetched);
+    return true;
+  }
+
   private NavigableMap<String, Double> loadCachedCloses() {
     NavigableMap<String, Double> closes = new TreeMap<>();
-    for (BenchmarkMonthlyCloseEntity row : repository.findBySymbolOrderByMonthDateAsc(SYMBOL)) {
+    for (BenchmarkMonthlyCloseEntity row : repository.findBySymbolOrderByMonthDateAsc(symbol)) {
       if (row.getMonthDate() != null && row.getClosePrice() != null) {
         closes.put(
             YearMonth.from(row.getMonthDate()).toString(), row.getClosePrice().doubleValue());
@@ -74,7 +100,7 @@ class BenchmarkMarketDataService {
 
   private void persistFetchedCloses(NavigableMap<String, Double> fetched) {
     Map<String, BenchmarkMonthlyCloseEntity> existing =
-        repository.findBySymbolOrderByMonthDateAsc(SYMBOL).stream()
+        repository.findBySymbolOrderByMonthDateAsc(symbol).stream()
             .filter(row -> row.getMonthDate() != null)
             .collect(
                 Collectors.toMap(
@@ -91,7 +117,7 @@ class BenchmarkMarketDataService {
           if (row == null) {
             row =
                 BenchmarkMonthlyCloseEntity.builder()
-                    .symbol(SYMBOL)
+                    .symbol(symbol)
                     .monthDate(YearMonth.parse(month).atDay(1))
                     .build();
           }

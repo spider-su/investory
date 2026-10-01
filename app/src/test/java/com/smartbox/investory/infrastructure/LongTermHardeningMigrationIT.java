@@ -13,12 +13,12 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-/** Preserves annual tax-base facts and enforces Long-Term chronology and lifecycle provenance. */
+/** Preserves monthly tax-base facts and enforces Long-Term chronology and lifecycle provenance. */
 class LongTermHardeningMigrationIT {
   private static final WorkerDatabase DATABASE = MigrationTestDatabase.open("long_term_hardening");
 
   @BeforeAll
-  static void migrateExistingAnnualTaxBases() throws Exception {
+  static void migrateExistingMonthlyTaxBases() throws Exception {
     MigrationTestDatabase.assertDisposable(DATABASE);
     MigrationTestDatabase.flyway(DATABASE).clean();
     MigrationTestDatabase.migrateTo(DATABASE, "01.008");
@@ -28,11 +28,11 @@ class LongTermHardeningMigrationIT {
           """
           INSERT INTO investory.real_estate
               (id, portfolio_id, name, currency, value, tax_base, archived_at)
-          VALUES (9491, 1, 'Annual taxable property', 'PLN', 400000, 3200, NULL),
+          VALUES (9491, 1, 'Monthly taxable property', 'PLN', 400000, 3200, NULL),
                  (9492, 1, 'Unspecified base', 'PLN', 100000, NULL, NULL),
                  (9493, 1, 'Zero base', 'PLN', 100000, 0, NULL),
-                 (9494, 1, 'Archived annual base', 'PLN', 100000, 3000, DATE '2025-12-31'),
-                 (9495, 1, 'Fractional annual base', 'PLN', 100000, 100.125, NULL);
+                 (9494, 1, 'Archived monthly base', 'PLN', 100000, 3000, DATE '2025-12-31'),
+                 (9495, 1, 'Fractional monthly base', 'PLN', 100000, 100.125, NULL);
           """);
       assertEquals(
           1,
@@ -41,7 +41,7 @@ class LongTermHardeningMigrationIT {
               "SELECT count(*) FROM investory.real_estate WHERE id = 9491 AND tax_base = 3200"));
       assertTrue(columnComment(statement).startsWith("Annual rental-tax base in asset currency."));
     }
-    MigrationTestDatabase.migrateTo(DATABASE, "01.008");
+    MigrationTestDatabase.migrateTo(DATABASE, "01.021");
   }
 
   @AfterAll
@@ -50,7 +50,7 @@ class LongTermHardeningMigrationIT {
   }
 
   @Test
-  void preservesExistingAnnualBasesAndTheirContract() throws Exception {
+  void preservesExistingMonthlyBasesAndUsesMonthlyTaxContract() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
       assertEquals(
@@ -67,21 +67,21 @@ class LongTermHardeningMigrationIT {
           1,
           MigrationTestDatabase.singleInt(
               statement,
-              "SELECT count(*) FROM investory.real_estate WHERE id = 9491 AND tax_base = 3200 AND tax_base * 0.085 = 272"));
+              "SELECT count(*) FROM investory.real_estate WHERE id = 9491 AND tax_base = 3200 AND tax_base * 0.085 = 272 AND tax_base * 12 * 0.085 = 3264"));
       assertEquals(
           1,
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.real_estate WHERE id = 9494 AND tax_base = 3000 AND archived_at = DATE '2025-12-31'"));
       assertEquals(
-          "Annual rental-tax base in asset currency. Annual rental tax = tax_base * 0.085; NULL means unspecified.",
+          "Monthly rental-tax base in asset currency. Monthly rental tax = tax_base * 0.085; annual rental tax = tax_base * 12 * 0.085; NULL means unspecified.",
           columnComment(statement));
     }
   }
 
   @Test
-  void rerunningFlywayDoesNotRewriteAnnualBases() throws Exception {
-    MigrationTestDatabase.migrateTo(DATABASE, "01.008");
+  void rerunningFlywayDoesNotRewriteMonthlyBases() throws Exception {
+    MigrationTestDatabase.migrateTo(DATABASE, "01.021");
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement();
         var result =

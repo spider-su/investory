@@ -1,17 +1,13 @@
 package com.smartbox.investory.retirement.api.model;
 
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.util.List;
+import java.util.Objects;
 
-/** Timeline values are denominated in {@link #currency()}, except persisted historical rows. */
+/** Timeline values, including persisted historical rows, are denominated in {@link #currency()}. */
 public record PlanningTimeline(CurrencyType currency, List<PlanningTimelineYear> years) {
-  public PlanningTimeline(List<PlanningTimelineYear> years) {
-    this(FinancialPolicyDefaults.CANONICAL_CURRENCY, years);
-  }
-
   public PlanningTimeline {
-    currency = currency == null ? FinancialPolicyDefaults.CANONICAL_CURRENCY : currency;
+    currency = Objects.requireNonNull(currency, "Portfolio local currency is required");
     years = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(years);
   }
 

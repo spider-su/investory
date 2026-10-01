@@ -966,7 +966,7 @@
     text-transform: uppercase;
 }
 .iv-profile-source-card__heading small,
-.iv-profile-source-card__footer span { color: var(--iv-text-soft); font-size: .72rem; }
+.iv-profile-source-card__footer-label { color: var(--iv-text-soft); font-size: .72rem; }
 .iv-profile-source-card__metrics {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -997,7 +997,20 @@
     border-top: 1px solid var(--iv-border);
     background: color-mix(in srgb, var(--iv-surface) 45%, transparent);
 }
-.iv-profile-source-card__footer strong { font-size: .76rem; font-variant-numeric: tabular-nums; }
+.iv-profile-source-card__footer-value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    color: var(--iv-text);
+    font-size: .9rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+.iv-profile-source-card__footer-value small {
+    color: inherit;
+    font-size: inherit;
+    font-weight: 700;
+}
 .iv-profile-allocation .iv-allocation-bar { margin-bottom: 10px; }
 .iv-profile-allocation__bucket { display: inline-flex; align-items: center; gap: 9px; }
 .iv-profile-allocation__swatch {

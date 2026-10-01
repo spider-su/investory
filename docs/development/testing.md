@@ -179,7 +179,8 @@ The migration layer stays deliberately small:
 - `FlywayMigrationChainIT` proves the complete chain applies to an empty database.
 - `SchemaStructureContractIT` checks the application-facing tables, views, and key columns.
 - `MigrationDataRepairIT` checks the repaired reference-data semantics from the final migration.
-- `LongTermHardeningMigrationIT` proves annual rental-tax-base facts remain unchanged and verifies
+- `LongTermHardeningMigrationIT` proves existing rental-tax-base values remain unchanged through
+  the monthly-semantics migration and verifies
   database chronology and lifecycle-provenance constraints.
 
 Before the production freeze, existing versioned migrations may be cleaned up or consolidated while

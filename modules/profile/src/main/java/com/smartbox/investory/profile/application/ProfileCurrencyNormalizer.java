@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
-/** Converts optional Profile facts into the portfolio base currency. */
+/** Converts Profile facts into the requested portfolio display currency. */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class ProfileCurrencyNormalizer {
   private final CurrencyConversion rates;
