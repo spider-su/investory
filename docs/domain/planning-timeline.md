@@ -110,11 +110,6 @@ from that source-owned base and applies the plan's full annual Equity return. Th
 Equity value becomes the next projected year's starting value. If that base is unavailable, the bridge
 uses the live profile's Equity value and its remaining-year projection.
 
-The current-year Bond boundary applies the plan's full annual fixed-income return to the live Bond
-starting balance. The bridge adjusts the simulated year-end balance by the difference from its
-remaining-period return, preserving any projected withdrawals. That expected end becomes the next
-projected year's Bond starting value.
-
 The first full projected year starts rental-income growth from the current factual annualized rental
 income, carried through the bridge. The saved plan supplies the effective rental growth rate applied
 from that boundary; a previously captured rental-income baseline does not replace the live amount.
