@@ -93,21 +93,31 @@ public class CurrentYearProjectionBridge {
     BigDecimal contribution = projected.preRetirementContribution();
     Map<EconomicBucket, CurrentYearProjection.BucketBoundary> boundaries =
         projectedBoundaries(projected);
-    BigDecimal investmentBase = investmentIncomeBase(profile);
-    BigDecimal projectedEquityReturn = projected.equityGain();
-    if (investmentBase != null) {
-      // Investment owns the current-year Equity base. Apply the plan's full-year Equity return
-      // to that base so this year's expected end carries into next year's starting balance.
-      BigDecimal equityReturnRate =
-          ScenarioEffectiveAssumptions.forScenario(
-                  profile, currentYearAssumptions, SimulationScenario.BASE, year)
-              .equityReturnRate();
-      projectedEquityReturn = investmentBase.multiply(equityReturnRate);
-      boundaries.put(
-          EconomicBucket.EQUITY,
-          new CurrentYearProjection.BucketBoundary(
-              investmentBase, investmentBase.add(projectedEquityReturn)));
-    }
+    BigDecimal projectedBondReturn = projected.capitalizedBondReturn();
+    CurrentYearProjection.BucketBoundary bondBoundary = boundaries.get(EconomicBucket.FIXED_INCOME);
+    ScenarioEffectiveAssumptions effective =
+        ScenarioEffectiveAssumptions.forScenario(
+            profile, currentYearAssumptions, SimulationScenario.BASE, year);
+    BigDecimal fullYearBondReturn =
+        bondBoundary.startValue().multiply(effective.planBondReturnRate());
+    BigDecimal additionalBondReturn = fullYearBondReturn.subtract(projectedBondReturn);
+    boundaries.put(
+        EconomicBucket.FIXED_INCOME,
+        new CurrentYearProjection.BucketBoundary(
+            bondBoundary.startValue(), bondBoundary.expectedEndValue().add(additionalBondReturn)));
+    projectedBondReturn = fullYearBondReturn;
+    CurrentYearProjection.BucketBoundary equityBoundary = boundaries.get(EconomicBucket.EQUITY);
+    BigDecimal equityReturnBase =
+        profile.incomeSummary().investmentIncomeBase() == null
+            ? equityBoundary.startValue()
+            : profile.incomeSummary().investmentIncomeBase();
+    BigDecimal projectedEquityReturn = equityReturnBase.multiply(effective.equityReturnRate());
+    BigDecimal additionalEquityReturn = projectedEquityReturn.subtract(projected.equityGain());
+    boundaries.put(
+        EconomicBucket.EQUITY,
+        new CurrentYearProjection.BucketBoundary(
+            equityBoundary.startValue(),
+            equityBoundary.expectedEndValue().add(additionalEquityReturn)));
     InvestmentProfile bridgedProfile =
         rebaseSpendableState(reviewedProfile, profile.currentRentalIncome(), boundaries);
     return result(
@@ -122,20 +132,9 @@ public class CurrentYearProjectionBridge {
         projected.rentalIncome().add(projected.bondIncome()),
         ZERO,
         projectedEquityReturn,
-        projected.capitalizedBondReturn(),
+        projectedBondReturn,
         projectedEquityReturn,
         boundaries);
-  }
-
-  private static BigDecimal investmentIncomeBase(InvestmentProfile profile) {
-    var income = profile.incomeSummary();
-    if (income == null
-        || !income.investmentIncomeAvailable()
-        || income.investmentIncomeBase() == null
-        || income.investmentIncomeBase().signum() <= 0) {
-      return null;
-    }
-    return income.investmentIncomeBase();
   }
 
   /** Carry the returned four-bucket expected end state into the next projected year. */
