@@ -111,6 +111,52 @@ class InvestmentPerformanceApplicationServiceTest {
     assertEquals(bd(10.25), view.benchmarkValues().getLast());
   }
 
+  @DisplayName("current Partial Month Is Excluded From Chart And Period Kpis")
+  @Test
+  void currentPartialMonthIsExcludedFromChartAndPeriodKpis() {
+    Benchmark benchmark = benchmark();
+    benchmark.setLabels(List.of("2026-09", "2026-10"));
+    benchmark.setPortfolioCurve(List.of(100.0, 200.0));
+    benchmark.setBenchmarkCurve(List.of(50.0, 75.0));
+    benchmark.setPortfolioReturnCurve(List.of(10.0, 25.0));
+    benchmark.setBenchmarkReturnCurve(List.of(5.0, 15.0));
+    benchmark.setAccountSeries(
+        List.of(
+            new Benchmark.AccountSeries(
+                1L,
+                1_000.0,
+                300.0,
+                150.0,
+                List.of(100.0, 200.0),
+                List.of(50.0, 75.0),
+                List.of(1_000.0, 1_100.0),
+                List.of(10.0, 10.0),
+                List.of(10.0, 21.0))));
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    ClockApplicationTime octoberTime =
+        new ClockApplicationTime(
+            Clock.fixed(Instant.parse("2026-10-01T12:00:00Z"), ZoneOffset.UTC),
+            ZoneId.of("Europe/Warsaw"));
+    InvestmentPerformanceApplicationService service =
+        new InvestmentPerformanceApplicationService(benchmarkService, octoberTime);
+    ReflectionTestUtils.setField(service, "kpiStart", "2026-01");
+
+    PerformanceBoardView view =
+        service.load(
+            new PerformanceBoardQuery(
+                null,
+                PerformanceAggregation.MONTHLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.LINE,
+                com.smartbox.investory.investment.api.reporting.DashboardPeriod.YEAR_TO_DATE,
+                1L));
+
+    assertEquals(List.of("2026-09"), view.labels());
+    assertEquals(List.of(bd(5)), view.benchmarkValues());
+    assertEquals(bd(10), view.kpis().portfolioReturn());
+    assertEquals(bd(5), view.kpis().benchmarkReturn());
+  }
+
   @DisplayName("missing Profit Boundary Returns Unavailable")
   @Test
   void missingProfitBoundaryReturnsUnavailable() {
