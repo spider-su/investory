@@ -51,8 +51,7 @@ class DashboardPeriodProjectionTest {
     Benchmark dashboard =
         new DashboardPeriodFilterService(
                 LocalDate.of(2020, 1, 1),
-                Clock.fixed(
-                    Instant.parse("2026-10-01T10:00:00Z"), ZoneId.of("Europe/Warsaw")))
+                Clock.fixed(Instant.parse("2026-10-01T10:00:00Z"), ZoneId.of("Europe/Warsaw")))
             .filter(cached, DashboardPeriod.YEAR_TO_DATE);
 
     assertThat(dashboard.isBenchmarkAvailable()).isFalse();

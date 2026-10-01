@@ -64,7 +64,7 @@ final class RetirementAnalysisPresentation {
               + " per year.";
     }
     return new SustainableSpendingAnalysisMoney(
-        PlanningPresentation.compactMoney(current),
+        PlanningPresentation.wholeNumber(current),
         spendingLimit(base, baseLimit),
         spendingLimit(conservative, conservativeLimit),
         spendingHeadroom(base, baseHeadroom),
@@ -163,7 +163,7 @@ final class RetirementAnalysisPresentation {
   private static String spendingLimit(
       SustainableSpendingAnalysis.ScenarioResult result, BigDecimal value) {
     return switch (result.state()) {
-      case BOUNDARY_FOUND -> PlanningPresentation.compactMoney(value);
+      case BOUNDARY_FOUND -> PlanningPresentation.wholeNumber(value);
       case UPPER_BOUND_NOT_FOUND -> "Above tested range";
       case NO_SUSTAINABLE_SPENDING -> "None found";
       case NON_MONOTONIC_RESULT -> "No reliable spending limit";
@@ -173,7 +173,7 @@ final class RetirementAnalysisPresentation {
   private static String spendingHeadroom(
       SustainableSpendingAnalysis.ScenarioResult result, BigDecimal value) {
     return result.state() == SustainableSpendingResultState.BOUNDARY_FOUND
-        ? (value.signum() > 0 ? "+" : "") + PlanningPresentation.compactMoney(value.abs())
+        ? (value.signum() > 0 ? "+" : "") + PlanningPresentation.wholeNumber(value.abs())
         : "Not determined";
   }
 
@@ -278,7 +278,9 @@ final class RetirementAnalysisPresentation {
               SPENDING_GROWTH ->
               PlanningPresentation.percentage(value);
           case RECURRING_SPENDING, PENSION ->
-              PlanningPresentation.compactMoney(toDisplay(value, source, display)) + " " + display;
+              toDisplay(value, source, display).stripTrailingZeros().toPlainString()
+                  + " "
+                  + display;
           default -> value.stripTrailingZeros().toPlainString();
         };
     var assessment = evaluation.sustainability();
@@ -292,9 +294,9 @@ final class RetirementAnalysisPresentation {
         true,
         state,
         assessment.firstFailureYear() == null ? "—" : assessment.firstFailureYear().toString(),
-        PlanningPresentation.compactMoney(
-                toDisplay(assessment.minimumSpendableAssets(), source, display))
-
+        toDisplay(assessment.minimumSpendableAssets(), source, display)
+                .stripTrailingZeros()
+                .toPlainString()
             + " "
             + display);
   }
@@ -308,7 +310,7 @@ final class RetirementAnalysisPresentation {
   }
 
   private static String signedMoney(BigDecimal amount) {
-    String value = PlanningPresentation.compactMoney(amount.abs());
+    String value = PlanningPresentation.wholeNumber(amount.abs());
     return (amount.signum() < 0 ? "−" : "+") + value;
   }
 
@@ -340,6 +342,6 @@ final class RetirementAnalysisPresentation {
   }
 
   private static String displayMoney(CurrencyType currency, BigDecimal amount) {
-    return currency + " " + PlanningPresentation.compactMoney(amount);
+    return currency + " " + PlanningPresentation.wholeNumber(amount);
   }
 }

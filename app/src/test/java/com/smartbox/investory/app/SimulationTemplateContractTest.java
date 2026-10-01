@@ -94,15 +94,15 @@ class SimulationTemplateContractTest {
         () ->
             assertTrue(
                 html.contains(
-                    "<th class=\"text-end\">Spending</th><th class=\"text-end\">Real estate</th><th class=\"text-end\">Gap / surplus</th>")),
+                    "<th class=\"text-end\">Spending</th><th class=\"text-end\">Real estate</th><th class=\"text-end\">Annual Gap / surplus</th>")),
         () ->
             assertTrue(
                 html.contains(
-                    "<th class=\"text-end\">Income</th><th class=\"text-end\">Cash</th><th class=\"text-end\">Bonds</th><th class=\"text-end\">Equities</th><th class=\"text-start\">Status</th>")),
+                    "<th class=\"text-end\">Annual Income</th><th class=\"text-end\">Cash</th><th class=\"text-end\">Bonds</th><th class=\"text-end\">Equities</th><th class=\"text-start\">Status</th>")),
         () ->
             assertTrue(
                 html.contains(
-                    "simulationPage.timelineMoney[summary.year].cashWithdrawal == null ? '—' : format.compactMoney(simulationPage.timelineMoney[summary.year].cashWithdrawal)")),
+                    "summary.cash.endValue == null ? '—' : format.compactMoney(summary.cash.endValue)")),
         () -> assertTrue(html.contains("yearlySummaries.values()")),
         () -> assertTrue(html.contains("compactMoney(summary.bonds.annualValue)")),
         () -> assertTrue(html.contains("compactMoney(summary.equities.annualValue)")),
@@ -208,12 +208,6 @@ class SimulationTemplateContractTest {
                     .contains("iv-planning-actions__row")),
         () ->
             assertTrue(
-                header.substring(actionsStart, secondaryStart).indexOf("iv-planning-actions__row")
-                    < header
-                        .substring(actionsStart, secondaryStart)
-                        .indexOf("iv-planning-scenario-selector")),
-        () ->
-            assertFalse(
                 header
                     .substring(contextStart, contextEnd)
                     .contains("iv-planning-scenario-selector")),
@@ -228,8 +222,6 @@ class SimulationTemplateContractTest {
                     "<span class=\"iv-planning-scenario-selector__label\">Scenario</span>")),
         () -> assertTrue(header.contains("availableScenarios")),
         () -> assertTrue(css.contains(".iv-planning-actions--simulation {")),
-        () -> assertTrue(css.contains(".iv-topbar__meta.iv-planning-actions--simulation {")),
-        () -> assertTrue(css.contains("grid-template-areas: none;")),
         () ->
             assertTrue(
                 css.contains(
@@ -238,8 +230,6 @@ class SimulationTemplateContractTest {
         () -> assertTrue(css.contains("@media (max-width: 1200px) and (min-width: 901px)")),
         () -> assertTrue(css.contains("grid-template-columns: repeat(2, minmax(0, 1fr));")),
         () -> assertTrue(css.contains("position: static;")),
-        () -> assertTrue(css.contains("@media (min-width: 701px) and (max-width: 1200px)")),
-        () -> assertTrue(css.contains("grid-column: 1 / -1;")),
         () -> assertTrue(header.contains("iv-plan-status--positive")),
         () -> assertTrue(header.contains("iv-plan-status--negative")),
         () -> assertTrue(header.contains("contextPlanId, contextScenario")),
@@ -319,10 +309,10 @@ class SimulationTemplateContractTest {
     assertAll(
         () -> assertTrue(simulationActions.contains(">Edit plan</a>")),
         () -> assertFalse(simulationActions.contains(">Sync years</button>")),
-        () -> assertTrue(simulationActions.contains("iv-planning-scenario-selector")),
+        () -> assertFalse(simulationActions.contains("iv-planning-scenario-selector")),
         () -> assertFalse(simulationActions.contains("iv-planning-base")),
         () -> assertTrue(planningContext.contains("Reporting currency")),
-        () -> assertFalse(planningContext.contains("iv-planning-scenario-selector")));
+        () -> assertTrue(planningContext.contains("iv-planning-scenario-selector")));
   }
 
   @DisplayName("assumptions And Capital Use Shared Structural Grids")
