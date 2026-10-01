@@ -83,9 +83,22 @@ public class CurrentYearProjectionBridge {
     BigDecimal fraction = remainingYearFraction(year);
     SimulationAssumptions currentYearAssumptions =
         assumptions.rebasedTo(context.asOfAge(), year, context.currentYearEvents());
+    ScenarioEffectiveAssumptions effective =
+        ScenarioEffectiveAssumptions.forScenario(
+            profile, currentYearAssumptions, SimulationScenario.BASE, year);
+    BigDecimal equityReturnBase =
+        profile.incomeSummary().investmentIncomeBase() == null
+            ? PlanningBuckets.fromLiveProfileWithBondYield(profile, ZERO, ZERO)
+                .equities()
+                .startValue()
+            : profile.incomeSummary().investmentIncomeBase();
     SimulationYear projected =
         simulations.simulateRemainingYear(
-            profile, currentYearAssumptions, SimulationScenario.BASE, context.asOfYear(), fraction);
+            withInvestmentCapital(profile, equityReturnBase),
+            currentYearAssumptions,
+            SimulationScenario.BASE,
+            context.asOfYear(),
+            fraction);
     BigDecimal spending = projected.totalExpenses().subtract(projected.eventExpenses());
     BigDecimal passive = projected.passiveIncome();
     BigDecimal pension = projected.pensionIncome();
@@ -95,9 +108,6 @@ public class CurrentYearProjectionBridge {
         projectedBoundaries(projected);
     BigDecimal projectedBondReturn = projected.capitalizedBondReturn();
     CurrentYearProjection.BucketBoundary bondBoundary = boundaries.get(EconomicBucket.FIXED_INCOME);
-    ScenarioEffectiveAssumptions effective =
-        ScenarioEffectiveAssumptions.forScenario(
-            profile, currentYearAssumptions, SimulationScenario.BASE, year);
     BigDecimal fullYearBondReturn =
         bondBoundary.startValue().multiply(effective.planBondReturnRate());
     BigDecimal additionalBondReturn = fullYearBondReturn.subtract(projectedBondReturn);
@@ -107,10 +117,6 @@ public class CurrentYearProjectionBridge {
             bondBoundary.startValue(), bondBoundary.expectedEndValue().add(additionalBondReturn)));
     projectedBondReturn = fullYearBondReturn;
     CurrentYearProjection.BucketBoundary equityBoundary = boundaries.get(EconomicBucket.EQUITY);
-    BigDecimal equityReturnBase =
-        profile.incomeSummary().investmentIncomeBase() == null
-            ? equityBoundary.startValue()
-            : profile.incomeSummary().investmentIncomeBase();
     BigDecimal projectedEquityReturn = equityReturnBase.multiply(effective.equityReturnRate());
     BigDecimal additionalEquityReturn = projectedEquityReturn.subtract(projected.equityGain());
     boundaries.put(
@@ -302,6 +308,26 @@ public class CurrentYearProjectionBridge {
 
   private static BigDecimal zero(BigDecimal value) {
     return value == null ? ZERO : value;
+  }
+
+  private static InvestmentProfile withInvestmentCapital(
+      InvestmentProfile profile, BigDecimal investmentCapital) {
+    return new InvestmentProfile(
+        profile.portfolioId(),
+        profile.currency(),
+        profile.marketPortfolioValue(),
+        profile.longTermAssetValue(),
+        profile.totalNetWorth(),
+        profile.liquidAssets(),
+        profile.illiquidAssets(),
+        profile.allocations(),
+        profile.currentRentalIncome(),
+        profile.currentBondIncome(),
+        profile.longTermPlanningState(),
+        profile.retirementReserve(),
+        investmentCapital,
+        profile.incomeSummary(),
+        profile.allocationReconciliation());
   }
 
   BigDecimal remainingYearFraction(int year) {
