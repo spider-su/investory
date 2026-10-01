@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,7 +35,8 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
   private final YahooExportStateRepository exportStateRepository;
 
   public YahooExportService(
-      PortfolioExportSnapshotReader snapshots, YahooExportStateRepository exportStateRepository) {
+      PortfolioExportSnapshotReader snapshots,
+      YahooExportStateRepository exportStateRepository) {
     this.snapshots = snapshots;
     this.exportStateRepository = exportStateRepository;
   }
