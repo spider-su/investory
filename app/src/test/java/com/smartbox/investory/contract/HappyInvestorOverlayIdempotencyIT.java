@@ -62,7 +62,7 @@ class HappyInvestorOverlayIdempotencyIT {
                 connection,
                 "SELECT amount FROM investory.rental_contract_term "
                     + "WHERE rental_contract_id = 9501 AND cash_flow_type = 'RENT'")
-            .compareTo(HappyInvestorLongTermFacts.APARTMENT_A_ANNUAL_TAX_BASE));
+            .compareTo(HappyInvestorLongTermFacts.APARTMENT_A_MONTHLY_TAX_BASE));
     assertNull(
         object(
             connection,

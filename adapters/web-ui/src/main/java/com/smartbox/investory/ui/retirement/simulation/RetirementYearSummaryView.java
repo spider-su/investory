@@ -25,7 +25,15 @@ public record RetirementYearSummaryView(
     BucketSummary realEstate,
     String status) {
 
-  public record BucketSummary(BigDecimal startValue, BigDecimal annualValue, BigDecimal endValue) {}
+  public record BucketSummary(
+      BigDecimal startValue,
+      BigDecimal annualValue,
+      BigDecimal endValue,
+      BigDecimal contributionValue) {
+    public BucketSummary(BigDecimal startValue, BigDecimal annualValue, BigDecimal endValue) {
+      this(startValue, annualValue, endValue, null);
+    }
+  }
 
   public BigDecimal incomeShortfall() {
     return netCash == null || netCash.signum() >= 0 ? BigDecimal.ZERO : netCash.negate();
@@ -33,6 +41,24 @@ public record RetirementYearSummaryView(
 
   public BigDecimal incomeSurplus() {
     return netCash == null || netCash.signum() <= 0 ? BigDecimal.ZERO : netCash;
+  }
+
+  /** Sum of the annual cash, bond, and equity values. */
+  public BigDecimal annualIncome() {
+    return zero(cash.annualValue())
+        .add(zero(bonds.annualValue()))
+        .add(zero(equities.annualValue()));
+  }
+
+  /** Net cash after planned bond and equity returns are included. */
+  public BigDecimal gapAfterInvestmentReturns() {
+    return netCash == null
+        ? null
+        : netCash.add(zero(bonds.annualValue())).add(zero(equities.annualValue()));
+  }
+
+  private static BigDecimal zero(BigDecimal value) {
+    return value == null ? BigDecimal.ZERO : value;
   }
 
   public static Map<Integer, RetirementYearSummaryView> from(
@@ -43,6 +69,13 @@ public record RetirementYearSummaryView(
       BigDecimal spending = money == null ? null : money.annualCosts();
       BigDecimal income = money == null ? null : money.totalIncome();
       BigDecimal netCash = RetirementFinancialCalculations.difference(income, spending);
+      BigDecimal equityContribution =
+          switch (row.state()) {
+            case LIVE -> row.current() == null ? null : row.current().projectedEquityContribution();
+            case PROJECTED ->
+                row.projection() == null ? null : row.projection().preRetirementContribution();
+            case ACTUAL, NEEDS_REVIEW -> null;
+          };
       String state = stateLabel(row.state());
       String status = statusLabel(row);
       result.put(
@@ -65,7 +98,8 @@ public record RetirementYearSummaryView(
               new BucketSummary(
                   money == null ? null : money.equitiesStart(),
                   money == null ? null : money.equityReturn(),
-                  money == null ? null : money.equitiesEnd()),
+                  money == null ? null : money.equitiesEnd(),
+                  equityContribution),
               new BucketSummary(
                   money == null ? null : money.realEstateStart(),
                   money == null ? null : money.rentalIncome(),

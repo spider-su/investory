@@ -3,8 +3,8 @@ package com.smartbox.investory.retirement.api.model;
 import java.util.Locale;
 
 /**
- * Compact set of auditable planning values. Amounts are canonical planning/base currency unless a
- * ratio.
+ * Compact set of auditable planning values. Monetary amounts use the portfolio local currency;
+ * ratio values have no currency.
  */
 public enum PlanningMetric {
   NET_WORTH,

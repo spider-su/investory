@@ -89,19 +89,19 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
                 "Net income yield",
                 "Rental contracts",
                 "Property settings",
-                "Annual tax base",
+                "Monthly tax base",
                 "Tax rate",
                 "Tax / year",
                 "Tax / month",
                 "3,200 PLN",
                 "8.5%",
+                "3,264 PLN",
                 "272 PLN",
-                "22.67 PLN",
                 "Other income",
                 "Other expense");
 
         page.locator("#property-settings").evaluate("element => element.open = true");
-        assertThat(page.locator("label[for='tax-base']")).hasText("Annual rental tax base");
+        assertThat(page.locator("label[for='tax-base']")).hasText("Monthly rental tax base");
         assertThat(page.locator("#tax-base").inputValue()).isEqualTo("3200");
         assertThat(page.locator("#property-value").inputValue()).isEqualTo("400000");
         assertThat(page.locator("#purchase-date").inputValue())
@@ -130,7 +130,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
                     "SELECT tax_base FROM investory.real_estate WHERE id = ?",
                     BigDecimal.class,
                     HappyInvestorLongTermFacts.APARTMENT_A_ID))
-            .isEqualByComparingTo(HappyInvestorLongTermFacts.APARTMENT_A_ANNUAL_TAX_BASE);
+            .isEqualByComparingTo(HappyInvestorLongTermFacts.APARTMENT_A_MONTHLY_TAX_BASE);
 
         page.locator("#property-settings").evaluate("element => element.open = true");
         page.locator("#property-name").fill(HappyInvestorTestData.APARTMENT_A_NAME);

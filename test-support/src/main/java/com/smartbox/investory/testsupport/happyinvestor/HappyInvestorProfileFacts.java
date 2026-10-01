@@ -23,7 +23,7 @@ public final class HappyInvestorProfileFacts {
   public static final BigDecimal ILLIQUID_ASSETS = new BigDecimal("945000");
 
   /** Planning-source income at the fixed 2025-12-31 read-model boundary. */
-  public static final BigDecimal CURRENT_RENTAL_INCOME = new BigDecimal("67669.00");
+  public static final BigDecimal CURRENT_RENTAL_INCOME = new BigDecimal("61872.00");
 
   public static final BigDecimal CURRENT_BOND_INCOME = new BigDecimal("374.625");
   public static final BigDecimal INVESTMENT_CAPITAL = HappyInvestorBrokerFacts.OPEN_POSITIONS_VALUE;
@@ -32,13 +32,17 @@ public final class HappyInvestorProfileFacts {
   public static final BigDecimal MARKET_INCOME_YTD = new BigDecimal("29103.10594433");
 
   public static final BigDecimal MARKET_ANNUAL_INCOME = new BigDecimal("29221.17380549");
+
+  /** Investment API's weighted opening capital at the fixed 2025 reporting boundary. */
+  public static final BigDecimal MARKET_INVESTMENT_INCOME_BASE = new BigDecimal("417445.34007846");
+
   public static final BigDecimal MARKET_NET_YIELD = new BigDecimal("0.07");
   public static final BigDecimal LONG_TERM_ANNUAL_INCOME =
       HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL;
-  public static final BigDecimal LONG_TERM_NET_YIELD = new BigDecimal("0.07172253");
+  public static final BigDecimal LONG_TERM_NET_YIELD = new BigDecimal("0.06568398");
   public static final BigDecimal COMBINED_ANNUAL_INCOME =
       MARKET_ANNUAL_INCOME.add(LONG_TERM_ANNUAL_INCOME);
-  public static final BigDecimal COMBINED_NET_YIELD = new BigDecimal("0.09188922");
+  public static final BigDecimal COMBINED_NET_YIELD = new BigDecimal("0.08131292");
   public static final BigDecimal EQUITY_ALLOCATION = new BigDecimal("174487.759664");
   public static final BigDecimal REAL_ESTATE_ALLOCATION = new BigDecimal("900000");
   public static final BigDecimal CASH_ALLOCATION = new BigDecimal("50000");

@@ -29,10 +29,14 @@ public interface RetirementPresentationApi {
   Map<Integer, PlanningTimelineMoney> displayTimelineMoney(
       PlanningTimeline timeline, CurrencyType currency, SimulationAssumptions assumptions);
 
-  PlanRiskView displayPlanRisks(SimulationSensitivityAnalysis analysis, CurrencyType display);
+  PlanRiskView displayPlanRisks(
+      SimulationSensitivityAnalysis analysis, CurrencyType source, CurrencyType display);
 
   PlanningFlexibilityMoney displayPlanningFlexibility(
-      SustainableSpendingAnalysis spending, RetirementAgeAnalysis retirement, CurrencyType display);
+      SustainableSpendingAnalysis spending,
+      RetirementAgeAnalysis retirement,
+      CurrencyType source,
+      CurrencyType display);
 
   SimulationChartData displayCharts(SimulationChartData charts, CurrencyType display);
 }

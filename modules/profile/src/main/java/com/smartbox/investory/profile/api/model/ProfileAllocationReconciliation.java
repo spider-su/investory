@@ -30,6 +30,7 @@ public record ProfileAllocationReconciliation(SourceTotal shortTerm, SourceTotal
   }
 
   public record SourceTotal(BigDecimal classifiedValue, BigDecimal authoritativeValue) {
+    private static final BigDecimal BALANCE_TOLERANCE = new BigDecimal("0.01");
     public static final SourceTotal EMPTY = new SourceTotal(BigDecimal.ZERO, BigDecimal.ZERO);
 
     public SourceTotal {
@@ -42,7 +43,7 @@ public record ProfileAllocationReconciliation(SourceTotal shortTerm, SourceTotal
     }
 
     public boolean balanced() {
-      return delta().signum() == 0;
+      return delta().abs().compareTo(BALANCE_TOLERANCE) <= 0;
     }
   }
 }

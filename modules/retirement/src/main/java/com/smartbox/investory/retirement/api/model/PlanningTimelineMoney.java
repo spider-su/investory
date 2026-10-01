@@ -2,7 +2,7 @@ package com.smartbox.investory.retirement.api.model;
 
 import java.math.BigDecimal;
 
-/** Display-only canonical cash-flow, funding, and ending-balance facts for a timeline row. */
+/** Local-currency cash-flow, funding, and ending-balance facts for a timeline row. */
 public record PlanningTimelineMoney(
     BigDecimal annualCosts,
     BigDecimal totalIncome,

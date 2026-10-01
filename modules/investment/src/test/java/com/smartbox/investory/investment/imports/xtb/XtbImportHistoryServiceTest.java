@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.imports.xtb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -345,6 +346,71 @@ class XtbImportHistoryServiceTest {
     assertEquals(1, openedPositions.size());
     assertEquals("AAPL.US", openedPositions.get(0).getSymbol());
     assertEquals(6.0, openedPositions.get(0).getVolume().doubleValue(), 0.0001);
+  }
+
+  @DisplayName("reconstruct Opened Positions Parses Ticker Prefixed Trade Comments")
+  @Test
+  void reconstructPositionEntitiesParsesTickerPrefixedTradeComments() {
+    Long account = 90000011L;
+    List<CashOperationEntity> operations =
+        List.of(
+            cashOperation(
+                1L,
+                account,
+                CashOperationType.STOCK_PURCHASE,
+                "TSLA.US",
+                "OPEN BUY TSLA.US 0.5646 @ 354.23"),
+            cashOperation(
+                2L,
+                account,
+                CashOperationType.STOCK_PURCHASE,
+                "WMT.US",
+                "OPEN BUY WMT.US 1/1.8914 @ 105.74"));
+
+    List<PositionEntity> positions =
+        xtbImportService.reconstructPositionEntities(operations, account, CurrencyType.USD);
+
+    assertEquals(2, positions.size());
+    assertEquals(
+        0.5646,
+        positions.stream()
+            .filter(position -> "TSLA.US".equals(position.getSymbol()))
+            .findFirst()
+            .orElseThrow()
+            .getVolume()
+            .doubleValue(),
+        0.00001);
+    assertEquals(
+        1.0,
+        positions.stream()
+            .filter(position -> "WMT.US".equals(position.getSymbol()))
+            .findFirst()
+            .orElseThrow()
+            .getVolume()
+            .doubleValue(),
+        0.00001);
+  }
+
+  @DisplayName("does not replace Open Positions When A Trade Comment Cannot Be Parsed")
+  @Test
+  void reconstructOpenPositionsRejectsUnparsedTradeBeforePersistence() {
+    Long account = 90000011L;
+    CashOperationEntity malformedTrade =
+        cashOperation(1L, account, CashOperationType.STOCK_PURCHASE, "TSLA.US", "OPEN BUY invalid");
+    org.mockito.Mockito.when(cashOperationRepository.findAllByAccount(account))
+        .thenReturn(List.of());
+
+    IllegalStateException exception =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                xtbImportService.reconstructOpenPositions(
+                    account, List.of(malformedTrade), CurrencyType.USD));
+
+    assertTrue(exception.getMessage().contains("unparsed trade events"));
+    assertTrue(exception.getMessage().contains("TSLA.US"));
+    verify(openedPositionRepository, never()).deleteOpenByAccount(account);
+    verify(openedPositionRepository, never()).removeOpenByAccountNotIn(eq(account), anyList());
   }
 
   @DisplayName("import Workbook uses Existing Asset Skips Footer And Writes Trade Checkpoints")

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassificationReader;
@@ -392,36 +393,30 @@ class ProfileQueryServiceTest {
             .reduce(BigDecimal.ZERO, BigDecimal::add));
   }
 
-  @DisplayName("normalizes non-USD long-term facts into the USD profile denomination")
+  @DisplayName("keeps Long-Term values in local currency without a second conversion")
   @Test
-  void normalizesNonUsdLongTermFactsIntoUsdProfileDenomination() {
-    SharedBrokeragePortfolioSnapshot market = snapshot(CurrencyType.USD, 0, 0, 0, 0, List.of());
+  void keepsLocalLongTermFactsInLocalProfileDenomination() {
+    SharedBrokeragePortfolioSnapshot market = snapshot(CurrencyType.PLN, 0, 0, 0, 0, List.of());
     when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO)).thenReturn(market);
     when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
-    when(currencyRates.convertToBaseCurrency(
-            any(), eq(CurrencyType.USD), eq(CurrencyType.EUR), eq(DATE)))
-        .thenAnswer(
-            invocation ->
-                ((BigDecimal) invocation.getArgument(0)).multiply(new BigDecimal("1.10")));
     longTermSummary =
         new LongTermAssetProfileSummaryModel(
-            CurrencyType.EUR, new BigDecimal("1000"), new BigDecimal("40"));
+            CurrencyType.PLN, new BigDecimal("1000"), new BigDecimal("40"));
     longTermAssetRows =
-        List.of(summary(LongTermAssetType.REAL_ESTATE, "1000", "40", CurrencyType.EUR));
+        List.of(summary(LongTermAssetType.REAL_ESTATE, "1000", "40", CurrencyType.PLN));
     longTermAnnualSnapshot =
         new LongTermAssetAnnualSnapshotModel(
-            null, new BigDecimal("40"), null, new BigDecimal("10"), null, null, CurrencyType.EUR);
+            null, new BigDecimal("40"), null, new BigDecimal("10"), null, null, CurrencyType.PLN);
 
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
 
-    assertEquals(0, new BigDecimal("1100.0").compareTo(profile.longTermAssetValue()));
-    assertEquals(0, new BigDecimal("1100.0").compareTo(profile.totalNetWorth()));
+    assertEquals(0, new BigDecimal("1000").compareTo(profile.longTermAssetValue()));
+    assertEquals(0, new BigDecimal("1000.0").compareTo(profile.totalNetWorth()));
     assertEquals(
-        0, new BigDecimal("44.0").compareTo(profile.incomeSummary().longTermAnnualIncome()));
-    assertEquals(0, new BigDecimal("44.0").compareTo(profile.currentRentalIncome()));
-    assertEquals(0, new BigDecimal("11.0").compareTo(profile.currentBondIncome()));
-    verify(currencyRates, org.mockito.Mockito.atLeastOnce())
-        .convertToBaseCurrency(any(), eq(CurrencyType.USD), eq(CurrencyType.EUR), eq(DATE));
+        0, new BigDecimal("40.0").compareTo(profile.incomeSummary().longTermAnnualIncome()));
+    assertEquals(0, new BigDecimal("40.0").compareTo(profile.currentRentalIncome()));
+    assertEquals(0, new BigDecimal("10.0").compareTo(profile.currentBondIncome()));
+    verifyNoInteractions(currencyRates);
   }
 
   @Test

@@ -244,6 +244,9 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("performanceBoardRebasedReturn"));
     assertTrue(charts.contains("selectedDashboardPeriod"));
     assertTrue(charts.contains("period: selectedDashboardPeriod"));
+    assertTrue(charts.contains("performanceBoardBaselineLabel(labels[0], aggregation)"));
+    assertTrue(charts.contains("labels = [baseline, ...labels]"));
+    assertTrue(charts.contains("dataset.data = [0, ...(dataset.data || [])]"));
     assertTrue(charts.contains("data.portfolioId"));
     assertTrue(html.contains("performance-scope-aggregation"));
     assertTrue(charts.contains("const percentValue ="));
@@ -289,12 +292,11 @@ class DashboardPerformanceTemplateContractTest {
     int kpiStripStart = html.indexOf("<div class=\"iv-benchmark iv-performance-metrics\">");
     int performanceControlsStart =
         html.indexOf("<div class=\"iv-card__controls iv-performance-toolbar\"");
-    assertTrue(kpiStripStart >= 0 && performanceControlsStart > kpiStripStart);
-    String kpiStrip = html.substring(kpiStripStart, performanceControlsStart);
+    assertTrue(performanceControlsStart >= 0 && kpiStripStart > performanceControlsStart);
+    String kpiStrip = html.substring(kpiStripStart);
     assertTrue(kpiStrip.contains("Current drawdown"));
     assertTrue(kpiStrip.contains("Max drawdown"));
-    assertTrue(kpiStrip.contains(">TWR</span>"));
-    assertTrue(kpiStrip.contains(">XIRR</span>"));
+    assertTrue(kpiStrip.contains("Period return"));
     assertTrue(kpiStrip.contains(">S&amp;P 500 return</span>"));
     assertTrue(kpiStrip.contains(">Excess return</span>"));
     assertFalse(kpiStrip.contains(">P/L</span>"));

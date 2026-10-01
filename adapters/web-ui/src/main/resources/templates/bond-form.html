@@ -4,7 +4,7 @@
 <body><main class="iv-app iv-planning-page iv-long-term-form-page">
   <div th:replace="~{fragments/long-term-form-header :: header(${asset?.id == null ? 'Add bond' : 'Edit bond'}, 'Fixed-income asset details.', ${portfolioId})}"></div>
   <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}">Validation error.</div>
-  <form class="card iv-long-term-form" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/bond(portfolioId=${portfolioId})}">
+  <form class="card iv-long-term-form" method="post" th:action="${asset?.id == null} ? @{/portfolios/{portfolioId}/long-term-assets/bond(portfolioId=${portfolioId})} : @{/portfolios/{portfolioId}/long-term-assets/{id}/bond(portfolioId=${portfolioId},id=${asset.id})}">
     <div class="iv-card-section-header"><span class="iv-card-section-header__title">Bond details</span></div>
     <div class="card-body iv-long-term-form__body"><input type="hidden" name="id" th:value="${asset?.id}"><div class="row g-3">
       <div class="col-md-6"><label class="form-label" for="bond-name">Name</label><input id="bond-name" class="form-control" name="name" th:value="${asset?.name}" required></div>

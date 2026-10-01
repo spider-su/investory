@@ -1,6 +1,6 @@
 package com.smartbox.investory.retirement.api.model;
 
-/** Display unit for a planning metric. Values remain canonical ratios or monetary amounts. */
+/** Display unit for a planning metric. Monetary values are already in portfolio local currency. */
 public enum PlanningMetricPresentationType {
   MONEY,
   PERCENTAGE,

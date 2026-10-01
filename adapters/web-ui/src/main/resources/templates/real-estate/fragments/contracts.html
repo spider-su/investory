@@ -73,7 +73,7 @@
               <section class="iv-contract-group">
                 <h3>Tax</h3>
                 <dl class="iv-contract-values">
-                  <div><dt>Annual tax base</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(asset.taxBase, asset.currency)}">3,200 PLN</dd></div>
+                  <div><dt>Monthly tax base</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(asset.taxBase, asset.currency)}">3,200 PLN</dd></div>
                   <div><dt>Tax rate</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(rentalTaxRate)}">8.5%</dd></div>
                   <div><dt>Tax / year</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.annualEconomics.annualTax, asset.currency)}">272 PLN</dd></div>
                   <div><dt>Tax / month</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.annualEconomics.monthlyTax, asset.currency)}">22.67 PLN</dd></div>

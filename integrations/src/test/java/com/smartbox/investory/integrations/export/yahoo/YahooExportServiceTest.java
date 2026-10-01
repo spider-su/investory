@@ -62,7 +62,7 @@ class YahooExportServiceTest {
                     .filter(s -> s.getCashBalance() != null)
                     .map(s -> new ExportCashBalance(s.getAccountId(), decimal(s.getCashBalance())))
                     .toList());
-    return new YahooExportService(snapshots, "");
+    return new YahooExportService(snapshots, null);
   }
 
   private static BigDecimal decimal(Number value) {

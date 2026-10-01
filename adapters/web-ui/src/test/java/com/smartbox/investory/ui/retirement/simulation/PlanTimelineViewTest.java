@@ -7,6 +7,7 @@ import com.smartbox.investory.retirement.api.model.PlanningTimeline;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineMoney;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineYear;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ class PlanTimelineViewTest {
   void preparesEveryYearWithLiveDefaultAndLifecycleLabels() {
     var timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 row(2025, 40, PlanningTimelineState.ACTUAL),
                 row(2026, 41, PlanningTimelineState.LIVE),
@@ -56,6 +58,7 @@ class PlanTimelineViewTest {
   void choosesNearestYearWhenNoLiveRowExistsAndKeepsHeadingAccessible() {
     var timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 row(2025, 40, PlanningTimelineState.ACTUAL),
                 row(2026, 41, PlanningTimelineState.PROJECTED),
@@ -80,13 +83,14 @@ class PlanTimelineViewTest {
     var view = PlanTimelineView.from(timeline, summaries, null, 2027, 2026);
 
     assertEquals(2026, view.selectedYear());
-    assertEquals("2027 · Age 42 · Pension start", view.years().get(2).heading());
+    assertEquals("Jan 2027 · Age 42 · Pension start", view.years().get(2).heading());
   }
 
   @DisplayName("prepares Liquid Capital Composition Percentages")
   @Test
   void preparesLiquidCapitalCompositionPercentages() {
-    var timeline = new PlanningTimeline(List.of(row(2026, 41, PlanningTimelineState.LIVE)));
+    var timeline =
+        new PlanningTimeline(CurrencyType.PLN, List.of(row(2026, 41, PlanningTimelineState.LIVE)));
     var summary =
         new RetirementYearSummaryView(
             2026,
@@ -117,7 +121,9 @@ class PlanTimelineViewTest {
   @DisplayName("projected Capital Uses Start Label And Keeps Real Estate Out Of Liquid Aggregate")
   @Test
   void projectedCapitalUsesStartLabelAndKeepsRealEstateOutOfLiquidAggregate() {
-    var timeline = new PlanningTimeline(List.of(row(2027, 42, PlanningTimelineState.PROJECTED)));
+    var timeline =
+        new PlanningTimeline(
+            CurrencyType.PLN, List.of(row(2027, 42, PlanningTimelineState.PROJECTED)));
     var summary =
         new RetirementYearSummaryView(
             2027,
@@ -145,7 +151,8 @@ class PlanTimelineViewTest {
   @DisplayName("keeps Empty Liquid Capital Percentages Finite")
   @Test
   void keepsEmptyLiquidCapitalPercentagesFinite() {
-    var timeline = new PlanningTimeline(List.of(row(2026, 41, PlanningTimelineState.LIVE)));
+    var timeline =
+        new PlanningTimeline(CurrencyType.PLN, List.of(row(2026, 41, PlanningTimelineState.LIVE)));
     var summary =
         new RetirementYearSummaryView(
             2026,

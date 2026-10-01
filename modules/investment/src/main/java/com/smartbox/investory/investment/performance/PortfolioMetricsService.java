@@ -38,6 +38,7 @@ import java.time.LocalDate;
 import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -348,6 +349,7 @@ public class PortfolioMetricsService {
   private void applyCalculatedTotals(Portfolio portfolio) {
     List<PositionEntity> closedPositions = closedPositions();
     List<CashOperationEntity> cashOperations = cashOperations();
+    warmHistoricalFxRates(closedPositions, cashOperations);
 
     // ── Realized P/L from imported closed positions ──────────────────────
     for (PositionEntity position : closedPositions) {
@@ -474,6 +476,30 @@ public class PortfolioMetricsService {
                     .divide(netDep, 16, java.math.RoundingMode.HALF_UP)
                     .movePointRight(2))
             : 0.0);
+  }
+
+  private void warmHistoricalFxRates(
+      List<PositionEntity> closedPositions, List<CashOperationEntity> cashOperations) {
+    List<LocalDate> dates =
+        Stream.concat(
+                closedPositions.stream()
+                    .map(
+                        position ->
+                            position.getCloseTime() == null
+                                ? applicationTime.today()
+                                : position.getCloseTime().toLocalDate()),
+                cashOperations.stream()
+                    .map(
+                        operation ->
+                            operation.getDate() == null
+                                ? applicationTime.today()
+                                : operation.getDate().toLocalDate()))
+            .toList();
+    if (!dates.isEmpty()) {
+      currencyRateService.warmValuationMatrices(
+          dates.stream().min(LocalDate::compareTo).orElseThrow(),
+          dates.stream().max(LocalDate::compareTo).orElseThrow());
+    }
   }
 
   private void applyInvestmentProfitFromComponents(Portfolio portfolio) {

@@ -74,7 +74,8 @@ public class RetirementAnalysisController {
   }
 
   private CurrencyType resolveCurrency(Long portfolioId, CurrencyType requested) {
-    if (requested != null) return requested;
-    return profiles.loadProfile(portfolioId).currency();
+    com.smartbox.investory.profile.api.model.InvestmentProfile profile =
+        profiles.loadProfile(portfolioId);
+    return profile == null ? CurrencyType.PLN : profile.currency();
   }
 }

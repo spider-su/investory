@@ -227,12 +227,12 @@ public class DashboardPeriodFilterService {
               ? null
               : percent(benchmark.getBenchmarkPl(), benchmark.getInvestedCapital()));
     }
-    boolean benchmarkDataAvailable =
-        benchmark.getBenchmarkReturnCurve().stream().anyMatch(java.util.Objects::nonNull);
-    benchmark.setBenchmarkAvailable(benchmarkDataAvailable);
+    Double benchmarkReturnPct = benchmark.getBenchmarkReturnPct();
+    boolean benchmarkReturnAvailable = benchmarkReturnPct != null;
+    benchmark.setBenchmarkAvailable(benchmarkReturnAvailable);
     benchmark.setAlpha(
-        benchmarkDataAvailable
-            ? round(benchmark.getPortfolioReturnPct() - benchmark.getBenchmarkReturnPct())
+        benchmarkReturnAvailable
+            ? round(benchmark.getPortfolioReturnPct() - benchmarkReturnPct)
             : 0.0);
   }
 

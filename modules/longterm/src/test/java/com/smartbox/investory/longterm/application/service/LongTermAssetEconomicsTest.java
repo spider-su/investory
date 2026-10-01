@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 class LongTermAssetEconomicsTest {
   @Test
-  void rentalSeparatesIncomeLandlordExpensesTenantPaymentsAndAnnualTaxBase() {
+  void rentalSeparatesIncomeLandlordExpensesTenantPaymentsAndMonthlyTaxBase() {
     var result =
         LongTermAssetEconomics.rental(
             List.of(
@@ -27,11 +27,38 @@ class LongTermAssetEconomicsTest {
 
     assertThat(result.economics().grossAnnualIncome()).isEqualByComparingTo("1332");
     assertThat(result.economics().annualExpenses()).isEqualByComparingTo("480");
-    assertThat(result.economics().annualTax()).isEqualByComparingTo("204");
-    assertThat(result.economics().monthlyTaxBase()).isEqualByComparingTo("200");
-    assertThat(result.economics().monthlyTax()).isEqualByComparingTo("17");
-    assertThat(result.economics().netAnnualIncomeAfterTax()).isEqualByComparingTo("648");
+    assertThat(result.economics().annualRentalTaxBase()).isEqualByComparingTo("28800");
+    assertThat(result.economics().annualTax()).isEqualByComparingTo("2448");
+    assertThat(result.economics().monthlyTaxBase()).isEqualByComparingTo("2400");
+    assertThat(result.economics().monthlyTax()).isEqualByComparingTo("204");
+    assertThat(result.economics().netAnnualIncomeAfterTax()).isEqualByComparingTo("-1596");
     assertThat(result.monthlyPayment()).isEqualByComparingTo("111");
+  }
+
+  @Test
+  void propertyTaxAndInsuranceAreIncludedOnceInExpensesAndNetIncome() {
+    var result =
+        LongTermAssetEconomics.rental(
+            List.of(
+                term(CashFlowType.RENT, "10000", Frequency.ANNUAL, false),
+                term(CashFlowType.PROPERTY_TAX, "1640", Frequency.ANNUAL, false),
+                term(CashFlowType.INSURANCE, "1130", Frequency.ANNUAL, false)),
+            new BigDecimal("8880"),
+            new BigDecimal("100000"));
+
+    assertThat(result.economics().annualExpenses()).isEqualByComparingTo("2770");
+    assertThat(result.economics().annualPropertyTax()).isEqualByComparingTo("1640");
+    assertThat(result.economics().annualInsurance()).isEqualByComparingTo("1130");
+    assertThat(result.economics().annualPropertyTaxAndInsurance()).isEqualByComparingTo("2770");
+    assertThat(result.economics().monthlyPropertyTaxAndInsurance())
+        .isEqualByComparingTo("230.833333333333");
+    assertThat(result.economics().annualRentalTaxBase()).isEqualByComparingTo("106560");
+    assertThat(result.economics().monthlyTaxBase()).isEqualByComparingTo("8880");
+    assertThat(result.economics().annualRentalIncomeTax()).isEqualByComparingTo("9057.60");
+    assertThat(result.economics().monthlyRentalIncomeTax()).isEqualByComparingTo("754.80");
+    assertThat(result.economics().annualExpensesAndTax()).isEqualByComparingTo("11827.60");
+    assertThat(result.economics().netAnnualIncomeBeforeTax()).isEqualByComparingTo("7230");
+    assertThat(result.economics().netAnnualIncomeAfterTax()).isEqualByComparingTo("-1827.60");
   }
 
   @Test
@@ -59,7 +86,7 @@ class LongTermAssetEconomicsTest {
         LongTermAssetEconomics.totalReturn(
             new BigDecimal("100000"),
             new BigDecimal("110000"),
-            new BigDecimal("12000"),
+            new BigDecimal("1000"),
             List.of(
                 new RentalContractModel(
                     1L,
@@ -213,21 +240,21 @@ class LongTermAssetEconomicsTest {
   }
 
   @Test
-  void vacantPropertyStillExposesDerivedMonthlyTaxValuesAndNegativeNetIncome() {
+  void vacantPropertyTreatsTaxBaseAsMonthlyAndExposesAnnualAndMonthlyTax() {
     var result =
         LongTermAssetEconomics.rental(List.of(), new BigDecimal("1000"), new BigDecimal("100000"));
-    assertThat(result.economics().annualTax()).isEqualByComparingTo("85");
-    assertThat(result.economics().monthlyTaxBase()).isEqualByComparingTo("83.333333333333");
-    assertThat(result.economics().monthlyTax()).isEqualByComparingTo("7.083333333333");
-    assertThat(result.economics().netAnnualIncomeAfterTax()).isEqualByComparingTo("-85");
-    assertThat(result.economics().monthlyNetIncomeAfterTax())
-        .isEqualByComparingTo("-7.083333333333");
-    assertThat(result.economics().netYieldAfterTax()).isEqualByComparingTo("-0.00085");
+    assertThat(result.economics().annualRentalTaxBase()).isEqualByComparingTo("12000");
+    assertThat(result.economics().annualTax()).isEqualByComparingTo("1020");
+    assertThat(result.economics().monthlyTaxBase()).isEqualByComparingTo("1000");
+    assertThat(result.economics().monthlyTax()).isEqualByComparingTo("85");
+    assertThat(result.economics().netAnnualIncomeAfterTax()).isEqualByComparingTo("-1020");
+    assertThat(result.economics().monthlyNetIncomeAfterTax()).isEqualByComparingTo("-85");
+    assertThat(result.economics().netYieldAfterTax()).isEqualByComparingTo("-0.0102");
     assertThat(result.monthlyPayment()).isZero();
   }
 
   @Test
-  void nullAnnualTaxBaseMeansZeroTaxBase() {
+  void nullMonthlyTaxBaseMeansZeroTaxBase() {
     var result = LongTermAssetEconomics.rental(List.of(), null, new BigDecimal("100000"));
 
     assertThat(result.economics().annualTax()).isZero();

@@ -22,6 +22,21 @@ function performanceBoardDataset(label, values, color, type, stacked) {
     return { label, data: values, borderColor: color, backgroundColor: bars ? color : color + '22', fill: !bars && label === 'Portfolio', tension: .25, pointRadius: 0, borderWidth: bars ? 0 : 2, borderRadius: bars ? 5 : 0, grouped: bars, skipNull: bars, barPercentage: bars ? 1 : undefined, categoryPercentage: bars ? .72 : undefined, stack: stacked ? 'accounts' : undefined };
 }
 
+function performanceBoardBaselineLabel(firstLabel, aggregation) {
+    if (!firstLabel) return null;
+    if (aggregation === 'annual') return String(Number(firstLabel) - 1);
+    if (aggregation === 'quarterly') {
+        const match = /^(\d{4})-Q([1-4])$/.exec(firstLabel);
+        if (!match) return null;
+        const quarter = Number(match[2]);
+        return quarter === 1 ? (Number(match[1]) - 1) + '-Q4' : match[1] + '-Q' + (quarter - 1);
+    }
+    const match = /^(\d{4})-(\d{2})$/.exec(firstLabel);
+    if (!match) return null;
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 2, 1));
+    return date.toISOString().slice(0, 7);
+}
+
 function performanceBoardAccountColor(series, visibleIndex, accounts) {
     const accountIndex = (accounts || []).findIndex(account => Number(account.id) === Number(series.accountId));
     const paletteIndex = accountIndex >= 0 ? accountIndex : visibleIndex;
@@ -77,11 +92,19 @@ async function renderPerformanceBoard() {
         const selectedIds = performanceBoardSelectedIds();
         const view = await performanceBoardView(selectedIds);
         if (selectedIds.length > 0) (view.accounts || []).forEach(account => { const input = document.querySelector('.js-performance-board-account[value="' + account.id + '"]'); if (input) input.checked = account.selected; });
-        const labels = view.labels || [];
+        let labels = view.labels || [];
         const bars = performanceBoardState.style === 'bars';
         const visibleSeries = performanceBoardVisibleSeries(view, selectedIds);
         const datasets = visibleSeries.map((series, index) => performanceBoardDataset(series.label, series.values || [], performanceBoardAccountColor(series, index, view.accounts), bars ? 'bar' : 'line', bars && performanceBoardState.metric === 'pl' && visibleSeries.length > 1));
         if (performanceBoardState.metric === 'return' && document.getElementById('performance-board-show-spy')?.checked && (view.benchmarkValues || []).some(value => value != null)) datasets.push(performanceBoardDataset('S&P 500', view.benchmarkValues, performanceBoardBenchmarkColor, bars ? 'bar' : 'line', false));
+        if (performanceBoardState.metric === 'return' && !bars && labels.length && datasets.length) {
+            const aggregation = document.getElementById('performance-board-aggregation')?.value || 'monthly';
+            const baseline = performanceBoardBaselineLabel(labels[0], aggregation);
+            if (baseline) {
+                labels = [baseline, ...labels];
+                datasets.forEach(dataset => { dataset.data = [0, ...(dataset.data || [])]; });
+            }
+        }
         if (!view.available || !datasets.length) { if (empty) empty.style.display = ''; if (content) content.style.display = 'none'; return; }
         if (empty) empty.style.display = 'none'; if (content) content.style.display = '';
         writePerformanceKpis(view);
@@ -107,7 +130,6 @@ renderPerformanceBoard();
 
     return {getPerformanceBoardChart: () => performanceBoardChart};
 }
-
 
 
 

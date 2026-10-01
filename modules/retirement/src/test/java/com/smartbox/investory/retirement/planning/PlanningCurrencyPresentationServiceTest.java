@@ -36,19 +36,21 @@ import org.mockito.Mockito;
 
 @DisplayName("Planning Currency Presentation Service")
 class PlanningCurrencyPresentationServiceTest {
-  @DisplayName("normalizes Explicit Source Currency Into Canonical Planning Currency")
+  @DisplayName("converts incoming Investment currency directly into local planning currency")
   @Test
-  void normalizesExplicitSourceCurrencyIntoCanonicalPlanningCurrency() {
+  void convertsIncomingInvestmentCurrencyIntoLocalPlanningCurrency() {
     CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
     LocalDate date = LocalDate.of(2026, 8, 14);
     when(rates.convertToBaseCurrency(
-            new BigDecimal("100"), CurrencyType.USD, CurrencyType.PLN, date))
+            new BigDecimal("100"), CurrencyType.PLN, CurrencyType.USD, date))
         .thenReturn(new BigDecimal("25"));
     PlanningMoneyConversionService money =
         new PlanningMoneyConversionService(
             rates, Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC));
 
-    assertEquals(new BigDecimal("25"), money.toCanonical(new BigDecimal("100"), CurrencyType.PLN));
+    assertEquals(
+        new BigDecimal("25"),
+        money.toDisplay(new BigDecimal("100"), CurrencyType.USD, CurrencyType.PLN));
   }
 
   @DisplayName("presents Spending Difference As Extra Capacity Or Over Limit")
@@ -75,7 +77,7 @@ class PlanningCurrencyPresentationServiceTest {
                 false,
                 SustainableSpendingResultState.BOUNDARY_FOUND));
     SustainableSpendingAnalysisMoney extra =
-        service.displaySustainableSpending(positive, CurrencyType.USD);
+        service.displaySustainableSpending(positive, CurrencyType.PLN, CurrencyType.PLN);
     assertEquals("+5,000", extra.conservativeHeadroom());
     assertFalse(extra.conservativeHeadroom().contains("-"));
 
@@ -95,14 +97,14 @@ class PlanningCurrencyPresentationServiceTest {
                 true,
                 SustainableSpendingResultState.BOUNDARY_FOUND));
     SustainableSpendingAnalysisMoney overLimit =
-        service.displaySustainableSpending(negative, CurrencyType.USD);
+        service.displaySustainableSpending(negative, CurrencyType.PLN, CurrencyType.PLN);
     assertEquals("5,000", overLimit.conservativeHeadroom());
     assertFalse(overLimit.conservativeHeadroom().contains("-"));
   }
 
-  @DisplayName("converts Both Historical Actual And Expected Values With The Same Display Rate")
+  @DisplayName("keeps Historical Actual And Expected Values In Local Currency")
   @Test
-  void convertsBothHistoricalActualAndExpectedValuesWithTheSameDisplayRate() {
+  void keepsHistoricalActualAndExpectedValuesInLocalCurrency() {
     CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
     when(rates.convertToBaseCurrency(
             any(BigDecimal.class),
@@ -144,18 +146,18 @@ class PlanningCurrencyPresentationServiceTest {
                     null)));
     PastPlanningYear displayed = service.display(past, CurrencyType.PLN);
     assertEquals(
-        new BigDecimal("400"), displayed.values().get(PlanningMetric.NET_WORTH).derivedValue());
+        new BigDecimal("100"), displayed.values().get(PlanningMetric.NET_WORTH).derivedValue());
     assertEquals(
-        new BigDecimal("480"),
+        new BigDecimal("120"),
         displayed.expectedValues().get(PlanningMetric.NET_WORTH).derivedValue());
     assertEquals(
         new BigDecimal("0.07"),
         displayed.expectedValues().get(PlanningMetric.EQUITY_RETURN).derivedValue());
   }
 
-  @DisplayName("converts Profile And Every Monetary Chart Dataset At The Single Display Boundary")
+  @DisplayName("keeps Profile And Chart Monetary Values In Local Currency")
   @Test
-  void convertsProfileAndEveryMonetaryChartDatasetAtTheSingleDisplayBoundary() {
+  void keepsProfileAndEveryMonetaryChartDatasetInLocalCurrency() {
     CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
     when(rates.convertToBaseCurrency(
             any(BigDecimal.class),
@@ -221,11 +223,11 @@ class PlanningCurrencyPresentationServiceTest {
                     new BigDecimal("4"))));
     SimulationChartData displayedCharts = service.displayCharts(canonicalCharts, CurrencyType.PLN);
     assertEquals(
-        new BigDecimal("400"),
+        new BigDecimal("100"),
         displayedCharts.balances().get(SimulationScenario.BASE).getFirst().netWorth());
     assertEquals(
-        new BigDecimal("40"), displayedCharts.incomeSpending().getFirst().recurringIncome());
-    assertEquals(new BigDecimal("16"), displayedCharts.composition().getFirst().equities());
+        new BigDecimal("10"), displayedCharts.incomeSpending().getFirst().recurringIncome());
+    assertEquals(new BigDecimal("4"), displayedCharts.composition().getFirst().equities());
     assertEquals(
         new BigDecimal("100"),
         canonicalCharts.balances().get(SimulationScenario.BASE).getFirst().netWorth());
@@ -251,7 +253,7 @@ class PlanningCurrencyPresentationServiceTest {
                 value(PlanningMetric.RENTAL_INCOME, "171509")),
             Map.of());
 
-    PastPlanningYear displayed = service.display(past, CurrencyType.USD);
+    PastPlanningYear displayed = service.display(past, CurrencyType.PLN);
 
     assertFalse(displayed.values().containsKey(PlanningMetric.PASSIVE_INCOME));
     assertEquals(
@@ -280,6 +282,7 @@ class PlanningCurrencyPresentationServiceTest {
             Map.of());
     PlanningTimeline timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(
                     2025, 40, PlanningTimelineState.ACTUAL, past, null, null)));
@@ -289,7 +292,7 @@ class PlanningCurrencyPresentationServiceTest {
                 new PlanningMoneyConversionService(
                     Mockito.mock(CurrencyConversion.class),
                     Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)))
-            .displayTimelineMoney(timeline, CurrencyType.USD)
+            .displayTimelineMoney(timeline, CurrencyType.PLN)
             .get(2025);
 
     assertEquals(new BigDecimal("240000"), displayed.annualCosts());
@@ -304,6 +307,7 @@ class PlanningCurrencyPresentationServiceTest {
   void leavesNeedsReviewTimelineRowsEmptyUntilHistoricalFactsOrProjectionExists() {
     PlanningTimeline timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(
                     2025, 40, PlanningTimelineState.NEEDS_REVIEW, null, null, null)));
@@ -313,7 +317,7 @@ class PlanningCurrencyPresentationServiceTest {
                 new PlanningMoneyConversionService(
                     Mockito.mock(CurrencyConversion.class),
                     Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)))
-            .displayTimelineMoney(timeline, CurrencyType.USD)
+            .displayTimelineMoney(timeline, CurrencyType.PLN)
             .get(2025);
 
     assertNull(displayed.annualCosts());
@@ -345,6 +349,7 @@ class PlanningCurrencyPresentationServiceTest {
             Map.of(PlanningMetric.CORE_SPENDING, value(PlanningMetric.CORE_SPENDING, "999999")));
     PlanningTimeline timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(
                     2026, 41, PlanningTimelineState.LIVE, null, current, null)));
@@ -354,7 +359,7 @@ class PlanningCurrencyPresentationServiceTest {
                 new PlanningMoneyConversionService(
                     Mockito.mock(CurrencyConversion.class),
                     Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)))
-            .displayTimelineMoney(timeline, CurrencyType.USD, liveAssumptions())
+            .displayTimelineMoney(timeline, CurrencyType.PLN, liveAssumptions())
             .get(2026);
 
     assertEquals(new BigDecimal("240000"), displayed.annualCosts());
@@ -397,9 +402,9 @@ class PlanningCurrencyPresentationServiceTest {
     Mockito.verifyNoInteractions(rates);
   }
 
-  @DisplayName("projected Timeline Uses Canonical Funding Components")
+  @DisplayName("projected Timeline Uses Local Currency Funding Components")
   @Test
-  void projectedTimelineUsesCanonicalFundingComponents() {
+  void projectedTimelineUsesLocalCurrencyFundingComponents() {
     SimulationYear projection = Mockito.mock(SimulationYear.class);
     when(projection.totalExpenses()).thenReturn(new BigDecimal("100"));
     when(projection.rentalIncome()).thenReturn(BigDecimal.ZERO);
@@ -423,6 +428,7 @@ class PlanningCurrencyPresentationServiceTest {
 
     PlanningTimeline timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(
                     2027, 42, PlanningTimelineState.PROJECTED, null, null, projection)));
@@ -432,7 +438,7 @@ class PlanningCurrencyPresentationServiceTest {
                 new PlanningMoneyConversionService(
                     Mockito.mock(CurrencyConversion.class),
                     Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)))
-            .displayTimelineMoney(timeline, CurrencyType.USD)
+            .displayTimelineMoney(timeline, CurrencyType.PLN)
             .get(2027);
 
     assertEquals(new BigDecimal("100"), displayed.fundingGap());
@@ -515,7 +521,7 @@ class PlanningCurrencyPresentationServiceTest {
                     PlanningValueSource.SIMULATION_BASELINE,
                     null)));
 
-    CurrentYearReview review = service.displayCurrentYear(current, CurrencyType.USD);
+    CurrentYearReview review = service.displayCurrentYear(current, CurrencyType.PLN);
 
     assertEquals("Manual input required", review.status());
     assertEquals(List.of("Annual extras"), review.missingMetrics());
@@ -537,10 +543,9 @@ class PlanningCurrencyPresentationServiceTest {
     assertEquals("Manual planning input", spending.source());
   }
 
-  @DisplayName(
-      "plan Progress Display Converts For Presentation Without Changing Canonical Difference")
+  @DisplayName("plan Progress Display Keeps Local Currency Difference")
   @Test
-  void planProgressDisplayConvertsForPresentationWithoutChangingCanonicalDifference() {
+  void planProgressDisplayKeepsLocalCurrencyDifference() {
     CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
     when(rates.convertToBaseCurrency(
             any(BigDecimal.class),
@@ -568,7 +573,7 @@ class PlanningCurrencyPresentationServiceTest {
     PlanProgressView displayed = service.displayPlanProgress(progress, CurrencyType.PLN);
 
     assertEquals(new BigDecimal("100"), progress.headline().difference());
-    assertEquals("+400 PLN", displayed.headlineDifference());
+    assertEquals("+100 PLN", displayed.headlineDifference());
     assertEquals("Ahead of plan", displayed.headlineState());
     assertEquals("31 Dec 2025", displayed.latestBoundary());
   }

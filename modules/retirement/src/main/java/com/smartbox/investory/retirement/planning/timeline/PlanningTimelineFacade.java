@@ -11,8 +11,6 @@ import com.smartbox.investory.retirement.planning.application.*;
 import com.smartbox.investory.retirement.planning.presentation.*;
 import com.smartbox.investory.retirement.planning.review.*;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
-import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -35,7 +33,6 @@ public class PlanningTimelineFacade {
   private final LongTermAssetProfileReader currentLongTermAssets;
   private final PlanningProgressService planningProgress;
   private final PlanningYearReviewService planningYearReviews;
-  private final PlanningMoneyConversionService money;
 
   public PlanningTimelineFacade(
       RetirementPlanningYearRepository years,
@@ -45,8 +42,7 @@ public class PlanningTimelineFacade {
       Clock clock,
       LongTermAssetProfileReader currentLongTermAssets,
       PlanningProgressService planningProgress,
-      PlanningYearReviewService planningYearReviews,
-      PlanningMoneyConversionService money) {
+      PlanningYearReviewService planningYearReviews) {
     this.years = years;
     this.stateCodec = stateCodec;
     this.metrics = metrics;
@@ -55,7 +51,6 @@ public class PlanningTimelineFacade {
     this.currentLongTermAssets = currentLongTermAssets;
     this.planningProgress = planningProgress;
     this.planningYearReviews = planningYearReviews;
-    this.money = money;
   }
 
   /** Application read facade for planning progress and year review composition. */
@@ -580,12 +575,9 @@ public class PlanningTimelineFacade {
     if (currentLongTermAssets != null) {
       LongTermAssetAnnualSnapshotModel facts =
           currentLongTermAssets.snapshot(portfolioId, LocalDate.now(clock)).annualSnapshot();
-      putCurrentFact(
-          live, PlanningMetric.RENTAL_INCOME, canonical(facts.rentalIncome(), facts.currency()));
-      putCurrentFact(
-          live, PlanningMetric.BOND_VALUE, canonical(facts.bondValue(), facts.currency()));
-      putCurrentFact(
-          live, PlanningMetric.BOND_INCOME, canonical(facts.bondIncome(), facts.currency()));
+      putCurrentFact(live, PlanningMetric.RENTAL_INCOME, facts.rentalIncome());
+      putCurrentFact(live, PlanningMetric.BOND_VALUE, facts.bondValue());
+      putCurrentFact(live, PlanningMetric.BOND_INCOME, facts.bondIncome());
     }
     if (bridge != null) {
       live.put(
@@ -625,7 +617,11 @@ public class PlanningTimelineFacade {
         current.baselineCreatedAt(),
         live,
         expected,
-        annualizedSpending);
+        annualizedSpending,
+        bridge == null ? null : bridge.projectedBondReturn(),
+        bridge == null ? null : bridge.projectedEquityReturn(),
+        bridge == null ? null : bridge.start(EconomicBucket.EQUITY),
+        bridge == null ? null : bridge.contributionApplied());
   }
 
   private static BigDecimal eventAmount(
@@ -646,12 +642,6 @@ public class PlanningTimelineFacade {
       Map<PlanningMetric, PlanningMetricValue> values, PlanningMetric metric, BigDecimal amount) {
     if (amount != null)
       values.put(metric, derived(metric, amount, PlanningValueSource.LONG_TERM_DERIVED));
-  }
-
-  private BigDecimal canonical(BigDecimal amount, CurrencyType source) {
-    return source == FinancialPolicyDefaults.CANONICAL_CURRENCY
-        ? amount
-        : money.toCanonical(amount, source);
   }
 
   private int calendarCurrentYear() {

@@ -200,9 +200,9 @@ class ForwardSimulationContextFactoryTest {
     assertTrue(rebased.currentAge() >= rebased.retirementAge());
   }
 
-  @DisplayName("rebasing Carries Accumulated Retirement Spending Into The First Forward Year")
+  @DisplayName("forward Projection Advances Live Spending Once Then Grows Each Projected Year")
   @Test
-  void rebasingCarriesAccumulatedRetirementSpendingIntoTheFirstForwardYear() {
+  void forwardProjectionAdvancesLiveSpendingOnceThenGrowsEachProjectedYear() {
     SimulationAssumptions original =
         assumptions(2020, 60, 70)
             .withRetirementAge(65)
@@ -218,8 +218,15 @@ class ForwardSimulationContextFactoryTest {
 
     assertEquals(
         0,
-        new BigDecimal("121")
+        new BigDecimal("110")
             .compareTo(rebased.annualLivingExpenses().add(rebased.annualDiscretionaryExpenses())));
+
+    List<SimulationYear> years =
+        new RetirementSimulationService()
+            .simulate(PROFILE, rebased, SimulationScenario.BASE)
+            .years();
+    assertEquals(0, new BigDecimal("110").compareTo(years.getFirst().totalExpenses()));
+    assertEquals(0, new BigDecimal("121").compareTo(years.get(1).totalExpenses()));
   }
 
   @DisplayName("horizon Boundary Has No Full Projected Year")

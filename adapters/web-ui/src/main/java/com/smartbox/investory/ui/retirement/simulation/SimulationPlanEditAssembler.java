@@ -101,7 +101,10 @@ final class SimulationPlanEditAssembler {
       SimulationAssumptions assumptions, CurrencyType displayCurrency) {
     var expenseProfile =
         assumptions.expenseProfile().steps().stream()
-            .map(step -> new PlanEditorInput.ExpenseStageInput(step.fromYear(), step.factor()))
+            .map(
+                step ->
+                    new PlanEditorInput.ExpenseStageInput(
+                        assumptions.ageAtPlanStart() + step.fromYear(), step.factor()))
             .toList();
     return new PlanEditorInput(
         assumptions.ageAtPlanStart(),

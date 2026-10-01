@@ -67,7 +67,7 @@ public class XtbImportService {
   private static final ZoneId UTC = ZoneId.of("UTC");
   private static final Pattern LOT_PATTERN =
       Pattern.compile(
-          "^(OPEN|CLOSE)\\s+(BUY|SELL)\\s+([0-9]+(?:[\\.,][0-9]+)?)(?:/[0-9]+(?:[\\.,][0-9]+)?)?\\s+@\\s+([0-9]+(?:[\\.,][0-9]+)?)$",
+          "^(OPEN|CLOSE)\\s+(BUY|SELL)\\s+(?:([A-Z0-9._-]+)\\s+)?([0-9]+(?:[\\.,][0-9]+)?)(?:/[0-9]+(?:[\\.,][0-9]+)?)?\\s+@\\s+([0-9]+(?:[\\.,][0-9]+)?)$",
           Pattern.CASE_INSENSITIVE);
   private static final List<DateTimeFormatter> DATE_FORMATTERS =
       List.of(
@@ -272,10 +272,7 @@ public class XtbImportService {
       CurrencyType currency = accountConfiguration.getCurrency();
 
       List<PositionEntity> openedPositions =
-          cashOnly
-              ? List.of()
-              : reconstructPositionEntities(
-                  operationsForOpenReconstruction(account, cashOperations), account, currency);
+          cashOnly ? List.of() : reconstructOpenPositions(account, cashOperations, currency);
       openedPositions = deduplicatePositionEntities(openedPositions);
 
       applyPositionCurrencies(closedPositions, openedPositions, currency);
@@ -671,7 +668,7 @@ public class XtbImportService {
                     CashOperationEntity::getId, Comparator.nullsLast(Comparator.naturalOrder())))
         .forEach(
             op -> {
-              LotEvent event = parseLotEvent(op.getComment()).orElse(null);
+              LotEvent event = parseLotEvent(op.getComment(), op.getSymbol()).orElse(null);
               if (event == null || event.volume.signum() <= 0) {
                 return;
               }
@@ -780,7 +777,7 @@ public class XtbImportService {
     }
   }
 
-  private Optional<LotEvent> parseLotEvent(String comment) {
+  private Optional<LotEvent> parseLotEvent(String comment, String symbol) {
     if (!StringUtils.hasText(comment)) {
       return Optional.empty();
     }
@@ -788,12 +785,51 @@ public class XtbImportService {
     if (!matcher.matches()) {
       return Optional.empty();
     }
+    String commentSymbol = matcher.group(3);
+    if (StringUtils.hasText(commentSymbol) && !commentSymbol.equalsIgnoreCase(symbol)) {
+      return Optional.empty();
+    }
 
     boolean open = "OPEN".equalsIgnoreCase(matcher.group(1));
     PositionType side = XtbWorkbookReader.parsePositionType(matcher.group(2), -1);
-    BigDecimal volume = XtbWorkbookReader.parseDecimal(matcher.group(3)).orElseThrow();
-    BigDecimal price = XtbWorkbookReader.parseDecimal(matcher.group(4)).orElseThrow();
+    BigDecimal volume = XtbWorkbookReader.parseDecimal(matcher.group(4)).orElseThrow();
+    BigDecimal price = XtbWorkbookReader.parseDecimal(matcher.group(5)).orElseThrow();
     return Optional.of(new LotEvent(open, side, volume, price));
+  }
+
+  List<PositionEntity> reconstructOpenPositions(
+      Long account, List<CashOperationEntity> importedOperations, CurrencyType currency) {
+    List<CashOperationEntity> operations =
+        operationsForOpenReconstruction(account, importedOperations);
+    List<CashOperationEntity> unparsedTrades =
+        operations.stream()
+            .filter(
+                op ->
+                    (op.getType() == CashOperationType.STOCK_PURCHASE
+                            || op.getType() == CashOperationType.STOCK_SELL)
+                        && StringUtils.hasText(op.getSymbol())
+                        && parseLotEvent(op.getComment(), op.getSymbol()).isEmpty())
+            .toList();
+    if (!unparsedTrades.isEmpty()) {
+      String rows =
+          unparsedTrades.stream()
+              .map(
+                  op ->
+                      "row="
+                          + op.getImportSourceRowId()
+                          + " symbol="
+                          + op.getSymbol()
+                          + " comment='"
+                          + op.getComment()
+                          + "'")
+              .collect(java.util.stream.Collectors.joining("; "));
+      throw new IllegalStateException(
+          "Cannot replace XTB open positions for account "
+              + account
+              + ": unparsed trade events: "
+              + rows);
+    }
+    return reconstructPositionEntities(operations, account, currency);
   }
 
   private void ensureAssetsExist(

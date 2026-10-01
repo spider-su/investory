@@ -192,7 +192,8 @@ class RetirementSimulationControllerTest {
         .when(timeline.loadForwardTimeline(anyLong(), any(), any(), any()))
         .thenReturn(
             new RetirementTimelineContracts.ForwardTimelineResponse(
-                new com.smartbox.investory.retirement.api.model.PlanningTimeline(List.of()),
+                new com.smartbox.investory.retirement.api.model.PlanningTimeline(
+                    CurrencyType.PLN, List.of()),
                 Map.of()));
     lenient()
         .when(forwardInputs.prepare(any(), any()))
@@ -553,7 +554,7 @@ class RetirementSimulationControllerTest {
 
     verify(plans).deletePlan(1L, 9L);
     assertEquals(
-        "redirect:/portfolios/1/simulation/plan/edit?planId=7&planningDisplayCurrency=EUR&selectedScenario=OPTIMISTIC",
+        "redirect:/portfolios/1/simulation/plan/edit?planId=7&planningDisplayCurrency=PLN&selectedScenario=OPTIMISTIC",
         redirect);
   }
 
@@ -566,7 +567,7 @@ class RetirementSimulationControllerTest {
 
     verify(plans).deletePlan(1L, 7L);
     assertEquals(
-        "redirect:/portfolios/1/simulation/plan/edit?planId=6&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
+        "redirect:/portfolios/1/simulation/plan/edit?planId=6&planningDisplayCurrency=PLN&selectedScenario=CONSERVATIVE",
         redirect);
   }
 

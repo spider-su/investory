@@ -44,7 +44,7 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(snapshot.contains("9503\t9403\t2025-07-01"));
     assertTrue(snapshot.contains("1\t9501\tRENT\t3200.000000000000\tMONTHLY\tf"));
     assertTrue(snapshot.contains("3\t9503\tRENT\t3000.000000000000\tMONTHLY\tf"));
-    assertTrue(snapshot.contains("Annual rental-tax base"));
+    assertTrue(snapshot.contains("Monthly rental-tax base"));
     assertTrue(snapshot.contains("7001\t91000001\tDEPOSIT"));
     assertTrue(snapshot.contains("7101\t91000001\t1\tAAPL.US"));
     assertTrue(snapshot.contains("7106\t91000002\t1001\tTSLA.US"));

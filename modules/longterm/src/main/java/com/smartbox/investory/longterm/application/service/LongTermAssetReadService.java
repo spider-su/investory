@@ -313,13 +313,13 @@ public class LongTermAssetReadService {
         contract == null
             ? List.<RentalContractModel.Term>of()
             : convertedTerms(contract, row.getCurrency(), currency, date);
-    BigDecimal annualTaxBase =
+    BigDecimal monthlyTaxBase =
         toBase(
             row.getTaxBase() == null ? BigDecimal.ZERO : row.getTaxBase(),
             row.getCurrency(),
             currency,
             date);
-    var rental = rental(terms, annualTaxBase, value);
+    var rental = rental(terms, monthlyTaxBase, value);
     return new AssetSummaryView(
         row.getId(),
         row.getName(),

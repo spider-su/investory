@@ -13,6 +13,8 @@ import com.smartbox.investory.retirement.planning.review.*;
 import com.smartbox.investory.retirement.planning.timeline.*;
 import com.smartbox.investory.retirement.planning.timeline.PlanningTimelineValueSupport;
 import com.smartbox.investory.retirement.preview.*;
+import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.Map;
@@ -24,12 +26,19 @@ public class PlanningMetricDerivationService {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
   private final HistoricalPortfolioActualsReader historicalPortfolio;
   private final HistoricalLongTermAssetYearSource historicalLongTermAssets;
+  private final PortfolioContextReader portfolioContexts;
+  private final PlanningMoneyConversionService money;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public PlanningMetricDerivationService(
       HistoricalPortfolioActualsReader historicalPortfolio,
-      HistoricalLongTermAssetYearSource historicalLongTermAssets) {
+      HistoricalLongTermAssetYearSource historicalLongTermAssets,
+      PortfolioContextReader portfolioContexts,
+      PlanningMoneyConversionService money) {
     this.historicalPortfolio = historicalPortfolio;
     this.historicalLongTermAssets = historicalLongTermAssets;
+    this.portfolioContexts = portfolioContexts;
+    this.money = money;
   }
 
   public HistoricalPortfolioYear historicalPortfolio(Long portfolioId, int year) {
@@ -39,21 +48,27 @@ public class PlanningMetricDerivationService {
   public Map<PlanningMetric, PlanningMetricValue> historicalMarket(Long portfolioId, int year) {
     HistoricalPortfolioYear source = historicalPortfolio(portfolioId, year);
     if (!source.complete()) return Map.of();
+    var context =
+        portfolioContexts
+            .findById(portfolioId)
+            .orElseThrow(() -> new IllegalStateException("Portfolio currency is unavailable"));
+    CurrencyType sourceCurrency = context.baseCurrency();
+    CurrencyType localCurrency = context.localCurrency();
     Map<PlanningMetric, PlanningMetricValue> result = new EnumMap<>(PlanningMetric.class);
     put(
         result,
         PlanningMetric.MARKET_ASSETS,
-        source.endMarketAssets(),
+        local(source.endMarketAssets(), sourceCurrency, localCurrency),
         PlanningValueSource.ACCOUNTING_DERIVED);
     put(
         result,
         PlanningMetric.MARKET_INCOME,
-        source.marketIncome(),
+        local(source.marketIncome(), sourceCurrency, localCurrency),
         PlanningValueSource.ACCOUNTING_DERIVED);
     put(
         result,
         PlanningMetric.MARKET_WITHDRAWAL,
-        source.netWithdrawal(),
+        local(source.netWithdrawal(), sourceCurrency, localCurrency),
         PlanningValueSource.ACCOUNTING_DERIVED);
     if (source.marketReturn() != null)
       put(
@@ -62,6 +77,10 @@ public class PlanningMetricDerivationService {
           source.marketReturn(),
           PlanningValueSource.ACCOUNTING_DERIVED);
     return result;
+  }
+
+  private BigDecimal local(BigDecimal amount, CurrencyType source, CurrencyType local) {
+    return amount == null ? null : money.toDisplay(amount, source, local);
   }
 
   public Map<PlanningMetric, PlanningMetricValue> historicalLongTermAssets(

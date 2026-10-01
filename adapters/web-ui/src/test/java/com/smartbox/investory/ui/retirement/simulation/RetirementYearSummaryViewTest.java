@@ -7,6 +7,7 @@ import com.smartbox.investory.retirement.api.model.PlanningTimeline;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineMoney;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineYear;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,7 @@ class RetirementYearSummaryViewTest {
             null);
     var timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(
                     2027, 42, PlanningTimelineState.PROJECTED, null, null, null)));

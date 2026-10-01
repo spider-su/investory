@@ -33,10 +33,14 @@ cash-reserve income.
 Expected real-estate growth is also a profile/global planning assumption. These values have one
 source of truth and are not copied into individual assets or rental contracts.
 
-Each property stores an annual rental-tax base in its own immutable asset currency. The overview
-displays the monthly rental-tax figure consistently in both expanded and collapsed views. Category
-values are direct sums of their property-row values. `NULL` means unspecified and zero means an
-explicit zero base.
+Each property stores a monthly rental-tax base in its own immutable asset currency. The monthly
+rental-income tax is `monthly tax base × 8.5%`; annual rental-income tax and annual tax base are
+those monthly values multiplied by 12. For example, a 2,900 monthly base produces 246.50 tax per
+month and 2,958 tax per year. Historical snapshots accrue the annualized tax across the contract's
+calendar-year overlap, and total return accrues the same annualized tax through its requested date.
+The overview displays the monthly rental-tax figure consistently in expanded and collapsed views.
+Category values aggregate unrounded annual amounts, then derive monthly figures. `NULL` means
+unspecified and zero means an explicit zero base.
 
 A bond has principal/current value, one current interest rate, and maturity. A cash reserve has an
 optional current interest rate and optional maturity: a null or zero rate is plain cash, while a

@@ -2,6 +2,7 @@ package com.smartbox.investory.retirement.simulation;
 
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.*;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Year;
 import java.util.List;
@@ -47,8 +48,16 @@ public class ForwardSimulationContextFactory {
     Optional<SimulationAssumptions> forwardAssumptions =
         firstProjectedAge <= originalAssumptions.endAge()
             ? Optional.of(
-                originalAssumptions.rebasedTo(
-                    firstProjectedAge, firstProjectedYear, remainingEvents))
+                originalAssumptions
+                    .rebasedTo(firstProjectedAge, firstProjectedYear, remainingEvents)
+                    // The live row uses the unrebased plan spending. Advance exactly one year
+                    // for the first projected row; later years grow in the simulation loop.
+                    .withRecurringSpending(
+                        originalAssumptions
+                            .annualSpending()
+                            .multiply(
+                                BigDecimal.ONE.add(
+                                    originalAssumptions.effectiveSpendingGrowthRate()))))
             : Optional.empty();
 
     return new ForwardSimulationContext(

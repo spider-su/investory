@@ -32,19 +32,21 @@ class HappyInvestorFactsTest {
     BigDecimal boundaryAnnualized =
         new BigDecimal("3200").add(new BigDecimal("3000")).multiply(new BigDecimal("12"));
     BigDecimal apartmentATax =
-        HappyInvestorLongTermFacts.APARTMENT_A_ANNUAL_TAX_BASE.multiply(
-            HappyInvestorLongTermFacts.RENTAL_TAX_RATE);
+        HappyInvestorLongTermFacts.APARTMENT_A_MONTHLY_TAX_BASE
+            .multiply(HappyInvestorLongTermFacts.RENTAL_TAX_RATE)
+            .multiply(new BigDecimal("12"));
     BigDecimal apartmentBTax =
-        HappyInvestorLongTermFacts.APARTMENT_B_ANNUAL_TAX_BASE.multiply(
-            HappyInvestorLongTermFacts.RENTAL_TAX_RATE);
+        HappyInvestorLongTermFacts.APARTMENT_B_MONTHLY_TAX_BASE
+            .multiply(HappyInvestorLongTermFacts.RENTAL_TAX_RATE)
+            .multiply(new BigDecimal("12"));
     BigDecimal boundaryTax = apartmentATax.add(apartmentBTax);
 
     assertThat(calendar2025)
         .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_CALENDAR_2025_GROSS);
     assertThat(boundaryAnnualized)
         .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_GROSS_ANNUAL);
-    assertThat(apartmentATax).isEqualByComparingTo("272");
-    assertThat(apartmentBTax).isEqualByComparingTo("255");
+    assertThat(apartmentATax).isEqualByComparingTo("3264");
+    assertThat(apartmentBTax).isEqualByComparingTo("3060");
     assertThat(boundaryTax)
         .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_TAX_ANNUAL);
     assertThat(

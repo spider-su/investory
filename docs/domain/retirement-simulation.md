@@ -127,9 +127,16 @@ canonical 0% yield. Real Estate capital appreciation and `otherReturnRate` are a
 fields and are not modeled by the aggregate Retirement bucket engine; Real Estate currently changes
 through rental cash income/growth only. Scenario selection never writes the saved plan.
 
-All values cross the plan boundary in the plan currency. Source-currency asset values are converted
-once, using the shared target-currency-first conversion service, before they become a flow, capital
-projection, or page view value. A display-currency change only formats the already-normalized value.
+All Retirement monetary values are stored and calculated in the portfolio `local_currency`. The
+Investment module may report in its `base_currency` (currently USD); Retirement converts those
+incoming values to `local_currency` immediately at the module boundary using the current FX rate.
+Long-Term and Profile values already use `local_currency` and pass through unchanged. Retirement
+pages always show `local_currency`; request parameters cannot switch the module into a second
+currency. Plan assumptions, events, baseline snapshots, and reviewed planning-year values are all
+local amounts. The one-time data migration converts existing stored amounts using the current FX
+rate and records the conversion in `retirement_currency_conversions` so it cannot be applied twice.
+Neon was converted on 2026-10-01 at USD/PLN 3.845. When `V01.022` runs there, the recorded
+conversion makes the migration skip those already-converted rows and let Flyway record the version.
 
 ## Planned cash flows
 
@@ -389,8 +396,11 @@ ExpectedEnd(year N) = Start(year N+1)
 ### Current/live and projected boundaries
 
 `CURRENT`/`LIVE` has two distinct boundaries. The opening value is the current factual bucket
-balance. The bridge projects only the remaining part of the current calendar year using the same
-authoritative simulator, and exposes the resulting expected year-end bucket value. This is why
+balance. The bridge projects remaining-year spending and funding with the authoritative simulator.
+It applies the plan's full-year fixed-income return to the opening Bond balance, adjusting the
+simulated end balance for the difference from its remaining-period return while preserving
+withdrawals. Source Bond cash income remains a separate spendable cash flow. The bridge also applies
+the plan's full-year Equity return to the source-owned Investment base when available. This is why
 `Cash now` can be higher than `Expected year end`; the difference is the remaining current-year
 cash use after income.
 
@@ -431,6 +441,15 @@ Spending starts at retirement and grows only afterward. Forward rebasing carries
 retirement spending instead of resetting it. This is deliberate: `annualLivingExpenses` and
 `annualDiscretionaryExpenses` represent retirement spending, not a household budget before
 retirement.
+
+Saved plans may describe monthly living costs with named cost groups. Group allocations are stored
+per plan and calendar year; creating a year copies the prior year's groups, which can then be edited
+independently. They allocate the plan's monthly living-cost amount; editing groups does not change
+`annualLivingExpenses`. The plan's existing `annualDiscretionaryExpenses` remains the separate
+additional annual cost; it is not copied into the group table. After a closed year has an approved
+Core Spending value, any approved monthly amount above that year's assigned groups is shown as
+**Other** until the user distributes it among groups. Annual amounts are converted to monthly
+display values with two decimal places and half-up rounding.
 
 Long-Term supplies rental and fixed-income flows through its public planning API. Rental values in
 the current-year bridge are canonical facts; the next projected year is produced by the Long-Term

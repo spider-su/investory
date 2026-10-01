@@ -19,7 +19,6 @@ import com.smartbox.investory.retirement.planning.projection.*;
 import com.smartbox.investory.retirement.planning.projection.ForwardSimulationInputService;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -69,7 +68,7 @@ public class PlanEditorPreviewService {
                 forward.context().asOfYear())
             : new SimulationResult(
                 SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
-    LongTermAssetAnnualSnapshotModel facts = canonicalFacts(facts(currentFacts(profile)));
+    LongTermAssetAnnualSnapshotModel facts = facts(currentFacts(profile));
     int currentYear = Year.now(clock).getValue();
     int retirementYear = ForwardSimulationContextFactory.retirementYear(assumptions);
     SimulationYear first = result.years().isEmpty() ? null : result.years().get(0);
@@ -300,25 +299,6 @@ public class PlanEditorPreviewService {
 
   private static LongTermAssetAnnualSnapshotModel facts(LongTermAssetAnnualSnapshotModel facts) {
     return facts == null ? NO_LONG_TERM_FACTS : facts;
-  }
-
-  private LongTermAssetAnnualSnapshotModel canonicalFacts(LongTermAssetAnnualSnapshotModel facts) {
-    CurrencyType canonical = FinancialPolicyDefaults.CANONICAL_CURRENCY;
-    if (facts.currency() == canonical) return facts;
-    return new LongTermAssetAnnualSnapshotModel(
-        toCanonical(facts.realEstateValue(), facts.currency()),
-        toCanonical(facts.rentalIncome(), facts.currency()),
-        toCanonical(facts.bondValue(), facts.currency()),
-        toCanonical(facts.bondIncome(), facts.currency()),
-        toCanonical(facts.cashReserveValue(), facts.currency()),
-        toCanonical(facts.otherAssetValue(), facts.currency()),
-        canonical);
-  }
-
-  private BigDecimal toCanonical(BigDecimal value, CurrencyType source) {
-    return value == null
-        ? null
-        : presentation.toDisplay(value, source, FinancialPolicyDefaults.CANONICAL_CURRENCY);
   }
 
   /** Sum known cash-income facts while preserving unknown when no component is available. */

@@ -64,12 +64,16 @@ The account summary percentage remains simple return on its accounting net-depos
 It is intentionally not required to equal the flow-adjusted benchmark return when external flows
 occur during the selected period.
 
-SPY closes are loaded from persisted benchmark history, with provider refresh used only when required
-history is missing. A database failure while reading portfolio projections or SPY closes is an
+SPY closes are loaded from persisted benchmark history. The market-price refresh job also fetches
+and upserts the latest monthly benchmark series, including the current month-to-date observation;
+dashboard reads fetch history only when a requested month is missing. A database failure while
+reading portfolio projections or SPY closes is an
 operational reporting failure: the application logs and propagates it. It must not be represented as
 an empty benchmark, which would make a broken data path look like valid missing history.
 
-The performance board scopes its plotted series to the configured KPI start. The dashboard's
+The performance board scopes its plotted series to the configured KPI start and ends at the last
+completed calendar month. The in-progress current month is excluded from plotted values and period
+KPIs so a partial month is not presented as a completed monthly return. The dashboard's
 `totalReturn` is the actual cash-flow-neutral return over that current KPI period. Historical
 annualized return and expected annual return are separate values calculated from the canonical
 recent historical observation window, so neither the selected chart period nor the current-year

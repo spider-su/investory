@@ -129,7 +129,7 @@ class LongTermAssetHistoricalSnapshotServiceTest {
             eq(LocalDate.of(2025, 12, 31))))
         .thenAnswer(invocation -> invocation.<BigDecimal>getArgument(0).multiply(BigDecimal.TWO));
 
-    assertThat(service.snapshot(PORTFOLIO_ID, YEAR).rentalIncome()).isEqualByComparingTo("21430");
+    assertThat(service.snapshot(PORTFOLIO_ID, YEAR).rentalIncome()).isEqualByComparingTo("19560");
     var convertedValue = org.mockito.ArgumentCaptor.forClass(BigDecimal.class);
     verify(conversion)
         .convertToBaseCurrency(
@@ -137,7 +137,7 @@ class LongTermAssetHistoricalSnapshotServiceTest {
             eq(CurrencyType.USD),
             eq(CurrencyType.EUR),
             eq(LocalDate.of(2025, 12, 31)));
-    assertThat(convertedValue.getValue()).isEqualByComparingTo("10715");
+    assertThat(convertedValue.getValue()).isEqualByComparingTo("9780");
   }
 
   @Test

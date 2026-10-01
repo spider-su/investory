@@ -17,7 +17,8 @@ public record PlanningHeaderView(
     Object currency,
     String actionMode,
     Object contextPlanId,
-    Object contextScenario) {
+    Object contextScenario,
+    Object contextYear) {
   public static PlanningHeaderView of(
       String activePage,
       Object portfolioId,
@@ -34,7 +35,8 @@ public record PlanningHeaderView(
       Object currency,
       String actionMode,
       Object contextPlanId,
-      Object contextScenario) {
+      Object contextScenario,
+      Object contextYear) {
     return new PlanningHeaderView(
         activePage,
         portfolioId,
@@ -51,6 +53,7 @@ public record PlanningHeaderView(
         currency,
         actionMode,
         contextPlanId,
-        contextScenario);
+        contextScenario,
+        contextYear);
   }
 }
