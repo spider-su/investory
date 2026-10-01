@@ -1,15 +1,15 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
+import com.smartbox.investory.retirement.api.RetirementAnnualCostsApi;
 import com.smartbox.investory.retirement.api.RetirementAnnualCostsApi.AnnualCosts;
-import com.smartbox.investory.retirement.rest.RetirementAnnualCostsRestController;
 import java.math.BigDecimal;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InProcessAnnualCostsClient implements AnnualCostsClient {
-  private final RetirementAnnualCostsRestController annualCosts;
+  private final RetirementAnnualCostsApi annualCosts;
 
-  public InProcessAnnualCostsClient(RetirementAnnualCostsRestController annualCosts) {
+  public InProcessAnnualCostsClient(RetirementAnnualCostsApi annualCosts) {
     this.annualCosts = annualCosts;
   }
 
@@ -26,11 +26,7 @@ public class InProcessAnnualCostsClient implements AnnualCostsClient {
       Long groupId,
       String name,
       BigDecimal monthlyAmount) {
-    return annualCosts.saveGroup(
-        portfolioId,
-        planId,
-        year,
-        new RetirementAnnualCostsRestController.SaveGroupRequest(groupId, name, monthlyAmount));
+    return annualCosts.saveGroup(portfolioId, planId, year, groupId, name, monthlyAmount);
   }
 
   @Override
