@@ -77,8 +77,8 @@ class PlanningCurrencyPresentationServiceTest {
                 false,
                 SustainableSpendingResultState.BOUNDARY_FOUND));
     SustainableSpendingAnalysisMoney extra =
-        service.displaySustainableSpending(positive, CurrencyType.PLN, CurrencyType.PLN);
-    assertEquals("+5.00K", extra.conservativeHeadroom());
+        service.displaySustainableSpending(positive, CurrencyType.PLN);
+    assertEquals("+5,000", extra.conservativeHeadroom());
     assertFalse(extra.conservativeHeadroom().contains("-"));
 
     SustainableSpendingAnalysis negative =
@@ -97,8 +97,8 @@ class PlanningCurrencyPresentationServiceTest {
                 true,
                 SustainableSpendingResultState.BOUNDARY_FOUND));
     SustainableSpendingAnalysisMoney overLimit =
-        service.displaySustainableSpending(negative, CurrencyType.PLN, CurrencyType.PLN);
-    assertEquals("5.00K", overLimit.conservativeHeadroom());
+        service.displaySustainableSpending(negative, CurrencyType.PLN);
+    assertEquals("5,000", overLimit.conservativeHeadroom());
     assertFalse(overLimit.conservativeHeadroom().contains("-"));
   }
 
@@ -543,7 +543,8 @@ class PlanningCurrencyPresentationServiceTest {
     assertEquals("Manual planning input", spending.source());
   }
 
-  @DisplayName("plan Progress Display Keeps Local Currency Difference")
+  @DisplayName(
+      "plan Progress Display Keeps Local Currency Difference")
   @Test
   void planProgressDisplayKeepsLocalCurrencyDifference() {
     CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
