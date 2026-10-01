@@ -3,6 +3,7 @@ package com.smartbox.investory.ui.retirement.simulation;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationEventType;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.ui.profile.ProfileClient;
 import jakarta.validation.Valid;
