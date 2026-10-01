@@ -17,7 +17,8 @@ public record CurrentPlanningYear(
     BigDecimal annualizedSpending,
     BigDecimal projectedBondReturn,
     BigDecimal projectedEquityReturn,
-    BigDecimal projectedEquityStart) {
+    BigDecimal projectedEquityStart,
+    BigDecimal projectedEquityContribution) {
   public CurrentPlanningYear(
       int year,
       Long baselinePlanId,
@@ -36,6 +37,7 @@ public record CurrentPlanningYear(
         annualizedSpending,
         projectedBondReturn,
         projectedEquityReturn,
+        null,
         null);
   }
 
@@ -45,7 +47,17 @@ public record CurrentPlanningYear(
       Instant baselineCreatedAt,
       Map<PlanningMetric, PlanningMetricValue> actualValues,
       Map<PlanningMetric, PlanningMetricValue> expectedValues) {
-    this(year, baselinePlanId, baselineCreatedAt, actualValues, expectedValues, null, null, null);
+    this(
+        year,
+        baselinePlanId,
+        baselineCreatedAt,
+        actualValues,
+        expectedValues,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   public CurrentPlanningYear(
@@ -62,6 +74,8 @@ public record CurrentPlanningYear(
         actualValues,
         expectedValues,
         annualizedSpending,
+        null,
+        null,
         null,
         null);
   }
