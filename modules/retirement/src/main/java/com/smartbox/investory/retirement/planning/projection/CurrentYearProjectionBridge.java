@@ -75,6 +75,8 @@ public class CurrentYearProjectionBridge {
           ZERO,
           ZERO,
           ZERO,
+          ZERO,
+          ZERO,
           currentBoundaries(profile));
     }
     int year = context.asOfYear();
@@ -91,7 +93,23 @@ public class CurrentYearProjectionBridge {
     BigDecimal contribution = projected.preRetirementContribution();
     Map<EconomicBucket, CurrentYearProjection.BucketBoundary> boundaries =
         projectedBoundaries(projected);
-    InvestmentProfile bridgedProfile = rebaseSpendableState(reviewedProfile, boundaries);
+    BigDecimal investmentBase = investmentIncomeBase(profile);
+    BigDecimal projectedEquityReturn = projected.equityGain();
+    if (investmentBase != null) {
+      // Investment owns the current-year Equity base. Apply the plan's full-year Equity return
+      // to that base so this year's expected end carries into next year's starting balance.
+      BigDecimal equityReturnRate =
+          ScenarioEffectiveAssumptions.forScenario(
+                  profile, currentYearAssumptions, SimulationScenario.BASE, year)
+              .equityReturnRate();
+      projectedEquityReturn = investmentBase.multiply(equityReturnRate);
+      boundaries.put(
+          EconomicBucket.EQUITY,
+          new CurrentYearProjection.BucketBoundary(
+              investmentBase, investmentBase.add(projectedEquityReturn)));
+    }
+    InvestmentProfile bridgedProfile =
+        rebaseSpendableState(reviewedProfile, profile.currentRentalIncome(), boundaries);
     return result(
         context,
         bridgedProfile,
@@ -103,13 +121,27 @@ public class CurrentYearProjectionBridge {
         pension,
         projected.rentalIncome().add(projected.bondIncome()),
         ZERO,
-        projected.equityGain(),
+        projectedEquityReturn,
+        projected.capitalizedBondReturn(),
+        projectedEquityReturn,
         boundaries);
+  }
+
+  private static BigDecimal investmentIncomeBase(InvestmentProfile profile) {
+    var income = profile.incomeSummary();
+    if (income == null
+        || !income.investmentIncomeAvailable()
+        || income.investmentIncomeBase() == null
+        || income.investmentIncomeBase().signum() <= 0) {
+      return null;
+    }
+    return income.investmentIncomeBase();
   }
 
   /** Carry the returned four-bucket expected end state into the next projected year. */
   private static InvestmentProfile rebaseSpendableState(
       InvestmentProfile profile,
+      BigDecimal liveRentalIncome,
       Map<EconomicBucket, CurrentYearProjection.BucketBoundary> boundaries) {
     BigDecimal cashStart = boundaries.get(EconomicBucket.LIQUID_CASH).startValue();
     BigDecimal cashEnd = boundaries.get(EconomicBucket.LIQUID_CASH).expectedEndValue();
@@ -139,7 +171,9 @@ public class CurrentYearProjectionBridge {
         liquidEnd,
         illiquidEnd,
         rebaseAllocations(profile.allocations(), boundaries),
-        profile.currentRentalIncome(),
+        // Keep future rental growth anchored to the current factual run rate. The reviewed plan
+        // still supplies the growth assumption, but its captured rental amount may be stale.
+        liveRentalIncome,
         profile.currentBondIncome(),
         rebasePlanningState(profile.longTermPlanningState(), boundaries),
         cashEnd,
@@ -294,6 +328,8 @@ public class CurrentYearProjectionBridge {
       BigDecimal contractualIncome,
       BigDecimal redemption,
       BigDecimal investmentAnnualReturn,
+      BigDecimal projectedBondReturn,
+      BigDecimal projectedEquityReturn,
       Map<EconomicBucket, CurrentYearProjection.BucketBoundary> bucketBoundaries) {
     return new CurrentYearProjection(
         profile,
@@ -311,6 +347,8 @@ public class CurrentYearProjectionBridge {
         contractualIncome,
         redemption,
         investmentAnnualReturn,
+        projectedBondReturn,
+        projectedEquityReturn,
         context.currentYearEvents(),
         bucketBoundaries);
   }

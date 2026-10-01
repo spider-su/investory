@@ -16,17 +16,13 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,29 +34,11 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
   private final PortfolioExportSnapshotReader snapshots;
   private final YahooExportStateRepository exportStateRepository;
 
-  /** Accounts to include in Yahoo export. Empty = all accounts. */
-  private final Set<String> exportAccounts;
-
   public YahooExportService(
       PortfolioExportSnapshotReader snapshots,
-      @Value("${app.export.yahoo.accounts:}") String accountsCsv) {
-    this(snapshots, accountsCsv, null);
-  }
-
-  @org.springframework.beans.factory.annotation.Autowired
-  public YahooExportService(
-      PortfolioExportSnapshotReader snapshots,
-      @Value("${app.export.yahoo.accounts:}") String accountsCsv,
       YahooExportStateRepository exportStateRepository) {
     this.snapshots = snapshots;
     this.exportStateRepository = exportStateRepository;
-    this.exportAccounts =
-        accountsCsv == null || accountsCsv.isBlank()
-            ? Set.of()
-            : Arrays.stream(accountsCsv.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .collect(Collectors.toUnmodifiableSet());
   }
 
   private static final String[] HEADER = {
@@ -111,9 +89,6 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
           Map.entry("JEPG", ".L"),
           Map.entry("DTLA", ".L"),
           Map.entry("BRKB", ""));
-
-  /** Accounts to include in the Yahoo export. Set to empty to include ALL accounts. */
-  // Configured via app.export.yahoo.accounts in application.yml
 
   public void exportToYahooCsv(Long portfolioId, String filePath) throws IOException {
     CsvExportPayload payload = buildPayloadFromSummary(portfolioId);
@@ -175,19 +150,10 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
       throw new IllegalArgumentException("portfolioId must be positive");
     }
     PortfolioExportSnapshot snapshot = snapshots.currentSnapshot(portfolioId);
-    List<ExportPosition> openedPositions =
-        snapshot.positions().stream()
-            .filter(
-                p ->
-                    exportAccounts.isEmpty()
-                        || (p.accountId() != null
-                            && exportAccounts.contains(String.valueOf(p.accountId()))))
-            .toList();
+    List<ExportPosition> openedPositions = snapshot.positions();
 
     log.info(
-        "Yahoo export: exportAccounts={}, openedPositions={}",
-        exportAccounts.isEmpty() ? "<ALL>" : exportAccounts,
-        openedPositions.size());
+        "Yahoo export: portfolioId={}, openedPositions={}", portfolioId, openedPositions.size());
 
     Map<String, String> symbolResolution = buildSymbolResolutionMap(openedPositions);
 
@@ -238,14 +204,7 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
   }
 
   private double computeTotalCashBalanceUsd(PortfolioExportSnapshot snapshot) {
-    var statistics =
-        snapshot.cashBalances().stream()
-            .filter(
-                stat ->
-                    exportAccounts.isEmpty()
-                        || (stat.accountId() != null
-                            && exportAccounts.contains(String.valueOf(stat.accountId()))))
-            .toList();
+    var statistics = snapshot.cashBalances();
     if (!statistics.isEmpty()) {
       return statistics.stream().mapToDouble(stat -> safe(stat.amount())).sum();
     }

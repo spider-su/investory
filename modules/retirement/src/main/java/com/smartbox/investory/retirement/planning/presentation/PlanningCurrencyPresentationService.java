@@ -452,6 +452,8 @@ public class PlanningCurrencyPresentationService {
         rentalIncome =
             firstValue(currentValues, PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
         bondIncome = planningValue(currentValues, PlanningMetric.BOND_INCOME);
+        bondReturn = row.current().projectedBondReturn();
+        equityReturn = row.current().projectedEquityReturn();
         BigDecimal employment =
             assumptions != null
                     && ForwardSimulationContextFactory.currentPlanningAge(assumptions, row.year())
@@ -512,7 +514,9 @@ public class PlanningCurrencyPresentationService {
             firstValue(expectedValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
         if (bondsEnd == null) bondsEnd = bondsStart;
         equitiesStart =
-            firstValue(currentValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+            row.current().projectedEquityStart() == null
+                ? firstValue(currentValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS)
+                : row.current().projectedEquityStart();
         equitiesEnd =
             firstValue(expectedValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
         if (equitiesEnd == null) equitiesEnd = equitiesStart;

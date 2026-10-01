@@ -22,6 +22,8 @@ public record CurrentYearProjection(
     BigDecimal contractualIncomeApplied,
     BigDecimal redemptionCashApplied,
     BigDecimal investmentAnnualReturn,
+    BigDecimal projectedBondReturn,
+    BigDecimal projectedEquityReturn,
     List<SimulationEvent> currentYearEventsApplied,
     Map<EconomicBucket, BucketBoundary> bucketBoundaries) {
 

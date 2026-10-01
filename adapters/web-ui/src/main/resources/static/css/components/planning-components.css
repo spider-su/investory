@@ -428,7 +428,7 @@
 .iv-plan-timeline__assumption--header { min-height: 28px; text-align: center; }
 .iv-plan-timeline__matrix-corner { grid-column: 1; grid-row: 1; }
 .iv-plan-timeline__matrix-label { align-self: center; padding: 5px 10px 5px 0; color: var(--iv-text-muted); font-size: .65rem; letter-spacing: .06em; text-transform: uppercase; }
-.iv-plan-timeline__matrix-value { align-self: center; padding: 5px 12px; color: var(--iv-text); font-size: .86rem; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.iv-plan-timeline__matrix-value { align-self: center; padding: 5px 12px; color: var(--iv-text); font-size: .96rem; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
 .iv-plan-timeline__matrix-value--positive { color: var(--iv-positive, #15803d); }
 .iv-plan-timeline__matrix-value--negative { color: var(--iv-negative, #c2415a); }
 .iv-plan-timeline__matrix-value--neutral { color: var(--iv-text); }
@@ -510,7 +510,7 @@
 .iv-plan-timeline__selector { display: grid; grid-template-columns: auto minmax(180px, 320px) auto; align-items: center; gap: 8px; min-width: 290px; }
 .iv-plan-timeline__snapshots { min-height: 132px; }
 .iv-plan-snapshot__heading { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.iv-plan-snapshot__heading strong { font-size: .9rem; font-variant-numeric: tabular-nums; }
+.iv-plan-snapshot__heading strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
 .iv-state-badge { padding: 2px 6px; border-radius: 999px; color: var(--iv-text-muted); background: var(--iv-surface-muted, rgba(127,127,127,.12)); font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .iv-plan-snapshot__columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
 .iv-plan-snapshot__columns section + section { border-left: 1px solid var(--iv-metric-divider); padding-left: 24px; }
@@ -519,7 +519,7 @@
 .iv-plan-snapshot__columns dl { display: grid; gap: 3px; margin: 0; }
 .iv-plan-snapshot__columns dl > div { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline; }
 .iv-plan-snapshot__columns dt { color: var(--iv-text-muted); font-size: .78rem; }
-.iv-plan-snapshot__columns dd { margin: 0; font-size: .86rem; font-variant-numeric: tabular-nums; }
+.iv-plan-snapshot__columns dd { margin: 0; font-size: .96rem; font-variant-numeric: tabular-nums; }
 .iv-plan-snapshot__columns small { grid-column: 1 / -1; margin-top: -2px; color: var(--iv-text-muted); font-size: .66rem; text-align: right; }
 .iv-plan-snapshot__sources { display: grid; gap: 3px; margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--iv-border); }
 .iv-plan-snapshot__sources > strong { color: var(--iv-text-muted); font-size: .68rem; letter-spacing: .04em; text-transform: uppercase; }
@@ -531,7 +531,7 @@
 .iv-plan-snapshot__source-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .iv-plan-snapshot__coverage-heading strong,
 .iv-plan-snapshot__coverage-heading b { color: var(--iv-text-muted); font-size: .68rem; letter-spacing: .04em; text-transform: uppercase; }
-.iv-plan-snapshot__coverage-heading b { color: var(--iv-text); font-variant-numeric: tabular-nums; }
+.iv-plan-snapshot__coverage-heading b { color: var(--iv-text); font-size: .9rem; font-variant-numeric: tabular-nums; }
 .iv-plan-snapshot__coverage-bar,
 .iv-plan-snapshot__source-bar { display: flex; overflow: hidden; min-height: 7px; margin-top: 5px; border-radius: 999px; background: var(--iv-border); }
 .iv-plan-snapshot__coverage-segment { min-width: 0; }
@@ -539,7 +539,7 @@
 .iv-plan-snapshot__source-bar span { background: var(--iv-positive, #15803d); }
 .iv-plan-snapshot__coverage-segment--capital { background: var(--iv-primary); }
 .iv-plan-snapshot__coverage-segment--unfunded { background: var(--iv-negative, #c2415a); }
-.iv-plan-snapshot__source-heading { font-size: .76rem; }
+.iv-plan-snapshot__source-heading { font-size: .86rem; }
 .iv-plan-snapshot__source-kind { margin-left: 6px; color: var(--iv-positive, #15803d); font-size: .6rem; letter-spacing: .04em; }
 .iv-plan-snapshot__source-kind--capital { color: var(--iv-primary); }
 .iv-plan-snapshot__sources > .iv-plan-snapshot__source { display: grid; gap: 2px; }
@@ -562,8 +562,8 @@
 .iv-plan-snapshot__columns section + section { padding-left: 20px; }
 .iv-plan-snapshot__summary { gap: 2px; }
 .iv-plan-snapshot__coverage { margin-top: 10px; }
-.iv-plan-snapshot__coverage-labels { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-top: 5px; color: var(--iv-text-muted); font-size: .68rem; }
-.iv-plan-snapshot__coverage-labels b { color: var(--iv-text); font-variant-numeric: tabular-nums; }
+.iv-plan-snapshot__coverage-labels { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-top: 5px; color: var(--iv-text-muted); font-size: .76rem; }
+.iv-plan-snapshot__coverage-labels b { color: var(--iv-text); font-size: .86rem; font-variant-numeric: tabular-nums; }
 .iv-plan-snapshot__coverage-spending { margin-left: auto; }
 .iv-plan-snapshot__sources { margin-top: 10px; padding-top: 8px; }
 .iv-plan-snapshot__source-list { display: flex; flex-wrap: wrap; gap: 4px 18px; }
@@ -573,13 +573,13 @@
 .iv-plan-snapshot__source-list .iv-plan-snapshot__source b { white-space: nowrap; }
 .iv-plan-snapshot h3 small { display: block; margin-top: 3px; color: var(--iv-text-muted); font-size: .68rem; font-weight: 400; letter-spacing: 0; text-transform: none; }
 .iv-plan-snapshot__liquid-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--iv-border); color: var(--iv-text-muted); font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
-.iv-plan-snapshot__liquid-heading strong { color: var(--iv-text); font-size: 1.05rem; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.iv-plan-snapshot__liquid-heading strong { color: var(--iv-text); font-size: 1.2rem; font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .iv-plan-snapshot__real-estate { display: flex; justify-content: space-between; gap: 12px; margin-top: 13px; padding-top: 9px; border-top: 1px solid var(--iv-border); color: var(--iv-text-muted); font-size: .72rem; }
-.iv-plan-snapshot__real-estate strong { color: var(--iv-text); font-size: .78rem; font-variant-numeric: tabular-nums; text-align: right; }
+.iv-plan-snapshot__real-estate strong { color: var(--iv-text); font-size: .92rem; font-variant-numeric: tabular-nums; text-align: right; }
 .iv-plan-snapshot__liquid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
 .iv-plan-snapshot__liquid > div { display: grid; grid-template-rows: auto auto 14px 14px 7px auto; align-content: start; min-width: 0; }
 .iv-plan-snapshot__liquid span { display: block; color: var(--iv-text-muted); font-size: .76rem; }
-.iv-plan-snapshot__liquid strong { display: block; overflow: hidden; margin-top: 3px; font-size: .86rem; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.iv-plan-snapshot__liquid strong { display: block; overflow: hidden; margin-top: 3px; font-size: 1rem; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .iv-plan-snapshot__liquid small { display: block; min-height: 14px; margin-top: 2px; color: var(--iv-text-muted); font-size: .66rem; font-variant-numeric: tabular-nums; }
 .iv-plan-snapshot__liquid i { display: block; height: 7px; margin-top: 6px; border-radius: 999px; background: var(--iv-primary); }
 .iv-plan-snapshot__liquid em { display: block; margin-top: 3px; color: var(--iv-text-muted); font-size: .66rem; font-style: normal; font-variant-numeric: tabular-nums; }
@@ -839,6 +839,8 @@
 }
 @media (max-width: 600px) {
     .iv-plan-timeline__assumptions { grid-template-columns: 70px repeat(5, minmax(105px, 1fr)); }
+    .iv-plan-snapshot__liquid strong { font-size: .92rem; }
+    .iv-plan-snapshot__liquid-heading strong { font-size: 1.08rem; }
     .iv-plan-timeline__warning { align-items: flex-start; flex-direction: column; }
     .iv-planning-context-slot .iv-planning-scenario-selector { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .iv-simulation-assumption-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

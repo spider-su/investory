@@ -105,6 +105,15 @@ events and unmatured assets remain in the next full-year assumptions. Contractua
 calendar fraction; exact in-year maturity uses the bridge clock date. This is deterministic annual
 bridging, not monthly cash-flow simulation.
 
+When the Investment profile supplies `investmentIncomeBase`, the current-year Equity boundary starts
+from that source-owned base and applies the plan's full annual Equity return. The resulting year-end
+Equity value becomes the next projected year's starting value. If that base is unavailable, the bridge
+uses the live profile's Equity value and its remaining-year projection.
+
+The first full projected year starts rental-income growth from the current factual annualized rental
+income, carried through the bridge. The saved plan supplies the effective rental growth rate applied
+from that boundary; a previously captured rental-income baseline does not replace the live amount.
+
 LIVE spending growth uses the explicit annualized current-year spending outlook provided by the
 planning boundary, compared with the latest reliable completed-year actual. A partial-year actual
 alone is insufficient history. The safe-reserve floor uses recurring spending need only; current-year
