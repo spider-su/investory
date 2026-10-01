@@ -10,7 +10,7 @@
 </head>
 <body>
 <main class="iv-app iv-planning-page iv-profile-page">
-  <div th:replace="~{fragments/app-header :: planningHeader('profile', ${profile.portfolioId}, 'Profile summary', 'Net worth', ${profile.totalNetWorthCompactDisplay}, 'whole portfolio', 'Annual Income / year planned · 2026', ${profile.incomeSummary.combinedAnnualIncomeCompactDisplay}, null, 'Annual cost / year', ${profile.annualCostDisplay}, ${profile.annualCostMeta}, ${profile.currency}, 'profile', null, null)}"></div>
+  <div th:replace="~{fragments/app-header :: planningHeader('profile', ${profile.portfolioId}, 'Profile summary', 'Net worth', ${profile.totalNetWorthCompactDisplay}, 'whole portfolio', 'Annual Income / year planned · 2026', ${profile.incomeSummary.combinedAnnualIncomeCompactDisplay}, null, 'Annual cost / year', ${profile.annualCostDisplay}, ${profile.annualCostMeta}, ${profile.currency}, 'profile', null, null, null)}"></div>
 
   <section class="card iv-profile-section iv-profile-sources" aria-labelledby="sources-title">
     <div class="iv-card-section-header"><span id="sources-title" class="iv-card-section-header__title">Income sources</span></div>
