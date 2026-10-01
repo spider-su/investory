@@ -307,20 +307,23 @@ public class PlanningCurrencyPresentationService {
 
   public SustainableSpendingAnalysisMoney displaySustainableSpending(
       com.smartbox.investory.retirement.api.model.SustainableSpendingAnalysis analysis,
+      CurrencyType source,
       CurrencyType display) {
-    return analysisPresentation.displaySustainableSpending(analysis, display);
+    return analysisPresentation.displaySustainableSpending(analysis, source, display);
   }
 
   public SimulationSensitivityAnalysisMoney displaySensitivity(
       com.smartbox.investory.retirement.api.model.SimulationSensitivityAnalysis analysis,
+      CurrencyType source,
       CurrencyType display) {
-    return analysisPresentation.displaySensitivity(analysis, display);
+    return analysisPresentation.displaySensitivity(analysis, source, display);
   }
 
   public PlanRiskView displayPlanRisks(
       com.smartbox.investory.retirement.api.model.SimulationSensitivityAnalysis analysis,
+      CurrencyType source,
       CurrencyType display) {
-    return analysisPresentation.displayPlanRisks(analysis, display);
+    return analysisPresentation.displayPlanRisks(analysis, source, display);
   }
 
   public RetirementAgeAnalysisMoney displayRetirementAgeAnalysis(RetirementAgeAnalysis analysis) {
@@ -330,8 +333,9 @@ public class PlanningCurrencyPresentationService {
   public PlanningFlexibilityMoney displayPlanningFlexibility(
       com.smartbox.investory.retirement.api.model.SustainableSpendingAnalysis spending,
       RetirementAgeAnalysis retirement,
+      CurrencyType source,
       CurrencyType display) {
-    return analysisPresentation.displayPlanningFlexibility(spending, retirement, display);
+    return analysisPresentation.displayPlanningFlexibility(spending, retirement, source, display);
   }
 
   private static String signedMoney(BigDecimal amount) {

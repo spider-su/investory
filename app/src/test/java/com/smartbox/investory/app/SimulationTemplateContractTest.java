@@ -16,7 +16,7 @@ class SimulationTemplateContractTest {
         HtmlTestSupport.readTemplateWithFragments(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
-        () -> assertTrue(html.contains("Expected year end")),
+        () -> assertTrue(html.contains("Expected end")),
         () -> assertFalse(html.contains("Cash flow ·")),
         () -> assertTrue(html.contains("Cash flow / funding")),
         () -> assertTrue(html.contains("Income &amp; returns")),
@@ -94,11 +94,15 @@ class SimulationTemplateContractTest {
         () ->
             assertTrue(
                 html.contains(
-                    "<th class=\"text-end\">Spending</th><th class=\"text-end\">Income</th><th class=\"text-end\">Gap / surplus</th>")),
+                    "<th class=\"text-end\">Spending</th><th class=\"text-end\">Real estate</th><th class=\"text-end\">Annual Gap / surplus</th>")),
         () ->
             assertTrue(
                 html.contains(
-                    "<th class=\"text-end\">Cash</th><th class=\"text-end\">Bonds</th><th class=\"text-end\">Equities</th><th class=\"text-end\">Real estate</th><th class=\"text-start\">Status</th>")),
+                    "<th class=\"text-end\">Annual Income</th><th class=\"text-end\">Cash</th><th class=\"text-end\">Bonds</th><th class=\"text-end\">Equities</th><th class=\"text-start\">Status</th>")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "summary.cash.endValue == null ? '—' : format.compactMoney(summary.cash.endValue)")),
         () -> assertTrue(html.contains("yearlySummaries.values()")),
         () -> assertTrue(html.contains("compactMoney(summary.bonds.annualValue)")),
         () -> assertTrue(html.contains("compactMoney(summary.equities.annualValue)")),

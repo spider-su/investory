@@ -9,6 +9,7 @@ import com.smartbox.investory.retirement.api.model.PlanningTimeline;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineMoney;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineYear;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,7 @@ class CashFlowSectionViewTest {
             bd("0"));
     var timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(2026, 41, PlanningTimelineState.LIVE, null, null, null)));
 

@@ -24,14 +24,14 @@ final class RetirementAnalysisPresentation {
   }
 
   SustainableSpendingAnalysisMoney displaySustainableSpending(
-      SustainableSpendingAnalysis analysis, CurrencyType display) {
+      SustainableSpendingAnalysis analysis, CurrencyType source, CurrencyType display) {
     var base = analysis.base();
     var conservative = analysis.conservative();
-    BigDecimal current = toDisplay(analysis.currentRecurringSpending(), display);
-    BigDecimal baseLimit = toDisplay(base.sustainableSpending(), display);
-    BigDecimal conservativeLimit = toDisplay(conservative.sustainableSpending(), display);
-    BigDecimal baseHeadroom = toDisplay(base.headroom(), display);
-    BigDecimal conservativeHeadroom = toDisplay(conservative.headroom(), display);
+    BigDecimal current = toDisplay(analysis.currentRecurringSpending(), source, display);
+    BigDecimal baseLimit = toDisplay(base.sustainableSpending(), source, display);
+    BigDecimal conservativeLimit = toDisplay(conservative.sustainableSpending(), source, display);
+    BigDecimal baseHeadroom = toDisplay(base.headroom(), source, display);
+    BigDecimal conservativeHeadroom = toDisplay(conservative.headroom(), source, display);
     String interpretation;
     if (base.state() == SustainableSpendingResultState.NO_SUSTAINABLE_SPENDING
         && conservative.state() == SustainableSpendingResultState.NO_SUSTAINABLE_SPENDING) {
@@ -77,15 +77,16 @@ final class RetirementAnalysisPresentation {
   }
 
   SimulationSensitivityAnalysisMoney displaySensitivity(
-      SimulationSensitivityAnalysis analysis, CurrencyType display) {
+      SimulationSensitivityAnalysis analysis, CurrencyType source, CurrencyType display) {
     return new SimulationSensitivityAnalysisMoney(
         analysis.interpretation(),
         analysis.topDrivers(3).stream()
-            .map(result -> displaySensitivityResult(result, display))
+            .map(result -> displaySensitivityResult(result, source, display))
             .toList());
   }
 
-  PlanRiskView displayPlanRisks(SimulationSensitivityAnalysis analysis, CurrencyType display) {
+  PlanRiskView displayPlanRisks(
+      SimulationSensitivityAnalysis analysis, CurrencyType source, CurrencyType display) {
     var riskResults =
         analysis.drivers().stream()
             .filter(
@@ -97,9 +98,13 @@ final class RetirementAnalysisPresentation {
                 result -> result.driver().category() == SensitivityDriverCategory.PLANNING_LEVER)
             .toList();
     var risks =
-        riskResults.stream().map(result -> displaySensitivityResult(result, display)).toList();
+        riskResults.stream()
+            .map(result -> displaySensitivityResult(result, source, display))
+            .toList();
     var levers =
-        leverResults.stream().map(result -> displaySensitivityResult(result, display)).toList();
+        leverResults.stream()
+            .map(result -> displaySensitivityResult(result, source, display))
+            .toList();
     return new PlanRiskView(
         riskInterpretation(analysis, riskResults), risks.stream().limit(3).toList(), risks, levers);
   }
@@ -148,9 +153,11 @@ final class RetirementAnalysisPresentation {
   PlanningFlexibilityMoney displayPlanningFlexibility(
       SustainableSpendingAnalysis spending,
       RetirementAgeAnalysis retirement,
+      CurrencyType source,
       CurrencyType display) {
     return new PlanningFlexibilityMoney(
-        displaySustainableSpending(spending, display), displayRetirementAgeAnalysis(retirement));
+        displaySustainableSpending(spending, source, display),
+        displayRetirementAgeAnalysis(retirement));
   }
 
   private static String spendingLimit(
@@ -218,7 +225,7 @@ final class RetirementAnalysisPresentation {
   }
 
   private SimulationSensitivityAnalysisMoney.Driver displaySensitivityResult(
-      SimulationSensitivityResult result, CurrencyType display) {
+      SimulationSensitivityResult result, CurrencyType source, CurrencyType display) {
     var baseline = result.baseline().sustainability();
     var adverse = result.adverse().sustainability();
     String status;
@@ -240,11 +247,11 @@ final class RetirementAnalysisPresentation {
         result.perturbationLabel(),
         result.impact().name().replace('_', ' '),
         reserveCoverageDisplay(baseline) + " → " + reserveCoverageDisplay(adverse),
-        signedMoney(toDisplay(result.finalNetWorthDelta(), display)),
+        signedMoney(toDisplay(result.finalNetWorthDelta(), source, display)),
         status,
-        cell(result, result.lowerTestedValue(), result.lowerEvaluation(), display),
-        cell(result, result.baseTestedValue(), result.baseline(), display),
-        cell(result, result.higherTestedValue(), result.higherEvaluation(), display),
+        cell(result, result.lowerTestedValue(), result.lowerEvaluation(), source, display),
+        cell(result, result.baseTestedValue(), result.baseline(), source, display),
+        cell(result, result.higherTestedValue(), result.higherEvaluation(), source, display),
         result.moreHarmfulDirection().equals("Equivalent")
             ? "Equivalent outcomes."
             : result.moreHarmfulDirection()
@@ -257,6 +264,7 @@ final class RetirementAnalysisPresentation {
       SimulationSensitivityResult result,
       BigDecimal value,
       SimulationEvaluation evaluation,
+      CurrencyType source,
       CurrencyType display) {
     if (value == null || evaluation == null) {
       return SimulationSensitivityAnalysisMoney.Cell.unavailable("Unavailable");
@@ -270,7 +278,9 @@ final class RetirementAnalysisPresentation {
               SPENDING_GROWTH ->
               PlanningPresentation.percentage(value);
           case RECURRING_SPENDING, PENSION ->
-              toDisplay(value, display).stripTrailingZeros().toPlainString() + " " + display;
+              toDisplay(value, source, display).stripTrailingZeros().toPlainString()
+                  + " "
+                  + display;
           default -> value.stripTrailingZeros().toPlainString();
         };
     var assessment = evaluation.sustainability();
@@ -284,13 +294,19 @@ final class RetirementAnalysisPresentation {
         true,
         state,
         assessment.firstFailureYear() == null ? "—" : assessment.firstFailureYear().toString(),
-        toDisplay(assessment.minimumSpendableAssets(), display).stripTrailingZeros().toPlainString()
+        toDisplay(assessment.minimumSpendableAssets(), source, display)
+                .stripTrailingZeros()
+                .toPlainString()
             + " "
             + display);
   }
 
   private BigDecimal toDisplay(BigDecimal amount, CurrencyType display) {
     return money.toDisplay(amount, display);
+  }
+
+  private BigDecimal toDisplay(BigDecimal amount, CurrencyType source, CurrencyType display) {
+    return money.toDisplay(amount, source, display);
   }
 
   private static String signedMoney(BigDecimal amount) {

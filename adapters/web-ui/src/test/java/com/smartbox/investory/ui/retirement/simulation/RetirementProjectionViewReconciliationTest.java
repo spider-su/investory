@@ -25,6 +25,7 @@ class RetirementProjectionViewReconciliationTest {
   void cashFlowTimelineAndYearSummaryUseTheSameAuthoritativeYearValues() {
     var timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(2026, 41, PlanningTimelineState.LIVE, null, null, null)));
     var money =

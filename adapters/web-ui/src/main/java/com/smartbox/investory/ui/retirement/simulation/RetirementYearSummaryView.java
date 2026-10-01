@@ -35,6 +35,17 @@ public record RetirementYearSummaryView(
     return netCash == null || netCash.signum() <= 0 ? BigDecimal.ZERO : netCash;
   }
 
+  /** Sum of the annual cash, bond, and equity values. */
+  public BigDecimal annualIncome() {
+    return zero(cash.annualValue())
+        .add(zero(bonds.annualValue()))
+        .add(zero(equities.annualValue()));
+  }
+
+  private static BigDecimal zero(BigDecimal value) {
+    return value == null ? BigDecimal.ZERO : value;
+  }
+
   public static Map<Integer, RetirementYearSummaryView> from(
       PlanningTimeline timeline, Map<Integer, PlanningTimelineMoney> moneyByYear) {
     Map<Integer, RetirementYearSummaryView> result = new LinkedHashMap<>();

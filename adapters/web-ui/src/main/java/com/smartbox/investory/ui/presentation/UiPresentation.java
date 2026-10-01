@@ -120,10 +120,13 @@ public final class UiPresentation {
         : value.setScale(0, FinancialPrecision.REPORTING_ROUNDING).toPlainString();
   }
 
-  /** Browser-safe percentage-point input, for example 0.075 becomes 7.5. */
+  /** Browser-safe percentage-point input rounded to at most two decimals; 0.075 becomes 7.5. */
   public static String percentageInput(BigDecimal ratio) {
     BigDecimal percentagePoints =
-        zeroIfNull(ratio).multiply(BigDecimal.valueOf(100)).stripTrailingZeros();
+        zeroIfNull(ratio)
+            .multiply(BigDecimal.valueOf(100))
+            .setScale(2, RoundingMode.HALF_UP)
+            .stripTrailingZeros();
     return (percentagePoints.scale() < 1
             ? percentagePoints.setScale(1, RoundingMode.UNNECESSARY)
             : percentagePoints)

@@ -19,7 +19,6 @@ import com.smartbox.investory.retirement.planning.projection.*;
 import com.smartbox.investory.retirement.planning.projection.ForwardSimulationInputService;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;

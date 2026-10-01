@@ -516,6 +516,9 @@
 .iv-plan-snapshot__columns section + section { border-left: 1px solid var(--iv-metric-divider); padding-left: 24px; }
 .iv-plan-snapshot__columns h3 { margin: 0 0 5px; color: var(--iv-text-muted); font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .iv-plan-snapshot__columns h3 small { font-weight: 600; letter-spacing: 0; text-transform: none; }
+.iv-plan-snapshot__columns h3.iv-plan-snapshot__section-title { display: flex; align-items: baseline; gap: 6px; }
+.iv-plan-snapshot__columns h3.iv-plan-snapshot__section-title > span { white-space: nowrap; }
+.iv-plan-snapshot__columns h3.iv-plan-snapshot__section-title small { min-width: 0; }
 .iv-plan-snapshot__columns dl { display: grid; gap: 3px; margin: 0; }
 .iv-plan-snapshot__columns dl > div { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline; }
 .iv-plan-snapshot__columns dt { color: var(--iv-text-muted); font-size: .78rem; }

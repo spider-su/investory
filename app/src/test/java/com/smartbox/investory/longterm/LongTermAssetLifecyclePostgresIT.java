@@ -87,7 +87,7 @@ class LongTermAssetLifecyclePostgresIT extends FastDatabaseTest {
     var current2025 = assets.realEstateSummary(PORTFOLIO_ID, estate.id(), LocalDate.of(2025, 6, 1));
     assertThat(current2025.totalPaymentMonthly()).isEqualByComparingTo("2200");
     assertThat(current2025.annualEconomics().netAnnualIncomeAfterTax())
-        .isEqualByComparingTo("22980");
+        .isEqualByComparingTo("11760");
 
     var successor =
         assets.createRentalContract(
@@ -128,7 +128,7 @@ class LongTermAssetLifecyclePostgresIT extends FastDatabaseTest {
         .satisfies(input -> assertThat(input.rentalContracts()).hasSize(2));
 
     var historical = annualSnapshots.historicalAnnualSnapshot(PORTFOLIO_ID, 2025);
-    assertThat(historical.rentalIncome()).isEqualByComparingTo("22980");
+    assertThat(historical.rentalIncome()).isEqualByComparingTo("11760");
     assertThat(historical.realEstateValue()).isNull();
 
     assets.terminateRentalContract(

@@ -16,7 +16,6 @@ import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorPlanFacts;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -434,22 +433,12 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
   }
 
   private void assertCanonical(Object actual, String displayed) {
-    BigDecimal canonical = new BigDecimal(displayed).divide(usdPln(), 8, RoundingMode.HALF_UP);
-    assertDecimal(actual, canonical.toPlainString());
+    assertDecimal(actual, new BigDecimal(displayed).toPlainString());
   }
 
   private void assertCanonicalMonthlyAnnual(Object actual, String displayedMonthly) {
-    BigDecimal canonicalMonthly =
-        new BigDecimal(displayedMonthly).divide(usdPln(), 8, RoundingMode.HALF_UP);
-    assertDecimal(actual, canonicalMonthly.multiply(BigDecimal.valueOf(12)).toPlainString());
-  }
-
-  private BigDecimal usdPln() {
-    return jdbc.queryForObject(
-        "SELECT rate FROM investory.exchange_rates "
-            + "WHERE base = 'USD' AND to_currency = 'PLN' AND rate_date <= current_date "
-            + "ORDER BY rate_date DESC LIMIT 1",
-        BigDecimal.class);
+    assertDecimal(
+        actual, new BigDecimal(displayedMonthly).multiply(BigDecimal.valueOf(12)).toPlainString());
   }
 
   private void assertDecimal(Object actual, String expected) {

@@ -70,12 +70,15 @@ public class RetirementAnalysisRestController {
         presentation.displaySummaries(projection.summaries(), displayCurrency),
         result.available()
             ? presentation.displayPlanRisks(
-                result.sensitivity().value().orElseThrow(), displayCurrency)
+                result.sensitivity().value().orElseThrow(),
+                projection.profile().currency(),
+                displayCurrency)
             : null,
         result.available()
             ? presentation.displayPlanningFlexibility(
                 result.sustainableSpending().value().orElseThrow(),
                 result.retirementAge().value().orElseThrow(),
+                projection.profile().currency(),
                 displayCurrency)
             : null,
         presentation.displayCharts(result.charts(), displayCurrency));

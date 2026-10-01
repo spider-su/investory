@@ -71,11 +71,11 @@ class RetirementAnalysisRealSimulatorReconciliationTest {
 
     PlanningCurrencyPresentationService presentation = presentationAtFourToOneRate();
     SustainableSpendingAnalysisMoney spendingMoney =
-        presentation.displaySustainableSpending(spending, CurrencyType.PLN);
+        presentation.displaySustainableSpending(spending, CurrencyType.USD, CurrencyType.PLN);
     RetirementAgeAnalysisMoney retirementMoney =
         presentation.displayRetirementAgeAnalysis(retirement);
     SimulationSensitivityAnalysisMoney sensitivityMoney =
-        presentation.displaySensitivity(sensitivity, CurrencyType.PLN);
+        presentation.displaySensitivity(sensitivity, CurrencyType.USD, CurrencyType.PLN);
 
     assertThat(spendingMoney.baseLimit())
         .isEqualTo(

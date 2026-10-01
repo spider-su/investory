@@ -205,16 +205,17 @@ public class RetirementPlanningApplicationService
 
   @Override
   public PlanRiskView displayPlanRisks(
-      SimulationSensitivityAnalysis analysis, CurrencyType display) {
-    return presentation.displayPlanRisks(analysis, display);
+      SimulationSensitivityAnalysis analysis, CurrencyType source, CurrencyType display) {
+    return presentation.displayPlanRisks(analysis, source, display);
   }
 
   @Override
   public PlanningFlexibilityMoney displayPlanningFlexibility(
       SustainableSpendingAnalysis spending,
       RetirementAgeAnalysis retirement,
+      CurrencyType source,
       CurrencyType display) {
-    return presentation.displayPlanningFlexibility(spending, retirement, display);
+    return presentation.displayPlanningFlexibility(spending, retirement, source, display);
   }
 
   @Override

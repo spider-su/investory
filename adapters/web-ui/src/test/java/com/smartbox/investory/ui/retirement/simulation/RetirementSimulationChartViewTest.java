@@ -9,6 +9,7 @@ import com.smartbox.investory.retirement.api.model.PlanningTimelineMoney;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineYear;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ class RetirementSimulationChartViewTest {
     var money = money("240000", "176578", "938900", "620700");
     var timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(
                     2027, 42, PlanningTimelineState.PROJECTED, null, null, null)));
@@ -44,6 +46,7 @@ class RetirementSimulationChartViewTest {
   void keepsOnePointPerTimelineYearAndDoesNotTurnMissingHistoryIntoZero() {
     var timeline =
         new PlanningTimeline(
+            CurrencyType.PLN,
             List.of(
                 new PlanningTimelineYear(2025, 40, PlanningTimelineState.ACTUAL, null, null, null),
                 new PlanningTimelineYear(2026, 41, PlanningTimelineState.LIVE, null, null, null)));
@@ -66,7 +69,8 @@ class RetirementSimulationChartViewTest {
         SimulationAssumptions.defaults(41, 95, 2026).withRetirementAge(60).withPensionStartAge(67);
 
     var chart =
-        RetirementSimulationChartView.from(new PlanningTimeline(List.of()), Map.of(), assumptions);
+        RetirementSimulationChartView.from(
+            new PlanningTimeline(CurrencyType.PLN, List.of()), Map.of(), assumptions);
 
     assertEquals(2045, chart.retirementYear());
     assertEquals(2052, chart.pensionStartYear());

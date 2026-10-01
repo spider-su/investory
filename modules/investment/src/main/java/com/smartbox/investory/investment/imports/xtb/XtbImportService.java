@@ -272,9 +272,7 @@ public class XtbImportService {
       CurrencyType currency = accountConfiguration.getCurrency();
 
       List<PositionEntity> openedPositions =
-          cashOnly
-              ? List.of()
-              : reconstructOpenPositions(account, cashOperations, currency);
+          cashOnly ? List.of() : reconstructOpenPositions(account, cashOperations, currency);
       openedPositions = deduplicatePositionEntities(openedPositions);
 
       applyPositionCurrencies(closedPositions, openedPositions, currency);
@@ -788,8 +786,7 @@ public class XtbImportService {
       return Optional.empty();
     }
     String commentSymbol = matcher.group(3);
-    if (StringUtils.hasText(commentSymbol)
-        && !commentSymbol.equalsIgnoreCase(symbol)) {
+    if (StringUtils.hasText(commentSymbol) && !commentSymbol.equalsIgnoreCase(symbol)) {
       return Optional.empty();
     }
 

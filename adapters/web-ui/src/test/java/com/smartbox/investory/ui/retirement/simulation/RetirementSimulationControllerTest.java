@@ -192,7 +192,8 @@ class RetirementSimulationControllerTest {
         .when(timeline.loadForwardTimeline(anyLong(), any(), any(), any()))
         .thenReturn(
             new RetirementTimelineContracts.ForwardTimelineResponse(
-                new com.smartbox.investory.retirement.api.model.PlanningTimeline(List.of()),
+                new com.smartbox.investory.retirement.api.model.PlanningTimeline(
+                    CurrencyType.PLN, List.of()),
                 Map.of()));
     lenient()
         .when(forwardInputs.prepare(any(), any()))

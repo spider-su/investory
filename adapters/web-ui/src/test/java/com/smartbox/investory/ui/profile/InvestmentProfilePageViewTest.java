@@ -94,13 +94,13 @@ class InvestmentProfilePageViewTest {
     assertThat(page.marketPortfolioValueCompactDisplay()).isEqualTo("100.0K");
   }
 
-  @DisplayName("formats Profile Return Without Sign Or Annual Suffix")
+  @DisplayName("does not substitute total return for net cash yield")
   @Test
-  void formatsProfileReturnWithoutSignOrAnnualSuffix() {
+  void doesNotSubstituteTotalReturnForNetCashYield() {
     InvestmentProfile profile = emptyProfile();
 
-    assertThat(pageWithReturn(profile, "0.281").expectedAnnualReturnDisplay()).isEqualTo("28.1%");
-    assertThat(pageWithReturn(profile, "-0.042").expectedAnnualReturnDisplay()).isEqualTo("-4.2%");
+    assertThat(pageWithReturn(profile, "0.281").expectedAnnualReturnDisplay()).isEqualTo("0.0%");
+    assertThat(pageWithReturn(profile, "-0.042").expectedAnnualReturnDisplay()).isEqualTo("0.0%");
     assertThat(pageWithReturn(profile, "0").expectedAnnualReturnDisplay()).isEqualTo("0.0%");
   }
 
@@ -207,8 +207,8 @@ class InvestmentProfilePageViewTest {
                 CurrencyType.USD, 2026),
             6);
 
-    assertThat(page.expectedAnnualInvestmentResultDisplay()).isEqualTo("8.30K");
-    assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("8.3%");
+    assertThat(page.expectedAnnualInvestmentResultDisplay()).isEqualTo("6.72K");
+    assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("6.7%");
     assertThat(page.incomeSummary().marketAnnualIncomeCompactDisplay()).isEqualTo("6.72K");
     assertThat(page.incomeSummary().combinedAnnualIncomeCompactDisplay()).isEqualTo("18.7K");
     assertThat(page.marketYtdReturnDisplay()).isEqualTo("144.6% of forecast annual result");

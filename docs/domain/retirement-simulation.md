@@ -396,8 +396,11 @@ ExpectedEnd(year N) = Start(year N+1)
 ### Current/live and projected boundaries
 
 `CURRENT`/`LIVE` has two distinct boundaries. The opening value is the current factual bucket
-balance. The bridge projects only the remaining part of the current calendar year using the same
-authoritative simulator, and exposes the resulting expected year-end bucket value. This is why
+balance. The bridge projects remaining-year spending and funding with the authoritative simulator.
+It applies the plan's full-year fixed-income return to the opening Bond balance, adjusting the
+simulated end balance for the difference from its remaining-period return while preserving
+withdrawals. Source Bond cash income remains a separate spendable cash flow. The bridge also applies
+the plan's full-year Equity return to the source-owned Investment base when available. This is why
 `Cash now` can be higher than `Expected year end`; the difference is the remaining current-year
 cash use after income.
 

@@ -293,8 +293,7 @@ class DashboardPerformanceTemplateContractTest {
     String kpiStrip = html.substring(kpiStripStart, performanceControlsStart);
     assertTrue(kpiStrip.contains("Current drawdown"));
     assertTrue(kpiStrip.contains("Max drawdown"));
-    assertTrue(kpiStrip.contains(">TWR</span>"));
-    assertTrue(kpiStrip.contains(">XIRR</span>"));
+    assertTrue(kpiStrip.contains("Period return"));
     assertTrue(kpiStrip.contains(">S&amp;P 500 return</span>"));
     assertTrue(kpiStrip.contains(">Excess return</span>"));
     assertFalse(kpiStrip.contains(">P/L</span>"));

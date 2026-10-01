@@ -29,7 +29,7 @@ class InvestmentProfileTemplateContractTest {
         .contains("profile.annualCostDisplay")
         .contains("profile.annualCostMeta")
         .contains("profile.expectedAnnualReturnDisplay")
-        .contains("Annual income (net)")
+        .contains("Annual Income / year planned · 2026")
         .contains("Annual cost / year")
         .contains("Market investments")
         .contains("Long-term assets")
