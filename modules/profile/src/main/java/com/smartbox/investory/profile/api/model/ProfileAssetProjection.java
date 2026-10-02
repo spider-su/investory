@@ -15,7 +15,8 @@ import java.util.List;
  */
 public record ProfileAssetProjection(
     List<ProjectedLongTermAsset> assets,
-    BigDecimal rentalIncomeGrowthRate,
+    /** Compatibility field; rental growth assumptions belong to Retirement scenarios. */
+    @Deprecated(forRemoval = false) BigDecimal rentalIncomeGrowthRate,
     int rentalIncomeBaseYear,
     ProjectionSource source) {
   public static final ProfileAssetProjection EMPTY =

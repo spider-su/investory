@@ -26,6 +26,8 @@ import lombok.RequiredArgsConstructor;
 /** Pure allocation rules shared by profile summary and planning composition. */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class ProfileAllocationCalculator {
+  private static final System.Logger LOG =
+      System.getLogger(ProfileAllocationCalculator.class.getName());
   private final BrokerageAssetClassificationReader classifications;
 
   Map<AllocationKey, BigDecimal> values(
@@ -38,7 +40,7 @@ final class ProfileAllocationCalculator {
     Map<AllocationKey, BigDecimal> values = new LinkedHashMap<>();
     values.put(
         new AllocationKey(EconomicBucket.LIQUID_CASH, AssetHorizon.SHORT_TERM, Liquidity.LIQUID),
-        marketCash);
+        marketCash.max(BigDecimal.ZERO));
     Map<String, EconomicBucket> marketBuckets = marketBuckets(market);
     for (BrokeragePositionSnapshot position : market.openPositions()) {
       values.merge(
@@ -120,6 +122,22 @@ final class ProfileAllocationCalculator {
             market.openPositions().stream()
                 .map(BrokeragePositionSnapshot::symbol)
                 .collect(Collectors.toSet()));
+    long unclassifiedCount =
+        market.openPositions().stream()
+            .map(BrokeragePositionSnapshot::symbol)
+            .filter(symbol -> !rows.containsKey(symbol))
+            .distinct()
+            .count();
+    if (unclassifiedCount > 0) {
+      LOG.log(
+          System.Logger.Level.WARNING,
+          "Brokerage asset classifications missing for {0} of {1} distinct position symbols",
+          unclassifiedCount,
+          market.openPositions().stream()
+              .map(BrokeragePositionSnapshot::symbol)
+              .distinct()
+              .count());
+    }
     Map<String, EconomicBucket> result = new HashMap<>();
     rows.forEach((symbol, row) -> result.put(symbol, classify(row.assetType())));
     return result;

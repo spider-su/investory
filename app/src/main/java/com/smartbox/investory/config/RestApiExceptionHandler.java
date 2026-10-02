@@ -7,6 +7,7 @@ import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.investment.web.AccountIdParser;
 import com.smartbox.investory.longterm.api.model.*;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableException;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -59,6 +60,12 @@ public class RestApiExceptionHandler {
     if (status == null) status = HttpStatus.INTERNAL_SERVER_ERROR;
     return error(
         status, status.is4xxClientError() ? message(exception) : "Internal server error", request);
+  }
+
+  @ExceptionHandler(CurrencyConversionUnavailableException.class)
+  public ResponseEntity<ApiError> currencyConversionUnavailable(
+      CurrencyConversionUnavailableException exception, HttpServletRequest request) {
+    return error(HttpStatus.UNPROCESSABLE_ENTITY, message(exception), request);
   }
 
   @ExceptionHandler({

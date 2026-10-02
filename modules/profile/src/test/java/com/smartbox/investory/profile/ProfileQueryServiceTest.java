@@ -15,6 +15,7 @@ import com.smartbox.investory.investment.api.portfolio.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.portfolio.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioSnapshot;
 import com.smartbox.investory.investment.api.reporting.InvestmentAnnualProjectionApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentIncomeSummaryReader;
 import com.smartbox.investory.investment.api.reporting.model.OpenPositionValue;
 import com.smartbox.investory.investment.projection.InvestmentAnnualProjectionService;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
@@ -35,6 +36,7 @@ import com.smartbox.investory.shared.assets.AssetEconomicCategory;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableException;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -43,6 +45,7 @@ import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,6 +60,8 @@ class ProfileQueryServiceTest {
   @Mock LongTermAssetProfileReader longTermProfileReader;
   @Mock BrokerageAssetClassificationReader brokerageAssetClassificationReader;
   @Mock CurrencyConversion currencyRates;
+  @Mock InvestmentIncomeSummaryReader investmentIncome;
+  @Mock PortfolioContextReader portfolioContexts;
   private ProfileQueryService facade;
   private LongTermAssetProfileSummaryModel longTermSummary;
   private List<LongTermAssetProfileAssetModel> longTermAssetRows;
@@ -82,13 +87,28 @@ class ProfileQueryServiceTest {
                     longTermAssetRows,
                     longTermProjectionInputs,
                     longTermAnnualSnapshot));
+    lenient().when(portfolioContexts.findById(PORTFOLIO)).thenReturn(Optional.empty());
+    lenient()
+        .when(investmentIncome.load(PORTFOLIO))
+        .thenReturn(
+            new InvestmentIncomeSummaryReader.InvestmentIncomeSummary(
+                false,
+                CurrencyType.USD,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO));
     facade =
         new ProfileQueryService(
             brokeragePortfolioReadService,
             longTermProfileReader,
             brokerageAssetClassificationReader,
             currencyRates,
-            Clock.fixed(Instant.parse("2026-06-01T00:00:00Z"), ZoneOffset.UTC));
+            Clock.fixed(Instant.parse("2026-06-01T00:00:00Z"), ZoneOffset.UTC),
+            investmentIncome,
+            portfolioContexts);
   }
 
   @DisplayName("combines Market And Manual Values And Income")
@@ -151,6 +171,35 @@ class ProfileQueryServiceTest {
 
     org.junit.jupiter.api.Assertions.assertThrows(
         CurrencyConversionUnavailableException.class, () -> facade.loadProfile(PORTFOLIO));
+  }
+
+  @Test
+  void convertsLongTermSummaryAmountsFromDeclaredCurrencyToProfileCurrency() {
+    when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO))
+        .thenReturn(snapshot(CurrencyType.USD, 0, 0, 0, 0, List.of()));
+    when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
+    longTermSummary =
+        new LongTermAssetProfileSummaryModel(
+            CurrencyType.PLN, new BigDecimal("400"), new BigDecimal("40"));
+    longTermAnnualSnapshot =
+        new LongTermAssetAnnualSnapshotModel(
+            null, new BigDecimal("40"), null, new BigDecimal("20"), null, null, CurrencyType.PLN);
+    when(currencyRates.convertToBaseCurrency(
+            any(), eq(CurrencyType.USD), eq(CurrencyType.PLN), eq(DATE)))
+        .thenAnswer(call -> ((BigDecimal) call.getArgument(0)).divide(new BigDecimal("4")));
+
+    InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
+
+    assertEquals(CurrencyType.USD, profile.currency());
+    org.assertj.core.api.Assertions.assertThat(profile.longTermAssetValue())
+        .isEqualByComparingTo("100");
+    org.assertj.core.api.Assertions.assertThat(profile.totalNetWorth()).isEqualByComparingTo("100");
+    org.assertj.core.api.Assertions.assertThat(profile.incomeSummary().longTermAnnualIncome())
+        .isEqualByComparingTo("10");
+    org.assertj.core.api.Assertions.assertThat(profile.currentRentalIncome())
+        .isEqualByComparingTo("10");
+    org.assertj.core.api.Assertions.assertThat(profile.currentBondIncome())
+        .isEqualByComparingTo("5");
   }
 
   @DisplayName("snapshot Reads Summary And Planning Once")
@@ -310,7 +359,7 @@ class ProfileQueryServiceTest {
                 false));
 
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
-    assertEquals(BigDecimal.ZERO, profile.retirementReserve());
+    assertEquals(new BigDecimal("100000.0"), profile.retirementReserve());
     assertEquals(new BigDecimal("500000.0"), profile.investmentCapital());
     assertEquals(new BigDecimal("38880"), profile.currentBondIncome());
     assertEquals(

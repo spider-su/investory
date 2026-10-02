@@ -23,6 +23,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
@@ -63,22 +64,6 @@ public class ProfileQueryService implements ProfileSnapshotReader {
     this.portfolioContexts = portfolioContexts;
   }
 
-  public ProfileQueryService(
-      BrokeragePortfolioReader brokeragePortfolioReadService,
-      LongTermAssetProfileReader longTermAssets,
-      BrokerageAssetClassificationReader brokerageAssetClassificationReader,
-      CurrencyConversion currencyRates,
-      Clock clock) {
-    this(
-        brokeragePortfolioReadService,
-        longTermAssets,
-        brokerageAssetClassificationReader,
-        currencyRates,
-        clock,
-        null,
-        null);
-  }
-
   @Override
   @Transactional(
       readOnly = true,
@@ -115,7 +100,11 @@ public class ProfileQueryService implements ProfileSnapshotReader {
             marketCash,
             (value, source) -> currencyNormalizer.toBase(value, source, display, date));
     BigDecimal marketValue = currencyNormalizer.toBase(market.balance(), base, display, date);
-    BigDecimal longTermValue = longTerm.totalCurrentValue();
+    BigDecimal longTermValue =
+        currencyNormalizer.toBase(longTerm.totalCurrentValue(), longTerm.currency(), display, date);
+    BigDecimal longTermIncome =
+        currencyNormalizer.toBase(
+            longTerm.netAnnualIncomeAfterTax(), longTerm.currency(), display, date);
     BigDecimal longTermInvestmentValue =
         longTermAssetRows.stream()
             .filter(asset -> asset.category() != AssetEconomicCategory.PERSONAL_ASSET)
@@ -134,15 +123,14 @@ public class ProfileQueryService implements ProfileSnapshotReader {
         brokeragePortfolioReadService.incomeForMonths(
             portfolioId, YearMonth.of(date.getYear(), 1), YearMonth.from(date));
     CurrencyType incomeCurrency =
-        incomeSnapshot == null || incomeSnapshot.baseCurrency() == null
+        incomeSnapshot == null
             ? market.baseCurrency()
-            : incomeSnapshot.baseCurrency();
+            : Objects.requireNonNull(incomeSnapshot.baseCurrency(), "Brokerage income currency");
     BigDecimal marketIncome =
         incomeSnapshot == null
             ? currencyNormalizer.toBase(
                 market.dividends().add(market.interest()), base, display, date)
             : currencyNormalizer.toBase(incomeSnapshot.netIncome(), incomeCurrency, display, date);
-    BigDecimal longTermIncome = longTerm.netAnnualIncomeAfterTax();
     ProfileIncomeSummary income =
         incomeCalculator.calculate(
             marketIncome,
@@ -157,7 +145,8 @@ public class ProfileQueryService implements ProfileSnapshotReader {
     if (investmentIncome != null) {
       var summary = investmentIncome.load(portfolioId);
       if (summary.available()) {
-        CurrencyType investmentCurrency = summary.currency() == null ? base : summary.currency();
+        CurrencyType investmentCurrency =
+            Objects.requireNonNull(summary.currency(), "Investment income currency");
         var displaySummary =
             new InvestmentIncomeSummary(
                 summary.available(),
@@ -189,12 +178,26 @@ public class ProfileQueryService implements ProfileSnapshotReader {
         liquidity.liquid(),
         liquidity.illiquid(),
         allocationCalculator.allocations(values),
-        longTermSnapshot.annualSnapshot().rentalIncome(),
-        longTermSnapshot.annualSnapshot().bondIncome(),
+        toBaseIfPresent(
+            longTermSnapshot.annualSnapshot().rentalIncome(),
+            longTermSnapshot.annualSnapshot().currency(),
+            display,
+            date),
+        toBaseIfPresent(
+            longTermSnapshot.annualSnapshot().bondIncome(),
+            longTermSnapshot.annualSnapshot().currency(),
+            display,
+            date),
         planningCalculator.state(longTermSnapshot.projectionInputs(), display, date),
         liquidity.reserve(),
         liquidity.investmentCapital(),
         income,
         reconciliation);
+  }
+
+  private BigDecimal toBaseIfPresent(
+      BigDecimal value, CurrencyType source, CurrencyType target, LocalDate date) {
+    // Optional annual-snapshot facts stay zero in the legacy numeric Profile response when absent.
+    return value == null ? BigDecimal.ZERO : currencyNormalizer.toBase(value, source, target, date);
   }
 }
