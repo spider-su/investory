@@ -89,9 +89,15 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(broker.contains("-0.68, 'USD'"));
     assertTrue(broker.contains("19.12"));
     assertTrue(broker.contains("'Full call redemption principal returned'"));
-    assertTrue(broker.contains("'Next-day Treasury principal reinvestment'"));
+    assertTrue(broker.contains("'Treasury principal reinvestment on first trading date'"));
     assertTrue(common.contains("DATE '2026-02-28'"));
-    assertTrue(common.contains("DATE '2026-03-01'"));
+    assertTrue(common.contains("DATE '2026-08-03'"));
+    assertTrue(broker.contains("'2026-08-03 12:00:00+02', 0.9903125"));
+    assertTrue(broker.contains("DATE '2026-08-03', 'FEDINVEST', '91282CRC7'"));
+    assertTrue(broker.contains("NULL, NULL, NULL, 99.031250, DATE '2026-08-03'"));
+    assertTrue(broker.contains("DATE '2026-09-30', 'FEDINVEST', '91282CRC7'"));
+    assertTrue(broker.contains("NULL, NULL, NULL, 95.375000, DATE '2026-09-30'"));
+    assertTrue(!broker.contains("2026-03-01 12:00:00+01', 1, 1, 1"));
     assertTrue(broker.contains("'EUR', 'PLN', 4.2952983671"));
     assertTrue(broker.contains("17181.1934684000, 'PLN'"));
     assertTrue(broker.contains("'PLN', 'USD', 0.2519589810778805"));

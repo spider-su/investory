@@ -44,11 +44,11 @@ ON CONFLICT (id) DO UPDATE SET portfolio_id = EXCLUDED.portfolio_id, name = EXCL
     interest_rate = EXCLUDED.interest_rate, maturity_date = EXCLUDED.maturity_date,
     archived_at = EXCLUDED.archived_at, notes = EXCLUDED.notes;
 
--- The redeemed principal is reinvested on the next calendar day. The original row above is
--- retained as historical ownership and remains visible with zero income after maturity.
+-- The redeemed principal remains cash until the new Treasury's first trading date. The original
+-- row above is retained as historical ownership and remains visible with zero income after maturity.
 INSERT INTO bond (id, portfolio_id, name, currency, value, acquisition_date, interest_rate,
                   maturity_date, archived_at, notes)
-VALUES (9407, 2, 'United States Treasury 4 3/8 07/31/33', 'PLN', 10000, DATE '2026-03-01', 0.04375,
+VALUES (9407, 2, 'United States Treasury 4 3/8 07/31/33', 'PLN', 10000, DATE '2026-08-03', 0.04375,
         DATE '2033-07-31', NULL, 'Happy Investor reinvestment of Treasury 2026 principal')
 ON CONFLICT (id) DO UPDATE SET portfolio_id = EXCLUDED.portfolio_id, name = EXCLUDED.name,
     currency = EXCLUDED.currency, value = EXCLUDED.value, acquisition_date = EXCLUDED.acquisition_date,
@@ -194,9 +194,9 @@ SET market_price = CASE symbol
         WHEN 'GOOGL.US' THEN 189.300
         WHEN 'MSFT.US' THEN 421.500
         -- Bond fallback quotes are normalized to currency amount per unit. The source quote is
-        -- percent-of-par, so 1.00% and 98.81% become 0.01 and 0.9881 respectively.
+        -- percent-of-par, so 1.00 and 95.375 become 0.01 and 0.95375 respectively.
         WHEN 'US91282CKB62' THEN 0.0100
-        WHEN 'US91282CRC72' THEN 0.9881
+        WHEN 'US91282CRC72' THEN 0.95375
     END,
     market_price_usd = CASE symbol
         WHEN 'AAPL.US' THEN 249.059
@@ -206,10 +206,19 @@ SET market_price = CASE symbol
         WHEN 'GOOGL.US' THEN 189.300
         WHEN 'MSFT.US' THEN 421.500
         WHEN 'US91282CKB62' THEN 0.0100
-        WHEN 'US91282CRC72' THEN 0.9881
+        WHEN 'US91282CRC72' THEN 0.95375
     END,
     price_source = 'STOOQ',
     price_updated_at = TIMESTAMPTZ '2025-01-01 12:00:00 Europe/Warsaw'
 WHERE symbol IN (
     'AAPL.US', 'VWRA.UK', 'NVDA.US', 'TSLA.US', 'GOOGL.US', 'MSFT.US',
     'US91282CKB62', 'US91282CRC72');
+
+-- The new Treasury did not trade until August 3, 2026. Pin its current cache to its latest
+-- available official end-of-day observation rather than a pre-issue 2025 fixture timestamp.
+UPDATE assets
+SET market_price = 0.95375,
+    market_price_usd = 0.95375,
+    price_source = 'FEDINVEST',
+    price_updated_at = TIMESTAMPTZ '2026-09-30 12:00:00 Europe/Warsaw'
+WHERE symbol = 'US91282CRC72';

@@ -180,6 +180,8 @@ NEW_TREASURY_ASSET_ID="$new_treasury_asset_id" perl -0pi -e '
   s/(\(\s*\d+,[^,]+,\s*)1251(,\s*\x27US91282CRC72\x27)/$1$ENV{NEW_TREASURY_ASSET_ID}$2/g;
   s/(\(\s*\d+,[^,]+,\s*\x27[^\x27]+\x27,\s*)1201(,\s*\x27US91282CKB62\x27)/$1$ENV{OLD_TREASURY_ASSET_ID}$2/g;
   s/(\(\s*\d+,[^,]+,\s*\x27[^\x27]+\x27,\s*)1251(,\s*\x27US91282CRC72\x27)/$1$ENV{NEW_TREASURY_ASSET_ID}$2/g;
+  s/(\(\s*)1201(,\s*DATE\s+\x27)/$1$ENV{OLD_TREASURY_ASSET_ID}$2/g;
+  s/(\(\s*)1251(,\s*DATE\s+\x27)/$1$ENV{NEW_TREASURY_ASSET_ID}$2/g;
 ' "$parameterized_broker_data_file"
 
 psql_demo -v common_data_file="$parameterized_common_data_file" -v broker_data_file="$parameterized_broker_data_file" \

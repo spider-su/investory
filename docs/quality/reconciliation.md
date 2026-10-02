@@ -74,6 +74,12 @@ informational when the position is otherwise valuatable; missing price, missing 
 and impossible quantity/value combinations remain errors. Manual weekly prices and corporate-action
 resets remain reviewable continuity signals.
 
+Price temporal checks compare only quote-quality observations: exact listing closes, verified
+alternate listings, scaled exact listings, percent-of-par closes, and manually accepted prices.
+Trade-derived and stale carry-forward rows remain available in price history and valuation, but do
+not create market-price movement or currency-switch findings. Corporate-action price adjustments
+remain reviewable when present in eligible quote history.
+
 ## Numeric comparison contract
 
 Reconciliation parameters are stored in `investory.reconciliation_parameters` and read by the

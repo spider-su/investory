@@ -62,8 +62,11 @@ PLN, Europe/Warsaw, 2024-07-31 through 2025-12-31. Internal account IDs are IBKR
 XTB USD `91000002`, XTB PLN `91000003`, and cash-only XTB EUR `91000004`; their broker
 external IDs remain `90000001`, `90000002`, `90000003`, and `90000009`. The WIG20 ETF is `ETFBW20TR.PL`; the seeded
 Treasury identities are `US91282CKB62` and `US91282CRC72`. The original `US91282CKB62` is owned from
-`2024-07-31`, matures/redempts on `2026-02-28`, and returns principal `10000`. That principal is reinvested on
-`2026-03-01` into `US91282CRC72` (`United States Treasury 4 3/8 07/31/33`, coupon `4.375%`, maturity `2033-07-31`).
+`2024-07-31`, matures/redempts on `2026-02-28`, and returns principal `10000`. The fixture holds the proceeds
+as cash until `2026-08-03`, the first trading date of `US91282CRC72` (`United States Treasury 4 3/8 07/31/33`,
+coupon `4.375%`, maturity `2033-07-31`), then buys `10000` face value at the Treasury end-of-day quote
+`99.03125` per `100` face value. The unused principal remains cash. The fixture includes the available daily
+Treasury prices from first trade through `2026-09-30` and no prices before issuance.
 The old bond remains historical and has zero forward income on and after maturity; the new bond contributes net
 annual income `354.375` under the existing 19% tax rule. Happy Investor must consume the migration FX and price
 history rather than synthetic curves. Independent financial happy-path fixtures are prohibited in
@@ -75,7 +78,9 @@ Dashboard and Profile **unit/IT test-fixture** facts intentionally use the fixed
 when no trades, cash operations, market-price updates, or FX updates occur after the checkpoint,
 the facts are observation-frozen and remain valid beyond that calendar date. Asset prices use
 the latest canonical observation at or before that date from the pinned `2025-01-01` price cache;
-the cache records `2024-12-31` market observations. FX uses the latest canonical rate at or before
+the cache records `2024-12-31` market observations. `US91282CRC72` has no price history before its
+`2026-08-03` first trading date, so later quotes must not be used for this 2025 checkpoint. FX uses
+the latest canonical rate at or before
 the same checkpoint: USD/PLN `3.6016` and EUR/USD `1.173562`. A market-price update changes open
 position value and return/yield metrics; an FX update also changes reporting-currency values. New
 trades or operations change source/activity facts and period totals. The complete broker source inventory

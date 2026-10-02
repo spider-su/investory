@@ -66,6 +66,10 @@ class HappyInvestorFixtureParityTest {
         .contains("'TSLA.US'")
         .contains("'GOOGL.US'")
         .contains("'US91282CKB62'");
+    assertThat(broker)
+        .contains("'2026-08-03 12:00:00+02'")
+        .contains("-9903.125, 'USD', 'Treasury principal reinvestment on first trading date'")
+        .contains("'EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR'");
     assertThat(
             scenario.openPositions().stream()
                 .map(position -> position.getSymbol())
