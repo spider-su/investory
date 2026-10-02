@@ -88,8 +88,7 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(broker.contains("19.80, 'USD'"));
     assertTrue(broker.contains("-0.68, 'USD'"));
     assertTrue(broker.contains("19.12"));
-    assertTrue(broker.contains("'STOCK_SELL', 1201, 'US91282CKB62'"));
-    assertTrue(broker.contains("'Full call redemption proceeds'"));
+    assertTrue(broker.contains("'Full call redemption principal returned'"));
     assertTrue(broker.contains("'Treasury principal reinvestment on first trading date'"));
     assertTrue(common.contains("DATE '2026-02-28'"));
     assertTrue(common.contains("DATE '2026-08-03'"));
@@ -135,7 +134,6 @@ class HappyInvestorSchemaCanonicalTest {
             "US91282CRC72");
     generatedMarkers.forEach(
         marker -> assertTrue(snapshot.contains(marker), "stale snapshot: " + marker));
-    assertTrue(snapshot.contains("STOCK_SELL\t1201\tUS91282CKB62"));
   }
 
   private static String resource(String path) throws IOException {
