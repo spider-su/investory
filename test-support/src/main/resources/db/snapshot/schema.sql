@@ -7166,38 +7166,6 @@ CREATE VIEW investory.recon_v_import_provenance_issues AS
             r.created_at
            FROM (investory.import_source_rows r
              JOIN latest_attempt a ON ((a.id = r.import_history_id)))
-        ), canonical_source_row_ids AS MATERIALIZED (
-         SELECT c.import_source_row_id
-           FROM investory.cash_operations c
-          WHERE (c.import_source_row_id IS NOT NULL)
-        UNION
-         SELECT p.import_source_row_id
-           FROM investory.positions p
-          WHERE (p.import_source_row_id IS NOT NULL)
-        ), canonical_source_rows AS MATERIALIZED (
-         SELECT source.id,
-            source.provider,
-            source.logical_row_sha256,
-            source.section_name,
-            source.sheet_name,
-            source.archive_member_name,
-            source.source_record_id,
-            source.source_row_occurrence
-           FROM (canonical_source_row_ids linked
-             JOIN investory.import_source_rows source ON ((source.id = linked.import_source_row_id)))
-        ), canonical_logical_rows AS MATERIALIZED (
-         SELECT DISTINCT canonical_source_rows.provider,
-            canonical_source_rows.logical_row_sha256
-           FROM canonical_source_rows
-          WHERE (canonical_source_rows.logical_row_sha256 IS NOT NULL)
-        ), canonical_xtb_cash_rows AS MATERIALIZED (
-         SELECT DISTINCT source.source_record_id,
-            source.source_row_occurrence,
-            account.external_account_id AS account_scope
-           FROM ((canonical_source_rows source
-             JOIN investory.cash_operations operation ON (((operation.import_source_row_id = source.id) AND ((operation.id)::text = (source.source_record_id)::text))))
-             JOIN investory.accounts account ON ((account.id = operation.account_id)))
-          WHERE (((source.provider)::text = 'XTB'::text) AND ((source.section_name)::text = 'Cash Operations'::text) AND (source.source_record_id IS NOT NULL) AND (source.archive_member_name IS NOT NULL) AND (split_part((source.archive_member_name)::text, '/'::text, 1) = (account.external_account_id)::text))
         )
  SELECT 'CASH_OPERATION_MISSING_IMPORT'::text AS issue_code,
     (c.id)::text AS financial_row_id,
@@ -7246,12 +7214,10 @@ UNION ALL
     r.import_history_id,
     r.id AS import_source_row_id,
     'import_source_rows'::text AS financial_table
-   FROM ((((latest_source_rows r
+   FROM ((latest_source_rows r
      LEFT JOIN investory.cash_operations c ON ((c.import_source_row_id = r.id)))
      LEFT JOIN investory.positions p ON ((p.import_source_row_id = r.id)))
-     LEFT JOIN canonical_logical_rows logical_row ON ((((logical_row.provider)::text = (r.provider)::text) AND ((logical_row.logical_row_sha256)::text = (r.logical_row_sha256)::text))))
-     LEFT JOIN canonical_xtb_cash_rows xtb_cash_row ON ((((r.provider)::text = 'XTB'::text) AND ((r.section_name)::text = 'Cash Operations'::text) AND (r.source_record_id IS NOT NULL) AND (r.archive_member_name IS NOT NULL) AND ((xtb_cash_row.account_scope)::text = split_part((r.archive_member_name)::text, '/'::text, 1)) AND ((xtb_cash_row.source_record_id)::text = (r.source_record_id)::text) AND (xtb_cash_row.source_row_occurrence = r.source_row_occurrence))))
-  WHERE ((c.id IS NULL) AND (p.id IS NULL) AND ((logical_row.provider IS NULL) AND (xtb_cash_row.source_record_id IS NULL)))
+  WHERE ((c.id IS NULL) AND (p.id IS NULL))
 UNION ALL
  SELECT 'CANONICAL_ROW_WRONG_IMPORT'::text AS issue_code,
     (c.id)::text AS financial_row_id,
@@ -7295,7 +7261,7 @@ UNION ALL
 -- Name: VIEW recon_v_import_provenance_issues; Type: COMMENT; Schema: investory; Owner: -
 --
 
-COMMENT ON VIEW investory.recon_v_import_provenance_issues IS 'Import provenance diagnostics. Repeated logical rows across files are accounted for by linked canonical facts. XTB cash rows can also resolve by broker operation ID within the same account scope.';
+COMMENT ON VIEW investory.recon_v_import_provenance_issues IS 'Diagnostic view. Reprocessed attempts may reuse an immutable source artifact; current provenance is checked on the latest attempt per file checksum and duplicate identity includes raw source values.';
 
 
 --
@@ -8373,14 +8339,7 @@ CREATE VIEW investory.recon_v_price_temporal_anomaly AS
            FROM ((investory.asset_price_history aph
              JOIN investory.assets a ON (((a.id = aph.asset_id) AND (NOT a.exclude_from_import))))
              LEFT JOIN investory.asset_source_symbols ass ON ((ass.id = aph.source_mapping_id)))
-          WHERE (aph.is_observed AND (NOT aph.estimated) AND (aph.close_price > (0)::numeric)
-            AND ((aph.quality_class)::text = ANY (ARRAY[
-              'EXACT_LISTING_MARKET_CLOSE'::text,
-              'VERIFIED_ALTERNATE_LISTING'::text,
-              'EXACT_LISTING_SCALED'::text,
-              'EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR'::text,
-              'MANUAL_ACCEPTED'::text
-            ])))
+          WHERE (aph.is_observed AND (NOT aph.estimated) AND (aph.close_price > (0)::numeric))
           WINDOW w AS (PARTITION BY aph.asset_id, aph.source, aph.source_symbol ORDER BY aph.price_date)
         ), p AS (
          SELECT (investory.reconciliation_parameter('reconciliation_temporal_short_gap_days'::character varying))::integer AS short_gap,
@@ -8988,6 +8947,24 @@ COMMENT ON VIEW investory.recon_v_system_audit IS 'Canonical persisted audit API
 -- Name: recon_v_temporal_anomaly; Type: VIEW; Schema: investory; Owner: -
 --
 
+CREATE TABLE investory.reconciliation_price_anomaly_reviews (
+    issue_code character varying(64) NOT NULL,
+    entity_id bigint NOT NULL,
+    entity_key character varying(255) NOT NULL,
+    event_date date NOT NULL,
+    previous_date date NOT NULL,
+    source character varying(64) NOT NULL,
+    source_symbol character varying(128) NOT NULL,
+    previous_value numeric NOT NULL,
+    current_value numeric NOT NULL,
+    resolution character varying(40) NOT NULL CHECK (((resolution)::text = ANY ((ARRAY['CONFIRMED_MARKET_MOVE'::character varying, 'SOURCE_PRICE_CORRECTED'::character varying, 'MANUAL_ALTERNATE_LISTING_ACCEPTED'::character varying])::text[]))),
+    rationale text NOT NULL,
+    evidence_url text NOT NULL,
+    reviewed_at timestamp with time zone NOT NULL DEFAULT now(),
+    reviewed_by character varying(128) NOT NULL DEFAULT CURRENT_USER,
+    CONSTRAINT reconciliation_price_anomaly_reviews_pkey PRIMARY KEY (issue_code, entity_id, event_date, previous_date, source, source_symbol, previous_value, current_value)
+);
+
 CREATE VIEW investory.recon_v_temporal_anomaly AS
  SELECT recon_v_fx_temporal_anomaly.severity,
     recon_v_fx_temporal_anomaly.issue_code,
@@ -9039,7 +9016,10 @@ UNION ALL
     recon_v_price_temporal_anomaly.price_origin,
     recon_v_price_temporal_anomaly.quality_class,
     recon_v_price_temporal_anomaly.is_proxy
-   FROM investory.recon_v_price_temporal_anomaly
+   FROM investory.recon_v_price_temporal_anomaly p
+  WHERE (NOT (EXISTS ( SELECT 1
+           FROM investory.reconciliation_price_anomaly_reviews r
+          WHERE (((r.resolution)::text = ANY ((ARRAY['CONFIRMED_MARKET_MOVE'::character varying, 'SOURCE_PRICE_CORRECTED'::character varying, 'MANUAL_ALTERNATE_LISTING_ACCEPTED'::character varying])::text[])) AND ((r.issue_code)::text = (p.issue_code)::text) AND (r.entity_id = p.entity_id) AND (r.event_date = p.event_date) AND (r.previous_date = p.previous_date) AND ((r.source)::text = (p.source)::text) AND ((r.source_symbol)::text = (p.source_symbol)::text) AND (r.previous_value = p.previous_value) AND (r.current_value = p.current_value)))))
 UNION ALL
  SELECT recon_v_account_temporal_anomaly.severity,
     recon_v_account_temporal_anomaly.issue_code,
@@ -9080,690 +9060,576 @@ COMMENT ON VIEW investory.recon_v_temporal_anomaly IS 'Common non-destructive te
 --
 
 CREATE MATERIALIZED VIEW investory.recon_v_trade_settlement AS
-WITH closed_lots AS (
-    SELECT
-        account.portfolio_id,
-        p.account_id,
-        p.asset_id,
-        asset.symbol,
-        p.close_time::date AS valuation_date,
-        p.settlement_model::varchar(32) AS position_settlement_model,
-        ABS(COALESCE(p.volume, 0)) AS closed_quantity,
-        CASE WHEN p.settlement_model = 'CASH_SETTLED' THEN
-            COALESCE(p.sale_value,
-                ABS(COALESCE(p.volume, 0)) * COALESCE(p.close_price, 0), 0)
-        END AS close_notional_native,
-        CASE WHEN p.settlement_model = 'RESULT_ONLY'
-              AND investory.fx_status_usable(profit_fx.conversion_status)
-              AND (COALESCE(p.commission, 0) = 0
-                   OR investory.fx_status_usable(commission_fx.conversion_status))
-            THEN (COALESCE(p.profit, 0) - COALESCE(p.swap, 0))
-                    * profit_fx.fx_rate_to_base
-                - COALESCE(p.commission, 0)
-                    * COALESCE(commission_fx.fx_rate_to_base, 0)
-        END AS close_result_base,
-        cost_fx.fx_rate_to_base AS cost_fx_rate_to_base,
-        cost_fx.conversion_status AS cost_conversion_status,
-        CASE
-            WHEN p.settlement_model = 'CASH_SETTLED'
-             AND NOT investory.fx_status_usable(cost_fx.conversion_status) THEN 1
-            WHEN p.settlement_model = 'RESULT_ONLY'
-             AND (NOT investory.fx_status_usable(profit_fx.conversion_status)
-                  OR (COALESCE(p.commission, 0) <> 0
-                      AND NOT investory.fx_status_usable(commission_fx.conversion_status))) THEN 1
-            ELSE 0
-        END AS missing_fx_count
-    FROM investory.positions p
-    JOIN investory.accounts account ON account.id = p.account_id
-    JOIN investory.assets asset
-      ON asset.id = p.asset_id
-     AND asset.exclude_from_import = false
-    LEFT JOIN investory.app_v_portfolio_daily_fx_rate cost_fx
-      ON cost_fx.portfolio_id = account.portfolio_id
-     AND cost_fx.valuation_date = p.close_time::date
-     AND cost_fx.source_currency = p.cost_currency::varchar(3)
-    LEFT JOIN investory.app_v_portfolio_daily_fx_rate profit_fx
-      ON profit_fx.portfolio_id = account.portfolio_id
-     AND profit_fx.valuation_date = p.close_time::date
-     AND profit_fx.source_currency = p.profit_currency::varchar(3)
-    LEFT JOIN investory.app_v_portfolio_daily_fx_rate commission_fx
-      ON commission_fx.portfolio_id = account.portfolio_id
-     AND commission_fx.valuation_date = p.close_time::date
-     AND commission_fx.source_currency = p.commission_currency::varchar(3)
-    WHERE p.close_time IS NOT NULL
-), closed_group AS (
-    SELECT
-        cl.portfolio_id,
-        cl.account_id,
-        cl.asset_id,
-        cl.symbol,
-        cl.valuation_date,
-        COUNT(*)::bigint AS closed_lot_count,
-        COUNT(*) FILTER (WHERE cl.position_settlement_model = 'CASH_SETTLED')::bigint
-            AS cash_settled_lot_count,
-        COUNT(*) FILTER (WHERE cl.position_settlement_model = 'RESULT_ONLY')::bigint
-            AS result_only_lot_count,
-        COUNT(*) FILTER (WHERE cl.position_settlement_model = 'UNCLASSIFIED')::bigint
-            AS unclassified_lot_count,
-        SUM(cl.closed_quantity) AS closed_quantity,
-        SUM(cl.closed_quantity) FILTER (
-            WHERE cl.position_settlement_model = 'CASH_SETTLED')
-            AS cash_settled_closed_quantity,
-        SUM(cl.close_notional_native) FILTER (
-            WHERE cl.position_settlement_model = 'CASH_SETTLED')
-            AS position_close_notional_native,
-        CASE WHEN COUNT(*) FILTER (
-            WHERE cl.position_settlement_model = 'CASH_SETTLED'
-              AND NOT investory.fx_status_usable(cl.cost_conversion_status)) > 0
-            THEN NULL::numeric
-            ELSE SUM(cl.close_notional_native * cl.cost_fx_rate_to_base) FILTER (
-                WHERE cl.position_settlement_model = 'CASH_SETTLED')
-        END AS position_close_notional_base,
-        CASE WHEN COUNT(*) FILTER (
-            WHERE cl.position_settlement_model = 'RESULT_ONLY'
-              AND cl.close_result_base IS NULL) > 0
-            THEN NULL::numeric
-            ELSE SUM(cl.close_result_base) FILTER (
-                WHERE cl.position_settlement_model = 'RESULT_ONLY')
-        END AS position_close_result_base,
-        SUM(cl.missing_fx_count)::bigint
-            AS close_missing_fx_count
-    FROM closed_lots cl
-    GROUP BY cl.portfolio_id, cl.account_id, cl.asset_id, cl.symbol, cl.valuation_date
-), opened_lots AS (
-    SELECT
-        p.account_id,
-        p.asset_id,
-        p.open_time::date AS valuation_date,
-        p.settlement_model::varchar(32) AS position_settlement_model,
-        ABS(COALESCE(p.volume, 0)) AS opened_quantity,
-        CASE WHEN p.settlement_model = 'CASH_SETTLED' THEN
-            COALESCE(p.purchase_value,
-                ABS(COALESCE(p.volume, 0)) * COALESCE(p.open_price, 0), 0)
-        END AS open_notional_native,
-        fx.fx_rate_to_base,
-        fx.conversion_status
-    FROM investory.positions p
-    JOIN investory.accounts account ON account.id = p.account_id
-    JOIN closed_group target
-      ON target.account_id = p.account_id
-     AND target.asset_id = p.asset_id
-     AND target.valuation_date = p.open_time::date
-    LEFT JOIN investory.app_v_portfolio_daily_fx_rate fx
-      ON fx.portfolio_id = account.portfolio_id
-     AND fx.valuation_date = p.open_time::date
-     AND fx.source_currency = p.cost_currency::varchar(3)
-), opened_group AS (
-    SELECT
-        ol.account_id,
-        ol.asset_id,
-        ol.valuation_date,
-        COUNT(*)::bigint AS opened_lot_count,
-        SUM(ol.opened_quantity) AS opened_quantity,
-        SUM(ol.opened_quantity) FILTER (
-            WHERE ol.position_settlement_model = 'CASH_SETTLED')
-            AS cash_settled_opened_quantity,
-        CASE WHEN COUNT(*) FILTER (
-            WHERE ol.position_settlement_model = 'CASH_SETTLED'
-              AND NOT investory.fx_status_usable(ol.conversion_status)) > 0
-            THEN NULL::numeric
-            ELSE SUM(ol.open_notional_native * ol.fx_rate_to_base) FILTER (
-                WHERE ol.position_settlement_model = 'CASH_SETTLED')
-        END AS position_open_notional_base,
-        COUNT(*) FILTER (
-            WHERE ol.position_settlement_model = 'CASH_SETTLED'
-              AND NOT investory.fx_status_usable(ol.conversion_status))::bigint
-            AS open_missing_fx_count
-    FROM opened_lots ol
-    GROUP BY ol.account_id, ol.asset_id, ol.valuation_date
-), ledger_rows AS (
-    SELECT
-        target.account_id,
-        target.asset_id,
-        target.valuation_date,
-        co.id AS operation_id,
-        co.operation::varchar(64) AS raw_operation,
-        nco.normalized_category,
-        co.amount,
-        fx.fx_rate_to_base,
-        fx.conversion_status
-    FROM closed_group target
-    LEFT JOIN investory.cash_operations co
-      ON co.account_id = target.account_id
-     AND co.asset_id = target.asset_id
-     AND co.date::date = target.valuation_date
-     AND (
-         co.operation IN ('STOCK_PURCHASE', 'STOCK_SELL', 'CLOSE_TRADE', 'ROLLOVER')
-         OR EXISTS (
-             SELECT 1
-             FROM investory.app_v_normalized_cash_operations classified
-             WHERE classified.operation_id = co.id
-               AND classified.normalized_category = 'BOND_REDEMPTION'
-         )
-     )
-    LEFT JOIN investory.app_v_normalized_cash_operations nco
-      ON nco.operation_id = co.id
-    LEFT JOIN investory.app_v_portfolio_daily_fx_rate fx
-      ON fx.portfolio_id = target.portfolio_id
-     AND fx.valuation_date = target.valuation_date
-     AND fx.source_currency = co.currency::varchar(3)
-), ledger_group AS (
-    SELECT
-        lr.account_id,
-        lr.asset_id,
-        lr.valuation_date,
-        COUNT(lr.operation_id) FILTER (
-            WHERE lr.raw_operation = 'STOCK_SELL'
-               OR lr.normalized_category = 'BOND_REDEMPTION')::bigint AS ledger_sale_row_count,
-        COUNT(lr.operation_id) FILTER (
-            WHERE lr.raw_operation IN ('CLOSE_TRADE', 'ROLLOVER'))::bigint AS ledger_close_result_row_count,
-        CASE WHEN COUNT(lr.operation_id) FILTER (
-            WHERE (lr.raw_operation = 'STOCK_SELL'
-                  OR lr.normalized_category = 'BOND_REDEMPTION')
-              AND NOT investory.fx_status_usable(lr.conversion_status)) > 0
-            THEN NULL::numeric
-            ELSE SUM(lr.amount * lr.fx_rate_to_base) FILTER (
-                WHERE lr.raw_operation = 'STOCK_SELL'
-                   OR lr.normalized_category = 'BOND_REDEMPTION')
-        END AS ledger_sale_cash_base,
-        CASE WHEN COUNT(lr.operation_id) FILTER (
-            WHERE lr.raw_operation IN ('CLOSE_TRADE', 'ROLLOVER')
-              AND NOT investory.fx_status_usable(lr.conversion_status)) > 0
-            THEN NULL::numeric
-            ELSE SUM(lr.amount * lr.fx_rate_to_base) FILTER (
-                WHERE lr.raw_operation IN ('CLOSE_TRADE', 'ROLLOVER'))
-        END AS ledger_close_result_base,
-        CASE WHEN COUNT(lr.operation_id) FILTER (
-            WHERE lr.raw_operation = 'STOCK_PURCHASE'
-              AND NOT investory.fx_status_usable(lr.conversion_status)) > 0
-            THEN NULL::numeric
-            ELSE -SUM(lr.amount * lr.fx_rate_to_base) FILTER (
-                WHERE lr.raw_operation = 'STOCK_PURCHASE')
-        END AS ledger_purchase_cash_base,
-        COUNT(lr.operation_id) FILTER (
-            WHERE NOT investory.fx_status_usable(lr.conversion_status))::bigint
-            AS ledger_missing_fx_count
-    FROM ledger_rows lr
-    GROUP BY lr.account_id, lr.asset_id, lr.valuation_date
-), previous_dates AS (
-    SELECT
-        target.account_id,
-        target.asset_id,
-        target.valuation_date,
-        MAX(ad.snapshot_date) AS previous_valuation_date
-    FROM closed_group target
-    LEFT JOIN investory.account_daily ad
-      ON ad.account_id = target.account_id
-     AND ad.snapshot_date < target.valuation_date
-    GROUP BY target.account_id, target.asset_id, target.valuation_date
-), settlement_prices AS (
-    SELECT target.account_id,
-           target.asset_id,
-           target.valuation_date,
-           price_slot.price_role,
-           price.close_price,
-           price.price_scale_factor,
-           price.price_currency,
-           price.quality_class
-    FROM closed_group target
-    LEFT JOIN previous_dates pd
-      ON pd.account_id = target.account_id
-     AND pd.asset_id = target.asset_id
-     AND pd.valuation_date = target.valuation_date
-    CROSS JOIN LATERAL (
-        VALUES ('PREVIOUS'::varchar(16), pd.previous_valuation_date),
-               ('CURRENT'::varchar(16), target.valuation_date)
-    ) price_slot(price_role, price_date)
-    LEFT JOIN LATERAL (
-        SELECT aph.close_price, aph.price_scale_factor, aph.price_currency, aph.quality_class
-        FROM investory.app_v_canonical_asset_daily_price aph
-        WHERE aph.asset_id = target.asset_id
-          AND aph.price_date <= price_slot.price_date
-        ORDER BY
-            aph.price_date DESC,
-            CASE
-                WHEN aph.quality_class = 'EXACT_LISTING_MARKET_CLOSE' THEN 1
-                WHEN aph.quality_class = 'EXACT_LISTING_SCALED' THEN 2
-                WHEN aph.quality_class LIKE '%ALTERNATE%' OR aph.is_proxy THEN 3
-                WHEN aph.price_origin = 'MANUAL' THEN 4
-                WHEN aph.estimated OR aph.quality_class LIKE 'INTERPOLATED%' THEN 5
-                WHEN aph.quality_class LIKE '%TRADE_OBSERVATION%' OR aph.price_origin LIKE '%TRADE%' THEN 6
-                WHEN aph.quality_class LIKE '%STALE_CARRY_FORWARD%' THEN 7
-                ELSE 9
-            END,
-            aph.quality_score DESC,
-            CASE aph.price_origin
-                WHEN 'XTB_TRADE_OPEN' THEN 0
-                WHEN 'XTB_TRADE_CLOSE' THEN 2
-                ELSE 1
-            END,
-            aph.imported_at DESC
-        LIMIT 1
-    ) price ON true
-), symbol_values AS (
-    SELECT
-        target.account_id,
-        target.asset_id,
-        target.valuation_date,
-        pd.previous_valuation_date,
-        COALESCE(previous_quantity.open_quantity, 0) AS previous_open_quantity,
-        CASE
-            WHEN COALESCE(previous_quantity.open_quantity, 0) = 0 THEN 0::numeric
-            WHEN previous_price.close_price IS NULL
-              OR NOT investory.fx_status_usable(previous_fx.conversion_status) THEN NULL::numeric
-            ELSE previous_quantity.open_quantity
-                * previous_price.close_price
-                * COALESCE(previous_price.price_scale_factor, 1)
-                * CASE WHEN previous_price.quality_class LIKE '%PERCENT_OF_PAR%'
-                    THEN 0.01::numeric ELSE 1::numeric END
-                * previous_fx.fx_rate_to_base
-        END AS previous_symbol_market_value_base,
-        CASE
-            WHEN COALESCE(previous_quantity.open_quantity, 0) = 0 THEN 'PASS'
-            WHEN previous_price.close_price IS NULL
-              OR NOT investory.fx_status_usable(previous_fx.conversion_status) THEN 'FAIL'
-            ELSE 'PASS'
-        END::varchar(16) AS previous_reconstruction_status,
-        COALESCE(current_quantity.open_quantity, 0) AS current_open_quantity,
-        CASE
-            WHEN COALESCE(current_quantity.open_quantity, 0) = 0 THEN 0::numeric
-            WHEN current_price.close_price IS NULL
-              OR NOT investory.fx_status_usable(current_fx.conversion_status) THEN NULL::numeric
-            ELSE current_quantity.open_quantity
-                * current_price.close_price
-                * COALESCE(current_price.price_scale_factor, 1)
-                * CASE WHEN current_price.quality_class LIKE '%PERCENT_OF_PAR%'
-                    THEN 0.01::numeric ELSE 1::numeric END
-                * current_fx.fx_rate_to_base
-        END AS current_symbol_market_value_base,
-        CASE
-            WHEN COALESCE(current_quantity.open_quantity, 0) = 0 THEN 'PASS'
-            WHEN current_price.close_price IS NULL
-              OR NOT investory.fx_status_usable(current_fx.conversion_status) THEN 'FAIL'
-            ELSE 'PASS'
-        END::varchar(16) AS current_reconstruction_status
-    FROM closed_group target
-    LEFT JOIN previous_dates pd
-      ON pd.account_id = target.account_id
-     AND pd.asset_id = target.asset_id
-     AND pd.valuation_date = target.valuation_date
-    LEFT JOIN LATERAL (
-        SELECT SUM(investory.signed_position_quantity(p.operation, p.volume)) AS open_quantity
-        FROM investory.positions p
-        WHERE p.account_id = target.account_id
-          AND p.asset_id = target.asset_id
-          AND p.settlement_model = 'CASH_SETTLED'
-          AND p.open_time::date <= pd.previous_valuation_date
-          AND (p.close_time IS NULL OR pd.previous_valuation_date < p.close_time::date)
-    ) previous_quantity ON true
-    LEFT JOIN settlement_prices previous_price
-      ON previous_price.account_id = target.account_id
-     AND previous_price.asset_id = target.asset_id
-     AND previous_price.valuation_date = target.valuation_date
-     AND previous_price.price_role = 'PREVIOUS'
-    LEFT JOIN investory.app_v_portfolio_daily_fx_rate previous_fx
-      ON previous_fx.portfolio_id = target.portfolio_id
-     AND previous_fx.valuation_date = pd.previous_valuation_date
-     AND previous_fx.source_currency = previous_price.price_currency::varchar(3)
-    LEFT JOIN LATERAL (
-        SELECT SUM(investory.signed_position_quantity(p.operation, p.volume)) AS open_quantity
-        FROM investory.positions p
-        WHERE p.account_id = target.account_id
-          AND p.asset_id = target.asset_id
-          AND p.settlement_model = 'CASH_SETTLED'
-          AND p.open_time::date <= target.valuation_date
-          AND (p.close_time IS NULL OR target.valuation_date < p.close_time::date)
-    ) current_quantity ON true
-    LEFT JOIN settlement_prices current_price
-      ON current_price.account_id = target.account_id
-     AND current_price.asset_id = target.asset_id
-     AND current_price.valuation_date = target.valuation_date
-     AND current_price.price_role = 'CURRENT'
-    LEFT JOIN investory.app_v_portfolio_daily_fx_rate current_fx
-      ON current_fx.portfolio_id = target.portfolio_id
-     AND current_fx.valuation_date = target.valuation_date
-     AND current_fx.source_currency = current_price.price_currency::varchar(3)
-), account_daily_with_previous AS (
-    SELECT
-        ad.*,
-        LAG(ad.cash_balance) OVER (
-            PARTITION BY ad.account_id ORDER BY ad.snapshot_date) AS previous_cash_balance,
-        LAG(ad.market_value) OVER (
-            PARTITION BY ad.account_id ORDER BY ad.snapshot_date) AS previous_market_value,
-        LAG(ad.equity) OVER (
-            PARTITION BY ad.account_id ORDER BY ad.snapshot_date) AS previous_equity
-    FROM investory.account_daily ad
-), combined AS (
-    SELECT
-        cg.*,
-        portfolio.base_currency::varchar(3) AS base_currency,
-        COALESCE(og.opened_lot_count, 0) AS opened_lot_count,
-        COALESCE(og.opened_quantity, 0) AS opened_quantity,
-        COALESCE(og.cash_settled_opened_quantity, 0) AS cash_settled_opened_quantity,
-        og.position_open_notional_base,
-        COALESCE(og.open_missing_fx_count, 0) AS open_missing_fx_count,
-        COALESCE(lg.ledger_sale_row_count, 0) AS ledger_sale_row_count,
-        COALESCE(lg.ledger_close_result_row_count, 0) AS ledger_close_result_row_count,
-        lg.ledger_sale_cash_base,
-        lg.ledger_close_result_base,
-        lg.ledger_purchase_cash_base,
-        COALESCE(lg.ledger_missing_fx_count, 0) AS ledger_missing_fx_count,
-        sv.previous_valuation_date,
-        sv.previous_open_quantity,
-        sv.previous_symbol_market_value_base,
-        sv.previous_reconstruction_status,
-        COALESCE(sv.current_open_quantity, 0) AS current_open_quantity,
-        COALESCE(sv.current_symbol_market_value_base, 0) AS current_symbol_market_value_base,
-        COALESCE(sv.current_reconstruction_status, 'PASS') AS current_reconstruction_status,
-        ad.previous_cash_balance,
-        ad.cash_balance,
-        ad.previous_market_value,
-        ad.market_value,
-        ad.previous_equity,
-        ad.equity,
-        ad.daily_profit_amount,
-        CASE
-            WHEN cg.result_only_lot_count > 0 AND cg.cash_settled_lot_count > 0 THEN 'MIXED'
-            WHEN cg.result_only_lot_count > 0 THEN 'RESULT_ONLY'
-            WHEN cg.unclassified_lot_count > 0 THEN 'UNCLASSIFIED'
-            WHEN COALESCE(lg.ledger_sale_row_count, 0) > 0 THEN 'CASH_SETTLED'
-            WHEN COALESCE(og.opened_quantity, 0) > 0
-             AND ABS(COALESCE(og.position_open_notional_base, 0)
-                     - COALESCE(cg.position_close_notional_base, 0))
-                 <= investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold')
-                    * GREATEST(1, ABS(COALESCE(cg.position_close_notional_base, 0)))
-                THEN 'REORGANIZATION'
-            ELSE 'UNCLASSIFIED'
-        END::varchar(32) AS settlement_model
-    FROM closed_group cg
-    JOIN investory.portfolios portfolio ON portfolio.id = cg.portfolio_id
-    LEFT JOIN opened_group og
-      ON og.account_id = cg.account_id
-     AND og.asset_id = cg.asset_id
-     AND og.valuation_date = cg.valuation_date
-    LEFT JOIN ledger_group lg
-      ON lg.account_id = cg.account_id
-     AND lg.asset_id = cg.asset_id
-     AND lg.valuation_date = cg.valuation_date
-    LEFT JOIN symbol_values sv
-      ON sv.account_id = cg.account_id
-     AND sv.asset_id = cg.asset_id
-     AND sv.valuation_date = cg.valuation_date
-    LEFT JOIN account_daily_with_previous ad
-      ON ad.account_id = cg.account_id
-     AND ad.snapshot_date = cg.valuation_date
-), quantities AS (
-    SELECT
-        c.*,
-        LEAST(
-            COALESCE(c.cash_settled_closed_quantity, 0),
-            ABS(COALESCE(c.previous_open_quantity, 0)))
-            AS carried_close_quantity,
-        LEAST(
-            GREATEST(
-                COALESCE(c.cash_settled_closed_quantity, 0)
-                    - ABS(COALESCE(c.previous_open_quantity, 0)),
-                0::numeric),
-            COALESCE(c.cash_settled_opened_quantity, 0))
-            AS same_day_round_trip_quantity
-    FROM combined c
-), metrics AS (
-    SELECT
-        q.*,
-        GREATEST(
-            COALESCE(q.cash_settled_closed_quantity, 0)
-                - q.carried_close_quantity
-                - q.same_day_round_trip_quantity,
-            0::numeric) AS unmatched_close_quantity,
-        CASE
-            WHEN q.carried_close_quantity = 0 THEN 0::numeric
-            WHEN q.previous_symbol_market_value_base IS NULL
-              OR ABS(COALESCE(q.previous_open_quantity, 0)) = 0 THEN NULL::numeric
-            ELSE q.previous_symbol_market_value_base
-                * q.carried_close_quantity / ABS(q.previous_open_quantity)
-        END AS allocated_previous_market_value_base,
-        CASE
-            WHEN q.carried_close_quantity = 0 THEN 0::numeric
-            WHEN q.ledger_sale_cash_base IS NULL
-              OR COALESCE(q.cash_settled_closed_quantity, 0) = 0 THEN NULL::numeric
-            ELSE q.ledger_sale_cash_base
-                * q.carried_close_quantity / q.cash_settled_closed_quantity
-        END AS carried_sale_cash_base,
-        CASE
-            WHEN q.same_day_round_trip_quantity = 0 THEN 0::numeric
-            WHEN q.ledger_sale_cash_base IS NULL
-              OR COALESCE(q.cash_settled_closed_quantity, 0) = 0 THEN NULL::numeric
-            ELSE q.ledger_sale_cash_base
-                * q.same_day_round_trip_quantity / q.cash_settled_closed_quantity
-        END AS same_day_sale_cash_base,
-        CASE
-            WHEN q.same_day_round_trip_quantity = 0 THEN 0::numeric
-            WHEN q.position_open_notional_base IS NULL
-              OR q.cash_settled_opened_quantity = 0 THEN NULL::numeric
-            ELSE q.position_open_notional_base
-                * q.same_day_round_trip_quantity / q.cash_settled_opened_quantity
-        END AS same_day_closed_open_notional_base,
-        q.current_symbol_market_value_base - COALESCE(q.previous_symbol_market_value_base, 0)
-            AS symbol_market_value_delta_base,
-        COALESCE(q.cash_balance, 0) - COALESCE(q.previous_cash_balance, 0)
-            AS account_cash_delta_base,
-        COALESCE(q.market_value, 0) - COALESCE(q.previous_market_value, 0)
-            AS account_market_value_delta_base,
-        COALESCE(q.equity, 0) - COALESCE(q.previous_equity, 0)
-            AS account_equity_delta_base,
-        q.close_missing_fx_count + q.open_missing_fx_count + q.ledger_missing_fx_count
-            AS missing_fx_count
-    FROM quantities q
-), reconciled AS (
-    SELECT
-        m.*,
-        CASE
-            WHEN m.ledger_sale_cash_base IS NULL OR m.position_close_notional_base IS NULL
-                THEN NULL::numeric
-            ELSE m.ledger_sale_cash_base - m.position_close_notional_base
-        END AS settlement_cash_difference_base,
-        CASE
-            WHEN m.carried_sale_cash_base IS NULL
-              OR m.allocated_previous_market_value_base IS NULL THEN NULL::numeric
-            ELSE m.carried_sale_cash_base - m.allocated_previous_market_value_base
-        END AS sale_vs_previous_market_value_difference_base,
-        CASE
-            WHEN m.allocated_previous_market_value_base IS NULL
-              OR m.position_open_notional_base IS NULL
-              OR m.same_day_closed_open_notional_base IS NULL THEN NULL::numeric
-            ELSE m.symbol_market_value_delta_base
-                - ((m.position_open_notional_base - m.same_day_closed_open_notional_base)
-                   - m.allocated_previous_market_value_base)
-        END AS symbol_market_bridge_difference_base,
-        CASE
-            WHEN m.position_close_result_base IS NULL
-              OR m.ledger_close_result_base IS NULL THEN NULL::numeric
-            ELSE m.ledger_close_result_base - m.position_close_result_base
-        END AS result_settlement_difference_base,
-        CASE
-            WHEN m.settlement_model = 'RESULT_ONLY' THEN
-                m.missing_fx_count = 0
-                AND m.position_close_result_base IS NOT NULL
-                AND m.ledger_close_result_base IS NOT NULL
-            WHEN m.settlement_model = 'MIXED' THEN
-                m.missing_fx_count = 0
-                AND m.previous_valuation_date IS NOT NULL
-                AND COALESCE(m.previous_reconstruction_status, 'FAIL') <> 'FAIL'
-                AND m.current_reconstruction_status <> 'FAIL'
-                AND m.position_close_result_base IS NOT NULL
-                AND m.ledger_close_result_base IS NOT NULL
-            ELSE
-                m.missing_fx_count = 0
-                AND m.previous_valuation_date IS NOT NULL
-                AND COALESCE(m.previous_reconstruction_status, 'FAIL') <> 'FAIL'
-                AND m.current_reconstruction_status <> 'FAIL'
-        END AS is_complete
-    FROM metrics m
-)
-SELECT
-    r.portfolio_id,
-    r.account_id,
-    r.asset_id,
-    r.symbol,
-    r.valuation_date,
-    r.previous_valuation_date,
-    r.base_currency,
-    r.settlement_model,
-    r.closed_lot_count,
-    r.opened_lot_count,
-    r.previous_open_quantity,
-    r.closed_quantity,
-    r.cash_settled_closed_quantity,
-    r.opened_quantity,
-    r.cash_settled_opened_quantity,
-    r.carried_close_quantity,
-    r.same_day_round_trip_quantity,
-    r.unmatched_close_quantity,
-    r.current_open_quantity,
-    r.position_close_notional_native,
-    r.position_close_notional_base,
-    r.position_close_result_base,
-    r.position_open_notional_base,
-    r.ledger_sale_cash_base,
-    r.carried_sale_cash_base,
-    r.same_day_sale_cash_base,
-    r.same_day_closed_open_notional_base,
-    r.ledger_purchase_cash_base,
-    r.ledger_close_result_base,
-    r.previous_symbol_market_value_base,
-    r.allocated_previous_market_value_base,
-    r.current_symbol_market_value_base,
-    r.symbol_market_value_delta_base,
-    r.account_cash_delta_base,
-    r.account_market_value_delta_base,
-    r.account_equity_delta_base,
-    r.daily_profit_amount AS reported_daily_profit_base,
-    investory.reconciliation_display_value(r.settlement_cash_difference_base) AS settlement_cash_difference_base,
-    investory.reconciliation_display_value(r.result_settlement_difference_base) AS result_settlement_difference_base,
-    investory.reconciliation_display_value(r.sale_vs_previous_market_value_difference_base) AS sale_vs_previous_market_value_difference_base,
-    investory.reconciliation_display_value(r.symbol_market_bridge_difference_base) AS symbol_market_bridge_difference_base,
-    investory.reconciliation_display_value(
-        investory.reconciliation_effective_tolerance(
-            r.position_close_result_base,
-            r.ledger_close_result_base
+ WITH closed_lots AS (
+         SELECT account.portfolio_id,
+            p.account_id,
+            p.asset_id,
+            asset.symbol,
+            (p.close_time)::date AS valuation_date,
+            (p.settlement_model)::character varying(32) AS position_settlement_model,
+            abs(COALESCE(p.volume, (0)::numeric)) AS closed_quantity,
+                CASE
+                    WHEN (p.settlement_model = 'CASH_SETTLED'::investory.position_settlement_model) THEN COALESCE(p.sale_value, (abs(COALESCE(p.volume, (0)::numeric)) * COALESCE(p.close_price, (0)::numeric)), (0)::numeric)
+                    ELSE NULL::numeric
+                END AS close_notional_native,
+                CASE
+                    WHEN ((p.settlement_model = 'RESULT_ONLY'::investory.position_settlement_model) AND investory.fx_status_usable(profit_fx.conversion_status) AND ((COALESCE(p.commission, (0)::numeric) = (0)::numeric) OR investory.fx_status_usable(commission_fx.conversion_status))) THEN (((COALESCE(p.profit, (0)::numeric) - COALESCE(p.swap, (0)::numeric)) * profit_fx.fx_rate_to_base) - (COALESCE(p.commission, (0)::numeric) * COALESCE(commission_fx.fx_rate_to_base, (0)::numeric)))
+                    ELSE NULL::numeric
+                END AS close_result_base,
+            cost_fx.fx_rate_to_base AS cost_fx_rate_to_base,
+            cost_fx.conversion_status AS cost_conversion_status,
+                CASE
+                    WHEN ((p.settlement_model = 'CASH_SETTLED'::investory.position_settlement_model) AND (NOT investory.fx_status_usable(cost_fx.conversion_status))) THEN 1
+                    WHEN ((p.settlement_model = 'RESULT_ONLY'::investory.position_settlement_model) AND ((NOT investory.fx_status_usable(profit_fx.conversion_status)) OR ((COALESCE(p.commission, (0)::numeric) <> (0)::numeric) AND (NOT investory.fx_status_usable(commission_fx.conversion_status))))) THEN 1
+                    ELSE 0
+                END AS missing_fx_count
+           FROM (((((investory.positions p
+             JOIN investory.accounts account ON ((account.id = p.account_id)))
+             JOIN investory.assets asset ON (((asset.id = p.asset_id) AND (asset.exclude_from_import = false))))
+             LEFT JOIN investory.app_v_portfolio_daily_fx_rate cost_fx ON (((cost_fx.portfolio_id = account.portfolio_id) AND (cost_fx.valuation_date = (p.close_time)::date) AND ((cost_fx.source_currency)::text = (p.cost_currency)::text))))
+             LEFT JOIN investory.app_v_portfolio_daily_fx_rate profit_fx ON (((profit_fx.portfolio_id = account.portfolio_id) AND (profit_fx.valuation_date = (p.close_time)::date) AND ((profit_fx.source_currency)::text = (p.profit_currency)::text))))
+             LEFT JOIN investory.app_v_portfolio_daily_fx_rate commission_fx ON (((commission_fx.portfolio_id = account.portfolio_id) AND (commission_fx.valuation_date = (p.close_time)::date) AND ((commission_fx.source_currency)::text = (p.commission_currency)::text))))
+          WHERE (p.close_time IS NOT NULL)
+        ), closed_group AS (
+         SELECT cl.portfolio_id,
+            cl.account_id,
+            cl.asset_id,
+            cl.symbol,
+            cl.valuation_date,
+            count(*) AS closed_lot_count,
+            count(*) FILTER (WHERE ((cl.position_settlement_model)::text = 'CASH_SETTLED'::text)) AS cash_settled_lot_count,
+            count(*) FILTER (WHERE ((cl.position_settlement_model)::text = 'RESULT_ONLY'::text)) AS result_only_lot_count,
+            count(*) FILTER (WHERE ((cl.position_settlement_model)::text = 'UNCLASSIFIED'::text)) AS unclassified_lot_count,
+            sum(cl.closed_quantity) AS closed_quantity,
+            sum(cl.closed_quantity) FILTER (WHERE ((cl.position_settlement_model)::text = 'CASH_SETTLED'::text)) AS cash_settled_closed_quantity,
+            sum(cl.close_notional_native) FILTER (WHERE ((cl.position_settlement_model)::text = 'CASH_SETTLED'::text)) AS position_close_notional_native,
+                CASE
+                    WHEN (count(*) FILTER (WHERE (((cl.position_settlement_model)::text = 'CASH_SETTLED'::text) AND (NOT investory.fx_status_usable(cl.cost_conversion_status)))) > 0) THEN NULL::numeric
+                    ELSE sum((cl.close_notional_native * cl.cost_fx_rate_to_base)) FILTER (WHERE ((cl.position_settlement_model)::text = 'CASH_SETTLED'::text))
+                END AS position_close_notional_base,
+                CASE
+                    WHEN (count(*) FILTER (WHERE (((cl.position_settlement_model)::text = 'RESULT_ONLY'::text) AND (cl.close_result_base IS NULL))) > 0) THEN NULL::numeric
+                    ELSE sum(cl.close_result_base) FILTER (WHERE ((cl.position_settlement_model)::text = 'RESULT_ONLY'::text))
+                END AS position_close_result_base,
+            sum(cl.missing_fx_count) AS close_missing_fx_count
+           FROM closed_lots cl
+          GROUP BY cl.portfolio_id, cl.account_id, cl.asset_id, cl.symbol, cl.valuation_date
+        ), opened_lots AS (
+         SELECT p.account_id,
+            p.asset_id,
+            (p.open_time)::date AS valuation_date,
+            (p.settlement_model)::character varying(32) AS position_settlement_model,
+            abs(COALESCE(p.volume, (0)::numeric)) AS opened_quantity,
+                CASE
+                    WHEN (p.settlement_model = 'CASH_SETTLED'::investory.position_settlement_model) THEN COALESCE(p.purchase_value, (abs(COALESCE(p.volume, (0)::numeric)) * COALESCE(p.open_price, (0)::numeric)), (0)::numeric)
+                    ELSE NULL::numeric
+                END AS open_notional_native,
+            fx.fx_rate_to_base,
+            fx.conversion_status
+           FROM (((investory.positions p
+             JOIN investory.accounts account ON ((account.id = p.account_id)))
+             JOIN closed_group target ON (((target.account_id = p.account_id) AND (target.asset_id = p.asset_id) AND (target.valuation_date = (p.open_time)::date))))
+             LEFT JOIN investory.app_v_portfolio_daily_fx_rate fx ON (((fx.portfolio_id = account.portfolio_id) AND (fx.valuation_date = (p.open_time)::date) AND ((fx.source_currency)::text = (p.cost_currency)::text))))
+        ), opened_group AS (
+         SELECT ol.account_id,
+            ol.asset_id,
+            ol.valuation_date,
+            count(*) AS opened_lot_count,
+            sum(ol.opened_quantity) AS opened_quantity,
+            sum(ol.opened_quantity) FILTER (WHERE ((ol.position_settlement_model)::text = 'CASH_SETTLED'::text)) AS cash_settled_opened_quantity,
+                CASE
+                    WHEN (count(*) FILTER (WHERE (((ol.position_settlement_model)::text = 'CASH_SETTLED'::text) AND (NOT investory.fx_status_usable(ol.conversion_status)))) > 0) THEN NULL::numeric
+                    ELSE sum((ol.open_notional_native * ol.fx_rate_to_base)) FILTER (WHERE ((ol.position_settlement_model)::text = 'CASH_SETTLED'::text))
+                END AS position_open_notional_base,
+            count(*) FILTER (WHERE (((ol.position_settlement_model)::text = 'CASH_SETTLED'::text) AND (NOT investory.fx_status_usable(ol.conversion_status)))) AS open_missing_fx_count
+           FROM opened_lots ol
+          GROUP BY ol.account_id, ol.asset_id, ol.valuation_date
+        ), ledger_rows AS (
+         SELECT target.account_id,
+            target.asset_id,
+            target.valuation_date,
+            co.id AS operation_id,
+            (co.operation)::character varying(64) AS raw_operation,
+            co.amount,
+            fx.fx_rate_to_base,
+            fx.conversion_status
+           FROM ((closed_group target
+             LEFT JOIN investory.cash_operations co ON (((co.account_id = target.account_id) AND (co.asset_id = target.asset_id) AND ((co.date)::date = target.valuation_date) AND (co.operation = ANY (ARRAY['STOCK_PURCHASE'::investory.cash_operation_type, 'STOCK_SELL'::investory.cash_operation_type, 'CLOSE_TRADE'::investory.cash_operation_type])))))
+             LEFT JOIN investory.app_v_portfolio_daily_fx_rate fx ON (((fx.portfolio_id = target.portfolio_id) AND (fx.valuation_date = target.valuation_date) AND ((fx.source_currency)::text = (co.currency)::text))))
+        ), ledger_group AS (
+         SELECT lr.account_id,
+            lr.asset_id,
+            lr.valuation_date,
+            count(lr.operation_id) FILTER (WHERE ((lr.raw_operation)::text = 'STOCK_SELL'::text)) AS ledger_sale_row_count,
+            count(lr.operation_id) FILTER (WHERE ((lr.raw_operation)::text = 'CLOSE_TRADE'::text)) AS ledger_close_result_row_count,
+                CASE
+                    WHEN (count(lr.operation_id) FILTER (WHERE (((lr.raw_operation)::text = 'STOCK_SELL'::text) AND (NOT investory.fx_status_usable(lr.conversion_status)))) > 0) THEN NULL::numeric
+                    ELSE sum((lr.amount * lr.fx_rate_to_base)) FILTER (WHERE ((lr.raw_operation)::text = 'STOCK_SELL'::text))
+                END AS ledger_sale_cash_base,
+                CASE
+                    WHEN (count(lr.operation_id) FILTER (WHERE (((lr.raw_operation)::text = 'CLOSE_TRADE'::text) AND (NOT investory.fx_status_usable(lr.conversion_status)))) > 0) THEN NULL::numeric
+                    ELSE sum((lr.amount * lr.fx_rate_to_base)) FILTER (WHERE ((lr.raw_operation)::text = 'CLOSE_TRADE'::text))
+                END AS ledger_close_result_base,
+                CASE
+                    WHEN (count(lr.operation_id) FILTER (WHERE (((lr.raw_operation)::text = 'STOCK_PURCHASE'::text) AND (NOT investory.fx_status_usable(lr.conversion_status)))) > 0) THEN NULL::numeric
+                    ELSE (- sum((lr.amount * lr.fx_rate_to_base)) FILTER (WHERE ((lr.raw_operation)::text = 'STOCK_PURCHASE'::text)))
+                END AS ledger_purchase_cash_base,
+            count(lr.operation_id) FILTER (WHERE (NOT investory.fx_status_usable(lr.conversion_status))) AS ledger_missing_fx_count
+           FROM ledger_rows lr
+          GROUP BY lr.account_id, lr.asset_id, lr.valuation_date
+        ), previous_dates AS (
+         SELECT target.account_id,
+            target.asset_id,
+            target.valuation_date,
+            max(ad.snapshot_date) AS previous_valuation_date
+           FROM (closed_group target
+             LEFT JOIN investory.account_daily ad ON (((ad.account_id = target.account_id) AND (ad.snapshot_date < target.valuation_date))))
+          GROUP BY target.account_id, target.asset_id, target.valuation_date
+        ), settlement_prices AS (
+         SELECT target.account_id,
+            target.asset_id,
+            target.valuation_date,
+            price_slot.price_role,
+            price.close_price,
+            price.price_scale_factor,
+            price.price_currency,
+            price.quality_class
+           FROM (((closed_group target
+             LEFT JOIN previous_dates pd ON (((pd.account_id = target.account_id) AND (pd.asset_id = target.asset_id) AND (pd.valuation_date = target.valuation_date))))
+             CROSS JOIN LATERAL ( VALUES ('PREVIOUS'::character varying(16),pd.previous_valuation_date), ('CURRENT'::character varying(16),target.valuation_date)) price_slot(price_role, price_date))
+             LEFT JOIN LATERAL ( SELECT aph.close_price,
+                    aph.price_scale_factor,
+                    aph.price_currency,
+                    aph.quality_class
+                   FROM investory.app_v_canonical_asset_daily_price aph
+                  WHERE ((aph.asset_id = target.asset_id) AND (aph.price_date <= price_slot.price_date))
+                  ORDER BY aph.price_date DESC,
+                        CASE
+                            WHEN ((aph.quality_class)::text = 'EXACT_LISTING_MARKET_CLOSE'::text) THEN 1
+                            WHEN ((aph.quality_class)::text = 'EXACT_LISTING_SCALED'::text) THEN 2
+                            WHEN (((aph.quality_class)::text ~~ '%ALTERNATE%'::text) OR aph.is_proxy) THEN 3
+                            WHEN ((aph.price_origin)::text = 'MANUAL'::text) THEN 4
+                            WHEN (aph.estimated OR ((aph.quality_class)::text ~~ 'INTERPOLATED%'::text)) THEN 5
+                            WHEN (((aph.quality_class)::text ~~ '%TRADE_OBSERVATION%'::text) OR ((aph.price_origin)::text ~~ '%TRADE%'::text)) THEN 6
+                            WHEN ((aph.quality_class)::text ~~ '%STALE_CARRY_FORWARD%'::text) THEN 7
+                            ELSE 9
+                        END, aph.quality_score DESC,
+                        CASE aph.price_origin
+                            WHEN 'XTB_TRADE_OPEN'::text THEN 0
+                            WHEN 'XTB_TRADE_CLOSE'::text THEN 2
+                            ELSE 1
+                        END, aph.imported_at DESC
+                 LIMIT 1) price ON (true))
+        ), symbol_values AS (
+         SELECT target.account_id,
+            target.asset_id,
+            target.valuation_date,
+            pd.previous_valuation_date,
+            COALESCE(previous_quantity.open_quantity, (0)::numeric) AS previous_open_quantity,
+                CASE
+                    WHEN (COALESCE(previous_quantity.open_quantity, (0)::numeric) = (0)::numeric) THEN (0)::numeric
+                    WHEN ((previous_price.close_price IS NULL) OR (NOT investory.fx_status_usable(previous_fx.conversion_status))) THEN NULL::numeric
+                    ELSE ((((previous_quantity.open_quantity * previous_price.close_price) * COALESCE(previous_price.price_scale_factor, (1)::numeric)) *
+                    CASE
+                        WHEN ((previous_price.quality_class)::text ~~ '%PERCENT_OF_PAR%'::text) THEN 0.01
+                        ELSE (1)::numeric
+                    END) * previous_fx.fx_rate_to_base)
+                END AS previous_symbol_market_value_base,
+            (
+                CASE
+                    WHEN (COALESCE(previous_quantity.open_quantity, (0)::numeric) = (0)::numeric) THEN 'PASS'::text
+                    WHEN ((previous_price.close_price IS NULL) OR (NOT investory.fx_status_usable(previous_fx.conversion_status))) THEN 'FAIL'::text
+                    ELSE 'PASS'::text
+                END)::character varying(16) AS previous_reconstruction_status,
+            COALESCE(current_quantity.open_quantity, (0)::numeric) AS current_open_quantity,
+                CASE
+                    WHEN (COALESCE(current_quantity.open_quantity, (0)::numeric) = (0)::numeric) THEN (0)::numeric
+                    WHEN ((current_price.close_price IS NULL) OR (NOT investory.fx_status_usable(current_fx.conversion_status))) THEN NULL::numeric
+                    ELSE ((((current_quantity.open_quantity * current_price.close_price) * COALESCE(current_price.price_scale_factor, (1)::numeric)) *
+                    CASE
+                        WHEN ((current_price.quality_class)::text ~~ '%PERCENT_OF_PAR%'::text) THEN 0.01
+                        ELSE (1)::numeric
+                    END) * current_fx.fx_rate_to_base)
+                END AS current_symbol_market_value_base,
+            (
+                CASE
+                    WHEN (COALESCE(current_quantity.open_quantity, (0)::numeric) = (0)::numeric) THEN 'PASS'::text
+                    WHEN ((current_price.close_price IS NULL) OR (NOT investory.fx_status_usable(current_fx.conversion_status))) THEN 'FAIL'::text
+                    ELSE 'PASS'::text
+                END)::character varying(16) AS current_reconstruction_status
+           FROM (((((((closed_group target
+             LEFT JOIN previous_dates pd ON (((pd.account_id = target.account_id) AND (pd.asset_id = target.asset_id) AND (pd.valuation_date = target.valuation_date))))
+             LEFT JOIN LATERAL ( SELECT sum(investory.signed_position_quantity(p.operation, p.volume)) AS open_quantity
+                   FROM investory.positions p
+                  WHERE ((p.account_id = target.account_id) AND (p.asset_id = target.asset_id) AND (p.settlement_model = 'CASH_SETTLED'::investory.position_settlement_model) AND ((p.open_time)::date <= pd.previous_valuation_date) AND ((p.close_time IS NULL) OR (pd.previous_valuation_date < (p.close_time)::date)))) previous_quantity ON (true))
+             LEFT JOIN settlement_prices previous_price ON (((previous_price.account_id = target.account_id) AND (previous_price.asset_id = target.asset_id) AND (previous_price.valuation_date = target.valuation_date) AND ((previous_price.price_role)::text = 'PREVIOUS'::text))))
+             LEFT JOIN investory.app_v_portfolio_daily_fx_rate previous_fx ON (((previous_fx.portfolio_id = target.portfolio_id) AND (previous_fx.valuation_date = pd.previous_valuation_date) AND ((previous_fx.source_currency)::text = (previous_price.price_currency)::text))))
+             LEFT JOIN LATERAL ( SELECT sum(investory.signed_position_quantity(p.operation, p.volume)) AS open_quantity
+                   FROM investory.positions p
+                  WHERE ((p.account_id = target.account_id) AND (p.asset_id = target.asset_id) AND (p.settlement_model = 'CASH_SETTLED'::investory.position_settlement_model) AND ((p.open_time)::date <= target.valuation_date) AND ((p.close_time IS NULL) OR (target.valuation_date < (p.close_time)::date)))) current_quantity ON (true))
+             LEFT JOIN settlement_prices current_price ON (((current_price.account_id = target.account_id) AND (current_price.asset_id = target.asset_id) AND (current_price.valuation_date = target.valuation_date) AND ((current_price.price_role)::text = 'CURRENT'::text))))
+             LEFT JOIN investory.app_v_portfolio_daily_fx_rate current_fx ON (((current_fx.portfolio_id = target.portfolio_id) AND (current_fx.valuation_date = target.valuation_date) AND ((current_fx.source_currency)::text = (current_price.price_currency)::text))))
+        ), account_daily_with_previous AS (
+         SELECT ad.id,
+            ad.account_id,
+            ad.snapshot_date,
+            ad.valuation_currency,
+            ad.cash_balance,
+            ad.market_value,
+            ad.equity,
+            ad.cost_base,
+            ad.unrealized_profit,
+            ad.dividends,
+            ad.interest,
+            ad.fees,
+            ad.taxes,
+            ad.deposits,
+            ad.withdrawals,
+            ad.realized_profit,
+            ad.daily_profit_amount,
+            ad.daily_return_pct,
+            ad.portfolio_weight,
+            ad.created_at,
+            ad.updated_at,
+            lag(ad.cash_balance) OVER (PARTITION BY ad.account_id ORDER BY ad.snapshot_date) AS previous_cash_balance,
+            lag(ad.market_value) OVER (PARTITION BY ad.account_id ORDER BY ad.snapshot_date) AS previous_market_value,
+            lag(ad.equity) OVER (PARTITION BY ad.account_id ORDER BY ad.snapshot_date) AS previous_equity
+           FROM investory.account_daily ad
+        ), combined AS (
+         SELECT cg.portfolio_id,
+            cg.account_id,
+            cg.asset_id,
+            cg.symbol,
+            cg.valuation_date,
+            cg.closed_lot_count,
+            cg.cash_settled_lot_count,
+            cg.result_only_lot_count,
+            cg.unclassified_lot_count,
+            cg.closed_quantity,
+            cg.cash_settled_closed_quantity,
+            cg.position_close_notional_native,
+            cg.position_close_notional_base,
+            cg.position_close_result_base,
+            cg.close_missing_fx_count,
+            portfolio.base_currency,
+            COALESCE(og.opened_lot_count, (0)::bigint) AS opened_lot_count,
+            COALESCE(og.opened_quantity, (0)::numeric) AS opened_quantity,
+            COALESCE(og.cash_settled_opened_quantity, (0)::numeric) AS cash_settled_opened_quantity,
+            og.position_open_notional_base,
+            COALESCE(og.open_missing_fx_count, (0)::bigint) AS open_missing_fx_count,
+            COALESCE(lg.ledger_sale_row_count, (0)::bigint) AS ledger_sale_row_count,
+            COALESCE(lg.ledger_close_result_row_count, (0)::bigint) AS ledger_close_result_row_count,
+            lg.ledger_sale_cash_base,
+            lg.ledger_close_result_base,
+            lg.ledger_purchase_cash_base,
+            COALESCE(lg.ledger_missing_fx_count, (0)::bigint) AS ledger_missing_fx_count,
+            sv.previous_valuation_date,
+            sv.previous_open_quantity,
+            sv.previous_symbol_market_value_base,
+            sv.previous_reconstruction_status,
+            COALESCE(sv.current_open_quantity, (0)::numeric) AS current_open_quantity,
+            COALESCE(sv.current_symbol_market_value_base, (0)::numeric) AS current_symbol_market_value_base,
+            COALESCE(sv.current_reconstruction_status, 'PASS'::character varying) AS current_reconstruction_status,
+            ad.previous_cash_balance,
+            ad.cash_balance,
+            ad.previous_market_value,
+            ad.market_value,
+            ad.previous_equity,
+            ad.equity,
+            ad.daily_profit_amount,
+            (
+                CASE
+                    WHEN ((cg.result_only_lot_count > 0) AND (cg.cash_settled_lot_count > 0)) THEN 'MIXED'::text
+                    WHEN (cg.result_only_lot_count > 0) THEN 'RESULT_ONLY'::text
+                    WHEN (cg.unclassified_lot_count > 0) THEN 'UNCLASSIFIED'::text
+                    WHEN (COALESCE(lg.ledger_sale_row_count, (0)::bigint) > 0) THEN 'CASH_SETTLED'::text
+                    WHEN ((COALESCE(og.opened_quantity, (0)::numeric) > (0)::numeric) AND (abs((COALESCE(og.position_open_notional_base, (0)::numeric) - COALESCE(cg.position_close_notional_base, (0)::numeric))) <= (investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold'::character varying) * GREATEST((1)::numeric, abs(COALESCE(cg.position_close_notional_base, (0)::numeric)))))) THEN 'REORGANIZATION'::text
+                    ELSE 'UNCLASSIFIED'::text
+                END)::character varying(32) AS settlement_model
+           FROM (((((closed_group cg
+             JOIN investory.portfolios portfolio ON ((portfolio.id = cg.portfolio_id)))
+             LEFT JOIN opened_group og ON (((og.account_id = cg.account_id) AND (og.asset_id = cg.asset_id) AND (og.valuation_date = cg.valuation_date))))
+             LEFT JOIN ledger_group lg ON (((lg.account_id = cg.account_id) AND (lg.asset_id = cg.asset_id) AND (lg.valuation_date = cg.valuation_date))))
+             LEFT JOIN symbol_values sv ON (((sv.account_id = cg.account_id) AND (sv.asset_id = cg.asset_id) AND (sv.valuation_date = cg.valuation_date))))
+             LEFT JOIN account_daily_with_previous ad ON (((ad.account_id = cg.account_id) AND (ad.snapshot_date = cg.valuation_date))))
+        ), quantities AS (
+         SELECT c.portfolio_id,
+            c.account_id,
+            c.asset_id,
+            c.symbol,
+            c.valuation_date,
+            c.closed_lot_count,
+            c.cash_settled_lot_count,
+            c.result_only_lot_count,
+            c.unclassified_lot_count,
+            c.closed_quantity,
+            c.cash_settled_closed_quantity,
+            c.position_close_notional_native,
+            c.position_close_notional_base,
+            c.position_close_result_base,
+            c.close_missing_fx_count,
+            c.base_currency,
+            c.opened_lot_count,
+            c.opened_quantity,
+            c.cash_settled_opened_quantity,
+            c.position_open_notional_base,
+            c.open_missing_fx_count,
+            c.ledger_sale_row_count,
+            c.ledger_close_result_row_count,
+            c.ledger_sale_cash_base,
+            c.ledger_close_result_base,
+            c.ledger_purchase_cash_base,
+            c.ledger_missing_fx_count,
+            c.previous_valuation_date,
+            c.previous_open_quantity,
+            c.previous_symbol_market_value_base,
+            c.previous_reconstruction_status,
+            c.current_open_quantity,
+            c.current_symbol_market_value_base,
+            c.current_reconstruction_status,
+            c.previous_cash_balance,
+            c.cash_balance,
+            c.previous_market_value,
+            c.market_value,
+            c.previous_equity,
+            c.equity,
+            c.daily_profit_amount,
+            c.settlement_model,
+            LEAST(COALESCE(c.cash_settled_closed_quantity, (0)::numeric), abs(COALESCE(c.previous_open_quantity, (0)::numeric))) AS carried_close_quantity,
+            LEAST(GREATEST((COALESCE(c.cash_settled_closed_quantity, (0)::numeric) - abs(COALESCE(c.previous_open_quantity, (0)::numeric))), (0)::numeric), COALESCE(c.cash_settled_opened_quantity, (0)::numeric)) AS same_day_round_trip_quantity
+           FROM combined c
+        ), metrics AS (
+         SELECT q.portfolio_id,
+            q.account_id,
+            q.asset_id,
+            q.symbol,
+            q.valuation_date,
+            q.closed_lot_count,
+            q.cash_settled_lot_count,
+            q.result_only_lot_count,
+            q.unclassified_lot_count,
+            q.closed_quantity,
+            q.cash_settled_closed_quantity,
+            q.position_close_notional_native,
+            q.position_close_notional_base,
+            q.position_close_result_base,
+            q.close_missing_fx_count,
+            q.base_currency,
+            q.opened_lot_count,
+            q.opened_quantity,
+            q.cash_settled_opened_quantity,
+            q.position_open_notional_base,
+            q.open_missing_fx_count,
+            q.ledger_sale_row_count,
+            q.ledger_close_result_row_count,
+            q.ledger_sale_cash_base,
+            q.ledger_close_result_base,
+            q.ledger_purchase_cash_base,
+            q.ledger_missing_fx_count,
+            q.previous_valuation_date,
+            q.previous_open_quantity,
+            q.previous_symbol_market_value_base,
+            q.previous_reconstruction_status,
+            q.current_open_quantity,
+            q.current_symbol_market_value_base,
+            q.current_reconstruction_status,
+            q.previous_cash_balance,
+            q.cash_balance,
+            q.previous_market_value,
+            q.market_value,
+            q.previous_equity,
+            q.equity,
+            q.daily_profit_amount,
+            q.settlement_model,
+            q.carried_close_quantity,
+            q.same_day_round_trip_quantity,
+            GREATEST(((COALESCE(q.cash_settled_closed_quantity, (0)::numeric) - q.carried_close_quantity) - q.same_day_round_trip_quantity), (0)::numeric) AS unmatched_close_quantity,
+                CASE
+                    WHEN (q.carried_close_quantity = (0)::numeric) THEN (0)::numeric
+                    WHEN ((q.previous_symbol_market_value_base IS NULL) OR (abs(COALESCE(q.previous_open_quantity, (0)::numeric)) = (0)::numeric)) THEN NULL::numeric
+                    ELSE ((q.previous_symbol_market_value_base * q.carried_close_quantity) / abs(q.previous_open_quantity))
+                END AS allocated_previous_market_value_base,
+                CASE
+                    WHEN (q.carried_close_quantity = (0)::numeric) THEN (0)::numeric
+                    WHEN ((q.ledger_sale_cash_base IS NULL) OR (COALESCE(q.cash_settled_closed_quantity, (0)::numeric) = (0)::numeric)) THEN NULL::numeric
+                    ELSE ((q.ledger_sale_cash_base * q.carried_close_quantity) / q.cash_settled_closed_quantity)
+                END AS carried_sale_cash_base,
+                CASE
+                    WHEN (q.same_day_round_trip_quantity = (0)::numeric) THEN (0)::numeric
+                    WHEN ((q.ledger_sale_cash_base IS NULL) OR (COALESCE(q.cash_settled_closed_quantity, (0)::numeric) = (0)::numeric)) THEN NULL::numeric
+                    ELSE ((q.ledger_sale_cash_base * q.same_day_round_trip_quantity) / q.cash_settled_closed_quantity)
+                END AS same_day_sale_cash_base,
+                CASE
+                    WHEN (q.same_day_round_trip_quantity = (0)::numeric) THEN (0)::numeric
+                    WHEN ((q.position_open_notional_base IS NULL) OR (q.cash_settled_opened_quantity = (0)::numeric)) THEN NULL::numeric
+                    ELSE ((q.position_open_notional_base * q.same_day_round_trip_quantity) / q.cash_settled_opened_quantity)
+                END AS same_day_closed_open_notional_base,
+            (q.current_symbol_market_value_base - COALESCE(q.previous_symbol_market_value_base, (0)::numeric)) AS symbol_market_value_delta_base,
+            (COALESCE(q.cash_balance, (0)::numeric) - COALESCE(q.previous_cash_balance, (0)::numeric)) AS account_cash_delta_base,
+            (COALESCE(q.market_value, (0)::numeric) - COALESCE(q.previous_market_value, (0)::numeric)) AS account_market_value_delta_base,
+            (COALESCE(q.equity, (0)::numeric) - COALESCE(q.previous_equity, (0)::numeric)) AS account_equity_delta_base,
+            ((q.close_missing_fx_count + q.open_missing_fx_count) + q.ledger_missing_fx_count) AS missing_fx_count
+           FROM quantities q
+        ), reconciled AS (
+         SELECT m.portfolio_id,
+            m.account_id,
+            m.asset_id,
+            m.symbol,
+            m.valuation_date,
+            m.closed_lot_count,
+            m.cash_settled_lot_count,
+            m.result_only_lot_count,
+            m.unclassified_lot_count,
+            m.closed_quantity,
+            m.cash_settled_closed_quantity,
+            m.position_close_notional_native,
+            m.position_close_notional_base,
+            m.position_close_result_base,
+            m.close_missing_fx_count,
+            m.base_currency,
+            m.opened_lot_count,
+            m.opened_quantity,
+            m.cash_settled_opened_quantity,
+            m.position_open_notional_base,
+            m.open_missing_fx_count,
+            m.ledger_sale_row_count,
+            m.ledger_close_result_row_count,
+            m.ledger_sale_cash_base,
+            m.ledger_close_result_base,
+            m.ledger_purchase_cash_base,
+            m.ledger_missing_fx_count,
+            m.previous_valuation_date,
+            m.previous_open_quantity,
+            m.previous_symbol_market_value_base,
+            m.previous_reconstruction_status,
+            m.current_open_quantity,
+            m.current_symbol_market_value_base,
+            m.current_reconstruction_status,
+            m.previous_cash_balance,
+            m.cash_balance,
+            m.previous_market_value,
+            m.market_value,
+            m.previous_equity,
+            m.equity,
+            m.daily_profit_amount,
+            m.settlement_model,
+            m.carried_close_quantity,
+            m.same_day_round_trip_quantity,
+            m.unmatched_close_quantity,
+            m.allocated_previous_market_value_base,
+            m.carried_sale_cash_base,
+            m.same_day_sale_cash_base,
+            m.same_day_closed_open_notional_base,
+            m.symbol_market_value_delta_base,
+            m.account_cash_delta_base,
+            m.account_market_value_delta_base,
+            m.account_equity_delta_base,
+            m.missing_fx_count,
+                CASE
+                    WHEN ((m.ledger_sale_cash_base IS NULL) OR (m.position_close_notional_base IS NULL)) THEN NULL::numeric
+                    ELSE (m.ledger_sale_cash_base - m.position_close_notional_base)
+                END AS settlement_cash_difference_base,
+                CASE
+                    WHEN ((m.carried_sale_cash_base IS NULL) OR (m.allocated_previous_market_value_base IS NULL)) THEN NULL::numeric
+                    ELSE (m.carried_sale_cash_base - m.allocated_previous_market_value_base)
+                END AS sale_vs_previous_market_value_difference_base,
+                CASE
+                    WHEN ((m.allocated_previous_market_value_base IS NULL) OR (m.position_open_notional_base IS NULL) OR (m.same_day_closed_open_notional_base IS NULL)) THEN NULL::numeric
+                    ELSE (m.symbol_market_value_delta_base - ((m.position_open_notional_base - m.same_day_closed_open_notional_base) - m.allocated_previous_market_value_base))
+                END AS symbol_market_bridge_difference_base,
+                CASE
+                    WHEN ((m.position_close_result_base IS NULL) OR (m.ledger_close_result_base IS NULL)) THEN NULL::numeric
+                    ELSE (m.ledger_close_result_base - m.position_close_result_base)
+                END AS result_settlement_difference_base,
+                CASE
+                    WHEN ((m.settlement_model)::text = 'RESULT_ONLY'::text) THEN ((m.missing_fx_count = 0) AND (m.position_close_result_base IS NOT NULL) AND (m.ledger_close_result_base IS NOT NULL))
+                    WHEN ((m.settlement_model)::text = 'MIXED'::text) THEN ((m.missing_fx_count = 0) AND (m.previous_valuation_date IS NOT NULL) AND ((COALESCE(m.previous_reconstruction_status, 'FAIL'::character varying))::text <> 'FAIL'::text) AND ((m.current_reconstruction_status)::text <> 'FAIL'::text) AND (m.position_close_result_base IS NOT NULL) AND (m.ledger_close_result_base IS NOT NULL))
+                    ELSE ((m.missing_fx_count = 0) AND (m.previous_valuation_date IS NOT NULL) AND ((COALESCE(m.previous_reconstruction_status, 'FAIL'::character varying))::text <> 'FAIL'::text) AND ((m.current_reconstruction_status)::text <> 'FAIL'::text))
+                END AS is_complete
+           FROM metrics m
         )
-    ) AS result_effective_tolerance,
-    investory.reconciliation_display_value(GREATEST(
-        investory.reconciliation_parameter('reconciliation_trade_cash_absolute_tolerance'),
-        investory.reconciliation_parameter('reconciliation_trade_cash_relative_tolerance')
-            * ABS(COALESCE(r.position_close_notional_base, 0))
-    )) AS settlement_cash_effective_tolerance,
-    investory.reconciliation_display_value(GREATEST(
-        investory.reconciliation_parameter('reconciliation_carrying_value_absolute_threshold'),
-        investory.reconciliation_parameter('reconciliation_carrying_value_relative_threshold')
-            * ABS(COALESCE(r.allocated_previous_market_value_base, 0))
-    )) AS carrying_value_effective_threshold,
-    investory.reconciliation_display_value(GREATEST(
-        investory.reconciliation_parameter('reconciliation_market_bridge_absolute_threshold'),
-        investory.reconciliation_parameter('reconciliation_market_bridge_relative_threshold')
-            * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
-    )) AS market_bridge_effective_threshold,
-    investory.reconciliation_display_value(GREATEST(
-        investory.reconciliation_parameter('reconciliation_reorganization_absolute_threshold'),
-        investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold')
-            * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
-    )) AS reorganization_effective_threshold,
-    r.missing_fx_count,
-    r.is_complete,
-    CASE
-        WHEN NOT r.is_complete THEN 'INCOMPLETE'
-        WHEN r.settlement_model = 'RESULT_ONLY'
-         AND investory.reconciliation_values_match(
-             r.position_close_result_base,
-             r.ledger_close_result_base
-         )
-            THEN 'PASS'
-        WHEN r.settlement_model = 'REORGANIZATION'
-         AND ABS(r.symbol_market_value_delta_base)
-             <= GREATEST(
-                 investory.reconciliation_parameter('reconciliation_reorganization_absolute_threshold'),
-                 investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold')
-                     * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
-             )
-            THEN 'PASS'
-        WHEN r.settlement_model = 'CASH_SETTLED'
-         AND ABS(COALESCE(r.settlement_cash_difference_base, 0))
-             <= GREATEST(
-                 investory.reconciliation_parameter('reconciliation_trade_cash_absolute_tolerance'),
-                 investory.reconciliation_parameter('reconciliation_trade_cash_relative_tolerance')
-                     * ABS(COALESCE(r.position_close_notional_base, 0))
-             )
-         AND ABS(COALESCE(r.sale_vs_previous_market_value_difference_base, 0))
-             <= GREATEST(
-                 investory.reconciliation_parameter('reconciliation_carrying_value_absolute_threshold'),
-                 investory.reconciliation_parameter('reconciliation_carrying_value_relative_threshold')
-                     * ABS(COALESCE(r.allocated_previous_market_value_base, 0))
-             )
-         AND ABS(COALESCE(r.symbol_market_bridge_difference_base, 0))
-             <= GREATEST(
-                 investory.reconciliation_parameter('reconciliation_market_bridge_absolute_threshold'),
-                 investory.reconciliation_parameter('reconciliation_market_bridge_relative_threshold')
-                     * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
-             )
-            THEN 'PASS'
-        ELSE 'REVIEW'
-    END::varchar(16) AS reconciliation_status,
-    CASE
-        WHEN NOT r.is_complete AND r.missing_fx_count > 0 THEN 'MISSING_FX'
-        WHEN NOT r.is_complete AND r.previous_valuation_date IS NULL THEN 'MISSING_PREVIOUS_VALUATION'
-        WHEN NOT r.is_complete THEN 'VALUATION_RECONSTRUCTION_FAILED'
-        WHEN r.settlement_model = 'RESULT_ONLY'
-         AND NOT investory.reconciliation_values_match(
-             r.position_close_result_base,
-             r.ledger_close_result_base
-         )
-            THEN 'RESULT_ONLY_CASH_MISMATCH'
-        WHEN r.settlement_model = 'RESULT_ONLY' THEN 'OK'
-        WHEN r.settlement_model = 'MIXED' THEN 'MIXED_SETTLEMENT_MODEL'
-        WHEN r.settlement_model = 'UNCLASSIFIED' THEN 'UNCLASSIFIED_SETTLEMENT_MODEL'
-        WHEN r.settlement_model = 'REORGANIZATION'
-         AND ABS(r.symbol_market_value_delta_base)
-             > GREATEST(
-                 investory.reconciliation_parameter('reconciliation_reorganization_absolute_threshold'),
-                 investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold')
-                     * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
-             )
-            THEN 'REORGANIZATION_VALUE_JUMP'
-        WHEN r.settlement_model = 'REORGANIZATION' THEN 'OK'
-        WHEN r.unmatched_close_quantity > investory.reconciliation_parameter('reconciliation_quantity_tolerance')
-            THEN 'UNMATCHED_CLOSE_QUANTITY'
-        WHEN ABS(COALESCE(r.settlement_cash_difference_base, 0))
-             > GREATEST(
-                 investory.reconciliation_parameter('reconciliation_trade_cash_absolute_tolerance'),
-                 investory.reconciliation_parameter('reconciliation_trade_cash_relative_tolerance')
-                     * ABS(COALESCE(r.position_close_notional_base, 0))
-             )
-            THEN 'SALE_CASH_MISMATCH'
-        WHEN ABS(COALESCE(r.sale_vs_previous_market_value_difference_base, 0))
-             > GREATEST(
-                 investory.reconciliation_parameter('reconciliation_carrying_value_absolute_threshold'),
-                 investory.reconciliation_parameter('reconciliation_carrying_value_relative_threshold')
-                     * ABS(COALESCE(r.allocated_previous_market_value_base, 0))
-             )
-            THEN 'SALE_VS_CARRYING_VALUE_OUTLIER'
-        WHEN ABS(COALESCE(r.symbol_market_bridge_difference_base, 0))
-             > GREATEST(
-                 investory.reconciliation_parameter('reconciliation_market_bridge_absolute_threshold'),
-                 investory.reconciliation_parameter('reconciliation_market_bridge_relative_threshold')
-                     * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
-             )
-            THEN 'MARKET_VALUE_BRIDGE_OUTLIER'
-        ELSE 'OK'
-    END::varchar(64) AS anomaly_code
-FROM reconciled r
-WITH NO DATA;
+ SELECT portfolio_id,
+    account_id,
+    asset_id,
+    symbol,
+    valuation_date,
+    previous_valuation_date,
+    base_currency,
+    settlement_model,
+    closed_lot_count,
+    opened_lot_count,
+    previous_open_quantity,
+    closed_quantity,
+    cash_settled_closed_quantity,
+    opened_quantity,
+    cash_settled_opened_quantity,
+    carried_close_quantity,
+    same_day_round_trip_quantity,
+    unmatched_close_quantity,
+    current_open_quantity,
+    position_close_notional_native,
+    position_close_notional_base,
+    position_close_result_base,
+    position_open_notional_base,
+    ledger_sale_cash_base,
+    carried_sale_cash_base,
+    same_day_sale_cash_base,
+    same_day_closed_open_notional_base,
+    ledger_purchase_cash_base,
+    ledger_close_result_base,
+    previous_symbol_market_value_base,
+    allocated_previous_market_value_base,
+    current_symbol_market_value_base,
+    symbol_market_value_delta_base,
+    account_cash_delta_base,
+    account_market_value_delta_base,
+    account_equity_delta_base,
+    daily_profit_amount AS reported_daily_profit_base,
+    investory.reconciliation_display_value(settlement_cash_difference_base) AS settlement_cash_difference_base,
+    investory.reconciliation_display_value(result_settlement_difference_base) AS result_settlement_difference_base,
+    investory.reconciliation_display_value(sale_vs_previous_market_value_difference_base) AS sale_vs_previous_market_value_difference_base,
+    investory.reconciliation_display_value(symbol_market_bridge_difference_base) AS symbol_market_bridge_difference_base,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(position_close_result_base, ledger_close_result_base)) AS result_effective_tolerance,
+    investory.reconciliation_display_value(GREATEST(investory.reconciliation_parameter('reconciliation_trade_cash_absolute_tolerance'::character varying), (investory.reconciliation_parameter('reconciliation_trade_cash_relative_tolerance'::character varying) * abs(COALESCE(position_close_notional_base, (0)::numeric))))) AS settlement_cash_effective_tolerance,
+    investory.reconciliation_display_value(GREATEST(investory.reconciliation_parameter('reconciliation_carrying_value_absolute_threshold'::character varying), (investory.reconciliation_parameter('reconciliation_carrying_value_relative_threshold'::character varying) * abs(COALESCE(allocated_previous_market_value_base, (0)::numeric))))) AS carrying_value_effective_threshold,
+    investory.reconciliation_display_value(GREATEST(investory.reconciliation_parameter('reconciliation_market_bridge_absolute_threshold'::character varying), (investory.reconciliation_parameter('reconciliation_market_bridge_relative_threshold'::character varying) * abs(COALESCE(previous_symbol_market_value_base, (0)::numeric))))) AS market_bridge_effective_threshold,
+    investory.reconciliation_display_value(GREATEST(investory.reconciliation_parameter('reconciliation_reorganization_absolute_threshold'::character varying), (investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold'::character varying) * abs(COALESCE(previous_symbol_market_value_base, (0)::numeric))))) AS reorganization_effective_threshold,
+    missing_fx_count,
+    is_complete,
+    (
+        CASE
+            WHEN (NOT is_complete) THEN 'INCOMPLETE'::text
+            WHEN (((settlement_model)::text = 'RESULT_ONLY'::text) AND investory.reconciliation_values_match(position_close_result_base, ledger_close_result_base)) THEN 'PASS'::text
+            WHEN (((settlement_model)::text = 'REORGANIZATION'::text) AND (abs(symbol_market_value_delta_base) <= GREATEST(investory.reconciliation_parameter('reconciliation_reorganization_absolute_threshold'::character varying), (investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold'::character varying) * abs(COALESCE(previous_symbol_market_value_base, (0)::numeric)))))) THEN 'PASS'::text
+            WHEN (((settlement_model)::text = 'CASH_SETTLED'::text) AND (abs(COALESCE(settlement_cash_difference_base, (0)::numeric)) <= GREATEST(investory.reconciliation_parameter('reconciliation_trade_cash_absolute_tolerance'::character varying), (investory.reconciliation_parameter('reconciliation_trade_cash_relative_tolerance'::character varying) * abs(COALESCE(position_close_notional_base, (0)::numeric))))) AND (abs(COALESCE(sale_vs_previous_market_value_difference_base, (0)::numeric)) <= GREATEST(investory.reconciliation_parameter('reconciliation_carrying_value_absolute_threshold'::character varying), (investory.reconciliation_parameter('reconciliation_carrying_value_relative_threshold'::character varying) * abs(COALESCE(allocated_previous_market_value_base, (0)::numeric))))) AND (abs(COALESCE(symbol_market_bridge_difference_base, (0)::numeric)) <= GREATEST(investory.reconciliation_parameter('reconciliation_market_bridge_absolute_threshold'::character varying), (investory.reconciliation_parameter('reconciliation_market_bridge_relative_threshold'::character varying) * abs(COALESCE(previous_symbol_market_value_base, (0)::numeric)))))) THEN 'PASS'::text
+            ELSE 'REVIEW'::text
+        END)::character varying(16) AS reconciliation_status,
+    (
+        CASE
+            WHEN ((NOT is_complete) AND (missing_fx_count > 0)) THEN 'MISSING_FX'::text
+            WHEN ((NOT is_complete) AND (previous_valuation_date IS NULL)) THEN 'MISSING_PREVIOUS_VALUATION'::text
+            WHEN (NOT is_complete) THEN 'VALUATION_RECONSTRUCTION_FAILED'::text
+            WHEN (((settlement_model)::text = 'RESULT_ONLY'::text) AND (NOT investory.reconciliation_values_match(position_close_result_base, ledger_close_result_base))) THEN 'RESULT_ONLY_CASH_MISMATCH'::text
+            WHEN ((settlement_model)::text = 'RESULT_ONLY'::text) THEN 'OK'::text
+            WHEN ((settlement_model)::text = 'MIXED'::text) THEN 'MIXED_SETTLEMENT_MODEL'::text
+            WHEN ((settlement_model)::text = 'UNCLASSIFIED'::text) THEN 'UNCLASSIFIED_SETTLEMENT_MODEL'::text
+            WHEN (((settlement_model)::text = 'REORGANIZATION'::text) AND (abs(symbol_market_value_delta_base) > GREATEST(investory.reconciliation_parameter('reconciliation_reorganization_absolute_threshold'::character varying), (investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold'::character varying) * abs(COALESCE(previous_symbol_market_value_base, (0)::numeric)))))) THEN 'REORGANIZATION_VALUE_JUMP'::text
+            WHEN ((settlement_model)::text = 'REORGANIZATION'::text) THEN 'OK'::text
+            WHEN (unmatched_close_quantity > investory.reconciliation_parameter('reconciliation_quantity_tolerance'::character varying)) THEN 'UNMATCHED_CLOSE_QUANTITY'::text
+            WHEN (abs(COALESCE(settlement_cash_difference_base, (0)::numeric)) > GREATEST(investory.reconciliation_parameter('reconciliation_trade_cash_absolute_tolerance'::character varying), (investory.reconciliation_parameter('reconciliation_trade_cash_relative_tolerance'::character varying) * abs(COALESCE(position_close_notional_base, (0)::numeric))))) THEN 'SALE_CASH_MISMATCH'::text
+            WHEN (abs(COALESCE(sale_vs_previous_market_value_difference_base, (0)::numeric)) > GREATEST(investory.reconciliation_parameter('reconciliation_carrying_value_absolute_threshold'::character varying), (investory.reconciliation_parameter('reconciliation_carrying_value_relative_threshold'::character varying) * abs(COALESCE(allocated_previous_market_value_base, (0)::numeric))))) THEN 'SALE_VS_CARRYING_VALUE_OUTLIER'::text
+            WHEN (abs(COALESCE(symbol_market_bridge_difference_base, (0)::numeric)) > GREATEST(investory.reconciliation_parameter('reconciliation_market_bridge_absolute_threshold'::character varying), (investory.reconciliation_parameter('reconciliation_market_bridge_relative_threshold'::character varying) * abs(COALESCE(previous_symbol_market_value_base, (0)::numeric))))) THEN 'MARKET_VALUE_BRIDGE_OUTLIER'::text
+            ELSE 'OK'::text
+        END)::character varying(64) AS anomaly_code
+   FROM reconciled r
+  WITH NO DATA;
 
 
 --
 -- Name: MATERIALIZED VIEW recon_v_trade_settlement; Type: COMMENT; Schema: investory; Owner: -
 --
 
-COMMENT ON MATERIALIZED VIEW investory.recon_v_trade_settlement IS 'Grouped account/date/symbol reconciliation of position closes, canonical sale and bond-redemption cash, prior carrying value, same-day opens, and market-value movement. Result-only cash includes CLOSE_TRADE and ROLLOVER; reorganizations remain separate. Authoritative comparisons fail closed when FX or valuation inputs are unavailable.';
+COMMENT ON MATERIALIZED VIEW investory.recon_v_trade_settlement IS 'Grouped account/date/symbol reconciliation of position closes, canonical sale cash, prior carrying value, same-day opens, and market-value movement. Cash-settled sales, result-only contracts, and reorganizations are classified separately; authoritative comparisons fail closed when FX or valuation inputs are unavailable.';
 
 
 --
@@ -10092,78 +9958,6 @@ ALTER TABLE investory.rental_contract_term ALTER COLUMN id ADD GENERATED BY DEFA
 
 
 --
--- Name: retirement_annual_cost_groups; Type: TABLE; Schema: investory; Owner: -
---
-
-CREATE TABLE investory.retirement_annual_cost_groups (
-    id bigint NOT NULL,
-    name character varying(120) NOT NULL,
-    monthly_amount numeric(19,2) NOT NULL,
-    sort_order integer DEFAULT 0 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    year_id bigint NOT NULL,
-    CONSTRAINT retirement_annual_cost_groups_monthly_amount_check CHECK ((monthly_amount >= (0)::numeric))
-);
-
-
---
--- Name: retirement_annual_cost_groups_id_seq; Type: SEQUENCE; Schema: investory; Owner: -
---
-
-ALTER TABLE investory.retirement_annual_cost_groups ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME investory.retirement_annual_cost_groups_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
-
---
--- Name: retirement_annual_cost_years; Type: TABLE; Schema: investory; Owner: -
---
-
-CREATE TABLE investory.retirement_annual_cost_years (
-    id bigint NOT NULL,
-    plan_id bigint NOT NULL,
-    year integer NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: retirement_annual_cost_years_id_seq; Type: SEQUENCE; Schema: investory; Owner: -
---
-
-ALTER TABLE investory.retirement_annual_cost_years ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME investory.retirement_annual_cost_years_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
-
---
--- Name: retirement_currency_conversions; Type: TABLE; Schema: investory; Owner: -
---
-
-CREATE TABLE investory.retirement_currency_conversions (
-    migration_key character varying(100) NOT NULL,
-    portfolio_id bigint NOT NULL,
-    source_currency character varying(3) NOT NULL,
-    target_currency character varying(3) NOT NULL,
-    rate numeric(30,12) NOT NULL,
-    rate_date date NOT NULL,
-    planning_years_converted boolean DEFAULT false CONSTRAINT retirement_currency_conversio_planning_years_converted_not_null NOT NULL,
-    converted_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
 -- Name: retirement_plan_events; Type: TABLE; Schema: investory; Owner: -
 --
 
@@ -10484,28 +10278,28 @@ COPY investory.account_daily (id, account_id, snapshot_date, valuation_currency,
 --
 
 COPY investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only, created_at) FROM stdin;
-90000003	90000003	PLN	XTB	Sample PLN Account	Sample User	1	f	2026-10-02 09:57:49.429304+00
-90000004	90000004	USD	XTB	Sample USD Account	Sample User	1	f	2026-10-02 09:57:49.429304+00
-90000005	90000005	EUR	XTB	Sample EUR Account	Sample User	1	t	2026-10-02 09:57:49.429304+00
-90000006	90000006	USD	XTB	Sample Metals Account	Sample User	1	f	2026-10-02 09:57:49.429304+00
-90000007	90000007	PLN	XTB	Sample Retirement Account	Sample User	1	f	2026-10-02 09:57:49.429304+00
-90000008	90000008	PLN	XTB	Sample PLN Cash Account	Sample User	1	t	2026-10-02 09:57:49.429304+00
-90000002	90000002	USD	XTB	Sample USD Trading Account	Sample User	1	f	2026-10-02 09:57:49.429304+00
-90000009	90000009	EUR	XTB	Sample EUR Cash Account	Sample User	1	t	2026-10-02 09:57:49.429304+00
-90000010	90000010	USD	XTB	Sample Income Account	Sample User	1	f	2026-10-02 09:57:49.429304+00
-90000011	90000011	PLN	XTB	Sample PLN Reserve Account	Sample User	1	t	2026-10-02 09:57:49.429304+00
-90000001	90000001	USD	IBKR	Sample IBKR Account	Sample User	1	f	2026-10-02 09:57:49.429304+00
-91000005	90000004	USD	XTB	XTB USD reserve account	Happy Investor	2	f	2026-10-02 09:57:49.429304+00
-91000006	90000005	EUR	XTB	XTB EUR cash account	Happy Investor	2	t	2026-10-02 09:57:49.429304+00
-91000007	90000006	USD	XTB	XTB metals account	Happy Investor	2	f	2026-10-02 09:57:49.429304+00
-91000008	90000007	PLN	XTB	XTB retirement account	Happy Investor	2	f	2026-10-02 09:57:49.429304+00
-91000009	90000008	PLN	XTB	XTB cash account	Happy Investor	2	t	2026-10-02 09:57:49.429304+00
-91000010	90000010	USD	XTB	XTB income account	Happy Investor	2	f	2026-10-02 09:57:49.429304+00
-91000011	90000011	PLN	XTB	XTB PLN reserve account	Happy Investor	2	t	2026-10-02 09:57:49.429304+00
-91000001	90000001	USD	IBKR	IBKR USD investment account	Happy Investor	2	f	2026-10-02 09:57:49.429304+00
-91000002	90000002	USD	XTB	XTB USD investment account	Happy Investor	2	f	2026-10-02 09:57:49.429304+00
-91000003	90000003	PLN	XTB	XTB PLN investment account	Happy Investor	2	f	2026-10-02 09:57:49.429304+00
-91000004	90000009	EUR	XTB	XTB EUR cash-only account	Happy Investor	2	t	2026-10-02 09:57:49.429304+00
+90000003	90000003	PLN	XTB	Sample PLN Account	Sample User	1	f	2026-09-30 15:42:10.040623+00
+90000004	90000004	USD	XTB	Sample USD Account	Sample User	1	f	2026-09-30 15:42:10.040623+00
+90000005	90000005	EUR	XTB	Sample EUR Account	Sample User	1	t	2026-09-30 15:42:10.040623+00
+90000006	90000006	USD	XTB	Sample Metals Account	Sample User	1	f	2026-09-30 15:42:10.040623+00
+90000007	90000007	PLN	XTB	Sample Retirement Account	Sample User	1	f	2026-09-30 15:42:10.040623+00
+90000008	90000008	PLN	XTB	Sample PLN Cash Account	Sample User	1	t	2026-09-30 15:42:10.040623+00
+90000002	90000002	USD	XTB	Sample USD Trading Account	Sample User	1	f	2026-09-30 15:42:10.040623+00
+90000009	90000009	EUR	XTB	Sample EUR Cash Account	Sample User	1	t	2026-09-30 15:42:10.040623+00
+90000010	90000010	USD	XTB	Sample Income Account	Sample User	1	f	2026-09-30 15:42:10.040623+00
+90000011	90000011	PLN	XTB	Sample PLN Reserve Account	Sample User	1	t	2026-09-30 15:42:10.040623+00
+90000001	90000001	USD	IBKR	Sample IBKR Account	Sample User	1	f	2026-09-30 15:42:10.040623+00
+91000005	90000004	USD	XTB	XTB USD reserve account	Happy Investor	2	f	2026-09-30 15:42:10.040623+00
+91000006	90000005	EUR	XTB	XTB EUR cash account	Happy Investor	2	t	2026-09-30 15:42:10.040623+00
+91000007	90000006	USD	XTB	XTB metals account	Happy Investor	2	f	2026-09-30 15:42:10.040623+00
+91000008	90000007	PLN	XTB	XTB retirement account	Happy Investor	2	f	2026-09-30 15:42:10.040623+00
+91000009	90000008	PLN	XTB	XTB cash account	Happy Investor	2	t	2026-09-30 15:42:10.040623+00
+91000010	90000010	USD	XTB	XTB income account	Happy Investor	2	f	2026-09-30 15:42:10.040623+00
+91000011	90000011	PLN	XTB	XTB PLN reserve account	Happy Investor	2	t	2026-09-30 15:42:10.040623+00
+91000001	90000001	USD	IBKR	IBKR USD investment account	Happy Investor	2	f	2026-09-30 15:42:10.040623+00
+91000002	90000002	USD	XTB	XTB USD investment account	Happy Investor	2	f	2026-09-30 15:42:10.040623+00
+91000003	90000003	PLN	XTB	XTB PLN investment account	Happy Investor	2	f	2026-09-30 15:42:10.040623+00
+91000004	90000009	EUR	XTB	XTB EUR cash-only account	Happy Investor	2	t	2026-09-30 15:42:10.040623+00
 \.
 
 
@@ -10522,8 +10316,8 @@ COPY investory.app_user_invitations (id, email, display_name, profile_id, profil
 --
 
 COPY investory.app_users (id, username, display_name, birth_date, active, created_at, updated_at, password_hash, role, email, google_subject) FROM stdin;
-1	sample.user	Sample User	1985-09-09	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	\N	PROFILE_OWNER	\N	\N
-2	happy.investor	Happy Investor	1984-01-01	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	\N	PROFILE_OWNER	\N	\N
+1	sample.user	Sample User	1985-09-09	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	\N	PROFILE_OWNER	\N	\N
+2	happy.investor	Happy Investor	1984-01-01	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	\N	PROFILE_OWNER	\N	\N
 \.
 
 
@@ -10532,72 +10326,30 @@ COPY investory.app_users (id, username, display_name, birth_date, active, create
 --
 
 COPY investory.asset_price_history (asset_id, price_date, source, source_symbol, source_mapping_id, price_origin, price_currency, open_price, high_price, low_price, close_price, adjusted_close_price, volume, estimated, interpolation_method, interpolation_left_date, interpolation_right_date, observation_count, source_date, imported_at, quality_score, quality_class, is_observed, is_proxy, price_scale_factor, scale_reason, original_source_symbol) FROM stdin;
-1	2025-01-01	STOOQ	aapl.us	11	STOOQ	USD	251.06900000	251.90500000	248.07500000	249.05900000	\N	39696389.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	aapl.us
-51	2025-01-01	STOOQ	ale	17	STOOQ	PLN	27.49500000	28.24000000	27.20000000	28.24000000	\N	1690982.00000000	f	\N	\N	\N	1	2025-01-02	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	ale
-101	2025-01-01	STOOQ	amzn.us	4	STOOQ	USD	222.96500000	223.22990000	218.94000000	219.39000000	\N	24819655.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	amzn.us
-151	2025-01-01	STOOQ	emim.uk	12	STOOQ	USD	2713.00000000	2727.00000000	2712.00000000	2724.00000000	\N	94147.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	90	EXACT_LISTING_SCALED	t	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	emim.uk
-201	2025-01-01	STOOQ	etfbw20tr.pl	14	STOOQ	PLN	42.20500000	42.45500000	41.87000000	42.34000000	\N	19855.00000000	f	\N	\N	\N	1	2025-01-02	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	etfbw20tr.pl
-251	2025-01-01	STOOQ	googl.us	2	STOOQ	USD	191.07500000	191.96000000	188.51000000	189.30000000	\N	17466919.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	googl.us
-301	2025-01-01	STOOQ	hprd.uk	8	STOOQ	USD	20.82000000	20.94250000	20.82000000	20.94250000	\N	1704.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	hprd.uk
-351	2025-01-01	MANUAL	jgpi.de	\N	MANUAL_WEEKLY	EUR	25.30000000	25.39000000	24.92000000	25.25000000	\N	389706.00000000	f	\N	\N	\N	1	2025-01-06	2026-10-02 09:57:49.429304+00	90	MANUAL_WEEKLY_CLOSE	t	f	1.00000000	Manual weekly backfill	jgpi.de
-401	2025-01-01	STOOQ	meta.us	3	STOOQ	USD	592.26500000	593.97000000	583.85000000	585.51000000	\N	6019520.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	meta.us
-451	2025-01-01	STOOQ	msft.us	10	STOOQ	USD	426.10000000	426.73000000	420.66000000	421.50000000	\N	13246509.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	msft.us
-501	2025-01-01	XTB_TRADE_CLOSE	NATGAS	\N	XTB_TRADE_CLOSE	USD	\N	\N	\N	2.94600000	\N	0.01000000	f	\N	\N	\N	1	2024-11-11	2026-10-02 09:57:49.429304+00	60	XTB_TRADE_OBSERVATION	t	f	1.00000000	\N	\N
-551	2025-01-01	STOOQ	nclr.uk	19	STOOQ	USD	24.42500000	24.42500000	24.42500000	24.42500000	\N	0.00000000	f	\N	\N	\N	1	2025-03-13	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nclr.uk
-601	2025-01-01	STOOQ	nucl.uk	18	STOOQ	USD	32.20000000	32.20000000	32.03000000	32.10000000	\N	1671.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nucl.uk
-651	2025-01-01	STOOQ	nvda.us	5	STOOQ	USD	138.03000000	138.07000000	133.83000000	134.29000000	\N	155659211.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nvda.us
-701	2025-01-01	STOOQ	o.us	7	STOOQ	USD	52.96000000	53.48000000	52.87000000	53.41000000	\N	5643315.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	o.us
-751	2025-01-01	STOOQ	pall.us	21	STOOQ	USD	16.63720000	16.84510000	16.61200000	16.70400000	\N	255610.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pall.us
-801	2025-01-01	STOOQ	pkn	16	STOOQ	PLN	41.80190000	43.53180000	41.80190000	43.24280000	\N	4468832.77048588	f	\N	\N	\N	1	2025-01-02	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pkn
-851	2025-01-01	STOOQ	pko	15	STOOQ	PLN	55.93010000	56.34040000	54.68060000	55.25870000	\N	1958279.91280614	f	\N	\N	\N	1	2025-01-02	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pko
-901	2025-01-01	STOOQ	pzu	13	STOOQ	PLN	42.58700000	43.23540000	42.49440000	43.01310000	\N	1378040.63739274	f	\N	\N	\N	1	2025-01-02	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pzu
-951	2025-01-01	INTERPOLATED_XTB	SPYW.DE	\N	INTERPOLATED_XTB	EUR	\N	\N	\N	23.87250000	\N	\N	t	LINEAR_BUSINESS_DAY	2024-12-30	2025-01-03	\N	\N	2026-10-02 09:57:49.429304+00	30	INTERPOLATED_XTB	f	f	1.00000000	\N	\N
-1001	2025-01-01	STOOQ	tsla.us	6	STOOQ	USD	423.79000000	427.93000000	402.54000000	403.84000000	\N	76825121.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	tsla.us
-1101	2025-01-01	STOOQ	vhyd.uk	20	STOOQ	USD	66.26500000	66.65000000	66.26000000	66.51250000	\N	2136.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	vhyd.uk
-1151	2025-01-01	STOOQ	vwra.uk	1	STOOQ	USD	138.78000000	139.40000000	138.70000000	139.34000000	\N	27062.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-02 09:57:49.429304+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	vwra.uk
-1251	2026-08-03	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.03125000	\N	\N	f	\N	\N	\N	\N	2026-08-03	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-04	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.43750000	\N	\N	f	\N	\N	\N	\N	2026-08-04	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-05	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.43750000	\N	\N	f	\N	\N	\N	\N	2026-08-05	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-06	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.09375000	\N	\N	f	\N	\N	\N	\N	2026-08-06	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-07	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.34375000	\N	\N	f	\N	\N	\N	\N	2026-08-07	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-10	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.93750000	\N	\N	f	\N	\N	\N	\N	2026-08-10	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-11	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.03125000	\N	\N	f	\N	\N	\N	\N	2026-08-11	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-12	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.15625000	\N	\N	f	\N	\N	\N	\N	2026-08-12	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-13	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.46875000	\N	\N	f	\N	\N	\N	\N	2026-08-13	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-14	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.18750000	\N	\N	f	\N	\N	\N	\N	2026-08-14	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-17	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.03125000	\N	\N	f	\N	\N	\N	\N	2026-08-17	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-18	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.09375000	\N	\N	f	\N	\N	\N	\N	2026-08-18	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-19	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.37500000	\N	\N	f	\N	\N	\N	\N	2026-08-19	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-20	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.12500000	\N	\N	f	\N	\N	\N	\N	2026-08-20	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-21	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.87500000	\N	\N	f	\N	\N	\N	\N	2026-08-21	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-24	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.00000000	\N	\N	f	\N	\N	\N	\N	2026-08-24	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-25	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.40625000	\N	\N	f	\N	\N	\N	\N	2026-08-25	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-26	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.25000000	\N	\N	f	\N	\N	\N	\N	2026-08-26	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-27	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.15625000	\N	\N	f	\N	\N	\N	\N	2026-08-27	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-28	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.68750000	\N	\N	f	\N	\N	\N	\N	2026-08-28	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-31	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.59375000	\N	\N	f	\N	\N	\N	\N	2026-08-31	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-01	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.28125000	\N	\N	f	\N	\N	\N	\N	2026-09-01	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-02	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.31250000	\N	\N	f	\N	\N	\N	\N	2026-09-02	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-03	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.50000000	\N	\N	f	\N	\N	\N	\N	2026-09-03	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-04	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.37500000	\N	\N	f	\N	\N	\N	\N	2026-09-04	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-08	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.25000000	\N	\N	f	\N	\N	\N	\N	2026-09-08	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-09	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.03125000	\N	\N	f	\N	\N	\N	\N	2026-09-09	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-10	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.28125000	\N	\N	f	\N	\N	\N	\N	2026-09-10	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-11	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.15625000	\N	\N	f	\N	\N	\N	\N	2026-09-11	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-14	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.06250000	\N	\N	f	\N	\N	\N	\N	2026-09-14	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-15	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.90625000	\N	\N	f	\N	\N	\N	\N	2026-09-15	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-16	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.71875000	\N	\N	f	\N	\N	\N	\N	2026-09-16	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-17	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.21875000	\N	\N	f	\N	\N	\N	\N	2026-09-17	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-18	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.78125000	\N	\N	f	\N	\N	\N	\N	2026-09-18	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-21	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.03125000	\N	\N	f	\N	\N	\N	\N	2026-09-21	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-22	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.03125000	\N	\N	f	\N	\N	\N	\N	2026-09-22	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-23	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.09375000	\N	\N	f	\N	\N	\N	\N	2026-09-23	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-24	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.78125000	\N	\N	f	\N	\N	\N	\N	2026-09-24	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-25	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.00000000	\N	\N	f	\N	\N	\N	\N	2026-09-25	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-28	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.59375000	\N	\N	f	\N	\N	\N	\N	2026-09-28	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-29	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.53125000	\N	\N	f	\N	\N	\N	\N	2026-09-29	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-30	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.37500000	\N	\N	f	\N	\N	\N	\N	2026-09-30	2026-10-02 09:57:49.429304+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1201	2025-12-31	HAPPYINVESTOR_FIXTURE	US91282CKB62	\N	FIXTURE	USD	100.00000000	100.00000000	100.00000000	100.00000000	\N	\N	f	\N	\N	\N	\N	2025-12-31	2026-10-02 09:57:49.429304+00	100	FIXTURE_PERCENT_OF_PAR	t	f	1.00000000	\N	T458022826
+1	2025-01-01	STOOQ	aapl.us	11	STOOQ	USD	251.06900000	251.90500000	248.07500000	249.05900000	\N	39696389.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	aapl.us
+51	2025-01-01	STOOQ	ale	17	STOOQ	PLN	27.49500000	28.24000000	27.20000000	28.24000000	\N	1690982.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	ale
+101	2025-01-01	STOOQ	amzn.us	4	STOOQ	USD	222.96500000	223.22990000	218.94000000	219.39000000	\N	24819655.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	amzn.us
+151	2025-01-01	STOOQ	emim.uk	12	STOOQ	USD	2713.00000000	2727.00000000	2712.00000000	2724.00000000	\N	94147.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	90	EXACT_LISTING_SCALED	t	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	emim.uk
+201	2025-01-01	STOOQ	etfbw20tr.pl	14	STOOQ	PLN	42.20500000	42.45500000	41.87000000	42.34000000	\N	19855.00000000	f	\N	\N	\N	1	2025-01-02	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	etfbw20tr.pl
+251	2025-01-01	STOOQ	googl.us	2	STOOQ	USD	191.07500000	191.96000000	188.51000000	189.30000000	\N	17466919.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	googl.us
+301	2025-01-01	STOOQ	hprd.uk	8	STOOQ	USD	20.82000000	20.94250000	20.82000000	20.94250000	\N	1704.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	hprd.uk
+351	2025-01-01	MANUAL	jgpi.de	\N	MANUAL_WEEKLY	EUR	25.30000000	25.39000000	24.92000000	25.25000000	\N	389706.00000000	f	\N	\N	\N	1	2025-01-06	2026-09-30 15:42:10.040623+00	90	MANUAL_WEEKLY_CLOSE	t	f	1.00000000	Manual weekly backfill	jgpi.de
+401	2025-01-01	STOOQ	meta.us	3	STOOQ	USD	592.26500000	593.97000000	583.85000000	585.51000000	\N	6019520.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	meta.us
+451	2025-01-01	STOOQ	msft.us	10	STOOQ	USD	426.10000000	426.73000000	420.66000000	421.50000000	\N	13246509.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	msft.us
+501	2025-01-01	XTB_TRADE_CLOSE	NATGAS	\N	XTB_TRADE_CLOSE	USD	\N	\N	\N	2.94600000	\N	0.01000000	f	\N	\N	\N	1	2024-11-11	2026-09-30 15:42:10.040623+00	60	XTB_TRADE_OBSERVATION	t	f	1.00000000	\N	\N
+551	2025-01-01	STOOQ	nclr.uk	19	STOOQ	USD	24.42500000	24.42500000	24.42500000	24.42500000	\N	0.00000000	f	\N	\N	\N	1	2025-03-13	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nclr.uk
+601	2025-01-01	STOOQ	nucl.uk	18	STOOQ	USD	32.20000000	32.20000000	32.03000000	32.10000000	\N	1671.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nucl.uk
+651	2025-01-01	STOOQ	nvda.us	5	STOOQ	USD	138.03000000	138.07000000	133.83000000	134.29000000	\N	155659211.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	nvda.us
+701	2025-01-01	STOOQ	o.us	7	STOOQ	USD	52.96000000	53.48000000	52.87000000	53.41000000	\N	5643315.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	o.us
+751	2025-01-01	STOOQ	pall.us	21	STOOQ	USD	16.63720000	16.84510000	16.61200000	16.70400000	\N	255610.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pall.us
+801	2025-01-01	STOOQ	pkn	16	STOOQ	PLN	41.80190000	43.53180000	41.80190000	43.24280000	\N	4468832.77048588	f	\N	\N	\N	1	2025-01-02	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pkn
+851	2025-01-01	STOOQ	pko	15	STOOQ	PLN	55.93010000	56.34040000	54.68060000	55.25870000	\N	1958279.91280614	f	\N	\N	\N	1	2025-01-02	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pko
+901	2025-01-01	STOOQ	pzu	13	STOOQ	PLN	42.58700000	43.23540000	42.49440000	43.01310000	\N	1378040.63739274	f	\N	\N	\N	1	2025-01-02	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	pzu
+951	2025-01-01	INTERPOLATED_XTB	SPYW.DE	\N	INTERPOLATED_XTB	EUR	\N	\N	\N	23.87250000	\N	\N	t	LINEAR_BUSINESS_DAY	2024-12-30	2025-01-03	\N	\N	2026-09-30 15:42:10.040623+00	30	INTERPOLATED_XTB	f	f	1.00000000	\N	\N
+1001	2025-01-01	STOOQ	tsla.us	6	STOOQ	USD	423.79000000	427.93000000	402.54000000	403.84000000	\N	76825121.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	tsla.us
+1101	2025-01-01	STOOQ	vhyd.uk	20	STOOQ	USD	66.26500000	66.65000000	66.26000000	66.51250000	\N	2136.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	vhyd.uk
+1151	2025-01-01	STOOQ	vwra.uk	1	STOOQ	USD	138.78000000	139.40000000	138.70000000	139.34000000	\N	27062.00000000	f	\N	\N	\N	1	2024-12-31	2026-09-30 15:42:10.040623+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	vwra.uk
+1201	2025-12-31	HAPPYINVESTOR_FIXTURE	US91282CKB62	\N	FIXTURE	USD	100.00000000	100.00000000	100.00000000	100.00000000	\N	\N	f	\N	\N	\N	\N	2025-12-31	2026-09-30 15:42:10.040623+00	100	FIXTURE_PERCENT_OF_PAR	t	f	1.00000000	\N	T458022826
 \.
 
 
@@ -10606,27 +10358,27 @@ COPY investory.asset_price_history (asset_id, price_date, source, source_symbol,
 --
 
 COPY investory.asset_source_symbols (id, asset_id, source, source_symbol, source_market, price_currency, active, created_at, updated_at, xtb_symbol, match_method, match_status, confidence, is_exact_listing, is_alternate_listing, original_exchange, matched_exchange, original_currency, matched_currency, requires_fx_conversion, price_scale_factor, scale_reason, scale_confidence, scale_observation_count, scale_median_ratio, scale_dispersion, manual_approval_status, substitution_reason) FROM stdin;
-1	1151	STOOQ	vwra.uk	uk/lse etfs/3	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	VWRA	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	HIGH	43	0.99890666	0.00178020	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-2	251	STOOQ	googl.us	us/nasdaq stocks/1	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	GOOGL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	155	0.99915645	0.00461066	AUTO_ACCEPTED	\N
-3	401	STOOQ	meta.us	us/nasdaq stocks/2	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	META.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	120	1.00133297	0.00462610	AUTO_ACCEPTED	\N
-4	101	STOOQ	amzn.us	us/nasdaq stocks/1	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	AMZN.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	107	0.99966079	0.00655302	AUTO_ACCEPTED	\N
-5	651	STOOQ	nvda.us	us/nasdaq stocks/2	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	NVDA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	192	1.00118575	0.00695909	AUTO_ACCEPTED	\N
-6	1001	STOOQ	tsla.us	us/nasdaq stocks/3	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	TSLA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	121	1.00301594	0.01051235	AUTO_ACCEPTED	\N
-7	701	STOOQ	o.us	us/nyse stocks/2	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	O.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	76	0.99889614	0.00433819	AUTO_ACCEPTED	\N
-8	301	STOOQ	hprd.uk	uk/lse etfs/2	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	HPRD	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-9	1051	STOOQ	vhyl.uk	uk/lse etfs/3	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	VHYL	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
-10	451	STOOQ	msft.us	us/nasdaq stocks/2	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	MSFT.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	108	1.00035589	0.00426819	AUTO_ACCEPTED	\N
-11	1	STOOQ	aapl.us	us/nasdaq stocks/1	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	AAPL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	124	1.00318564	0.00398781	AUTO_ACCEPTED	\N
-12	151	STOOQ	emim.uk	uk/lse etfs/1	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	EMIM.UK	EXACT_SYMBOL	ACCEPTED_SCALED	HIGH	t	f	UK	UK	USD	USD	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	MANUAL	2	0.01000626	0.00133110	AUTO_ACCEPTED	\N
-13	901	STOOQ	pzu	pl/wse stocks	PLN	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	PZU.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	45	1.06728790	0.02651832	AUTO_ACCEPTED	\N
-14	201	STOOQ	etfbw20tr.pl	pl/wse etfs	PLN	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	ETFBW20TR.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	59	1.00074716	0.00442657	AUTO_ACCEPTED	\N
-15	851	STOOQ	pko	pl/wse stocks	PLN	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	PKO.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	48	1.06537170	0.01184250	AUTO_ACCEPTED	\N
-16	801	STOOQ	pkn	pl/wse stocks	PLN	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	PKN.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	55	1.13417093	0.01231641	AUTO_ACCEPTED	\N
-17	51	STOOQ	ale	pl/wse stocks	PLN	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	ALE.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	4	0.99693386	0.00657529	AUTO_ACCEPTED	\N
-18	601	STOOQ	nucl.uk	uk/lse etfs/2	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	NUCL.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	16	1.00190817	0.00580955	AUTO_ACCEPTED	\N
-19	551	STOOQ	nclr.uk	uk/lse etfs/2	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	NCLR.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	3	1.01019041	0.01449302	AUTO_ACCEPTED	\N
-20	1101	STOOQ	vhyd.uk	uk/lse etfs/3	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	VHYD.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	29	0.99826191	0.00178553	AUTO_ACCEPTED	\N
-21	751	STOOQ	pall.us	us/nyse etfs/1	USD	t	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	PALL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	\N	2	5.02832373	\N	AUTO_ACCEPTED	\N
+1	1151	STOOQ	vwra.uk	uk/lse etfs/3	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	VWRA	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	HIGH	43	0.99890666	0.00178020	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+2	251	STOOQ	googl.us	us/nasdaq stocks/1	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	GOOGL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	155	0.99915645	0.00461066	AUTO_ACCEPTED	\N
+3	401	STOOQ	meta.us	us/nasdaq stocks/2	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	META.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	120	1.00133297	0.00462610	AUTO_ACCEPTED	\N
+4	101	STOOQ	amzn.us	us/nasdaq stocks/1	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	AMZN.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	107	0.99966079	0.00655302	AUTO_ACCEPTED	\N
+5	651	STOOQ	nvda.us	us/nasdaq stocks/2	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	NVDA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	192	1.00118575	0.00695909	AUTO_ACCEPTED	\N
+6	1001	STOOQ	tsla.us	us/nasdaq stocks/3	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	TSLA.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	121	1.00301594	0.01051235	AUTO_ACCEPTED	\N
+7	701	STOOQ	o.us	us/nyse stocks/2	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	O.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	76	0.99889614	0.00433819	AUTO_ACCEPTED	\N
+8	301	STOOQ	hprd.uk	uk/lse etfs/2	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	HPRD	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+9	1051	STOOQ	vhyl.uk	uk/lse etfs/3	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	VHYL	MANUAL_ALTERNATE_LISTING	ACCEPTED_ALTERNATE_LISTING	MEDIUM	f	t	US	UK	USD	USD	f	1.00000000	\N	\N	0	\N	\N	APPROVED_IN_GENERATOR	manual approved UK ETF listing available in supplied Stooq data
+10	451	STOOQ	msft.us	us/nasdaq stocks/2	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	MSFT.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	108	1.00035589	0.00426819	AUTO_ACCEPTED	\N
+11	1	STOOQ	aapl.us	us/nasdaq stocks/1	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	AAPL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	HIGH	124	1.00318564	0.00398781	AUTO_ACCEPTED	\N
+12	151	STOOQ	emim.uk	uk/lse etfs/1	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	EMIM.UK	EXACT_SYMBOL	ACCEPTED_SCALED	HIGH	t	f	UK	UK	USD	USD	f	0.01000000	manual reviewed UK price-unit normalization based on XTB/Stooq same-date checks	MANUAL	2	0.01000626	0.00133110	AUTO_ACCEPTED	\N
+13	901	STOOQ	pzu	pl/wse stocks	PLN	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	PZU.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	45	1.06728790	0.02651832	AUTO_ACCEPTED	\N
+14	201	STOOQ	etfbw20tr.pl	pl/wse etfs	PLN	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	ETFBW20TR.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	59	1.00074716	0.00442657	AUTO_ACCEPTED	\N
+15	851	STOOQ	pko	pl/wse stocks	PLN	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	PKO.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	48	1.06537170	0.01184250	AUTO_ACCEPTED	\N
+16	801	STOOQ	pkn	pl/wse stocks	PLN	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	PKN.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	MEDIUM	55	1.13417093	0.01231641	AUTO_ACCEPTED	\N
+17	51	STOOQ	ale	pl/wse stocks	PLN	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	ALE.PL	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	PL	PL	PLN	PLN	f	1.00000000	\N	HIGH	4	0.99693386	0.00657529	AUTO_ACCEPTED	\N
+18	601	STOOQ	nucl.uk	uk/lse etfs/2	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	NUCL.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	16	1.00190817	0.00580955	AUTO_ACCEPTED	\N
+19	551	STOOQ	nclr.uk	uk/lse etfs/2	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	NCLR.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	3	1.01019041	0.01449302	AUTO_ACCEPTED	\N
+20	1101	STOOQ	vhyd.uk	uk/lse etfs/3	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	VHYD.UK	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	UK	UK	USD	USD	f	1.00000000	\N	HIGH	29	0.99826191	0.00178553	AUTO_ACCEPTED	\N
+21	751	STOOQ	pall.us	us/nyse etfs/1	USD	t	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	PALL.US	EXACT_SYMBOL	ACCEPTED_EXACT	HIGH	t	f	US	US	USD	USD	f	1.00000000	\N	\N	2	5.02832373	\N	AUTO_ACCEPTED	\N
 \.
 
 
@@ -10679,7 +10431,7 @@ COPY investory.assets (id, name, symbol, ticker, ibkr, yahoo, country, currency,
 1001	Tesla, Inc.	TSLA.US	TSLA	TSLA	\N	US	USD	EQUITY	\N	\N	\N	f	f	403.84000000	403.84000000	STOOQ	2025-01-01 11:00:00+00
 1151	Vanguard FTSE All-World UCITS ETF (USD) Accumulating	VWRA.UK	VWRA	VWRA	VWRA.L	UK	USD	ETF	\N	\N	\N	t	f	139.34000000	139.34000000	STOOQ	2025-01-01 11:00:00+00
 1201	United States Treasury 4 5/8 02/28/26	US91282CKB62	US91282CKB62	T458022826	\N	US	USD	BOND	US91282CKB62	\N	\N	f	f	0.01000000	0.01000000	STOOQ	2025-01-01 11:00:00+00
-1251	United States Treasury 4 3/8 07/31/33	US91282CRC72	US91282CRC72	T438073133	\N	US	USD	BOND	US91282CRC72	\N	\N	t	f	0.95375000	0.95375000	FEDINVEST	2026-09-30 10:00:00+00
+1251	United States Treasury 4 3/8 07/31/33	US91282CRC72	US91282CRC72	T438073133	\N	US	USD	BOND	US91282CRC72	\N	\N	t	f	0.98810000	0.98810000	STOOQ	2025-01-01 11:00:00+00
 \.
 
 
@@ -10696,8 +10448,8 @@ COPY investory.benchmark_monthly_closes (id, symbol, month, close_price, fetched
 --
 
 COPY investory.bond (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9405	2	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00
-9407	2	United States Treasury 4 3/8 07/31/33	PLN	10000.000000000000	2026-08-03	0.043750000000	2033-07-31	\N	Happy Investor reinvestment of Treasury 2026 principal	\N	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00
+9405	2	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00
+9407	2	United States Treasury 4 3/8 07/31/33	PLN	10000.000000000000	2026-03-01	0.043750000000	2033-07-31	\N	Happy Investor reinvestment of Treasury 2026 principal	\N	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00
 \.
 
 
@@ -10731,8 +10483,8 @@ COPY investory.cash_operations (id, account_id, operation, asset_id, source_asse
 7025	91000001	WITHDRAWAL	\N	\N	\N	-7934.73331300	USD	Happy Investor boundary withdrawal of residual brokerage cash	2025-12-31 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
 7022	91000002	CLOSE_TRADE	501	NATGAS	NATGAS	19.80000000	USD	NATGAS CFD 2040572606 close (gross 105.90 net of -86.10 rollover)	2025-09-26 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
 7023	91000002	SWAP	501	NATGAS	NATGAS	-0.68000000	USD	NATGAS CFD 2040572606 swap	2025-09-26 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7026	91000001	TRANSFER	1201	US91282CKB62	T458022826	10000.00000000	USD	Full call / early redemption for USD 1.00 per Bond	2026-02-28 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
-7027	91000001	STOCK_PURCHASE	1251	US91282CRC72	T438073133	-9903.12500000	USD	Treasury principal reinvestment on first trading date	2026-08-03 10:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7026	91000001	TRANSFER	1201	US91282CKB62	T458022826	10000.00000000	USD	Full call redemption principal returned	2026-02-28 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
+7027	91000001	STOCK_PURCHASE	1251	US91282CRC72	T438073133	-10000.00000000	USD	Next-day Treasury principal reinvestment	2026-03-01 11:00:00+00	\N	\N	\N	\N	\N	\N	\N	\N
 \.
 
 
@@ -10741,8 +10493,8 @@ COPY investory.cash_operations (id, account_id, operation, asset_id, source_asse
 --
 
 COPY investory.cash_reserve (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9406	2	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00
-9401	2	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00
+9406	2	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00
+9401	2	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00
 \.
 
 
@@ -10770,126 +10522,126 @@ COPY investory.drawdown_alert_state (id, peak_equity, last_alert_at) FROM stdin;
 --
 
 COPY investory.exchange_rates (id, rate_date, base, to_currency, rate, purpose, source, method, source_rate_date, observed_at, source_reference, imported_at) FROM stdin;
-1	2024-07-31	EUR	USD	1.08223900	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-2	2024-07-31	EUR	PLN	4.29529837	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-3	2024-07-31	USD	PLN	3.96890000	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-4	2024-07-31	PLN	USD	0.25195898	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-5	2025-03-01	EUR	USD	1.03955700	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-6	2025-03-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-7	2025-03-01	USD	PLN	3.99930000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-8	2025-03-01	PLN	USD	0.25099000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-9	2025-04-01	EUR	USD	1.08270600	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-10	2025-04-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-11	2025-04-01	USD	PLN	3.86430000	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-12	2025-04-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-13	2025-05-01	EUR	USD	1.13719900	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-14	2025-05-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-15	2025-05-01	USD	PLN	3.76170000	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-16	2025-05-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-17	2025-06-01	EUR	USD	1.13240300	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-18	2025-06-01	EUR	PLN	4.22199000	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-19	2025-06-01	USD	PLN	3.75370000	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-20	2025-06-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-21	2025-07-01	EUR	USD	1.17296200	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-22	2025-07-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-23	2025-07-01	USD	PLN	3.61640000	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-24	2025-07-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-25	2025-08-01	EUR	USD	1.14504700	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-26	2025-08-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-27	2025-08-01	USD	PLN	3.72570000	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-28	2025-08-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-29	2025-09-01	EUR	USD	1.16753700	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-30	2025-09-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-31	2025-09-01	USD	PLN	3.65590000	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-32	2025-09-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-33	2025-10-01	EUR	USD	1.17560200	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-34	2025-10-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-35	2025-10-01	USD	PLN	3.63150000	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-36	2025-10-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-37	2025-11-01	EUR	USD	1.15760100	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-38	2025-11-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-39	2025-11-01	USD	PLN	3.67510000	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-40	2025-11-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-41	2025-12-01	EUR	USD	1.15686400	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-42	2025-12-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-43	2025-12-01	USD	PLN	3.66240000	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-44	2025-12-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-45	2025-12-31	EUR	USD	1.17356200	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-46	2025-12-31	EUR	PLN	4.22670090	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-47	2025-12-31	USD	PLN	3.60160000	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-48	2025-12-31	PLN	USD	0.27765434	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-49	2026-01-01	EUR	USD	1.17356200	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-50	2026-01-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-51	2026-01-01	USD	PLN	3.60160000	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-52	2026-01-01	PLN	USD	0.27703500	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-53	2026-02-01	EUR	USD	1.19084800	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-54	2026-02-01	EUR	PLN	4.18726300	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-55	2026-02-01	USD	PLN	3.53790000	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-56	2026-02-01	PLN	USD	0.27633400	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-57	2026-03-01	EUR	USD	1.17956100	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-58	2026-03-01	EUR	PLN	4.18726300	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-59	2026-03-01	USD	PLN	3.58040000	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-60	2026-03-01	PLN	USD	0.27633400	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-61	2026-04-01	EUR	USD	1.14665300	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-62	2026-04-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-63	2026-04-01	USD	PLN	3.74080000	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-64	2026-04-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-65	2026-05-01	EUR	USD	1.16810200	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-66	2026-05-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-67	2026-05-01	USD	PLN	3.64600000	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-68	2026-05-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-69	2026-06-01	EUR	USD	1.16285200	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-70	2026-06-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-71	2026-06-01	USD	PLN	3.63950000	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-72	2026-06-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-73	2026-07-01	EUR	USD	1.13936000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-74	2026-07-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-75	2026-07-01	USD	PLN	3.77080000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-76	2026-07-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-77	2026-08-01	EUR	USD	1.15238500	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:EUR:USD	2026-10-02 09:57:49.429304+00
-78	2026-08-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:EUR:PLN	2026-10-02 09:57:49.429304+00
-79	2026-08-01	USD	PLN	3.74250000	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:USD:PLN	2026-10-02 09:57:49.429304+00
-80	2026-08-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:PLN:USD	2026-10-02 09:57:49.429304+00
-81	2024-07-31	USD	EUR	0.92401032	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-82	2025-03-01	USD	EUR	0.96194821	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-83	2025-04-01	USD	EUR	0.92361177	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-84	2025-05-01	USD	EUR	0.87935357	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-85	2025-06-01	USD	EUR	0.88307784	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-86	2025-07-01	USD	EUR	0.85254254	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-87	2025-08-01	USD	EUR	0.87332660	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-88	2025-09-01	USD	EUR	0.85650391	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-89	2025-10-01	USD	EUR	0.85062802	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-90	2025-11-01	USD	EUR	0.86385551	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-91	2025-12-01	USD	EUR	0.86440584	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-92	2025-12-31	USD	EUR	0.85210666	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-93	2026-01-01	USD	EUR	0.85210666	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-94	2026-02-01	USD	EUR	0.83973773	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-95	2026-03-01	USD	EUR	0.84777303	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-96	2026-04-01	USD	EUR	0.87210342	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-97	2026-05-01	USD	EUR	0.85608962	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-98	2026-06-01	USD	EUR	0.85995466	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-99	2026-07-01	USD	EUR	0.87768572	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-100	2026-08-01	USD	EUR	0.86776555	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:USD:EUR	2026-10-02 09:57:49.429304+00
-101	2024-07-31	PLN	EUR	0.23281270	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-102	2025-03-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-103	2025-04-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-104	2025-05-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-105	2025-06-01	PLN	EUR	0.23685513	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-106	2025-07-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-107	2025-08-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-108	2025-09-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-109	2025-10-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-110	2025-11-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-111	2025-12-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-112	2025-12-31	PLN	EUR	0.23659114	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-113	2026-01-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-114	2026-02-01	PLN	EUR	0.23881949	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-115	2026-03-01	PLN	EUR	0.23881949	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-116	2026-04-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-117	2026-05-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-118	2026-06-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-119	2026-07-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
-120	2026-08-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:PLN:EUR	2026-10-02 09:57:49.429304+00
+1	2024-07-31	EUR	USD	1.08223900	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+2	2024-07-31	EUR	PLN	4.29529837	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+3	2024-07-31	USD	PLN	3.96890000	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+4	2024-07-31	PLN	USD	0.25195898	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+5	2025-03-01	EUR	USD	1.03955700	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+6	2025-03-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+7	2025-03-01	USD	PLN	3.99930000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+8	2025-03-01	PLN	USD	0.25099000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+9	2025-04-01	EUR	USD	1.08270600	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+10	2025-04-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+11	2025-04-01	USD	PLN	3.86430000	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+12	2025-04-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+13	2025-05-01	EUR	USD	1.13719900	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+14	2025-05-01	EUR	PLN	4.20964008	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+15	2025-05-01	USD	PLN	3.76170000	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+16	2025-05-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+17	2025-06-01	EUR	USD	1.13240300	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+18	2025-06-01	EUR	PLN	4.22199000	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+19	2025-06-01	USD	PLN	3.75370000	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+20	2025-06-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+21	2025-07-01	EUR	USD	1.17296200	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+22	2025-07-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+23	2025-07-01	USD	PLN	3.61640000	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+24	2025-07-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+25	2025-08-01	EUR	USD	1.14504700	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+26	2025-08-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+27	2025-08-01	USD	PLN	3.72570000	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+28	2025-08-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+29	2025-09-01	EUR	USD	1.16753700	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+30	2025-09-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+31	2025-09-01	USD	PLN	3.65590000	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+32	2025-09-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+33	2025-10-01	EUR	USD	1.17560200	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+34	2025-10-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+35	2025-10-01	USD	PLN	3.63150000	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+36	2025-10-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+37	2025-11-01	EUR	USD	1.15760100	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+38	2025-11-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+39	2025-11-01	USD	PLN	3.67510000	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+40	2025-11-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+41	2025-12-01	EUR	USD	1.15686400	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+42	2025-12-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+43	2025-12-01	USD	PLN	3.66240000	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+44	2025-12-01	PLN	USD	0.25860800	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+45	2025-12-31	EUR	USD	1.17356200	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+46	2025-12-31	EUR	PLN	4.22670090	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+47	2025-12-31	USD	PLN	3.60160000	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+48	2025-12-31	PLN	USD	0.27765434	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+49	2026-01-01	EUR	USD	1.17356200	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+50	2026-01-01	EUR	PLN	4.25373100	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+51	2026-01-01	USD	PLN	3.60160000	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+52	2026-01-01	PLN	USD	0.27703500	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+53	2026-02-01	EUR	USD	1.19084800	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+54	2026-02-01	EUR	PLN	4.18726300	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+55	2026-02-01	USD	PLN	3.53790000	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+56	2026-02-01	PLN	USD	0.27633400	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+57	2026-03-01	EUR	USD	1.17956100	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+58	2026-03-01	EUR	PLN	4.18726300	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+59	2026-03-01	USD	PLN	3.58040000	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+60	2026-03-01	PLN	USD	0.27633400	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+61	2026-04-01	EUR	USD	1.14665300	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+62	2026-04-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+63	2026-04-01	USD	PLN	3.74080000	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+64	2026-04-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+65	2026-05-01	EUR	USD	1.16810200	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+66	2026-05-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+67	2026-05-01	USD	PLN	3.64600000	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+68	2026-05-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+69	2026-06-01	EUR	USD	1.16285200	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+70	2026-06-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+71	2026-06-01	USD	PLN	3.63950000	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+72	2026-06-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+73	2026-07-01	EUR	USD	1.13936000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+74	2026-07-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+75	2026-07-01	USD	PLN	3.77080000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+76	2026-07-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+77	2026-08-01	EUR	USD	1.15238500	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:EUR:USD	2026-09-30 15:42:10.040623+00
+78	2026-08-01	EUR	PLN	4.25313400	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:EUR:PLN	2026-09-30 15:42:10.040623+00
+79	2026-08-01	USD	PLN	3.74250000	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:USD:PLN	2026-09-30 15:42:10.040623+00
+80	2026-08-01	PLN	USD	0.26849000	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:PLN:USD	2026-09-30 15:42:10.040623+00
+81	2024-07-31	USD	EUR	0.92401032	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+82	2025-03-01	USD	EUR	0.96194821	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+83	2025-04-01	USD	EUR	0.92361177	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+84	2025-05-01	USD	EUR	0.87935357	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+85	2025-06-01	USD	EUR	0.88307784	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+86	2025-07-01	USD	EUR	0.85254254	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+87	2025-08-01	USD	EUR	0.87332660	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+88	2025-09-01	USD	EUR	0.85650391	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+89	2025-10-01	USD	EUR	0.85062802	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+90	2025-11-01	USD	EUR	0.86385551	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+91	2025-12-01	USD	EUR	0.86440584	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+92	2025-12-31	USD	EUR	0.85210666	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+93	2026-01-01	USD	EUR	0.85210666	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+94	2026-02-01	USD	EUR	0.83973773	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+95	2026-03-01	USD	EUR	0.84777303	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+96	2026-04-01	USD	EUR	0.87210342	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+97	2026-05-01	USD	EUR	0.85608962	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+98	2026-06-01	USD	EUR	0.85995466	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+99	2026-07-01	USD	EUR	0.87768572	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+100	2026-08-01	USD	EUR	0.86776555	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:USD:EUR	2026-09-30 15:42:10.040623+00
+101	2024-07-31	PLN	EUR	0.23281270	VALUATION	DB60_INITIAL	OBSERVED	2024-07-31	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+102	2025-03-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-03-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+103	2025-04-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-04-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+104	2025-05-01	PLN	EUR	0.23755000	VALUATION	DB60_INITIAL	OBSERVED	2025-05-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+105	2025-06-01	PLN	EUR	0.23685513	VALUATION	DB60_INITIAL	OBSERVED	2025-06-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+106	2025-07-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-07-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+107	2025-08-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-08-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+108	2025-09-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-09-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+109	2025-10-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-10-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+110	2025-11-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-11-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+111	2025-12-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2025-12-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+112	2025-12-31	PLN	EUR	0.23659114	VALUATION	DB60_INITIAL	OBSERVED	2025-12-31	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+113	2026-01-01	PLN	EUR	0.23508774	VALUATION	DB60_INITIAL	OBSERVED	2026-01-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+114	2026-02-01	PLN	EUR	0.23881949	VALUATION	DB60_INITIAL	OBSERVED	2026-02-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+115	2026-03-01	PLN	EUR	0.23881949	VALUATION	DB60_INITIAL	OBSERVED	2026-03-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+116	2026-04-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-04-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+117	2026-05-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-05-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+118	2026-06-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-06-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+119	2026-07-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-07-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
+120	2026-08-01	PLN	EUR	0.23512074	VALUATION	DB60_INITIAL	OBSERVED	2026-08-01	\N	V01.003:DB60:PLN:EUR	2026-09-30 15:42:10.040623+00
 \.
 
 
@@ -10989,7 +10741,7 @@ COPY investory.notification_event (id, event_type, severity, portfolio_id, sourc
 --
 
 COPY investory.personal_asset (id, portfolio_id, name, category, currency, value, acquisition_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9404	2	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00
+9404	2	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00
 \.
 
 
@@ -10998,8 +10750,8 @@ COPY investory.personal_asset (id, portfolio_id, name, category, currency, value
 --
 
 COPY investory.portfolios (id, name, base_currency, local_currency, owner, user_id, created_at) FROM stdin;
-1	Sample Portfolio	USD	PLN	Sample User	1	2026-10-02 09:57:49.429304+00
-2	Happy Investor Portfolio	PLN	PLN	Happy Investor	2	2026-10-02 09:57:49.429304+00
+1	Sample Portfolio	USD	PLN	Sample User	1	2026-09-30 15:42:10.040623+00
+2	Happy Investor Portfolio	PLN	PLN	Happy Investor	2	2026-09-30 15:42:10.040623+00
 \.
 
 
@@ -11018,7 +10770,7 @@ COPY investory.positions (id, account_id, asset_id, source_asset_symbol, broker_
 7108	91000001	451	MSFT.US	MSFT	\N	\N	1	BUY	CASH_SETTLED	10.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	100.00000000	100.00000000	1.00000000	\N	\N	\N	\N	1000.00000000	1000.00000000	\N	\N	-1.00000000	\N	0.00000000	\N	\N
 7110	91000002	501	NATGAS	NATGAS	\N	\N	1	BUY	RESULT_ONLY	0.01000000	USD	USD	USD	USD	2025-09-26 10:00:00+00	2.94600000	2.94600000	1.00000000	2025-09-26 10:00:00+00	\N	\N	\N	0.02946000	0.02946000	\N	\N	0.00000000	-0.68000000	19.12000000	\N	\N
 7111	91000001	1201	US91282CKB62	T458022826	\N	\N	1	BUY	CASH_SETTLED	10000.00000000	USD	USD	USD	USD	2024-07-31 10:00:00+00	1.00000000	1.00000000	1.00000000	2026-02-28 11:00:00+00	1.00000000	1.00000000	1.00000000	10000.00000000	10000.00000000	10000.00000000	\N	0.00000000	\N	0.00000000	\N	\N
-7112	91000001	1251	US91282CRC72	T438073133	\N	\N	1	BUY	CASH_SETTLED	10000.00000000	USD	USD	USD	USD	2026-08-03 10:00:00+00	0.99031250	0.99031250	1.00000000	\N	\N	\N	\N	9903.12500000	9903.12500000	\N	\N	0.00000000	\N	0.00000000	\N	\N
+7112	91000001	1251	US91282CRC72	T438073133	\N	\N	1	BUY	CASH_SETTLED	10000.00000000	USD	USD	USD	USD	2026-03-01 11:00:00+00	1.00000000	1.00000000	1.00000000	\N	\N	\N	\N	10000.00000000	10000.00000000	\N	\N	0.00000000	\N	0.00000000	\N	\N
 \.
 
 
@@ -11027,8 +10779,8 @@ COPY investory.positions (id, account_id, asset_id, source_asset_symbol, broker_
 --
 
 COPY investory.profile_memberships (user_id, profile_id, role, created_at) FROM stdin;
-1	1	OWNER	2026-10-02 09:57:49.429304+00
-2	2	OWNER	2026-10-02 09:57:49.429304+00
+1	1	OWNER	2026-09-30 15:42:10.040623+00
+2	2	OWNER	2026-09-30 15:42:10.040623+00
 \.
 
 
@@ -11047,8 +10799,8 @@ IBKR
 --
 
 COPY investory.real_estate (id, portfolio_id, name, currency, value, tax_base, acquisition_date, land_register_number, archived_at, notes, external_key, created_at, updated_at, acquisition_value) FROM stdin;
-9402	2	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	TEST-LAND-REGISTER-001	\N	Happy Investor canonical profile	\N	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	\N
-9403	2	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00	\N
+9402	2	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	TEST-LAND-REGISTER-001	\N	Happy Investor canonical profile	\N	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	\N
+9403	2	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00	\N
 \.
 
 
@@ -11106,9 +10858,9 @@ reconciliation_price_scale_ten_lower_ratio	9.500000000000	Lower boundary for a p
 --
 
 COPY investory.rental_contract (id, real_estate_id, start_date, end_date, terminated_date, bootstrap_managed, tenant_name, tenant_email, tenant_phone, notes, created_at, updated_at) FROM stdin;
-9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00
-9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00
-9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00
+9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00
+9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00
+9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00
 \.
 
 
@@ -11128,32 +10880,6 @@ COPY investory.rental_contract_term (id, rental_contract_id, cash_flow_type, amo
 
 
 --
--- Data for Name: retirement_annual_cost_groups; Type: TABLE DATA; Schema: investory; Owner: -
---
-
-COPY investory.retirement_annual_cost_groups (id, name, monthly_amount, sort_order, created_at, updated_at, year_id) FROM stdin;
-\.
-
-
---
--- Data for Name: retirement_annual_cost_years; Type: TABLE DATA; Schema: investory; Owner: -
---
-
-COPY investory.retirement_annual_cost_years (id, plan_id, year, created_at) FROM stdin;
-\.
-
-
---
--- Data for Name: retirement_currency_conversions; Type: TABLE DATA; Schema: investory; Owner: -
---
-
-COPY investory.retirement_currency_conversions (migration_key, portfolio_id, source_currency, target_currency, rate, rate_date, planning_years_converted, converted_at) FROM stdin;
-V01.022	1	USD	PLN	3.742500000000	2026-10-02	t	2026-10-02 09:57:49.429304+00
-V01.022	2	PLN	PLN	1.000000000000	2026-10-02	t	2026-10-02 09:57:49.429304+00
-\.
-
-
---
 -- Data for Name: retirement_plan_events; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
@@ -11166,7 +10892,7 @@ COPY investory.retirement_plan_events (id, plan_id, event_year, name, amount, ev
 --
 
 COPY investory.retirement_planning_years (id, portfolio_id, planning_year, status, state, created_at, updated_at) FROM stdin;
-9301	2	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-10-02 09:57:49.429304+00	2026-10-02 09:57:49.429304+00
+9301	2	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-09-30 15:42:10.040623+00	2026-09-30 15:42:10.040623+00
 \.
 
 
@@ -11341,20 +11067,6 @@ SELECT pg_catalog.setval('investory.rental_contract_id_seq', 1, false);
 --
 
 SELECT pg_catalog.setval('investory.rental_contract_term_id_seq', 7, true);
-
-
---
--- Name: retirement_annual_cost_groups_id_seq; Type: SEQUENCE SET; Schema: investory; Owner: -
---
-
-SELECT pg_catalog.setval('investory.retirement_annual_cost_groups_id_seq', 1, false);
-
-
---
--- Name: retirement_annual_cost_years_id_seq; Type: SEQUENCE SET; Schema: investory; Owner: -
---
-
-SELECT pg_catalog.setval('investory.retirement_annual_cost_years_id_seq', 1, false);
 
 
 --
@@ -11698,30 +11410,6 @@ ALTER TABLE ONLY investory.rental_contract_term
 
 
 --
--- Name: retirement_annual_cost_groups retirement_annual_cost_groups_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.retirement_annual_cost_groups
-    ADD CONSTRAINT retirement_annual_cost_groups_pkey PRIMARY KEY (id);
-
-
---
--- Name: retirement_annual_cost_years retirement_annual_cost_years_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.retirement_annual_cost_years
-    ADD CONSTRAINT retirement_annual_cost_years_pkey PRIMARY KEY (id);
-
-
---
--- Name: retirement_currency_conversions retirement_currency_conversions_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.retirement_currency_conversions
-    ADD CONSTRAINT retirement_currency_conversions_pkey PRIMARY KEY (migration_key, portfolio_id);
-
-
---
 -- Name: retirement_plan_events retirement_plan_events_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
@@ -11801,22 +11489,6 @@ ALTER TABLE ONLY investory.notification_event
 
 
 --
--- Name: retirement_annual_cost_groups uq_retirement_annual_cost_groups_year_name; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.retirement_annual_cost_groups
-    ADD CONSTRAINT uq_retirement_annual_cost_groups_year_name UNIQUE (year_id, name);
-
-
---
--- Name: retirement_annual_cost_years uq_retirement_annual_cost_years_plan_year; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.retirement_annual_cost_years
-    ADD CONSTRAINT uq_retirement_annual_cost_years_plan_year UNIQUE (plan_id, year);
-
-
---
 -- Name: accounts ux_accounts_portfolio_provider_external_account; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
@@ -11861,13 +11533,6 @@ ALTER TABLE ONLY investory.yahoo_export_state
 --
 
 CREATE INDEX idx_recon_trade_settlement_status ON investory.recon_v_trade_settlement USING btree (reconciliation_status, anomaly_code, valuation_date DESC);
-
-
---
--- Name: idx_retirement_annual_cost_groups_year_order; Type: INDEX; Schema: investory; Owner: -
---
-
-CREATE INDEX idx_retirement_annual_cost_groups_year_order ON investory.retirement_annual_cost_groups USING btree (year_id, sort_order, id);
 
 
 --
@@ -12780,14 +12445,6 @@ ALTER TABLE ONLY investory.exchange_rates
 
 
 --
--- Name: retirement_annual_cost_groups fk_retirement_annual_cost_groups_year; Type: FK CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.retirement_annual_cost_groups
-    ADD CONSTRAINT fk_retirement_annual_cost_groups_year FOREIGN KEY (year_id) REFERENCES investory.retirement_annual_cost_years(id) ON DELETE CASCADE;
-
-
---
 -- Name: import_history import_history_portfolio_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
 --
 
@@ -13033,22 +12690,6 @@ ALTER TABLE ONLY investory.rental_contract
 
 ALTER TABLE ONLY investory.rental_contract_term
     ADD CONSTRAINT rental_contract_term_rental_contract_id_fkey FOREIGN KEY (rental_contract_id) REFERENCES investory.rental_contract(id) ON DELETE CASCADE;
-
-
---
--- Name: retirement_annual_cost_years retirement_annual_cost_years_plan_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.retirement_annual_cost_years
-    ADD CONSTRAINT retirement_annual_cost_years_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES investory.retirement_plans(id) ON DELETE CASCADE;
-
-
---
--- Name: retirement_currency_conversions retirement_currency_conversions_portfolio_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.retirement_currency_conversions
-    ADD CONSTRAINT retirement_currency_conversions_portfolio_id_fkey FOREIGN KEY (portfolio_id) REFERENCES investory.portfolios(id) ON DELETE CASCADE;
 
 
 --
