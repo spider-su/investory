@@ -60,9 +60,8 @@ class HappyInvestorFactsTest {
   void documentsTreasuryLifecycleAndPostReinvestmentIncome() {
     assertThat(HappyInvestorLongTermFacts.REINVESTMENT_DATE)
         .isEqualTo(HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_FIRST_TRADING_DATE);
-    assertThat(
-            HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.multiply(
-                HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_FIRST_TRADING_UNIT_PRICE))
+    assertThat(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.multiply(
+            HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_FIRST_TRADING_UNIT_PRICE))
         .isEqualByComparingTo(HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_PURCHASE_COST);
     assertThat(HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_RESIDUAL_CASH)
         .isEqualByComparingTo("96.875");
