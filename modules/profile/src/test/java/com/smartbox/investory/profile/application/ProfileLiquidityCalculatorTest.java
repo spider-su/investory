@@ -148,6 +148,22 @@ class ProfileLiquidityCalculatorTest {
   }
 
   @Test
+  void negativeBrokerageCashReducesLiquidAssets() {
+    var calculator = new ProfileLiquidityCalculator(new ProfileCurrencyNormalizer(mock()));
+    var result =
+        calculator.calculate(
+            Map.of(),
+            List.of(),
+            new BigDecimal("-25"),
+            new BigDecimal("75"),
+            CurrencyType.USD,
+            AS_OF);
+
+    assertThat(result.liquid()).isEqualByComparingTo("-25");
+    assertThat(result.reserve()).isZero();
+  }
+
+  @Test
   void excludesLockedCashFromLiquidAssetsAndRetirementReserve() {
     var calculator = new ProfileLiquidityCalculator(new ProfileCurrencyNormalizer(mock()));
     Map<ProfileAllocationCalculator.AllocationKey, BigDecimal> values =
@@ -191,10 +207,6 @@ class ProfileLiquidityCalculatorTest {
         new LongTermAssetProfileAssetModel(
             AssetEconomicCategory.LIQUID_CASH, CurrencyType.USD, new BigDecimal("350"), true);
     Map<ProfileAllocationCalculator.AllocationKey, BigDecimal> values = new LinkedHashMap<>();
-    values.put(
-        new ProfileAllocationCalculator.AllocationKey(
-            EconomicBucket.LIQUID_CASH, AssetHorizon.SHORT_TERM, Liquidity.LIQUID),
-        new BigDecimal("-100"));
     values.put(
         new ProfileAllocationCalculator.AllocationKey(
             EconomicBucket.LIQUID_CASH, AssetHorizon.LONG_TERM, Liquidity.LIQUID),
