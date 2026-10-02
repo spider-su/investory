@@ -85,6 +85,12 @@ observed current-calendar-year period; YTD values remain separately identified. 
 Investment summary provides annual expected investment result and YTD investment result as separate
 fields.
 
+Profile annual income projections combine annual Long-Term income with annualized Brokerage YTD
+income when the canonical Investment income summary is unavailable. The fallback annualizes the
+observed current-calendar-year period; YTD values remain separately identified. The canonical
+Investment summary provides annual expected investment result and YTD investment result as separate
+fields.
+
 ## Headline ROI
 
 Headline ROI is:
