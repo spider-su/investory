@@ -123,9 +123,9 @@ public class ProfileQueryService implements ProfileSnapshotReader {
         brokeragePortfolioReadService.incomeForMonths(
             portfolioId, YearMonth.of(date.getYear(), 1), YearMonth.from(date));
     CurrencyType incomeCurrency =
-        incomeSnapshot == null || incomeSnapshot.baseCurrency() == null
+        incomeSnapshot == null
             ? market.baseCurrency()
-            : incomeSnapshot.baseCurrency();
+            : Objects.requireNonNull(incomeSnapshot.baseCurrency(), "Brokerage income currency");
     BigDecimal marketIncome =
         incomeSnapshot == null
             ? currencyNormalizer.toBase(
