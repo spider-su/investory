@@ -94,7 +94,7 @@ public class DashboardOperationalContextService {
             quality.latestFxMonth(),
             portfolio.getExchangeRates() == null ? 0 : portfolio.getExchangeRates().size() + 1),
         valuation,
-        yahoo(secondaryAdapterStatus));
+        yahoo(portfolioId, secondaryAdapterStatus));
   }
 
   private long countReportingAccounts(
@@ -111,9 +111,10 @@ public class DashboardOperationalContextService {
         : accountStatistics.size();
   }
 
-  private DashboardOperationalView.YahooContext yahoo(SecondaryAdapterStatusReader service) {
+  private DashboardOperationalView.YahooContext yahoo(
+      Long portfolioId, SecondaryAdapterStatusReader service) {
     if (service == null) return new DashboardOperationalView.YahooContext(null, false);
-    SecondaryAdapterStatusReader.ExportStatus status = service.status();
+    SecondaryAdapterStatusReader.ExportStatus status = service.status(portfolioId);
     return new DashboardOperationalView.YahooContext(status.lastExport(), status.upToDate());
   }
 
