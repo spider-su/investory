@@ -269,7 +269,7 @@ class FlywayMigrationChainIT {
               + "VALUES (88000001,'TEST','TEMP.TEST','USD',true,true,1)");
       statement.execute(
           "INSERT INTO investory.asset_price_history(asset_id,price_date,source,source_symbol,source_mapping_id,price_origin,price_currency,close_price,quality_class,is_observed,is_proxy,price_scale_factor) "
-              + "SELECT 88000001,v.d,'TEST','TEMP.TEST',m.id,'MARKET_DATA',v.currency,v.price,'OBSERVED',true,false,1 "
+              + "SELECT 88000001,v.d,'TEST','TEMP.TEST',m.id,'MARKET_DATA',v.currency,v.price,'EXACT_LISTING_MARKET_CLOSE',true,false,1 "
               + "FROM investory.asset_source_symbols m CROSS JOIN (VALUES "
               + "(DATE '2025-01-10','USD',100::numeric),(DATE '2025-01-11','PLN',10000::numeric),"
               + "(DATE '2025-01-12','USD',102::numeric),(DATE '2025-01-30','USD',204::numeric)) v(d,currency,price) "

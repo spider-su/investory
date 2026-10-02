@@ -596,6 +596,30 @@ class ProfileQueryServiceTest {
   }
 
   @Test
+  void fallsBackToPortfolioCurrencyWhenIncomeSnapshotHasNoCurrency() {
+    when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO))
+        .thenReturn(snapshot(CurrencyType.USD, 1000, 0, 0, 0, List.of()));
+    when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
+    when(brokeragePortfolioReadService.incomeForMonths(
+            PORTFOLIO, YearMonth.of(2026, 1), YearMonth.of(2026, 6)))
+        .thenReturn(
+            new com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot(
+                null,
+                LocalDate.of(2026, 1, 1),
+                DATE,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO));
+
+    InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
+
+    assertEquals(CurrencyType.USD, profile.currency());
+    assertEquals(0, BigDecimal.ZERO.compareTo(profile.incomeSummary().marketIncomeYtd()));
+  }
+
+  @Test
   void keepsNegativeBrokerageCashInWealthButNotAvailableReserve() {
     when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO))
         .thenReturn(snapshot(CurrencyType.USD, 800, -200, 0, 0, List.of(position("ETF", 1000))));
@@ -604,6 +628,7 @@ class ProfileQueryServiceTest {
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
 
     assertEquals(0, new BigDecimal("800").compareTo(profile.marketPortfolioValue()));
+    assertEquals(0, new BigDecimal("800").compareTo(profile.liquidAssets()));
     assertEquals(0, BigDecimal.ZERO.compareTo(profile.retirementReserve()));
     assertEquals(0, new BigDecimal("1000").compareTo(profile.investmentCapital()));
   }

@@ -23,7 +23,9 @@ final class ProfileLiquidityCalculator {
       BigDecimal marketValue,
       CurrencyType base,
       LocalDate date) {
-    BigDecimal liquid = total(values, Liquidity.LIQUID);
+    // Brokerage equity includes signed cash. Negative cash is a liability, so subtract it from
+    // liquid assets even though it does not appear as a positive asset allocation.
+    BigDecimal liquid = total(values, Liquidity.LIQUID).add(marketCash.min(BigDecimal.ZERO));
     BigDecimal illiquid = total(values, Liquidity.ILLIQUID);
     // Brokerage cash contributes only when positive; eligible Long-Term cash is additive.
     BigDecimal reserve = marketCash.max(BigDecimal.ZERO);
