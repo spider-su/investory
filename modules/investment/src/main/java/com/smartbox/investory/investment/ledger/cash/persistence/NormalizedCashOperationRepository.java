@@ -38,7 +38,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               sum(nco.account_flow_amount_in_account_currency) as amountInAccountCurrency,
               null::text as accountConversionStatus,
               null::text as comment,
-              nco.date::date as date,
+              (nco.date at time zone 'Europe/Warsaw')::date as date,
               min(nco.rate_month) as rateMonth,
               null::double precision as fxRateToBase
           from investory.app_v_normalized_cash_operation_flows nco
@@ -49,8 +49,8 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
                 'INTERNAL_TRANSFER_IN',
                 'INTERNAL_TRANSFER_OUT'
             )
-          group by nco.account_id, nco.date::date, nco.normalized_category
-          order by nco.account_id, nco.date::date, nco.normalized_category
+          group by nco.account_id, (nco.date at time zone 'Europe/Warsaw')::date, nco.normalized_category
+          order by nco.account_id, (nco.date at time zone 'Europe/Warsaw')::date, nco.normalized_category
           """,
       nativeQuery = true)
   List<NormalizedCashOperationRow> findAllByAccountIdIn(
@@ -78,7 +78,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               nco.amount_in_account_currency as amountInAccountCurrency,
               nco.account_conversion_status as accountConversionStatus,
               nco.comment as comment,
-              nco.date::date as date,
+              (nco.date at time zone 'Europe/Warsaw')::date as date,
               nco.rate_month as rateMonth,
               nco.fx_rate_to_base as fxRateToBase
           from investory.app_v_normalized_cash_operation_flows nco

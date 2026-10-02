@@ -231,7 +231,9 @@ public final class HappyInvestorScenario {
         openPosition(HappyInvestorTestData.TREASURY_2033)
             .forAccount(IBKR.id())
             .quantity(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.doubleValue())
-            .price(1)
+            .price(
+                HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_FIRST_TRADING_UNIT_PRICE
+                    .doubleValue())
             .on(HappyInvestorLongTermFacts.REINVESTMENT_DATE)
             .build();
     open.add(treasuryReinvestment);

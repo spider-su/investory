@@ -185,10 +185,13 @@ when the provider, account scope, cash-operation sheet, broker operation ID, and
 The canonical operation ID must also equal the broker operation ID. A broker ID by itself is not
 enough because IDs can repeat across accounts. Rows with no directly or equivalently linked
 canonical fact remain C0 failures.
-C1 reconstructs cash-flow differences from `account_daily` and `normalized_cash_operation_flows`, using
-account-level flow amounts so internal transfer legs are included, and
-uses `reconciliation_values_match` at full precision. Rounded reporting columns are evidence for
-display only.
+C1 reconstructs cash-flow differences from `account_daily` and `normalized_cash_operation_flows`.
+Flow components use account-level flow amounts converted to portfolio base currency so internal
+transfer legs are included in the same units as `account_daily`; same-currency cash-delta comparison
+is limited to accounts whose native currency matches portfolio base currency. Operation timestamps
+use the explicit Europe/Warsaw reporting date, independent of PostgreSQL session timezone, and
+`reconciliation_values_match` at full precision. Rounded reporting columns are evidence for display
+only.
 
 The application uses a reusable typed check engine. Checks execute in C0-C7 order. Database checks
 use one bounded query per checkpoint with windowed uncapped counts and at most 250 detail rows.
