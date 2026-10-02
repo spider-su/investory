@@ -507,6 +507,9 @@ public class PlanningTimelineFacade {
                   created.setPortfolioId(portfolioId);
                   created.setYear(calendarYear);
                   created.setStatus(PlanningYearStatus.DRAFT);
+                  Instant now = Instant.now(clock);
+                  created.setCreatedAt(now);
+                  created.setUpdatedAt(now);
                   return years.save(created);
                 });
     hydrate(result);
@@ -534,6 +537,8 @@ public class PlanningTimelineFacade {
 
   private RetirementPlanningYearEntity saveState(RetirementPlanningYearEntity year) {
     stateCodec.writeFrom(year);
+    if (year.getCreatedAt() == null) year.setCreatedAt(Instant.now(clock));
+    year.setUpdatedAt(Instant.now(clock));
     return years.save(year);
   }
 

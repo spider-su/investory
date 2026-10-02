@@ -3,7 +3,6 @@ package com.smartbox.investory.retirement.api.model;
 import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
 import java.math.BigDecimal;
-import java.util.HashSet;
 import java.util.List;
 
 /** Explicit withdrawal and reserve-replenishment policy for retirement projections. */
@@ -24,8 +23,7 @@ public record RetirementFundingPolicy(
           RetirementFundingSource.INVESTMENT);
 
   public RetirementFundingPolicy {
-    fundingStrategy =
-        fundingStrategy == null ? SimulationFundingStrategy.RESERVE_AND_HARVEST : fundingStrategy;
+    fundingStrategy = canonicalStrategy(fundingStrategy);
     reserveTargetYears = zeroIfNull(reserveTargetYears);
     equityHarvestThresholdRate = zeroIfNull(equityHarvestThresholdRate);
     equityHarvestShare = zeroIfNull(equityHarvestShare);
@@ -33,11 +31,16 @@ public record RetirementFundingPolicy(
       throw new IllegalArgumentException("Reserve target cannot be negative");
     if (equityHarvestShare.signum() < 0 || equityHarvestShare.compareTo(BigDecimal.ONE) > 0)
       throw new IllegalArgumentException("Harvest share must be between 0 and 1");
-    fundingOrder =
-        fundingOrder == null || fundingOrder.isEmpty() ? DEFAULT_ORDER : List.copyOf(fundingOrder);
-    if (fundingOrder.stream().anyMatch(source -> source == null)
-        || new HashSet<>(fundingOrder).size() != fundingOrder.size())
-      throw new IllegalArgumentException("Funding order must contain unique sources");
+    // Retained for persistence/API compatibility. The POC engine has one fixed funding order.
+    fundingOrder = DEFAULT_ORDER;
+  }
+
+  private static SimulationFundingStrategy canonicalStrategy(SimulationFundingStrategy strategy) {
+    if (strategy == null) return SimulationFundingStrategy.RESERVE_AND_HARVEST;
+    return switch (strategy) {
+      case RESERVE_AND_HARVEST, SIMPLE_WATERFALL -> SimulationFundingStrategy.RESERVE_AND_HARVEST;
+      default -> throw new IllegalArgumentException("Unsupported simulation funding strategy");
+    };
   }
 
   public static RetirementFundingPolicy defaults() {

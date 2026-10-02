@@ -13,9 +13,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class RetirementSimulationService implements RetirementSimulation {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
-  private static final BigDecimal ONE_APARTMENT_SHARE = new BigDecimal("0.20");
-  private static final BigDecimal SALE_BOND_SHARE = new BigDecimal("0.70");
-  private static final BigDecimal SALE_EQUITY_SHARE = new BigDecimal("0.30");
+  private static final BigDecimal CONSERVATIVE_REAL_ESTATE_SALE_FRACTION = new BigDecimal("0.20");
   private final FrozenBondCashFlowProjection bondCashFlows;
 
   public RetirementSimulationService() {
@@ -131,9 +129,9 @@ public class RetirementSimulationService implements RetirementSimulation {
               annualBondReturn,
               annualEquityReturn,
               safeReserveTargetAmount(assumptions.fundingPolicy(), costs, reliableRecurringIncome),
-              sellApartment ? ONE_APARTMENT_SHARE : ZERO,
-              SALE_BOND_SHARE,
-              SALE_EQUITY_SHARE);
+              sellApartment ? CONSERVATIVE_REAL_ESTATE_SALE_FRACTION : ZERO,
+              RetirementBucketEngine.DEFAULT_REAL_ESTATE_BOND_REINVESTMENT_SHARE,
+              RetirementBucketEngine.DEFAULT_REAL_ESTATE_EQUITY_REINVESTMENT_SHARE);
       apartmentSold = apartmentSold || result.realEstateSaleProceeds().signum() > 0;
       BigDecimal safeReserveTarget = result.safeReserveTargetAmount();
       var c = result.buckets().get(EconomicBucket.LIQUID_CASH);

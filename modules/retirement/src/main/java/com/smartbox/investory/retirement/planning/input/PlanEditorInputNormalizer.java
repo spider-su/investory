@@ -225,7 +225,7 @@ public final class PlanEditorInputNormalizer {
   }
 
   private static void validRate(BigDecimal rate, String field) {
-    if (rate.compareTo(NEGATIVE_ONE) <= 0) throw new IllegalArgumentException("Invalid " + field);
+    if (rate.compareTo(NEGATIVE_ONE) < 0) throw new IllegalArgumentException("Invalid " + field);
   }
 
   private static void nonNegative(BigDecimal value, String field) {

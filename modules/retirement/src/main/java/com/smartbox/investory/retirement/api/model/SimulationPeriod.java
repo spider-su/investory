@@ -41,8 +41,9 @@ public record SimulationPeriod(LocalDate startDate, LocalDate endDate, BigDecima
 
   public BigDecimal compoundRate(BigDecimal annualRate) {
     BigDecimal rate = annualRate == null ? BigDecimal.ZERO : annualRate;
-    if (rate.compareTo(BigDecimal.ONE.negate()) <= 0)
-      throw new IllegalArgumentException("Annual rate must be greater than -100%");
+    if (rate.compareTo(BigDecimal.ONE.negate()) < 0)
+      throw new IllegalArgumentException("Annual rate cannot be below -100%");
+    if (rate.compareTo(BigDecimal.ONE.negate()) == 0) return BigDecimal.ONE.negate();
     // Keep this calculation in decimal arithmetic. Converting financial inputs to double makes
     // replay depend on binary floating-point rounding and can move boundary values.
     MathContext context = new MathContext(WORKING_PRECISION, RoundingMode.HALF_EVEN);

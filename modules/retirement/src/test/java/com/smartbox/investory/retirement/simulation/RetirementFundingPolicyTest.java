@@ -17,6 +17,7 @@ class RetirementFundingPolicyTest {
   void defaultsExposeAnExplicitDefensivePolicy() {
     var policy = RetirementFundingPolicy.defaults();
 
+    assertThat(policy.fundingStrategy()).isEqualTo(SimulationFundingStrategy.RESERVE_AND_HARVEST);
     assertThat(policy.reserveTargetYears()).isEqualByComparingTo("5");
     assertThat(policy.equityHarvestThresholdRate()).isEqualByComparingTo("0.07");
     assertThat(policy.equityHarvestShare()).isEqualByComparingTo("0.75");
@@ -26,6 +27,31 @@ class RetirementFundingPolicyTest {
             RetirementFundingSource.RESERVE,
             RetirementFundingSource.LONG_TERM,
             RetirementFundingSource.INVESTMENT);
+  }
+
+  @DisplayName("legacy And Missing Strategy Values Resolve To Reserve And Harvest")
+  @Test
+  void legacyAndMissingStrategiesResolveToReserveAndHarvest() {
+    var legacy =
+        policy(SimulationFundingStrategy.SIMPLE_WATERFALL, RetirementFundingPolicy.DEFAULT_ORDER);
+    var missing = policy(null, null);
+
+    assertThat(legacy.fundingStrategy()).isEqualTo(SimulationFundingStrategy.RESERVE_AND_HARVEST);
+    assertThat(missing.fundingStrategy()).isEqualTo(SimulationFundingStrategy.RESERVE_AND_HARVEST);
+    assertThat(legacy.fundingOrder()).isEqualTo(RetirementFundingPolicy.DEFAULT_ORDER);
+    assertThat(missing.fundingOrder()).isEqualTo(RetirementFundingPolicy.DEFAULT_ORDER);
+  }
+
+  @DisplayName("custom Funding Order Is Accepted For Compatibility But Cannot Change Behavior")
+  @Test
+  void customFundingOrderIsNormalizedToCanonicalOrder() {
+    var policy =
+        policy(
+            SimulationFundingStrategy.RESERVE_AND_HARVEST,
+            java.util.List.of(
+                RetirementFundingSource.INVESTMENT, RetirementFundingSource.INVESTMENT));
+
+    assertThat(policy.fundingOrder()).isEqualTo(RetirementFundingPolicy.DEFAULT_ORDER);
   }
 
   @DisplayName("harvest Share Must Be Within Bounds")
@@ -41,5 +67,11 @@ class RetirementFundingPolicyTest {
                     true,
                     RetirementFundingPolicy.DEFAULT_ORDER))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  private static RetirementFundingPolicy policy(
+      SimulationFundingStrategy strategy, java.util.List<RetirementFundingSource> order) {
+    return new RetirementFundingPolicy(
+        strategy, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, true, order);
   }
 }

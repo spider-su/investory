@@ -12,6 +12,8 @@ import com.smartbox.investory.retirement.infrastructure.planningyear.RetirementP
 import com.smartbox.investory.retirement.infrastructure.planningyear.RetirementPlanningYearStateCodec;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -28,18 +30,21 @@ public class RetirementAnnualCostsService implements RetirementAnnualCostsApi {
   private final RetirementAnnualCostYearRepository costYears;
   private final RetirementPlanningYearRepository planningYears;
   private final RetirementPlanningYearStateCodec yearState;
+  private final Clock clock;
 
   public RetirementAnnualCostsService(
       RetirementPlanRepository plans,
       RetirementAnnualCostGroupRepository groups,
       RetirementAnnualCostYearRepository costYears,
       RetirementPlanningYearRepository planningYears,
-      RetirementPlanningYearStateCodec yearState) {
+      RetirementPlanningYearStateCodec yearState,
+      Clock clock) {
     this.plans = plans;
     this.groups = groups;
     this.costYears = costYears;
     this.planningYears = planningYears;
     this.yearState = yearState;
+    this.clock = clock;
   }
 
   @Override
@@ -76,8 +81,12 @@ public class RetirementAnnualCostsService implements RetirementAnnualCostsApi {
     group.setYearId(costYear.getId());
     group.setName(normalizedName);
     group.setMonthlyAmount(monthlyAmount);
+    Instant now = Instant.now(clock);
+    if (group.getCreatedAt() == null) group.setCreatedAt(now);
+    group.setUpdatedAt(now);
     if (groupId == null) group.setSortOrder(groups.countByYearId(costYear.getId()));
     groups.save(group);
+    touchPlan(plan);
     return annualCosts(plan, costYear);
   }
 
@@ -90,6 +99,7 @@ public class RetirementAnnualCostsService implements RetirementAnnualCostsApi {
             .findByIdAndYearId(groupId, costYear.getId())
             .orElseThrow(RetirementPlanApi.PlanNotFoundException::new);
     groups.delete(group);
+    touchPlan(plan);
     return annualCosts(plan, costYear);
   }
 
@@ -100,7 +110,7 @@ public class RetirementAnnualCostsService implements RetirementAnnualCostsApi {
     RetirementAnnualCostYearEntity costYear = ensureCostYear(planId, year);
     requireNonNegative(annualAmount, "Annual cost");
     plan.setAnnualDiscretionaryExpenses(annualAmount);
-    plans.save(plan);
+    touchPlan(plan);
     return annualCosts(plan, costYear);
   }
 
@@ -163,6 +173,7 @@ public class RetirementAnnualCostsService implements RetirementAnnualCostsApi {
               RetirementAnnualCostYearEntity created = new RetirementAnnualCostYearEntity();
               created.setPlanId(planId);
               created.setYear(year);
+              created.setCreatedAt(Instant.now(clock));
               created = costYears.save(created);
               RetirementAnnualCostYearEntity target = created;
               costYears.findAllByPlanIdAndYearLessThanOrderByYearDesc(planId, year).stream()
@@ -179,11 +190,19 @@ public class RetirementAnnualCostsService implements RetirementAnnualCostsApi {
                                   copy.setName(previous.getName());
                                   copy.setMonthlyAmount(previous.getMonthlyAmount());
                                   copy.setSortOrder(previous.getSortOrder());
+                                  Instant now = Instant.now(clock);
+                                  copy.setCreatedAt(now);
+                                  copy.setUpdatedAt(now);
                                   groups.save(copy);
                                 });
                       });
               return target;
             });
+  }
+
+  private void touchPlan(RetirementPlanEntity plan) {
+    plan.setUpdatedAt(Instant.now(clock));
+    plans.save(plan);
   }
 
   private ApprovedLivingCost approvedLivingCost(RetirementPlanningYearEntity year) {

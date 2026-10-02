@@ -20,6 +20,12 @@ import org.junit.jupiter.api.Test;
 class RetirementSandboxSimulationServiceTest {
   private final RetirementSandboxSimulationService service = service();
 
+  @Test
+  void sandboxAcceptsMinusOneHundredPercentAndRejectsLowerReturns() {
+    assertEquals(new BigDecimal("-1"), input("0", "0", "100", "0", "-1").equityReturnRate());
+    assertThrows(IllegalArgumentException.class, () -> input("0", "0", "100", "0", "-1.0001"));
+  }
+
   private static RetirementSandboxSimulationService service() {
     Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
     RetirementSimulation simulation = new RetirementSimulationService();

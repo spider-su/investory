@@ -9,6 +9,18 @@ import java.util.Map;
 /** One-year aggregate bucket economics. It never reads source-domain state. */
 public final class RetirementBucketEngine {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
+  public static final BigDecimal DEFAULT_REAL_ESTATE_BOND_REINVESTMENT_SHARE =
+      new BigDecimal("0.70");
+  public static final BigDecimal DEFAULT_REAL_ESTATE_EQUITY_REINVESTMENT_SHARE =
+      new BigDecimal("0.30");
+
+  static {
+    if (DEFAULT_REAL_ESTATE_BOND_REINVESTMENT_SHARE
+            .add(DEFAULT_REAL_ESTATE_EQUITY_REINVESTMENT_SHARE)
+            .compareTo(BigDecimal.ONE)
+        != 0)
+      throw new ExceptionInInitializerError("Real-estate reinvestment shares must sum to 1");
+  }
 
   public Result simulate(
       PlanningBuckets start,
@@ -57,8 +69,8 @@ public final class RetirementBucketEngine {
         equityReturnRate,
         safeReserveTargetAmount,
         ZERO,
-        new BigDecimal("0.70"),
-        new BigDecimal("0.30"));
+        DEFAULT_REAL_ESTATE_BOND_REINVESTMENT_SHARE,
+        DEFAULT_REAL_ESTATE_EQUITY_REINVESTMENT_SHARE);
   }
 
   /** A one-time real-estate sale can fund the remaining gap and reinvest its surplus. */
@@ -76,6 +88,14 @@ public final class RetirementBucketEngine {
     annualCosts = nz(annualCosts);
     cashIncome = nz(cashIncome);
     policy = policy == null ? RetirementFundingPolicy.defaults() : policy;
+    requireSupportedStrategy(policy.fundingStrategy());
+    validateRate(bondReturnRate, "Bond return rate");
+    validateRate(equityReturnRate, "Equity return rate");
+    validateRate(start.realEstateGrowthRate(), "Real-estate growth rate");
+    realEstateSaleFraction = nz(realEstateSaleFraction);
+    bondReinvestmentShare = nz(bondReinvestmentShare);
+    equityReinvestmentShare = nz(equityReinvestmentShare);
+    validateSalePolicy(realEstateSaleFraction, bondReinvestmentShare, equityReinvestmentShare);
     safeReserveTargetAmount = nz(safeReserveTargetAmount).max(ZERO);
     BigDecimal cash = start.cash().startValue();
     BigDecimal bondsStart = start.bonds().startValue(),
@@ -104,14 +124,14 @@ public final class RetirementBucketEngine {
     BigDecimal realEstateWithdrawal = ZERO;
     BigDecimal realEstateSaleTransfer = ZERO;
     BigDecimal saleProceeds = ZERO;
-    if (gap.signum() > 0 && nz(realEstateSaleFraction).signum() > 0) {
+    if (gap.signum() > 0 && realEstateSaleFraction.signum() > 0) {
       saleProceeds = realEstate.multiply(realEstateSaleFraction.min(BigDecimal.ONE));
       realEstate = realEstate.subtract(saleProceeds);
       realEstateWithdrawal = gap.min(saleProceeds);
       gap = gap.subtract(realEstateWithdrawal);
       realEstateSaleTransfer = saleProceeds.subtract(realEstateWithdrawal);
-      bonds = bonds.add(realEstateSaleTransfer.multiply(nz(bondReinvestmentShare)));
-      equities = equities.add(realEstateSaleTransfer.multiply(nz(equityReinvestmentShare)));
+      bonds = bonds.add(realEstateSaleTransfer.multiply(bondReinvestmentShare));
+      equities = equities.add(realEstateSaleTransfer.multiply(equityReinvestmentShare));
     } else {
       realEstateWithdrawal = gap.min(realEstate);
       realEstate = realEstate.subtract(realEstateWithdrawal);
@@ -142,7 +162,7 @@ public final class RetirementBucketEngine {
             EconomicBucket.FIXED_INCOME,
             bondsStart,
             bondReturn,
-            harvest.add(realEstateSaleTransfer.multiply(nz(bondReinvestmentShare))),
+            harvest.add(realEstateSaleTransfer.multiply(bondReinvestmentShare)),
             bondNormalWithdrawal.add(bondEmergencyWithdrawal),
             bonds.max(ZERO)));
     rows.put(
@@ -151,7 +171,7 @@ public final class RetirementBucketEngine {
             EconomicBucket.EQUITY,
             equitiesStart,
             equityReturn,
-            harvest.negate().add(realEstateSaleTransfer.multiply(nz(equityReinvestmentShare))),
+            harvest.negate().add(realEstateSaleTransfer.multiply(equityReinvestmentShare)),
             equityWithdrawal,
             equities.max(ZERO)));
     rows.put(
@@ -197,5 +217,31 @@ public final class RetirementBucketEngine {
 
   private static BigDecimal nz(BigDecimal v) {
     return v == null ? ZERO : v;
+  }
+
+  private static void requireSupportedStrategy(SimulationFundingStrategy strategy) {
+    switch (strategy) {
+      case RESERVE_AND_HARVEST -> {}
+      default -> throw new IllegalArgumentException("Unsupported simulation funding strategy");
+    }
+  }
+
+  private static void validateRate(BigDecimal rate, String label) {
+    if (rate == null || rate.compareTo(BigDecimal.ONE.negate()) < 0)
+      throw new IllegalArgumentException(label + " cannot be below -100%");
+  }
+
+  private static void validateSalePolicy(
+      BigDecimal realEstateSaleFraction,
+      BigDecimal bondReinvestmentShare,
+      BigDecimal equityReinvestmentShare) {
+    if (realEstateSaleFraction.signum() < 0 || realEstateSaleFraction.compareTo(BigDecimal.ONE) > 0)
+      throw new IllegalArgumentException("Real-estate sale fraction must be between 0 and 1");
+    if (bondReinvestmentShare.signum() < 0
+        || bondReinvestmentShare.compareTo(BigDecimal.ONE) > 0
+        || equityReinvestmentShare.signum() < 0
+        || equityReinvestmentShare.compareTo(BigDecimal.ONE) > 0
+        || bondReinvestmentShare.add(equityReinvestmentShare).compareTo(BigDecimal.ONE) != 0)
+      throw new IllegalArgumentException("Real-estate reinvestment shares must sum to 1");
   }
 }

@@ -56,6 +56,8 @@ class SimulationPeriodTest {
             LocalDate.of(2026, 1, 1), LocalDate.of(2026, 6, 30), new BigDecimal("0.5"));
     assertEquals(new BigDecimal("0.000000000000"), halfYear.compoundRate(BigDecimal.ZERO));
     assertEquals(new BigDecimal("-0.051316701949"), halfYear.compoundRate(new BigDecimal("-0.10")));
-    assertThrows(IllegalArgumentException.class, () -> halfYear.compoundRate(new BigDecimal("-1")));
+    assertEquals(0, halfYear.compoundRate(new BigDecimal("-1")).compareTo(new BigDecimal("-1")));
+    assertThrows(
+        IllegalArgumentException.class, () -> halfYear.compoundRate(new BigDecimal("-1.0001")));
   }
 }

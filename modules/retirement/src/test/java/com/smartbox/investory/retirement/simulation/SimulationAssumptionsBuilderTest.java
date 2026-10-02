@@ -36,18 +36,16 @@ class SimulationAssumptionsBuilderTest {
     }
   }
 
-  @DisplayName("named Copy Still Uses Canonical Validation")
+  @DisplayName("funding Order Compatibility Input Does Not Change Canonical Behavior")
   @Test
-  void namedCopyStillUsesCanonicalValidation() {
+  void fundingOrderCompatibilityInputDoesNotChangeCanonicalBehavior() {
     SimulationAssumptions source = assumptions();
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            source.toBuilder()
-                .fundingOrder(
-                    List.of(RetirementFundingSource.RESERVE, RetirementFundingSource.RESERVE))
-                .build());
+    SimulationAssumptions changed =
+        source.toBuilder().fundingOrder(List.of(RetirementFundingSource.INVESTMENT)).build();
+
+    assertEquals(SimulationFundingStrategy.RESERVE_AND_HARVEST, changed.fundingStrategy());
+    assertEquals(SimulationAssumptions.DEFAULT_FUNDING_ORDER, changed.fundingOrder());
   }
 
   @Test

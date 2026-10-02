@@ -11421,11 +11421,10 @@ ALTER TABLE ONLY investory.retirement_plans
 
 
 --
--- Name: retirement_plans retirement_plans_portfolio_id_name_key; Type: CONSTRAINT; Schema: investory; Owner: -
+-- Name: uq_retirement_plans_active_name; Type: INDEX; Schema: investory; Owner: -
 --
 
-ALTER TABLE ONLY investory.retirement_plans
-    ADD CONSTRAINT retirement_plans_portfolio_id_name_key UNIQUE (portfolio_id, name);
+CREATE UNIQUE INDEX uq_retirement_plans_active_name ON investory.retirement_plans USING btree (portfolio_id, lower(btrim((name)::text))) WHERE (archived = false);
 
 
 --
