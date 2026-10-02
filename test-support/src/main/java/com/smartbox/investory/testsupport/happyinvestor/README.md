@@ -67,11 +67,6 @@ as cash until `2026-08-03`, the first trading date of `US91282CRC72` (`United St
 coupon `4.375%`, maturity `2033-07-31`), then buys `10000` face value at the Treasury end-of-day quote
 `99.03125` per `100` face value. The unused principal remains cash. The fixture includes the available daily
 Treasury prices from first trade through `2026-09-30` and no prices before issuance.
-The full call redemption is a `STOCK_SELL` cash operation linked to the closed `CASH_SETTLED` bond lot;
-it is sale proceeds, not an internal account transfer. The generated test portfolio is synthetic
-story data. Its portfolio ID must not be treated as evidence about a live user's portfolio, and the
-snapshot overlay does not carry broker-import provenance. Live audits must identify real portfolios
-from current ownership and source-import records.
 The old bond remains historical and has zero forward income on and after maturity; the new bond contributes net
 annual income `354.375` under the existing 19% tax rule. Happy Investor must consume the migration FX and price
 history rather than synthetic curves. Independent financial happy-path fixtures are prohibited in
