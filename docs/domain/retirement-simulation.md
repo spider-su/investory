@@ -6,10 +6,13 @@ Retirement simulates four immutable aggregate planning buckets: **Cash, Bonds, E
 Real Estate**. Investment and Long-Term provide the reviewed/frozen starting state; Retirement
 does not simulate individual holdings, bond ladders, rental contracts, maturities, or tax lots.
 
-Each projected year executes cash income, aggregate returns, costs, Cash withdrawal, Bonds
+Each projected year applies annual returns/growth to opening bucket balances, then uses cash income,
+costs, Cash withdrawal, Bonds
 withdrawal, Equities withdrawal when enabled, emergency Bond withdrawal below the reserve floor,
 Real Estate withdrawal only after all liquid buckets reach zero, then positive equity-gain transfer
-to Bonds up to the calculated safe-reserve floor.
+to Bonds up to the calculated safe-reserve floor. This is a deterministic annual approximation:
+opening balance, annual return or growth, withdrawals and transfers, then expected ending balance.
+It does not model monthly cash flows or average balances.
 Cash has zero yield and is never auto-refilled. Bond return stays in Bonds; equity return stays in
 Equities unless the harvest policy moves an eligible share to Bonds. Remaining balances carry into
 the next year. `UNFUNDED` is recalculated per year and is not sticky.
@@ -123,9 +126,8 @@ Bond mechanics do not receive an arbitrary first-period return; allocation-only/
 state uses the selected scenario fixed-income rate as its fallback.
 
 Cash return is retained only for persisted-plan compatibility and is ignored because Cash has a
-canonical 0% yield. Real Estate capital appreciation and `otherReturnRate` are also compatibility
-fields and are not modeled by the aggregate Retirement bucket engine; Real Estate currently changes
-through rental cash income/growth only. Scenario selection never writes the saved plan.
+canonical 0% yield. `otherReturnRate` is retained only for compatibility. Real Estate growth uses its
+frozen planning growth rate and opening capital. Scenario selection never writes the saved plan.
 
 All Retirement monetary values are stored and calculated in the portfolio `local_currency`. The
 Investment module may report in its `base_currency` (currently USD); Retirement converts those
@@ -184,7 +186,7 @@ Future Retirement projection uses four aggregate buckets:
 | Cash | immediate spending liquidity | `0%` | 1 | none |
 | Bonds | defensive capital | frozen bond planning yield | 2 | eligible Equity gains |
 | Equities | growth capital | plan Equity return assumption | 3 | retained own return |
-| Real Estate | last-resort capital | not modeled | 4 | none |
+| Real Estate | last-resort capital | frozen planning growth | 4 | none |
 
 Rental income is a cash flow produced by the Real Estate economic state; property value is capital.
 The two must not be conflated.
@@ -287,6 +289,11 @@ sell Real Estate only when Cash == 0 and Bonds == 0 and Equities == 0
 Retirement reduces aggregate Real Estate capital only; it does not choose or sell individual
 properties.
 
+The Conservative scenario may release a fixed 20% of aggregate Real Estate capital when the remaining
+funding gap reaches that bucket. Proceeds first cover the gap; any surplus is transferred 70% to Bonds
+and 30% to Equities. This is an aggregate planning adjustment, not a selection of one apartment or an
+instruction to transact.
+
 ## Capital projections
 
 The conceptual capital result contains:
@@ -354,8 +361,8 @@ reimplement Investment or Long-Term calculations.
 Each projected year is evaluated from scratch from the previous year's end state:
 
 1. start with Cash, Bonds, Equities, and Real Estate balances;
-2. aggregate ordinary cash income and annual costs;
-3. apply Bond return and Equity return to their own buckets;
+2. apply Bond, Equity, and Real Estate return/growth to their opening balances;
+3. aggregate ordinary cash income and annual costs;
 4. calculate the remaining funding gap;
 5. withdraw Cash;
 6. withdraw Bonds only down to the safe-reserve floor;
@@ -372,6 +379,10 @@ The canonical spending priority is therefore:
 ```text
 cash income -> Cash -> Bonds above floor -> Equities -> Bonds below floor -> Real Estate -> unfunded
 ```
+
+`RESERVE_AND_HARVEST` is the only implemented funding strategy and the default. Persisted
+`SIMPLE_WATERFALL` values normalize to it for backward compatibility. `fundingOrder` remains only for
+API/storage compatibility; caller-provided order is ignored and the fixed sequence above is used.
 
 Bond transfer is the reverse capital-maintenance path:
 

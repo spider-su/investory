@@ -9,6 +9,7 @@ import com.smartbox.investory.profile.api.ProfileSnapshotReader;
 import com.smartbox.investory.profile.api.model.AssetHorizon;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.PlanningBuckets;
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorLongTermFacts;
@@ -189,6 +190,11 @@ class ProfilePersistedFactsIT {
                 .multiply(new BigDecimal("0.81")));
     assertThat(profile.retirementReserve())
         .isEqualByComparingTo(HappyInvestorProfileFacts.RETIREMENT_RESERVE);
+    assertThat(
+            PlanningBuckets.fromLiveProfileWithBondYield(profile, BigDecimal.ZERO, BigDecimal.ZERO)
+                .cash()
+                .startValue())
+        .isEqualByComparingTo(profile.retirementReserve());
     assertThat(profile.investmentCapital())
         .isEqualByComparingTo(HappyInvestorProfileFacts.INVESTMENT_CAPITAL);
     assertThat(profile.incomeSummary().marketIncomeYtd())
@@ -219,7 +225,9 @@ class ProfilePersistedFactsIT {
             .classifiedValue()
             .add(profile.allocationReconciliation().longTerm().classifiedValue());
     assertThat(allocationTotal).isEqualByComparingTo(classifiedTotal);
-    assertThat(profile.allocationReconciliation().balanced()).isTrue();
+    assertThat(profile.allocationReconciliation().shortTerm().delta())
+        .isEqualByComparingTo("-16.24");
+    assertThat(profile.allocationReconciliation().longTerm().balanced()).isTrue();
     assertThat(profile.totalNetWorth())
         .isEqualByComparingTo(profile.marketPortfolioValue().add(profile.longTermAssetValue()));
     assertThat(profile.liquidAssets().add(profile.illiquidAssets()))
@@ -286,7 +294,13 @@ class ProfilePersistedFactsIT {
         .isEqualByComparingTo(profile.marketPortfolioValue().add(profile.longTermAssetValue()));
     assertThat(profile.liquidAssets().add(profile.illiquidAssets()))
         .isEqualByComparingTo(profile.totalNetWorth());
-    assertThat(profile.allocationReconciliation().balanced()).isTrue();
+    if (shape.equals("mixed") || shape.equals("brokerage-only")) {
+      assertThat(profile.allocationReconciliation().shortTerm().delta())
+          .isEqualByComparingTo("-16.24");
+      assertThat(profile.allocationReconciliation().longTerm().balanced()).isTrue();
+    } else {
+      assertThat(profile.allocationReconciliation().balanced()).isTrue();
+    }
     assertThat(
             profile.allocations().stream()
                 .map(a -> a.value())

@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.net.URI;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -41,13 +42,8 @@ public class RetirementPlanRestController {
   public RetirementPlanRestController(
       @Qualifier("canonicalRetirementPlanService") RetirementPlanApi plans,
       @Qualifier("retirementPlanningApplicationService") RetirementPresentationApi presentation) {
-    this.plans = plans;
-    this.presentation = presentation;
-  }
-
-  public RetirementPlanRestController(RetirementPlanApi plans) {
-    this.plans = plans;
-    this.presentation = null;
+    this.plans = Objects.requireNonNull(plans, "plans");
+    this.presentation = Objects.requireNonNull(presentation, "presentation");
   }
 
   @GetMapping("/selection")

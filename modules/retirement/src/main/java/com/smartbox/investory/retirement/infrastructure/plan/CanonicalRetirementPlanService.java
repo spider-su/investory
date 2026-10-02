@@ -5,11 +5,13 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.assumptions.SimulationAssumptionsPersistenceMapper;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,14 +23,17 @@ public class CanonicalRetirementPlanService implements RetirementPlanApi {
   private final RetirementPlanRepository plans;
   private final RetirementPlanEventRepository events;
   private final RetirementPlanBaselineCodec baselineJson;
+  private final Clock clock;
 
   public CanonicalRetirementPlanService(
       RetirementPlanRepository plans,
       RetirementPlanEventRepository events,
-      RetirementPlanBaselineCodec baselineJson) {
+      RetirementPlanBaselineCodec baselineJson,
+      Clock clock) {
     this.plans = plans;
     this.events = events;
     this.baselineJson = baselineJson;
+    this.clock = clock;
   }
 
   @Override
@@ -59,7 +64,10 @@ public class CanonicalRetirementPlanService implements RetirementPlanApi {
     plan.setPortfolioId(command.portfolioId());
     plan.setName(command.name().trim());
     write(plan, command.assumptions(), command.baseline());
-    return plans.save(plan).getId();
+    Instant now = Instant.now(clock);
+    plan.setCreatedAt(now);
+    plan.setUpdatedAt(now);
+    return savePlan(plan);
   }
 
   @Override
@@ -69,7 +77,7 @@ public class CanonicalRetirementPlanService implements RetirementPlanApi {
     validateName(command.portfolioId(), command.name(), command.planId());
     plan.setName(command.name().trim());
     write(plan, command.assumptions(), baseline(plan));
-    return plans.save(plan).getId();
+    return touchAndSave(plan);
   }
 
   @Override
@@ -94,31 +102,34 @@ public class CanonicalRetirementPlanService implements RetirementPlanApi {
     event.setAmount(command.amount());
     event.setType(command.type());
     event.setNotes(command.notes());
-    if (event.getCreatedAt() == null) event.setCreatedAt(Instant.now());
-    return events.save(event).getId();
+    if (event.getCreatedAt() == null) event.setCreatedAt(Instant.now(clock));
+    Long id = events.save(event).getId();
+    touchAndSave(plan);
+    return id;
   }
 
   @Override
   public void deleteEvent(Long portfolioId, Long planId, Long eventId) {
-    get(portfolioId, planId);
+    RetirementPlanEntity plan = get(portfolioId, planId);
     events
         .findByIdAndPlanId(eventId, planId)
         .orElseThrow(RetirementPlanApi.EventNotFoundException::new);
     events.deleteById(eventId);
+    touchAndSave(plan);
   }
 
   @Override
   public void deletePlan(Long portfolioId, Long planId) {
     RetirementPlanEntity plan = get(portfolioId, planId);
     plan.setArchived(true);
-    plans.save(plan);
+    touchAndSave(plan);
   }
 
   @Override
   public void rebaselinePlan(Long portfolioId, Long planId, PlanningBaseline baseline) {
     RetirementPlanEntity plan = get(portfolioId, planId);
     writeBaseline(plan, baseline);
-    plans.save(plan);
+    touchAndSave(plan);
   }
 
   private RetirementPlanEntity get(Long portfolioId, Long id) {
@@ -162,7 +173,7 @@ public class CanonicalRetirementPlanService implements RetirementPlanApi {
     plan.setBaselineRentalIncome(baseline.rentalAnnualIncome());
     plan.setBaselineLongTermIncome(baseline.longTermAnnualIncome());
     plan.setBaselineLongTermState(baselineJson.write(baseline.longTermPlanningState()));
-    plan.setBaselineLongTermStateVersion(1);
+    plan.setBaselineLongTermStateVersion(RetirementPlanBaselineCodec.CURRENT_FORMAT_VERSION);
   }
 
   private PlanningBaseline baseline(RetirementPlanEntity plan) {
@@ -175,18 +186,50 @@ public class CanonicalRetirementPlanService implements RetirementPlanApi {
             plan.getBaselineLongTermCapital(),
             plan.getBaselineRentalIncome(),
             plan.getBaselineLongTermIncome(),
-            baselineJson.read(plan.getBaselineLongTermState()));
+            readBaseline(plan));
+  }
+
+  private com.smartbox.investory.profile.api.model.ProfileAssetProjection readBaseline(
+      RetirementPlanEntity plan) {
+    Integer version = plan.getBaselineLongTermStateVersion();
+    if (version != null && version != RetirementPlanBaselineCodec.CURRENT_FORMAT_VERSION)
+      throw new IllegalStateException(
+          "Unsupported Long-Term planning baseline version: " + version);
+    // Null external versions identify legacy raw JSON rows; the codec also accepts those.
+    return baselineJson.read(plan.getBaselineLongTermState());
   }
 
   private void validateName(Long portfolioId, String name, Long id) {
     if (name == null || isBlank(name)) throw new IllegalArgumentException("Plan name is required");
     plans.findAllByPortfolioIdAndArchivedFalseOrderByName(portfolioId).stream()
         .filter(p -> !Objects.equals(p.getId(), id))
-        .filter(p -> p.getName().equalsIgnoreCase(name.trim()))
+        .filter(p -> p.getName() != null && p.getName().trim().equalsIgnoreCase(name.trim()))
         .findAny()
         .ifPresent(
             p -> {
               throw new IllegalArgumentException("Plan name already exists");
             });
+  }
+
+  private Long savePlan(RetirementPlanEntity plan) {
+    try {
+      return plans.saveAndFlush(plan).getId();
+    } catch (DataIntegrityViolationException e) {
+      if (hasConstraint(e, "uq_retirement_plans_active_name"))
+        throw new IllegalArgumentException("Plan name already exists", e);
+      throw e;
+    }
+  }
+
+  private Long touchAndSave(RetirementPlanEntity plan) {
+    plan.setUpdatedAt(Instant.now(clock));
+    return savePlan(plan);
+  }
+
+  private static boolean hasConstraint(Throwable failure, String expected) {
+    for (Throwable current = failure; current != null; current = current.getCause())
+      if (current instanceof org.hibernate.exception.ConstraintViolationException violation
+          && expected.equals(violation.getConstraintName())) return true;
+    return false;
   }
 }

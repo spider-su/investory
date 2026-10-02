@@ -5,8 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
@@ -45,15 +43,4 @@ public class RetirementAnnualCostGroupEntity {
 
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
-
-  @PrePersist
-  void onCreate() {
-    if (createdAt == null) createdAt = Instant.now();
-    if (updatedAt == null) updatedAt = createdAt;
-  }
-
-  @PreUpdate
-  void onUpdate() {
-    updatedAt = Instant.now();
-  }
 }

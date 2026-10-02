@@ -76,6 +76,14 @@ as a name for a total-return projection.
 The Profile market value is current brokerage equity, including signed cash. The Profile page's
 investment-result YTD value is current-calendar-year investment profit from the canonical monthly
 performance rows. It is neither income received nor a substitute for current or year-start value.
+Negative brokerage cash reduces liquid assets and net worth. It is not shown as a positive asset
+allocation, so the allocation reconciliation reports that liability as an unclassified delta.
+
+Profile annual income projections combine annual Long-Term income with annualized Brokerage YTD
+income when the canonical Investment income summary is unavailable. The fallback annualizes the
+observed current-calendar-year period; YTD values remain separately identified. The canonical
+Investment summary provides annual expected investment result and YTD investment result as separate
+fields.
 
 ## Headline ROI
 

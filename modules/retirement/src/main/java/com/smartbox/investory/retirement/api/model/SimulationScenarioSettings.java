@@ -18,7 +18,9 @@ public record SimulationScenarioSettings(
     } else if (scenario == SimulationScenario.BASE) {
       settings = overlay(a, "0.0", "0.0", "0.0", "0.0", "0.0");
     } else {
-      settings = overlay(a, "-0.005", "0.005", "0.0", "0.010", "-0.005");
+      // Keep spending at Base and rental growth slightly lower; optimism comes from inflation and
+      // a moderate equity return increase.
+      settings = overlay(a, "-0.0010", "-0.0005", "0.0", "0.0050", "0.0");
     }
     settings.validateMultiplicativeRates();
     return settings;

@@ -13,7 +13,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
@@ -137,7 +136,7 @@ public final class RetirementPlanContracts {
       @NotNull List<@Valid EventDto> futureEvents,
       @NotNull BigDecimal rentalIncomeGrowthSpread,
       @NotNull BigDecimal spendingGrowthSpread,
-      @NotNull SimulationFundingStrategy fundingStrategy,
+      SimulationFundingStrategy fundingStrategy,
       @NotNull @PositiveOrZero BigDecimal safeReserveYears,
       @NotNull BigDecimal equityHarvestMinimumReturnRate,
       @NotNull @PositiveOrZero BigDecimal equityGainHarvestRate,
@@ -145,7 +144,7 @@ public final class RetirementPlanContracts {
       @Min(0) @Max(150) int retirementAge,
       @NotNull @PositiveOrZero BigDecimal annualEmploymentIncome,
       @NotNull @PositiveOrZero BigDecimal annualPreRetirementContribution,
-      @NotEmpty List<RetirementFundingSource> fundingOrder,
+      List<RetirementFundingSource> fundingOrder,
       @NotNull List<@Valid ExpenseStepDto> expenseProfile) {
 
     public SimulationAssumptions toDomain() {

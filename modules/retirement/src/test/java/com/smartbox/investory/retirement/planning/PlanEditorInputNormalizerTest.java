@@ -76,9 +76,15 @@ class PlanEditorInputNormalizerTest {
         normalizer.normalize(
             input(Map.of("inflation", "35", "equityReturn", "30")), base, CurrencyType.USD);
     assertEquals(4, normalized.warnings().size());
+    assertEquals(
+        new BigDecimal("-1"),
+        normalizer
+            .normalize(input(Map.of("inflation", "-100")), base, CurrencyType.USD)
+            .assumptions()
+            .inflationRate());
     assertThrows(
         IllegalArgumentException.class,
-        () -> normalizer.normalize(input(Map.of("inflation", "-100")), base, CurrencyType.USD));
+        () -> normalizer.normalize(input(Map.of("inflation", "-100.01")), base, CurrencyType.USD));
     assertThrows(
         IllegalArgumentException.class,
         () ->

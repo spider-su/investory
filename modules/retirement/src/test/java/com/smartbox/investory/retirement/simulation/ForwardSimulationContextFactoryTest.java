@@ -243,14 +243,17 @@ class ForwardSimulationContextFactoryTest {
     assertFalse(context.requiresCurrentYearBridge());
   }
 
-  @DisplayName("beyond Horizon Is Rejected")
+  @DisplayName("beyond Horizon Has No Future Projection")
   @Test
-  void beyondHorizonIsRejected() {
+  void beyondHorizonHasNoFutureProjection() {
     SimulationAssumptions original = assumptions(2026, 40, 42);
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> factory("2029-06-01T00:00:00Z").create(PROFILE, original));
+    ForwardSimulationContext context = factory("2029-06-01T00:00:00Z").create(PROFILE, original);
+
+    assertEquals(43, context.asOfAge());
+    assertTrue(context.forwardAssumptions().isEmpty());
+    assertFalse(context.futureProjectionAvailable());
+    assertFalse(context.requiresCurrentYearBridge());
   }
 
   private static ForwardSimulationContextFactory factory(String instant) {

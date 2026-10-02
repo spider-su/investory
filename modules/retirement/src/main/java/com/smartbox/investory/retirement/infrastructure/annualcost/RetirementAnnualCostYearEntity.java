@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
@@ -34,9 +33,4 @@ public class RetirementAnnualCostYearEntity {
 
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
-
-  @PrePersist
-  void onCreate() {
-    if (createdAt == null) createdAt = Instant.now();
-  }
 }

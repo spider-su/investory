@@ -221,7 +221,9 @@ public final class HappyInvestorScenario {
         openPosition(HappyInvestorTestData.TREASURY_2026)
             .forAccount(IBKR.id())
             .quantity(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.doubleValue())
-            .price(1)
+            .price(
+                HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_FIRST_TRADING_UNIT_PRICE
+                    .doubleValue())
             .on(HappyInvestorLongTermFacts.TREASURY_ACQUISITION_DATE)
             .closeOn(HappyInvestorLongTermFacts.TREASURY_MATURITY_DATE)
             .build();
@@ -229,7 +231,9 @@ public final class HappyInvestorScenario {
         openPosition(HappyInvestorTestData.TREASURY_2033)
             .forAccount(IBKR.id())
             .quantity(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.doubleValue())
-            .price(1)
+            .price(
+                HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_FIRST_TRADING_UNIT_PRICE
+                    .doubleValue())
             .on(HappyInvestorLongTermFacts.REINVESTMENT_DATE)
             .build();
     open.add(treasuryReinvestment);
@@ -376,9 +380,11 @@ public final class HappyInvestorScenario {
         cashOperation()
             .forAccount(IBKR)
             .type(CashOperationType.STOCK_PURCHASE)
-            .amount(-HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.doubleValue(), CurrencyType.USD)
+            .amount(
+                -HappyInvestorLongTermFacts.REINVESTMENT_TREASURY_PURCHASE_COST.doubleValue(),
+                CurrencyType.USD)
             .symbol(HappyInvestorTestData.TREASURY_2033.symbol())
-            .comment("Next-day Treasury principal reinvestment")
+            .comment("Treasury principal reinvestment on first trading date")
             .on(HappyInvestorLongTermFacts.REINVESTMENT_DATE)
             .build());
   }

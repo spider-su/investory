@@ -104,6 +104,31 @@ class ProfileAllocationCalculatorTest {
   }
 
   @Test
+  void excludesNegativeBrokerageCashFromPositiveAssetAllocation() {
+    var classifications = mock(BrokerageAssetClassificationReader.class);
+    when(classifications.findBySymbols(any()))
+        .thenReturn(Map.of("ETF", new BrokerageAssetClassification("ETF", BrokerageAssetType.ETF)));
+    var calculator = new ProfileAllocationCalculator(classifications);
+    var market =
+        new SharedBrokeragePortfolioSnapshot(
+            CurrencyType.USD,
+            new BigDecimal("100"),
+            new BigDecimal("-25"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            List.of(new BrokeragePositionSnapshot("ETF", new BigDecimal("100"))));
+    var allocations =
+        calculator.allocations(
+            calculator.values(
+                market, List.of(), new BigDecimal("-25"), (value, currency) -> value));
+
+    assertThat(allocations)
+        .extracting(ProfileAllocation::bucket)
+        .containsExactly(EconomicBucket.EQUITY);
+    assertThat(allocations).allSatisfy(a -> assertThat(a.percentage()).isEqualByComparingTo("1"));
+  }
+
+  @Test
   void mapsEveryLongTermEconomicCategoryToProfileVocabulary() {
     var calculator =
         new ProfileAllocationCalculator(mock(BrokerageAssetClassificationReader.class));

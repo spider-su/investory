@@ -41,7 +41,7 @@ public final class SimulationAssumptionsPersistenceMapper {
             source.getSpendingGrowthSpread(), SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD),
         new RetirementFundingPolicy(
             source.getFundingStrategy() == null
-                ? SimulationFundingStrategy.SIMPLE_WATERFALL
+                ? SimulationFundingStrategy.RESERVE_AND_HARVEST
                 : source.getFundingStrategy(),
             defaultValue(
                 source.getSafeReserveYears(), SimulationAssumptions.DEFAULT_SAFE_RESERVE_YEARS),

@@ -320,7 +320,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     assertRate(row.get("inflation_rate"), plan.inflation());
     assertRate(row.get("rental_income_growth_rate"), plan.rentalGrowth());
     assertRate(row.get("spending_growth_rate"), plan.spendingGrowth());
-    assertThat(row.get("funding_strategy")).isEqualTo("SIMPLE_WATERFALL");
+    assertThat(row.get("funding_strategy")).isEqualTo("RESERVE_AND_HARVEST");
     assertDecimal(row.get("safe_reserve_years"), plan.safeReserveYears());
     assertRate(row.get("equity_harvest_minimum_return_rate"), plan.equityHarvestThreshold());
     assertRate(row.get("equity_gain_harvest_rate"), plan.equityHarvestShare());

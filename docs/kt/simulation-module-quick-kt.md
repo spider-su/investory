@@ -217,9 +217,9 @@ Read these in order:
 
 `RetirementAnalysisService` and the sensitivity/sustainable-spending
 services should **reuse the canonical evaluation path**, not reproduce
-financial formulas. Funding behavior is selected with
-`SimulationFundingStrategy`: `SIMPLE_WATERFALL` or
-`RESERVE_AND_HARVEST`.
+financial formulas. `SimulationFundingStrategy.RESERVE_AND_HARVEST` is the only
+implemented strategy. Legacy `SIMPLE_WATERFALL` values normalize to it.
+`fundingOrder` remains for compatibility and does not configure the engine.
 
 ## 7. Rules for safe changes
 

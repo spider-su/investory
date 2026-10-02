@@ -2,6 +2,7 @@ package com.smartbox.investory.profile.application;
 
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.profile.api.model.Liquidity;
+import com.smartbox.investory.shared.assets.AssetEconomicCategory;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,14 +23,14 @@ final class ProfileLiquidityCalculator {
       BigDecimal marketValue,
       CurrencyType base,
       LocalDate date) {
-    BigDecimal liquid = total(values, Liquidity.LIQUID);
+    // Brokerage equity includes signed cash. Negative cash is a liability, so subtract it from
+    // liquid assets even though it does not appear as a positive asset allocation.
+    BigDecimal liquid = total(values, Liquidity.LIQUID).add(marketCash.min(BigDecimal.ZERO));
     BigDecimal illiquid = total(values, Liquidity.ILLIQUID);
-    // Retirement reserve is only Long-Term cash explicitly marked as available for funding.
-    // Brokerage cash remains part of the investment portfolio, not this funding bucket.
-    BigDecimal reserve = BigDecimal.ZERO;
+    // Brokerage cash contributes only when positive; eligible Long-Term cash is additive.
+    BigDecimal reserve = marketCash.max(BigDecimal.ZERO);
     for (LongTermAssetProfileAssetModel asset : longTermAssets) {
-      if (asset.category() == com.smartbox.investory.shared.assets.AssetEconomicCategory.LIQUID_CASH
-          && asset.fundingAvailable()) {
+      if (asset.category() == AssetEconomicCategory.LIQUID_CASH && asset.fundingAvailable()) {
         reserve =
             reserve.add(
                 currencyNormalizer.toBase(asset.currentValue(), asset.currency(), base, date));

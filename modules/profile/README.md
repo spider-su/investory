@@ -31,8 +31,16 @@ LongTerm API ─────┘
   source classifications unchanged and exposes any source-total delta in
   `ProfileAllocationReconciliation`.
 - Brokerage value means total equity, including signed cash. Investment capital excludes brokerage
-  cash; retirement reserve includes only non-negative brokerage cash and Long-Term cash reserves
-  currently available for funding.
+  cash; positive brokerage cash contributes to retirement reserve exactly once. The reserve is
+  `max(brokerage market cash, 0)` plus Long-Term `LIQUID_CASH` assets marked available for funding.
+  Negative brokerage cash remains reflected in signed brokerage equity, but is not an asset
+  allocation or retirement funding source.
+- Long-Term summary and annual-snapshot money carries its declared source currency and is converted
+  into Profile display currency before aggregation. Long-Term asset rows and projections are
+  converted from each row's currency at the same boundary.
+- Brokerage YTD income is annualized over its observed calendar-year period for annual projections;
+  Investment's canonical summary keeps its annual expected result separate from its YTD result.
+  Long-Term income is annual, so combined annual income uses annualized/annual values.
 - Personal assets contribute to net worth and allocation, but not investment-yield denominators or
   retirement capital. Assets locked until maturity remain illiquid and outside current reserve.
 - The Long-Term adapter itself returns one coherent source snapshot containing totals, allocation,

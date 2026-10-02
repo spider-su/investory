@@ -64,9 +64,103 @@ class ProfileLiquidityCalculatorTest {
 
     assertThat(result.liquid()).isEqualByComparingTo("950");
     assertThat(result.illiquid()).isEqualByComparingTo("1200");
-    assertThat(result.reserve()).isEqualByComparingTo("350");
+    assertThat(result.reserve()).isEqualByComparingTo("450");
     // investmentCapital means invested brokerage market value, excluding brokerage cash.
     assertThat(result.investmentCapital()).isEqualByComparingTo("500");
+  }
+
+  @Test
+  void retirementReserveIncludesOnlyPositiveBrokerageCashAndEligibleLongTermCash() {
+    var calculator = new ProfileLiquidityCalculator(new ProfileCurrencyNormalizer(mock()));
+    var eligible =
+        new LongTermAssetProfileAssetModel(
+            AssetEconomicCategory.LIQUID_CASH, CurrencyType.USD, new BigDecimal("40"), true);
+    var ineligible =
+        new LongTermAssetProfileAssetModel(
+            AssetEconomicCategory.LIQUID_CASH, CurrencyType.USD, new BigDecimal("90"), false);
+
+    assertThat(
+            calculator
+                .calculate(
+                    Map.of(),
+                    List.of(),
+                    new BigDecimal("12"),
+                    new BigDecimal("100"),
+                    CurrencyType.USD,
+                    AS_OF)
+                .reserve())
+        .isEqualByComparingTo("12");
+    assertThat(
+            calculator
+                .calculate(
+                    Map.of(),
+                    List.of(),
+                    new BigDecimal("-12"),
+                    new BigDecimal("100"),
+                    CurrencyType.USD,
+                    AS_OF)
+                .reserve())
+        .isZero();
+    assertThat(
+            calculator
+                .calculate(
+                    Map.of(),
+                    List.of(),
+                    BigDecimal.ZERO,
+                    new BigDecimal("100"),
+                    CurrencyType.USD,
+                    AS_OF)
+                .reserve())
+        .isZero();
+    assertThat(
+            calculator
+                .calculate(
+                    Map.of(),
+                    List.of(eligible),
+                    BigDecimal.ZERO,
+                    new BigDecimal("100"),
+                    CurrencyType.USD,
+                    AS_OF)
+                .reserve())
+        .isEqualByComparingTo("40");
+    assertThat(
+            calculator
+                .calculate(
+                    Map.of(),
+                    List.of(ineligible),
+                    BigDecimal.ZERO,
+                    new BigDecimal("100"),
+                    CurrencyType.USD,
+                    AS_OF)
+                .reserve())
+        .isZero();
+    assertThat(
+            calculator
+                .calculate(
+                    Map.of(),
+                    List.of(eligible),
+                    new BigDecimal("12"),
+                    new BigDecimal("100"),
+                    CurrencyType.USD,
+                    AS_OF)
+                .reserve())
+        .isEqualByComparingTo("52");
+  }
+
+  @Test
+  void negativeBrokerageCashReducesLiquidAssets() {
+    var calculator = new ProfileLiquidityCalculator(new ProfileCurrencyNormalizer(mock()));
+    var result =
+        calculator.calculate(
+            Map.of(),
+            List.of(),
+            new BigDecimal("-25"),
+            new BigDecimal("75"),
+            CurrencyType.USD,
+            AS_OF);
+
+    assertThat(result.liquid()).isEqualByComparingTo("-25");
+    assertThat(result.reserve()).isZero();
   }
 
   @Test
@@ -113,10 +207,6 @@ class ProfileLiquidityCalculatorTest {
         new LongTermAssetProfileAssetModel(
             AssetEconomicCategory.LIQUID_CASH, CurrencyType.USD, new BigDecimal("350"), true);
     Map<ProfileAllocationCalculator.AllocationKey, BigDecimal> values = new LinkedHashMap<>();
-    values.put(
-        new ProfileAllocationCalculator.AllocationKey(
-            EconomicBucket.LIQUID_CASH, AssetHorizon.SHORT_TERM, Liquidity.LIQUID),
-        new BigDecimal("-100"));
     values.put(
         new ProfileAllocationCalculator.AllocationKey(
             EconomicBucket.LIQUID_CASH, AssetHorizon.LONG_TERM, Liquidity.LIQUID),

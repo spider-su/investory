@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.investment.api.reporting.model.ReconciliationStatus;
 import com.smartbox.investory.longterm.api.model.*;
+import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableException;
 import com.smartbox.investory.testsupport.time.MutableApplicationTime;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -97,6 +98,14 @@ class RestApiExceptionHandlerTest {
         .andExpect(jsonPath("$.message").value("Invalid rate"));
   }
 
+  @Test
+  void mapsUnavailableRequiredCurrencyConversionTo422() throws Exception {
+    mvc.perform(get("/api/v1/test/fx-unavailable"))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.status").value(422))
+        .andExpect(jsonPath("$.message").value("FX rate unavailable for valuation date"));
+  }
+
   @RestController
   static class FailingController {
     @GetMapping("/api/v1/test/bad")
@@ -133,6 +142,11 @@ class RestApiExceptionHandlerTest {
     @GetMapping("/api/v1/test/domain-invalid")
     String domainInvalid() {
       throw new IllegalArgumentException("Invalid rate");
+    }
+
+    @GetMapping("/api/v1/test/fx-unavailable")
+    String fxUnavailable() {
+      throw new CurrencyConversionUnavailableException("FX rate unavailable for valuation date");
     }
   }
 }

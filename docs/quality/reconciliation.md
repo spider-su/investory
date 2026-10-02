@@ -59,12 +59,26 @@ long observation gaps are not classified as short-period spikes, and account mov
 remove deposits, withdrawals, income, expenses, and realized profit before applying the
 unexplained-movement threshold.
 
+Manual price-anomaly dispositions are recorded in
+`investory.reconciliation_price_anomaly_reviews` with the exact observation fingerprint,
+rationale, and evidence URL. Confirmed market moves and corrected source prices remain visible
+in the underlying price history. A manually accepted alternate-listing issue records the
+reviewer-approved exception without changing source prices. All three dispositions are omitted
+from the combined active temporal-anomaly view. A changed observation no longer matches its
+disposition and returns to active review.
+
 Known non-accounting price-source conditions are evidence-quality classifications, not valuation
 failures: trade observations, interpolated prices, alternate listings, and stale carry-forward
 prices remain visible for traceability. Trade-observation and stale-carry-forward selections are
 informational when the position is otherwise valuatable; missing price, missing FX, zero-price,
 and impossible quantity/value combinations remain errors. Manual weekly prices and corporate-action
 resets remain reviewable continuity signals.
+
+Price temporal checks compare only quote-quality observations: exact listing closes, verified
+alternate listings, scaled exact listings, percent-of-par closes, and manually accepted prices.
+Trade-derived and stale carry-forward rows remain available in price history and valuation, but do
+not create market-price movement or currency-switch findings. Corporate-action price adjustments
+remain reviewable when present in eligible quote history.
 
 ## Numeric comparison contract
 
@@ -171,10 +185,13 @@ when the provider, account scope, cash-operation sheet, broker operation ID, and
 The canonical operation ID must also equal the broker operation ID. A broker ID by itself is not
 enough because IDs can repeat across accounts. Rows with no directly or equivalently linked
 canonical fact remain C0 failures.
-C1 reconstructs cash-flow differences from `account_daily` and `normalized_cash_operation_flows`, using
-account-level flow amounts so internal transfer legs are included, and
-uses `reconciliation_values_match` at full precision. Rounded reporting columns are evidence for
-display only.
+C1 reconstructs cash-flow differences from `account_daily` and `normalized_cash_operation_flows`.
+Flow components use account-level flow amounts converted to portfolio base currency so internal
+transfer legs are included in the same units as `account_daily`; same-currency cash-delta comparison
+is limited to accounts whose native currency matches portfolio base currency. Operation timestamps
+use the explicit Europe/Warsaw reporting date, independent of PostgreSQL session timezone, and
+`reconciliation_values_match` at full precision. Rounded reporting columns are evidence for display
+only.
 
 The application uses a reusable typed check engine. Checks execute in C0-C7 order. Database checks
 use one bounded query per checkpoint with windowed uncapped counts and at most 250 detail rows.

@@ -1,6 +1,7 @@
 package com.smartbox.investory.profile.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,18 @@ import org.junit.jupiter.api.Test;
 
 class ProfileIncomeCalculatorTest {
   private static final LocalDate AS_OF = LocalDate.of(2026, 6, 1);
+
+  @Test
+  void requiredCurrencyNormalizationRejectsMissingMoneyOrCurrency() {
+    var normalizer = new ProfileCurrencyNormalizer(mock());
+
+    assertThatThrownBy(() -> normalizer.toBase(null, CurrencyType.USD, CurrencyType.EUR, AS_OF))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Profile monetary value");
+    assertThatThrownBy(() -> normalizer.toBase(BigDecimal.ONE, null, CurrencyType.EUR, AS_OF))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Profile monetary source currency");
+  }
 
   @Test
   void passesInvestmentOwnedProjectionAndAssumptionThroughUnchanged() {
@@ -75,6 +88,36 @@ class ProfileIncomeCalculatorTest {
     assertThat(result.combinedAnnualIncome()).isEqualByComparingTo("524.14473684");
     assertThat(result.marketNetYield()).isEqualByComparingTo("0.13207237");
     assertThat(result.combinedNetYield()).isEqualByComparingTo("0.10482895");
+  }
+
+  @Test
+  void annualizesThreeMonthYtdIncomeBeforeCombiningWithAnnualLongTermIncome() {
+    var snapshot =
+        new BrokerageIncomeSnapshot(
+            CurrencyType.USD,
+            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, 3, 31),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    var result =
+        new ProfileIncomeCalculator(new ProfileCurrencyNormalizer(mock()))
+            .calculate(
+                new BigDecimal("900"),
+                snapshot,
+                CurrencyType.USD,
+                new BigDecimal("10000"),
+                new BigDecimal("120"),
+                new BigDecimal("1000"),
+                new BigDecimal("11000"),
+                CurrencyType.USD,
+                LocalDate.of(2026, 3, 31));
+
+    assertThat(result.marketAnnualIncome()).isEqualByComparingTo("3650");
+    assertThat(result.combinedAnnualIncome()).isEqualByComparingTo("3770");
+    assertThat(result.marketIncomeYtd()).isEqualByComparingTo("900");
   }
 
   @Test

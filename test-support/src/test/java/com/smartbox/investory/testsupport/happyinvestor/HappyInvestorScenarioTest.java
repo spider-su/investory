@@ -188,7 +188,7 @@ class HappyInvestorScenarioTest {
   }
 
   @Test
-  void modelsTreasuryRedemptionAndNextDayPrincipalReinvestment() {
+  void modelsTreasuryRedemptionAndReinvestmentOnTheNewBondFirstTradingDate() {
     HappyInvestorContext investor = HappyInvestorScenario.create();
     assertTrue(
         investor.closedPositions().stream()
@@ -205,6 +205,11 @@ class HappyInvestorScenarioTest {
                         && HappyInvestorLongTermFacts.REINVESTMENT_DATE.equals(
                             p.getOpenTime().toLocalDate())
                         && p.getVolume().compareTo(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL)
+                            == 0
+                        && p.getOpenPrice()
+                                .compareTo(
+                                    HappyInvestorLongTermFacts
+                                        .REINVESTMENT_TREASURY_FIRST_TRADING_UNIT_PRICE)
                             == 0));
     assertTrue(
         investor.ledger().stream()

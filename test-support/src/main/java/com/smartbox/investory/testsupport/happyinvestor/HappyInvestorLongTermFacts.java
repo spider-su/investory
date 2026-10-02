@@ -62,7 +62,16 @@ public final class HappyInvestorLongTermFacts {
   public static final String REINVESTMENT_TREASURY_NAME = "United States Treasury 4 3/8 07/31/33";
   public static final String REINVESTMENT_TREASURY_FORM_RATE_DISPLAY = "4.38";
   public static final BigDecimal REINVESTMENT_TREASURY_COUPON = new BigDecimal("0.04375");
-  public static final LocalDate REINVESTMENT_DATE = LocalDate.of(2026, 3, 1);
+  public static final LocalDate REINVESTMENT_TREASURY_FIRST_TRADING_DATE = LocalDate.of(2026, 8, 3);
+  public static final LocalDate REINVESTMENT_DATE = REINVESTMENT_TREASURY_FIRST_TRADING_DATE;
+  public static final BigDecimal REINVESTMENT_TREASURY_FIRST_TRADING_PRICE =
+      new BigDecimal("99.03125");
+  public static final BigDecimal REINVESTMENT_TREASURY_FIRST_TRADING_UNIT_PRICE =
+      REINVESTMENT_TREASURY_FIRST_TRADING_PRICE.movePointLeft(2);
+  public static final BigDecimal REINVESTMENT_TREASURY_PURCHASE_COST =
+      TREASURY_PRINCIPAL.multiply(REINVESTMENT_TREASURY_FIRST_TRADING_UNIT_PRICE);
+  public static final BigDecimal REINVESTMENT_TREASURY_RESIDUAL_CASH =
+      TREASURY_PRINCIPAL.subtract(REINVESTMENT_TREASURY_PURCHASE_COST);
   public static final LocalDate REINVESTMENT_TREASURY_MATURITY_DATE = LocalDate.of(2033, 7, 31);
   public static final BigDecimal REINVESTMENT_TREASURY_GROSS_ANNUAL = new BigDecimal("437.50");
   public static final BigDecimal REINVESTMENT_TREASURY_NET_ANNUAL = new BigDecimal("354.375");

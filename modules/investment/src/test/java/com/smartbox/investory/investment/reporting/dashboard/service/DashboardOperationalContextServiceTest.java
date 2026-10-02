@@ -29,7 +29,7 @@ class DashboardOperationalContextServiceTest {
 
     var secondary =
         mock(com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader.class);
-    when(secondary.status())
+    when(secondary.status(1L))
         .thenReturn(
             new com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader
                 .ExportStatus(null, false));
@@ -60,7 +60,7 @@ class DashboardOperationalContextServiceTest {
 
     var secondary =
         mock(com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader.class);
-    when(secondary.status())
+    when(secondary.status(1L))
         .thenReturn(
             new com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader
                 .ExportStatus(null, false));

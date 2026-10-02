@@ -61,7 +61,7 @@ class SimulationAssumptionsPersistenceMapperTest {
         restored.rentalIncomeGrowthSpread());
     assertEquals(
         SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD, restored.spendingGrowthSpread());
-    assertEquals(SimulationFundingStrategy.SIMPLE_WATERFALL, restored.fundingStrategy());
+    assertEquals(SimulationFundingStrategy.RESERVE_AND_HARVEST, restored.fundingStrategy());
     assertEquals(SimulationAssumptions.DEFAULT_SAFE_RESERVE_YEARS, restored.safeReserveYears());
     assertEquals(BigDecimal.ZERO, restored.equityHarvestMinimumReturnRate());
     assertEquals(BigDecimal.ZERO, restored.equityGainHarvestRate());
@@ -71,6 +71,19 @@ class SimulationAssumptionsPersistenceMapperTest {
     assertEquals(BigDecimal.ZERO, restored.annualPreRetirementContribution());
     assertEquals(SimulationAssumptions.DEFAULT_FUNDING_ORDER, restored.fundingOrder());
     assertEquals(ExpenseProfile.EMPTY, restored.expenseProfile());
+  }
+
+  @DisplayName("persisted Legacy Strategy Resolves To The Executed Strategy")
+  @Test
+  void persistedLegacyStrategyResolvesToExecutedStrategy() {
+    RetirementPlanEntity persisted = new RetirementPlanEntity();
+    SimulationAssumptionsPersistenceMapper.write(persisted, assumptions());
+    persisted.setFundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL);
+
+    SimulationAssumptions restored =
+        SimulationAssumptionsPersistenceMapper.read(persisted, List.of());
+
+    assertEquals(SimulationFundingStrategy.RESERVE_AND_HARVEST, restored.fundingStrategy());
   }
 
   private static SimulationAssumptions assumptions() {

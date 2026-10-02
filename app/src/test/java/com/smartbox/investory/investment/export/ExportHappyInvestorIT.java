@@ -175,7 +175,7 @@ class ExportHappyInvestorIT extends FastDatabaseTest {
                   "",
                   TRADE_DATE,
                   "1.0",
-                  "98.81",
+                  "95.375",
                   "",
                   "",
                   "",
