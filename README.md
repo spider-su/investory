@@ -47,9 +47,10 @@ projected years.
 - `InvestmentProfile` aggregation of brokerage and manual assets without writing either source.
 - Deterministic retirement simulation with independent inflation, rental-income-growth, spending-growth,
   and asset-return assumptions.
-- Configurable Simple Waterfall and Reserve + equity harvest funding strategies. New plans default to a
-  five-year safe-reserve target, 7% harvest gate, 75% eligible-gain fraction, and enabled emergency
-  equity withdrawal.
+- One canonical Reserve + Harvest funding strategy. Its fixed sequence is Cash, Bonds above the
+  reserve floor, Equities when emergency withdrawals are enabled, Bonds below the floor, then
+  aggregate Real Estate capital. Eligible positive Equity gains may refill Bonds toward the reserve.
+  New plans default to a five-year reserve target, 7% harvest gate, and 75% eligible-gain fraction.
 - Long-Term factual inventory and calculated financial facts are shared through explicit asset
   contracts; retirement consumes those facts without asset-specific UI policy.
 - Planning display/input currency selection: PLN (default), USD, or EUR; planning storage remains
@@ -107,17 +108,18 @@ headline ROI.
 ## Retirement planning
 
 At a high level, recurring spending need minus rental/passive income and pension gives portfolio funding
-need. Under Reserve + Harvest, funding uses:
+need. Funding uses the canonical fixed order:
 
 ```text
-manual cash reserve -> market cash -> spendable fixed income -> optional emergency equity
+Cash -> Bonds above reserve floor -> optional emergency Equities -> Bonds below floor -> Real Estate
 ```
 
-In strong equity years, eligible positive equity gain first replenishes the safe reserve, but never beyond
-its target; any remainder may refill the three-year bond ladder. The configurable deterministic defaults
-are five years of recurring funding gap, a 7% return gate, and a 75% eligible-gain fraction. Below the
-gate there is no normal harvest; transfers do not normally consume equity principal. These are planning
-defaults, not financial advice.
+Returns and growth use each bucket's opening balance, then annual withdrawals and transfers produce
+the expected year-end balance. This is a deterministic annual approximation. Retirement may consume
+aggregate Real Estate capital after liquid buckets are exhausted; it does not choose or model a
+particular property sale. In strong equity years, eligible positive gains may refill Bonds toward the
+five-year reserve target. The harvest gate is 7%, and the eligible-gain fraction is 75%. These are
+planning defaults, not financial advice.
 
 The canonical contract, formulas, liquidity policy, and scenario semantics are in
 [`docs/domain/retirement-simulation.md`](docs/domain/retirement-simulation.md).
@@ -188,7 +190,7 @@ not real transactions. See [`docs/domain/planning-timeline.md`](docs/domain/plan
   dedicated golden job before treating it as a release gate.
 - The capital-gains estimate follows Polish assumptions. Other tax jurisdictions are not modeled.
 - Retirement planning is a deterministic annual model: it has no Monte Carlo, sequence-of-returns
-  randomness, automated real-world trades, automatic real-estate sale, or early contractual redemption.
+  randomness, automated real-world trades, property-level sale selection, or early contractual redemption.
 - Current-year planning uses a deterministic remaining-year bridge, not detailed monthly cash-flow
   simulation. Planning corrections are annual planning values, not personal expense transactions.
 - Simulation assumptions are planning inputs, not forecasts. Market aggregation is currently shared;

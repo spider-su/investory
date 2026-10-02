@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.retirement.api.RetirementPresentationApi;
 import com.smartbox.investory.retirement.api.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,8 @@ class RetirementPlanRestControllerIT {
     var validator = new LocalValidatorFactoryBean();
     validator.afterPropertiesSet();
     mvc =
-        MockMvcBuilders.standaloneSetup(new RetirementPlanRestController(plans))
+        MockMvcBuilders.standaloneSetup(
+                new RetirementPlanRestController(plans, mock(RetirementPresentationApi.class)))
             .setValidator(validator)
             .build();
   }

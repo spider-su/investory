@@ -8947,6 +8947,24 @@ COMMENT ON VIEW investory.recon_v_system_audit IS 'Canonical persisted audit API
 -- Name: recon_v_temporal_anomaly; Type: VIEW; Schema: investory; Owner: -
 --
 
+CREATE TABLE investory.reconciliation_price_anomaly_reviews (
+    issue_code character varying(64) NOT NULL,
+    entity_id bigint NOT NULL,
+    entity_key character varying(255) NOT NULL,
+    event_date date NOT NULL,
+    previous_date date NOT NULL,
+    source character varying(64) NOT NULL,
+    source_symbol character varying(128) NOT NULL,
+    previous_value numeric NOT NULL,
+    current_value numeric NOT NULL,
+    resolution character varying(40) NOT NULL CHECK (((resolution)::text = ANY ((ARRAY['CONFIRMED_MARKET_MOVE'::character varying, 'SOURCE_PRICE_CORRECTED'::character varying, 'MANUAL_ALTERNATE_LISTING_ACCEPTED'::character varying])::text[]))),
+    rationale text NOT NULL,
+    evidence_url text NOT NULL,
+    reviewed_at timestamp with time zone NOT NULL DEFAULT now(),
+    reviewed_by character varying(128) NOT NULL DEFAULT CURRENT_USER,
+    CONSTRAINT reconciliation_price_anomaly_reviews_pkey PRIMARY KEY (issue_code, entity_id, event_date, previous_date, source, source_symbol, previous_value, current_value)
+);
+
 CREATE VIEW investory.recon_v_temporal_anomaly AS
  SELECT recon_v_fx_temporal_anomaly.severity,
     recon_v_fx_temporal_anomaly.issue_code,
@@ -8998,7 +9016,10 @@ UNION ALL
     recon_v_price_temporal_anomaly.price_origin,
     recon_v_price_temporal_anomaly.quality_class,
     recon_v_price_temporal_anomaly.is_proxy
-   FROM investory.recon_v_price_temporal_anomaly
+   FROM investory.recon_v_price_temporal_anomaly p
+  WHERE (NOT (EXISTS ( SELECT 1
+           FROM investory.reconciliation_price_anomaly_reviews r
+          WHERE (((r.resolution)::text = ANY ((ARRAY['CONFIRMED_MARKET_MOVE'::character varying, 'SOURCE_PRICE_CORRECTED'::character varying, 'MANUAL_ALTERNATE_LISTING_ACCEPTED'::character varying])::text[])) AND ((r.issue_code)::text = (p.issue_code)::text) AND (r.entity_id = p.entity_id) AND (r.event_date = p.event_date) AND (r.previous_date = p.previous_date) AND ((r.source)::text = (p.source)::text) AND ((r.source_symbol)::text = (p.source_symbol)::text) AND (r.previous_value = p.previous_value) AND (r.current_value = p.current_value)))))
 UNION ALL
  SELECT recon_v_account_temporal_anomaly.severity,
     recon_v_account_temporal_anomaly.issue_code,
@@ -11421,11 +11442,10 @@ ALTER TABLE ONLY investory.retirement_plans
 
 
 --
--- Name: retirement_plans retirement_plans_portfolio_id_name_key; Type: CONSTRAINT; Schema: investory; Owner: -
+-- Name: uq_retirement_plans_active_name; Type: INDEX; Schema: investory; Owner: -
 --
 
-ALTER TABLE ONLY investory.retirement_plans
-    ADD CONSTRAINT retirement_plans_portfolio_id_name_key UNIQUE (portfolio_id, name);
+CREATE UNIQUE INDEX uq_retirement_plans_active_name ON investory.retirement_plans USING btree (portfolio_id, lower(btrim((name)::text))) WHERE (archived = false);
 
 
 --

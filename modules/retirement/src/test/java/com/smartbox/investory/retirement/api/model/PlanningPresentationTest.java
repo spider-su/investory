@@ -6,16 +6,16 @@ import org.junit.jupiter.api.Test;
 
 class PlanningPresentationTest {
   @Test
-  void describesSimpleWaterfallFundingStrategy() {
+  void presentsLegacyFundingStrategyAsTheOnlySupportedPolicy() {
     assertEquals(
-        "Fixed funding order: income → reserve → permitted Long-Term capital → Investment",
+        "Reserve and harvest: Cash → Bonds above reserve → permitted Equities → Bonds below reserve → Real Estate",
         PlanningPresentation.fundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL));
   }
 
   @Test
   void describesReserveAndHarvestFundingStrategy() {
     assertEquals(
-        "Reserve and harvest funding order: manual reserve → market cash → spendable fixed income → permitted emergency equity",
+        "Reserve and harvest: Cash → Bonds above reserve → permitted Equities → Bonds below reserve → Real Estate",
         PlanningPresentation.fundingStrategy(SimulationFundingStrategy.RESERVE_AND_HARVEST));
   }
 }

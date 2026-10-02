@@ -59,6 +59,14 @@ long observation gaps are not classified as short-period spikes, and account mov
 remove deposits, withdrawals, income, expenses, and realized profit before applying the
 unexplained-movement threshold.
 
+Manual price-anomaly dispositions are recorded in
+`investory.reconciliation_price_anomaly_reviews` with the exact observation fingerprint,
+rationale, and evidence URL. Confirmed market moves and corrected source prices remain visible
+in the underlying price history. A manually accepted alternate-listing issue records the
+reviewer-approved exception without changing source prices. All three dispositions are omitted
+from the combined active temporal-anomaly view. A changed observation no longer matches its
+disposition and returns to active review.
+
 Known non-accounting price-source conditions are evidence-quality classifications, not valuation
 failures: trade observations, interpolated prices, alternate listings, and stale carry-forward
 prices remain visible for traceability. Trade-observation and stale-carry-forward selections are

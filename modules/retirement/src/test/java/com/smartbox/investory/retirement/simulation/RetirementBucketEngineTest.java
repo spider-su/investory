@@ -130,9 +130,9 @@ class RetirementBucketEngineTest {
     assertThat(r.unfunded()).isEqualByComparingTo("5");
   }
 
-  @DisplayName("sells one fifth of real estate and invests sale surplus 70/30")
+  @DisplayName("releases aggregate real-estate capital and invests surplus 70/30")
   @Test
-  void sellsOneApartmentAndInvestsSaleSurplus() {
+  void releasesAggregateRealEstateAndInvestsSaleSurplus() {
     var result =
         engine.simulate(
             buckets("0", "0", "0", "500", "0", "0"),
@@ -191,6 +191,52 @@ class RetirementBucketEngineTest {
     assertThat(r.buckets().get(EconomicBucket.FIXED_INCOME).returnAmount())
         .isEqualByComparingTo("3");
     assertThat(r.buckets().get(EconomicBucket.EQUITY).returnAmount()).isEqualByComparingTo("40");
+  }
+
+  @DisplayName("applies annual return to opening balance before spending withdrawal")
+  @Test
+  void appliesAnnualReturnToOpeningBalanceBeforeSpendingWithdrawal() {
+    var result =
+        engine.simulate(
+            buckets("0", "0", "100", "0", "0", "0"),
+            bd("30"),
+            BigDecimal.ZERO,
+            policy(),
+            BigDecimal.ZERO,
+            bd("0.10"),
+            BigDecimal.ZERO);
+
+    var equity = result.buckets().get(EconomicBucket.EQUITY);
+    assertThat(equity.startValue()).isEqualByComparingTo("100");
+    assertThat(equity.returnAmount()).isEqualByComparingTo("10");
+    assertThat(equity.withdrawal()).isEqualByComparingTo("30");
+    assertThat(equity.expectedEndValue()).isEqualByComparingTo("80");
+  }
+
+  @Test
+  void rejectsReturnsBelowMinusOneButAllowsExactlyMinusOne() {
+    var start = buckets("0", "0", "100", "0", "0", "0");
+    var wipedOut =
+        engine.simulate(
+            start,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            policy(),
+            BigDecimal.ZERO,
+            bd("-1"),
+            BigDecimal.ZERO);
+    assertThat(wipedOut.buckets().get(EconomicBucket.EQUITY).expectedEndValue()).isZero();
+    org.junit.jupiter.api.Assertions.assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            engine.simulate(
+                start,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                policy(),
+                BigDecimal.ZERO,
+                bd("-1.0001"),
+                BigDecimal.ZERO));
   }
 
   @DisplayName("equity To Bond Transfer Is Signed And Portfolio Value Neutral")

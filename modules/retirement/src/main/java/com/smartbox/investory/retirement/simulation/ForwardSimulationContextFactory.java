@@ -26,10 +26,6 @@ public class ForwardSimulationContextFactory {
     }
 
     int asOfAge = currentPlanningAge(originalAssumptions, asOfYear);
-    if (asOfAge > originalAssumptions.endAge()) {
-      throw new IllegalArgumentException("Forward context is beyond the plan horizon");
-    }
-
     int firstProjectedYear = asOfYear + 1;
     int firstProjectedAge = asOfAge + 1;
     List<SimulationEvent> currentYearEvents =

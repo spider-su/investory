@@ -41,10 +41,8 @@ public final class PlanningPresentation {
 
   public static String fundingStrategy(SimulationFundingStrategy value) {
     return switch (value) {
-      case SIMPLE_WATERFALL ->
-          "Fixed funding order: income → reserve → permitted Long-Term capital → Investment";
-      case RESERVE_AND_HARVEST ->
-          "Reserve and harvest funding order: manual reserve → market cash → spendable fixed income → permitted emergency equity";
+      case SIMPLE_WATERFALL, RESERVE_AND_HARVEST ->
+          "Reserve and harvest: Cash → Bonds above reserve → permitted Equities → Bonds below reserve → Real Estate";
     };
   }
 }

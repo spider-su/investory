@@ -11,8 +11,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import java.time.Instant;
@@ -60,17 +58,6 @@ public class RetirementPlanningYearEntity {
 
   @Transient
   private Map<PlanningValueKind, Map<PlanningMetric, PlanningMetricValue>> values = emptyValues();
-
-  @PrePersist
-  void onCreate() {
-    createdAt = Instant.now();
-    updatedAt = createdAt;
-  }
-
-  @PreUpdate
-  void onUpdate() {
-    updatedAt = Instant.now();
-  }
 
   private static Map<PlanningValueKind, Map<PlanningMetric, PlanningMetricValue>> emptyValues() {
     Map<PlanningValueKind, Map<PlanningMetric, PlanningMetricValue>> result =

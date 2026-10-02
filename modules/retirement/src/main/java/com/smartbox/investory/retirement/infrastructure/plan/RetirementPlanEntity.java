@@ -11,12 +11,7 @@ import lombok.Setter;
 
 /** Mutable canonical plan row. It stores intent, never generated projection output. */
 @Entity
-@Table(
-    name = "retirement_plans",
-    uniqueConstraints =
-        @UniqueConstraint(
-            name = "uq_retirement_plans_portfolio_name",
-            columnNames = {"portfolio_id", "name"}))
+@Table(name = "retirement_plans")
 @Getter
 @Setter
 public class RetirementPlanEntity implements PersistedSimulationAssumptions {
@@ -132,17 +127,6 @@ public class RetirementPlanEntity implements PersistedSimulationAssumptions {
 
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
-
-  @PrePersist
-  void onCreate() {
-    if (createdAt == null) createdAt = Instant.now();
-    if (updatedAt == null) updatedAt = createdAt;
-  }
-
-  @PreUpdate
-  void onUpdate() {
-    updatedAt = Instant.now();
-  }
 
   @Override
   public int getEffectiveYear() {
