@@ -3,7 +3,7 @@ package com.smartbox.investory.marketradar.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.smartbox.investory.marketradar.domain.DailyMarketBar;
-import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
+import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;\nimport com.smartbox.investory.marketradar.port.RadarSnapshotStore;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -17,16 +17,23 @@ class MarketRadarServiceTest {
   @Test
   void analyzesAvailableHistoryThroughThePort() {
     HistoricalMarketDataPort port = (symbol, from, to) -> bars();
-    MarketRadarService service =
-        new MarketRadarService(
-            port,
-            new MarketSignalCalculator(),
+    RadarSnapshotStore store = new EmptyStore();\n    MarketRadarService service =\n        new MarketRadarService(\n            port,\n            store,\n            new MarketSignalCalculator(),
             Clock.fixed(Instant.parse("2026-10-03T12:00:00Z"), ZoneOffset.UTC));
 
     var result = service.analyze("abc");
 
     assertThat(result).isPresent();
     assertThat(result.orElseThrow().symbol()).isEqualTo("ABC");
+  }
+
+  private static class EmptyStore implements RadarSnapshotStore {
+    @Override
+    public void save(com.smartbox.investory.marketradar.domain.RadarSnapshot snapshot) {}
+
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarSnapshot> latest() {
+      return List.of();
+    }
   }
 
   private List<DailyMarketBar> bars() {
