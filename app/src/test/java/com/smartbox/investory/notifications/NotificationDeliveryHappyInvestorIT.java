@@ -1,15 +1,17 @@
 package com.smartbox.investory.notifications;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.integrations.notifications.application.NotificationDeliveryChannel;
 import com.smartbox.investory.integrations.notifications.application.NotificationEventDispatcher;
 import com.smartbox.investory.integrations.notifications.persistence.NotificationDeliveryState;
 import com.smartbox.investory.integrations.notifications.persistence.NotificationEventEntity;
 import com.smartbox.investory.integrations.notifications.persistence.NotificationEventRepository;
+import com.smartbox.investory.integrations.telegram.TelegramNotificationDeliveryChannel;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
 import com.smartbox.investory.shared.notifications.NotificationSeverity;
 import com.smartbox.investory.shared.time.ApplicationTime;
@@ -17,6 +19,7 @@ import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,9 +31,16 @@ class NotificationDeliveryHappyInvestorIT extends FastDatabaseTest {
   @Autowired private NotificationEventRepository events;
   @Autowired private NotificationEventDispatcher dispatcher;
   @Autowired private ApplicationTime time;
-  @MockitoBean private NotificationDeliveryChannel delivery;
+
+  @MockitoBean(name = "telegramNotificationDeliveryChannel")
+  private TelegramNotificationDeliveryChannel delivery;
 
   private Long eventId;
+
+  @BeforeEach
+  void enableDeliveryForTestEvent() {
+    when(delivery.supports(any())).thenReturn(true);
+  }
 
   @AfterEach
   void cleanUp() {
