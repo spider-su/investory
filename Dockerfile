@@ -12,6 +12,7 @@ COPY modules/shared/pom.xml modules/shared/pom.xml
 COPY modules/investment/pom.xml modules/investment/pom.xml
 COPY modules/longterm/pom.xml modules/longterm/pom.xml
 COPY modules/profile/pom.xml modules/profile/pom.xml
+COPY modules/market-radar/pom.xml modules/market-radar/pom.xml
 COPY modules/retirement/pom.xml modules/retirement/pom.xml
 COPY integrations/pom.xml integrations/pom.xml
 COPY test-support/pom.xml test-support/pom.xml
@@ -24,6 +25,7 @@ COPY modules/shared modules/shared
 COPY modules/investment modules/investment
 COPY modules/longterm modules/longterm
 COPY modules/profile modules/profile
+COPY modules/market-radar modules/market-radar
 COPY modules/retirement modules/retirement
 COPY integrations integrations
 COPY test-support test-support
