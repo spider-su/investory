@@ -4,12 +4,13 @@ import com.smartbox.investory.marketradar.domain.RadarSnapshot;
 import com.smartbox.investory.marketradar.port.RadarSnapshotStore;
 import java.util.ArrayList;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-@Slf4j
 @Service
 public class MarketRadarScanner {
+  private static final System.Logger LOGGER =
+      System.getLogger(MarketRadarScanner.class.getName());
+
   private final MarketRadarService radar;
   private final RadarSnapshotStore store;
 
@@ -30,7 +31,7 @@ public class MarketRadarScanner {
                   refreshed.add(snapshot);
                 });
       } catch (RuntimeException e) {
-        log.warn("Market Radar scan skipped for {}: {}", symbol, e.getMessage());
+        LOGGER.log(\n            System.Logger.Level.WARNING,\n            "Market Radar scan skipped for " + symbol + ": " + e.getMessage());
       }
     }
     return List.copyOf(refreshed);
