@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Market Radar Validation · Investory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<main class="container-xl py-4">
+  <a class="btn btn-link px-0 mb-2" href="/market-radar">← Back to Market Radar</a>
+
+  <div class="mb-4">
+    <div class="page-pretitle">Signal effectiveness</div>
+    <h1 class="page-title">Market Radar Validation</h1>
+    <div class="text-secondary">
+      Historical outcomes grouped by Radar state. This measures the rules; it is not a trading recommendation.
+    </div>
+  </div>
+
+  <div class="alert alert-info" th:if="${#lists.isEmpty(stats)}">
+    No mature forward outcomes yet. Validation appears after signals reach 7, 30, or 90 days.
+  </div>
+
+  <div class="card mb-3" th:unless="${#lists.isEmpty(stats)}">
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter">
+        <thead>
+        <tr>
+          <th>State</th>
+          <th>Horizon</th>
+          <th>Observations</th>
+          <th>Avg return</th>
+          <th>Avg excess vs benchmark</th>
+          <th>Positive</th>
+          <th>Outperformed</th>
+          <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="row : ${stats}">
+          <td><span class="badge" th:text="${row.state}">EMERGING</span></td>
+          <td th:text="${row.horizonDays + 'd'}">30d</td>
+          <td th:text="${row.observations}">0</td>
+          <td th:text="${row.averageReturn == null ? '—' : #numbers.formatPercent(row.averageReturn,1,1)}">—</td>
+          <td>
+            <strong th:text="${row.averageExcessReturn == null ? '—' : #numbers.formatPercent(row.averageExcessReturn,1,1)}">—</strong>
+          </td>
+          <td th:text="${row.positiveRate == null ? '—' : #numbers.formatPercent(row.positiveRate,1,0)}">—</td>
+          <td th:text="${row.outperformRate == null ? '—' : #numbers.formatPercent(row.outperformRate,1,0)}">—</td>
+          <td>
+            <a class="btn btn-sm btn-outline-secondary"
+               th:href="@{/market-radar/validation(state=${row.state},horizon=${row.horizonDays})}">
+              Inspect
+            </a>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" th:if="${selectedState != null and selectedHorizon != null}">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title" th:text="${selectedState + ' · ' + selectedHorizon + 'd observations'}">Observations</h3>
+        <div class="text-secondary small">Newest first. Use this to detect outliers behind the aggregate.</div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter">
+        <thead><tr><th>Date</th><th>Ticker</th><th>Return</th><th>Benchmark</th><th>Excess</th></tr></thead>
+        <tbody>
+        <tr th:each="item : ${observations}">
+          <td th:text="${item.signalDate}">2026-10-03</td>
+          <td><a th:href="@{/market-radar/{symbol}(symbol=${item.symbol})}" th:text="${item.symbol}">AAPL</a></td>
+          <td th:text="${#numbers.formatPercent(item.symbolReturn,1,1)}">0%</td>
+          <td th:text="${item.benchmarkReturn == null ? '—' : #numbers.formatPercent(item.benchmarkReturn,1,1)}">—</td>
+          <td><strong th:text="${item.excessReturn == null ? '—' : #numbers.formatPercent(item.excessReturn,1,1)}">—</strong></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<script src="/js/theme.js"></script>
+</body>
+</html>

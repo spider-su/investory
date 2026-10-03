@@ -4,6 +4,9 @@ import com.smartbox.investory.marketradar.api.MarketRadarApi;
 import com.smartbox.investory.marketradar.domain.DailyMarketBar;
 import com.smartbox.investory.marketradar.domain.RadarOutcome;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
+import com.smartbox.investory.marketradar.domain.RadarState;
+import com.smartbox.investory.marketradar.domain.RadarValidationObservation;
+import com.smartbox.investory.marketradar.domain.RadarValidationStats;
 import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
 import com.smartbox.investory.marketradar.port.RadarOutcomeStore;
 import com.smartbox.investory.marketradar.port.RadarSnapshotStore;
@@ -60,5 +63,17 @@ public class MarketRadarService implements MarketRadarApi {
     if (symbol == null || symbol.isBlank()) return List.of();
     return outcomes.outcomes(
         symbol.trim().toUpperCase(java.util.Locale.ROOT), Math.max(1, Math.min(limit, 500)));
+  }
+
+  @Override
+  public List<RadarValidationStats> validationStats() {
+    return outcomes.validationStats();
+  }
+
+  @Override
+  public List<RadarValidationObservation> validationObservations(
+      RadarState state, int horizonDays, int limit) {
+    if (state == null || horizonDays <= 0) return List.of();
+    return outcomes.validationObservations(state, horizonDays, Math.max(1, Math.min(limit, 500)));
   }
 }
