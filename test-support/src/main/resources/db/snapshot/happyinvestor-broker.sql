@@ -58,7 +58,7 @@ INSERT INTO cash_operations
 VALUES
     (7022, 91000002, 'CLOSE_TRADE', 501, 'NATGAS', 'NATGAS', 19.80, 'USD', 'NATGAS CFD 2040572606 close (gross 105.90 net of -86.10 rollover)', '2025-09-26 12:00:00+02'),
     (7023, 91000002, 'SWAP', 501, 'NATGAS', 'NATGAS', -0.68, 'USD', 'NATGAS CFD 2040572606 swap', '2025-09-26 12:00:00+02'),
-    (7026, 91000001, 'TRANSFER', 1201, 'US91282CKB62', 'T458022826', 10000, 'USD', 'Full call redemption principal returned', '2026-02-28 12:00:00+01'),
+    (7026, 91000001, 'TRANSFER', 1201, 'US91282CKB62', 'T458022826', 10000, 'USD', 'Full call / early redemption for USD 1.00 per Bond', '2026-02-28 12:00:00+01'),
     (7027, 91000001, 'STOCK_PURCHASE', 1251, 'US91282CRC72', 'T438073133', -9903.125, 'USD', 'Treasury principal reinvestment on first trading date', '2026-08-03 12:00:00+02')
 ON CONFLICT (id) DO NOTHING;
 
