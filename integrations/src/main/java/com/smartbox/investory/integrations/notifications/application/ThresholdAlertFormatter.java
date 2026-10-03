@@ -46,9 +46,7 @@ public class ThresholdAlertFormatter implements NotificationMessageFormatter {
           + "\nDifference "
           + TelegramText.escape(money(current - peak, currency));
     }
-    return TelegramText.heading("⚠️", event.getTitle())
-        + "\n\n"
-        + TelegramText.escape(message);
+    return TelegramText.heading("⚠️", event.getTitle()) + "\n\n" + TelegramText.escape(message);
   }
 
   private static double parse(String value) {
