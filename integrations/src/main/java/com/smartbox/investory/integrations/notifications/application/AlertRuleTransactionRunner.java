@@ -73,9 +73,20 @@ public class AlertRuleTransactionRunner {
             "ALERT_RULE",
             stateKey,
             "ALERT:" + stateKey + ":" + incidentSequence + ":ACTIVE",
-            "Threshold alert: " + code,
+            humanTitle(code),
             Map.of("message", message, "rule", code, "incidentKey", stateKey),
             clock.instant()));
+  }
+
+  private static String humanTitle(String code) {
+    return switch (code) {
+      case "DRAWDOWN" -> "Portfolio drawdown";
+      case "CONCENTRATION" -> "Portfolio concentration";
+      case "STALE_IMPORT" -> "Broker data is stale";
+      case "RENTAL_CONTRACT_EXPIRING" -> "Rental contract expiring";
+      case "BOND_MATURITY_APPROACHING" -> "Bond maturity approaching";
+      default -> code.replace('_', ' ');
+    };
   }
 
   private static String stateKey(String code, String observationKey) {
