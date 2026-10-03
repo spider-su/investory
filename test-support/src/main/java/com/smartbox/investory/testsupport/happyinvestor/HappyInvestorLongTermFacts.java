@@ -62,7 +62,8 @@ public final class HappyInvestorLongTermFacts {
   public static final String REINVESTMENT_TREASURY_NAME = "United States Treasury 4 3/8 07/31/33";
   public static final String REINVESTMENT_TREASURY_FORM_RATE_DISPLAY = "4.38";
   public static final BigDecimal REINVESTMENT_TREASURY_COUPON = new BigDecimal("0.04375");
-  public static final LocalDate REINVESTMENT_TREASURY_FIRST_TRADING_DATE = LocalDate.of(2026, 8, 3);
+  public static final LocalDate REINVESTMENT_TREASURY_FIRST_TRADING_DATE =
+      LocalDate.of(2026, 8, 3);
   public static final LocalDate REINVESTMENT_DATE = REINVESTMENT_TREASURY_FIRST_TRADING_DATE;
   public static final BigDecimal REINVESTMENT_TREASURY_FIRST_TRADING_PRICE =
       new BigDecimal("99.03125");

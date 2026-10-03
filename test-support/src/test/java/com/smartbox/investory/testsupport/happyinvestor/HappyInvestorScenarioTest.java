@@ -215,7 +215,7 @@ class HappyInvestorScenarioTest {
         investor.ledger().stream()
             .anyMatch(
                 op ->
-                    op.getType() == CashOperationType.TRANSFER
+                    op.getType() == CashOperationType.STOCK_SELL
                         && HappyInvestorTestData.TREASURY_2026.symbol().equals(op.getSymbol())
                         && op.getAmount().compareTo(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL)
                             == 0));

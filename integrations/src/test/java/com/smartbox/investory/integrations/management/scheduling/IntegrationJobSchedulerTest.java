@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +24,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -38,13 +41,14 @@ class IntegrationJobSchedulerTest {
   private final InvestmentMaintenanceApi investmentMaintenance = mock();
   private final JdbcTemplate jdbc = mock();
   private final IntegrationJobHandlerRegistry handlers = mock();
+  private final IntegrationJobAlertPublisher alerts = mock();
   private final Connection connection = mock();
   private final PreparedStatement tryLock = mock();
   private final PreparedStatement unlock = mock();
   private final ResultSet tryLockResult = mock();
   private final ResultSet unlockResult = mock();
   private final IntegrationJobScheduler scheduler =
-      new IntegrationJobScheduler(jobs, instances, handlers, TIME, jdbc);
+      new IntegrationJobScheduler(jobs, instances, handlers, TIME, jdbc, alerts, 360);
 
   @DisplayName("skips Disabled Instance And Invalid Cron Without Taking Lock")
   @Test
@@ -105,6 +109,7 @@ class IntegrationJobSchedulerTest {
 
     org.assertj.core.api.Assertions.assertThat(job.getLastStatus()).isEqualTo("FAILED");
     org.assertj.core.api.Assertions.assertThat(job.getLastError()).contains("rate limit");
+    verify(alerts).failed(job, instance, TIME.now(TIME.businessZone()), "USD: rate limit");
   }
 
   @DisplayName("records Failed When Market Refresh Is Incomplete")
@@ -126,6 +131,54 @@ class IntegrationJobSchedulerTest {
     org.assertj.core.api.Assertions.assertThat(job.getLastStatus()).isEqualTo("FAILED");
     org.assertj.core.api.Assertions.assertThat(job.getLastError())
         .contains("Market refresh incomplete");
+    verify(alerts)
+        .failed(job, instance, TIME.now(TIME.businessZone()), "Market refresh incomplete: ABC");
+  }
+
+  @DisplayName("alerts When A Configured Refresh Job Is Stale")
+  @Test
+  void alertsWhenConfiguredRefreshJobIsStale() {
+    IntegrationJobEntity job = job("0 15 6 * * *", "Europe/Warsaw");
+    job.setLastCompletedAt(ZonedDateTime.of(2026, 9, 3, 6, 15, 0, 0, ZoneId.of("Europe/Warsaw")));
+    IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, true);
+    when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
+    when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
+    allowLock();
+    when(handlers.require(IntegrationType.MARKET_DATA, "refresh-prices"))
+        .thenReturn(new RefreshPricesJobHandler(investmentMaintenance));
+
+    scheduler.poll();
+
+    verify(alerts)
+        .stale(
+            job, instance, ZonedDateTime.of(2026, 9, 4, 6, 15, 0, 0, ZoneId.of("Europe/Warsaw")));
+  }
+
+  @DisplayName("records And Alerts Failed Manual Reruns")
+  @Test
+  void recordsAndAlertsFailedManualReruns() {
+    IntegrationJobEntity job = job("0 15 6 * * *", "Europe/Warsaw");
+    IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, true);
+    instance.setPluginId("market-plugin");
+    when(instances.findByOwnerIdAndPluginIdAndPluginType(
+            null, "market-plugin", IntegrationType.MARKET_DATA))
+        .thenReturn(Optional.of(instance));
+    when(jobs.findByIntegrationInstanceId(3L)).thenReturn(List.of(job));
+    when(handlers.require(IntegrationType.MARKET_DATA, "refresh-prices"))
+        .thenReturn(new RefreshPricesJobHandler(investmentMaintenance));
+    doThrow(new IllegalStateException("Provider timeout"))
+        .when(investmentMaintenance)
+        .refreshPrices();
+    allowLock();
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> scheduler.runNow(IntegrationType.MARKET_DATA, "market-plugin", "refresh-prices"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Provider timeout");
+
+    verify(jobs, times(2)).save(job);
+    org.assertj.core.api.Assertions.assertThat(job.getLastStatus()).isEqualTo("FAILED");
+    verify(alerts).failed(job, instance, TIME.now(TIME.businessZone()), "Provider timeout");
   }
 
   private IntegrationJobEntity job(String cron, String timezone) {

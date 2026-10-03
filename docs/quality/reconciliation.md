@@ -6,6 +6,12 @@ internally consistent ones.
 This is the current validation contract. Historical investigation notes live under `docs/archive/`
 and are not authoritative.
 
+For live-data acceptance, establish portfolio identity from current ownership and broker import
+provenance. The deterministic Happy Investor portfolio (fixture identity `portfolio_id = 2`) is
+synthetic test data and has no broker-import provenance by design; its rows are not evidence about
+real portfolios. Validate that story through its source fixture, generated snapshot, and fixture
+contracts instead. See the [Happy Investor fixture guide](../../test-support/src/main/java/com/smartbox/investory/testsupport/happyinvestor/README.md).
+
 ## Pipeline checkpoints
 
 ```text
