@@ -2,8 +2,8 @@ package com.smartbox.investory.ui.marketradar;
 
 import com.smartbox.investory.marketradar.api.MarketRadarApi;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
-import com.smartbox.investory.marketradar.domain.RadarValidationStats;
 import com.smartbox.investory.marketradar.domain.RadarState;
+import com.smartbox.investory.marketradar.domain.RadarValidationStats;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
