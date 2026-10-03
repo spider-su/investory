@@ -3,6 +3,8 @@ package com.smartbox.investory.integrations.market.radar;
 import com.smartbox.investory.marketradar.domain.RadarOutcome;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
 import com.smartbox.investory.marketradar.domain.RadarState;
+import com.smartbox.investory.marketradar.domain.RadarValidationObservation;
+import com.smartbox.investory.marketradar.domain.RadarValidationStats;
 import com.smartbox.investory.marketradar.port.RadarOutcomeStore;
 import java.sql.Date;
 import java.time.LocalDate;
@@ -93,6 +95,60 @@ public class JdbcRadarOutcomeStore implements RadarOutcomeStore {
                 nullableDouble(rs, "benchmark_return"),
                 nullableDouble(rs, "excess_return")),
         symbol,
+        limit);
+  }
+
+  @Override
+  public List<RadarValidationStats> validationStats() {
+    return jdbc.query(
+        """
+        select s.state, o.horizon_days, count(*) as observations,
+          avg(o.symbol_return) as average_return,
+          avg(o.excess_return) as average_excess_return,
+          avg(case when o.symbol_return > 0 then 1.0 else 0.0 end) as positive_rate,
+          avg(case when o.excess_return > 0 then 1.0 else 0.0 end) as outperform_rate
+        from market_radar_outcome o
+        join market_radar_snapshot s
+          on s.symbol = o.symbol and s.observed_on = o.signal_date
+        group by s.state, o.horizon_days
+        order by o.horizon_days, s.state
+        """,
+        (rs, row) ->
+            new RadarValidationStats(
+                RadarState.valueOf(rs.getString("state")),
+                rs.getInt("horizon_days"),
+                rs.getLong("observations"),
+                nullableDouble(rs, "average_return"),
+                nullableDouble(rs, "average_excess_return"),
+                nullableDouble(rs, "positive_rate"),
+                nullableDouble(rs, "outperform_rate")));
+  }
+
+  @Override
+  public List<RadarValidationObservation> validationObservations(
+      RadarState state, int horizonDays, int limit) {
+    return jdbc.query(
+        """
+        select o.symbol, o.signal_date, s.state, o.horizon_days, o.symbol_return,
+          o.benchmark_return, o.excess_return
+        from market_radar_outcome o
+        join market_radar_snapshot s
+          on s.symbol = o.symbol and s.observed_on = o.signal_date
+        where s.state = ? and o.horizon_days = ?
+        order by o.signal_date desc, o.symbol
+        limit ?
+        """,
+        (rs, row) ->
+            new RadarValidationObservation(
+                rs.getString("symbol"),
+                rs.getDate("signal_date").toLocalDate(),
+                RadarState.valueOf(rs.getString("state")),
+                rs.getInt("horizon_days"),
+                rs.getDouble("symbol_return"),
+                nullableDouble(rs, "benchmark_return"),
+                nullableDouble(rs, "excess_return")),
+        state.name(),
+        horizonDays,
         limit);
   }
 
