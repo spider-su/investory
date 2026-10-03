@@ -1,10 +1,10 @@
 package com.smartbox.investory.marketradar.application;
 
 import com.smartbox.investory.marketradar.api.MarketRadarApi;
-import com.smartbox.investory.marketradar.domain.DailyMarketBar;
+import com.smartbox.investory.marketradar.domain.DailyMarketBar;\nimport com.smartbox.investory.marketradar.domain.RadarOutcome;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
 import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
-import com.smartbox.investory.marketradar.port.RadarSnapshotStore;
+import com.smartbox.investory.marketradar.port.RadarOutcomeStore;\nimport com.smartbox.investory.marketradar.port.RadarSnapshotStore;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 public class MarketRadarService implements MarketRadarApi {
 
   private final HistoricalMarketDataPort marketData;
-  private final RadarSnapshotStore store;
+  private final RadarSnapshotStore store;\n  private final RadarOutcomeStore outcomes;
   private final MarketSignalCalculator calculator;
   private final Clock clock;
 
