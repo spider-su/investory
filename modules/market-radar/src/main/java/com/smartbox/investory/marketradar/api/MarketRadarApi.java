@@ -1,9 +1,9 @@
 package com.smartbox.investory.marketradar.api;
 
-import com.smartbox.investory.marketradar.domain.RadarSignal;
-import java.util.List;
+import com.smartbox.investory.marketradar.domain.RadarSnapshot;
+import java.util.Optional;
 
 public interface MarketRadarApi {
 
-  List<RadarSignal> currentSignals();
+  Optional<RadarSnapshot> analyze(String symbol);
 }
