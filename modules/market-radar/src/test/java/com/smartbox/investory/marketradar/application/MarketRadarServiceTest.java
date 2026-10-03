@@ -3,7 +3,7 @@ package com.smartbox.investory.marketradar.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.smartbox.investory.marketradar.domain.DailyMarketBar;
-import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
+import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;\nimport com.smartbox.investory.marketradar.port.RadarSnapshotStore;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -17,10 +17,7 @@ class MarketRadarServiceTest {
   @Test
   void analyzesAvailableHistoryThroughThePort() {
     HistoricalMarketDataPort port = (symbol, from, to) -> bars();
-    MarketRadarService service =
-        new MarketRadarService(
-            port,
-            () -> List.of(),
+    RadarSnapshotStore store = new EmptyStore();\n    MarketRadarService service =\n        new MarketRadarService(\n            port,\n            store,
             new MarketSignalCalculator(),
             Clock.fixed(Instant.parse("2026-10-03T12:00:00Z"), ZoneOffset.UTC));
 
@@ -28,6 +25,28 @@ class MarketRadarServiceTest {
 
     assertThat(result).isPresent();
     assertThat(result.orElseThrow().symbol()).isEqualTo("ABC");
+  }
+
+  private static class EmptyStore implements RadarSnapshotStore {
+    @Override
+    public void save(com.smartbox.investory.marketradar.domain.RadarSnapshot snapshot) {}
+
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarSnapshot> latest() {
+      return List.of();
+    }
+
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarSnapshot> history(
+        String symbol, int limit) {
+      return List.of();
+    }
+
+    @Override
+    public java.util.Optional<com.smartbox.investory.marketradar.domain.RadarSnapshot> previous(
+        String symbol, LocalDate before) {
+      return java.util.Optional.empty();
+    }
   }
 
   private List<DailyMarketBar> bars() {
