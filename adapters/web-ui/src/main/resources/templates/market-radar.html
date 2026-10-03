@@ -9,7 +9,11 @@
   <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
     <div><div class="page-pretitle">What changed?</div><h1 class="page-title">Market Radar</h1>
       <div class="text-secondary">Deterministic activity signals for research, not trade recommendations.</div></div>
-    <div class="text-end"><div class="h2 mb-0" th:text="${interestingCount}">0</div><div class="text-secondary small" th:text="${'interesting of ' + totalCount + ' scanned'}">interesting</div></div>
+    <div class="text-end">
+      <div class="h2 mb-0" th:text="${interestingCount}">0</div>
+      <div class="text-secondary small mb-2" th:text="${'interesting of ' + totalCount + ' scanned'}">interesting</div>
+      <a class="btn btn-sm btn-outline-secondary" href="/market-radar/validation">Validation</a>
+    </div>
   </div>
 
   <form class="card card-sm mb-3" method="get" action="/market-radar">
