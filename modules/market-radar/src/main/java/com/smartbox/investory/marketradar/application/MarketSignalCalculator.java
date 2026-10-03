@@ -16,7 +16,8 @@ public class MarketSignalCalculator {
   public RadarSnapshot calculate(String symbol, List<DailyMarketBar> input) {
     List<DailyMarketBar> bars =
         input.stream().sorted(Comparator.comparing(DailyMarketBar::date)).toList();
-    if (bars.size() < MIN_BARS) throw new IllegalArgumentException("At least 61 daily bars are required");
+    if (bars.size() < MIN_BARS)
+      throw new IllegalArgumentException("At least 61 daily bars are required");
 
     int last = bars.size() - 1;
     DailyMarketBar current = bars.get(last);
@@ -24,10 +25,16 @@ public class MarketSignalCalculator {
     double return20 = change(close, bars.get(last - 20).close());
     double return60 = change(close, bars.get(last - 60).close());
     double avgVolume20 =
-        bars.subList(last - 20, last).stream().mapToLong(DailyMarketBar::volume).average().orElse(0);
+        bars.subList(last - 20, last).stream()
+            .mapToLong(DailyMarketBar::volume)
+            .average()
+            .orElse(0);
     Double relativeVolume = avgVolume20 > 0 ? current.volume() / avgVolume20 : null;
     double sma50 =
-        bars.subList(last - 49, last + 1).stream().mapToDouble(DailyMarketBar::close).average().orElse(close);
+        bars.subList(last - 49, last + 1).stream()
+            .mapToDouble(DailyMarketBar::close)
+            .average()
+            .orElse(close);
     double distanceSma50 = change(close, sma50);
     double rsi = rsi14(bars);
     List<String> reasons = new ArrayList<>();
