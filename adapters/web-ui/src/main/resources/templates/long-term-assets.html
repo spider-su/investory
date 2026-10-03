@@ -31,7 +31,7 @@
                    th:classappend="| long-term-assets-table--${group.key.toLowerCase().replace('_', '-')}|">
               <thead>
               <tr th:if="${group.key == 'REAL_ESTATE'}">
-                <th>Name</th><th>Total payment / month</th><th>Yield</th><th>Net income / month</th><th>End date</th><th>Property tax + insurance / month</th><th>Actions</th>
+                <th>Name</th><th>Rental income / month</th><th>Yield</th><th>Net income / month</th><th>End date</th><th>Property tax + insurance / month</th><th>Actions</th>
               </tr>
               <tr th:if="${group.key == 'BOND'}">
                 <th>Name</th><th>Value</th><th>Yield</th><th>Net income / year</th><th>End date</th><th>Tax / year</th><th>Actions</th>
@@ -48,7 +48,7 @@
                 <td><a th:href="${'/portfolios/' + portfolioId + '/long-term-assets/' + asset.id + '/real-estate'}"
                        th:text="${asset.name}">Asset</a>
                 </td>
-                <td class="text-end" th:text="${format.compactMoney(asset.totalPaymentMonthly) + ' / month'}">0 / month</td>
+                <td class="text-end" th:text="${format.compactMoney(asset.monthlyRentalIncome) + ' / month'}">0 / month</td>
                 <td class="text-end iv-yield-cell" th:if="${!asset.integrityWarning}"><strong th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax)}">0.0%</strong><small th:text="${'Gross ' + format.percentage(asset.annualEconomics.grossYield)}">Gross 0.0%</small></td>
                 <td class="text-end" th:if="${asset.integrityWarning}">Unavailable</td>
                 <td class="text-end" th:if="${!asset.integrityWarning}" th:text="${format.compactMoney(asset.annualEconomics.monthlyNetIncomeAfterTax) + ' / month'}">0 / month</td>

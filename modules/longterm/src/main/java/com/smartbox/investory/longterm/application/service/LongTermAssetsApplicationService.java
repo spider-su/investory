@@ -267,7 +267,7 @@ public class LongTermAssetsApplicationService
                         term.type(), term.amount(), term.frequency(), term.paidByTenant()))
             .toList(),
         LongTermAssetEconomics.rental(contract.terms(), BigDecimal.ZERO, BigDecimal.ZERO)
-            .monthlyPayment());
+            .monthlyRentalIncome());
   }
 
   private static List<RentalContractModel.Term> rentalTerms(List<RentalTermCommand> terms) {

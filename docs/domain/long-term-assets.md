@@ -34,18 +34,22 @@ Expected real-estate growth is also a profile/global planning assumption. These 
 source of truth and are not copied into individual assets or rental contracts.
 
 Each property stores a monthly rental-tax base in its own immutable asset currency. The monthly
-rental-income tax is `monthly tax base × 8.5%`; annual rental-income tax and annual tax base are
-those monthly values multiplied by 12. For example, a 2,900 monthly base produces 246.50 tax per
-month and 2,958 tax per year. Historical snapshots accrue the annualized tax across the contract's
-calendar-year overlap, and total return accrues the same annualized tax through its requested date.
-The overview displays the monthly rental-tax figure consistently in expanded and collapsed views.
-Category values aggregate unrounded annual amounts, then derive monthly figures. `NULL` means
-unspecified and zero means an explicit zero base.
+rental-income tax is `monthly tax base × 8.5%` while a rental contract applies; annual
+rental-income tax and annual tax base are those monthly values multiplied by 12. For example, a
+2,900 monthly base during an applicable contract produces 246.50 tax per month and 2,958 tax per
+year. A vacant property has no rental income tax even if its tax base is configured. Historical
+snapshots accrue the annualized tax across the contract's calendar-year overlap, and total return
+accrues the same annualized tax through its requested date. The overview displays the monthly
+rental-tax figure consistently in expanded and collapsed views. Category values aggregate unrounded
+annual amounts, then derive monthly figures. `NULL` means unspecified and zero means an explicit
+zero base.
 
 A bond has principal/current value, one current interest rate, and maturity. A cash reserve has an
 optional current interest rate and optional maturity: a null or zero rate is plain cash, while a
 positive rate represents interest-bearing cash under the same global-tax rule. Merely holding a
-cash-reserve value does not create income or yield.
+cash-reserve value does not create income or yield. Bond and interest-bearing cash taxes are
+reported through generic annual tax fields; rental-specific tax-base and income-tax fields apply
+only to rental economics.
 
 Interest-bearing bond and cash-reserve income is effective before the maturity date only. Maturity
 is effective at the start of the stated maturity date, so income and yield are zero on and after
@@ -80,7 +84,7 @@ and current bond rates remain unavailable in a historical snapshot until backed 
 `LongTermAssetHistoricalSnapshotService` owns this historical reconstruction; the current overview
 and Profile snapshot path remains in `LongTermAssetReadService`.
 
-`paidByTenant` applies to expense terms. The real-estate overview's total monthly payment includes
+`paidByTenant` applies to expense terms. The real-estate overview's monthly rental income includes
 rental-income terms only; tenant-paid expenses are not property income. Payment Audit separately
 includes all rental-income terms plus tenant-paid expenses in the tenant's monthly payment, while
 landlord-paid expenses are excluded from that payment and reduce property economics instead.

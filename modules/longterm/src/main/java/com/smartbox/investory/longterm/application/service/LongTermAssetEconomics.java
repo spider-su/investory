@@ -21,7 +21,6 @@ final class LongTermAssetEconomics {
       List<RentalContractModel.Term> terms, BigDecimal monthlyRentalTaxBase, BigDecimal value) {
     BigDecimal income = BigDecimal.ZERO;
     BigDecimal expenses = BigDecimal.ZERO;
-    BigDecimal monthlyPayment = BigDecimal.ZERO;
     BigDecimal annualPropertyTax = BigDecimal.ZERO;
     BigDecimal annualInsurance = BigDecimal.ZERO;
     for (var term : terms) {
@@ -37,9 +36,6 @@ final class LongTermAssetEconomics {
             annualInsurance = annualInsurance.add(annual);
           }
         }
-      }
-      if (isRentalIncome(term.type())) {
-        monthlyPayment = monthlyPayment.add(monthlyAmount(term.amount(), term.frequency()));
       }
     }
     BigDecimal normalizedMonthlyTaxBase =
@@ -58,7 +54,7 @@ final class LongTermAssetEconomics {
             rentalIncomeTax,
             annualPropertyTax,
             annualInsurance),
-        monthlyPayment);
+        monthlyRentalIncome(terms));
   }
 
   static AnnualEconomicsView economics(BigDecimal gross, BigDecimal expenses, BigDecimal value) {
@@ -68,7 +64,28 @@ final class LongTermAssetEconomics {
 
   static AnnualEconomicsView economics(
       BigDecimal gross, BigDecimal expenses, BigDecimal value, BigDecimal tax) {
-    return economics(gross, expenses, value, tax, BigDecimal.ZERO);
+    BigDecimal beforeTax = gross.subtract(expenses);
+    BigDecimal afterTax = beforeTax.subtract(tax);
+    BigDecimal zero = BigDecimal.ZERO;
+    return new AnnualEconomicsView(
+        gross,
+        expenses,
+        tax,
+        zero,
+        zero,
+        zero,
+        zero,
+        tax.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        zero,
+        zero,
+        zero,
+        zero,
+        beforeTax,
+        afterTax,
+        afterTax.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        calculateYield(gross, value),
+        calculateYield(beforeTax, value),
+        calculateYield(afterTax, value));
   }
 
   static BigDecimal accruedAmount(
@@ -110,26 +127,36 @@ final class LongTermAssetEconomics {
     return accrued;
   }
 
-  static AnnualEconomicsView economics(
-      BigDecimal gross,
-      BigDecimal expenses,
-      BigDecimal value,
-      BigDecimal tax,
-      BigDecimal annualRentalTaxBase) {
-    return rentalEconomics(
-        gross, expenses, value, annualRentalTaxBase, tax, BigDecimal.ZERO, BigDecimal.ZERO);
-  }
-
-  static AnnualEconomicsView economics(
+  static AnnualEconomicsView aggregateEconomics(
       BigDecimal gross,
       BigDecimal expenses,
       BigDecimal value,
       BigDecimal tax,
       BigDecimal annualRentalTaxBase,
+      BigDecimal annualRentalIncomeTax,
       BigDecimal annualPropertyTax,
       BigDecimal annualInsurance) {
-    return rentalEconomics(
-        gross, expenses, value, annualRentalTaxBase, tax, annualPropertyTax, annualInsurance);
+    BigDecimal beforeTax = gross.subtract(expenses);
+    BigDecimal afterTax = beforeTax.subtract(tax);
+    return new AnnualEconomicsView(
+        gross,
+        expenses,
+        tax,
+        annualRentalTaxBase,
+        annualRentalIncomeTax,
+        annualRentalTaxBase.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        annualRentalIncomeTax.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        tax.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        annualPropertyTax,
+        annualInsurance,
+        annualPropertyTax.add(annualInsurance),
+        annualPropertyTax.add(annualInsurance).divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        beforeTax,
+        afterTax,
+        afterTax.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP),
+        calculateYield(gross, value),
+        calculateYield(beforeTax, value),
+        calculateYield(afterTax, value));
   }
 
   private static AnnualEconomicsView rentalEconomics(
@@ -269,5 +296,12 @@ final class LongTermAssetEconomics {
     };
   }
 
-  record RentalEconomics(AnnualEconomicsView economics, BigDecimal monthlyPayment) {}
+  static BigDecimal monthlyRentalIncome(List<RentalContractModel.Term> terms) {
+    return terms.stream()
+        .filter(term -> isRentalIncome(term.type()))
+        .map(term -> monthlyAmount(term.amount(), term.frequency()))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  record RentalEconomics(AnnualEconomicsView economics, BigDecimal monthlyRentalIncome) {}
 }
