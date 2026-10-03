@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"><title>Market Radar · Investory</title><meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="/css/tabler.min.css" rel="stylesheet"><th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<main class="container-xl py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div><div class="page-pretitle">What changed?</div><h1 class="page-title">Market Radar</h1>
+      <div class="text-secondary">Deterministic activity signals for research, not trade recommendations.</div></div>
+    <div class="text-end"><div class="h2 mb-0" th:text="${interestingCount}">0</div><div class="text-secondary small" th:text="${'interesting of ' + totalCount + ' scanned'}">interesting</div></div>
+  </div>
+
+  <form class="card card-sm mb-3" method="get" action="/market-radar">
+    <div class="card-body d-flex flex-wrap align-items-center gap-2">
+      <span class="text-secondary me-1">Show</span>
+      <a class="btn btn-sm" th:classappend="${selectedState == null ? ' btn-primary' : ' btn-outline-secondary'}"
+         th:href="@{/market-radar(includeNormal=${includeNormal})}">All signals</a>
+      <a th:each="radarState : ${states}" class="btn btn-sm"
+         th:classappend="${selectedState == radarState ? ' btn-primary' : ' btn-outline-secondary'}"
+         th:href="@{/market-radar(state=${radarState},includeNormal=${includeNormal})}" th:text="${radarState}">EMERGING</a>
+      <label class="form-check form-switch ms-auto mb-0"><input class="form-check-input" type="checkbox" name="includeNormal" value="true"
+        th:checked="${includeNormal}" onchange="this.form.submit()"><span class="form-check-label">Include normal</span></label>
+      <input th:if="${selectedState != null}" type="hidden" name="state" th:value="${selectedState}">
+    </div>
+  </form>
+
+  <div class="alert alert-info" th:if="${#lists.isEmpty(signals)}">
+    No matching signals yet. Normal observations are hidden by default so the page stays focused on changes worth reviewing.
+  </div>
+
+  <div class="card" th:unless="${#lists.isEmpty(signals)}"><div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead><tr><th>Ticker</th><th>State</th><th>20d / 60d</th><th>Volume</th><th>SMA50</th><th>RSI</th><th>Why it surfaced</th><th></th></tr></thead>
+      <tbody><tr th:each="signal : ${signals}">
+        <td><strong th:text="${signal.symbol}">AAPL</strong><div class="text-secondary small" th:text="${signal.date}">2026-10-03</div></td>
+        <td><span class="badge" th:text="${signal.state}">EMERGING</span></td>
+        <td><span th:text="${signal.return20d == null ? '—' : #numbers.formatPercent(signal.return20d,1,1)}">—</span>
+          <span class="text-secondary"> / </span><span th:text="${signal.return60d == null ? '—' : #numbers.formatPercent(signal.return60d,1,1)}">—</span></td>
+        <td th:text="${signal.relativeVolume20d == null ? '—' : #numbers.formatDecimal(signal.relativeVolume20d,1,2) + '×'}">—</td>
+        <td th:text="${signal.distanceSma50 == null ? '—' : #numbers.formatPercent(signal.distanceSma50,1,1)}">—</td>
+        <td th:text="${signal.rsi14 == null ? '—' : #numbers.formatDecimal(signal.rsi14,1,1)}">—</td>
+        <td><span th:if="${#lists.isEmpty(signal.reasons)}" class="text-secondary">No unusual condition</span>
+          <span th:unless="${#lists.isEmpty(signal.reasons)}" th:text="${#strings.listJoin(signal.reasons, ' · ')}">Reason</span></td>
+        <td><a class="btn btn-sm btn-outline-secondary" th:href="@{/market-radar/{symbol}(symbol=${signal.symbol})}">History</a></td>
+      </tr></tbody>
+    </table>
+  </div></div>
+</main><script src="/js/theme.js"></script>
+</body></html>

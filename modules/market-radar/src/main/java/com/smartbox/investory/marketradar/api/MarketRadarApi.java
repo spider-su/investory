@@ -1,9 +1,17 @@
 package com.smartbox.investory.marketradar.api;
 
-import com.smartbox.investory.marketradar.domain.RadarSignal;
+import com.smartbox.investory.marketradar.domain.RadarOutcome;
+import com.smartbox.investory.marketradar.domain.RadarSnapshot;
 import java.util.List;
+import java.util.Optional;
 
 public interface MarketRadarApi {
 
-  List<RadarSignal> currentSignals();
+  Optional<RadarSnapshot> analyze(String symbol);
+
+  List<RadarSnapshot> latestSignals();
+
+  List<RadarSnapshot> signalHistory(String symbol, int limit);
+
+  List<RadarOutcome> outcomes(String symbol, int limit);
 }
