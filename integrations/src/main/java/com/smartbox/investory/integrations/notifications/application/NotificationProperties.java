@@ -27,4 +27,16 @@ public class NotificationProperties {
 
   @Value("${app.notifications.stale-import-days:7}")
   private int staleImportDays;
+
+  @Value("${app.notifications.rental-contract-expiration-enabled:true}")
+  private boolean rentalContractExpirationEnabled;
+
+  @Value("${app.notifications.rental-contract-expiration-days:30}")
+  private int rentalContractExpirationDays;
+
+  @Value("${app.notifications.bond-maturity-enabled:true}")
+  private boolean bondMaturityEnabled;
+
+  @Value("${app.notifications.bond-maturity-days:30}")
+  private int bondMaturityDays;
 }

@@ -18,11 +18,19 @@ class NotificationPropertiesTest {
     properties.setDrawdownCooldownHours(48);
     properties.setConcentrationThresholdPct(33.0);
     properties.setStaleImportDays(14);
+    properties.setRentalContractExpirationEnabled(false);
+    properties.setRentalContractExpirationDays(45);
+    properties.setBondMaturityEnabled(false);
+    properties.setBondMaturityDays(60);
 
     assertTrue(properties.isEnabled());
     assertEquals(12.5, properties.getDrawdownThresholdPct());
     assertEquals(48, properties.getDrawdownCooldownHours());
     assertEquals(33.0, properties.getConcentrationThresholdPct());
     assertEquals(14, properties.getStaleImportDays());
+    assertEquals(false, properties.isRentalContractExpirationEnabled());
+    assertEquals(45, properties.getRentalContractExpirationDays());
+    assertEquals(false, properties.isBondMaturityEnabled());
+    assertEquals(60, properties.getBondMaturityDays());
   }
 }

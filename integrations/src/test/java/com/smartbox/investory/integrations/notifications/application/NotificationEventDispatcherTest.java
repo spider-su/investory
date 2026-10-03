@@ -87,6 +87,7 @@ class NotificationEventDispatcherTest {
 
   private NotificationEventDispatcher dispatcher(
       NotificationDeliveryChannel channel, int attempts) {
+    when(channel.supports(any(NotificationEventEntity.class))).thenReturn(true);
     return new NotificationEventDispatcher(
         events, formatters, List.of(channel), clock, attempts, 5, 5);
   }

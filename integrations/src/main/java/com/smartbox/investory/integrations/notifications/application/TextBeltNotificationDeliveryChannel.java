@@ -25,7 +25,8 @@ public class TextBeltNotificationDeliveryChannel implements NotificationDelivery
       @Value("${app.notifications.sms.textbelt.enabled:false}") boolean enabled,
       @Value("${app.notifications.sms.textbelt.phone:}") String phone,
       @Value("${app.notifications.sms.textbelt.key:textbelt}") String key,
-      @Value("${app.notifications.sms.textbelt.alert-rules:RENTAL_CONTRACT_EXPIRING,BOND_MATURITY_APPROACHING}")
+      @Value(
+              "${app.notifications.sms.textbelt.alert-rules:RENTAL_CONTRACT_EXPIRING,BOND_MATURITY_APPROACHING}")
           String alertRules) {
     this.restClient = builder.baseUrl("https://textbelt.com").build();
     this.enabled = enabled;
@@ -40,7 +41,9 @@ public class TextBeltNotificationDeliveryChannel implements NotificationDelivery
 
   @Override
   public boolean supports(NotificationEventEntity event) {
-    if (!enabled || phone.isBlank() || event.getEventType() != NotificationEventType.THRESHOLD_ALERT) {
+    if (!enabled
+        || phone.isBlank()
+        || event.getEventType() != NotificationEventType.THRESHOLD_ALERT) {
       return false;
     }
     return alertRules.contains(event.getPayload().getOrDefault("rule", ""));
@@ -71,13 +74,13 @@ public class TextBeltNotificationDeliveryChannel implements NotificationDelivery
             .body(TextBeltResponse.class);
     if (response == null || !response.success()) {
       throw new IllegalStateException(
-          "TextBelt rejected SMS" + (response == null || response.error() == null ? "" : ": " + response.error()));
+          "TextBelt rejected SMS"
+              + (response == null || response.error() == null ? "" : ": " + response.error()));
     }
   }
 
   private static String plainText(String html) {
-    return html
-        .replaceAll("<[^>]+>", "")
+    return html.replaceAll("<[^>]+>", "")
         .replace("&amp;", "&")
         .replace("&lt;", "<")
         .replace("&gt;", ">")
