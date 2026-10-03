@@ -8,8 +8,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class MarketRadarScanner {
-  private static final System.Logger LOGGER =
-      System.getLogger(MarketRadarScanner.class.getName());
+  private static final System.Logger LOGGER = System.getLogger(MarketRadarScanner.class.getName());
 
   private final MarketRadarService radar;
   private final RadarSnapshotStore store;
