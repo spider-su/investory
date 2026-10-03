@@ -9,4 +9,6 @@ public interface MarketRadarApi {
   Optional<RadarSnapshot> analyze(String symbol);
 
   List<RadarSnapshot> latestSignals();
+
+  List<RadarSnapshot> signalHistory(String symbol, int limit);
 }
