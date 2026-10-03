@@ -19,10 +19,13 @@ public class MarketRadarScanner {
   public List<RadarSnapshot> refresh(List<String> symbols) {
     List<RadarSnapshot> refreshed = new ArrayList<>();
     for (String symbol : symbols) {
-      radar.analyze(symbol).ifPresent(snapshot -> {
-        store.save(snapshot);
-        refreshed.add(snapshot);
-      });
+      radar
+          .analyze(symbol)
+          .ifPresent(
+              snapshot -> {
+                store.save(snapshot);
+                refreshed.add(snapshot);
+              });
     }
     return List.copyOf(refreshed);
   }
