@@ -38,7 +38,6 @@ public class NotificationService {
     }
     try {
       PortfolioOperationsSnapshot p = investment.portfolio(properties.getPortfolioId());
-      String message = buildDigest(p);
       LocalDate day = clock.instant().atZone(java.time.ZoneId.of("Europe/Warsaw")).toLocalDate();
       publisher.publish(
           new NotificationCandidate(
@@ -56,7 +55,7 @@ public class NotificationService {
                   "unrealized", signed(p.unrealizedProfit().doubleValue()),
                   "dividends", signed(p.dividends().doubleValue()),
                   "tax", fmt(p.capitalGainsTax().doubleValue()),
-                  "currency", p.baseCurrency().name()),
+                  "currency", p.baseCurrency()),
               clock.instant()));
     } catch (Exception e) {
       log.warn("Failed to build/send daily digest", e);
