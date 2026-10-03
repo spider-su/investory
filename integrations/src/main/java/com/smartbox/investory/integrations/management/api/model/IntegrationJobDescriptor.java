@@ -5,8 +5,7 @@ public record IntegrationJobDescriptor(
   public static IntegrationJobDescriptor forType(String jobType) {
     return switch (jobType) {
       case "refresh-prices" ->
-          new IntegrationJobDescriptor(
-              jobType, "Refresh prices", "0 01 22 * * 1-5", "Europe/Warsaw");
+          new IntegrationJobDescriptor(jobType, "Refresh prices", "0 01 22 * * 1-5", "Europe/Warsaw");
       case "refresh-rates" ->
           new IntegrationJobDescriptor(
               jobType, "Refresh FX rates", "0 0 15 * * 1-5", "Europe/Warsaw");
