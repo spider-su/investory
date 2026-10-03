@@ -71,7 +71,8 @@ public class MarketRadarScheduler {
     try (BufferedReader reader =
         new BufferedReader(
             new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-      return reader\n          .lines()
+      return reader
+          .lines()
           .map(String::trim)
           .filter(line -> !line.isBlank() && !line.startsWith("#"))
           .map(symbol -> symbol.toUpperCase(java.util.Locale.ROOT))
