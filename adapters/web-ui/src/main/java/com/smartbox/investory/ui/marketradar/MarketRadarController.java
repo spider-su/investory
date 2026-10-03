@@ -2,6 +2,7 @@ package com.smartbox.investory.ui.marketradar;
 
 import com.smartbox.investory.marketradar.api.MarketRadarApi;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
+import com.smartbox.investory.marketradar.domain.RadarValidationStats;
 import com.smartbox.investory.marketradar.domain.RadarState;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -57,6 +58,25 @@ public class MarketRadarController {
     model.addAttribute("history", history);
     model.addAttribute("outcomes", radar.outcomes(normalized, 270));
     return "market-radar-detail";
+  }
+
+  @GetMapping("/market-radar/validation")
+  public String validation(
+      @RequestParam(required = false) RadarState state,
+      @RequestParam(required = false) Integer horizon,
+      Model model) {
+    List<RadarValidationStats> stats = radar.validationStats();
+    model.addAttribute("stats", stats);
+    model.addAttribute("selectedState", state);
+    model.addAttribute("selectedHorizon", horizon);
+    model.addAttribute("states", Arrays.stream(RadarState.values()).toList());
+    model.addAttribute("horizons", List.of(7, 30, 90));
+    model.addAttribute(
+        "observations",
+        state != null && horizon != null
+            ? radar.validationObservations(state, horizon, 200)
+            : List.of());
+    return "market-radar-validation";
   }
 
   private int priority(RadarState state) {
