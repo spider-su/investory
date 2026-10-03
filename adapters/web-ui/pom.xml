@@ -25,6 +25,11 @@
         </dependency>
         <dependency>
             <groupId>com.smartbox</groupId>
+            <artifactId>market-radar</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.smartbox</groupId>
             <artifactId>retirement</artifactId>
             <version>${project.version}</version>
         </dependency>
