@@ -2,34 +2,41 @@ package com.smartbox.investory.marketradar.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.marketradar.domain.RadarSignal;
-import com.smartbox.investory.marketradar.domain.RadarSignalType;
-import com.smartbox.investory.marketradar.port.MarketSignalSource;
+import com.smartbox.investory.marketradar.domain.DailyMarketBar;
+import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class MarketRadarServiceTest {
 
   @Test
-  void combinesSourcesAndReturnsNewestSignalFirst() {
-    RadarSignal older =
-        new RadarSignal(
-            "asml",
-            RadarSignalType.MEDIA_CONSENSUS,
-            "Media interest rising",
-            Instant.parse("2026-10-01T10:00:00Z"));
-    RadarSignal newer =
-        new RadarSignal(
-            "nvda",
-            RadarSignalType.PRICE_VOLUME,
-            "Relative volume elevated",
-            Instant.parse("2026-10-02T10:00:00Z"));
-    MarketSignalSource first = () -> List.of(older);
-    MarketSignalSource second = () -> List.of(newer);
+  void analyzesAvailableHistoryThroughThePort() {
+    HistoricalMarketDataPort port = (symbol, from, to) -> bars();
+    MarketRadarService service =
+        new MarketRadarService(
+            port,
+            new MarketSignalCalculator(),
+            Clock.fixed(Instant.parse("2026-10-03T12:00:00Z"), ZoneOffset.UTC));
 
-    MarketRadarService service = new MarketRadarService(List.of(first, second));
+    var result = service.analyze("abc");
 
-    assertThat(service.currentSignals()).containsExactly(newer, older);
+    assertThat(result).isPresent();
+    assertThat(result.orElseThrow().symbol()).isEqualTo("ABC");
+  }
+
+  private List<DailyMarketBar> bars() {
+    List<DailyMarketBar> result = new ArrayList<>();
+    for (int i = 0; i < 80; i++) {
+      double close = 100 + i * 0.1;
+      result.add(
+          new DailyMarketBar(
+              LocalDate.of(2026, 6, 1).plusDays(i), close, close, close, close, 1_000));
+    }
+    return result;
   }
 }

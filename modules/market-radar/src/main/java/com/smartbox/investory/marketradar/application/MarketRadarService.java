@@ -1,26 +1,34 @@
 package com.smartbox.investory.marketradar.application;
 
 import com.smartbox.investory.marketradar.api.MarketRadarApi;
-import com.smartbox.investory.marketradar.domain.RadarSignal;
-import com.smartbox.investory.marketradar.port.MarketSignalSource;
-import java.util.Comparator;
+import com.smartbox.investory.marketradar.domain.DailyMarketBar;
+import com.smartbox.investory.marketradar.domain.RadarSnapshot;
+import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 @Service
 public class MarketRadarService implements MarketRadarApi {
 
-  private final List<MarketSignalSource> signalSources;
+  private final HistoricalMarketDataPort marketData;
+  private final MarketSignalCalculator calculator;
+  private final Clock clock;
 
-  public MarketRadarService(List<MarketSignalSource> signalSources) {
-    this.signalSources = List.copyOf(signalSources);
+  public MarketRadarService(
+      HistoricalMarketDataPort marketData, MarketSignalCalculator calculator, Clock clock) {
+    this.marketData = marketData;
+    this.calculator = calculator;
+    this.clock = clock;
   }
 
   @Override
-  public List<RadarSignal> currentSignals() {
-    return signalSources.stream()
-        .flatMap(source -> source.loadSignals().stream())
-        .sorted(Comparator.comparing(RadarSignal::observedAt).reversed())
-        .toList();
+  public Optional<RadarSnapshot> analyze(String symbol) {
+    if (symbol == null || symbol.isBlank()) return Optional.empty();
+    LocalDate to = LocalDate.now(clock);
+    List<DailyMarketBar> bars = marketData.dailyBars(symbol.trim(), to.minusDays(140), to);
+    return bars.size() < 61 ? Optional.empty() : Optional.of(calculator.calculate(symbol, bars));
   }
 }

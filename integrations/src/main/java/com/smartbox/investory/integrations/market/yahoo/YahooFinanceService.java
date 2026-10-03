@@ -137,6 +137,47 @@ public class YahooFinanceService {
     return closes;
   }
 
+  public java.util.List<YahooDailyBar> fetchDailyBars(
+      String symbol, LocalDate from, LocalDate to) {
+    java.util.List<YahooDailyBar> bars = new java.util.ArrayList<>();
+    if (!StringUtils.hasText(symbol) || from == null || to == null || from.isAfter(to)) return bars;
+    JsonNode result = fetchChart(symbol, from, to);
+    JsonNode timestamps = result.path("timestamp");
+    JsonNode quote = result.path("indicators").path("quote").path(0);
+    JsonNode opens = quote.path("open");
+    JsonNode highs = quote.path("high");
+    JsonNode lows = quote.path("low");
+    JsonNode closes = quote.path("close");
+    JsonNode volumes = quote.path("volume");
+    if (!timestamps.isArray() || !closes.isArray()) return bars;
+    int size = Math.min(timestamps.size(), closes.size());
+    for (int i = 0; i < size; i++) {
+      JsonNode close = closes.get(i);
+      if (close == null || close.isNull()) continue;
+      LocalDate date =
+          Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(ZoneOffset.UTC).toLocalDate();
+      double closeValue = close.asDouble(0.0);
+      if (date.isBefore(from) || date.isAfter(to) || !Double.isFinite(closeValue) || closeValue <= 0) continue;
+      double open = numericOr(opens, i, closeValue);
+      double high = numericOr(highs, i, closeValue);
+      double low = numericOr(lows, i, closeValue);
+      long volume = longOr(volumes, i, 0L);
+      bars.add(new YahooDailyBar(date, open, high, low, closeValue, volume));
+    }
+    return bars;
+  }
+
+  private double numericOr(JsonNode values, int index, double fallback) {
+    if (!values.isArray() || index >= values.size() || values.get(index) == null || values.get(index).isNull()) return fallback;
+    double value = values.get(index).asDouble(fallback);
+    return Double.isFinite(value) && value > 0 ? value : fallback;
+  }
+
+  private long longOr(JsonNode values, int index, long fallback) {
+    if (!values.isArray() || index >= values.size() || values.get(index) == null || values.get(index).isNull()) return fallback;
+    return Math.max(0L, values.get(index).asLong(fallback));
+  }
+
   public NavigableMap<String, Double> fetchMonthlyCloses(String symbol, int months) {
     NavigableMap<String, Double> closes = new TreeMap<>();
     if (months <= 0) return closes;
@@ -186,4 +227,7 @@ public class YahooFinanceService {
   }
 
   public record YahooQuote(String symbol, String currency, LocalDate date, double price) {}
+
+  public record YahooDailyBar(
+      LocalDate date, double open, double high, double low, double close, long volume) {}
 }
