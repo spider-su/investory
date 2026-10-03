@@ -20,5 +20,6 @@ public interface MarketRadarApi {
 
   List<RadarValidationStats> validationStats();
 
-  List<RadarValidationObservation> validationObservations(RadarState state, int horizonDays, int limit);
+  List<RadarValidationObservation> validationObservations(
+      RadarState state, int horizonDays, int limit);
 }
