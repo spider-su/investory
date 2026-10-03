@@ -182,9 +182,9 @@ app:
       annual-cron: ${OPENAI_ANALYSIS_ANNUAL_CRON:0 30 9 3 1 *}
   market-radar:
     enabled: ${MARKET_RADAR_ENABLED:false}
-    symbols: ${MARKET_RADAR_SYMBOLS:SPY,QQQ,AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSM,ASML}
+    # Optional comma-separated override. Empty uses the curated bundled universe.\n    symbols: ${MARKET_RADAR_SYMBOLS:}
     cron: ${MARKET_RADAR_CRON:0 30 22 * * 1-5}
-    benchmark: ${MARKET_RADAR_BENCHMARK:SPY}
+    benchmark: ${MARKET_RADAR_BENCHMARK:SPY}\n    batch-size: ${MARKET_RADAR_BATCH_SIZE:25}\n    batch-pause-ms: ${MARKET_RADAR_BATCH_PAUSE_MS:5000}
   market:
     chunk-pause-ms: ${MARKET_CHUNK_PAUSE_MS:120000}
     # Unsupported listings may require manual prices.
