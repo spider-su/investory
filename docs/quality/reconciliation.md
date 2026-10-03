@@ -49,6 +49,10 @@ with internal transfers/conversions handled according to portfolio scope.
 Also check:
 
 - no cash classification creates unexplained profit;
+- result-only settlement compares the stored position result net of separately recorded swap and
+  commission with matching `CLOSE_TRADE` plus `ROLLOVER` ledger cash;
+- fixed-income `BOND_REDEMPTION` settlement cash is matched to the related closed cash-settled
+  position and is never treated as an external contribution;
 - account funding flow, performance flow, and portfolio flow remain distinct in daily performance
   diagnostics;
 - open-position value uses the canonical current/historical pricing rule;

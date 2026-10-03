@@ -64,8 +64,9 @@ class NotificationServiceTest {
     verify(publisher).publish(candidate.capture());
     org.assertj.core.api.Assertions.assertThat(candidate.getValue().fingerprint())
         .isEqualTo("DAILY_DIGEST:2026-08-25");
-    org.assertj.core.api.Assertions.assertThat(candidate.getValue().payload().get("message"))
-        .contains("12,345", "USD");
+    org.assertj.core.api.Assertions.assertThat(candidate.getValue().payload())
+        .containsEntry("balance", "12,345")
+        .containsEntry("currency", "USD");
   }
 
   @Test

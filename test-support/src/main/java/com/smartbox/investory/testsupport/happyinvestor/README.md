@@ -60,13 +60,23 @@ added to the canonical story. They are not silently included in canonical parity
 Identity is fixture-backed: user ID `2`, portfolio ID `2`, `Happy Investor`, `Happy Investor Portfolio`,
 PLN, Europe/Warsaw, 2024-07-31 through 2025-12-31. Internal account IDs are IBKR `91000001`,
 XTB USD `91000002`, XTB PLN `91000003`, and cash-only XTB EUR `91000004`; their broker
-external IDs remain `90000001`, `90000002`, `90000003`, and `90000009`. The WIG20 ETF is `ETFBW20TR.PL`; the seeded
-Treasury identities are `US91282CKB62` and `US91282CRC72`. The original `US91282CKB62` is owned from
+external IDs remain `90000001`, `90000002`, `90000003`, and `90000009`. The WIG20 ETF is
+`ETFBW20TR.PL`.
+These numeric IDs identify only the deterministic synthetic fixture. They do not identify live
+accounts or portfolios, and fixture rows do not prove broker archive completeness or import provenance.
+Use ownership and persisted source imports to identify live portfolios during audits.
+
+The seeded Treasury identities are `US91282CKB62` and `US91282CRC72`. The original `US91282CKB62` is owned from
 `2024-07-31`, matures/redempts on `2026-02-28`, and returns principal `10000`. The fixture holds the proceeds
 as cash until `2026-08-03`, the first trading date of `US91282CRC72` (`United States Treasury 4 3/8 07/31/33`,
 coupon `4.375%`, maturity `2033-07-31`), then buys `10000` face value at the Treasury end-of-day quote
 `99.03125` per `100` face value. The unused principal remains cash. The fixture includes the available daily
 Treasury prices from first trade through `2026-09-30` and no prices before issuance.
+The full call settlement remains a `TRANSFER` cash operation, linked to the redeemed Treasury asset.
+Its source-like `per Bond` redemption comment lets the SQL and Java normalizers classify the IBKR
+corporate action as `BOND_REDEMPTION`, not an internal transfer or external contribution.
+Reconciliation must include that normalized settlement cash when matching the closed `CASH_SETTLED`
+position.
 The old bond remains historical and has zero forward income on and after maturity; the new bond contributes net
 annual income `354.375` under the existing 19% tax rule. Happy Investor must consume the migration FX and price
 history rather than synthetic curves. Independent financial happy-path fixtures are prohibited in

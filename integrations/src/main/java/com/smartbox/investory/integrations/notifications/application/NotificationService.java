@@ -38,7 +38,6 @@ public class NotificationService {
     }
     try {
       PortfolioOperationsSnapshot p = investment.portfolio(properties.getPortfolioId());
-      String message = buildDigest(p);
       LocalDate day = clock.instant().atZone(java.time.ZoneId.of("Europe/Warsaw")).toLocalDate();
       publisher.publish(
           new NotificationCandidate(
@@ -49,7 +48,14 @@ public class NotificationService {
               day.toString(),
               "DAILY_DIGEST:" + day,
               "Daily digest",
-              Map.of("message", message),
+              Map.of(
+                  "balance", fmt(p.balance().doubleValue()),
+                  "profit", signed(p.totalProfit().doubleValue()),
+                  "realized", signed(p.realizedProfit().doubleValue()),
+                  "unrealized", signed(p.unrealizedProfit().doubleValue()),
+                  "dividends", signed(p.dividends().doubleValue()),
+                  "tax", fmt(p.capitalGainsTax().doubleValue()),
+                  "currency", p.baseCurrency()),
               clock.instant()));
     } catch (Exception e) {
       log.warn("Failed to build/send daily digest", e);
@@ -69,23 +75,9 @@ public class NotificationService {
     }
   }
 
-  private String buildDigest(PortfolioOperationsSnapshot p) {
-    return String.format(
-        "\uD83D\uDCCA Daily digest%n"
-            + "Balance: %s %s%n"
-            + "Total P/L: %s %s (unrealized %s, realized %s)%n"
-            + "Dividends: %s %s%n"
-            + "Cap-gains tax (est): %s %s",
-        fmt(p.balance().doubleValue()),
-        p.baseCurrency(),
-        fmt(p.totalProfit().doubleValue()),
-        p.baseCurrency(),
-        fmt(p.unrealizedProfit().doubleValue()),
-        fmt(p.realizedProfit().doubleValue()),
-        fmt(p.dividends().doubleValue()),
-        p.baseCurrency(),
-        fmt(p.capitalGainsTax().doubleValue()),
-        p.baseCurrency());
+  private static String signed(double value) {
+    String digits = fmt(Math.abs(value));
+    return value < 0 ? "−" + digits : "+" + digits;
   }
 
   private static String fmt(double value) {

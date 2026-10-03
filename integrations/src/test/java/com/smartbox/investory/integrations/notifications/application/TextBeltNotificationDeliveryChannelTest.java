@@ -13,7 +13,10 @@ class TextBeltNotificationDeliveryChannelTest {
   void sendsOnlyConfiguredLifecycleThresholdAlerts() {
     var channel =
         new TextBeltNotificationDeliveryChannel(
-            RestClient.builder(), true, "+48123456789", "textbelt",
+            RestClient.builder(),
+            true,
+            "+48123456789",
+            "textbelt",
             "RENTAL_CONTRACT_EXPIRING,BOND_MATURITY_APPROACHING");
 
     var rent = threshold("RENTAL_CONTRACT_EXPIRING");
@@ -28,8 +31,7 @@ class TextBeltNotificationDeliveryChannelTest {
   void disabledSmsSupportsNothing() {
     var channel =
         new TextBeltNotificationDeliveryChannel(
-            RestClient.builder(), false, "+48123456789", "textbelt",
-            "RENTAL_CONTRACT_EXPIRING");
+            RestClient.builder(), false, "+48123456789", "textbelt", "RENTAL_CONTRACT_EXPIRING");
     assertThat(channel.supports(threshold("RENTAL_CONTRACT_EXPIRING"))).isFalse();
   }
 
