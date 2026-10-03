@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Market Radar · Investory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<main class="container-xl py-4">
+  <div class="page-header mb-4">
+    <div>
+      <div class="page-pretitle">Experimental research tool</div>
+      <h1 class="page-title">Market Radar</h1>
+      <div class="text-secondary">Deterministic market activity signals. Research candidates, not trade recommendations.</div>
+    </div>
+  </div>
+
+  <div class="alert alert-info" th:if="${#lists.isEmpty(signals)}">
+    No snapshots yet. Enable the Market Radar scheduler or run a refresh before using this page.
+  </div>
+
+  <div class="card" th:unless="${#lists.isEmpty(signals)}">
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter">
+        <thead><tr><th>Ticker</th><th>State</th><th>Close</th><th>20d</th><th>60d</th><th>Rel. volume</th><th>SMA50</th><th>RSI14</th><th>Why detected</th></tr></thead>
+        <tbody>
+        <tr th:each="signal : ${signals}">
+          <td><strong th:text="${signal.symbol}">AAPL</strong><div class="text-secondary small" th:text="${signal.date}">2026-10-03</div></td>
+          <td><span class="badge" th:text="${signal.state}">NORMAL</span></td>
+          <td th:text="${#numbers.formatDecimal(signal.close,1,2)}">0</td>
+          <td th:text="${signal.return20d == null ? '—' : #numbers.formatPercent(signal.return20d,1,1)}">—</td>
+          <td th:text="${signal.return60d == null ? '—' : #numbers.formatPercent(signal.return60d,1,1)}">—</td>
+          <td th:text="${signal.relativeVolume20d == null ? '—' : #numbers.formatDecimal(signal.relativeVolume20d,1,2) + '×'}">—</td>
+          <td th:text="${signal.distanceSma50 == null ? '—' : #numbers.formatPercent(signal.distanceSma50,1,1)}">—</td>
+          <td th:text="${signal.rsi14 == null ? '—' : #numbers.formatDecimal(signal.rsi14,1,1)}">—</td>
+          <td><span th:if="${#lists.isEmpty(signal.reasons)}" class="text-secondary">No unusual signal</span><ul th:unless="${#lists.isEmpty(signal.reasons)}" class="mb-0 ps-3"><li th:each="reason : ${signal.reasons}" th:text="${reason}">Reason</li></ul></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<script src="/js/theme.js"></script>
+</body>
+</html>
