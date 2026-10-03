@@ -521,6 +521,39 @@ class LongTermAssetsApplicationServiceTest {
   }
 
   @Test
+  void vacantRealEstateDoesNotGenerateRentalTaxFromConfiguredTaxBase() {
+    RealEstateEntity estate = estate(70L, "Vacant property", "1000");
+    when(realEstates.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID))
+        .thenReturn(List.of(estate));
+    when(contracts.findAllWithTermsByAssetIdIn(List.of(70L))).thenReturn(List.of());
+
+    var group = group(service.overview(PORTFOLIO_ID, DATE), LongTermAssetType.REAL_ESTATE);
+    AssetSummaryView asset = group.assets().getFirst();
+
+    assertThat(asset.monthlyRentalIncome()).isZero();
+    assertThat(asset.annualEconomics().annualRentalIncomeTax()).isZero();
+    assertThat(asset.annualEconomics().annualTax()).isZero();
+    assertThat(asset.annualEconomics().netYieldAfterTax()).isZero();
+    assertThat(group.annualEconomics().annualRentalIncomeTax()).isZero();
+    assertThat(group.annualEconomics().annualTax()).isZero();
+  }
+
+  @Test
+  void bondTaxIsReportedAsGenericTaxNotRentalIncomeTax() {
+    when(bonds.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID))
+        .thenReturn(List.of(bond(71L, new BigDecimal("1000"), new BigDecimal("0.10"))));
+
+    var group = group(service.overview(PORTFOLIO_ID, DATE), LongTermAssetType.BOND);
+    AssetSummaryView asset = group.assets().getFirst();
+
+    assertThat(asset.annualEconomics().grossAnnualIncome()).isEqualByComparingTo("100");
+    assertThat(asset.annualEconomics().annualTax()).isEqualByComparingTo("19");
+    assertThat(asset.annualEconomics().annualRentalIncomeTax()).isZero();
+    assertThat(group.annualEconomics().annualTax()).isEqualByComparingTo("19");
+    assertThat(group.annualEconomics().annualRentalIncomeTax()).isZero();
+  }
+
+  @Test
   void longTermTotalIncludesInvestmentAndPersonalAssetsButEconomicsExcludePersonalAssets() {
     when(realEstates.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID))
         .thenReturn(List.of());
@@ -564,7 +597,7 @@ class LongTermAssetsApplicationServiceTest {
   }
 
   @Test
-  void totalPaymentMonthlyExcludesTenantPaidExpenses() {
+  void monthlyRentalIncomeExcludesTenantPaidExpenses() {
     var asset =
         realEstateWithTerms(
             newTerm(CashFlowType.RENT, "1000", false),
@@ -574,7 +607,7 @@ class LongTermAssetsApplicationServiceTest {
             newTerm(CashFlowType.OTHER_INCOME, "500", false),
             newTerm(CashFlowType.PROPERTY_TAX, "75", false));
 
-    assertThat(asset.totalPaymentMonthly()).isEqualByComparingTo("1600");
+    assertThat(asset.monthlyRentalIncome()).isEqualByComparingTo("1600");
   }
 
   @Test

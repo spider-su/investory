@@ -14,7 +14,7 @@ public record AssetSummaryView(
     LocalDate maturityDate,
     BigDecimal currentAnnualRate,
     AnnualEconomicsView annualEconomics,
-    BigDecimal totalPaymentMonthly,
+    BigDecimal monthlyRentalIncome,
     LocalDate rentEnd,
     boolean integrityWarning) {
   public AssetSummaryView(
@@ -26,7 +26,7 @@ public record AssetSummaryView(
       LocalDate maturityDate,
       BigDecimal currentAnnualRate,
       AnnualEconomicsView annualEconomics,
-      BigDecimal totalPaymentMonthly,
+      BigDecimal monthlyRentalIncome,
       LocalDate rentEnd) {
     this(
         id,
@@ -37,7 +37,7 @@ public record AssetSummaryView(
         maturityDate,
         currentAnnualRate,
         annualEconomics,
-        totalPaymentMonthly,
+        monthlyRentalIncome,
         rentEnd,
         false);
   }

@@ -314,11 +314,9 @@ public class LongTermAssetReadService {
             ? List.<RentalContractModel.Term>of()
             : convertedTerms(contract, row.getCurrency(), currency, date);
     BigDecimal monthlyTaxBase =
-        toBase(
-            row.getTaxBase() == null ? BigDecimal.ZERO : row.getTaxBase(),
-            row.getCurrency(),
-            currency,
-            date);
+        contract == null || row.getTaxBase() == null
+            ? BigDecimal.ZERO
+            : toBase(row.getTaxBase(), row.getCurrency(), currency, date);
     var rental = rental(terms, monthlyTaxBase, value);
     return new AssetSummaryView(
         row.getId(),
@@ -329,7 +327,7 @@ public class LongTermAssetReadService {
         null,
         null,
         rental.economics(),
-        rental.monthlyPayment(),
+        rental.monthlyRentalIncome(),
         contract == null ? null : RentalContractService.effectiveEnd(contract),
         false);
   }
@@ -404,6 +402,11 @@ public class LongTermAssetReadService {
             .filter(row -> !row.integrityWarning())
             .map(row -> row.annualEconomics().annualRentalTaxBase())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal annualRentalIncomeTax =
+        rows.stream()
+            .filter(row -> !row.integrityWarning())
+            .map(row -> row.annualEconomics().annualRentalIncomeTax())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal annualPropertyTax =
         rows.stream()
             .filter(row -> !row.integrityWarning())
@@ -414,12 +417,13 @@ public class LongTermAssetReadService {
             .filter(row -> !row.integrityWarning())
             .map(row -> row.annualEconomics().annualInsurance())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    return LongTermAssetEconomics.economics(
+    return LongTermAssetEconomics.aggregateEconomics(
         gross,
         expenses,
         valueOf(rows),
         tax,
         annualRentalTaxBase,
+        annualRentalIncomeTax,
         annualPropertyTax,
         annualInsurance);
   }

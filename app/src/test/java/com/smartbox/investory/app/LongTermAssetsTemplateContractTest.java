@@ -37,8 +37,8 @@ class LongTermAssetsTemplateContractTest {
     assertTrue(header.contains(">Personal</a>"));
     assertTrue(html.contains("Net income / month"));
     assertTrue(html.contains("Property tax + insurance / month"));
-    assertTrue(html.contains("Total payment / month"));
-    assertTrue(html.contains("asset.totalPaymentMonthly"));
+    assertTrue(html.contains("asset.monthlyRentalIncome"));
+    assertTrue(html.contains("Rental income / month"));
     assertFalse(html.contains("<th>Value</th><th>Tax base / month</th>"));
     assertTrue(html.contains("Net income / year"));
     assertTrue(html.contains("Tax / year"));
