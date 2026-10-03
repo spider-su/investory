@@ -2,8 +2,11 @@ package com.smartbox.investory.marketradar.application;
 
 import com.smartbox.investory.marketradar.api.MarketRadarApi;
 import com.smartbox.investory.marketradar.domain.DailyMarketBar;
+import com.smartbox.investory.marketradar.domain.RadarOutcome;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
-import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;\nimport com.smartbox.investory.marketradar.port.RadarSnapshotStore;
+import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
+import com.smartbox.investory.marketradar.port.RadarOutcomeStore;
+import com.smartbox.investory.marketradar.port.RadarSnapshotStore;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -13,13 +16,21 @@ import org.springframework.stereotype.Service;
 @Service
 public class MarketRadarService implements MarketRadarApi {
 
-  private final HistoricalMarketDataPort marketData;\n  private final RadarSnapshotStore store;
+  private final HistoricalMarketDataPort marketData;
+  private final RadarSnapshotStore store;
+  private final RadarOutcomeStore outcomes;
   private final MarketSignalCalculator calculator;
   private final Clock clock;
 
   public MarketRadarService(
-      HistoricalMarketDataPort marketData,\n      RadarSnapshotStore store,\n      MarketSignalCalculator calculator,\n      Clock clock) {
-    this.marketData = marketData;\n    this.store = store;
+      HistoricalMarketDataPort marketData,
+      RadarSnapshotStore store,
+      RadarOutcomeStore outcomes,
+      MarketSignalCalculator calculator,
+      Clock clock) {
+    this.marketData = marketData;
+    this.store = store;
+    this.outcomes = outcomes;
     this.calculator = calculator;
     this.clock = clock;
   }
@@ -36,5 +47,18 @@ public class MarketRadarService implements MarketRadarApi {
   public List<RadarSnapshot> latestSignals() {
     return store.latest();
   }
-}
 
+  @Override
+  public List<RadarSnapshot> signalHistory(String symbol, int limit) {
+    if (symbol == null || symbol.isBlank()) return List.of();
+    return store.history(
+        symbol.trim().toUpperCase(java.util.Locale.ROOT), Math.max(1, Math.min(limit, 180)));
+  }
+
+  @Override
+  public List<RadarOutcome> outcomes(String symbol, int limit) {
+    if (symbol == null || symbol.isBlank()) return List.of();
+    return outcomes.outcomes(
+        symbol.trim().toUpperCase(java.util.Locale.ROOT), Math.max(1, Math.min(limit, 500)));
+  }
+}

@@ -3,7 +3,9 @@ package com.smartbox.investory.marketradar.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.smartbox.investory.marketradar.domain.DailyMarketBar;
-import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;\nimport com.smartbox.investory.marketradar.port.RadarSnapshotStore;
+import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
+import com.smartbox.investory.marketradar.port.RadarOutcomeStore;
+import com.smartbox.investory.marketradar.port.RadarSnapshotStore;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -17,13 +19,36 @@ class MarketRadarServiceTest {
   @Test
   void analyzesAvailableHistoryThroughThePort() {
     HistoricalMarketDataPort port = (symbol, from, to) -> bars();
-    RadarSnapshotStore store = new EmptyStore();\n    MarketRadarService service =\n        new MarketRadarService(\n            port,\n            store,\n            new MarketSignalCalculator(),
+    RadarSnapshotStore store = new EmptyStore();
+    MarketRadarService service =
+        new MarketRadarService(
+            port,
+            store,
+            new EmptyOutcomeStore(),
+            new MarketSignalCalculator(),
             Clock.fixed(Instant.parse("2026-10-03T12:00:00Z"), ZoneOffset.UTC));
 
     var result = service.analyze("abc");
 
     assertThat(result).isPresent();
     assertThat(result.orElseThrow().symbol()).isEqualTo("ABC");
+  }
+
+  private static class EmptyOutcomeStore implements RadarOutcomeStore {
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarSnapshot> unevaluated(
+        int horizonDays, LocalDate cutoff) {
+      return List.of();
+    }
+
+    @Override
+    public void save(com.smartbox.investory.marketradar.domain.RadarOutcome outcome) {}
+
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarOutcome> outcomes(
+        String symbol, int limit) {
+      return List.of();
+    }
   }
 
   private static class EmptyStore implements RadarSnapshotStore {
@@ -33,6 +58,18 @@ class MarketRadarServiceTest {
     @Override
     public List<com.smartbox.investory.marketradar.domain.RadarSnapshot> latest() {
       return List.of();
+    }
+
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarSnapshot> history(
+        String symbol, int limit) {
+      return List.of();
+    }
+
+    @Override
+    public java.util.Optional<com.smartbox.investory.marketradar.domain.RadarSnapshot> previous(
+        String symbol, LocalDate before) {
+      return java.util.Optional.empty();
     }
   }
 

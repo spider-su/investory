@@ -17,8 +17,10 @@ public class YahooHistoricalMarketDataAdapter implements HistoricalMarketDataPor
   @Override
   public List<DailyMarketBar> dailyBars(String symbol, LocalDate from, LocalDate to) {
     return yahooFinance.fetchDailyBars(symbol, from, to).stream()
-        .map(bar -> new DailyMarketBar(
-            bar.date(), bar.open(), bar.high(), bar.low(), bar.close(), bar.volume()))
+        .map(
+            bar ->
+                new DailyMarketBar(
+                    bar.date(), bar.open(), bar.high(), bar.low(), bar.close(), bar.volume()))
         .toList();
   }
 }

@@ -137,8 +137,7 @@ public class YahooFinanceService {
     return closes;
   }
 
-  public java.util.List<YahooDailyBar> fetchDailyBars(
-      String symbol, LocalDate from, LocalDate to) {
+  public java.util.List<YahooDailyBar> fetchDailyBars(String symbol, LocalDate from, LocalDate to) {
     java.util.List<YahooDailyBar> bars = new java.util.ArrayList<>();
     if (!StringUtils.hasText(symbol) || from == null || to == null || from.isAfter(to)) return bars;
     JsonNode result = fetchChart(symbol, from, to);
@@ -157,7 +156,10 @@ public class YahooFinanceService {
       LocalDate date =
           Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(ZoneOffset.UTC).toLocalDate();
       double closeValue = close.asDouble(0.0);
-      if (date.isBefore(from) || date.isAfter(to) || !Double.isFinite(closeValue) || closeValue <= 0) continue;
+      if (date.isBefore(from)
+          || date.isAfter(to)
+          || !Double.isFinite(closeValue)
+          || closeValue <= 0) continue;
       double open = numericOr(opens, i, closeValue);
       double high = numericOr(highs, i, closeValue);
       double low = numericOr(lows, i, closeValue);
@@ -168,13 +170,19 @@ public class YahooFinanceService {
   }
 
   private double numericOr(JsonNode values, int index, double fallback) {
-    if (!values.isArray() || index >= values.size() || values.get(index) == null || values.get(index).isNull()) return fallback;
+    if (!values.isArray()
+        || index >= values.size()
+        || values.get(index) == null
+        || values.get(index).isNull()) return fallback;
     double value = values.get(index).asDouble(fallback);
     return Double.isFinite(value) && value > 0 ? value : fallback;
   }
 
   private long longOr(JsonNode values, int index, long fallback) {
-    if (!values.isArray() || index >= values.size() || values.get(index) == null || values.get(index).isNull()) return fallback;
+    if (!values.isArray()
+        || index >= values.size()
+        || values.get(index) == null
+        || values.get(index).isNull()) return fallback;
     return Math.max(0L, values.get(index).asLong(fallback));
   }
 

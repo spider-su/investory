@@ -54,7 +54,12 @@ public class MarketSignalCalculator {
   }
 
   private RadarState classify(
-      double r20, double r60, Double relVol, double distanceSma50, double rsi, List<String> reasons) {
+      double r20,
+      double r60,
+      Double relVol,
+      double distanceSma50,
+      double rsi,
+      List<String> reasons) {
     double volume = relVol == null ? 1.0 : relVol;
     if (r20 >= 0.25 || distanceSma50 >= 0.20 || rsi >= 80) {
       reasons.add("Price is materially extended from its recent trend");

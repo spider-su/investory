@@ -18,8 +18,7 @@ class MarketSignalCalculatorTest {
     List<DailyMarketBar> bars = bars(100, 0.15, 1_000);
     DailyMarketBar last = bars.getLast();
     bars.set(
-        bars.size() - 1,
-        new DailyMarketBar(last.date(), last.open(), 160, last.low(), 160, 4_000));
+        bars.size() - 1, new DailyMarketBar(last.date(), last.open(), 160, last.low(), 160, 4_000));
 
     var snapshot = calculator.calculate("xyz", bars);
 
