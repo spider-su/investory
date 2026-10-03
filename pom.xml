@@ -16,6 +16,7 @@
         <module>modules/investment</module>
         <module>modules/longterm</module>
         <module>modules/profile</module>
+        <module>modules/market-radar</module>
         <module>modules/retirement</module>
         <module>integrations</module>
         <module>test-support</module>
