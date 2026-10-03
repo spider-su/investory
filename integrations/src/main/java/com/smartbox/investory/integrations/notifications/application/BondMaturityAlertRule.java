@@ -28,7 +28,7 @@ public class BondMaturityAlertRule implements AlertRule {
     LocalDate today = LocalDate.now(clock);
     List<AlertObservation> result = new ArrayList<>();
     for (LongTermAssetProjectionModel asset : longTerm.snapshot(properties.getPortfolioId(), today).projectionInputs()) {
-      if (asset.category() != AssetEconomicCategory.BOND || asset.maturityDate() == null) continue;
+      if (asset.category() != AssetEconomicCategory.FIXED_INCOME || asset.maturityDate() == null) continue;
       long days = ChronoUnit.DAYS.between(today, asset.maturityDate());
       if (days < 0 || days > properties.getBondMaturityDays()) continue;
       result.add(new AlertObservation(
