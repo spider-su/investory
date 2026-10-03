@@ -17,7 +17,9 @@ class MarketSignalCalculatorTest {
   void marksStronglyExtendedSeriesAsExtended() {
     List<DailyMarketBar> bars = bars(100, 0.15, 1_000);
     DailyMarketBar last = bars.getLast();
-    bars.set(bars.size() - 1, new DailyMarketBar(last.date(), last.open(), 160, last.low(), 160, 4_000));
+    bars.set(
+        bars.size() - 1,
+        new DailyMarketBar(last.date(), last.open(), 160, last.low(), 160, 4_000));
 
     var snapshot = calculator.calculate("xyz", bars);
 
@@ -37,7 +39,9 @@ class MarketSignalCalculatorTest {
     List<DailyMarketBar> result = new ArrayList<>();
     for (int i = 0; i < 80; i++) {
       double close = start + i * dailyStep;
-      result.add(new DailyMarketBar(LocalDate.of(2026, 6, 1).plusDays(i), close, close, close, close, volume));
+      result.add(
+          new DailyMarketBar(
+              LocalDate.of(2026, 6, 1).plusDays(i), close, close, close, close, volume));
     }
     return result;
   }
