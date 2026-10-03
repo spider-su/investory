@@ -3,7 +3,7 @@ package com.smartbox.investory.marketradar.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.smartbox.investory.marketradar.domain.DailyMarketBar;
-import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;\nimport com.smartbox.investory.marketradar.port.RadarSnapshotStore;
+import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;\nimport com.smartbox.investory.marketradar.port.RadarOutcomeStore;\nimport com.smartbox.investory.marketradar.port.RadarSnapshotStore;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -25,6 +25,23 @@ class MarketRadarServiceTest {
 
     assertThat(result).isPresent();
     assertThat(result.orElseThrow().symbol()).isEqualTo("ABC");
+  }
+
+  private static class EmptyOutcomeStore implements RadarOutcomeStore {
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarSnapshot> unevaluated(
+        int horizonDays, LocalDate cutoff) {
+      return List.of();
+    }
+
+    @Override
+    public void save(com.smartbox.investory.marketradar.domain.RadarOutcome outcome) {}
+
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarOutcome> outcomes(
+        String symbol, int limit) {
+      return List.of();
+    }
   }
 
   private static class EmptyStore implements RadarSnapshotStore {
