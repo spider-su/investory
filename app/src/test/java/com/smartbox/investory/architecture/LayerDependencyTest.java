@@ -229,6 +229,8 @@ class LayerDependencyTest {
             ROOT + ".investment.reconciliation..",
             LONG_TERM_API,
             PROFILE_API,
+            ROOT + ".marketradar.api..",
+            ROOT + ".marketradar.domain..",
             RETIREMENT_API,
             ROOT + ".retirement.api.contract..",
             ROOT + ".integrations.management.api..",
