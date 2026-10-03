@@ -83,4 +83,26 @@ class NotificationFormatterTest {
     assertTrue(message.contains("Checks: Unavailable"));
     assertTrue(message.contains("https://investory.test/dashboard/reconciliation"));
   }
+
+  @Test
+  void integrationJobFormatterExplainsFailureAndRerunPath() {
+    NotificationEventEntity event = new NotificationEventEntity();
+    event.setTitle("Integration job failed: refresh-prices");
+    event.setPayload(
+        Map.of(
+            "integrationType", "MARKET_DATA",
+            "integration", "market-data",
+            "jobType", "refresh-prices",
+            "status", "FAILED",
+            "error", "Provider timeout"));
+
+    String message = new IntegrationJobAlertFormatter(json, links).format(event);
+
+    assertTrue(message.contains("market-data"));
+    assertTrue(message.contains("Provider timeout"));
+    assertTrue(message.contains("https://investory.test/settings/integrations"));
+    assertTrue(
+        message.contains(
+            "POST /api/v1/admin/integrations/MARKET_DATA/market-data/jobs/refresh-prices/run"));
+  }
 }

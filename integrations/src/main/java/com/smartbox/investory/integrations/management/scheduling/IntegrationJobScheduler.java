@@ -11,10 +11,11 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,13 +25,31 @@ import org.springframework.stereotype.Service;
 /** Polls persisted jobs so changes take effect without an application restart. */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class IntegrationJobScheduler implements IntegrationJobExecutionApi {
   private final IntegrationJobRepository jobRepository;
   private final IntegrationInstanceRepository instanceRepository;
   private final IntegrationJobHandlerRegistry handlerRegistry;
   private final ApplicationTime applicationTime;
   private final JdbcTemplate jdbcTemplate;
+  private final IntegrationJobAlertPublisher alerts;
+  private final Duration staleGrace;
+
+  public IntegrationJobScheduler(
+      IntegrationJobRepository jobRepository,
+      IntegrationInstanceRepository instanceRepository,
+      IntegrationJobHandlerRegistry handlerRegistry,
+      ApplicationTime applicationTime,
+      JdbcTemplate jdbcTemplate,
+      IntegrationJobAlertPublisher alerts,
+      @Value("${app.integrations.scheduler-stale-grace-minutes:360}") long staleGraceMinutes) {
+    this.jobRepository = jobRepository;
+    this.instanceRepository = instanceRepository;
+    this.handlerRegistry = handlerRegistry;
+    this.applicationTime = applicationTime;
+    this.jdbcTemplate = jdbcTemplate;
+    this.alerts = alerts;
+    this.staleGrace = Duration.ofMinutes(Math.max(1, staleGraceMinutes));
+  }
 
   @Scheduled(fixedDelayString = "${app.integrations.scheduler-poll-ms:60000}")
   public void poll() {
@@ -38,9 +57,11 @@ public class IntegrationJobScheduler implements IntegrationJobExecutionApi {
     for (IntegrationJobEntity job : jobRepository.findByEnabledTrue()) {
       IntegrationInstanceEntity instance =
           instanceRepository.findById(job.getIntegrationInstanceId()).orElse(null);
-      if (instance == null || !instance.isEnabled() || !isDue(job, now)) {
+      if (instance == null || !instance.isEnabled()) {
         continue;
       }
+      checkStale(job, instance, now);
+      if (!isDue(job, now)) continue;
       long lockKey = lockKey(instance, job);
       jdbcTemplate.execute(
           (ConnectionCallback<Void>)
@@ -50,7 +71,7 @@ public class IntegrationJobScheduler implements IntegrationJobExecutionApi {
                   return null;
                 }
                 try {
-                  run(job, instance, now);
+                  run(job, instance, now, false);
                 } finally {
                   advisoryLock(connection, "select pg_advisory_unlock(?)", lockKey);
                 }
@@ -66,14 +87,15 @@ public class IntegrationJobScheduler implements IntegrationJobExecutionApi {
             .findByOwnerIdAndPluginIdAndPluginType(null, pluginId, type)
             .orElseThrow(
                 () -> new IllegalArgumentException("Save integration configuration first"));
-    IntegrationJobEntity job = new IntegrationJobEntity();
-    job.setJobType(jobType);
-    job.setTimezone("Europe/Warsaw");
-    handlerRegistry
-        .require(type, jobType)
-        .execute(
-            new IntegrationJobContext(
-                instance, job, applicationTime.now(applicationTime.businessZone())));
+    IntegrationJobEntity job =
+        jobRepository.findByIntegrationInstanceId(instance.getId()).stream()
+            .filter(candidate -> candidate.getJobType().equals(jobType))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Save the integration job first"));
+    executeLocked(
+        instance,
+        job,
+        () -> run(job, instance, applicationTime.now(applicationTime.businessZone()), true));
   }
 
   private boolean advisoryLock(Connection connection, String sql, long lockKey)
@@ -106,25 +128,81 @@ public class IntegrationJobScheduler implements IntegrationJobExecutionApi {
     }
   }
 
-  private void run(
+  private void checkStale(
       IntegrationJobEntity job, IntegrationInstanceEntity instance, ZonedDateTime now) {
+    if (!"refresh-rates".equals(job.getJobType()) && !"refresh-prices".equals(job.getJobType()))
+      return;
+    ZonedDateTime completed = job.getLastCompletedAt();
+    if (completed == null) return;
+    try {
+      ZoneId zone = ZoneId.of(job.getTimezone());
+      ZonedDateTime expected =
+          org.springframework.scheduling.support.CronExpression.parse(job.getCron())
+              .next(completed.withZoneSameInstant(zone));
+      ZonedDateTime staleAt = expected == null ? null : expected.plus(staleGrace);
+      boolean recentlyStarted =
+          staleAt != null
+              && "STARTED".equals(job.getLastStatus())
+              && job.getLastStartedAt() != null
+              && !job.getLastStartedAt().isBefore(staleAt);
+      if (staleAt != null && now.withZoneSameInstant(zone).isAfter(staleAt) && !recentlyStarted) {
+        alerts.stale(job, instance, expected);
+      }
+    } catch (RuntimeException exception) {
+      log.warn(
+          "Skipping stale check for invalid integration job {}: {}",
+          job.getId(),
+          exception.getMessage());
+    }
+  }
+
+  private void run(
+      IntegrationJobEntity job,
+      IntegrationInstanceEntity instance,
+      ZonedDateTime now,
+      boolean rethrowFailure) {
     job.setLastStartedAt(now);
     job.setLastStatus("STARTED");
     job.setLastError(null);
     jobRepository.save(job);
+    Exception failure = null;
     try {
       handlerRegistry
           .require(instance.getPluginType(), job.getJobType())
           .execute(new IntegrationJobContext(instance, job, now));
       job.setLastStatus("SUCCESS");
     } catch (Exception exception) {
+      failure = exception;
       job.setLastStatus("FAILED");
-      job.setLastError(sanitizeError(exception.getMessage()));
-      log.warn("Integration job {} failed: {}", job.getId(), exception.getMessage());
+      String detail = exception.getMessage();
+      job.setLastError(
+          sanitizeError(
+              detail == null || detail.isBlank() ? exception.getClass().getSimpleName() : detail));
+      log.warn("Integration job {} failed: {}", job.getId(), job.getLastError());
+      alerts.failed(job, instance, now, job.getLastError());
     } finally {
       job.setLastCompletedAt(applicationTime.now(applicationTime.businessZone()));
       jobRepository.save(job);
     }
+    if (failure != null && rethrowFailure)
+      throw new IllegalStateException("Integration job failed: " + job.getLastError(), failure);
+  }
+
+  private void executeLocked(
+      IntegrationInstanceEntity instance, IntegrationJobEntity job, Runnable execution) {
+    long key = lockKey(instance, job);
+    jdbcTemplate.execute(
+        (ConnectionCallback<Void>)
+            connection -> {
+              if (!advisoryLock(connection, "select pg_try_advisory_lock(?)", key))
+                throw new IllegalStateException("Integration job is already running");
+              try {
+                execution.run();
+              } finally {
+                advisoryLock(connection, "select pg_advisory_unlock(?)", key);
+              }
+              return null;
+            });
   }
 
   private String sanitizeError(String message) {

@@ -370,10 +370,10 @@ public final class HappyInvestorScenario {
     ledger.add(
         cashOperation()
             .forAccount(IBKR)
-            .type(CashOperationType.TRANSFER)
+            .type(CashOperationType.STOCK_SELL)
             .amount(HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.doubleValue(), CurrencyType.USD)
             .symbol(HappyInvestorTestData.TREASURY_2026.symbol())
-            .comment("Full call redemption principal returned")
+            .comment("Full call redemption proceeds")
             .on(HappyInvestorLongTermFacts.TREASURY_MATURITY_DATE)
             .build());
     ledger.add(

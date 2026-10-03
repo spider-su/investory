@@ -2,7 +2,6 @@ package com.smartbox.investory.config;
 
 import com.smartbox.investory.integrations.notifications.application.NotificationEventDispatcher;
 import com.smartbox.investory.integrations.notifications.application.NotificationService;
-import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,23 +16,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 @RequiredArgsConstructor
 public class SchedulerConfig {
 
-  private final InvestmentMaintenanceApi investmentMaintenance;
   private final NotificationService notificationService;
   private final NotificationEventDispatcher notificationEventDispatcher;
 
   @Scheduled(fixedDelayString = "${app.notifications.dispatch.interval-ms:60000}")
   public void dispatchNotificationEvents() {
     notificationEventDispatcher.dispatchPending();
-  }
-
-  @Scheduled(cron = "0 0 15 * * 1-5", zone = "Europe/Warsaw")
-  public void updateCurrencyRates() {
-    investmentMaintenance.refreshCurrency();
-  }
-
-  @Scheduled(cron = "0 01 22 * * 1-5", zone = "Europe/Warsaw")
-  public void recordAtMarketClose() {
-    investmentMaintenance.refreshPrices();
   }
 
   @Scheduled(cron = "0 22 22 * * 1-5", zone = "Europe/Warsaw")
