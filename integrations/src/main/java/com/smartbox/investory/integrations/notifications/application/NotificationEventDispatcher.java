@@ -55,7 +55,22 @@ public class NotificationEventDispatcher {
       if (event == null) continue;
       try {
         String message = formatters.format(event);
-        for (NotificationDeliveryChannel channel : channels) channel.send(message);
+        for (NotificationDeliveryChannel channel : channels) {
+          if (!channel.supports(event)) continue;
+          if (channel.bestEffort()) {
+            try {
+              channel.send(message);
+            } catch (Exception channelFailure) {
+              log.warn(
+                  "Best-effort notification channel failed eventId={} channel={}: {}",
+                  id,
+                  channel.getClass().getSimpleName(),
+                  safeError(channelFailure));
+            }
+          } else {
+            channel.send(message);
+          }
+        }
         if (events.markDelivered(id, token, now) == 1) delivered++;
       } catch (Exception exception) {
         int attempts = event.getAttemptCount();

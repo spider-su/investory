@@ -4,7 +4,7 @@ import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.application.IntegrationConfigurationService;
 import com.smartbox.investory.integrations.management.scheduling.IntegrationJobContext;
 import com.smartbox.investory.integrations.management.scheduling.IntegrationJobHandler;
-import com.smartbox.investory.integrations.notifications.application.NotificationDeliveryChannel;
+import com.smartbox.investory.integrations.telegram.TelegramNotificationDeliveryChannel;
 import com.smartbox.investory.longterm.api.LongTermAssetPaymentAuditReader;
 import java.math.BigDecimal;
 import java.time.ZoneId;
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LongTermPaymentAuditJobHandler implements IntegrationJobHandler {
   private final IntegrationConfigurationService configurationService;
-  private final NotificationDeliveryChannel notificationDelivery;
+  private final TelegramNotificationDeliveryChannel notificationDelivery;
   private final LongTermAssetPaymentAuditReader paymentAudit;
 
   public IntegrationType integrationType() {

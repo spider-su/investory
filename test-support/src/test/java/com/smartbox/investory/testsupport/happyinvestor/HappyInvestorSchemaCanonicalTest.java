@@ -88,7 +88,7 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(broker.contains("19.80, 'USD'"));
     assertTrue(broker.contains("-0.68, 'USD'"));
     assertTrue(broker.contains("19.12"));
-    assertTrue(broker.contains("'Full call redemption principal returned'"));
+    assertTrue(broker.contains("'Full call / early redemption for USD 1.00 per Bond'"));
     assertTrue(broker.contains("'Treasury principal reinvestment on first trading date'"));
     assertTrue(common.contains("DATE '2026-02-28'"));
     assertTrue(common.contains("DATE '2026-08-03'"));
