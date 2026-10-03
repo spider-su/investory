@@ -39,7 +39,5 @@ public class MarketRadarService implements MarketRadarApi {
   }
 
   @Override
-  public List<RadarSnapshot> latestSignals() {
-    return store.latest();
-  }
+  public List<RadarSnapshot> latestSignals() {\n    return store.latest();\n  }\n\n  @Override\n  public List<RadarSnapshot> signalHistory(String symbol, int limit) {\n    if (symbol == null || symbol.isBlank()) return List.of();\n    return store.history(symbol.trim().toUpperCase(java.util.Locale.ROOT), Math.max(1, Math.min(limit, 180)));\n  }
 }
