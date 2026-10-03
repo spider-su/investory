@@ -131,6 +131,29 @@ app:
       client-id: ${APP_SECURITY_GOOGLE_CLIENT_ID:}
       client-secret: ${APP_SECURITY_GOOGLE_CLIENT_SECRET:}
       redirect-uri: ${APP_SECURITY_GOOGLE_REDIRECT_URI:{baseUrl}/login/oauth2/code/{registrationId}}
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:true}
+    portfolio-id: ${NOTIFICATION_PORTFOLIO_ID:1}
+    base-url: ${NOTIFICATION_BASE_URL:http://localhost:8080}
+    dispatch:
+      interval-ms: ${NOTIFICATION_DISPATCH_INTERVAL_MS:60000}
+      max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:5}
+      retry-delay-minutes: ${NOTIFICATION_RETRY_DELAY_MINUTES:15}
+      processing-lease-minutes: ${NOTIFICATION_PROCESSING_LEASE_MINUTES:5}
+    drawdown-threshold-pct: ${ALERT_DRAWDOWN_PCT:10}
+    drawdown-cooldown-hours: ${ALERT_DRAWDOWN_COOLDOWN_HOURS:24}
+    concentration-threshold-pct: ${ALERT_CONCENTRATION_PCT:25}
+    stale-import-days: ${ALERT_STALE_IMPORT_DAYS:7}
+    rental-contract-expiration-enabled: ${ALERT_RENTAL_CONTRACT_EXPIRATION_ENABLED:true}
+    rental-contract-expiration-days: ${ALERT_RENTAL_CONTRACT_EXPIRATION_DAYS:30}
+    bond-maturity-enabled: ${ALERT_BOND_MATURITY_ENABLED:true}
+    bond-maturity-days: ${ALERT_BOND_MATURITY_DAYS:30}
+    sms:
+      textbelt:
+        enabled: ${TEXTBELT_ENABLED:false}
+        phone: ${TEXTBELT_PHONE:}
+        key: ${TEXTBELT_KEY:textbelt}
+        alert-rules: ${TEXTBELT_ALERT_RULES:RENTAL_CONTRACT_EXPIRING,BOND_MATURITY_APPROACHING}
   telegram:
     enabled: ${TELEGRAM_BOT_ENABLED:false}
     portfolio-id: ${TELEGRAM_PORTFOLIO_ID:}
@@ -157,19 +180,6 @@ app:
       quarterly-cron: ${OPENAI_ANALYSIS_QUARTERLY_CRON:0 15 9 2 1,4,7,10 *}
       # Third day of January, after monthly and quarterly reports.
       annual-cron: ${OPENAI_ANALYSIS_ANNUAL_CRON:0 30 9 3 1 *}
-    notifications:
-      enabled: ${NOTIFICATIONS_ENABLED:true}
-      # Public origin used for actionable deep links in external notifications.
-      base-url: ${NOTIFICATION_BASE_URL:http://localhost:8080}
-      dispatch:
-        interval-ms: ${NOTIFICATION_DISPATCH_INTERVAL_MS:60000}
-        max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:5}
-        retry-delay-minutes: ${NOTIFICATION_RETRY_DELAY_MINUTES:15}
-        processing-lease-minutes: ${NOTIFICATION_PROCESSING_LEASE_MINUTES:5}
-      drawdown-threshold-pct: ${ALERT_DRAWDOWN_PCT:10}
-    drawdown-cooldown-hours: ${ALERT_DRAWDOWN_COOLDOWN_HOURS:24}
-    concentration-threshold-pct: ${ALERT_CONCENTRATION_PCT:25}
-    stale-import-days: ${ALERT_STALE_IMPORT_DAYS:7}
   market:
     chunk-pause-ms: ${MARKET_CHUNK_PAUSE_MS:120000}
     # Unsupported listings may require manual prices.
