@@ -52,7 +52,7 @@ public class MarketRadarController {
     if (history.isEmpty()) return "redirect:/market-radar";
     model.addAttribute("symbol", normalized);
     model.addAttribute("current", history.getFirst());
-    model.addAttribute("history", history);
+    model.addAttribute("history", history);\n    model.addAttribute("outcomes", radar.outcomes(normalized, 270));
     return "market-radar-detail";
   }
 
