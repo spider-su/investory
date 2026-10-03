@@ -11,6 +11,7 @@ shared
 investment
 longterm
 profile
+market-radar
 retirement
 integrations
 test-support (test scope)
@@ -20,11 +21,14 @@ app
 investment -> shared
 longterm -> shared
 profile -> shared + investment public API + longterm public API
+market-radar -> shared
 retirement -> shared + investment/longterm/profile public APIs
 integrations -> investment/longterm public and integration contracts
 adapters/web-ui -> investment/longterm/profile/retirement/integrations public APIs
 test-support -> shared + investment + profile (fixtures and PostgreSQL test infrastructure only)
 app -> all production modules plus adapters/web-ui; owns executable composition
+
+Market Radar is an experimental research module. It owns market-intelligence vocabulary and ports, does not depend on Investment persistence or web adapters, and must remain extractable into a separate application.
 ```
 
 Investment does not depend on Long-Term or Retirement. Long-Term does not depend on Investment or
