@@ -192,3 +192,9 @@ app:
       # Leave empty (or omit) to export ALL accounts.
       # Example: accounts: 90000002,U90000001
       accounts: ${YAHOO_EXPORT_ACCOUNTS:}
+
+app:
+  market-radar:
+    enabled: ${MARKET_RADAR_ENABLED:false}
+    symbols: ${MARKET_RADAR_SYMBOLS:SPY,QQQ,AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSM,ASML}
+    cron: ${MARKET_RADAR_CRON:0 30 22 * * 1-5}
