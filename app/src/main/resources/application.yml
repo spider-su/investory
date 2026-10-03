@@ -183,7 +183,7 @@ app:
   market-radar:
     enabled: ${MARKET_RADAR_ENABLED:false}
     symbols: ${MARKET_RADAR_SYMBOLS:SPY,QQQ,AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSM,ASML}
-    cron: ${MARKET_RADAR_CRON:0 30 22 * * 1-5}
+    cron: ${MARKET_RADAR_CRON:0 30 22 * * 1-5}\n    benchmark: ${MARKET_RADAR_BENCHMARK:SPY}
   market:
     chunk-pause-ms: ${MARKET_CHUNK_PAUSE_MS:120000}
     # Unsupported listings may require manual prices.
