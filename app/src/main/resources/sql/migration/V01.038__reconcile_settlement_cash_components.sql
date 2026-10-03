@@ -732,4 +732,4 @@ GROUP BY
     r.anomaly_code;
 
 COMMENT ON VIEW investory.recon_v_trade_settlement_by_account IS
-    'Account grouping over trade settlement reconciliation. Authoritative sums become NULL when any required converted value is unavailable;
+    'Account grouping over trade settlement reconciliation. Authoritative sums become NULL when any required converted value is unavailable.';
