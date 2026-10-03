@@ -20,6 +20,7 @@ class MarketRadarServiceTest {
     MarketRadarService service =
         new MarketRadarService(
             port,
+            () -> List.of(),
             new MarketSignalCalculator(),
             Clock.fixed(Instant.parse("2026-10-03T12:00:00Z"), ZoneOffset.UTC));
 
