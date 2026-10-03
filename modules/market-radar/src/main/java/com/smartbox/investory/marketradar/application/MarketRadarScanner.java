@@ -31,7 +31,9 @@ public class MarketRadarScanner {
                   refreshed.add(snapshot);
                 });
       } catch (RuntimeException e) {
-        LOGGER.log(\n            System.Logger.Level.WARNING,\n            "Market Radar scan skipped for " + symbol + ": " + e.getMessage());
+        LOGGER.log(
+            System.Logger.Level.WARNING,
+            "Market Radar scan skipped for " + symbol + ": " + e.getMessage());
       }
     }
     return List.copyOf(refreshed);
