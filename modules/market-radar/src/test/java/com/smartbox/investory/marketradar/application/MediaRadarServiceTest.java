@@ -21,8 +21,7 @@ class MediaRadarServiceTest {
     CapturingStore store = new CapturingStore();
     MediaRadarService service =
         new MediaRadarService(
-            store,
-            Clock.fixed(Instant.parse("2026-10-04T10:00:00Z"), ZoneOffset.UTC));
+            store, Clock.fixed(Instant.parse("2026-10-04T10:00:00Z"), ZoneOffset.UTC));
     MediaObservation observation =
         new MediaObservation(
             "id-1",
