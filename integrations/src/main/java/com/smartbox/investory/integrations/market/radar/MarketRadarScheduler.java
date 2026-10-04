@@ -123,8 +123,7 @@ public class MarketRadarScheduler {
     if (message == null || message.isBlank()) return "Unexpected refresh failure";
     String sanitized =
         message.replaceAll(
-            "(?i)(api[_-]?key|access[_-]?key|token|secret)=?\\s*[^ ,;]+",
-            "$1=[REDACTED]");
+            "(?i)(api[_-]?key|access[_-]?key|token|secret)=?\\s*[^ ,;]+", "$1=[REDACTED]");
     return sanitized.substring(0, Math.min(sanitized.length(), 500));
   }
 
