@@ -34,6 +34,16 @@ Scheduled work is globally controlled by `SCHEDULING_ENABLED`. Market prices, FX
 
 Yahoo Finance is the primary configured market quote integration; unsupported/non-US listings may require manual prices. FX uses NBP and the canonical rules in `../domain/fx-normalization.md`. Yahoo export is an adapter surface and participates in C7 reconciliation; it is not an accounting source of truth.
 
+## Market Radar deployment verification
+
+When Market Radar is enabled, use [market-radar-deploy-verification.md](market-radar-deploy-verification.md)
+for the staged rollout. The first deployment should start with Radar disabled, verify migrations and
+health, then enable a small explicit symbol universe before expanding to the bundled universe.
+
+The repository helper `scripts/verify-market-radar-deploy.sh` checks the public health probe and,
+when `APP_USER` / `APP_PASSWORD` are supplied, the authenticated Radar, Operations, and Validation
+pages.
+
 ## Release verification
 
 A production candidate should satisfy, in order:
