@@ -77,9 +77,9 @@ Metrics to monitor:
 
 Next improvements once enough data exists:
 
-- median return and median excess return;
+- ~~median return and median excess return~~ implemented;
 - max adverse/favourable excursion;
-- confidence/sample-size indication;
+- ~~confidence/sample-size indication~~ basic indication implemented;
 - separation by market regime or sector if sample size permits.
 
 Exit criterion:
