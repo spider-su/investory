@@ -56,7 +56,7 @@ class MarketRadarSchedulerTest {
             25,
             0);
 
-    scheduler.refresh();
+    RadarRunSummary returned = scheduler.refreshNow();
 
     ArgumentCaptor<RadarRunSummary> captor = ArgumentCaptor.forClass(RadarRunSummary.class);
     verify(runs, times(2)).save(captor.capture());
@@ -69,5 +69,6 @@ class MarketRadarSchedulerTest {
     assertThat(completed.interesting()).isEqualTo(1);
     assertThat(completed.emerging()).isEqualTo(1);
     assertThat(completed.outcomesEvaluated()).isEqualTo(3);
+    assertThat(returned).isEqualTo(completed);
   }
 }

@@ -1,6 +1,7 @@
 package com.smartbox.investory.ui.marketradar;
 
 import com.smartbox.investory.marketradar.api.MarketRadarApi;
+import com.smartbox.investory.marketradar.api.MarketRadarRefreshApi;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
 import com.smartbox.investory.marketradar.domain.RadarState;
 import com.smartbox.investory.marketradar.domain.RadarValidationStats;
@@ -8,18 +9,23 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
 public class MarketRadarController {
   private final MarketRadarApi radar;
+  private final ObjectProvider<MarketRadarRefreshApi> refresh;
 
-  public MarketRadarController(MarketRadarApi radar) {
+  public MarketRadarController(
+      MarketRadarApi radar, ObjectProvider<MarketRadarRefreshApi> refresh) {
     this.radar = radar;
+    this.refresh = refresh;
   }
 
   @GetMapping("/market-radar")
@@ -51,7 +57,18 @@ public class MarketRadarController {
   @GetMapping("/market-radar/operations")
   public String operations(Model model) {
     model.addAttribute("runs", radar.recentRuns(30));
+    model.addAttribute("refreshAvailable", refresh.getIfAvailable() != null);
     return "market-radar-operations";
+  }
+
+  @PostMapping("/market-radar/operations/refresh")
+  public String refreshNow() {
+    MarketRadarRefreshApi api = refresh.getIfAvailable();
+    if (api == null) {
+      return "redirect:/market-radar/operations?refresh=disabled";
+    }
+    api.refreshNow();
+    return "redirect:/market-radar/operations?refresh=completed";
   }
 
   @GetMapping("/market-radar/{symbol}")

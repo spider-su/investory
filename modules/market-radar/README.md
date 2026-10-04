@@ -117,6 +117,7 @@ The current read-only UI consists of:
 - `/market-radar` — current signals, with `NORMAL` hidden by default;
 - `/market-radar/{symbol}` — ticker history and forward outcomes;
 - `/market-radar/validation` — aggregate effectiveness and drill-down observations;
+- `/market-radar/operations` — persisted run history plus an admin-only verification refresh action;
 - `/market-radar/themes` — theme proxy strength and member breadth;
 - `/market-radar/media` — media attention acceleration, source diversity, and explicit analyst stance.
 
@@ -177,3 +178,11 @@ does not infer bullish/bearish intent from headlines. Structured analyst sources
 stance through the admin-only `/api/v1/admin/market-radar/analyst-observations` endpoint.
 
 See [ROADMAP.md](ROADMAP.md) for planned stages and exit criteria.
+
+
+## Deployment verification
+
+Use [../../docs/development/market-radar-deploy-verification.md](../../docs/development/market-radar-deploy-verification.md)
+for the production enablement sequence. The recommended rollout starts disabled, enables a five-symbol
+verification universe, performs an admin-triggered refresh, validates persisted run/snapshot evidence,
+and only then expands to the bundled universe.
