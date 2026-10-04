@@ -1,7 +1,6 @@
 package com.smartbox.investory.marketradar.application;
 
 import com.smartbox.investory.marketradar.api.ThemeRadarApi;
-
 import com.smartbox.investory.marketradar.domain.DailyMarketBar;
 import com.smartbox.investory.marketradar.domain.ThemeDefinition;
 import com.smartbox.investory.marketradar.domain.ThemeSnapshot;
@@ -105,7 +104,8 @@ public class ThemeRadarService implements ThemeRadarApi {
     return Optional.of(new SeriesMetrics(return20, close > sma50));
   }
 
-  private ThemeState classify(double breadthAbove, double breadthOutperforming, double relativeStrength) {
+  private ThemeState classify(
+      double breadthAbove, double breadthOutperforming, double relativeStrength) {
     if (breadthAbove >= 0.70 && breadthOutperforming >= 0.60 && relativeStrength >= 0.03) {
       return ThemeState.ACCELERATING;
     }
