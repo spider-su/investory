@@ -1,5 +1,7 @@
 package com.smartbox.investory.marketradar.application;
 
+import com.smartbox.investory.marketradar.api.ThemeRadarApi;
+
 import com.smartbox.investory.marketradar.domain.DailyMarketBar;
 import com.smartbox.investory.marketradar.domain.ThemeDefinition;
 import com.smartbox.investory.marketradar.domain.ThemeSnapshot;
@@ -14,7 +16,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 @Service
-public class ThemeRadarService {
+public class ThemeRadarService implements ThemeRadarApi {
   private final HistoricalMarketDataPort marketData;
   private final ThemeSnapshotStore store;
 
@@ -76,11 +78,13 @@ public class ThemeRadarService {
     return List.copyOf(result);
   }
 
-  public List<ThemeSnapshot> latest() {
+  @Override
+  public List<ThemeSnapshot> latestThemes() {
     return store.latest();
   }
 
-  public List<ThemeSnapshot> history(String theme, int limit) {
+  @Override
+  public List<ThemeSnapshot> themeHistory(String theme, int limit) {
     return store.history(theme, Math.max(1, Math.min(limit, 180)));
   }
 
