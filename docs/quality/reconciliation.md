@@ -56,6 +56,9 @@ Also check:
 - account funding flow, performance flow, and portfolio flow remain distinct in daily performance
   diagnostics;
 - open-position value uses the canonical current/historical pricing rule;
+- trade-settlement carrying value uses the normalized daily price selected for the prior valuation
+  date, including its selected price currency; raw interpolated observations with a future right
+  endpoint must not be selected for that date;
 - result-only positions are not valued at full notional;
 - broker truth is used as an independent oracle where the broker export provides it;
 - missing/stale FX follows `docs/domain/fx-normalization.md`;
@@ -76,6 +79,14 @@ in the underlying price history. A manually accepted alternate-listing issue rec
 reviewer-approved exception without changing source prices. All three dispositions are omitted
 from the combined active temporal-anomaly view. A changed observation no longer matches its
 disposition and returns to active review.
+
+Account movement dispositions are append-only records in
+`investory.reconciliation_account_movement_reviews`. The fingerprint covers the prior/current
+`account_daily` values used by the anomaly. `EXPLAINED` and `CORRECTED` dispositions suppress only
+the exact matching event; `STILL_UNDER_REVIEW` remains active. A later disposition supersedes the
+prior decision for that event without deleting its audit history. When the event inputs change,
+the fingerprint changes and the movement returns to active review until reviewed again. Every disposition
+requires a rationale and evidence reference; it does not modify accounting facts.
 
 Known non-accounting price-source conditions are evidence-quality classifications, not valuation
 failures: trade observations, interpolated prices, alternate listings, and stale carry-forward

@@ -1,24 +1,37 @@
 package com.smartbox.investory.ui.investment;
 
+import com.smartbox.investory.investment.api.reporting.InvestmentReconciliationApi;
+import com.smartbox.investory.investment.api.reporting.model.AccountMovementReview;
+import com.smartbox.investory.investment.api.reporting.model.AccountMovementReviewCommand;
 import com.smartbox.investory.investment.api.reporting.model.ReconciliationReport;
-import com.smartbox.investory.investment.web.InvestmentReconciliationRestController;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InProcessInvestmentReconciliationClient implements InvestmentReconciliationClient {
-  private final InvestmentReconciliationRestController rest;
+  private final InvestmentReconciliationApi reconciliation;
 
-  public InProcessInvestmentReconciliationClient(InvestmentReconciliationRestController rest) {
-    this.rest = rest;
+  public InProcessInvestmentReconciliationClient(InvestmentReconciliationApi reconciliation) {
+    this.reconciliation = reconciliation;
   }
 
   @Override
   public ReconciliationReport loadReconciliationReport(Long portfolioId) {
-    return rest.report(portfolioId);
+    return reconciliation.loadReconciliationReport(portfolioId);
   }
 
   @Override
   public void refreshReconciliationViews(Long portfolioId) {
-    rest.refresh(portfolioId);
+    reconciliation.refreshReconciliationViews();
+  }
+
+  @Override
+  public List<AccountMovementReview> loadAccountMovementReviews(Long portfolioId) {
+    return reconciliation.loadAccountMovementReviews(portfolioId);
+  }
+
+  @Override
+  public void recordAccountMovementReview(Long portfolioId, AccountMovementReviewCommand command) {
+    reconciliation.recordAccountMovementReview(portfolioId, command);
   }
 }

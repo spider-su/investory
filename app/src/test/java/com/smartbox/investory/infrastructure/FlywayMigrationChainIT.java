@@ -1,6 +1,8 @@
 package com.smartbox.investory.infrastructure;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.sql.Connection;
@@ -36,6 +38,20 @@ class FlywayMigrationChainIT {
               statement,
               "SELECT count(*) FROM investory.flyway_schema_history "
                   + "WHERE success AND version IS NOT NULL"));
+    }
+  }
+
+  @Test
+  void tradeSettlementUsesNormalizedDailyPricesForCarryingValue() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement();
+        ResultSet result =
+            statement.executeQuery(
+                "SELECT pg_get_viewdef('investory.recon_v_trade_settlement'::regclass, true)")) {
+      result.next();
+      String definition = result.getString(1);
+      assertTrue(definition.contains("app_v_normalized_daily_price"));
+      assertFalse(definition.contains("app_v_canonical_asset_daily_price"));
     }
   }
 

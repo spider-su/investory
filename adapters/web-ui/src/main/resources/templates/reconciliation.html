@@ -78,6 +78,61 @@
                 <span th:unless="${report.checkpoints.?[originalStatus.name() == 'NOT_CHECKED'].isEmpty()}">No issues were found in the executed checks; some checkpoints are still not checked.</span>
             </div>
         </section>
+
+        <section class="iv-card iv-report-card" aria-labelledby="account-movement-reviews-title">
+            <div class="iv-card__head">
+                <h3 id="account-movement-reviews-title" class="iv-card__title">Account movement reviews</h3>
+                <span class="iv-card__hint" th:text="${accountMovementReviews.?[active].size() + ' active · ' + accountMovementReviews.size() + ' current/history'}">0 active</span>
+            </div>
+            <div class="iv-card__body">
+                <div class="alert alert-success" role="status" th:if="${reviewed}">Review saved. Explained or corrected events are hidden only while their source fingerprint still matches.</div>
+                <div class="alert alert-danger" role="alert" th:if="${reviewError}" th:text="${reviewError}">Review could not be saved.</div>
+                <p class="text-secondary small">A review records a decision and evidence. It does not change financial data. If the event data changes, its old review will no longer hide the warning.</p>
+                <div class="iv-table-wrap" th:if="${!accountMovementReviews.isEmpty()}">
+                    <table class="iv-table">
+                        <thead><tr><th>Event</th><th>Movement</th><th>Evidence</th><th>Record review</th></tr></thead>
+                        <tbody>
+                        <tr th:each="movement : ${accountMovementReviews}">
+                            <td>
+                                <strong th:text="${movement.accountName + ' · ' + movement.eventDate}">Account · date</strong>
+                                <small class="iv-report-table__sub" th:text="${movement.issueCode + ' · account ' + movement.accountId + ' · prior ' + movement.previousDate}">Code and dates</small>
+                                <span class="iv-badge" th:classappend="${movement.active} ? ' iv-badge--warn' : ' iv-badge--pos'" th:text="${movement.active ? 'ACTIVE' : 'REVIEWED'}">ACTIVE</span>
+                                <small class="iv-report-table__sub" th:if="${movement.previousResolution != null}" th:text="${'Latest decision: ' + movement.previousResolution + ' by ' + movement.previousReviewedBy + ' at ' + movement.previousReviewedAt + (movement.priorDecisionMatchesCurrent ? '' : ' · expired because event data changed')}">Latest decision</small>
+                            </td>
+                            <td>
+                                <small class="iv-report-table__sub" th:text="${'Previous: ' + movement.previousValue + ' · Current: ' + movement.currentValue}">Values</small>
+                                <small class="iv-report-table__sub" th:text="${movement.explanation}">Movement detail</small>
+                                <details><summary>Fingerprint</summary><small class="iv-report-table__sub" th:text="${movement.eventFingerprint}">fingerprint</small></details>
+                            </td>
+                            <td>
+                                <details th:if="${movement.previousRationale != null}"><summary>Previous rationale</summary><small class="iv-report-table__sub" th:text="${movement.previousRationale}">Rationale</small><small class="iv-report-table__sub" th:text="${movement.previousEvidenceReference}">Evidence reference</small></details>
+                                <span th:if="${movement.previousRationale == null}" class="text-secondary">No prior review</span>
+                            </td>
+                            <td>
+                                <form method="post" th:action="@{/portfolios/{portfolioId}/dashboard/reconciliation/account-movement-review(portfolioId=${portfolioId})}">
+                                    <input type="hidden" name="issueCode" th:value="${movement.issueCode}">
+                                    <input type="hidden" name="accountId" th:value="${movement.accountId}">
+                                    <input type="hidden" name="eventDate" th:value="${movement.eventDate}">
+                                    <input type="hidden" name="eventFingerprint" th:value="${movement.eventFingerprint}">
+                                    <label class="form-label" th:for="${'decision-' + movement.accountId + '-' + movement.eventDate}">Decision</label>
+                                    <select class="form-select mb-2" name="resolution" th:id="${'decision-' + movement.accountId + '-' + movement.eventDate}" required>
+                                        <option value="">Choose…</option>
+                                        <option th:each="resolution : ${reviewResolutions}" th:value="${resolution}" th:text="${resolution == T(com.smartbox.investory.investment.api.reporting.model.AccountMovementReviewResolution).EXPLAINED ? 'Explained — evidence supports source data' : (resolution == T(com.smartbox.investory.investment.api.reporting.model.AccountMovementReviewResolution).CORRECTED ? 'Corrected — source data was changed' : 'Still under review')}" th:selected="${movement.priorDecisionMatchesCurrent and resolution == movement.previousResolution}">Explained — evidence supports source data</option>
+                                    </select>
+                                    <label class="form-label" th:for="${'rationale-' + movement.accountId + '-' + movement.eventDate}">Rationale</label>
+                                    <textarea class="form-control mb-2" name="rationale" th:id="${'rationale-' + movement.accountId + '-' + movement.eventDate}" rows="2" maxlength="10000" required th:text="${movement.priorDecisionMatchesCurrent ? movement.previousRationale : null}"></textarea>
+                                    <label class="form-label" th:for="${'evidence-' + movement.accountId + '-' + movement.eventDate}">Evidence reference</label>
+                                    <input class="form-control mb-2" name="evidenceReference" th:id="${'evidence-' + movement.accountId + '-' + movement.eventDate}" maxlength="2000" required th:value="${movement.priorDecisionMatchesCurrent ? movement.previousEvidenceReference : null}" placeholder="Source row ID, import ID, or URL">
+                                    <button type="submit" class="btn btn-outline-primary">Save review</button>
+                                </form>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="iv-empty" th:if="${accountMovementReviews.isEmpty()}">No account movement flags or current review records.</div>
+            </div>
+        </section>
     </div>
     <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
 </main>

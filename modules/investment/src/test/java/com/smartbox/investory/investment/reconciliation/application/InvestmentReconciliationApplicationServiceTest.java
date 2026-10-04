@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.reconciliation.application;
 
 import static org.mockito.Mockito.verify;
 
+import com.smartbox.investory.investment.infrastructure.persistence.reconciliation.AccountMovementReviewRepository;
 import com.smartbox.investory.investment.reconciliation.ReconciliationContext;
 import com.smartbox.investory.investment.reconciliation.ReconciliationReportService;
 import com.smartbox.investory.shared.time.ClockApplicationTime;
@@ -25,13 +26,17 @@ class InvestmentReconciliationApplicationServiceTest {
 
   @Mock private ReconciliationReportService reports;
 
+  @Mock private AccountMovementReviewRepository accountMovementReviews;
+
   @Mock
   private com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService refresh;
 
   @DisplayName("loads Portfolio Report")
   @Test
   void loadsPortfolioReport() {
-    var service = new InvestmentReconciliationApplicationService(reports, refresh, TIME);
+    var service =
+        new InvestmentReconciliationApplicationService(
+            reports, refresh, TIME, accountMovementReviews);
 
     service.loadReconciliationReport(7L);
 
@@ -40,7 +45,9 @@ class InvestmentReconciliationApplicationServiceTest {
 
   @Test
   void rejectsMissingOrInvalidPortfolioId() {
-    var service = new InvestmentReconciliationApplicationService(reports, refresh, TIME);
+    var service =
+        new InvestmentReconciliationApplicationService(
+            reports, refresh, TIME, accountMovementReviews);
 
     org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.loadReconciliationReport(null))
         .isInstanceOf(IllegalArgumentException.class);
