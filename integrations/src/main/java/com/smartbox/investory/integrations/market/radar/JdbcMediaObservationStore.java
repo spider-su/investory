@@ -47,7 +47,6 @@ public class JdbcMediaObservationStore implements MediaObservationStore {
             Timestamp.from(observation.publishedAt()),
             observation.stance().name());
 
-    jdbc.update("delete from market_radar_media_symbol where observation_id = ?", id);
     for (String symbol : observation.symbols()) {
       jdbc.update(
           """
