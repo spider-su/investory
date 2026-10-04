@@ -4,7 +4,6 @@ import com.smartbox.investory.investment.api.reporting.model.AccountMovementRevi
 import com.smartbox.investory.investment.api.reporting.model.AccountMovementReviewCommand;
 import com.smartbox.investory.investment.api.reporting.model.ReconciliationReport;
 import com.smartbox.investory.investment.web.InvestmentReconciliationRestController;
-import java.security.Principal;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -33,7 +32,6 @@ public class InProcessInvestmentReconciliationClient implements InvestmentReconc
 
   @Override
   public void recordAccountMovementReview(Long portfolioId, AccountMovementReviewCommand command) {
-    Principal principal = command == null ? null : command::reviewedBy;
-    rest.reviewAccountMovement(portfolioId, command, principal);
+    rest.recordAccountMovementReview(portfolioId, command);
   }
 }
