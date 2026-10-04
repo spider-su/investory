@@ -67,11 +67,17 @@ public class InvestmentReconciliationRestController {
             command.evidenceReference(),
             principal.getName());
     try {
-      reconciliation.recordAccountMovementReview(portfolioId, authenticatedCommand);
+      recordAccountMovementReview(portfolioId, authenticatedCommand);
     } catch (IllegalArgumentException exception) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
     } catch (IllegalStateException exception) {
       throw new ResponseStatusException(HttpStatus.CONFLICT, exception.getMessage(), exception);
     }
   }
+
+  public void recordAccountMovementReview(
+      Long portfolioId, AccountMovementReviewCommand command) {
+    reconciliation.recordAccountMovementReview(portfolioId, command);
+  }
 }
+
