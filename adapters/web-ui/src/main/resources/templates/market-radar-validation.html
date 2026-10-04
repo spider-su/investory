@@ -31,8 +31,8 @@
           <th>State</th>
           <th>Horizon</th>
           <th>Observations</th>
-          <th>Avg return</th>
-          <th>Avg excess vs benchmark</th>
+          <th>Avg / median return</th>
+          <th>Avg / median excess</th>
           <th>Positive</th>
           <th>Outperformed</th>
           <th></th>
@@ -42,10 +42,20 @@
         <tr th:each="row : ${stats}">
           <td><span class="badge" th:text="${row.state}">EMERGING</span></td>
           <td th:text="${row.horizonDays + 'd'}">30d</td>
-          <td th:text="${row.observations}">0</td>
-          <td th:text="${row.averageReturn == null ? '—' : #numbers.formatPercent(row.averageReturn,1,1)}">—</td>
+          <td>
+            <span th:text="${row.observations}">0</span>
+            <span class="badge ms-1"
+                  th:text="${row.observations < 20 ? 'early' : (row.observations < 50 ? 'growing' : 'useful')}">early</span>
+          </td>
+          <td>
+            <span th:text="${row.averageReturn == null ? '—' : #numbers.formatPercent(row.averageReturn,1,1)}">—</span>
+            <span class="text-secondary"> / </span>
+            <span th:text="${row.medianReturn == null ? '—' : #numbers.formatPercent(row.medianReturn,1,1)}">—</span>
+          </td>
           <td>
             <strong th:text="${row.averageExcessReturn == null ? '—' : #numbers.formatPercent(row.averageExcessReturn,1,1)}">—</strong>
+            <span class="text-secondary"> / </span>
+            <strong th:text="${row.medianExcessReturn == null ? '—' : #numbers.formatPercent(row.medianExcessReturn,1,1)}">—</strong>
           </td>
           <td th:text="${row.positiveRate == null ? '—' : #numbers.formatPercent(row.positiveRate,1,0)}">—</td>
           <td th:text="${row.outperformRate == null ? '—' : #numbers.formatPercent(row.outperformRate,1,0)}">—</td>

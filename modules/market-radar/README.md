@@ -100,11 +100,15 @@ This separation prevents hindsight from changing the original signal.
 
 The validation view aggregates outcomes by Radar state and horizon and currently reports:
 
-- observation count;
-- average return;
-- average benchmark-relative excess return;
+- observation count and a simple sample-size indication;
+- average and median return;
+- average and median benchmark-relative excess return;
 - positive-return rate;
 - benchmark-outperformance rate.
+
+The scheduler emits one refresh summary after each run with the universe size, attempted/stored/no-data/
+failed counts, interesting-state count, state distribution, number of forward outcomes evaluated, and
+total duration. Individual symbol failures remain isolated and logged separately.
 
 ## UI
 

@@ -4,6 +4,7 @@ import com.smartbox.investory.marketradar.domain.RadarSnapshot;
 import com.smartbox.investory.marketradar.port.RadarSnapshotStore;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,24 +19,30 @@ public class MarketRadarScanner {
     this.store = store;
   }
 
-  public List<RadarSnapshot> refresh(List<String> symbols) {
+  public RadarScanResult refresh(List<String> symbols) {
     List<RadarSnapshot> refreshed = new ArrayList<>();
+    int noData = 0;
+    int failed = 0;
+
     for (String symbol : symbols) {
       try {
-        radar
-            .analyze(symbol)
-            .ifPresent(
-                snapshot -> {
-                  store.save(snapshot);
-                  refreshed.add(snapshot);
-                });
+        Optional<RadarSnapshot> snapshot = radar.analyze(symbol);
+        if (snapshot.isEmpty()) {
+          noData++;
+          continue;
+        }
+        RadarSnapshot value = snapshot.orElseThrow();
+        store.save(value);
+        refreshed.add(value);
       } catch (RuntimeException e) {
+        failed++;
         LOGGER.log(
             System.Logger.Level.WARNING,
             "Market Radar scan skipped for " + symbol + ": " + e.getMessage());
       }
     }
-    return List.copyOf(refreshed);
+
+    return new RadarScanResult(symbols.size(), refreshed.size(), noData, failed, refreshed);
   }
 
   public List<RadarSnapshot> latest() {
