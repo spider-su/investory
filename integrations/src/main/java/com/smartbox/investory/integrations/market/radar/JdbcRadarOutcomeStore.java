@@ -104,7 +104,9 @@ public class JdbcRadarOutcomeStore implements RadarOutcomeStore {
         """
         select s.state, o.horizon_days, count(*) as observations,
           avg(o.symbol_return) as average_return,
+          percentile_cont(0.5) within group (order by o.symbol_return) as median_return,
           avg(o.excess_return) as average_excess_return,
+          percentile_cont(0.5) within group (order by o.excess_return) as median_excess_return,
           avg(case when o.symbol_return > 0 then 1.0 else 0.0 end) as positive_rate,
           avg(case when o.excess_return > 0 then 1.0 else 0.0 end) as outperform_rate
         from market_radar_outcome o
@@ -119,7 +121,9 @@ public class JdbcRadarOutcomeStore implements RadarOutcomeStore {
                 rs.getInt("horizon_days"),
                 rs.getLong("observations"),
                 nullableDouble(rs, "average_return"),
+                nullableDouble(rs, "median_return"),
                 nullableDouble(rs, "average_excess_return"),
+                nullableDouble(rs, "median_excess_return"),
                 nullableDouble(rs, "positive_rate"),
                 nullableDouble(rs, "outperform_rate")));
   }

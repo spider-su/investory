@@ -5,6 +5,8 @@ public record RadarValidationStats(
     int horizonDays,
     long observations,
     Double averageReturn,
+    Double medianReturn,
     Double averageExcessReturn,
+    Double medianExcessReturn,
     Double positiveRate,
     Double outperformRate) {}
