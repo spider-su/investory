@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Market Radar Media · Investory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<main class="container-xl py-4">
+  <a class="btn btn-link px-0 mb-2" href="/market-radar">← Back to Market Radar</a>
+  <div class="mb-4">
+    <div class="page-pretitle">Stage 4</div>
+    <h1 class="page-title">Analyst / media radar</h1>
+    <div class="text-secondary">Attention change and source diversity. Popularity is not treated as a buy signal.</div>
+  </div>
+
+  <div class="alert alert-info" th:if="${#lists.isEmpty(signals)}">
+    No media observations yet. Media collection is separately disabled by default.
+  </div>
+
+  <div class="card mb-3" th:unless="${#lists.isEmpty(signals)}">
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter">
+        <thead>
+        <tr><th>Ticker</th><th>7d mentions</th><th>Previous 7d</th><th>Attention</th><th>Sources</th><th>Explicit stance</th><th></th></tr>
+        </thead>
+        <tbody>
+        <tr th:each="signal : ${signals}">
+          <td><strong th:text="${signal.symbol}">NVDA</strong></td>
+          <td th:text="${signal.mentions7d}">5</td>
+          <td th:text="${signal.previousMentions7d}">2</td>
+          <td th:text="${#numbers.formatDecimal(signal.attentionRatio,1,2) + '×'}">2.5×</td>
+          <td th:text="${signal.independentSources7d}">3</td>
+          <td>
+            <span th:text="${'↑ ' + signal.bullish7d + ' · → ' + signal.neutral7d + ' · ↓ ' + signal.bearish7d}">stances</span>
+          </td>
+          <td><a class="btn btn-sm btn-outline-secondary" th:href="@{/market-radar/media(symbol=${signal.symbol})}">Mentions</a></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" th:if="${selectedSymbol != null}">
+    <div class="card-header"><h3 class="card-title" th:text="${selectedSymbol + ' mentions'}">Mentions</h3></div>
+    <div class="list-group list-group-flush">
+      <div class="list-group-item" th:each="mention : ${mentions}">
+        <div class="d-flex justify-content-between gap-3">
+          <div>
+            <a th:if="${mention.url != null}" th:href="${mention.url}" target="_blank" rel="noopener" th:text="${mention.headline}">Headline</a>
+            <span th:if="${mention.url == null}" th:text="${mention.headline}">Headline</span>
+            <div class="text-secondary small">
+              <span th:text="${mention.source}">source</span>
+              <span> · </span><span th:text="${mention.publishedAt}">time</span>
+            </div>
+          </div>
+          <span class="badge" th:if="${mention.stance.name() != 'UNKNOWN'}" th:text="${mention.stance}">BULLISH</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/js/theme.js"></script>
+</body>
+</html>

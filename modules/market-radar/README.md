@@ -116,7 +116,9 @@ The current read-only UI consists of:
 
 - `/market-radar` — current signals, with `NORMAL` hidden by default;
 - `/market-radar/{symbol}` — ticker history and forward outcomes;
-- `/market-radar/validation` — aggregate effectiveness and drill-down observations.
+- `/market-radar/validation` — aggregate effectiveness and drill-down observations;
+- `/market-radar/themes` — theme proxy strength and member breadth;
+- `/market-radar/media` — media attention acceleration, source diversity, and explicit analyst stance.
 
 The main screen is intentionally a "what changed?" surface rather than another full market
 dashboard.
@@ -133,6 +135,10 @@ Relevant environment variables:
 - `MARKET_RADAR_BENCHMARK` — forward-evaluation benchmark, default `SPY`.
 - `MARKET_RADAR_BATCH_SIZE` — symbols per provider batch, default 25.
 - `MARKET_RADAR_BATCH_PAUSE_MS` — pause between batches, default 5000 ms.
+- `MARKET_RADAR_THEME_CRON` — theme breadth refresh, default 22:50 Warsaw time.
+- `MARKET_RADAR_MEDIA_ENABLED` — enable media collection separately from price scanning.
+- `MARKET_RADAR_MEDIA_CRON` — media refresh, default 23:10 Warsaw time.
+- `MARKET_RADAR_MEDIA_SYMBOLS` — comma-separated media watch universe.
 
 ## Default scan universe
 
@@ -151,10 +157,23 @@ The current module does not:
 - execute or place trades;
 - generate personalized BUY/SELL recommendations;
 - optimize thresholds based on future data;
-- parse YouTube/media commentary;
+- infer sentiment from unstructured headlines or commentary;
 - use an LLM to create market evidence;
 - maintain a full security master;
 - replicate a professional market-data platform;
 - make existing Investory portfolio logic depend on Radar.
+
+## Themes and media
+
+Stage 3 calculates breadth from curated theme definitions. A theme combines a liquid proxy ETF with
+constituent/member symbols and records percentage above SMA50, percentage outperforming SPY, proxy
+20-day return, and benchmark-relative strength. Theme states are `ACCELERATING`, `STRONG`,
+`NEUTRAL`, and `WEAKENING`.
+
+Stage 4 stores external observations independently from market signals. Media attention is measured as
+7-day mention count versus the previous 7 days plus independent-source count. The first source adapter
+uses Yahoo Finance RSS and is disabled by default. RSS items are stored with stance `UNKNOWN`; Radar
+does not infer bullish/bearish intent from headlines. Structured analyst sources can submit explicit
+stance through the admin-only `/api/v1/admin/market-radar/analyst-observations` endpoint.
 
 See [ROADMAP.md](ROADMAP.md) for planned stages and exit criteria.

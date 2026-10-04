@@ -188,6 +188,11 @@ app:
     benchmark: ${MARKET_RADAR_BENCHMARK:SPY}
     batch-size: ${MARKET_RADAR_BATCH_SIZE:25}
     batch-pause-ms: ${MARKET_RADAR_BATCH_PAUSE_MS:5000}
+    theme-cron: ${MARKET_RADAR_THEME_CRON:0 50 22 * * 1-5}
+    media:
+      enabled: ${MARKET_RADAR_MEDIA_ENABLED:false}
+      cron: ${MARKET_RADAR_MEDIA_CRON:0 10 23 * * 1-5}
+      symbols: ${MARKET_RADAR_MEDIA_SYMBOLS:NVDA,MSFT,AAPL,GOOGL,AMZN,META,TSLA,ASML,TSM,AMD,AVGO,UNH,NKE,PFE,LLY,JPM,XOM,CVX,PLTR,CRWD}
   market:
     chunk-pause-ms: ${MARKET_CHUNK_PAUSE_MS:120000}
     # Unsupported listings may require manual prices.
