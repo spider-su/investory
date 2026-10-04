@@ -26,7 +26,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(name = "app.market-radar.enabled", havingValue = "true")
 public class MarketRadarScheduler {
-  private static final System.Logger LOGGER = System.getLogger(MarketRadarScheduler.class.getName());
+  private static final System.Logger LOGGER =
+      System.getLogger(MarketRadarScheduler.class.getName());
 
   private final MarketRadarScanner scanner;
   private final MarketRadarEvaluator evaluator;
