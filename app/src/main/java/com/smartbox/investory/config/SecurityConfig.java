@@ -123,8 +123,7 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
                         .requestMatchers("/api/v1/investment/maintenance/**")
                         .hasRole("ADMIN")
-                        .requestMatchers(
-                            HttpMethod.POST, "/market-radar/operations/refresh")
+                        .requestMatchers(HttpMethod.POST, "/market-radar/operations/refresh")
                         .hasRole("ADMIN")
                         .requestMatchers(
                             HttpMethod.POST, "/api/v1/portfolios/*/investment/imports/**")
