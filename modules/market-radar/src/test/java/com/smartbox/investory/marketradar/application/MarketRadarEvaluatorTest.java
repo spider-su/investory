@@ -65,5 +65,16 @@ class MarketRadarEvaluatorTest {
     public List<RadarOutcome> outcomes(String symbol, int limit) {
       return List.copyOf(saved);
     }
+
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarValidationStats> validationStats() {
+      return List.of();
+    }
+
+    @Override
+    public List<com.smartbox.investory.marketradar.domain.RadarValidationObservation>
+        validationObservations(RadarState state, int horizonDays, int limit) {
+      return List.of();
+    }
   }
 }

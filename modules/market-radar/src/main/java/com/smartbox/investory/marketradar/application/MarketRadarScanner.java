@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class MarketRadarScanner {
+  private static final System.Logger LOGGER = System.getLogger(MarketRadarScanner.class.getName());
+
   private final MarketRadarService radar;
   private final RadarSnapshotStore store;
 
@@ -19,13 +21,19 @@ public class MarketRadarScanner {
   public List<RadarSnapshot> refresh(List<String> symbols) {
     List<RadarSnapshot> refreshed = new ArrayList<>();
     for (String symbol : symbols) {
-      radar
-          .analyze(symbol)
-          .ifPresent(
-              snapshot -> {
-                store.save(snapshot);
-                refreshed.add(snapshot);
-              });
+      try {
+        radar
+            .analyze(symbol)
+            .ifPresent(
+                snapshot -> {
+                  store.save(snapshot);
+                  refreshed.add(snapshot);
+                });
+      } catch (RuntimeException e) {
+        LOGGER.log(
+            System.Logger.Level.WARNING,
+            "Market Radar scan skipped for " + symbol + ": " + e.getMessage());
+      }
     }
     return List.copyOf(refreshed);
   }
