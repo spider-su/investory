@@ -19,11 +19,12 @@ class ThemeRadarServiceTest {
   void classifiesBroadStrongThemeAsAccelerating() {
     LocalDate date = LocalDate.of(2026, 10, 2);
     HistoricalMarketDataPort marketData =
-        (symbol, from, to) -> switch (symbol) {
-          case "SPY" -> bars(date, 100, 0.05);
-          case "SMH" -> bars(date, 100, 0.20);
-          default -> bars(date, 100, 0.18);
-        };
+        (symbol, from, to) ->
+            switch (symbol) {
+              case "SPY" -> bars(date, 100, 0.05);
+              case "SMH" -> bars(date, 100, 0.20);
+              default -> bars(date, 100, 0.18);
+            };
     CapturingStore store = new CapturingStore();
     ThemeRadarService service = new ThemeRadarService(marketData, store);
 
@@ -43,9 +44,7 @@ class ThemeRadarServiceTest {
     List<DailyMarketBar> result = new ArrayList<>();
     for (int i = 0; i < 70; i++) {
       double close = start * (1.0 + totalReturn * i / 69.0);
-      result.add(
-          new DailyMarketBar(
-              end.minusDays(69 - i), close, close, close, close, 1_000));
+      result.add(new DailyMarketBar(end.minusDays(69 - i), close, close, close, close, 1_000));
     }
     return result;
   }
