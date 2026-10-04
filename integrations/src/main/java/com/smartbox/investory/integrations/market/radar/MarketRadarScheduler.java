@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.market.radar;
 
+import com.smartbox.investory.marketradar.api.MarketRadarRefreshApi;
 import com.smartbox.investory.marketradar.application.MarketRadarEvaluator;
 import com.smartbox.investory.marketradar.application.MarketRadarScanner;
 import com.smartbox.investory.marketradar.application.RadarScanResult;
@@ -29,7 +30,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @ConditionalOnProperty(name = "app.market-radar.enabled", havingValue = "true")
-public class MarketRadarScheduler {
+public class MarketRadarScheduler implements MarketRadarRefreshApi {
   private static final System.Logger LOGGER =
       System.getLogger(MarketRadarScheduler.class.getName());
 
@@ -66,6 +67,11 @@ public class MarketRadarScheduler {
 
   @Scheduled(cron = "${app.market-radar.cron:0 30 22 * * 1-5}", zone = "Europe/Warsaw")
   public void refresh() {
+    refreshNow();
+  }
+
+  @Override
+  public RadarRunSummary refreshNow() {
     UUID runId = UUID.randomUUID();
     Instant startedAt = clock.instant();
     MutableRun run = new MutableRun(runId, startedAt, symbols.size());
@@ -85,6 +91,7 @@ public class MarketRadarScheduler {
       RadarRunSummary summary = run.summary(status, null, completedAt);
       runs.save(summary);
       log(summary);
+      return summary;
     } catch (RuntimeException exception) {
       Instant completedAt = clock.instant();
       RadarRunSummary summary =
