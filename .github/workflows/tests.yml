@@ -34,6 +34,9 @@ jobs:
       - name: Check local Markdown links
         run: python3 tools/check_markdown_links.py
 
+      - name: Check agent Dev Container result protocol
+        run: bash test-support/scripts/agent-devcontainer-contract.sh
+
   format:
     name: Formatting
     runs-on: ubuntu-latest

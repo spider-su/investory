@@ -20,6 +20,14 @@ bash scripts/agent-devcontainer.sh up 142
 
 The helper assigns a distinct Compose project name (`investory-issue-142`). This isolates the application container, PostgreSQL container, Maven cache, and PostgreSQL volume from other issue environments.
 
+The orchestrator passes `--result-file <path>` to each helper action. The
+helper writes JSON with `status`, `exit_code`, and `message` fields, then exits
+with the same code recorded in the file. Status is `success` for a zero exit,
+`project_validation_failure` for a failed validation, and
+`environment_failure` for setup or teardown errors. The result-file option is
+optional for direct operator use; the positional workspace argument remains
+supported.
+
 ## Run the complete validation set
 
 ```bash

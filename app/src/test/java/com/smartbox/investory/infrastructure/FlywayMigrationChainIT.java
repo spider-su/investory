@@ -71,6 +71,20 @@ class FlywayMigrationChainIT {
   }
 
   @Test
+  void percentOfParExactAndStaleCarryForwardPricesAreInformational() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement();
+        ResultSet result =
+            statement.executeQuery(
+                "SELECT pg_get_viewdef('investory.recon_v_reconstructed_position_daily_mv'::regclass, true)")) {
+      result.next();
+      String definition = result.getString(1);
+      assertTrue(definition.contains("EXACT_LISTING_MARKET_CLOSE%"));
+      assertTrue(definition.contains("STALE_CARRY_FORWARD%"));
+    }
+  }
+
+  @Test
   void overlappingSourceObservationIsAccountedForByLinkedLogicalIdentity() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {

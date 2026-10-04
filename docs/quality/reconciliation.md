@@ -70,7 +70,10 @@ rows indicate strong structural evidence (for example, reciprocal FX inconsisten
 isolated price spike); they do not authorize historical data repair. Large movements across
 long observation gaps are not classified as short-period spikes, and account movement checks
 remove deposits, withdrawals, income, expenses, and realized profit before applying the
-unexplained-movement threshold.
+unexplained-movement threshold. Same-day `INTERNAL_BOOKKEEPING` ledger legs are netted against
+snapshot deposits and withdrawals so subaccount transfers do not look like external funding.
+The account-level threshold applies to unexplained equity movement; gross market-value movement
+remains diagnostic context because trades can move market value and cash in opposite directions.
 
 Manual price-anomaly dispositions are recorded in
 `investory.reconciliation_price_anomaly_reviews` with the exact observation fingerprint,
