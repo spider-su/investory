@@ -56,6 +56,21 @@ class FlywayMigrationChainIT {
   }
 
   @Test
+  void accountMovementAnomaliesExcludeInternalBookkeepingFlows() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement();
+        ResultSet result =
+            statement.executeQuery(
+                "SELECT pg_get_viewdef('investory.recon_v_account_temporal_anomaly'::regclass, true)")) {
+      result.next();
+      String definition = result.getString(1);
+      assertTrue(definition.contains("app_v_normalized_cash_operations"));
+      assertTrue(definition.contains("INTERNAL_BOOKKEEPING"));
+      assertTrue(definition.contains("unexplained_equity_change"));
+    }
+  }
+
+  @Test
   void overlappingSourceObservationIsAccountedForByLinkedLogicalIdentity() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
