@@ -121,7 +121,11 @@ public class MarketRadarScheduler {
 
   private String sanitize(String message) {
     if (message == null || message.isBlank()) return "Unexpected refresh failure";
-    return message.substring(0, Math.min(message.length(), 500));
+    String sanitized =
+        message.replaceAll(
+            "(?i)(api[_-]?key|access[_-]?key|token|secret)=?\\s*[^ ,;]+",
+            "$1=[REDACTED]");
+    return sanitized.substring(0, Math.min(sanitized.length(), 500));
   }
 
   private void countStates(Map<RadarState, Integer> states, List<RadarSnapshot> snapshots) {
