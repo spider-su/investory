@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Market Radar Operations · Investory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<main class="container-xl py-4">
+  <a class="btn btn-link px-0 mb-2" href="/market-radar">← Back to Market Radar</a>
+
+  <div class="mb-4">
+    <div class="page-pretitle">Operational evidence</div>
+    <h1 class="page-title">Market Radar Operations</h1>
+    <div class="text-secondary">
+      Persisted refresh history. Use this after deployment to verify that Radar actually executed.
+    </div>
+  </div>
+
+  <div class="alert alert-info" th:if="${#lists.isEmpty(runs)}">
+    No Radar refresh runs have been recorded yet. The scheduler may still be disabled or has not run since deployment.
+  </div>
+
+  <div class="card" th:unless="${#lists.isEmpty(runs)}">
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter">
+        <thead>
+        <tr>
+          <th>Started</th>
+          <th>Status</th>
+          <th>Stored / attempted</th>
+          <th>No data</th>
+          <th>Failed</th>
+          <th>Interesting</th>
+          <th>States</th>
+          <th>Outcomes</th>
+          <th>Duration</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="run : ${runs}">
+          <td>
+            <span th:text="${run.startedAt}">2026-10-04T20:30:00Z</span>
+            <div class="text-secondary small" th:if="${run.completedAt != null}" th:text="${run.completedAt}">completed</div>
+          </td>
+          <td>
+            <span class="badge" th:text="${run.status}">SUCCESS</span>
+            <div class="text-danger small mt-1" th:if="${run.error != null}" th:text="${run.error}">error</div>
+          </td>
+          <td th:text="${run.stored + ' / ' + run.attempted}">0 / 0</td>
+          <td th:text="${run.noData}">0</td>
+          <td th:text="${run.failed}">0</td>
+          <td th:text="${run.interesting}">0</td>
+          <td>
+            <span th:text="${'E ' + run.emerging + ' · T ' + run.trending + ' · H ' + run.hot}">states</span>
+            <div class="text-secondary small"
+                 th:text="${'X ' + run.extended + ' · C ' + run.cooling + ' · N ' + run.normal}">states</div>
+          </td>
+          <td th:text="${run.outcomesEvaluated}">0</td>
+          <td th:text="${run.durationMs == 0 ? '—' : run.durationMs + ' ms'}">—</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<script src="/js/theme.js"></script>
+</body>
+</html>

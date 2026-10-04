@@ -3,12 +3,14 @@ package com.smartbox.investory.marketradar.application;
 import com.smartbox.investory.marketradar.api.MarketRadarApi;
 import com.smartbox.investory.marketradar.domain.DailyMarketBar;
 import com.smartbox.investory.marketradar.domain.RadarOutcome;
+import com.smartbox.investory.marketradar.domain.RadarRunSummary;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
 import com.smartbox.investory.marketradar.domain.RadarState;
 import com.smartbox.investory.marketradar.domain.RadarValidationObservation;
 import com.smartbox.investory.marketradar.domain.RadarValidationStats;
 import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
 import com.smartbox.investory.marketradar.port.RadarOutcomeStore;
+import com.smartbox.investory.marketradar.port.RadarRunStore;
 import com.smartbox.investory.marketradar.port.RadarSnapshotStore;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -22,6 +24,7 @@ public class MarketRadarService implements MarketRadarApi {
   private final HistoricalMarketDataPort marketData;
   private final RadarSnapshotStore store;
   private final RadarOutcomeStore outcomes;
+  private final RadarRunStore runs;
   private final MarketSignalCalculator calculator;
   private final Clock clock;
 
@@ -29,11 +32,13 @@ public class MarketRadarService implements MarketRadarApi {
       HistoricalMarketDataPort marketData,
       RadarSnapshotStore store,
       RadarOutcomeStore outcomes,
+      RadarRunStore runs,
       MarketSignalCalculator calculator,
       Clock clock) {
     this.marketData = marketData;
     this.store = store;
     this.outcomes = outcomes;
+    this.runs = runs;
     this.calculator = calculator;
     this.clock = clock;
   }
@@ -68,6 +73,11 @@ public class MarketRadarService implements MarketRadarApi {
   @Override
   public List<RadarValidationStats> validationStats() {
     return outcomes.validationStats();
+  }
+
+  @Override
+  public List<RadarRunSummary> recentRuns(int limit) {
+    return runs.recent(Math.max(1, Math.min(limit, 100)));
   }
 
   @Override
