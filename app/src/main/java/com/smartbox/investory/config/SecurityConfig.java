@@ -124,6 +124,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/investment/maintenance/**")
                         .hasRole("ADMIN")
                         .requestMatchers(
+                            HttpMethod.POST, "/market-radar/operations/refresh")
+                        .hasRole("ADMIN")
+                        .requestMatchers(
                             HttpMethod.POST, "/api/v1/portfolios/*/investment/imports/**")
                         .hasAnyRole("ADMIN", "PROFILE_OWNER")
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/**")
