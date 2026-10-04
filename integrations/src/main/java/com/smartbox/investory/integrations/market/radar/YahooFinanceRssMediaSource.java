@@ -25,11 +25,9 @@ import org.w3c.dom.NodeList;
 @Component
 public class YahooFinanceRssMediaSource implements MediaSourcePort {
   private static final Duration TIMEOUT = Duration.ofSeconds(10);
-  private static final String BASE_URL =
-      "https://feeds.finance.yahoo.com/rss/2.0/headline?s=";
+  private static final String BASE_URL = "https://feeds.finance.yahoo.com/rss/2.0/headline?s=";
 
-  private final HttpClient httpClient =
-      HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+  private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
 
   @Override
   public List<MediaObservation> fetch(List<String> symbols, Instant since) {
@@ -43,9 +41,7 @@ public class YahooFinanceRssMediaSource implements MediaSourcePort {
   private List<MediaObservation> fetchSymbol(String symbol, Instant since) {
     try {
       String url =
-          BASE_URL
-              + URLEncoder.encode(symbol, StandardCharsets.UTF_8)
-              + "&region=US&lang=en-US";
+          BASE_URL + URLEncoder.encode(symbol, StandardCharsets.UTF_8) + "&region=US&lang=en-US";
       HttpRequest request =
           HttpRequest.newBuilder()
               .uri(URI.create(url))

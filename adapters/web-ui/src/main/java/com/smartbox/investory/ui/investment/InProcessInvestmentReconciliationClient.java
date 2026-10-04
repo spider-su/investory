@@ -1,7 +1,10 @@
 package com.smartbox.investory.ui.investment;
 
+import com.smartbox.investory.investment.api.reporting.model.AccountMovementReview;
+import com.smartbox.investory.investment.api.reporting.model.AccountMovementReviewCommand;
 import com.smartbox.investory.investment.api.reporting.model.ReconciliationReport;
 import com.smartbox.investory.investment.web.InvestmentReconciliationRestController;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,5 +23,15 @@ public class InProcessInvestmentReconciliationClient implements InvestmentReconc
   @Override
   public void refreshReconciliationViews(Long portfolioId) {
     rest.refresh(portfolioId);
+  }
+
+  @Override
+  public List<AccountMovementReview> loadAccountMovementReviews(Long portfolioId) {
+    return rest.accountMovements(portfolioId);
+  }
+
+  @Override
+  public void recordAccountMovementReview(Long portfolioId, AccountMovementReviewCommand command) {
+    rest.recordAccountMovementReview(portfolioId, command);
   }
 }
