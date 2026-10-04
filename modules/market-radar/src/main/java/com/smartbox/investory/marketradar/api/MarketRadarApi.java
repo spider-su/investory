@@ -1,6 +1,7 @@
 package com.smartbox.investory.marketradar.api;
 
 import com.smartbox.investory.marketradar.domain.RadarOutcome;
+import com.smartbox.investory.marketradar.domain.RadarRunSummary;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
 import com.smartbox.investory.marketradar.domain.RadarState;
 import com.smartbox.investory.marketradar.domain.RadarValidationObservation;
@@ -19,6 +20,8 @@ public interface MarketRadarApi {
   List<RadarOutcome> outcomes(String symbol, int limit);
 
   List<RadarValidationStats> validationStats();
+
+  List<RadarRunSummary> recentRuns(int limit);
 
   List<RadarValidationObservation> validationObservations(
       RadarState state, int horizonDays, int limit);

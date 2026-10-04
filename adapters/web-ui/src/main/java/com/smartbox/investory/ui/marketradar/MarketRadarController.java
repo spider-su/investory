@@ -48,6 +48,12 @@ public class MarketRadarController {
     return "market-radar";
   }
 
+  @GetMapping("/market-radar/operations")
+  public String operations(Model model) {
+    model.addAttribute("runs", radar.recentRuns(30));
+    return "market-radar-operations";
+  }
+
   @GetMapping("/market-radar/{symbol}")
   public String detail(@PathVariable String symbol, Model model) {
     String normalized = symbol.trim().toUpperCase(Locale.ROOT);
