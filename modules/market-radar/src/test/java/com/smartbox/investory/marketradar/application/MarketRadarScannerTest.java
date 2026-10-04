@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 class MarketRadarScannerTest {
 
   @Test
-  void continuesWhenOneSymbolFails() {
+  void continuesWhenOneSymbolFailsAndReportsBatchOutcome() {
     MarketRadarService radar = mock(MarketRadarService.class);
     RadarSnapshotStore store = mock(RadarSnapshotStore.class);
     RadarSnapshot good =
@@ -33,12 +33,17 @@ class MarketRadarScannerTest {
             List.of());
 
     when(radar.analyze("BAD")).thenThrow(new IllegalStateException("provider failed"));
+    when(radar.analyze("EMPTY")).thenReturn(Optional.empty());
     when(radar.analyze("GOOD")).thenReturn(Optional.of(good));
 
-    List<RadarSnapshot> refreshed =
-        new MarketRadarScanner(radar, store).refresh(List.of("BAD", "GOOD"));
+    RadarScanResult result =
+        new MarketRadarScanner(radar, store).refresh(List.of("BAD", "EMPTY", "GOOD"));
 
-    assertThat(refreshed).containsExactly(good);
+    assertThat(result.attempted()).isEqualTo(3);
+    assertThat(result.stored()).isEqualTo(1);
+    assertThat(result.noData()).isEqualTo(1);
+    assertThat(result.failed()).isEqualTo(1);
+    assertThat(result.snapshots()).containsExactly(good);
     verify(store).save(good);
   }
 }
