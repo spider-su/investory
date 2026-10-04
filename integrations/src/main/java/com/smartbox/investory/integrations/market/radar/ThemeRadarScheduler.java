@@ -41,7 +41,8 @@ public class ThemeRadarScheduler {
     try (BufferedReader reader =
         new BufferedReader(
             new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-      return reader.lines()
+      return reader
+          .lines()
           .map(String::trim)
           .filter(line -> !line.isBlank() && !line.startsWith("#"))
           .map(this::parse)

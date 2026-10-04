@@ -82,7 +82,8 @@ public class JdbcMediaObservationStore implements MediaObservationStore {
         (rs, row) -> {
           long current = rs.getLong("mentions_7d");
           long previous = rs.getLong("previous_mentions_7d");
-          double ratio = previous == 0 ? (current > 0 ? current : 0.0) : (double) current / previous;
+          double ratio =
+              previous == 0 ? (current > 0 ? current : 0.0) : (double) current / previous;
           return new MediaAttentionSignal(
               rs.getString("symbol"),
               current,
