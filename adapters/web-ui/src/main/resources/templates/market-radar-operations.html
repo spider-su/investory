@@ -11,12 +11,27 @@
 <main class="container-xl py-4">
   <a class="btn btn-link px-0 mb-2" href="/market-radar">← Back to Market Radar</a>
 
-  <div class="mb-4">
-    <div class="page-pretitle">Operational evidence</div>
-    <h1 class="page-title">Market Radar Operations</h1>
-    <div class="text-secondary">
-      Persisted refresh history. Use this after deployment to verify that Radar actually executed.
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div>
+      <div class="page-pretitle">Operational evidence</div>
+      <h1 class="page-title">Market Radar Operations</h1>
+      <div class="text-secondary">
+        Persisted refresh history. Use this after deployment to verify that Radar actually executed.
+      </div>
     </div>
+    <form th:if="${refreshAvailable}" method="post"
+          th:action="@{/market-radar/operations/refresh}">
+      <button class="btn btn-primary" type="submit">Run verification refresh</button>
+    </form>
+  </div>
+
+  <div class="alert alert-warning" th:unless="${refreshAvailable}">
+    Market Radar refresh is disabled in this environment. Set MARKET_RADAR_ENABLED=true and redeploy
+    before running deployment verification.
+  </div>
+
+  <div class="alert alert-success" th:if="${param.refresh != null and param.refresh[0] == 'completed'}">
+    Verification refresh completed. The newest persisted run is shown below.
   </div>
 
   <div class="alert alert-info" th:if="${#lists.isEmpty(runs)}">
