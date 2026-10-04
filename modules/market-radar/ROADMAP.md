@@ -128,18 +128,26 @@ Success criterion:
 
 ## Stage 3 — Themes and breadth
 
-**Status: planned**
+**Status: implemented / collecting evidence**
 
 Goal: identify trends larger than a single ticker.
 
 Capabilities:
 
-- sector/theme definitions;
-- ETF relative strength;
+- curated sector/theme definitions;
+- proxy ETF 20-day relative strength versus SPY;
 - breadth inside a theme;
-- percentage above SMA50/SMA200;
+- percentage of available members above SMA50;
 - percentage outperforming the benchmark;
-- theme acceleration/cooling.
+- persisted theme snapshots;
+- states: ACCELERATING, STRONG, NEUTRAL, WEAKENING;
+- read-only themes UI.
+
+Deferred until the first breadth history exists:
+
+- SMA200 breadth;
+- volume participation at theme level;
+- theme-specific forward validation.
 
 Example output:
 
@@ -159,27 +167,28 @@ Success criterion:
 
 ## Stage 4 — Analyst / media radar
 
-**Status: experimental future stage**
+**Status: initial implementation / collecting media evidence**
 
 Goal: track changes in external investment theses without treating popularity as a buy signal.
 
-Potential sources:
+Implemented now:
+
+- replaceable `MediaSourcePort`;
+- Yahoo Finance RSS adapter for public ticker headlines;
+- durable, de-duplicated media observations;
+- per-ticker 7-day mention count versus previous 7 days;
+- independent-source count;
+- explicit bullish/neutral/bearish counts only when a structured source supplies stance;
+- admin-only analyst observation ingestion endpoint;
+- media attention UI with per-ticker mention drill-down.
+
+Deferred sources/capabilities:
 
 - selected YouTube transcripts/subtitles;
 - podcasts/transcripts;
 - newsletters/articles where legally and technically accessible;
-- structured analyst consensus data.
-
-Extracted facts:
-
-- ticker;
-- bullish / neutral / bearish stance;
-- conviction;
-- horizon;
-- thesis;
-- risks;
-- first mention;
-- opinion change.
+- structured analyst consensus provider;
+- conviction, horizon, thesis, risks, and opinion-change extraction.
 
 Important rules:
 
