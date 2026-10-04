@@ -75,9 +75,7 @@ public class InvestmentReconciliationRestController {
     }
   }
 
-  public void recordAccountMovementReview(
-      Long portfolioId, AccountMovementReviewCommand command) {
+  public void recordAccountMovementReview(Long portfolioId, AccountMovementReviewCommand command) {
     reconciliation.recordAccountMovementReview(portfolioId, command);
   }
 }
-
