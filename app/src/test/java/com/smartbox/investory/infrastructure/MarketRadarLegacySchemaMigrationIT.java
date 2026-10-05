@@ -22,7 +22,7 @@ class MarketRadarLegacySchemaMigrationIT {
   void upgradesExistingPartialSnapshotTable() throws Exception {
     MigrationTestDatabase.assertDisposable(DATABASE);
     MigrationTestDatabase.flyway(DATABASE).clean();
-    MigrationTestDatabase.migrateTo(DATABASE, "01.046");
+    MigrationTestDatabase.migrateTo(DATABASE, "01.045");
 
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
