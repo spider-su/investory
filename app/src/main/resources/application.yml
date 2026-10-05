@@ -26,6 +26,7 @@ spring:
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
+      schema: investory
       # Keep timestamptz -> date reporting semantics deterministic across local and CI databases.
       connection-init-sql: SET TIME ZONE 'Europe/Warsaw'
       maximum-pool-size: 4
