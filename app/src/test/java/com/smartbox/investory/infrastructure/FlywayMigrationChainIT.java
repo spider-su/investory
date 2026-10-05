@@ -388,4 +388,26 @@ class FlywayMigrationChainIT {
       statement.execute("ROLLBACK");
     }
   }
+
+  @Test
+  void marketRadarSnapshotSchemaMatchesJdbcContract() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          11,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM information_schema.columns "
+                  + "WHERE table_schema='investory' AND table_name='market_radar_snapshot' "
+                  + "AND column_name IN ('id','symbol','observed_on','state','close_price',"
+                  + "'return_20d','return_60d','relative_volume_20d','distance_sma50','rsi14','reasons')"));
+      assertEquals(
+          1,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM pg_constraint "
+                  + "WHERE conrelid='investory.market_radar_snapshot'::regclass "
+                  + "AND conname='uk_market_radar_snapshot_symbol_date'"));
+    }
+  }
 }
