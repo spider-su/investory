@@ -4,7 +4,7 @@ This document describes the current application security boundary and the constr
 
 ## Authentication and roles
 
-Investory uses stateless HTTP Basic authentication and BCrypt password encoding. Runtime users are loaded from `investory.app_users`; configured fallback principals remain available for local development.
+Investory supports HTTP Basic and bearer-token authentication, with BCrypt password encoding. Runtime users are loaded from `investory.app_users`; configured fallback principals are available in local and test profiles.
 
 - `ADMIN` is global and can access every profile and administrative operation.
 - `PROFILE_OWNER` is scoped to a profile and can read and change that profile.
@@ -22,9 +22,9 @@ The landing/error/static assets and `/actuator/health` are public. Exact matcher
 
 ## Session and CSRF model
 
-The application is stateless and disables form login. CSRF protection is enabled by default and uses a cookie token repository for browser mutations; the token-login endpoint is explicitly excluded because it is the API authentication boundary.
+The application disables form login and uses `IF_REQUIRED` session creation. Bearer tokens can be returned to API clients or set as an HTTP-only web-session cookie for browser clients. CSRF protection is enabled by default and uses a cookie token repository for browser mutations; token login and invitation acceptance are explicitly excluded.
 
-Keep CSRF enabled for browser deployments. API clients must send the CSRF token for browser-session mutations or use the documented API authentication flow.
+Keep CSRF enabled for browser deployments. Set `APP_SECURITY_CSRF_PROTECTION_REQUIRED=false` only when the deployment explicitly requires it and its exposure model has been reviewed. Browser-session mutations must include the CSRF token.
 
 ## Secrets
 
