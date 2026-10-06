@@ -1,9 +1,9 @@
 # ROADMAP
 
-Investory is in a v1 feature freeze. The product has moved from feature development to
-release-candidate hardening for a trusted, single-owner, privately/network-controlled deployment.
-Correctness fixes, reconciliation work, release-critical performance fixes, tests, and operational
-hardening are in scope. Unrelated refactoring and new product functionality normally wait for v1.1.
+Investory is in a v1 feature freeze. Work is limited to release-candidate hardening for a trusted,
+single-owner, privately/network-controlled deployment: correctness, reconciliation, release-critical
+performance, tests, and operations. Unrelated refactoring and new product functionality normally
+wait for v1.1. The freeze is a scope decision, not a release-readiness claim.
 
 Completed work is recorded in [`CHANGELOG.md`](CHANGELOG.md). Current financial contracts remain in
 [`docs/domain/`](docs/domain/); architecture and test/release contracts remain in
@@ -23,26 +23,7 @@ from the real broker archive?
 
 Only correctness or data-integrity work that can block private production belongs here.
 
-### Accounting correctness
-
-- [x] Derive ordinary document periods from authoritative dates and correction periods from the
-  correction issue date; do not let the open UI month decide the booked month.
-- [x] Derive a missing FX date from the preceding weekday and keep explicit source dates when
-  supplied.
-- [x] Apply the health contribution band from the month after the threshold is crossed; retain the
-  social-contribution deduction exclusion for Fundusz Pracy.
-- [ ] Add a second non-UoP reference profile and matrix assertions that report the exercised
-  accounting/ZUS branches for every month. The current oracle still has a qualifying-UoP-only
-  golden path.
-- [ ] Validate the accounting migration/snapshot pair after the in-progress schema consolidation;
-  no accounting result is release evidence until both paths load the same contracts.
-- [x] Clean replay of the migration chain, fixture loading, dependency-ordered refreshes, and
-  regeneration of both snapshots now pass. Application-level integration rerun remains pending
-  after the reactor artifacts are rebuilt.
-- [x] Harden accounting schema boundaries: month periods, source-profile ownership, source
-  immutability, and legacy document amount invariants.
-- [ ] Obtain advisor review of the tax-period, ZUS deduction, health-band, correction, and FX
-  semantics before treating the accounting POC as filing-grade.
+### Financial correctness and reconciliation
 
 - [ ] Complete the portfolio-scoped dashboard/read-model review. Fix any remaining path where a
   selected portfolio can receive system-wide metrics or stale data from another scope.
@@ -60,6 +41,10 @@ P0 exit criterion: a clean full private archive rebuild produces a reviewed reco
 important totals agree with broker/source evidence; the import -> accounting -> `account_daily` ->
 reporting -> dashboard chain is explained; Long-Term and Retirement/planning values have been
 manually reviewed; and no material residual remains unexplained.
+
+**Go/no-go: NO-GO until the RC1, real-data acceptance, and RC2/private-production gates below have
+current evidence.** This roadmap does not record those gates as passed; source review alone is not
+release evidence.
 
 ## P1 — RC reliability
 
@@ -83,20 +68,6 @@ risk. General cleanup is not a release blocker.
   demonstrated scope, correctness, or material performance risk before release.
 - [ ] Validate the production configuration, startup/restart behavior, health endpoint, logging
   needed for diagnosis, and backup/restore procedure in a production-like environment.
-
-## Deferred accounting cleanup
-
-These items do not block the correctness pass and should follow the reference-matrix work:
-
-- [ ] Consolidate invoice/expense concepts and remove the redundant VAT satellite only after the
-  canonical reporting contract is documented and migrated safely.
-- [ ] Remove profile-1 compatibility overloads from `AccountingPocRepository`; compiler-driven
-  cleanup must preserve profile scoping.
-- [ ] Split the repository into acquisition, canonical facts, filing, and reference-query services.
-- [ ] Encrypt or externalize retained source payloads and document the retention/redaction policy.
-- [ ] Add obligation/tax-input acquisition to the real source-to-promotion E2E path.
-- [ ] Add the `IssueKind`/`Resolution` review model and month-page UX after tax semantics are signed
-  off.
 
 ## P2 — Production operations and stabilization
 
@@ -126,9 +97,9 @@ After private deployment, freeze major features and monitor the real system befo
 
 These are deliberately outside the private-production critical path:
 
-- production-grade multi-profile Accounting: scope canonical facts, staging/source evidence, filing
-  state, uniqueness constraints and repositories by profile, with isolation tests; the current
-  Accounting POC intentionally remains single-profile and rejects other profiles;
+- production-grade multi-profile income-tax/ZUS Accounting: scope canonical facts, staging/source
+  evidence, filing state, uniqueness constraints and repositories by profile, with isolation tests;
+  no active Accounting POC is present in the current source tree;
 - notification UI, replay/mute UX, weekly digest, and additional notification rules;
 - positions workspace, richer asset detail, profit-copy cleanup, optional enrichment, and mobile UX;
 - import progress SSE, additional broker parsers, stronger partial-overlap reporting, and import
@@ -136,6 +107,38 @@ These are deliberately outside the private-production critical path:
 - IBKR FlexQuery scheduled pulls and NAV/account-summary ingestion;
 - richer planning history, assumption calibration, explicit real-estate sale strategy, and Monte
   Carlo/sequence-risk modeling.
+
+### Income-tax and ZUS Accounting follow-up
+
+The current source tree has no active Accounting POC module or runtime matching the historical
+document-period, FX, ZUS, migration/snapshot, and schema claims previously listed as completed above.
+Those claims are not release evidence. Preserve them as unverified future requirements and reassess
+them against source, migrations, and tests if this product scope is resumed.
+
+- [ ] Verify ordinary document periods from authoritative dates and correction periods from the
+  correction issue date; do not let the open UI month decide the booked month.
+- [ ] Verify missing FX-date fallback to the preceding weekday while preserving explicit source dates.
+- [ ] Verify health-contribution band timing and the Fundusz Pracy deduction exclusion.
+- [ ] Add a second non-UoP reference profile and matrix assertions reporting exercised accounting/ZUS
+  branches for every month.
+- [ ] Validate migration and snapshot paths against the same contracts; rerun application-level
+  integration after schema/reactor consolidation.
+- [ ] Verify clean migration replay, fixture loading, dependency-ordered refreshes, and regeneration
+  of both snapshots; prior notes say the application-level integration rerun is pending.
+- [ ] Verify month periods, source-profile ownership, source immutability, and legacy document amount
+  invariants at the schema boundary.
+- [ ] Obtain advisor review of tax-period, ZUS deduction, health-band, correction, and FX semantics
+  before treating any future Accounting implementation as filing-grade.
+- [ ] Consolidate invoice/expense concepts and remove the redundant VAT satellite only after the
+  canonical reporting contract is documented and migrated safely.
+- [ ] If Accounting is resumed, remove profile-1 compatibility overloads from its repository while
+  preserving profile scoping; no active `AccountingPocRepository` exists in the current tree.
+- [ ] Split any future implementation into acquisition, canonical facts, filing, and reference-query
+  services.
+- [ ] Encrypt or externalize retained source payloads and document the retention/redaction policy.
+- [ ] Add obligation/tax-input acquisition to the real source-to-promotion E2E path.
+- [ ] Add the `IssueKind`/`Resolution` review model and month-page UX after tax semantics are signed
+  off.
 
 ## Release gates
 
@@ -185,9 +188,9 @@ complete and verify per-user data scoping across financial tables, UI CSRF prote
 limiting. Those are public/multi-user requirements and remain outside this private-release path unless
 the deployment assumption changes.
 
-The Accounting POC currently runs with CSRF protection disabled to keep the POC UI and write flows
-usable. Re-enable and verify CSRF protection after the Accounting POC phase is complete, before any
-deployment outside the trusted private/network-controlled boundary.
+CSRF protection is enabled by default and can be disabled by configuration. Before deployment
+outside the trusted private/network-controlled boundary, verify the effective setting and protected
+write flows for that deployment.
 
 ## Explicitly deferred
 

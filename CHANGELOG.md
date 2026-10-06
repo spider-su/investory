@@ -2,6 +2,17 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-10-06
+
+### v1 roadmap and implementation alignment
+
+- Kept the feature-freeze scope separate from release readiness and made the release go/no-go
+  explicit: RC1, real-data acceptance, and RC2 evidence are still required.
+- Removed unsupported income-tax/ZUS Accounting completion claims from the release-critical roadmap.
+  The current source tree has no active Accounting POC module or runtime matching those claims, so
+  the requirements remain documented as unverified future work.
+- Clarified the current CSRF default and retained deployment-specific verification as a release gate.
+
 ## 2026-09-30
 
 ### Monthly rental-tax base
