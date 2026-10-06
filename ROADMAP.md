@@ -42,10 +42,6 @@ important totals agree with broker/source evidence; the import -> accounting -> 
 reporting -> dashboard chain is explained; Long-Term and Retirement/planning values have been
 manually reviewed; and no material residual remains unexplained.
 
-**Go/no-go: NO-GO until the RC1, real-data acceptance, and RC2/private-production gates below have
-current evidence.** This roadmap does not record those gates as passed; source review alone is not
-release evidence.
-
 ## P1 — RC reliability
 
 These items are release work only when they affect correctness, reproducibility, or material operator
@@ -141,6 +137,10 @@ them against source, migrations, and tests if this product scope is resumed.
   off.
 
 ## Release gates
+
+**Current decision: NO-GO.** RC1 CI, real-data acceptance, and RC2/private-production validation are
+all outstanding; this documentation review supplies no evidence that any gate has passed. The
+release decision changes only when the evidence listed under each gate is reviewed and recorded.
 
 ### RC1 gate
 
