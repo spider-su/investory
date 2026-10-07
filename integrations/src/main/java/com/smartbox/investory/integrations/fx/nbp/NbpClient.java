@@ -10,16 +10,19 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 
 /** Small HTTP client for the public NBP Table A API. */
+@Slf4j
 @Component
 public class NbpClient {
   static final String DEFAULT_BASE_URL = "https://api.nbp.pl/api";
   private static final Duration TIMEOUT = Duration.ofSeconds(5);
+  private static final int MAX_ATTEMPTS = 3;
 
   private final HttpClient httpClient;
   private final ObjectMapper objectMapper;
@@ -41,8 +44,7 @@ public class NbpClient {
     URI uri = URI.create(root + "/exchangerates/tables/a/" + from + "/" + to + "/?format=json");
     HttpRequest request = HttpRequest.newBuilder(uri).timeout(TIMEOUT).GET().build();
     try {
-      HttpResponse<String> response =
-          httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      HttpResponse<String> response = sendWithRetry(request);
       if (response.statusCode() == 404) return List.of();
       if (response.statusCode() / 100 != 2) {
         throw new NbpException("NBP returned HTTP " + response.statusCode());
@@ -50,14 +52,32 @@ public class NbpClient {
       return Arrays.asList(objectMapper.readValue(response.body(), NbpTable[].class));
     } catch (NbpException e) {
       throw e;
-    } catch (IOException e) {
-      throw new NbpException("Failed to call NBP", e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new NbpException("Interrupted while calling NBP", e);
     } catch (RuntimeException e) {
       throw new NbpException("Failed to parse NBP response", e);
     }
+  }
+
+  private HttpResponse<String> sendWithRetry(HttpRequest request) {
+    IOException lastFailure = null;
+    for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      } catch (IOException exception) {
+        lastFailure = exception;
+        if (attempt == MAX_ATTEMPTS) break;
+        try {
+          Thread.sleep(300L * attempt);
+        } catch (InterruptedException interrupted) {
+          Thread.currentThread().interrupt();
+          throw new NbpException("Interrupted while retrying NBP", interrupted);
+        }
+      } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        throw new NbpException("Interrupted while calling NBP", exception);
+      }
+    }
+    log.warn("NBP request failed after {} attempts", MAX_ATTEMPTS, lastFailure);
+    throw new NbpException("Failed to call NBP", lastFailure);
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
