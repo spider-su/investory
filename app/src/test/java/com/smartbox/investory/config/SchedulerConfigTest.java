@@ -3,7 +3,7 @@ package com.smartbox.investory.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 
-import com.smartbox.investory.integrations.notifications.application.NotificationService;
+import com.smartbox.investory.integrations.notifications.application.NotificationEventDispatcher;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,7 +16,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 @DisplayName("Scheduler Config")
 class SchedulerConfigTest {
 
-  @Mock private NotificationService notificationService;
+  @Mock private NotificationEventDispatcher notificationEventDispatcher;
 
   @InjectMocks private SchedulerConfig schedulerConfig;
 
@@ -29,11 +29,10 @@ class SchedulerConfigTest {
         .run(context -> assertThat(context).doesNotHaveBean(SchedulerConfig.class));
   }
 
-  @DisplayName("send Notifications delegates To Notification Service")
+  @DisplayName("dispatches Pending Notification Events")
   @Test
-  void sendNotifications_delegatesToNotificationService() {
-    schedulerConfig.sendNotifications();
-    verify(notificationService).sendDailyDigest();
-    verify(notificationService).runAlerts();
+  void dispatchNotificationEvents_delegatesToDispatcher() {
+    schedulerConfig.dispatchNotificationEvents();
+    verify(notificationEventDispatcher).dispatchPending();
   }
 }
