@@ -26,7 +26,7 @@ public class ConfiguredFxRateProvider implements FxRateProvider, FxRateHistoryPr
               IntegrationType.FX_DATA, NbpFxDataPlugin.ID, PluginConfig.empty());
       return plugin.fetchRates(request, config);
     } catch (RuntimeException exception) {
-      throw new FxRateProviderException(exception.getMessage(), exception);
+      throw new FxRateProviderException(diagnosticMessage(exception), exception);
     }
   }
 
@@ -38,7 +38,18 @@ public class ConfiguredFxRateProvider implements FxRateProvider, FxRateHistoryPr
               IntegrationType.FX_DATA, NbpFxDataPlugin.ID, PluginConfig.empty());
       return plugin.fetchHistory(from, to, config);
     } catch (RuntimeException exception) {
-      throw new FxRateProviderException(exception.getMessage(), exception);
+      throw new FxRateProviderException(diagnosticMessage(exception), exception);
     }
+  }
+
+  private String diagnosticMessage(RuntimeException exception) {
+    Throwable rootCause = exception;
+    while (rootCause.getCause() != null) rootCause = rootCause.getCause();
+    String message = rootCause.getMessage();
+    if (rootCause == exception || message == null || message.isBlank())
+      return exception.getMessage();
+    String detail = rootCause.getClass().getSimpleName() + ": " + message;
+    if (detail.length() > 240) detail = detail.substring(0, 240);
+    return exception.getMessage() + " (" + detail + ")";
   }
 }

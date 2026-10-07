@@ -95,6 +95,7 @@ class IntegrationJobSchedulerTest {
     IntegrationJobEntity job = job("* * * * * *", "Europe/Warsaw");
     job.setJobType("refresh-rates");
     IntegrationInstanceEntity instance = instance(IntegrationType.FX_DATA, true);
+    instance.setPluginId("nbp");
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
     when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
     allowLock();

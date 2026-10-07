@@ -3,6 +3,8 @@ package com.smartbox.investory.integrations.fx.nbp;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -101,6 +103,33 @@ class NbpClientTest {
     assertThatThrownBy(() -> client.findTables(date(1), date(2), "https://nbp.example/api"))
         .isInstanceOf(NbpClient.NbpException.class)
         .hasMessage("Failed to call NBP");
+    verify(httpClient, times(3))
+        .send(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+  }
+
+  @Test
+  void transientIoFailuresAreRetried() throws Exception {
+    when(response.statusCode()).thenReturn(200);
+    when(response.body())
+        .thenReturn(
+            "[{\"effectiveDate\":\"2026-08-01\",\"rates\":[{\"code\":\"USD\",\"mid\":4.02}]}]");
+    when(httpClient.send(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+        .thenThrow(new IOException("offline"))
+        .thenThrow(new IOException("connection reset"))
+        .thenReturn(response);
+
+    assertThat(client.findTables(date(1), date(2), "https://nbp.example/api"))
+        .singleElement()
+        .extracting(NbpClient.NbpTable::getEffectiveDate)
+        .isEqualTo(LocalDate.of(2026, 8, 1));
+    verify(httpClient, times(3))
+        .send(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
   }
 
   private static LocalDate date(int day) {

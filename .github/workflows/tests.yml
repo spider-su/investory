@@ -19,6 +19,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changeScope:
+    name: Change scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Test documentation scope classifier
+        run: python3 .github/scripts/docs_only_scope.py --self-test
+
+      - name: Detect documentation-only changes
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          DOCS_ONLY_CI_APPROVED: ${{ github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'docs-only-ci') }}
+        run: python3 .github/scripts/docs_only_scope.py
+
   docs:
     name: Docs
     runs-on: ubuntu-latest
@@ -56,6 +80,8 @@ jobs:
     name: Unit
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: [changeScope]
+    if: needs.changeScope.outputs.docs_only != 'true'
 
     steps:
       - name: Check out repository
@@ -87,6 +113,8 @@ jobs:
     name: App Startup
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: [changeScope]
+    if: needs.changeScope.outputs.docs_only != 'true'
 
     steps:
       - name: Check out repository
@@ -105,7 +133,8 @@ jobs:
     name: BE_IT (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [unit, composition]
+    needs: [changeScope, unit, composition]
+    if: needs.changeScope.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -153,7 +182,8 @@ jobs:
     name: UI browser setup
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: unit
+    needs: [changeScope, unit]
+    if: needs.changeScope.outputs.docs_only != 'true'
 
     steps:
       - name: Check out repository
@@ -190,7 +220,8 @@ jobs:
     name: FE_IT (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [unit, composition, uiSetup]
+    needs: [changeScope, unit, composition, uiSetup]
+    if: needs.changeScope.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -262,7 +293,8 @@ jobs:
     name: Golden path
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [unit, composition]
+    needs: [changeScope, unit, composition]
+    if: needs.changeScope.outputs.docs_only != 'true'
 
     steps:
       - name: Check out repository
@@ -287,7 +319,8 @@ jobs:
 
   aggregateCoverage:
     name: Aggregate coverage gate
-    needs: [unit, composition, backendIt, uiIt, goldenPath, schema, format]
+    needs: [changeScope, unit, composition, backendIt, uiIt, goldenPath, schema, format]
+    if: needs.changeScope.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -345,7 +378,8 @@ jobs:
     name: DB_IT
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [unit, composition]
+    needs: [changeScope, unit, composition]
+    if: needs.changeScope.outputs.docs_only != 'true'
 
     steps:
       - name: Check out repository

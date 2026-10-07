@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.management.application.handler;
 
+import com.smartbox.investory.integrations.fx.nbp.NbpFxDataPlugin;
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.scheduling.IntegrationJobContext;
 import com.smartbox.investory.integrations.management.scheduling.IntegrationJobHandler;
@@ -21,6 +22,10 @@ public class RefreshFxJobHandler implements IntegrationJobHandler {
   }
 
   public void execute(IntegrationJobContext context) {
+    if (!NbpFxDataPlugin.ID.equals(context.instance().getPluginId())) {
+      throw new IllegalStateException(
+          "refresh-rates must belong to the " + NbpFxDataPlugin.ID + " integration");
+    }
     var result = investmentMaintenance.refreshCurrency();
     if (result == null || !result.failed().isEmpty()) {
       throw new IllegalStateException(

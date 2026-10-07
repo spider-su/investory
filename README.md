@@ -338,15 +338,19 @@ curl --fail-with-body \
 
 ## Security and deployment status
 
-- HTTP Basic uses in-memory `ADMIN` and `USER` credentials.
-- `POST`, `PUT`, and `DELETE` routes require the `ADMIN` role. Read routes require authentication by
-  default, including the dashboard and read-only API routes. Set
+- HTTP Basic and bearer-token authentication use active `investory.app_users` accounts; configured
+  fallback credentials are available in local and test profiles.
+- Privileged state-changing routes require `ADMIN`; profile-scoped writes require `PROFILE_OWNER` or
+  `ADMIN`. Token login and invitation acceptance are public exceptions. Read routes require
+  authentication by default, including the dashboard and read-only API routes. Set
   `APP_SECURITY_READ_AUTHENTICATION_REQUIRED=false` only for a trusted local network.
 - `/actuator/health` is public for liveness checks; health details are shown only to authenticated users.
-- CSRF protection is currently disabled.
+- CSRF protection is enabled by default; see the [security architecture](docs/architecture/security.md)
+  for session, authentication, and deployment details.
 - Portfolio routes are scoped by `portfolioId` and checked against the authenticated user's portfolio
   ownership. Administrators retain explicit cross-portfolio access for operational diagnostics.
-- The `prod` profile requires explicit database credentials and all four `APP_SECURITY_*` variables.
+- The `prod` profile requires explicit database credentials, admin/user credentials, and
+  `APP_SECURITY_TOKEN_SECRET`.
 - This status is appropriate for a trusted single-owner deployment behind network controls. Do not
   expose it as a public multi-user service without addressing the security and isolation roadmap items.
 
