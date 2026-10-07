@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.management.scheduling;
 
+import com.smartbox.investory.integrations.fx.nbp.NbpFxDataPlugin;
 import com.smartbox.investory.integrations.management.api.model.IntegrationJobDescriptor;
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.persistence.IntegrationInstanceEntity;
@@ -23,8 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class CriticalRefreshJobInitializer {
   private static final List<JobSpec> JOBS =
       List.of(
-          new JobSpec(IntegrationType.FX_DATA, "refresh-rates"),
-          new JobSpec(IntegrationType.MARKET_DATA, "refresh-prices"));
+          new JobSpec(IntegrationType.FX_DATA, NbpFxDataPlugin.ID, "refresh-rates"),
+          new JobSpec(IntegrationType.MARKET_DATA, null, "refresh-prices"));
 
   private final IntegrationInstanceRepository instanceRepository;
   private final IntegrationJobRepository jobRepository;
@@ -37,6 +38,7 @@ public class CriticalRefreshJobInitializer {
       if (!instance.isEnabled()) continue;
       JOBS.stream()
           .filter(spec -> spec.type() == instance.getPluginType())
+          .filter(spec -> spec.pluginId() == null || spec.pluginId().equals(instance.getPluginId()))
           .filter(spec -> handlerRegistry.supports(spec.type(), spec.jobType()))
           .forEach(spec -> ensure(instance, spec));
     }
@@ -58,5 +60,5 @@ public class CriticalRefreshJobInitializer {
     jobRepository.save(job);
   }
 
-  private record JobSpec(IntegrationType type, String jobType) {}
+  private record JobSpec(IntegrationType type, String pluginId, String jobType) {}
 }

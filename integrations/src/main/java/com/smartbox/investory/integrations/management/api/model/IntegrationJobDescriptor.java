@@ -13,6 +13,9 @@ public record IntegrationJobDescriptor(
       case "audit-long-term-payments" ->
           new IntegrationJobDescriptor(
               jobType, "Check long-term payments", "0 0 11 5 * *", "Europe/Warsaw");
+      case "daily-notifications" ->
+          new IntegrationJobDescriptor(
+              jobType, "Daily portfolio notifications", "0 45 8 * * 1-5", "Europe/Warsaw");
       case "export-portfolio" ->
           new IntegrationJobDescriptor(
               jobType, "Export portfolio", "0 0 22 * * *", "Europe/Warsaw");

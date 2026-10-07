@@ -51,7 +51,8 @@ disabled instance shadows environment configuration; environment settings are
 bootstrap-only fallback when no persisted instance exists.
 
 The management UI exposes connection tests as transient, read-only probes. Test
-payloads and secrets are never persisted by the test operation. Persisted jobs are
-currently deliberately scoped to the executable `refresh-prices` and
-`refresh-rates` handlers; new jobs must add a handler before being declared.
+payloads and secrets are never persisted by the test operation. Persisted jobs run
+through `IntegrationJobHandler` implementations and must have a matching handler
+before being declared by a plugin. Telegram daily notifications use this scheduler
+with their cron and timezone stored in `integration_jobs`.
 # Integrations
