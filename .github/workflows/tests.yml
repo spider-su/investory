@@ -156,7 +156,7 @@ jobs:
             tests: DailyPerformanceControllerIT,InvestmentAssetRestControllerIT,InvestmentDashboardRestControllerIT,InvestmentPerformanceControllerIT,InvestmentReconciliationRestControllerIT
           - name: retirement-rest
             project: modules/retirement
-            tests: RetirementAnalysisRestControllerIT,RetirementPlanRestControllerIT,RetirementPreviewRestControllerIT,RetirementProfileRestControllerIT,RetirementProjectionRestControllerIT
+            tests: RetirementAnalysisRestControllerIT,RetirementPlanRestControllerIT,HappyInvestorRetirementPlanRestIT,RetirementPreviewRestControllerIT,RetirementProfileRestControllerIT,RetirementProjectionRestControllerIT
 
     steps:
       - name: Check out repository

@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.asset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.smartbox.investory.investment.api.asset.model.AssetDetailView;
@@ -54,7 +55,13 @@ class AssetDetailReadModelIT extends FastDatabaseTest {
             get("/api/v1/portfolios/2/investment/assets/TSLA.US")
                 .param("period", "MAX")
                 .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
-        .andExpect(status().isOk());
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(1001))
+        .andExpect(jsonPath("$.name").value("Tesla, Inc."))
+        .andExpect(jsonPath("$.currency").value("USD"))
+        .andExpect(
+            jsonPath("$.marketPrice").value(HappyInvestorMarketDataFacts.TESLA_CLOSE.doubleValue()))
+        .andExpect(jsonPath("$.holdings[0].quantity").value(1.0));
     mvc.perform(
             get("/api/v1/portfolios/2/investment/assets/NOT-A-REAL-ASSET")
                 .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
@@ -75,5 +82,26 @@ class AssetDetailReadModelIT extends FastDatabaseTest {
                     && point.source().equals("STOOQ"));
     assertThat(ytd).allMatch(point -> !point.date().isBefore(java.time.LocalDate.of(2026, 1, 1)));
     assertThat(assets.detail(999999L, "VWRA.UK", DashboardPeriod.MAX).holdings()).isEmpty();
+  }
+
+  @Test
+  void priceHistoryRestReturnsPinnedCanonicalSnapshotPoint() throws Exception {
+    mvc.perform(
+            get("/api/v1/portfolios/2/investment/assets/TSLA.US/price-history")
+                .param("period", "MAX")
+                .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                "$[*].date", org.hamcrest.Matchers.hasItem("2025-01-01")))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                "$[?(@.date == '2025-01-01')].closePrice", org.hamcrest.Matchers.hasItem(403.840)))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                "$[?(@.date == '2025-01-01')].currency", org.hamcrest.Matchers.hasItem("USD")))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                "$[?(@.date == '2025-01-01')].source", org.hamcrest.Matchers.hasItem("STOOQ")));
   }
 }

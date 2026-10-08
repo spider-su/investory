@@ -104,6 +104,35 @@ REST, UI, and provider/action integration suites run in separate CI matrix jobs.
 are isolated, so the layers can execute in parallel. UI uses the real REST/application composition;
 mock-fed view-model tests remain unit or web-slice tests and do not replace this system contract.
 
+### HappyInvestor read-only REST coverage inventory
+
+This inventory records confirmed fixture-backed response gaps from the route audit. Mocked route
+checks and read-model/service assertions do not count as fixture-backed REST response coverage.
+Investment/profile tests using `test-support` remain app-hosted: `test-support` depends on the
+feature modules, so reversing that dependency would create a Maven cycle. These tests use
+`FastDatabaseTest` and run in `backendIt/contracts`. Persisted retirement-plan REST tests live in
+the retirement module and run in `backendIt/retirement-rest`.
+
+| Endpoint | Existing coverage before this change | Fixture-backed gap and independent facts |
+| --- | --- | --- |
+| `GET /api/v1/portfolios/{portfolioId}/investment/dashboard/investment-result-ytd` | Not requested by `InvestmentDashboardRestControllerIT`; no fixture-backed response test. | YTD result response from `HappyInvestorDashboardFacts` formula/source facts and independent realized, dividend, and withholding inputs in `HappyInvestorBrokerFacts`. |
+| `GET /api/v1/portfolios/{portfolioId}/investment/assets/{symbol}` | `InvestmentAssetRestControllerIT` checks mocked status/arguments; `AssetDetailReadModelIT` checks real-route status and backing Tesla read model, not response fields. | Asset response fields using `HappyInvestorMarketDataFacts.TESLA_CLOSE` and canonical Tesla holding facts. |
+| `GET /api/v1/portfolios/{portfolioId}/investment/assets/{symbol}/price-history` | `InvestmentAssetRestControllerIT` checks mocked status/arguments; `AssetDetailReadModelIT` verifies the backing series, not HTTP body. | Pinned snapshot point only: 2025-01-01 TSLA close 403.840 USD, source STOOQ. This is distinct from the market-data refresh observation. |
+| `GET /api/v1/portfolios/{portfolioId}/profile` | `ProfileRestControllerTest` asserts a synthetic mocked response; `ProfilePersistedFactsIT` verifies persisted values through services/readers, not HTTP. | Profile summary values from `HappyInvestorProfileFacts`, including net worth, asset totals, income, and allocations. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/plans/selection` | `RetirementPlanRestControllerTest` invokes controller methods directly; no fixture-backed HTTP response test. | Selected persisted plan ID using `HappyInvestorPlanFacts.SEED_PLAN_ID`. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/plans` | Controller unit coverage only; no fixture-backed HTTP response test. | Plan-list ID and name using `HappyInvestorPlanFacts`. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/plans/{planId}` | Controller unit coverage only; existing `RetirementPlanRestControllerIT` covers writes, not this read response. | Plan-detail ID, name, age, annual expenses, annual employment income, and baseline year using `HappyInvestorPlanFacts`. |
+
+The audit also reviewed `GET .../investment/dashboard/performance-kpi`, read-only performance
+charts, account values, daily attribution, reconciliation, profile employment periods, retirement
+annual-cost/timeline reads, and export. These are not listed as confirmed gaps: independent
+canonical response facts were absent or not established (the performance KPI exposes return,
+annualized-return, expected-return, date, display, and history fields, while canonical monthly
+return/checkpoint facts are explicitly missing); daily-attribution evidence used a synthetic
+negative-ID portfolio; annual-cost mapping was unresolved; or export already has fixture-backed
+`ExportHappyInvestorIT` coverage. Static asset periods and write/action routes are outside this
+scenario-backed inventory.
+
 ## Browser UI smoke tests
 
 `UiPageSmokeIT` starts the application on a random port, loads the canonical snapshot-backed
