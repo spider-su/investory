@@ -270,12 +270,14 @@ class ProfilePersistedFactsIT {
             jsonPath("$.allocations[?(@.bucket == 'EQUITY')].value")
                 .value(
                     org.hamcrest.Matchers.hasItem(
-                        HappyInvestorProfileFacts.EQUITY_ALLOCATION.doubleValue())))
+                        org.hamcrest.Matchers.comparesEqualTo(
+                            HappyInvestorProfileFacts.EQUITY_ALLOCATION))))
         .andExpect(
             jsonPath("$.allocations[?(@.bucket == 'REAL_ESTATE')].value")
                 .value(
                     org.hamcrest.Matchers.hasItem(
-                        HappyInvestorProfileFacts.REAL_ESTATE_ALLOCATION.doubleValue())));
+                        org.hamcrest.Matchers.comparesEqualTo(
+                            HappyInvestorProfileFacts.REAL_ESTATE_ALLOCATION))));
   }
 
   @Test
