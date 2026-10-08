@@ -122,16 +122,16 @@ the retirement module and run in `backendIt/retirement-rest`.
 | `GET /api/v1/portfolios/{portfolioId}/retirement/plans/selection` | `RetirementPlanRestControllerTest` invokes controller methods directly; no fixture-backed HTTP response test. | Selected persisted plan ID using `HappyInvestorPlanFacts.SEED_PLAN_ID`. |
 | `GET /api/v1/portfolios/{portfolioId}/retirement/plans` | Controller unit coverage only; no fixture-backed HTTP response test. | Plan-list ID and name using `HappyInvestorPlanFacts`. |
 | `GET /api/v1/portfolios/{portfolioId}/retirement/plans/{planId}` | Controller unit coverage only; existing `RetirementPlanRestControllerIT` covers writes, not this read response. | Plan-detail ID, name, age, annual expenses, annual employment income, and baseline year using `HappyInvestorPlanFacts`. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/plans/{planId}/annual-costs` | Controller/service coverage only; no fixture-backed REST response test. | Plan name, annual living costs, and annual discretionary extras using `HappyInvestorPlanFacts`. |
 
 The audit also reviewed `GET .../investment/dashboard/performance-kpi`, read-only performance
 charts, account values, daily attribution, reconciliation, profile employment periods, retirement
-annual-cost/timeline reads, and export. These are not listed as confirmed gaps: independent
-canonical response facts were absent or not established (the performance KPI exposes return,
+timeline reads, and export. These are not listed as confirmed gaps: independent canonical response
+facts were absent or not established (the performance KPI exposes return,
 annualized-return, expected-return, date, display, and history fields, while canonical monthly
 return/checkpoint facts are explicitly missing); daily-attribution evidence used a synthetic
-negative-ID portfolio; annual-cost mapping was unresolved; or export already has fixture-backed
-`ExportHappyInvestorIT` coverage. Static asset periods and write/action routes are outside this
-scenario-backed inventory.
+negative-ID portfolio; or export already has fixture-backed `ExportHappyInvestorIT` coverage.
+Static asset periods and write/action routes are outside this scenario-backed inventory.
 
 ## Browser UI smoke tests
 

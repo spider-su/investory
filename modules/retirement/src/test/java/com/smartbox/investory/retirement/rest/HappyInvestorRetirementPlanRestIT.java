@@ -7,12 +7,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.smartbox.investory.retirement.api.RetirementPresentationApi;
+import com.smartbox.investory.retirement.infrastructure.annualcost.RetirementAnnualCostGroupEntity;
+import com.smartbox.investory.retirement.infrastructure.annualcost.RetirementAnnualCostGroupRepository;
+import com.smartbox.investory.retirement.infrastructure.annualcost.RetirementAnnualCostYearEntity;
+import com.smartbox.investory.retirement.infrastructure.annualcost.RetirementAnnualCostYearRepository;
+import com.smartbox.investory.retirement.infrastructure.annualcost.RetirementAnnualCostsService;
 import com.smartbox.investory.retirement.infrastructure.plan.CanonicalRetirementPlanService;
 import com.smartbox.investory.retirement.infrastructure.plan.RetirementPlanBaselineCodec;
 import com.smartbox.investory.retirement.infrastructure.plan.RetirementPlanEntity;
 import com.smartbox.investory.retirement.infrastructure.plan.RetirementPlanEventEntity;
 import com.smartbox.investory.retirement.infrastructure.plan.RetirementPlanEventRepository;
 import com.smartbox.investory.retirement.infrastructure.plan.RetirementPlanRepository;
+import com.smartbox.investory.retirement.infrastructure.planningyear.RetirementPlanningYearEntity;
+import com.smartbox.investory.retirement.infrastructure.planningyear.RetirementPlanningYearRepository;
+import com.smartbox.investory.retirement.infrastructure.planningyear.RetirementPlanningYearStateCodec;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorPlanFacts;
 import java.time.Clock;
@@ -69,14 +77,47 @@ class HappyInvestorRetirementPlanRestIT extends FastDatabaseTest {
             jsonPath("$.baseline.asOfYear").value(HappyInvestorPlanFacts.BASELINE_AS_OF_YEAR));
   }
 
+  @Test
+  void annualCostsReturnsCanonicalPersistedLivingAndDiscretionaryCosts() throws Exception {
+    mvc.perform(
+            get(BASE + "/" + HappyInvestorPlanFacts.SEED_PLAN_ID + "/annual-costs")
+                .param("year", Integer.toString(HappyInvestorPlanFacts.BASELINE_AS_OF_YEAR)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.planId").value(HappyInvestorPlanFacts.SEED_PLAN_ID))
+        .andExpect(jsonPath("$.year").value(HappyInvestorPlanFacts.BASELINE_AS_OF_YEAR))
+        .andExpect(jsonPath("$.planName").value(HappyInvestorPlanFacts.NAME))
+        .andExpect(
+            jsonPath("$.annualLivingCosts")
+                .value(HappyInvestorPlanFacts.ANNUAL_LIVING_EXPENSES.doubleValue()))
+        .andExpect(
+            jsonPath("$.annualExtras")
+                .value(HappyInvestorPlanFacts.ANNUAL_DISCRETIONARY_EXPENSES.doubleValue()));
+  }
+
   @SpringBootConfiguration
   @EnableAutoConfiguration
   @AutoConfigurationPackage(
-      basePackageClasses = {RetirementPlanEntity.class, RetirementPlanEventEntity.class})
+      basePackageClasses = {
+        RetirementPlanEntity.class,
+        RetirementPlanEventEntity.class,
+        RetirementAnnualCostGroupEntity.class,
+        RetirementAnnualCostYearEntity.class,
+        RetirementPlanningYearEntity.class
+      })
   @EnableJpaRepositories(
-      basePackageClasses = {RetirementPlanRepository.class, RetirementPlanEventRepository.class})
+      basePackageClasses = {
+        RetirementPlanRepository.class,
+        RetirementPlanEventRepository.class,
+        RetirementAnnualCostGroupRepository.class,
+        RetirementAnnualCostYearRepository.class,
+        RetirementPlanningYearRepository.class
+      })
   @EnableTransactionManagement
-  @Import({RetirementPlanRestController.class, RetirementPlanBaselineCodec.class})
+  @Import({
+    RetirementPlanRestController.class,
+    RetirementAnnualCostsRestController.class,
+    RetirementPlanBaselineCodec.class
+  })
   static class TestApplication {
     @Bean
     Clock clock() {
@@ -95,6 +136,24 @@ class HappyInvestorRetirementPlanRestIT extends FastDatabaseTest {
     @Bean
     RetirementPresentationApi retirementPlanningApplicationService() {
       return mock(RetirementPresentationApi.class);
+    }
+
+    @Bean
+    RetirementPlanningYearStateCodec retirementPlanningYearStateCodec(
+        tools.jackson.databind.ObjectMapper mapper) {
+      return new RetirementPlanningYearStateCodec(mapper);
+    }
+
+    @Bean
+    RetirementAnnualCostsService retirementAnnualCostsService(
+        RetirementPlanRepository plans,
+        RetirementAnnualCostGroupRepository groups,
+        RetirementAnnualCostYearRepository costYears,
+        RetirementPlanningYearRepository planningYears,
+        RetirementPlanningYearStateCodec yearState,
+        Clock clock) {
+      return new RetirementAnnualCostsService(
+          plans, groups, costYears, planningYears, yearState, clock);
     }
   }
 }
