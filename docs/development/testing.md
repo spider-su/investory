@@ -123,6 +123,7 @@ the retirement module and run in `backendIt/retirement-rest`.
 | `GET /api/v1/portfolios/{portfolioId}/retirement/plans` | Controller unit coverage only; no fixture-backed HTTP response test. | Plan-list ID and name using `HappyInvestorPlanFacts`. |
 | `GET /api/v1/portfolios/{portfolioId}/retirement/plans/{planId}` | Controller unit coverage only; existing `RetirementPlanRestControllerIT` covers writes, not this read response. | Plan-detail ID, name, age, annual expenses, annual employment income, and baseline year using `HappyInvestorPlanFacts`. |
 | `GET /api/v1/portfolios/{portfolioId}/retirement/plans/{planId}/annual-costs` | Controller/service coverage only; no fixture-backed REST response test. | Plan name, annual living costs, and annual discretionary extras using `HappyInvestorPlanFacts`. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/profile/annual-cost` | `RetirementProfileRestControllerIT` checks mocked parameter binding only; no fixture-backed response through the application security and REST wiring. | Availability, selected `HappyInvestorPlanFacts.SEED_PLAN_ID`, reporting currency, current year, and a positive annual-cost amount from the persisted canonical plan. |
 
 The audit also reviewed `GET .../investment/dashboard/performance-kpi`, read-only performance
 charts, account values, daily attribution, reconciliation, profile employment periods, retirement
