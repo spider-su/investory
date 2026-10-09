@@ -108,10 +108,12 @@ mock-fed view-model tests remain unit or web-slice tests and do not replace this
 
 This inventory records confirmed fixture-backed response gaps from the route audit. Mocked route
 checks and read-model/service assertions do not count as fixture-backed REST response coverage.
-Investment/profile tests using `test-support` remain app-hosted: `test-support` depends on the
-feature modules, so reversing that dependency would create a Maven cycle. These tests use
-`FastDatabaseTest` and run in `backendIt/contracts`. Persisted retirement-plan REST tests live in
-the retirement module and run in `backendIt/retirement-rest`.
+Tests that use `test-support` remain app-hosted because it depends on the feature modules, so
+reversing that dependency would create a Maven cycle. In `backendIt/contracts`,
+`AssetDetailReadModelIT` and `HappyInvestorRetirementProfileRestIT` use `FastDatabaseTest`;
+`ProfilePersistedFactsIT` uses a scoped `WorkerDatabase` and loads the canonical snapshot SQL.
+Persisted retirement-plan REST tests live in the retirement module and run in
+`backendIt/retirement-rest`.
 
 | Endpoint | Existing coverage before this change | Fixture-backed gap and independent facts |
 | --- | --- | --- |
