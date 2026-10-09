@@ -124,11 +124,12 @@ the retirement module and run in `backendIt/retirement-rest`.
 | `GET /api/v1/portfolios/{portfolioId}/retirement/plans/{planId}` | Controller unit coverage only; existing `RetirementPlanRestControllerIT` covers writes, not this read response. | Plan-detail ID, name, age, annual expenses, annual employment income, and baseline year using `HappyInvestorPlanFacts`. |
 | `GET /api/v1/portfolios/{portfolioId}/retirement/plans/{planId}/annual-costs` | Controller/service coverage only; no fixture-backed REST response test. | Plan name, annual living costs, and annual discretionary extras using `HappyInvestorPlanFacts`. |
 | `GET /api/v1/portfolios/{portfolioId}/retirement/profile/annual-cost` | `RetirementProfileRestControllerIT` checks mocked parameter binding only; no fixture-backed response through the application security and REST wiring. | Availability, selected `HappyInvestorPlanFacts.SEED_PLAN_ID`, reporting currency and current year; with the fixed 2026 clock, the independent amount is PLN 47,191.20 = (PLN 36,000 + PLN 6,000) × (1 + 2.5% inflation + 3.5% spending spread)². |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/timeline/years/{year}` | `PlanningTimelineLifecycleIT` verifies timeline state through the application service; no fixture-backed REST response test. | 2025 year and DRAFT status, net worth PLN 1,179,307.015664, core spending PLN 36,000, and discretionary spending PLN 6,000 from the persisted HappyInvestor planning-year scenario. |
 
 The audit also reviewed `GET .../investment/dashboard/performance-kpi`, read-only performance
-charts, account values, daily attribution, reconciliation, profile employment periods, retirement
-timeline reads, and export. These are not listed as confirmed gaps: independent canonical response
-facts were absent or not established (the performance KPI exposes return,
+charts, account values, daily attribution, reconciliation, profile employment periods, and export.
+These are not listed as confirmed gaps: independent canonical response facts were absent or not
+established (the performance KPI exposes return,
 annualized-return, expected-return, date, display, and history fields, while canonical monthly
 return/checkpoint facts are explicitly missing); daily-attribution evidence used a synthetic
 negative-ID portfolio; or export already has fixture-backed `ExportHappyInvestorIT` coverage.

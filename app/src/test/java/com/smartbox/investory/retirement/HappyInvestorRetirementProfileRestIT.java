@@ -51,4 +51,17 @@ class HappyInvestorRetirementProfileRestIT extends FastDatabaseTest {
             BigDecimal.ONE.add(spendingGrowth).pow(2026 - HappyInvestorPlanFacts.START_YEAR));
     assertThat(amount).isEqualByComparingTo(expectedAmount);
   }
+
+  @Test
+  void pastYearReturnsCanonicalPersistedTimelineFactsThroughApplicationWiring() throws Exception {
+    mvc.perform(
+            get("/api/v1/portfolios/2/retirement/timeline/years/2025")
+                .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.year").value(2025))
+        .andExpect(jsonPath("$.status").value("DRAFT"))
+        .andExpect(jsonPath("$.values.NET_WORTH.derivedValue").value(1179307.015664))
+        .andExpect(jsonPath("$.values.CORE_SPENDING.approvedValue").value(36000))
+        .andExpect(jsonPath("$.values.DISCRETIONARY_SPENDING.approvedValue").value(6000));
+  }
 }
