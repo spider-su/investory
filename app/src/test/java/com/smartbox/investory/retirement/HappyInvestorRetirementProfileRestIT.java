@@ -64,4 +64,32 @@ class HappyInvestorRetirementProfileRestIT extends FastDatabaseTest {
         .andExpect(jsonPath("$.values.CORE_SPENDING.approvedValue").value(36000))
         .andExpect(jsonPath("$.values.DISCRETIONARY_SPENDING.approvedValue").value(6000));
   }
+
+  @Test
+  void reviewModeRecognizesThePersistedHistoricalPlanningYear() throws Exception {
+    mvc.perform(
+            get("/api/v1/portfolios/2/retirement/timeline/years/2025/mode")
+                .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").value("CLOSED"));
+  }
+
+  @Test
+  void manualSpendingMetricIsEditableForThePersistedDraftYear() throws Exception {
+    mvc.perform(
+            get("/api/v1/portfolios/2/retirement/timeline/years/2025/metrics/CORE_SPENDING/editable")
+                .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").value(true));
+  }
+
+  @Test
+  void closeStatusUsesThePersistedHappyInvestorYearFacts() throws Exception {
+    mvc.perform(
+            get("/api/v1/portfolios/2/retirement/timeline/years/2025/close-status")
+                .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.canClose").value(true))
+        .andExpect(jsonPath("$.missingMetrics").isEmpty());
+  }
 }
