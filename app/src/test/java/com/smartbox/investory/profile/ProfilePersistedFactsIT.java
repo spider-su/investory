@@ -1,6 +1,9 @@
 package com.smartbox.investory.profile;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
@@ -33,19 +36,23 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
 
 /** Verifies the single-transaction whole-wealth composition boundary. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+@AutoConfigureMockMvc
 @ActiveProfiles("test-fast")
 @TestPropertySource(properties = "app.portfolio.performance-kpi-start=2024-01-01")
 @Import(ProfilePersistedFactsIT.FixedClockConfig.class)
@@ -59,6 +66,7 @@ class ProfilePersistedFactsIT {
   @Autowired private PortfolioProjectionRefreshService projectionRefresh;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private InvestmentDashboardApi investmentDashboard;
+  @Autowired private MockMvc mvc;
 
   @BeforeEach
   void loadCanonicalHappyInvestorFixture() throws Exception {
@@ -241,6 +249,47 @@ class ProfilePersistedFactsIT {
     assertThat(profile.longTermPlanningState()).isNotNull();
     org.assertj.core.api.Assertions.assertThatThrownBy(() -> profiles.loadProfile(999999L))
         .isInstanceOf(RuntimeException.class);
+
+    mvc.perform(
+            get("/api/v1/portfolios/2/profile")
+                .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.portfolioId").value(2))
+        .andExpect(
+            jsonPath("$.totalNetWorth")
+                .value(HappyInvestorProfileFacts.TOTAL_NET_WORTH.doubleValue()))
+        .andExpect(
+            jsonPath("$.liquidAssets").value(HappyInvestorProfileFacts.LIQUID_ASSETS.doubleValue()))
+        .andExpect(
+            jsonPath("$.illiquidAssets")
+                .value(HappyInvestorProfileFacts.ILLIQUID_ASSETS.doubleValue()))
+        .andExpect(
+            jsonPath("$.incomeSummary.marketIncomeYtd")
+                .value(HappyInvestorProfileFacts.MARKET_INCOME_YTD.doubleValue()))
+        .andExpect(
+            jsonPath("$.allocations[?(@.bucket == 'EQUITY')].value")
+                .value(
+                    org.hamcrest.Matchers.hasItem(
+                        org.hamcrest.Matchers.comparesEqualTo(
+                            HappyInvestorProfileFacts.EQUITY_ALLOCATION))))
+        .andExpect(
+            jsonPath("$.allocations[?(@.bucket == 'REAL_ESTATE')].value")
+                .value(
+                    org.hamcrest.Matchers.hasItem(
+                        org.hamcrest.Matchers.comparesEqualTo(
+                            HappyInvestorProfileFacts.REAL_ESTATE_ALLOCATION))));
+  }
+
+  @Test
+  void investmentResultYtdRestReturnsStableContractAtCanonicalYearBoundary() throws Exception {
+    mvc.perform(
+            get("/api/v1/portfolios/2/investment/dashboard/investment-result-ytd")
+                .with(SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.available").value(true))
+        .andExpect(jsonPath("$.currency").value("PLN"))
+        .andExpect(
+            jsonPath("$.amount").value(HappyInvestorProfileFacts.MARKET_INCOME_YTD.doubleValue()));
   }
 
   @Test

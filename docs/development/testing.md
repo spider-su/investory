@@ -104,6 +104,42 @@ REST, UI, and provider/action integration suites run in separate CI matrix jobs.
 are isolated, so the layers can execute in parallel. UI uses the real REST/application composition;
 mock-fed view-model tests remain unit or web-slice tests and do not replace this system contract.
 
+### HappyInvestor read-only REST coverage inventory
+
+This inventory records confirmed fixture-backed response gaps from the route audit. Mocked route
+checks and read-model/service assertions do not count as fixture-backed REST response coverage.
+Tests that use `test-support` remain app-hosted because it depends on the feature modules, so
+reversing that dependency would create a Maven cycle. In `backendIt/contracts`,
+`AssetDetailReadModelIT` and `HappyInvestorRetirementProfileRestIT` use `FastDatabaseTest`;
+`ProfilePersistedFactsIT` uses a scoped `WorkerDatabase` and loads the canonical snapshot SQL.
+Persisted retirement-plan REST tests live in the retirement module and run in
+`backendIt/retirement-rest`.
+
+| Endpoint | Existing coverage before this change | Fixture-backed gap and independent facts |
+| --- | --- | --- |
+| `GET /api/v1/portfolios/{portfolioId}/investment/dashboard/investment-result-ytd` | Not requested by `InvestmentDashboardRestControllerIT`; no fixture-backed response test. | YTD result response from `HappyInvestorDashboardFacts` formula/source facts and independent realized, dividend, and withholding inputs in `HappyInvestorBrokerFacts`. |
+| `GET /api/v1/portfolios/{portfolioId}/investment/assets/{symbol}` | `InvestmentAssetRestControllerIT` checks mocked status/arguments; `AssetDetailReadModelIT` checks real-route status and backing Tesla read model, not response fields. | Asset response fields using `HappyInvestorMarketDataFacts.TESLA_CLOSE` and canonical Tesla holding facts. |
+| `GET /api/v1/portfolios/{portfolioId}/investment/assets/{symbol}/price-history` | `InvestmentAssetRestControllerIT` checks mocked status/arguments; `AssetDetailReadModelIT` verifies the backing series, not HTTP body. | Pinned snapshot point only: 2025-01-01 TSLA close 403.840 USD, source STOOQ. This is distinct from the market-data refresh observation. |
+| `GET /api/v1/portfolios/{portfolioId}/profile` | `ProfileRestControllerTest` asserts a synthetic mocked response; `ProfilePersistedFactsIT` verifies persisted values through services/readers, not HTTP. | Profile summary values from `HappyInvestorProfileFacts`, including net worth, asset totals, income, and allocations. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/plans/selection` | `RetirementPlanRestControllerTest` invokes controller methods directly; no fixture-backed HTTP response test. | Selected persisted plan ID using `HappyInvestorPlanFacts.SEED_PLAN_ID`. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/plans` | Controller unit coverage only; no fixture-backed HTTP response test. | Plan-list ID and name using `HappyInvestorPlanFacts`. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/plans/{planId}` | Controller unit coverage only; existing `RetirementPlanRestControllerIT` covers writes, not this read response. | Plan-detail ID, name, age, annual expenses, annual employment income, and baseline year using `HappyInvestorPlanFacts`. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/plans/{planId}/annual-costs` | Controller/service coverage only; no fixture-backed REST response test. | Plan name, annual living costs, and annual discretionary extras using `HappyInvestorPlanFacts`. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/profile/annual-cost` | `RetirementProfileRestControllerIT` checks mocked parameter binding only; no fixture-backed response through the application security and REST wiring. | Availability, selected `HappyInvestorPlanFacts.SEED_PLAN_ID`, reporting currency and current year; with the fixed 2026 clock, the independent amount is PLN 47,191.20 = (PLN 36,000 + PLN 6,000) × (1 + 2.5% inflation + 3.5% spending spread)². |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/timeline/years/{year}` | `PlanningTimelineLifecycleIT` verifies timeline state through the application service; no fixture-backed REST response test. | 2025 year and DRAFT status, net worth PLN 1,179,307.015664, core spending PLN 36,000, and discretionary spending PLN 6,000 from the persisted HappyInvestor planning-year scenario. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/timeline/years/{year}/mode` | No fixture-backed REST response test. | `CLOSED` review mode for the persisted historical 2025 planning year. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/timeline/years/{year}/metrics/{metric}/editable` | No fixture-backed REST response test. | `CORE_SPENDING` is editable for the 2025 DRAFT planning year. |
+| `GET /api/v1/portfolios/{portfolioId}/retirement/timeline/years/{year}/close-status` | No fixture-backed REST response test. | The canonical 2025 year is closable with no missing metrics, based on persisted net worth and required spending facts. |
+
+The audit also reviewed `GET .../investment/dashboard/performance-kpi`, read-only performance
+charts, account values, daily attribution, reconciliation, profile employment periods, and export.
+These are not listed as confirmed gaps: independent canonical response facts were absent or not
+established (the performance KPI exposes return,
+annualized-return, expected-return, date, display, and history fields, while canonical monthly
+return/checkpoint facts are explicitly missing); daily-attribution evidence used a synthetic
+negative-ID portfolio; or export already has fixture-backed `ExportHappyInvestorIT` coverage.
+Static asset periods and write/action routes are outside this scenario-backed inventory.
+
 ## Browser UI smoke tests
 
 `UiPageSmokeIT` starts the application on a random port, loads the canonical snapshot-backed
