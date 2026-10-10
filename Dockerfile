@@ -34,7 +34,7 @@ COPY app app
 COPY docs/quality/ui-baselines docs/quality/ui-baselines
 RUN ./mvnw -B "-Dapp.build.commit=${GIT_COMMIT}" -DskipTests clean package
 
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:25-jre-noble
 WORKDIR /app
 
 RUN apt-get update \
