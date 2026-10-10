@@ -291,6 +291,22 @@ class StrategistOutlookServiceTest {
     assertThat(service.outlook(horizon, tuesday).vix().status()).contains("Stale");
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"2026-01-01", "2026-01-02"})
+  void newYearYtdUsesTheDisplayedQuoteCalendarYear(String selectedDate) {
+    when(store.observations(horizon)).thenReturn(List.of());
+    LocalDate previousBaseline = LocalDate.of(2024, 12, 31);
+    when(market.dailyBars(Mockito.eq("^GSPC"), Mockito.any(), Mockito.any()))
+        .thenAnswer(
+            invocation ->
+                List.of(bar(previousBaseline, 4000), bar(LocalDate.of(2025, 12, 31), 5000)).stream()
+                    .filter(b -> !b.date().isBefore(invocation.<LocalDate>getArgument(1)))
+                    .toList());
+    var result = service.outlook(horizon, LocalDate.parse(selectedDate));
+    assertThat(result.benchmarkQuoteDate()).isEqualTo(LocalDate.of(2025, 12, 31));
+    assertThat(result.actualYtdPercent()).isEqualTo(25);
+  }
+
   private ForecastObservation forecast(long id, String key, LocalDate published, String target) {
     return new ForecastObservation(
         id, forecastValue(key, published, target, published.plusDays(1)), "VERIFIED", "ELIGIBLE");

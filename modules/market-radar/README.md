@@ -279,7 +279,9 @@ Unscheduled closures are not inferred. This regular-calendar limitation fails cl
 quote is missing. YTD/remaining metrics require a close from at least the regular session preceding
 the selected as-of date (which may be intraday), or a returned close on that date. Older closes retain
 their provider date and stale notice but cannot supply current metrics. The requested history includes
-the earliest eligible publication-reference session, including long-horizon forecasts. All series are price-index closes, never adjusted/total-return series or SPY substitutes.
+the earliest eligible publication-reference session, including long-horizon forecasts. Actual YTD uses the displayed quote's calendar year, including a prior-year close at New Year.
+Other horizons show their target date and comparison quote date, with quote-year YTD labeled as context.
+All series are price-index closes, never adjusted/total-return series or SPY substitutes.
 
 Consensus needs at least two distinct eligible institutions; IQR needs four. Individual rows remain
 visible below the consensus threshold. Same-horizon dated dots and min/max whiskers retain observed
