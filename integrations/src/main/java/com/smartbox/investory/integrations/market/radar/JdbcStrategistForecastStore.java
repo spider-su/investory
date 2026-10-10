@@ -3,6 +3,8 @@ package com.smartbox.investory.integrations.market.radar;
 import com.smartbox.investory.marketradar.domain.StrategistForecast;
 import com.smartbox.investory.marketradar.port.StrategistForecastStore;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +15,38 @@ public class JdbcStrategistForecastStore implements StrategistForecastStore {
 
   public JdbcStrategistForecastStore(JdbcTemplate jdbc) {
     this.jdbc = jdbc;
+  }
+
+  @Override
+  public List<ForecastObservation> observations(LocalDate targetDate) {
+    return jdbc.query(
+        """
+        select o.id, i.institution_key, i.display_name, o.strategist, o.published_at,
+          o.target_date, o.target_level, s.source_url, s.source_title, s.source_type,
+          o.observed_at, o.quality, o.status
+        from market_radar_forecast_observation o
+        join market_radar_forecast_institution i on i.id = o.institution_id
+        join market_radar_forecast_source s on s.id = o.source_id
+        where o.target_date = ?
+        order by o.published_at, o.observed_at, o.id
+        """,
+        (rs, row) -> {
+          var forecast =
+              new StrategistForecast(
+                  rs.getString("institution_key"),
+                  rs.getString("display_name"),
+                  rs.getString("strategist"),
+                  rs.getTimestamp("published_at").toInstant(),
+                  rs.getDate("target_date").toLocalDate(),
+                  rs.getBigDecimal("target_level"),
+                  rs.getString("source_url"),
+                  rs.getString("source_title"),
+                  StrategistForecast.SourceType.valueOf(rs.getString("source_type")),
+                  rs.getTimestamp("observed_at").toInstant());
+          return new ForecastObservation(
+              rs.getLong("id"), forecast, rs.getString("quality"), rs.getString("status"));
+        },
+        java.sql.Date.valueOf(targetDate));
   }
 
   @Override
