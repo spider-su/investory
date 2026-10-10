@@ -160,6 +160,60 @@ public class JdbcStrategistForecastStoreIT {
   }
 
   @Test
+  void numericBoundaryFitsAndOverflowRejectsBeforeAnyNewDatabaseWrite() throws Exception {
+    try (var db = MigrationTestDatabase.open("forecast_numeric_boundary")) {
+      MigrationTestDatabase.migrate(db);
+      var ds =
+          new DriverManagerDataSource(
+              db.jdbcUrl() + (db.jdbcUrl().contains("?") ? "&" : "?") + "currentSchema=investory",
+              db.username(),
+              db.password());
+      var store = transactionalStore(ds);
+      var importer =
+          new StrategistForecastImportService(
+              store, Clock.fixed(Instant.parse("2026-09-01T12:00:00Z"), ZoneOffset.UTC));
+      var largest =
+          row(
+              "boundary",
+              "Boundary fixture",
+              "Fixture strategist",
+              "2026-07-01",
+              "9999999999.9999",
+              "https://example.com/boundary",
+              "Synthetic source");
+      assertThat(importer.importForecasts(List.of(largest)).inserted()).isEqualTo(1);
+      var valid =
+          row(
+              "valid",
+              "Valid fixture",
+              "Fixture strategist",
+              "2026-07-01",
+              "5200",
+              "https://example.com/valid-boundary",
+              "Synthetic source");
+      var overflow =
+          row(
+              "overflow",
+              "Overflow fixture",
+              "Fixture strategist",
+              "2026-07-01",
+              "10000000000",
+              "https://example.com/overflow",
+              "Synthetic source");
+      assertThatThrownBy(() -> importer.importForecasts(List.of(valid, overflow)))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("targetLevel");
+      assertThat(store.observations(LocalDate.of(2026, 12, 31))).hasSize(1);
+      assertThat(
+              new JdbcTemplate(ds)
+                  .queryForObject(
+                      "select count(*) from market_radar_forecast_institution where institution_key in ('valid','overflow')",
+                      Integer.class))
+          .isZero();
+    }
+  }
+
+  @Test
   public void rendersRealSourceAcceptanceInDisposableDevelopmentDatabase() throws Exception {
     renderRealSourceAcceptance("forecast_source_acceptance");
   }
