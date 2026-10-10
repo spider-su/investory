@@ -7,24 +7,45 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.opencsv.CSVReader;
-import com.smartbox.investory.testsupport.FastDatabaseTest;
+import com.smartbox.investory.testsupport.FastDatabase;
+import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.io.StringReader;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Full HappyInvestor database-to-HTTP verification for the Yahoo export file. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
-class ExportHappyInvestorIT extends FastDatabaseTest {
+@ActiveProfiles("test-fast")
+class ExportHappyInvestorIT {
+  private static final WorkerDatabase DATABASE =
+      FastDatabase.scopedDatabase("export_happyinvestor");
+
+  @DynamicPropertySource
+  static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", DATABASE::jdbcUrl);
+    registry.add("spring.datasource.username", DATABASE::username);
+    registry.add("spring.datasource.password", DATABASE::password);
+  }
+
+  @AfterAll
+  static void closeDatabase() {
+    DATABASE.close();
+  }
+
   private static final ZoneId ZONE = ZoneId.of("Europe/Warsaw");
   private static final LocalDate MONTH_START = LocalDate.now(ZONE).withDayOfMonth(1);
   private static final String TRADE_DATE_DISPLAY =

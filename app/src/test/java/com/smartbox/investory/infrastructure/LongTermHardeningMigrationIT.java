@@ -18,10 +18,8 @@ class LongTermHardeningMigrationIT {
   private static final WorkerDatabase DATABASE = MigrationTestDatabase.open("long_term_hardening");
 
   @BeforeAll
-  static void migrateExistingMonthlyTaxBases() throws Exception {
-    MigrationTestDatabase.assertDisposable(DATABASE);
-    MigrationTestDatabase.flyway(DATABASE).clean();
-    MigrationTestDatabase.migrateTo(DATABASE, "01.008");
+  static void createFinalSchemaAndMonthlyTaxBases() throws Exception {
+    MigrationTestDatabase.migrate(DATABASE);
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
       statement.execute(
@@ -39,9 +37,7 @@ class LongTermHardeningMigrationIT {
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.real_estate WHERE id = 9491 AND tax_base = 3200"));
-      assertTrue(columnComment(statement).startsWith("Annual rental-tax base in asset currency."));
     }
-    MigrationTestDatabase.migrateTo(DATABASE, "01.021");
   }
 
   @AfterAll
@@ -50,7 +46,7 @@ class LongTermHardeningMigrationIT {
   }
 
   @Test
-  void preservesExistingMonthlyBasesAndUsesMonthlyTaxContract() throws Exception {
+  void storesMonthlyTaxBasesWithoutRescaling() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
       assertEquals(
@@ -73,15 +69,12 @@ class LongTermHardeningMigrationIT {
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.real_estate WHERE id = 9494 AND tax_base = 3000 AND archived_at = DATE '2025-12-31'"));
-      assertEquals(
-          "Monthly rental-tax base in asset currency. Monthly rental tax = tax_base * 0.085; annual rental tax = tax_base * 12 * 0.085; NULL means unspecified.",
-          columnComment(statement));
     }
   }
 
   @Test
   void rerunningFlywayDoesNotRewriteMonthlyBases() throws Exception {
-    MigrationTestDatabase.migrateTo(DATABASE, "01.021");
+    MigrationTestDatabase.flyway(DATABASE).migrate();
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement();
         var result =
@@ -249,19 +242,6 @@ class LongTermHardeningMigrationIT {
     } finally {
       connection.rollback(savepoint);
       connection.releaseSavepoint(savepoint);
-    }
-  }
-
-  private static String columnComment(Statement statement) throws SQLException {
-    try (var result =
-        statement.executeQuery(
-            """
-            SELECT col_description(attrelid, attnum)
-            FROM pg_attribute
-            WHERE attrelid = 'investory.real_estate'::regclass AND attname = 'tax_base'
-            """)) {
-      assertTrue(result.next());
-      return result.getString(1);
     }
   }
 }

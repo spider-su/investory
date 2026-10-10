@@ -8,14 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.testsupport.SharedPostgres;
 import com.smartbox.investory.testsupport.WorkerDatabase;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -56,10 +53,18 @@ class BaselineReadinessContractIT {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       assertEquals(
-          migrationScriptCount(),
+          1,
           singleInt(
               statement,
-              "SELECT count(*) FROM investory.flyway_schema_history WHERE success AND version IS NOT NULL"));
+              "SELECT count(*) FROM investory.flyway_schema_history "
+                  + "WHERE success AND version = '01.008' "
+                  + "AND script = 'V01.008__long_term_assets.sql'"));
+      assertEquals(
+          9,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.flyway_schema_history "
+                  + "WHERE success AND type = 'SQL' AND version IS NOT NULL"));
       assertEquals(
           "sample.user|Sample User",
           singleString(
@@ -413,19 +418,6 @@ class BaselineReadinessContractIT {
             "SELECT to_regclass('investory." + relation.replace("'", "''") + "') IS NOT NULL")) {
       assertTrue(result.next());
       return result.getBoolean(1);
-    }
-  }
-
-  private static int migrationScriptCount() throws SQLException {
-    try (Stream<Path> files = Files.list(Path.of("src", "main", "resources", "sql", "migration"))) {
-      return (int)
-          files
-              .map(Path::getFileName)
-              .map(Path::toString)
-              .filter(name -> name.matches("^V\\d+\\.\\d+__.*\\.sql$"))
-              .count();
-    } catch (java.io.IOException exception) {
-      throw new SQLException("Cannot list Flyway migrations", exception);
     }
   }
 }

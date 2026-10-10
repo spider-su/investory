@@ -22,14 +22,19 @@ class ReconciliationC1CurrencyFallbackContractTest {
                 "V01.006__reconciliation_views.sql"),
             StandardCharsets.UTF_8);
 
-    assertTrue(migration.contains("account.currency::varchar(3) AS account_currency"));
-    assertTrue(migration.contains("portfolio.base_currency::varchar(3) AS ledger_base_currency"));
-    assertTrue(migration.contains("nco.account_flow_amount_in_portfolio_base_currency"));
+    int start =
+        migration.indexOf("CREATE VIEW investory.recon_v_account_daily_cashflow_full_precision AS");
+    assertTrue(start >= 0, "full-precision C1 view must be present");
+    String definition = migration.substring(start, migration.indexOf(';', start));
+    String normalized =
+        definition.replaceAll("::(?:text|numeric|varchar\\(3\\))", "").replaceAll("[()\\s]+", " ");
+    assertTrue(normalized.contains("account.currency AS account_currency"));
+    assertTrue(normalized.contains("portfolio.base_currency AS ledger_base_currency"));
+    assertTrue(normalized.contains("nco.account_flow_amount_in_portfolio_base_currency"));
     assertTrue(
-        migration.contains(
-            "CASE WHEN account.currency = portfolio.base_currency\n"
-                + "            THEN (ad.cash_balance - COALESCE(ad.previous_cash_balance, 0))\n"
-                + "                 - COALESCE(ld.ledger_cash_base, 0)"));
-    assertTrue(migration.contains("ELSE NULL::numeric"));
+        normalized.contains(
+            "CASE WHEN account.currency = portfolio.base_currency "
+                + "THEN ad.cash_balance - COALESCE ad.previous_cash_balance, 0 "
+                + "- COALESCE ld.ledger_cash_base, 0 ELSE NULL END AS same_currency_cash_delta_gap"));
   }
 }

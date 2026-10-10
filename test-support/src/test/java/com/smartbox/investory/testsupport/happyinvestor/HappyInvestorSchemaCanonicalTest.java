@@ -31,8 +31,10 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(common.contains("VALUES (2, 'Happy Investor Portfolio', 'PLN', 'PLN'"));
 
     assertTrue(snapshot.contains("9401\t2\tCash reserve\tPLN\t25000.000000000000"));
-    assertTrue(snapshot.contains("9402\t2\tApartment A\tPLN\t400000.000000000000"));
-    assertTrue(snapshot.contains("9403\t2\tApartment B\tPLN\t500000.000000000000"));
+    assertTrue(
+        snapshot.contains("9402\t2\tApartment A\tPLN\t400000.000000000000\t3200.000000000000"));
+    assertTrue(
+        snapshot.contains("9403\t2\tApartment B\tPLN\t500000.000000000000\t3000.000000000000"));
     assertTrue(snapshot.contains("9404\t2\tFamily Car\tVEHICLE\tPLN\t10000.000000000000"));
     assertTrue(snapshot.contains("9405\t2\tTreasury 2026\tPLN\t10000.000000000000"));
     assertTrue(
@@ -44,7 +46,6 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(snapshot.contains("9503\t9403\t2025-07-01"));
     assertTrue(snapshot.contains("1\t9501\tRENT\t3200.000000000000\tMONTHLY\tf"));
     assertTrue(snapshot.contains("3\t9503\tRENT\t3000.000000000000\tMONTHLY\tf"));
-    assertTrue(snapshot.contains("Monthly rental-tax base"));
     assertTrue(snapshot.contains("7001\t91000001\tDEPOSIT"));
     assertTrue(snapshot.contains("7101\t91000001\t1\tAAPL.US"));
     assertTrue(snapshot.contains("7106\t91000002\t1001\tTSLA.US"));

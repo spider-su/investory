@@ -212,12 +212,32 @@ against a disposable database.
 
 The migration layer stays deliberately small:
 
-- `FlywayMigrationChainIT` proves the complete chain applies to an empty database.
+- `FlywayMigrationChainIT` proves the consolidated V01.000–V01.008 chain applies to an empty database.
 - `SchemaStructureContractIT` checks the application-facing tables, views, and key columns.
 - `MigrationDataRepairIT` checks the repaired reference-data semantics from the final migration.
-- `LongTermHardeningMigrationIT` proves existing rental-tax-base values remain unchanged through
-  the monthly-semantics migration and verifies
-  database chronology and lifecycle-provenance constraints.
+- `LongTermHardeningMigrationIT` verifies monthly rental-tax bases, migration rerun safety,
+  database chronology, and lifecycle-provenance constraints against the final schema.
+- `MarketRadarSchemaMigrationIT` verifies the complete snapshot schema and unique observation key.
+- `BenchmarkSequenceMigrationIT` verifies generated benchmark identities on a fresh database.
+
+The consolidated schema incorporates the final definitions formerly introduced through V01.052:
+
+| Original script | Consolidated responsibility |
+| --- | --- |
+| V01.000 | Core tables, final identity and invitation fields, memberships, integration notification constraints, Market Radar tables, and review tables. |
+| V01.001–V01.002 | Shared functions and the asset-price source-binding trigger. |
+| V01.003–V01.004 | Final sample ownership roles and memberships, reference FX, assets, source mappings, and public prices. Seed sequences start beyond explicit IDs. |
+| V01.005 | Final portfolio projections, cash-flow-neutral performance, and canonical reconstruction views required by reporting. |
+| V01.006 | Final settlement, FX, price, and account-movement reconciliation definitions. |
+| V01.007 | Final import-provenance checks, persisted audit API, and immutable evidence triggers. |
+| V01.008 | Final Long-Term and retirement schema: acquisition value, monthly rental-tax semantics, local-currency provenance, annual cost years/groups, and active-name uniqueness. |
+
+Each object is created once in its final form. Migration-time data changes use INSERT only;
+ALTER, UPDATE, DROP, temporary repair objects, and view recreation are absent. UPDATE inside
+stored audit-function bodies remains application runtime behavior. Historical data conversions
+and sequence repairs are unnecessary on an empty database and are replaced by final definitions
+and sequence starts. This consolidation does not replay changes against an existing database;
+its live schema must already match the final schema before history is repaired.
 
 Before the production freeze, existing versioned migrations may be cleaned up or consolidated while
 establishing the production baseline. After that baseline is applied to persistent production

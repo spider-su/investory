@@ -5,22 +5,43 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.smartbox.investory.testsupport.FastDatabaseTest;
+import com.smartbox.investory.testsupport.FastDatabase;
+import com.smartbox.investory.testsupport.WorkerDatabase;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorPlanFacts;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Full application HTTP coverage for the persisted HappyInvestor retirement profile. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
+@ActiveProfiles("test-fast")
 @TestPropertySource(properties = "investory.time.fixed-instant=2026-01-01T00:00:00Z")
-class HappyInvestorRetirementProfileRestIT extends FastDatabaseTest {
+class HappyInvestorRetirementProfileRestIT {
+  private static final WorkerDatabase DATABASE =
+      FastDatabase.scopedDatabase("happyinvestor_retirement_profile");
+
+  @DynamicPropertySource
+  static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", DATABASE::jdbcUrl);
+    registry.add("spring.datasource.username", DATABASE::username);
+    registry.add("spring.datasource.password", DATABASE::password);
+  }
+
+  @AfterAll
+  static void closeDatabase() {
+    DATABASE.close();
+  }
+
   @Autowired private MockMvc mvc;
 
   @Test

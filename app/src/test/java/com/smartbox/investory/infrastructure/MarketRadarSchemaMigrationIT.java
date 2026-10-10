@@ -8,10 +8,9 @@ import java.sql.Statement;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
-class MarketRadarLegacySchemaMigrationIT {
+class MarketRadarSchemaMigrationIT {
 
-  private static final WorkerDatabase DATABASE =
-      MigrationTestDatabase.open("market_radar_legacy_schema");
+  private static final WorkerDatabase DATABASE = MigrationTestDatabase.open("market_radar_schema");
 
   @AfterAll
   static void closeDatabase() {
@@ -19,24 +18,11 @@ class MarketRadarLegacySchemaMigrationIT {
   }
 
   @Test
-  void upgradesExistingPartialSnapshotTable() throws Exception {
-    MigrationTestDatabase.assertDisposable(DATABASE);
-    MigrationTestDatabase.flyway(DATABASE).clean();
-    MigrationTestDatabase.migrateTo(DATABASE, "01.045");
+  void createsCompleteSnapshotTable() throws Exception {
+    MigrationTestDatabase.migrate(DATABASE);
 
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
-      statement.execute(
-          """
-          create table investory.market_radar_snapshot (
-              id bigserial primary key,
-              symbol varchar(64) not null,
-              observed_on date not null,
-              state varchar(32) not null,
-              close_price double precision not null,
-              created_at timestamp with time zone not null default current_timestamp
-          )
-          """);
       statement.execute(
           """
           insert into investory.market_radar_snapshot
@@ -44,8 +30,6 @@ class MarketRadarLegacySchemaMigrationIT {
           values ('TEST', date '2026-10-02', 'NORMAL', 100)
           """);
     }
-
-    MigrationTestDatabase.flyway(DATABASE).migrate();
 
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
