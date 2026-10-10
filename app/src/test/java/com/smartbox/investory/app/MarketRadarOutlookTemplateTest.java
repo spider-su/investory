@@ -107,6 +107,42 @@ public class MarketRadarOutlookTemplateTest {
         .doesNotContain("0.00%");
   }
 
+  @Test
+  void rendersQuoteYearYtdAcrossNewYear() {
+    var store = mock(StrategistForecastStore.class);
+    var market = mock(HistoricalMarketDataPort.class);
+    when(store.observations(any())).thenReturn(List.of());
+    when(market.dailyBars(eq("^GSPC"), any(), any()))
+        .thenReturn(List.of(bar("2024-12-31", 4000), bar("2025-12-31", 5000)));
+    String html =
+        render(
+            new StrategistOutlookService(store, market)
+                .outlook(LocalDate.of(2026, 12, 31), LocalDate.of(2026, 1, 1)));
+    assertThat(html)
+        .contains("Actual YTD", "2025-12-31", "25.00%", "Median forecasted full-year return");
+  }
+
+  @Test
+  void otherHorizonShowsTargetAndReferenceDatesInsteadOfCalendarYearFraming() {
+    var store = mock(StrategistForecastStore.class);
+    var market = mock(HistoricalMarketDataPort.class);
+    when(store.observations(any())).thenReturn(List.of());
+    when(market.dailyBars(eq("^GSPC"), any(), any()))
+        .thenReturn(List.of(bar("2025-12-31", 4000), bar("2026-05-04", 5000)));
+    String html =
+        render(
+            new StrategistOutlookService(store, market)
+                .outlook(LocalDate.of(2026, 6, 30), LocalDate.of(2026, 5, 5)));
+    assertThat(html)
+        .contains(
+            "Observed index return (quote-year YTD context)",
+            "Median implied return to 2026-06-30 from quote 2026-05-04",
+            "Median target (index points)",
+            "Target range (index points)")
+        .doesNotContain(
+            "Median forecasted full-year return", "Actual YTD", "Median remaining implied return");
+  }
+
   public static String render(Outlook outlook) {
     var resolver = new ClassLoaderTemplateResolver();
     resolver.setPrefix("templates/");

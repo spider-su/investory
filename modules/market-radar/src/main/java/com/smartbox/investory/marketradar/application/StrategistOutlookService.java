@@ -46,9 +46,10 @@ public class StrategistOutlookService implements StrategistOutlookApi {
         latest.values().stream().filter(o -> age(o, asOf) <= STALE_DAYS).toList();
 
     LocalDate targetBaselineDate = LocalDate.of(targetDate.getYear() - 1, 12, 31);
-    LocalDate ytdBaselineDate = LocalDate.of(asOf.getYear() - 1, 12, 31);
+    // A fresh New Year quote can still belong to the preceding calendar year.
+    LocalDate ytdHistoryBaseline = LocalDate.of(asOf.getYear() - 2, 12, 31);
     LocalDate earliestBaseline =
-        targetBaselineDate.isBefore(ytdBaselineDate) ? targetBaselineDate : ytdBaselineDate;
+        targetBaselineDate.isBefore(ytdHistoryBaseline) ? targetBaselineDate : ytdHistoryBaseline;
     LocalDate earliestPublication =
         eligible.stream()
             .map(o -> publicationReferenceDate(o.forecast().publishedAt()))
@@ -65,12 +66,18 @@ public class StrategistOutlookService implements StrategistOutlookApi {
             .toList();
     DailyMarketBar targetBaseline =
         exact(bars, OutlookTradingDates.previousOrSame(targetBaselineDate));
-    DailyMarketBar ytdBaseline = exact(bars, OutlookTradingDates.previousOrSame(ytdBaselineDate));
     DailyMarketBar latestBar = bars.isEmpty() ? null : bars.get(bars.size() - 1);
     // The selected date may be intraday; at least the preceding regular session must be present.
     LocalDate requiredClose = OutlookTradingDates.previousOrSame(asOf.minusDays(1));
     DailyMarketBar currentBar =
         latestBar == null || latestBar.date().isBefore(requiredClose) ? null : latestBar;
+    DailyMarketBar ytdBaseline =
+        currentBar == null
+            ? null
+            : exact(
+                bars,
+                OutlookTradingDates.previousOrSame(
+                    LocalDate.of(currentBar.date().getYear() - 1, 12, 31)));
     Double ytd =
         currentBar == null || ytdBaseline == null
             ? null
