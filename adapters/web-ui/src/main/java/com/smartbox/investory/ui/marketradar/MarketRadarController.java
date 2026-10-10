@@ -62,7 +62,13 @@ public class MarketRadarController {
     LocalDate snapshot = asOf == null ? LocalDate.now() : asOf;
     LocalDate horizon = targetDate == null ? LocalDate.of(snapshot.getYear(), 12, 31) : targetDate;
     StrategistOutlookApi api = outlook.getIfAvailable();
-    model.addAttribute("outlook", api == null ? null : api.outlook(horizon, snapshot));
+    var result = api == null ? null : api.outlook(horizon, snapshot);
+    model.addAttribute("outlook", result);
+    if (result != null) {
+      model.addAttribute("consensusPlot", OutlookPlot.consensus(result));
+      model.addAttribute("dispersionPlot", OutlookPlot.dispersion(result));
+      model.addAttribute("vixPlot", OutlookPlot.vix(result));
+    }
     return "market-radar";
   }
 

@@ -6,7 +6,7 @@ import com.smartbox.investory.marketradar.domain.DailyMarketBar;
 import com.smartbox.investory.marketradar.port.HistoricalMarketDataPort;
 import com.smartbox.investory.marketradar.port.StrategistForecastStore;
 import com.smartbox.investory.marketradar.port.StrategistForecastStore.ForecastObservation;
-import java.time.LocalDate;
+import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import org.springframework.stereotype.Service;
@@ -26,7 +26,10 @@ public class StrategistOutlookService implements StrategistOutlookApi {
   public Outlook outlook(LocalDate targetDate, LocalDate asOf) {
     if (targetDate == null || asOf == null)
       throw new IllegalArgumentException("targetDate and asOf are required");
-    List<ForecastObservation> all = store.observations(targetDate);
+    List<ForecastObservation> all =
+        store.observations(targetDate).stream()
+            .filter(o -> o.forecast().targetDate().equals(targetDate))
+            .toList();
     List<ForecastObservation> eligible =
         all.stream()
             .filter(
@@ -44,19 +47,30 @@ public class StrategistOutlookService implements StrategistOutlookApi {
 
     LocalDate targetBaselineDate = LocalDate.of(targetDate.getYear() - 1, 12, 31);
     LocalDate ytdBaselineDate = LocalDate.of(asOf.getYear() - 1, 12, 31);
+    LocalDate earliestBaseline =
+        targetBaselineDate.isBefore(ytdBaselineDate) ? targetBaselineDate : ytdBaselineDate;
+    LocalDate earliestPublication =
+        eligible.stream()
+            .map(o -> publicationReferenceDate(o.forecast().publishedAt()))
+            .min(LocalDate::compareTo)
+            .orElse(earliestBaseline);
     LocalDate dataFrom =
-        targetBaselineDate.isBefore(ytdBaselineDate)
-            ? targetBaselineDate.minusDays(400)
-            : ytdBaselineDate.minusDays(400);
+        (earliestPublication.isBefore(earliestBaseline) ? earliestPublication : earliestBaseline)
+            .minusDays(10);
     LocalDate dataThrough = asOf.isAfter(targetDate.plusDays(10)) ? asOf : targetDate.plusDays(10);
     List<DailyMarketBar> bars =
-        market.dailyBars("^GSPC", dataFrom, dataThrough).stream()
+        loadBars("^GSPC", dataFrom, dataThrough).stream()
             .filter(b -> !b.date().isAfter(asOf))
             .sorted(Comparator.comparing(DailyMarketBar::date))
             .toList();
-    DailyMarketBar targetBaseline = lastOnOrBefore(bars, targetBaselineDate);
-    DailyMarketBar ytdBaseline = lastOnOrBefore(bars, ytdBaselineDate);
-    DailyMarketBar currentBar = bars.isEmpty() ? null : bars.get(bars.size() - 1);
+    DailyMarketBar targetBaseline =
+        exact(bars, OutlookTradingDates.previousOrSame(targetBaselineDate));
+    DailyMarketBar ytdBaseline = exact(bars, OutlookTradingDates.previousOrSame(ytdBaselineDate));
+    DailyMarketBar latestBar = bars.isEmpty() ? null : bars.get(bars.size() - 1);
+    // The selected date may be intraday; at least the preceding regular session must be present.
+    LocalDate requiredClose = OutlookTradingDates.previousOrSame(asOf.minusDays(1));
+    DailyMarketBar currentBar =
+        latestBar == null || latestBar.date().isBefore(requiredClose) ? null : latestBar;
     Double ytd =
         currentBar == null || ytdBaseline == null
             ? null
@@ -83,8 +97,8 @@ public class StrategistOutlookService implements StrategistOutlookApi {
             .sorted()
             .toList();
     Double median = median(annual), remainingMedian = median(remaining);
-    Double min = annual.isEmpty() ? null : annual.get(0),
-        max = annual.isEmpty() ? null : annual.get(annual.size() - 1);
+    Double min = annual.size() < 2 ? null : annual.get(0),
+        max = annual.size() < 2 ? null : annual.get(annual.size() - 1);
     Double prior = calendarYearEnd ? medianAt(all, asOf.minusDays(30), targetBaseline) : null;
     Double revision = median == null || prior == null ? null : median - prior;
 
@@ -97,6 +111,7 @@ public class StrategistOutlookService implements StrategistOutlookApi {
                         calendarYearEnd ? annualReturn(o, targetBaseline) : null,
                         remainingReturn(o, currentBar),
                         revisionLabel(eligible, o),
+                        bars,
                         null,
                         null,
                         null))
@@ -111,18 +126,45 @@ public class StrategistOutlookService implements StrategistOutlookApi {
                         calendarYearEnd ? annualReturn(o, targetBaseline) : null,
                         remainingReturn(o, currentBar),
                         bars,
-                        asOf))
+                        asOf,
+                        revisionLabel(eligible, o)))
             .toArray(ListRow[]::new);
-    Accuracy accuracy = accuracy(all, bars, asOf);
-    VixContext vix =
-        new VixContext(
-            null,
-            null,
-            null,
-            null,
-            null,
-            "Unavailable: provider history is not verified for VIX",
-            "^VIX (not ingested)");
+    Accuracy accuracy = accuracy(eligible, bars, asOf);
+    VixContext vix = vix(asOf);
+    List<Double> targets =
+        current.stream().map(o -> o.forecast().targetLevel().doubleValue()).sorted().toList();
+    SortedSet<LocalDate> snapshots = new TreeSet<>();
+    eligible.forEach(
+        o ->
+            snapshots.add(
+                Collections.max(
+                    List.of(
+                        utcDate(o.forecast().publishedAt()), utcDate(o.forecast().observedAt())))));
+    snapshots.add(asOf);
+    ConsensusPoint[] trend =
+        snapshots.stream()
+            .map(
+                date -> {
+                  List<Double> values =
+                      selected(all, date).stream()
+                          .map(o -> o.forecast().targetLevel().doubleValue())
+                          .sorted()
+                          .toList();
+                  Double lo = values.size() < 2 ? null : values.getFirst(),
+                      hi = values.size() < 2 ? null : values.getLast();
+                  return new ConsensusPoint(
+                      date,
+                      median(values),
+                      lo,
+                      hi,
+                      !calendarYearEnd
+                              || targetBaseline == null
+                              || targetBaseline.date().isAfter(date)
+                              || lo == null
+                          ? null
+                          : (hi - lo) / targetBaseline.close() * 100);
+                })
+            .toArray(ConsensusPoint[]::new);
     return new Outlook(
         targetDate,
         asOf,
@@ -138,21 +180,31 @@ public class StrategistOutlookService implements StrategistOutlookApi {
         revision,
         current.size(),
         stale,
-        eligible.stream()
+        current.stream()
             .map(o -> utcDate(o.forecast().publishedAt()))
             .min(LocalDate::compareTo)
             .orElse(null),
-        eligible.stream()
+        current.stream()
             .map(o -> utcDate(o.forecast().publishedAt()))
             .max(LocalDate::compareTo)
             .orElse(null),
-        targetBaseline == null || currentBar == null
-            ? "S&P 500 price-index history unavailable"
-            : "S&P 500 price index; provider quote dates",
+        latestBar != null && currentBar == null
+            ? "Stale S&P 500 close; current metrics unavailable"
+            : targetBaseline == null || currentBar == null
+                ? "S&P 500 price-index history unavailable"
+                : "S&P 500 price index; provider quote dates",
         rows,
         history,
         accuracy,
-        vix);
+        vix,
+        latestBar == null ? null : latestBar.date(),
+        median(targets),
+        targets.size() < 2 ? null : targets.getFirst(),
+        targets.size() < 2 ? null : targets.getLast(),
+        targets.size() < 4 ? null : percentile(targets, .25),
+        targets.size() < 4 ? null : percentile(targets, .75),
+        trend,
+        current.stream().map(o -> age(o, asOf)).min(Long::compareTo).orElse(null));
   }
 
   private static ListRow row(
@@ -160,10 +212,12 @@ public class StrategistOutlookService implements StrategistOutlookApi {
       Double annual,
       Double remaining,
       String revision,
+      List<DailyMarketBar> bars,
       Double error,
       Double errorPercent,
       LocalDate outcome) {
     var f = o.forecast();
+    DailyMarketBar publication = publicationClose(bars, f.publishedAt());
     return new ListRow(
         f.institutionName(),
         f.strategist(),
@@ -178,7 +232,10 @@ public class StrategistOutlookService implements StrategistOutlookApi {
         revision,
         error,
         errorPercent,
-        outcome);
+        outcome,
+        publication == null ? null : publication.close(),
+        publication == null ? null : publication.date(),
+        publication == null ? null : pct(f.targetLevel().doubleValue(), publication.close()));
   }
 
   private static ListRow scoredRow(
@@ -186,17 +243,15 @@ public class StrategistOutlookService implements StrategistOutlookApi {
       Double annual,
       Double remaining,
       List<DailyMarketBar> bars,
-      LocalDate asOf) {
+      LocalDate asOf,
+      String revision) {
     LocalDate target = o.forecast().targetDate();
-    if (target.isAfter(asOf)) return row(o, annual, remaining, "", null, null, null);
-    DailyMarketBar actual =
-        bars.stream()
-            .filter(b -> !b.date().isBefore(target))
-            .min(Comparator.comparing(DailyMarketBar::date))
-            .orElse(null);
-    if (actual == null) return row(o, annual, remaining, "", null, null, null);
+    if (target.isAfter(asOf)) return row(o, annual, remaining, revision, bars, null, null, null);
+    DailyMarketBar actual = exact(bars, OutlookTradingDates.nextOrSame(target));
+    if (actual == null) return row(o, annual, remaining, revision, bars, null, null, null);
     double error = o.forecast().targetLevel().doubleValue() - actual.close();
-    return row(o, annual, remaining, "", error, error / actual.close() * 100, actual.date());
+    return row(
+        o, annual, remaining, revision, bars, error, error / actual.close() * 100, actual.date());
   }
 
   private static Double annualReturn(ForecastObservation o, DailyMarketBar b) {
@@ -223,21 +278,9 @@ public class StrategistOutlookService implements StrategistOutlookApi {
 
   private static Double medianAt(
       List<ForecastObservation> all, LocalDate date, DailyMarketBar baseline) {
-    if (baseline == null) return null;
-    Map<String, ForecastObservation> selected = new HashMap<>();
-    all.stream()
-        .filter(
-            o ->
-                o.status().equals("ELIGIBLE")
-                    && !utcDate(o.forecast().publishedAt()).isAfter(date)
-                    && !utcDate(o.forecast().observedAt()).isAfter(date)
-                    && age(o, date) <= STALE_DAYS)
-        .forEach(
-            o ->
-                selected.merge(
-                    o.forecast().institutionKey(), o, (a, b) -> compare(a, b) >= 0 ? a : b));
+    if (baseline == null || baseline.date().isAfter(date)) return null;
     return median(
-        selected.values().stream()
+        selected(all, date).stream()
             .map(o -> pct(o.forecast().targetLevel().doubleValue(), baseline.close()))
             .sorted()
             .toList());
@@ -266,11 +309,7 @@ public class StrategistOutlookService implements StrategistOutlookApi {
     for (ForecastObservation o : all) {
       if (!o.status().equals("ELIGIBLE") || o.forecast().targetDate().isAfter(asOf)) continue;
       LocalDate target = o.forecast().targetDate();
-      DailyMarketBar actual =
-          bars.stream()
-              .filter(b -> !b.date().isBefore(target))
-              .min(Comparator.comparing(DailyMarketBar::date))
-              .orElse(null);
+      DailyMarketBar actual = exact(bars, OutlookTradingDates.nextOrSame(target));
       if (actual == null) continue;
       double error = o.forecast().targetLevel().doubleValue() - actual.close();
       errors.add(Math.abs(error));
@@ -289,6 +328,99 @@ public class StrategistOutlookService implements StrategistOutlookApi {
             : "Descriptive historical sample");
   }
 
+  private List<DailyMarketBar> loadBars(String symbol, LocalDate from, LocalDate through) {
+    try {
+      return market.dailyBars(symbol, from, through);
+    } catch (RuntimeException unavailable) {
+      return List.of();
+    }
+  }
+
+  private static List<ForecastObservation> selected(List<ForecastObservation> all, LocalDate date) {
+    Map<String, ForecastObservation> latest = new TreeMap<>();
+    all.stream()
+        .filter(
+            o ->
+                o.status().equals("ELIGIBLE")
+                    && !utcDate(o.forecast().publishedAt()).isAfter(date)
+                    && !utcDate(o.forecast().observedAt()).isAfter(date))
+        .forEach(
+            o ->
+                latest.merge(
+                    o.forecast().institutionKey(), o, (a, b) -> compare(a, b) >= 0 ? a : b));
+    return latest.values().stream().filter(o -> age(o, date) <= STALE_DAYS).toList();
+  }
+
+  private static DailyMarketBar exact(List<DailyMarketBar> bars, LocalDate date) {
+    return bars.stream().filter(b -> b.date().equals(date)).findFirst().orElse(null);
+  }
+
+  static DailyMarketBar publicationClose(List<DailyMarketBar> bars, Instant publishedAt) {
+    return exact(bars, publicationReferenceDate(publishedAt));
+  }
+
+  private static LocalDate publicationReferenceDate(Instant publishedAt) {
+    // Date-only imports use 00:00 UTC, conservatively excluding that UTC day's close.
+    ZonedDateTime ny = publishedAt.atZone(ZoneId.of("America/New_York"));
+    LocalDate latestDate =
+        ny.toLocalTime().isBefore(LocalTime.of(16, 0))
+            ? ny.toLocalDate().minusDays(1)
+            : ny.toLocalDate();
+    return OutlookTradingDates.previousOrSame(latestDate);
+  }
+
+  private VixContext vix(LocalDate asOf) {
+    List<DailyMarketBar> bars =
+        loadBars("^VIX", asOf.minusYears(1), asOf).stream()
+            .filter(b -> !b.date().isAfter(asOf) && OutlookTradingDates.isTradingDay(b.date()))
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    DailyMarketBar::date, b -> b, (a, b) -> a, TreeMap::new))
+            .values()
+            .stream()
+            .toList();
+    String source = "Configured HistoricalMarketDataPort (^VIX); provider terms apply";
+    if (bars.isEmpty())
+      return new VixContext(
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Unavailable: no dated VIX history",
+          source,
+          new VixPoint[0]);
+    DailyMarketBar latest = bars.getLast();
+    int n = bars.size();
+    Double percentile =
+        n < 200 ? null : bars.stream().filter(b -> b.close() <= latest.close()).count() * 100.0 / n;
+    boolean stale = latest.date().isBefore(OutlookTradingDates.previousOrSame(asOf.minusDays(1)));
+    return new VixContext(
+        latest.close(),
+        latest.date(),
+        vixChange(bars, 5),
+        vixChange(bars, 20),
+        percentile,
+        stale
+            ? "Stale VIX quote"
+            : n < 200
+                ? "Dated VIX; insufficient 1-year percentile history (200 observations required)"
+                : "Dated VIX history",
+        source,
+        bars.stream()
+            .filter(b -> !b.date().isBefore(asOf.minusMonths(3)))
+            .map(b -> new VixPoint(b.date(), b.close()))
+            .toArray(VixPoint[]::new));
+  }
+
+  private static Double vixChange(List<DailyMarketBar> bars, int sessions) {
+    LocalDate previous = bars.getLast().date();
+    for (int i = 0; i < sessions; i++)
+      previous = OutlookTradingDates.previousOrSame(previous.minusDays(1));
+    DailyMarketBar base = exact(bars, previous);
+    return base == null ? null : pct(bars.getLast().close(), base.close());
+  }
+
   private static Double pct(double a, double b) {
     return b == 0 ? null : (a / b - 1) * 100;
   }
@@ -298,7 +430,7 @@ public class StrategistOutlookService implements StrategistOutlookApi {
   }
 
   private static Double median(List<Double> x) {
-    if (x.isEmpty()) return null;
+    if (x.size() < 2) return null;
     int n = x.size();
     return n % 2 == 1 ? x.get(n / 2) : (x.get(n / 2 - 1) + x.get(n / 2)) / 2;
   }

@@ -10,6 +10,11 @@ public interface StrategistForecastStore {
    */
   boolean insert(StrategistForecast forecast);
 
+  /** Adapter implementations should commit a validated batch atomically. */
+  default int insertAll(List<StrategistForecast> forecasts) {
+    return (int) forecasts.stream().filter(this::insert).count();
+  }
+
   List<ForecastObservation> observations(LocalDate targetDate);
 
   record ForecastObservation(long id, StrategistForecast forecast, String quality, String status) {}

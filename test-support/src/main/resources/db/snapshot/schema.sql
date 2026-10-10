@@ -12386,7 +12386,7 @@ ALTER TABLE ONLY investory.system_audit_runs
 --
 
 ALTER TABLE ONLY investory.market_radar_forecast_observation
-    ADD CONSTRAINT uk_market_radar_forecast_source_observation UNIQUE (source_id, institution_id, target_date);
+    ADD CONSTRAINT uk_market_radar_forecast_source_observation UNIQUE (source_id, institution_id, target_date, published_at);
 
 
 --

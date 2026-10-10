@@ -31,13 +31,25 @@ public class StrategistForecastImportService {
     Set<String> batchKeys = new HashSet<>();
     List<StrategistForecast> validated =
         records.stream().map(record -> validate(record, observedAt, batchKeys)).toList();
-    int inserted = 0;
-    int duplicates = 0;
-    for (StrategistForecast forecast : validated) {
-      if (store.insert(forecast)) inserted++;
-      else duplicates++;
-    }
-    return new ImportResult(inserted, duplicates);
+    // Contradictory targets for the same institutional publication/horizon are ambiguous.
+    java.util.Map<String, BigDecimal> targets = new java.util.HashMap<>();
+    validated.stream()
+        .map(StrategistForecast::targetDate)
+        .distinct()
+        .forEach(date -> store.observations(date).forEach(o -> checkTarget(targets, o.forecast())));
+    validated.forEach(f -> checkTarget(targets, f));
+    int inserted = store.insertAll(validated);
+    return new ImportResult(inserted, validated.size() - inserted);
+  }
+
+  private static void checkTarget(
+      java.util.Map<String, BigDecimal> targets, StrategistForecast forecast) {
+    String key =
+        forecast.institutionKey() + "|" + forecast.targetDate() + "|" + forecast.publishedAt();
+    BigDecimal previous = targets.putIfAbsent(key, forecast.targetLevel());
+    if (previous != null && previous.compareTo(forecast.targetLevel()) != 0)
+      throw new IllegalArgumentException(
+          "Ambiguous institutional publication: conflicting targets");
   }
 
   private StrategistForecast validate(
@@ -82,7 +94,7 @@ public class StrategistForecastImportService {
         || Math.max(0, record.targetLevel().scale()) > 4)
       throw new IllegalArgumentException("targetLevel must be positive and fit numeric(14,4)");
     if (record.sourceType() == null) throw new IllegalArgumentException("sourceType is required");
-    String identity = url + "|" + key + "|" + record.targetDate();
+    String identity = url + "|" + key + "|" + record.targetDate() + "|" + record.publishedAt();
     if (!batchKeys.add(identity))
       throw new IllegalArgumentException("Duplicate source observation in import batch: " + url);
     return new StrategistForecast(

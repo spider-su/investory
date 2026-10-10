@@ -1,0 +1,16 @@
+<!DOCTYPE html><html xmlns:th="http://www.thymeleaf.org"><body>
+<div th:fragment="plot(plot, label)">
+  <p class="text-secondary small" th:if="${#lists.isEmpty(plot.dots)}">Insufficient dated history to plot.</p>
+  <svg th:unless="${#lists.isEmpty(plot.dots)}" viewBox="0 0 500 155" width="100%" role="img" th:attr="aria-label=${label}" style="max-height:180px">
+    <title th:text="${label}"></title>
+    <line x1="40" x2="450" y1="125" y2="125" stroke="currentColor" opacity="0.3"/>
+    <text x="0" y="20" font-size="10" th:text="${#numbers.formatDecimal(plot.max,1,1)}"></text>
+    <text x="0" y="125" font-size="10" th:text="${#numbers.formatDecimal(plot.min,1,1)}"></text>
+    <text x="40" y="150" font-size="10" th:text="${plot.first}"></text>
+    <text x="385" y="150" font-size="10" th:text="${plot.last}"></text>
+    <g th:each="dot : ${plot.dots}"><title th:text="${dot.label}"></title>
+      <line th:attr="x1=${dot.x},x2=${dot.x},y1=${dot.lowY},y2=${dot.highY}" stroke="#206bc4" stroke-width="2" opacity="0.5"/>
+      <circle th:attr="cx=${dot.x},cy=${dot.y}" r="3" fill="#206bc4"/>
+    </g>
+  </svg>
+</div></body></html>
