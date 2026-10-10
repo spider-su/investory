@@ -26,6 +26,7 @@ Read only the documents relevant to the task:
 
 | Task | Read first |
 | --- | --- |
+| Session continuity | Read `CURRENT.md`, then follow its hub link to `projects/investory.md` and the latest linked session summary. Hub files are private continuity context; re-check repository, CI, and infrastructure state before relying on time-sensitive findings. |
 | Product behavior, supported scope, setup | `README.md` |
 | Portfolio metrics, flows, ROI, tax semantics | `docs/domain/portfolio-accounting.md` |
 | Asset identity, position currencies, signed quantity | `docs/domain/asset-identity-and-money.md` |

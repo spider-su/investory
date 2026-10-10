@@ -141,7 +141,7 @@ jobs:
         suite:
           - name: contracts
             project: app
-            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT
+            tests: ValuationInputContractIT,StaleValuationRefreshContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AssetDetailReadModelIT,HappyInvestorRetirementProfileRestIT,HappyInvestorOverlayIdempotencyIT,HappyInvestorSharedDatabaseIsolationIT
           - name: imports
             project: app
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT
@@ -156,7 +156,7 @@ jobs:
             tests: DailyPerformanceControllerIT,InvestmentAssetRestControllerIT,InvestmentDashboardRestControllerIT,InvestmentPerformanceControllerIT,InvestmentReconciliationRestControllerIT
           - name: retirement-rest
             project: modules/retirement
-            tests: RetirementAnalysisRestControllerIT,RetirementPlanRestControllerIT,RetirementPreviewRestControllerIT,RetirementProfileRestControllerIT,RetirementProjectionRestControllerIT
+            tests: RetirementAnalysisRestControllerIT,RetirementPlanRestControllerIT,HappyInvestorRetirementPlanRestIT,RetirementPreviewRestControllerIT,RetirementProfileRestControllerIT,RetirementProjectionRestControllerIT
 
     steps:
       - name: Check out repository
