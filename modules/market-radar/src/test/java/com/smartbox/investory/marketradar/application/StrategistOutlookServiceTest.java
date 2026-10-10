@@ -337,6 +337,30 @@ class StrategistOutlookServiceTest {
     assertThat(completed.accuracy().scoredForecasts()).isEqualTo(1);
   }
 
+  @Test
+  void yearEndBaselineAndHistoricalDispersionRequireACompletedSession() {
+    LocalDate baselineDate = LocalDate.of(2025, 12, 31);
+    var a = forecast(1, "a", LocalDate.of(2025, 12, 29), "5200");
+    var b = forecast(2, "b", LocalDate.of(2025, 12, 30), "5400");
+    when(store.observations(horizon)).thenReturn(List.of(a, b));
+    when(market.dailyBars(Mockito.eq("^GSPC"), Mockito.any(), Mockito.any()))
+        .thenReturn(List.of(bar(baselineDate, 5000)));
+    var unfinished = service.outlook(horizon, baselineDate);
+    assertThat(unfinished.medianFullYearPercent()).isNull();
+    assertThat(unfinished.dispersionPercentagePoints()).isNull();
+    var completed = service.outlook(horizon, baselineDate.plusDays(1));
+    assertThat(completed.medianFullYearPercent())
+        .isCloseTo(6, org.assertj.core.data.Offset.offset(.000001));
+    assertThat(completed.consensusTrend())
+        .filteredOn(p -> p.asOf().equals(baselineDate))
+        .hasSize(1)
+        .allSatisfy(
+            p -> {
+              assertThat(p.medianTargetLevel()).isEqualTo(5300);
+              assertThat(p.dispersionPercentagePoints()).isNull();
+            });
+  }
+
   private ForecastObservation forecast(long id, String key, LocalDate published, String target) {
     return new ForecastObservation(
         id, forecastValue(key, published, target, published.plusDays(1)), "VERIFIED", "ELIGIBLE");

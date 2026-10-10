@@ -64,8 +64,10 @@ public class StrategistOutlookService implements StrategistOutlookApi {
             .filter(b -> !b.date().isAfter(asOf))
             .sorted(Comparator.comparing(DailyMarketBar::date))
             .toList();
-    DailyMarketBar targetBaseline =
+    DailyMarketBar baselineQuote =
         exact(bars, OutlookTradingDates.previousOrSame(targetBaselineDate));
+    DailyMarketBar targetBaseline =
+        baselineQuote != null && baselineQuote.date().isBefore(asOf) ? baselineQuote : null;
     DailyMarketBar latestBar = bars.isEmpty() ? null : bars.get(bars.size() - 1);
     // The selected date may be intraday; at least the preceding regular session must be present.
     LocalDate requiredClose = OutlookTradingDates.previousOrSame(asOf.minusDays(1));
@@ -166,7 +168,7 @@ public class StrategistOutlookService implements StrategistOutlookApi {
                       hi,
                       !calendarYearEnd
                               || targetBaseline == null
-                              || targetBaseline.date().isAfter(date)
+                              || !targetBaseline.date().isBefore(date)
                               || lo == null
                           ? null
                           : (hi - lo) / targetBaseline.close() * 100);
@@ -288,7 +290,7 @@ public class StrategistOutlookService implements StrategistOutlookApi {
 
   private static Double medianAt(
       List<ForecastObservation> all, LocalDate date, DailyMarketBar baseline) {
-    if (baseline == null || baseline.date().isAfter(date)) return null;
+    if (baseline == null || !baseline.date().isBefore(date)) return null;
     return median(
         selected(all, date).stream()
             .map(o -> pct(o.forecast().targetLevel().doubleValue(), baseline.close()))
