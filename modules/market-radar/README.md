@@ -109,7 +109,7 @@ timestamp, explicit target date, positive numeric target, HTTP(S) source URL/tit
 writing, rejects future publication/impossible or over-ten-year horizons, and records capture time.
 An existing URL/institution/target-date/publication-timestamp identity is an idempotent no-op. A different publication
 for the same institution and target date is retained as a new observation, with its predecessor
-linked where available. Source title/type mismatches for a previously registered URL are rejected.
+linked where available. A previously registered URL retains its source type. Conflicting titles are rejected for the same publication; a later publication may carry a revised title.
 
 Only source-backed numeric price-index targets belong here. Secondary reporting must use
 `SECONDARY`; it is stored with secondary quality, not presented as a primary institutional

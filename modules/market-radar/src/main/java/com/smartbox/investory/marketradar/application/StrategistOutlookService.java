@@ -393,7 +393,7 @@ public class StrategistOutlookService implements StrategistOutlookApi {
             .values()
             .stream()
             .toList();
-    String source = "Configured HistoricalMarketDataPort (^VIX); provider terms apply";
+    String source = "Yahoo Finance chart history (^VIX); provider terms apply";
     if (bars.isEmpty())
       return new VixContext(
           null,
