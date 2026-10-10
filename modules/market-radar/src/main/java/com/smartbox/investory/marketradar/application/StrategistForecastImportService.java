@@ -91,6 +91,7 @@ public class StrategistForecastImportService {
     if (record.targetLevel() == null
         || record.targetLevel().signum() <= 0
         || record.targetLevel().precision() > 14
+        || (long) record.targetLevel().precision() - record.targetLevel().scale() > 10
         || Math.max(0, record.targetLevel().scale()) > 4)
       throw new IllegalArgumentException("targetLevel must be positive and fit numeric(14,4)");
     if (record.sourceType() == null) throw new IllegalArgumentException("sourceType is required");

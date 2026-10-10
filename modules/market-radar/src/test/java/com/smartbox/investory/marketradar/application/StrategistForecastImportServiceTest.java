@@ -84,6 +84,46 @@ class StrategistForecastImportServiceTest {
     assertEquals(2, service.importForecasts(List.of(first, revision)).inserted());
   }
 
+  @Test
+  void acceptsLargestNumeric14Scale4Target() {
+    var store = new RecordingStore();
+    var service = new StrategistForecastImportService(store, Clock.fixed(NOW, ZoneOffset.UTC));
+    var value =
+        withTarget(
+            record("https://example.com/boundary", LocalDate.of(2026, 12, 31)), "9999999999.9999");
+    assertEquals(1, service.importForecasts(List.of(value)).inserted());
+    assertEquals(new BigDecimal("9999999999.9999"), store.forecasts.getFirst().targetLevel());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(
+      strings = {"10000000000", "1E+10", "1E+2147483647", "0.00001"})
+  void rejectsIntegerOverflowAndExcessScaleBeforeWritingAnyPartOfBatch(String level) {
+    var store = new RecordingStore();
+    var service = new StrategistForecastImportService(store, Clock.fixed(NOW, ZoneOffset.UTC));
+    var valid = record("https://example.com/valid", LocalDate.of(2026, 12, 31));
+    var invalid =
+        withTarget(record("https://example.com/invalid", LocalDate.of(2026, 12, 31)), level);
+    var error =
+        assertThrows(
+            IllegalArgumentException.class, () -> service.importForecasts(List.of(valid, invalid)));
+    org.junit.jupiter.api.Assertions.assertTrue(error.getMessage().contains("targetLevel"));
+    assertEquals(0, store.forecasts.size());
+  }
+
+  private static ImportRecord withTarget(ImportRecord r, String level) {
+    return new ImportRecord(
+        r.institutionKey(),
+        r.institutionName(),
+        r.strategist(),
+        r.publishedAt(),
+        r.targetDate(),
+        new BigDecimal(level),
+        r.sourceUrl(),
+        r.sourceTitle(),
+        r.sourceType());
+  }
+
   private static ImportRecord record(String url, LocalDate target) {
     return new ImportRecord(
         "goldman-sachs",
