@@ -1,0 +1,90 @@
+package com.smartbox.investory.integrations.market.radar;
+
+import com.smartbox.investory.marketradar.domain.StrategistForecast;
+import com.smartbox.investory.marketradar.port.StrategistForecastStore;
+import java.sql.Timestamp;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+@Repository
+public class JdbcStrategistForecastStore implements StrategistForecastStore {
+  private final JdbcTemplate jdbc;
+
+  public JdbcStrategistForecastStore(JdbcTemplate jdbc) {
+    this.jdbc = jdbc;
+  }
+
+  @Override
+  @Transactional
+  public boolean insert(StrategistForecast forecast) {
+    Long institutionId =
+        jdbc.queryForObject(
+            """
+        insert into market_radar_forecast_institution (institution_key, display_name)
+        values (?, ?)
+        on conflict (institution_key) do update set display_name = excluded.display_name
+        returning id
+        """,
+            Long.class,
+            forecast.institutionKey(),
+            forecast.institutionName());
+    Long sourceId =
+        jdbc.queryForObject(
+            """
+        insert into market_radar_forecast_source (source_url, source_title, source_type)
+        values (?, ?, ?)
+        on conflict (source_url) do update set source_url = excluded.source_url
+        returning id
+        """,
+            Long.class,
+            forecast.sourceUrl(),
+            forecast.sourceTitle(),
+            forecast.sourceType().name());
+    String existingTitle =
+        jdbc.queryForObject(
+            "select source_title from market_radar_forecast_source where id = ?",
+            String.class,
+            sourceId);
+    String existingType =
+        jdbc.queryForObject(
+            "select source_type from market_radar_forecast_source where id = ?",
+            String.class,
+            sourceId);
+    if (!forecast.sourceTitle().equals(existingTitle)
+        || !forecast.sourceType().name().equals(existingType)) {
+      throw new IllegalArgumentException(
+          "Source URL already registered with different provenance metadata");
+    }
+    Long supersedes =
+        jdbc.query(
+            """
+        select id from market_radar_forecast_observation
+        where institution_id = ? and target_date = ?
+        order by published_at desc, observed_at desc, id desc limit 1
+        """,
+            rs -> rs.next() ? rs.getLong(1) : null,
+            institutionId,
+            forecast.targetDate());
+    int inserted =
+        jdbc.update(
+            """
+        insert into market_radar_forecast_observation
+          (institution_id, source_id, strategist, published_at, target_date, target_level, observed_at, supersedes_id, quality)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        on conflict (source_id, institution_id, target_date) do nothing
+        """,
+            institutionId,
+            sourceId,
+            forecast.strategist(),
+            Timestamp.from(forecast.publishedAt()),
+            forecast.targetDate(),
+            forecast.targetLevel(),
+            Timestamp.from(forecast.observedAt()),
+            supersedes,
+            forecast.sourceType() == StrategistForecast.SourceType.PRIMARY
+                ? "VERIFIED"
+                : "SECONDARY");
+    return inserted == 1;
+  }
+}

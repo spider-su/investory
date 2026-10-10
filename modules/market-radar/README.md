@@ -98,6 +98,27 @@ Forward outcomes are stored separately for 7, 30, and 90-day horizons. They reco
 
 This separation prevents hindsight from changing the original signal.
 
+### Strategist forecast observations (curated MVP)
+
+S&P 500 strategist targets are a separate, informational dataset; they do not enter Radar signals,
+portfolio performance, or recommendations. Forecasts are manually source-curated and imported as a
+JSON array with `POST /api/v1/admin/market-radar/strategist-forecasts` (the admin API path is
+restricted by application security). Each row requires an institution key/name, publication
+timestamp, explicit target date, positive numeric target, HTTP(S) source URL/title, and source type
+(`PRIMARY` or `SECONDARY`); strategist is optional. The service validates the entire request before
+writing, rejects future publication/impossible or over-ten-year horizons, and records capture time.
+An existing URL/institution/target-date identity is an idempotent no-op. A different publication
+for the same institution and target date is retained as a new observation, with its predecessor
+linked where available. Source title/type mismatches for a previously registered URL are rejected.
+
+Only source-backed numeric price-index targets belong here. Secondary reporting must use
+`SECONDARY`; it is stored with secondary quality, not presented as a primary institutional
+statement. No scraping, source-text copying, invented test/live values, or scheduled retrieval is
+used. The admin-controlled maintenance cadence is monthly or on a material published revision.
+The additive schema is `V01.053__market_radar_strategist_forecasts.sql`; rollback is to disable use
+of the endpoint and, only if no observations need preservation, remove these three new tables in
+reverse foreign-key order. Existing Radar tables and jobs are untouched.
+
 The validation view aggregates outcomes by Radar state and horizon and currently reports:
 
 - observation count and a simple sample-size indication;
