@@ -66,6 +66,7 @@ public class MarketRadarOutlookTemplateTest {
             "VIX index points, separate scale",
             "<circle",
             "Forecast full-year return range in pp",
+            "Yahoo Finance chart history (^VIX); provider terms apply",
             "Last update age: 1 days as of 2026-07-02");
     assertThat(html).contains("5000.0 (quote 2026-06-30)");
     java.nio.file.Path artifact =
@@ -88,7 +89,8 @@ public class MarketRadarOutlookTemplateTest {
             "No current eligible forecasts",
             "Last update age: unavailable",
             "Insufficient dated history to plot",
-            "Unavailable: no dated VIX history")
+            "Unavailable: no dated VIX history",
+            "Yahoo Finance chart history (^VIX); provider terms apply")
         .doesNotContain("<circle");
   }
 
