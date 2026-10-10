@@ -272,7 +272,8 @@ this excludes that UTC day's close. The reference level, quote date and descript
 are displayed together. Missing reference close yields no implied move. Never infer intraday prices.
 
 Year-end baselines require the final regular US equity session on/before Dec 31, not an arbitrary
-older quote. Outcomes require the exact first regular session on/after target date, strictly before the selected
+older quote. That session must precede the selected as-of date to exclude unfinished daily bars.
+Return-based historical snapshots and revisions likewise wait until the baseline session has completed. Outcomes require the exact first regular session on/after target date, strictly before the selected
 as-of date so an unfinished same-day bar cannot be scored. The calendar
 covers weekends, New Year (Saturday exception), MLK Day, Presidents Day, Good Friday, Memorial Day,
 Juneteenth from 2022, Independence Day, Labor Day, Thanksgiving and Christmas with observed days.
