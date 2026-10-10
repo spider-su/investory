@@ -307,6 +307,36 @@ class StrategistOutlookServiceTest {
     assertThat(result.actualYtdPercent()).isEqualTo(25);
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"2026-06-07", "2026-06-08"})
+  void outcomeMustPrecedeAsOfEvenWhenProviderHasASameDayBar(String targetValue) {
+    LocalDate target = LocalDate.parse(targetValue), outcome = LocalDate.of(2026, 6, 8);
+    var f =
+        new StrategistForecast(
+            "a",
+            "a",
+            null,
+            java.time.Instant.parse("2026-06-01T12:00:00Z"),
+            target,
+            new BigDecimal("5500"),
+            "https://example.com/outcome",
+            "Source",
+            StrategistForecast.SourceType.PRIMARY,
+            java.time.Instant.parse("2026-06-02T12:00:00Z"));
+    when(store.observations(target))
+        .thenReturn(List.of(new ForecastObservation(1, f, "VERIFIED", "ELIGIBLE")));
+    when(market.dailyBars(Mockito.eq("^GSPC"), Mockito.any(), Mockito.any()))
+        .thenReturn(List.of(bar(outcome, 5000)));
+    var sameDay = service.outlook(target, outcome);
+    assertThat(sameDay.history()[0].outcomeDate()).isNull();
+    assertThat(sameDay.history()[0].errorPoints()).isNull();
+    assertThat(sameDay.accuracy().scoredForecasts()).isZero();
+    var completed = service.outlook(target, outcome.plusDays(1));
+    assertThat(completed.history()[0].outcomeDate()).isEqualTo(outcome);
+    assertThat(completed.history()[0].errorPoints()).isEqualTo(500);
+    assertThat(completed.accuracy().scoredForecasts()).isEqualTo(1);
+  }
+
   private ForecastObservation forecast(long id, String key, LocalDate published, String target) {
     return new ForecastObservation(
         id, forecastValue(key, published, target, published.plusDays(1)), "VERIFIED", "ELIGIBLE");

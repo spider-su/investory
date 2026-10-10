@@ -272,7 +272,8 @@ this excludes that UTC day's close. The reference level, quote date and descript
 are displayed together. Missing reference close yields no implied move. Never infer intraday prices.
 
 Year-end baselines require the final regular US equity session on/before Dec 31, not an arbitrary
-older quote. Outcomes require the exact first regular session on/after target date. The calendar
+older quote. Outcomes require the exact first regular session on/after target date, strictly before the selected
+as-of date so an unfinished same-day bar cannot be scored. The calendar
 covers weekends, New Year (Saturday exception), MLK Day, Presidents Day, Good Friday, Memorial Day,
 Juneteenth from 2022, Independence Day, Labor Day, Thanksgiving and Christmas with observed days.
 Unscheduled closures are not inferred. This regular-calendar limitation fails closed when a required
@@ -316,3 +317,5 @@ Rollback remains stop import/rendering while retaining additive history; do not 
 Flyway migrations or replace them with the test snapshot. Monthly source checks preserve URLs,
 titles and named strategists, marking secondary reporting explicitly. Public access does not grant
 scraping or content reuse rights. No news collector or paid provider is introduced.
+
+Institution keys retain immutable display attribution: conflicting names are rejected transactionally, including on idempotent import retries.

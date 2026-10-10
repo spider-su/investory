@@ -254,7 +254,10 @@ public class StrategistOutlookService implements StrategistOutlookApi {
       String revision) {
     LocalDate target = o.forecast().targetDate();
     if (target.isAfter(asOf)) return row(o, annual, remaining, revision, bars, null, null, null);
-    DailyMarketBar actual = exact(bars, OutlookTradingDates.nextOrSame(target));
+    LocalDate outcomeDate = OutlookTradingDates.nextOrSame(target);
+    if (!outcomeDate.isBefore(asOf))
+      return row(o, annual, remaining, revision, bars, null, null, null);
+    DailyMarketBar actual = exact(bars, outcomeDate);
     if (actual == null) return row(o, annual, remaining, revision, bars, null, null, null);
     double error = o.forecast().targetLevel().doubleValue() - actual.close();
     return row(
@@ -316,7 +319,9 @@ public class StrategistOutlookService implements StrategistOutlookApi {
     for (ForecastObservation o : all) {
       if (!o.status().equals("ELIGIBLE") || o.forecast().targetDate().isAfter(asOf)) continue;
       LocalDate target = o.forecast().targetDate();
-      DailyMarketBar actual = exact(bars, OutlookTradingDates.nextOrSame(target));
+      LocalDate outcomeDate = OutlookTradingDates.nextOrSame(target);
+      if (!outcomeDate.isBefore(asOf)) continue;
+      DailyMarketBar actual = exact(bars, outcomeDate);
       if (actual == null) continue;
       double error = o.forecast().targetLevel().doubleValue() - actual.close();
       errors.add(Math.abs(error));

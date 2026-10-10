@@ -84,6 +84,49 @@ public class JdbcStrategistForecastStoreIT {
   }
 
   @Test
+  void duplicateImportCannotRenameHistoricalInstitutionAttribution() throws Exception {
+    try (var db = MigrationTestDatabase.open("forecast_attribution")) {
+      MigrationTestDatabase.migrate(db);
+      var ds =
+          new DriverManagerDataSource(
+              db.jdbcUrl() + (db.jdbcUrl().contains("?") ? "&" : "?") + "currentSchema=investory",
+              db.username(),
+              db.password());
+      var store = transactionalStore(ds);
+      var importer =
+          new StrategistForecastImportService(
+              store, Clock.fixed(Instant.parse("2026-09-01T12:00:00Z"), ZoneOffset.UTC));
+      var original =
+          row(
+              "synthetic",
+              "Original institution",
+              "Fixture strategist",
+              "2026-07-01",
+              "5200",
+              "https://example.com/attribution",
+              "Synthetic source");
+      assertThat(importer.importForecasts(List.of(original)).inserted()).isEqualTo(1);
+      var conflicting =
+          row(
+              "synthetic",
+              "Different institution",
+              "Fixture strategist",
+              "2026-07-01",
+              "5200",
+              "https://example.com/attribution",
+              "Synthetic source");
+      assertThatThrownBy(() -> importer.importForecasts(List.of(conflicting)))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("different attribution");
+      assertThat(store.observations(LocalDate.of(2026, 12, 31)))
+          .hasSize(1)
+          .allSatisfy(
+              o -> assertThat(o.forecast().institutionName()).isEqualTo("Original institution"));
+      assertThat(importer.importForecasts(List.of(original)).duplicates()).isEqualTo(1);
+    }
+  }
+
+  @Test
   public void rendersRealSourceAcceptanceInDisposableDevelopmentDatabase() throws Exception {
     renderRealSourceAcceptance("forecast_source_acceptance");
   }

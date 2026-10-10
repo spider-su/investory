@@ -63,12 +63,20 @@ public class JdbcStrategistForecastStore implements StrategistForecastStore {
             """
         insert into market_radar_forecast_institution (institution_key, display_name)
         values (?, ?)
-        on conflict (institution_key) do update set display_name = excluded.display_name
+        on conflict (institution_key) do update set institution_key = excluded.institution_key
         returning id
         """,
             Long.class,
             forecast.institutionKey(),
             forecast.institutionName());
+    String existingName =
+        jdbc.queryForObject(
+            "select display_name from market_radar_forecast_institution where id = ?",
+            String.class,
+            institutionId);
+    if (!forecast.institutionName().equals(existingName))
+      throw new IllegalArgumentException(
+          "Institution key already registered with different attribution");
     Long sourceId =
         jdbc.queryForObject(
             """
