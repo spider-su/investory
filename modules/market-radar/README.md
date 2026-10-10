@@ -133,11 +133,32 @@ Matured forecast errors use the target-date close, or the immediately following 
 close when the target is a non-trading day; records are not scored until that close is available.
 Accuracy is aggregate only and warns below five scored observations.
 
+The `/market-radar` Outlook panel accepts an exact target date and an as-of date. It labels actual
+calendar YTD, forecasted full-year return, remaining implied return, percentage-point spread and
+eligible institution count separately. The page includes source-linked institution rows, publication
+history, matured outcome errors and explicit missing-data states; a missing value is never replaced
+with SPY or a fabricated estimate. Median/range use one latest eligible observation per institution
+for that exact horizon. IQR is shown only with at least four institutions. The 30-day median revision
+is shown only when historical as-of coverage exists. Historical selection requires publication AND
+capture timestamps to be no later than the snapshot date.
+
 The current provider path does not establish licensed/complete `^GSPC` or `^VIX` series. The API
 reports missing benchmark history explicitly and does not substitute the existing SPY benchmark.
-VIX remains an explicit unavailable context until provider provenance, coverage and use terms are
-verified; it cannot affect forecast consensus or Radar signals. Percentage outputs are percentages
-unless named `dispersionPercentagePoints` or `revisionPercentagePoints`.
+VIX is shown in its own risk-context panel, separate from strategist dispersion; it is defined there
+as an option-implied estimate of annualized S&P 500 volatility over approximately 30 days, not a
+directional forecast. Latest level, 5/20-trading-day changes, one-year percentile and trend remain
+unavailable until trustworthy dated history is established. Runtime history depends on the existing
+configured provider's availability and terms. No legal permission or automated access is asserted;
+do not scrape Cboe delayed quotes. Missing/stale quote history is an honest unavailable state, not a
+feed-failure claim for weekends or holidays. VIX cannot affect consensus, Radar signals, or portfolio
+performance. Percentage outputs are percentages unless named `dispersionPercentagePoints` or
+`revisionPercentagePoints`; dispersion and revision are percentage points, not percent changes.
+
+Forecast outcomes use a price-index close on the target date, or the immediately following available
+trading-date close when target date is a non-trading day. Year-end reference baselines use the last
+available close on/before Dec 31. Forecast errors are only scored after the selected outcome close
+exists. The provider currently does not establish all required benchmark history, so the UI may show
+partial forecast/source data while benchmark-derived returns, outcomes and VIX are unavailable.
 
 The validation view aggregates outcomes by Radar state and horizon and currently reports:
 
@@ -161,6 +182,12 @@ The current read-only UI consists of:
 - `/market-radar/operations` — persisted run history plus an admin-only verification refresh action;
 - `/market-radar/themes` — theme proxy strength and member breadth;
 - `/market-radar/media` — media attention acceleration, source diversity, and explicit analyst stance.
+
+The main `/market-radar` page also includes a separate source-curated S&P 500 Outlook and VIX context
+panel. Add or revise targets through the documented admin JSON import; never edit an earlier
+observation to make a revision. Monthly or material-revision curation remains manual. Rollback is to
+stop import/use and preserve the additive forecast tables unless their history is deliberately
+retired; existing Radar scans and provider refresh jobs require no change.
 
 The main screen is intentionally a "what changed?" surface rather than another full market
 dashboard.
