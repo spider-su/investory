@@ -2,9 +2,11 @@ package com.smartbox.investory.ui.marketradar;
 
 import com.smartbox.investory.marketradar.api.MarketRadarApi;
 import com.smartbox.investory.marketradar.api.MarketRadarRefreshApi;
+import com.smartbox.investory.marketradar.api.StrategistOutlookApi;
 import com.smartbox.investory.marketradar.domain.RadarSnapshot;
 import com.smartbox.investory.marketradar.domain.RadarState;
 import com.smartbox.investory.marketradar.domain.RadarValidationStats;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -21,17 +23,23 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class MarketRadarController {
   private final MarketRadarApi radar;
   private final ObjectProvider<MarketRadarRefreshApi> refresh;
+  private final ObjectProvider<StrategistOutlookApi> outlook;
 
   public MarketRadarController(
-      MarketRadarApi radar, ObjectProvider<MarketRadarRefreshApi> refresh) {
+      MarketRadarApi radar,
+      ObjectProvider<MarketRadarRefreshApi> refresh,
+      ObjectProvider<StrategistOutlookApi> outlook) {
     this.radar = radar;
     this.refresh = refresh;
+    this.outlook = outlook;
   }
 
   @GetMapping("/market-radar")
   public String page(
       @RequestParam(required = false) RadarState state,
       @RequestParam(defaultValue = "false") boolean includeNormal,
+      @RequestParam(required = false) LocalDate targetDate,
+      @RequestParam(required = false) LocalDate asOf,
       Model model) {
     List<RadarSnapshot> all = radar.latestSignals();
     List<RadarSnapshot> visible =
@@ -51,6 +59,16 @@ public class MarketRadarController {
     model.addAttribute("includeNormal", includeNormal);
     model.addAttribute(
         "states", Arrays.stream(RadarState.values()).filter(s -> s != RadarState.NORMAL).toList());
+    LocalDate snapshot = asOf == null ? LocalDate.now() : asOf;
+    LocalDate horizon = targetDate == null ? LocalDate.of(snapshot.getYear(), 12, 31) : targetDate;
+    StrategistOutlookApi api = outlook.getIfAvailable();
+    var result = api == null ? null : api.outlook(horizon, snapshot);
+    model.addAttribute("outlook", result);
+    if (result != null) {
+      model.addAttribute("consensusPlot", OutlookPlot.consensus(result));
+      model.addAttribute("dispersionPlot", OutlookPlot.dispersion(result));
+      model.addAttribute("vixPlot", OutlookPlot.vix(result));
+    }
     return "market-radar";
   }
 
