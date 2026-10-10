@@ -147,7 +147,7 @@ jobs:
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT
           - name: reconciliation-notifications-longterm
             project: app
-            tests: DatabaseEvidenceReconciliationCheckIT,NotificationEventContractIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT,LongTermAssetLifecyclePostgresIT
+            tests: JdbcStrategistForecastStoreIT,DatabaseEvidenceReconciliationCheckIT,NotificationEventContractIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT,LongTermAssetLifecyclePostgresIT
           - name: exports-and-market-data
             project: app
             tests: ExportHappyInvestorIT,MarketDataRefreshPostgresIT
@@ -227,7 +227,7 @@ jobs:
       matrix:
         suite:
           - name: smoke
-            test: UiPageSmokeIT
+            test: UiPageSmokeIT,MarketRadarOutlookUiIT
           - name: happyinvestor-read-only
             test: HappyInvestorReadOnlyUiIT
           - name: long-term-assets

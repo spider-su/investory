@@ -26,7 +26,15 @@ public interface StrategistOutlookApi {
       ListRow[] forecasts,
       ListRow[] history,
       Accuracy accuracy,
-      VixContext vix) {}
+      VixContext vix,
+      LocalDate benchmarkQuoteDate,
+      Double medianTargetLevel,
+      Double minTargetLevel,
+      Double maxTargetLevel,
+      Double p25TargetLevel,
+      Double p75TargetLevel,
+      ConsensusPoint[] consensusTrend,
+      Long lastUpdateAgeDays) {}
 
   record ListRow(
       String institution,
@@ -42,7 +50,10 @@ public interface StrategistOutlookApi {
       String revision,
       Double errorPoints,
       Double errorPercent,
-      LocalDate outcomeDate) {}
+      LocalDate outcomeDate,
+      Double indexLevelAtPublication,
+      LocalDate publicationQuoteDate,
+      Double impliedChangePercent) {}
 
   record Accuracy(
       int scoredForecasts,
@@ -57,5 +68,15 @@ public interface StrategistOutlookApi {
       Double change20TradingDaysPercent,
       Double percentileOneYear,
       String status,
-      String source) {}
+      String source,
+      VixPoint[] trend) {}
+
+  record ConsensusPoint(
+      LocalDate asOf,
+      Double medianTargetLevel,
+      Double minTargetLevel,
+      Double maxTargetLevel,
+      Double dispersionPercentagePoints) {}
+
+  record VixPoint(LocalDate date, double level) {}
 }

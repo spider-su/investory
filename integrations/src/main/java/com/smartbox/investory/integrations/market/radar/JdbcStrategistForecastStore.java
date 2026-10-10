@@ -51,6 +51,12 @@ public class JdbcStrategistForecastStore implements StrategistForecastStore {
 
   @Override
   @Transactional
+  public int insertAll(List<StrategistForecast> forecasts) {
+    return StrategistForecastStore.super.insertAll(forecasts);
+  }
+
+  @Override
+  @Transactional
   public boolean insert(StrategistForecast forecast) {
     Long institutionId =
         jdbc.queryForObject(
@@ -94,19 +100,20 @@ public class JdbcStrategistForecastStore implements StrategistForecastStore {
         jdbc.query(
             """
         select id from market_radar_forecast_observation
-        where institution_id = ? and target_date = ?
+        where institution_id = ? and target_date = ? and published_at < ?
         order by published_at desc, observed_at desc, id desc limit 1
         """,
             rs -> rs.next() ? rs.getLong(1) : null,
             institutionId,
-            forecast.targetDate());
+            forecast.targetDate(),
+            Timestamp.from(forecast.publishedAt()));
     int inserted =
         jdbc.update(
             """
         insert into market_radar_forecast_observation
           (institution_id, source_id, strategist, published_at, target_date, target_level, observed_at, supersedes_id, quality)
         values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        on conflict (source_id, institution_id, target_date) do nothing
+        on conflict (source_id, institution_id, target_date, published_at) do nothing
         """,
             institutionId,
             sourceId,
@@ -119,6 +126,25 @@ public class JdbcStrategistForecastStore implements StrategistForecastStore {
             forecast.sourceType() == StrategistForecast.SourceType.PRIMARY
                 ? "VERIFIED"
                 : "SECONDARY");
+    if (inserted == 0) {
+      Boolean same =
+          jdbc.queryForObject(
+              """
+        select target_level = ? and strategist is not distinct from ?
+        from market_radar_forecast_observation
+        where source_id = ? and institution_id = ? and target_date = ? and published_at = ?
+        """,
+              Boolean.class,
+              forecast.targetLevel(),
+              forecast.strategist(),
+              sourceId,
+              institutionId,
+              forecast.targetDate(),
+              Timestamp.from(forecast.publishedAt()));
+      if (!Boolean.TRUE.equals(same))
+        throw new IllegalArgumentException(
+            "Conflicting target or strategist for existing source observation");
+    }
     return inserted == 1;
   }
 }

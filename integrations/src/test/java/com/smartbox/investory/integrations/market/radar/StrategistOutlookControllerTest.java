@@ -47,7 +47,22 @@ class StrategistOutlookControllerTest {
             new StrategistOutlookApi.ListRow[0],
             new StrategistOutlookApi.Accuracy(0, null, null, "Limited sample"),
             new StrategistOutlookApi.VixContext(
-                null, null, null, null, null, "Unavailable", "^VIX"));
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Unavailable",
+                "^VIX",
+                new StrategistOutlookApi.VixPoint[0]),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new StrategistOutlookApi.ConsensusPoint[0],
+            11L);
     when(api.outlook(LocalDate.of(2026, 12, 31), LocalDate.of(2026, 10, 1))).thenReturn(body);
 
     mvc.perform(
@@ -58,7 +73,8 @@ class StrategistOutlookControllerTest {
         .andExpect(jsonPath("$.targetDate").value("2026-12-31"))
         .andExpect(jsonPath("$.actualYtdPercent").value(4.5))
         .andExpect(jsonPath("$.dispersionPercentagePoints").value(5.0))
-        .andExpect(jsonPath("$.eligibleInstitutions").value(3));
+        .andExpect(jsonPath("$.eligibleInstitutions").value(3))
+        .andExpect(jsonPath("$.lastUpdateAgeDays").value(11));
     verify(api).outlook(LocalDate.of(2026, 12, 31), LocalDate.of(2026, 10, 1));
   }
 
@@ -88,7 +104,22 @@ class StrategistOutlookControllerTest {
                 new StrategistOutlookApi.ListRow[0],
                 new StrategistOutlookApi.Accuracy(0, null, null, "Limited"),
                 new StrategistOutlookApi.VixContext(
-                    null, null, null, null, null, "Unavailable", "^VIX")));
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Unavailable",
+                    "^VIX",
+                    new StrategistOutlookApi.VixPoint[0]),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new StrategistOutlookApi.ConsensusPoint[0],
+                null));
     mvc.perform(get("/api/v1/market-radar/strategist-outlook").param("targetDate", "2026-12-31"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.asOf").value("2026-10-10"));

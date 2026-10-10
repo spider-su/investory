@@ -65,6 +65,25 @@ class StrategistForecastImportServiceTest {
         IllegalArgumentException.class, () -> service.importForecasts(List.of(yearEnd, yearEnd)));
   }
 
+  @Test
+  void retainsLaterPublicationOnSameSourceUrl() {
+    var store = new RecordingStore();
+    var service = new StrategistForecastImportService(store, Clock.fixed(NOW, ZoneOffset.UTC));
+    var first = record("https://example.com/forecast", LocalDate.of(2026, 12, 31));
+    var revision =
+        new ImportRecord(
+            first.institutionKey(),
+            first.institutionName(),
+            first.strategist(),
+            first.publishedAt().plusSeconds(86400),
+            first.targetDate(),
+            new BigDecimal("8000"),
+            first.sourceUrl(),
+            first.sourceTitle(),
+            first.sourceType());
+    assertEquals(2, service.importForecasts(List.of(first, revision)).inserted());
+  }
+
   private static ImportRecord record(String url, LocalDate target) {
     return new ImportRecord(
         "goldman-sachs",
@@ -89,7 +108,8 @@ class StrategistForecastImportServiceTest {
                   existing ->
                       existing.sourceUrl().equals(forecast.sourceUrl())
                           && existing.institutionKey().equals(forecast.institutionKey())
-                          && existing.targetDate().equals(forecast.targetDate()));
+                          && existing.targetDate().equals(forecast.targetDate())
+                          && existing.publishedAt().equals(forecast.publishedAt()));
       if (!duplicate) forecasts.add(forecast);
       return !duplicate;
     }

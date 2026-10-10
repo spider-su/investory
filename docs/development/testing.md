@@ -355,3 +355,12 @@ testcontainers.reuse.enable=true
 ```
 
 Reuse is a local optimization only. CI should always use clean containers and databases.
+
+## Strategist Outlook coverage
+
+`JdbcStrategistForecastStoreIT` owns PostgreSQL forecast-history/idempotency coverage and a disposable
+source-backed QA replay; registered in the app reconciliation leg. `MarketRadarOutlookTemplateTest`
+renders populated and missing-data states, separate SVG scales, quote dates and percentage units.
+Module tests own timestamp-aware publication comparison, as-of selection, exact trading-date
+baselines/outcomes and VIX session alignment. See the [acceptance record](issue-112-outlook-acceptance.md)
+for manual browser evidence; synthetic calculation tests are not live-provider proof.

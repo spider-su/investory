@@ -107,7 +107,7 @@ restricted by application security). Each row requires an institution key/name, 
 timestamp, explicit target date, positive numeric target, HTTP(S) source URL/title, and source type
 (`PRIMARY` or `SECONDARY`); strategist is optional. The service validates the entire request before
 writing, rejects future publication/impossible or over-ten-year horizons, and records capture time.
-An existing URL/institution/target-date identity is an idempotent no-op. A different publication
+An existing URL/institution/target-date/publication-timestamp identity is an idempotent no-op. A different publication
 for the same institution and target date is retained as a new observation, with its predecessor
 linked where available. Source title/type mismatches for a previously registered URL are rejected.
 
@@ -146,16 +146,19 @@ The current provider path does not establish licensed/complete `^GSPC` or `^VIX`
 reports missing benchmark history explicitly and does not substitute the existing SPY benchmark.
 VIX is shown in its own risk-context panel, separate from strategist dispersion; it is defined there
 as an option-implied estimate of annualized S&P 500 volatility over approximately 30 days, not a
-directional forecast. Latest level, 5/20-trading-day changes, one-year percentile and trend remain
-unavailable until trustworthy dated history is established. Runtime history depends on the existing
+directional forecast. The provider is queried for `^VIX` dated closes independently from `^GSPC`. Latest level,
+5/20-session percentage changes and a three-month dot plot are shown only with available history.
+No values are seeded or scraped. A one-year empirical percentile (fraction of valid closes less
+than or equal to the latest close, including ties) requires at least 200 valid observations. Runtime history depends on the existing
 configured provider's availability and terms. No legal permission or automated access is asserted;
 do not scrape Cboe delayed quotes. Missing/stale quote history is an honest unavailable state, not a
 feed-failure claim for weekends or holidays. VIX cannot affect consensus, Radar signals, or portfolio
 performance. Percentage outputs are percentages unless named `dispersionPercentagePoints` or
 `revisionPercentagePoints`; dispersion and revision are percentage points, not percent changes.
 
-Forecast outcomes use a price-index close on the target date, or the immediately following available
-trading-date close when target date is a non-trading day. Year-end reference baselines use the last
+Forecast outcomes use a price-index close on the target date, or the immediately following
+regular US equity trading-date close when target date is a non-trading day. Missing scheduled
+closes are not replaced with a later quote. Unscheduled exchange closures remain unavailable. Year-end reference baselines use the last
 available close on/before Dec 31. Forecast errors are only scored after the selected outcome close
 exists. The provider currently does not establish all required benchmark history, so the UI may show
 partial forecast/source data while benchmark-derived returns, outcomes and VIX are unavailable.
@@ -254,3 +257,60 @@ Use [../../docs/development/market-radar-deploy-verification.md](../../docs/deve
 for the production enablement sequence. The recommended rollout starts disabled, enables a five-symbol
 verification universe, performs an admin-triggered refresh, validates persisted run/snapshot evidence,
 and only then expands to the bundled universe.
+
+## Outlook integration conventions and validation
+
+`V01.054` adds publication timestamp to source-observation uniqueness, preserving revisions on
+reused URLs. Import batches are transactional in the JDBC adapter; contradictory targets for the
+same institution/publication/horizon are rejected before writes. Provenance mismatches and altered
+idempotency payloads are rejected rather than overwriting history.
+
+Publication reference uses `publishedAt` in America/New_York: before 16:00 local use the preceding
+completed regular session; at/after 16:00 use that session if available. This deliberately conservative
+cutoff does not assume early-close availability. Date-only sources must be encoded at 00:00 UTC;
+this excludes that UTC day's close. The reference level, quote date and descriptive implied move
+are displayed together. Missing reference close yields no implied move. Never infer intraday prices.
+
+Year-end baselines require the final regular US equity session on/before Dec 31, not an arbitrary
+older quote. Outcomes require the exact first regular session on/after target date. The calendar
+covers weekends, New Year (Saturday exception), MLK Day, Presidents Day, Good Friday, Memorial Day,
+Juneteenth from 2022, Independence Day, Labor Day, Thanksgiving and Christmas with observed days.
+Unscheduled closures are not inferred. This regular-calendar limitation fails closed when a required
+quote is missing. YTD/remaining metrics require a close from at least the regular session preceding
+the selected as-of date (which may be intraday), or a returned close on that date. Older closes retain
+their provider date and stale notice but cannot supply current metrics. The requested history includes
+the earliest eligible publication-reference session, including long-horizon forecasts. All series are price-index closes, never adjusted/total-return series or SPY substitutes.
+
+Consensus needs at least two distinct eligible institutions; IQR needs four. Individual rows remain
+visible below the consensus threshold. Same-horizon dated dots and min/max whiskers retain observed
+snapshot dates (publication AND capture). Dispersion has its own pp scale adjacent to the independent
+VIX index-point plot. Dots never interpolate absent history. VIX changes require the exact 5th/20th
+preceding regular session; sparse history produces unavailable changes. Quotes older than the regular session preceding the selected as-of date are marked stale;
+weekends and scheduled holidays do not themselves imply a feed failure. Feed failures produce empty states
+without breaking technical Radar rendering. Provider symbols and redistribution terms still need
+operator verification before production use; support for arbitrary symbols is not a licensing claim.
+
+File-to-test ownership for this extension:
+
+| Surface | Verification |
+| --- | --- |
+| Import validation/identity | `StrategistForecastImportServiceTest` |
+| As-of statistics, publication reference, VIX and scoring | `StrategistOutlookServiceTest`, `OutlookTradingDatesTest` |
+| JDBC history and disposable source acceptance | `JdbcStrategistForecastStoreIT` (app CI reconciliation leg) |
+| Additive V01.053/V01.054 chain | `FlywayMigrationChainIT` (migration CI job) |
+| Read-only API | `StrategistOutlookControllerTest` |
+| Controller and rendered populated/empty plots | `MarketRadarOutlookPageTest`, `MarketRadarOutlookTemplateTest` |
+
+Existing schema inventory remains V01.040 outcomes (`JdbcRadarOutcomeStore`/evaluator), V01.043
+themes (`JdbcThemeSnapshotStore`/theme scheduler), V01.044 media (`JdbcMediaObservationStore`/media
+scheduler), V01.045 runs (`JdbcRadarRunStore`/Radar scheduler), V01.047 snapshots
+(`JdbcRadarSnapshotStore`/scanner), and V01.052 snapshot repair. No existing jobs or tables change.
+Local `.devcontainer/compose.yml` is not deployment evidence: packaged behavior is governed by
+`Dockerfile`, `application.yml` and the [deployment verification guide](../../docs/development/market-radar-deploy-verification.md).
+
+Source-backed manual QA evidence and replay caveats live in
+[issue-112-outlook-acceptance.md](../../docs/development/issue-112-outlook-acceptance.md).
+Rollback remains stop import/rendering while retaining additive history; do not undo applied
+Flyway migrations or replace them with the test snapshot. Monthly source checks preserve URLs,
+titles and named strategists, marking secondary reporting explicitly. Public access does not grant
+scraping or content reuse rights. No news collector or paid provider is introduced.
