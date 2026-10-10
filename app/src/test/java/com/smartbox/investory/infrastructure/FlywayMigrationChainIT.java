@@ -42,6 +42,34 @@ class FlywayMigrationChainIT {
   }
 
   @Test
+  void strategistForecastHistoryHasPreciseImmutableObservationSchema() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement();
+        ResultSet result =
+            statement.executeQuery(
+                """
+                SELECT count(DISTINCT table_name) FILTER (WHERE table_name IN (
+                         'market_radar_forecast_institution',
+                         'market_radar_forecast_source',
+                         'market_radar_forecast_observation')) AS tables,
+                       bool_or(table_name = 'market_radar_forecast_observation'
+                         AND column_name = 'target_level' AND numeric_precision = 14 AND numeric_scale = 4) AS precise_target,
+                       bool_or(table_name = 'market_radar_forecast_observation'
+                         AND column_name = 'supersedes_id') AS revision_link,
+                       bool_or(table_name = 'market_radar_forecast_observation'
+                         AND column_name = 'observed_at') AS capture_time
+                FROM information_schema.columns
+                WHERE table_schema = 'investory'
+                """)) {
+      result.next();
+      assertEquals(3, result.getInt("tables"));
+      assertTrue(result.getBoolean("precise_target"));
+      assertTrue(result.getBoolean("revision_link"));
+      assertTrue(result.getBoolean("capture_time"));
+    }
+  }
+
+  @Test
   void tradeSettlementUsesNormalizedDailyPricesForCarryingValue() throws Exception {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement();
