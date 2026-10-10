@@ -22,7 +22,7 @@ public class JdbcStrategistForecastStore implements StrategistForecastStore {
     return jdbc.query(
         """
         select o.id, i.institution_key, i.display_name, o.strategist, o.published_at,
-          o.target_date, o.target_level, s.source_url, s.source_title, s.source_type,
+          o.target_date, o.target_level, s.source_url, o.source_title, s.source_type,
           o.observed_at, o.quality, o.status
         from market_radar_forecast_observation o
         join market_radar_forecast_institution i on i.id = o.institution_id
@@ -89,18 +89,12 @@ public class JdbcStrategistForecastStore implements StrategistForecastStore {
             forecast.sourceUrl(),
             forecast.sourceTitle(),
             forecast.sourceType().name());
-    String existingTitle =
-        jdbc.queryForObject(
-            "select source_title from market_radar_forecast_source where id = ?",
-            String.class,
-            sourceId);
     String existingType =
         jdbc.queryForObject(
             "select source_type from market_radar_forecast_source where id = ?",
             String.class,
             sourceId);
-    if (!forecast.sourceTitle().equals(existingTitle)
-        || !forecast.sourceType().name().equals(existingType)) {
+    if (!forecast.sourceType().name().equals(existingType)) {
       throw new IllegalArgumentException(
           "Source URL already registered with different provenance metadata");
     }
@@ -119,8 +113,8 @@ public class JdbcStrategistForecastStore implements StrategistForecastStore {
         jdbc.update(
             """
         insert into market_radar_forecast_observation
-          (institution_id, source_id, strategist, published_at, target_date, target_level, observed_at, supersedes_id, quality)
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (institution_id, source_id, strategist, published_at, target_date, target_level, observed_at, supersedes_id, quality, source_title)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         on conflict (source_id, institution_id, target_date, published_at) do nothing
         """,
             institutionId,
@@ -133,25 +127,27 @@ public class JdbcStrategistForecastStore implements StrategistForecastStore {
             supersedes,
             forecast.sourceType() == StrategistForecast.SourceType.PRIMARY
                 ? "VERIFIED"
-                : "SECONDARY");
+                : "SECONDARY",
+            forecast.sourceTitle());
     if (inserted == 0) {
       Boolean same =
           jdbc.queryForObject(
               """
-        select target_level = ? and strategist is not distinct from ?
+        select target_level = ? and strategist is not distinct from ? and source_title = ?
         from market_radar_forecast_observation
         where source_id = ? and institution_id = ? and target_date = ? and published_at = ?
         """,
               Boolean.class,
               forecast.targetLevel(),
               forecast.strategist(),
+              forecast.sourceTitle(),
               sourceId,
               institutionId,
               forecast.targetDate(),
               Timestamp.from(forecast.publishedAt()));
       if (!Boolean.TRUE.equals(same))
         throw new IllegalArgumentException(
-            "Conflicting target or strategist for existing source observation");
+            "Conflicting target, strategist or title for existing source observation");
     }
     return inserted == 1;
   }

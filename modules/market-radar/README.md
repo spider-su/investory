@@ -320,3 +320,5 @@ titles and named strategists, marking secondary reporting explicitly. Public acc
 scraping or content reuse rights. No news collector or paid provider is introduced.
 
 Institution keys retain immutable display attribution: conflicting names are rejected transactionally, including on idempotent import retries.
+
+Observation titles are immutable per publication. Later publications may revise the title at the same URL; duplicate publications with conflicting titles are rejected. V01.055 backfills legacy titles additively from their existing source metadata.

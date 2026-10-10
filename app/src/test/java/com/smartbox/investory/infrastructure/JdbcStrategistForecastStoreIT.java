@@ -46,7 +46,7 @@ public class JdbcStrategistForecastStoreIT {
               "2026-08-01",
               "5400",
               "https://example.com/fixture",
-              "Synthetic source");
+              "Revised source title");
       assertThat(importer.importForecasts(List.of(first, revision)).inserted()).isEqualTo(2);
       assertThat(importer.importForecasts(List.of(first, revision)).duplicates()).isEqualTo(2);
       var valid =
@@ -63,8 +63,8 @@ public class JdbcStrategistForecastStoreIT {
               "synthetic",
               "Synthetic institution",
               "Fixture strategist",
-              "2026-08-03",
-              "5500",
+              "2026-07-01",
+              "5200",
               "https://example.com/fixture",
               "Changed provenance");
       assertThatThrownBy(() -> importer.importForecasts(List.of(valid, bad)))
@@ -75,6 +75,9 @@ public class JdbcStrategistForecastStoreIT {
                   Integer.class))
           .isZero();
       assertThat(store.observations(LocalDate.of(2026, 12, 31))).hasSize(2);
+      assertThat(store.observations(LocalDate.of(2026, 12, 31)))
+          .extracting(o -> o.forecast().sourceTitle())
+          .containsExactly("Synthetic source", "Revised source title");
       assertThat(
               jdbc.queryForObject(
                   "select count(*) from market_radar_forecast_observation where supersedes_id is not null",
@@ -123,6 +126,36 @@ public class JdbcStrategistForecastStoreIT {
           .allSatisfy(
               o -> assertThat(o.forecast().institutionName()).isEqualTo("Original institution"));
       assertThat(importer.importForecasts(List.of(original)).duplicates()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void additiveTitleMigrationPreservesExistingObservationProvenance() throws Exception {
+    try (var db = MigrationTestDatabase.open("forecast_title_upgrade")) {
+      MigrationTestDatabase.migrateTo(db, "01.054");
+      var ds =
+          new DriverManagerDataSource(
+              db.jdbcUrl() + (db.jdbcUrl().contains("?") ? "&" : "?") + "currentSchema=investory",
+              db.username(),
+              db.password());
+      var jdbc = new JdbcTemplate(ds);
+      Long institution =
+          jdbc.queryForObject(
+              "insert into market_radar_forecast_institution (institution_key, display_name) values ('legacy', 'Legacy institution') returning id",
+              Long.class);
+      Long source =
+          jdbc.queryForObject(
+              "insert into market_radar_forecast_source (source_url, source_title, source_type) values ('https://example.com/legacy', 'Original source title', 'PRIMARY') returning id",
+              Long.class);
+      jdbc.update(
+          "insert into market_radar_forecast_observation (institution_id,source_id,published_at,target_date,target_level) values (?,?,'2026-07-01T12:00:00Z','2026-12-31',5200)",
+          institution,
+          source);
+      MigrationTestDatabase.flyway(db).migrate();
+      assertThat(new JdbcStrategistForecastStore(jdbc).observations(LocalDate.of(2026, 12, 31)))
+          .hasSize(1)
+          .allSatisfy(
+              o -> assertThat(o.forecast().sourceTitle()).isEqualTo("Original source title"));
     }
   }
 
