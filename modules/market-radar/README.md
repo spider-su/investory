@@ -119,6 +119,26 @@ The additive schema is `V01.053__market_radar_strategist_forecasts.sql`; rollbac
 of the endpoint and, only if no observations need preservation, remove these three new tables in
 reverse foreign-key order. Existing Radar tables and jobs are untouched.
 
+The read-only `/api/v1/market-radar/strategist-outlook?targetDate=YYYY-MM-DD&asOf=YYYY-MM-DD`
+contract calculates one exact target horizon using observations whose publication and capture
+timestamps are both no later than `asOf`. Each institution contributes its latest eligible
+observation, ordered by publication timestamp, capture timestamp, then observation ID. Observations
+older than 120 calendar days are excluded from current consensus and counted as stale. Calendar
+YTD is the latest available as-of price-index close divided by the prior calendar year final
+trading close minus one; forecasted full-year return uses target divided by the previous year-end
+close; remaining return uses target divided by the latest available close. Dispersion is max minus
+min of full-year returns in percentage points; quartiles are withheld below four institutions.
+Historical revision compares available consensus at `asOf - 30 days`; absent history remains null.
+Matured forecast errors use the target-date close, or the immediately following available trading
+close when the target is a non-trading day; records are not scored until that close is available.
+Accuracy is aggregate only and warns below five scored observations.
+
+The current provider path does not establish licensed/complete `^GSPC` or `^VIX` series. The API
+reports missing benchmark history explicitly and does not substitute the existing SPY benchmark.
+VIX remains an explicit unavailable context until provider provenance, coverage and use terms are
+verified; it cannot affect forecast consensus or Radar signals. Percentage outputs are percentages
+unless named `dispersionPercentagePoints` or `revisionPercentagePoints`.
+
 The validation view aggregates outcomes by Radar state and horizon and currently reports:
 
 - observation count and a simple sample-size indication;

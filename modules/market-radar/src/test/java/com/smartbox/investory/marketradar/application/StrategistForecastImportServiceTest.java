@@ -93,5 +93,10 @@ class StrategistForecastImportServiceTest {
       if (!duplicate) forecasts.add(forecast);
       return !duplicate;
     }
+
+    @Override
+    public List<StrategistForecastStore.ForecastObservation> observations(LocalDate targetDate) {
+      return List.of();
+    }
   }
 }
