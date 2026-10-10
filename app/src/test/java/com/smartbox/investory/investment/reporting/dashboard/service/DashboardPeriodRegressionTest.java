@@ -240,16 +240,14 @@ class DashboardPeriodRegressionTest {
       migration = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
     }
 
-    int benchmarkStart =
-        migration.indexOf("CREATE OR REPLACE VIEW investory.app_v_account_monthly_benchmark");
-    int benchmarkEnd =
-        migration.indexOf(
-            "COMMENT ON VIEW investory.app_v_account_monthly_benchmark", benchmarkStart);
+    int benchmarkStart = migration.indexOf("CREATE VIEW investory.app_v_account_monthly_benchmark");
+    int benchmarkEnd = migration.indexOf(';', benchmarkStart);
     assertTrue(benchmarkStart >= 0, "benchmark view must be present");
     assertTrue(benchmarkEnd > benchmarkStart, "benchmark view section must be bounded");
     String benchmarkView = migration.substring(benchmarkStart, benchmarkEnd);
-    assertTrue(benchmarkView.contains("monthly.total_profit"));
-    assertTrue(benchmarkView.contains("monthly.compounded_monthly_return"));
+    assertTrue(benchmarkView.contains("FROM investory.app_v_account_monthly monthly"));
+    assertTrue(benchmarkView.contains("total_profit"));
+    assertTrue(benchmarkView.contains("compounded_monthly_return"));
     assertFalse(benchmarkView.contains("closing_equity\n        - monthly.opening_equity"));
   }
 

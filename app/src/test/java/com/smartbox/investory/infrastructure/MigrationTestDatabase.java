@@ -2,14 +2,11 @@ package com.smartbox.investory.infrastructure;
 
 import com.smartbox.investory.testsupport.SharedPostgres;
 import com.smartbox.investory.testsupport.WorkerDatabase;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 
 final class MigrationTestDatabase {
@@ -26,31 +23,20 @@ final class MigrationTestDatabase {
     flyway(database).migrate();
   }
 
-  static void migrateTo(WorkerDatabase database, String target) {
-    assertDisposable(database);
-    flyway(database, target).migrate();
-  }
-
   static Connection connection(WorkerDatabase database) throws SQLException {
     return DriverManager.getConnection(
         database.jdbcUrl(), database.username(), database.password());
   }
 
   static Flyway flyway(WorkerDatabase database) {
-    return flyway(database, null);
-  }
-
-  private static Flyway flyway(WorkerDatabase database, String target) {
-    var configuration =
-        Flyway.configure()
-            .cleanDisabled(false)
-            .dataSource(database.jdbcUrl(), database.username(), database.password())
-            .schemas("investory")
-            .defaultSchema("investory")
-            .createSchemas(true)
-            .locations("classpath:sql/migration");
-    if (target != null) configuration.target(target);
-    return configuration.load();
+    return Flyway.configure()
+        .cleanDisabled(false)
+        .dataSource(database.jdbcUrl(), database.username(), database.password())
+        .schemas("investory")
+        .defaultSchema("investory")
+        .createSchemas(true)
+        .locations("classpath:sql/migration")
+        .load();
   }
 
   static void assertDisposable(WorkerDatabase database) {
@@ -74,19 +60,6 @@ final class MigrationTestDatabase {
   static boolean exists(Statement statement, String sql) throws SQLException {
     try (ResultSet result = statement.executeQuery(sql)) {
       return result.next();
-    }
-  }
-
-  static int migrationScriptCount() throws SQLException {
-    try (Stream<Path> files = Files.list(Path.of("src", "main", "resources", "sql", "migration"))) {
-      return (int)
-          files
-              .map(Path::getFileName)
-              .map(Path::toString)
-              .filter(name -> name.matches("^V\\d+\\.\\d+__.*\\.sql$"))
-              .count();
-    } catch (java.io.IOException exception) {
-      throw new SQLException("Cannot list Flyway migrations", exception);
     }
   }
 }

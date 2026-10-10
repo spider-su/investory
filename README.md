@@ -283,7 +283,9 @@ defaults shown above. The Dev Container also activates the `local` profile as a 
 but that profile is not required to select the local datasource.
 
 On startup, Flyway creates the `investory` schema when needed and applies migrations from
-`app/src/main/resources/sql/migration`.
+`app/src/main/resources/sql/migration`. The consolidated V01.000–V01.008 scripts create the
+final schema and reference seeds directly; changes formerly shipped through V01.052 are folded
+into those original scripts.
 
 Open `http://localhost:8080`. The development administrator credentials are:
 

@@ -12,7 +12,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-/** Cheap proof that the complete Flyway chain applies to an empty PostgreSQL database. */
+/** Proves that an empty PostgreSQL database starts from the final Flyway baseline. */
 class FlywayMigrationChainIT {
 
   private static final WorkerDatabase DATABASE =
@@ -33,11 +33,18 @@ class FlywayMigrationChainIT {
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement()) {
       assertEquals(
-          MigrationTestDatabase.migrationScriptCount(),
+          1,
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.flyway_schema_history "
-                  + "WHERE success AND version IS NOT NULL"));
+                  + "WHERE success AND version = '01.008' "
+                  + "AND script = 'V01.008__long_term_assets.sql'"));
+      assertEquals(
+          9,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM investory.flyway_schema_history "
+                  + "WHERE success AND type = 'SQL' AND version IS NOT NULL"));
     }
   }
 
