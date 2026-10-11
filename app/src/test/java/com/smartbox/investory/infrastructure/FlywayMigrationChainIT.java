@@ -43,7 +43,7 @@ class FlywayMigrationChainIT {
                   + "WHERE success AND version = '01.008' "
                   + "AND script = 'V01.008__long_term_assets.sql'"));
       assertEquals(
-          13,
+          11,
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.flyway_schema_history "
@@ -95,7 +95,7 @@ class FlywayMigrationChainIT {
         try (var script =
             getClass()
                 .getResourceAsStream(
-                    "/sql/migration/V01.056__archive_retired_accounting_and_repair_objects.sql")) {
+                    "/sql/migration/V01.010__archive_retired_accounting_and_repair_objects.sql")) {
           statement.execute(new String(script.readAllBytes(), StandardCharsets.UTF_8));
         }
         assertFalse(

@@ -4,6 +4,8 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 
 ## 2026-10-11
 
+- Squashed Market Radar migrations 01.053–01.055 into create-only 01.009; archive maintenance is 01.010.
+
 ### Canonical schema and legacy archive
 
 - Added the active Profile employment-period table and overlap constraints to the consolidated
