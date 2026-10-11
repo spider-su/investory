@@ -209,3 +209,4 @@ private production, what happens immediately after deployment, what is v1.1 prod
 intentionally deferred. When work ships, remove it and record it in [`CHANGELOG.md`](CHANGELOG.md).
 Update canonical domain/architecture/quality documents only when a release decision changes their
 contract.
+- Orchestrator end-to-end workflow diagnostic (temporary)
