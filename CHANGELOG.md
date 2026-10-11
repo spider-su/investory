@@ -2,6 +2,18 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-10-11
+
+### Canonical schema and legacy archive
+
+- Added the active Profile employment-period table and overlap constraints to the consolidated
+  core schema and regenerated the test database snapshot.
+- Added a guarded retirement migration that moves Accounting/Ryczałt objects, former portfolio
+  taxpayer fields, and historical repair snapshots into `investory_legacy_archive` without
+  deleting their data. Archive foreign keys no longer cascade from active profiles/accounts.
+- Preserved the cash-flow-neutral portfolio equity-change calculation in the consolidated
+  daily-performance definition.
+
 ## 2026-10-06
 
 ### v1 roadmap and implementation alignment

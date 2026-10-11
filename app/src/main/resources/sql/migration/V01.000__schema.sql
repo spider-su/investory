@@ -1128,3 +1128,20 @@ CREATE UNIQUE INDEX ux_import_history_provider_sha256_attempt ON investory.impor
 CREATE UNIQUE INDEX ux_import_source_files_provider_sha256 ON investory.import_source_files USING btree (provider, file_sha256);
 
 CREATE UNIQUE INDEX ux_integration_instances_global_plugin ON investory.integration_instances USING btree (plugin_id, plugin_type) WHERE (owner_id IS NULL);
+
+-- Profile employment is used by EmploymentPeriodRepository on every installation.
+CREATE TABLE investory.employment_period (
+    id bigserial PRIMARY KEY,
+    profile_id bigint NOT NULL REFERENCES investory.portfolios(id) ON DELETE CASCADE,
+    employment_type varchar(8) NOT NULL,
+    date_from date NOT NULL,
+    date_to date,
+    qualifies_as_primary_social_insurance boolean NOT NULL,
+    CONSTRAINT chk_employment_period_dates CHECK (date_to IS NULL OR date_to >= date_from),
+    CONSTRAINT chk_employment_period_type CHECK (employment_type IN ('UOP', 'JDG')),
+    CONSTRAINT ex_employment_period_same_type_no_overlap EXCLUDE USING gist (
+        profile_id WITH =,
+        employment_type WITH =,
+        daterange(date_from, COALESCE(date_to + 1, 'infinity'::date), '[)') WITH &&
+    )
+);
