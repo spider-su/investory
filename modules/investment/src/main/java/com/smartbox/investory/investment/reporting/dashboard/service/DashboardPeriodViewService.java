@@ -13,24 +13,24 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
-public class DashboardPeriodFilterService {
+public class DashboardPeriodViewService {
 
   private final LocalDate historyStart;
   private final Clock clock;
   private final DashboardPortfolioPeriodService portfolioPeriodService;
   private final DashboardBenchmarkPeriodService benchmarkPeriodService;
 
-  public DashboardPeriodFilterService() {
+  public DashboardPeriodViewService() {
     this(null, Clock.systemDefaultZone());
   }
 
-  public DashboardPeriodFilterService(
+  public DashboardPeriodViewService(
       @Value("${app.history-start:" + FinancialPolicyDefaults.HISTORY_START_TEXT + "}")
           String historyStart) {
     this(LocalDate.parse(historyStart), Clock.systemDefaultZone());
   }
 
-  public DashboardPeriodFilterService(LocalDate historyStart, Clock clock) {
+  public DashboardPeriodViewService(LocalDate historyStart, Clock clock) {
     this(
         historyStart,
         clock,
@@ -39,14 +39,14 @@ public class DashboardPeriodFilterService {
   }
 
   @Autowired
-  DashboardPeriodFilterService(
+  DashboardPeriodViewService(
       DashboardPortfolioPeriodService portfolioPeriodService,
       DashboardBenchmarkPeriodService benchmarkPeriodService) {
     // Preserve the defaults of the no-argument constructor previously used by Spring.
     this(null, Clock.systemDefaultZone(), portfolioPeriodService, benchmarkPeriodService);
   }
 
-  private DashboardPeriodFilterService(
+  private DashboardPeriodViewService(
       LocalDate historyStart,
       Clock clock,
       DashboardPortfolioPeriodService portfolioPeriodService,

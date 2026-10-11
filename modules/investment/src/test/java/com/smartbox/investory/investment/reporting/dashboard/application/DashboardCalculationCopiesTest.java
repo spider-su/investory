@@ -7,7 +7,7 @@ import com.smartbox.investory.investment.api.reporting.model.*;
 import com.smartbox.investory.investment.performance.model.Performance;
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardBenchmarkPeriodService;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
+import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodViewService;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPortfolioPeriodService;
 import java.time.Clock;
 import java.time.Instant;
@@ -32,7 +32,7 @@ class DashboardPeriodProjectionTest {
     cached.setMonthlyPerformance(performance);
 
     Portfolio dashboard =
-        new DashboardPeriodFilterService("2020-01-01").filter(cached, DashboardPeriod.YEAR_TO_DATE);
+        new DashboardPeriodViewService("2020-01-01").filter(cached, DashboardPeriod.YEAR_TO_DATE);
 
     assertThat(dashboard.getMonthlyPerformance().getCalculateMonthlyPerformance())
         .containsKey("2026-01");
@@ -52,7 +52,7 @@ class DashboardPeriodProjectionTest {
     cached.setBenchmarkReturnCurve(Arrays.asList(0.5, null));
 
     Benchmark dashboard =
-        new DashboardPeriodFilterService(
+        new DashboardPeriodViewService(
                 LocalDate.of(2020, 1, 1),
                 Clock.fixed(Instant.parse("2026-10-01T10:00:00Z"), ZoneId.of("Europe/Warsaw")))
             .filter(cached, DashboardPeriod.YEAR_TO_DATE);
@@ -81,8 +81,8 @@ class DashboardPeriodProjectionTest {
                 cached.getBenchmarkCurve(),
                 java.util.List.of(100.0, 110.0, 130.0),
                 java.util.List.of(0.0, 5.0, 10.0))));
-    DashboardPeriodFilterService service =
-        new DashboardPeriodFilterService(
+    DashboardPeriodViewService service =
+        new DashboardPeriodViewService(
             LocalDate.of(2020, 1, 1),
             Clock.fixed(Instant.parse("2026-10-01T10:00:00Z"), ZoneId.of("Europe/Warsaw")));
 
@@ -107,7 +107,7 @@ class DashboardPeriodProjectionTest {
 
   @Test
   void missingAndUnavailableModelsDoNotRequireAPeriodBoundary() {
-    DashboardPeriodFilterService service = new DashboardPeriodFilterService(null, null);
+    DashboardPeriodViewService service = new DashboardPeriodViewService(null, null);
 
     assertThat(service.filter((Portfolio) null, null)).isNull();
     assertThat(service.filter((Benchmark) null, null)).isNull();
@@ -123,7 +123,7 @@ class DashboardPeriodProjectionTest {
   void springWiringPreservesDefaultHistoryBoundary() {
     try (var context =
         new AnnotationConfigApplicationContext(
-            DashboardPeriodFilterService.class,
+            DashboardPeriodViewService.class,
             DashboardPortfolioPeriodService.class,
             DashboardBenchmarkPeriodService.class)) {
       Portfolio cached = new Portfolio();
@@ -133,7 +133,7 @@ class DashboardPeriodProjectionTest {
       cached.setMonthlyPerformance(performance);
 
       Portfolio dashboard =
-          context.getBean(DashboardPeriodFilterService.class).filter(cached, DashboardPeriod.MAX);
+          context.getBean(DashboardPeriodViewService.class).filter(cached, DashboardPeriod.MAX);
 
       assertThat(dashboard.getMonthlyPerformance().getCalculateMonthlyPerformance())
           .containsEntry("2010-01", 2.0);

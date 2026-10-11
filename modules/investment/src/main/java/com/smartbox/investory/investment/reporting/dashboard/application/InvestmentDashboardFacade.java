@@ -30,7 +30,7 @@ import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
 import com.smartbox.investory.investment.reporting.ReturnEstimateCalculator;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardOperationalContextService;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
+import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodViewService;
 import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -49,7 +49,7 @@ public class InvestmentDashboardFacade {
 
   private final PortfolioMetricsService portfolioMetricsService;
   private final BenchmarkService benchmarkService;
-  private final DashboardPeriodFilterService periodFilterService;
+  private final DashboardPeriodViewService periodFilterService;
   private final PortfolioPeriodMetricsService periodMetricsService;
   private final String performanceKpiStart;
   private final PortfolioPerformanceQuery performanceQuery;
@@ -60,7 +60,7 @@ public class InvestmentDashboardFacade {
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
       BenchmarkService benchmarkService,
-      DashboardPeriodFilterService periodFilterService) {
+      DashboardPeriodViewService periodFilterService) {
     this(
         portfolioMetricsService,
         benchmarkService,
@@ -76,7 +76,7 @@ public class InvestmentDashboardFacade {
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
       BenchmarkService benchmarkService,
-      DashboardPeriodFilterService periodFilterService,
+      DashboardPeriodViewService periodFilterService,
       PortfolioPeriodMetricsService periodMetricsService,
       String performanceKpiStart) {
     this(
@@ -94,7 +94,7 @@ public class InvestmentDashboardFacade {
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
       BenchmarkService benchmarkService,
-      DashboardPeriodFilterService periodFilterService,
+      DashboardPeriodViewService periodFilterService,
       PortfolioPeriodMetricsService periodMetricsService,
       String performanceKpiStart,
       PortfolioPerformanceQuery performanceQuery,
@@ -116,7 +116,7 @@ public class InvestmentDashboardFacade {
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
       BenchmarkService benchmarkService,
-      DashboardPeriodFilterService periodFilterService,
+      DashboardPeriodViewService periodFilterService,
       PortfolioPeriodMetricsService periodMetricsService,
       @Value("${app.portfolio.performance-kpi-start}") String performanceKpiStart,
       PortfolioPerformanceQuery performanceQuery,
