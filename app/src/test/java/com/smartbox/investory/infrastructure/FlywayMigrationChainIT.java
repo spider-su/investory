@@ -41,12 +41,9 @@ class FlywayMigrationChainIT {
               "SELECT count(*) FROM investory.flyway_schema_history "
                   + "WHERE success AND version = '01.008' "
                   + "AND script = 'V01.008__long_term_assets.sql'"));
-      assertEquals(
-          10,
-          MigrationTestDatabase.singleInt(
-              statement,
-              "SELECT count(*) FROM investory.flyway_schema_history "
-                  + "WHERE success AND type = 'SQL' AND version IS NOT NULL"));
+      var flyway = MigrationTestDatabase.flyway(DATABASE);
+      flyway.validate();
+      assertEquals(0, flyway.info().pending().length, "all discovered migrations applied");
     }
   }
 
