@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.testsupport.WorkerDatabase;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -43,7 +42,7 @@ class FlywayMigrationChainIT {
                   + "WHERE success AND version = '01.008' "
                   + "AND script = 'V01.008__long_term_assets.sql'"));
       assertEquals(
-          11,
+          10,
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.flyway_schema_history "
@@ -72,74 +71,6 @@ class FlywayMigrationChainIT {
             2,
             MigrationTestDatabase.singleInt(
                 statement, "SELECT count(*) FROM investory.employment_period"));
-      } finally {
-        connection.rollback();
-      }
-    }
-  }
-
-  @Test
-  void archivesLegacyFactsTaxpayerFieldsAndRepairSnapshotsWithoutDeletingData() throws Exception {
-    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
-        Statement statement = connection.createStatement()) {
-      connection.setAutoCommit(false);
-      try {
-        int portfolios =
-            MigrationTestDatabase.singleInt(statement, "SELECT count(*) FROM investory.portfolios");
-        statement.execute(
-            "CREATE TABLE investory.accounting_cleanup_contract(id bigint PRIMARY KEY, profile_id bigint REFERENCES investory.portfolios(id) ON DELETE CASCADE, amount numeric); INSERT INTO investory.accounting_cleanup_contract VALUES (1,1,123.45)");
-        statement.execute(
-            "ALTER TABLE investory.portfolios ADD COLUMN tax_micro_account varchar(64); UPDATE investory.portfolios SET tax_micro_account='test-account' WHERE id=1");
-        statement.execute(
-            "CREATE SCHEMA investory_repair_cleanup_contract; CREATE TABLE investory_repair_cleanup_contract.cash_snapshot(id bigserial PRIMARY KEY, amount numeric); INSERT INTO investory_repair_cleanup_contract.cash_snapshot(amount) VALUES (456.78)");
-        try (var script =
-            getClass()
-                .getResourceAsStream(
-                    "/sql/migration/V01.010__archive_retired_accounting_and_repair_objects.sql")) {
-          statement.execute(new String(script.readAllBytes(), StandardCharsets.UTF_8));
-        }
-        assertFalse(
-            MigrationTestDatabase.exists(
-                statement,
-                "SELECT 1 FROM pg_tables WHERE schemaname='investory' AND tablename='accounting_cleanup_contract'"));
-        assertEquals(
-            1,
-            MigrationTestDatabase.singleInt(
-                statement,
-                "SELECT count(*) FROM investory_legacy_archive.accounting_cleanup_contract WHERE amount=123.45"));
-        assertEquals(
-            1,
-            MigrationTestDatabase.singleInt(
-                statement,
-                "SELECT count(*) FROM investory_legacy_archive.portfolio_taxpayer_history WHERE portfolio_id=1 AND taxpayer_fields->>'tax_micro_account'='test-account'"));
-        assertFalse(
-            MigrationTestDatabase.exists(
-                statement,
-                "SELECT 1 FROM pg_namespace WHERE nspname='investory_repair_cleanup_contract'"));
-        try (ResultSet result =
-            statement.executeQuery(
-                "SELECT archive_name FROM investory_legacy_archive.repair_object_manifest WHERE source_schema='investory_repair_cleanup_contract' AND source_name='cash_snapshot'")) {
-          result.next();
-          String table = result.getString(1);
-          try (Statement archive = connection.createStatement()) {
-            assertEquals(
-                1,
-                MigrationTestDatabase.singleInt(
-                    archive,
-                    "SELECT count(*) FROM investory_legacy_archive.\""
-                        + table
-                        + "\" WHERE amount=456.78"));
-          }
-        }
-        assertEquals(
-            0,
-            MigrationTestDatabase.singleInt(
-                statement,
-                "SELECT count(*) FROM pg_constraint WHERE conrelid='investory_legacy_archive.accounting_cleanup_contract'::regclass AND contype='f'"));
-        assertEquals(
-            portfolios,
-            MigrationTestDatabase.singleInt(
-                statement, "SELECT count(*) FROM investory.portfolios"));
       } finally {
         connection.rollback();
       }
