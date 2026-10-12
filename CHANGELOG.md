@@ -9,6 +9,9 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 - Replaced hardcoded migration totals with Flyway validation and pending-migration checks.
 - Made fixture overlay maintenance and coverage advisory during stabilization; financial,
   isolation, schema, and feature checks remain blocking. Backend failure reports kept seven days.
+- Added V01.010: Yahoo export status is portfolio-scoped, and composite foreign keys enforce
+  matching provider/import/file/source-row provenance. The ambiguous legacy singleton export
+  timestamp is cleared.
 
 ## 2026-10-11
 

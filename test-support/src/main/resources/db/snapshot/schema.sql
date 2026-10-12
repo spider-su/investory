@@ -1095,7 +1095,8 @@ CREATE TABLE investory.cash_operations (
     execution_fx_source character varying(32),
     execution_fx_reference character varying(256),
     import_history_id bigint,
-    import_source_row_id bigint
+    import_source_row_id bigint,
+    CONSTRAINT chk_cash_operations_source_row_requires_import CHECK (((import_source_row_id IS NULL) OR (import_history_id IS NOT NULL)))
 );
 
 
@@ -2231,7 +2232,8 @@ CREATE TABLE investory.positions (
     CONSTRAINT chk_positions_close_time_after_open_time CHECK (((close_time IS NULL) OR (open_time IS NULL) OR (close_time >= open_time))),
     CONSTRAINT chk_positions_open_price_non_negative CHECK ((open_price >= (0)::numeric)),
     CONSTRAINT chk_positions_source_row_occurrence_one_based CHECK ((source_row_occurrence >= 1)),
-    CONSTRAINT chk_positions_volume_non_negative CHECK ((volume >= (0)::numeric))
+    CONSTRAINT chk_positions_volume_non_negative CHECK ((volume >= (0)::numeric)),
+    CONSTRAINT chk_positions_source_row_requires_import CHECK (((import_source_row_id IS NULL) OR (import_history_id IS NOT NULL)))
 );
 
 
@@ -4320,7 +4322,8 @@ CREATE TABLE investory.import_history (
     CONSTRAINT chk_import_history_status_failed_lifecycle CHECK (((status IS DISTINCT FROM 'FAILED'::text) OR (finished_at IS NOT NULL))),
     CONSTRAINT chk_import_history_status_not_ready_lifecycle CHECK (((status IS DISTINCT FROM 'NOT_READY'::text) OR (finished_at IS NOT NULL))),
     CONSTRAINT chk_import_history_status_partial_lifecycle CHECK (((status IS DISTINCT FROM 'PARTIAL'::text) OR ((finished_at IS NOT NULL) AND (COALESCE(rows_failed, 0) > 0)))),
-    CONSTRAINT chk_import_history_status_started_lifecycle CHECK (((status IS DISTINCT FROM 'STARTED'::text) OR (finished_at IS NULL)))
+    CONSTRAINT chk_import_history_status_started_lifecycle CHECK (((status IS DISTINCT FROM 'STARTED'::text) OR (finished_at IS NULL))),
+    CONSTRAINT uq_import_history_id_provider UNIQUE (id, provider)
 );
 
 
@@ -4351,7 +4354,8 @@ CREATE TABLE investory.import_source_files (
     raw_payload bytea NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_import_source_files_sha256_lower_hex CHECK (((file_sha256)::text ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT chk_import_source_files_size_non_negative CHECK ((original_size >= 0))
+    CONSTRAINT chk_import_source_files_size_non_negative CHECK ((original_size >= 0)),
+    CONSTRAINT uq_import_source_files_id_history_provider UNIQUE (id, import_history_id, provider)
 );
 
 
@@ -4388,7 +4392,8 @@ CREATE TABLE investory.import_source_rows (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_import_source_rows_location CHECK (((source_row_number IS NOT NULL) OR (source_record_id IS NOT NULL))),
     CONSTRAINT chk_import_source_rows_logical_sha256_lower_hex CHECK (((logical_row_sha256 IS NULL) OR ((logical_row_sha256)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT chk_import_source_rows_occurrence_positive CHECK ((source_row_occurrence >= 1))
+    CONSTRAINT chk_import_source_rows_occurrence_positive CHECK ((source_row_occurrence >= 1)),
+    CONSTRAINT uq_import_source_rows_id_history UNIQUE (id, import_history_id)
 );
 
 
@@ -9369,11 +9374,12 @@ CREATE TABLE investory.system_audit_issues (
 --
 
 CREATE TABLE investory.yahoo_export_state (
-    id integer NOT NULL,
+    portfolio_id bigint NOT NULL,
     exported_at timestamp with time zone NOT NULL,
     portfolio_fingerprint character varying(64) NOT NULL,
     position_count integer DEFAULT 0 NOT NULL,
-    CONSTRAINT yahoo_export_state_id_check CHECK ((id = 1))
+    CONSTRAINT yahoo_export_state_pkey PRIMARY KEY (portfolio_id),
+    CONSTRAINT yahoo_export_state_portfolio_id_fkey FOREIGN KEY (portfolio_id) REFERENCES investory.portfolios(id) ON DELETE CASCADE
 );
 
 
@@ -10227,7 +10233,7 @@ COPY investory.system_audit_runs (id, import_history_id, trigger_source, started
 -- Data for Name: yahoo_export_state; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.yahoo_export_state (id, exported_at, portfolio_fingerprint, position_count) FROM stdin;
+COPY investory.yahoo_export_state (portfolio_id, exported_at, portfolio_fingerprint, position_count) FROM stdin;
 \.
 
 
@@ -11093,16 +11099,6 @@ ALTER TABLE ONLY investory.integration_secrets
 
 
 --
--- Name: yahoo_export_state yahoo_export_state_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
---
-
-ALTER TABLE ONLY investory.yahoo_export_state
-    ADD CONSTRAINT yahoo_export_state_pkey PRIMARY KEY (id);
-
-
---
--- Name: idx_market_radar_forecast_horizon_history; Type: INDEX; Schema: investory; Owner: -
---
 
 CREATE INDEX idx_market_radar_forecast_horizon_history ON investory.market_radar_forecast_observation USING btree (target_date, published_at DESC, observed_at DESC, id DESC);
 
@@ -11311,10 +11307,31 @@ CREATE INDEX ix_import_source_files_import_history ON investory.import_source_fi
 
 
 --
+-- Name: ix_import_source_files_history_provider; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_import_source_files_history_provider ON investory.import_source_files USING btree (import_history_id, provider);
+
+
+--
 -- Name: ix_import_source_rows_import_history; Type: INDEX; Schema: investory; Owner: -
 --
 
 CREATE INDEX ix_import_source_rows_import_history ON investory.import_source_rows USING btree (import_history_id);
+
+
+--
+-- Name: ix_import_source_rows_history_provider; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_import_source_rows_history_provider ON investory.import_source_rows USING btree (import_history_id, provider);
+
+
+--
+-- Name: ix_import_source_rows_file_history_provider; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_import_source_rows_file_history_provider ON investory.import_source_rows USING btree (source_file_id, import_history_id, provider) WHERE (source_file_id IS NOT NULL);
 
 
 --
@@ -11336,6 +11353,20 @@ CREATE INDEX ix_import_source_rows_record_identity ON investory.import_source_ro
 --
 
 CREATE INDEX ix_import_source_rows_source_file ON investory.import_source_rows USING btree (source_file_id);
+
+
+--
+-- Name: ix_cash_operations_source_row_history; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_cash_operations_source_row_history ON investory.cash_operations USING btree (import_source_row_id, import_history_id) WHERE (import_source_row_id IS NOT NULL);
+
+
+--
+-- Name: ix_positions_source_row_history; Type: INDEX; Schema: investory; Owner: -
+--
+
+CREATE INDEX ix_positions_source_row_history ON investory.positions USING btree (import_source_row_id, import_history_id) WHERE (import_source_row_id IS NOT NULL);
 
 
 --
@@ -12047,11 +12078,11 @@ ALTER TABLE ONLY investory.cash_operations
 
 
 --
--- Name: cash_operations cash_operations_import_source_row_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+-- Name: cash_operations cash_operations_source_row_history_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.cash_operations
-    ADD CONSTRAINT cash_operations_import_source_row_id_fkey FOREIGN KEY (import_source_row_id) REFERENCES investory.import_source_rows(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT cash_operations_source_row_history_fkey FOREIGN KEY (import_source_row_id, import_history_id) REFERENCES investory.import_source_rows(id, import_history_id) ON DELETE RESTRICT;
 
 
 --
@@ -12127,11 +12158,11 @@ ALTER TABLE ONLY investory.import_history
 
 
 --
--- Name: import_source_files import_source_files_import_history_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+-- Name: import_source_files import_source_files_history_provider_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.import_source_files
-    ADD CONSTRAINT import_source_files_import_history_id_fkey FOREIGN KEY (import_history_id) REFERENCES investory.import_history(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT import_source_files_history_provider_fkey FOREIGN KEY (import_history_id, provider) REFERENCES investory.import_history(id, provider) ON DELETE RESTRICT;
 
 
 --
@@ -12143,11 +12174,11 @@ ALTER TABLE ONLY investory.import_source_files
 
 
 --
--- Name: import_source_rows import_source_rows_import_history_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+-- Name: import_source_rows import_source_rows_history_provider_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.import_source_rows
-    ADD CONSTRAINT import_source_rows_import_history_id_fkey FOREIGN KEY (import_history_id) REFERENCES investory.import_history(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT import_source_rows_history_provider_fkey FOREIGN KEY (import_history_id, provider) REFERENCES investory.import_history(id, provider) ON DELETE RESTRICT;
 
 
 --
@@ -12159,11 +12190,11 @@ ALTER TABLE ONLY investory.import_source_rows
 
 
 --
--- Name: import_source_rows import_source_rows_source_file_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+-- Name: import_source_rows import_source_rows_file_history_provider_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.import_source_rows
-    ADD CONSTRAINT import_source_rows_source_file_id_fkey FOREIGN KEY (source_file_id) REFERENCES investory.import_source_files(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT import_source_rows_file_history_provider_fkey FOREIGN KEY (source_file_id, import_history_id, provider) REFERENCES investory.import_source_files(id, import_history_id, provider) ON DELETE RESTRICT;
 
 
 --
@@ -12311,11 +12342,11 @@ ALTER TABLE ONLY investory.positions
 
 
 --
--- Name: positions positions_import_source_row_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+-- Name: positions positions_source_row_history_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.positions
-    ADD CONSTRAINT positions_import_source_row_id_fkey FOREIGN KEY (import_source_row_id) REFERENCES investory.import_source_rows(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT positions_source_row_history_fkey FOREIGN KEY (import_source_row_id, import_history_id) REFERENCES investory.import_source_rows(id, import_history_id) ON DELETE RESTRICT;
 
 
 --

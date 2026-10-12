@@ -258,7 +258,11 @@ change the `account_daily` boundary.
 ## Migration history contract
 
 The current empty-database chain is the complete ordered set under
-`app/src/main/resources/sql/migration`, from `V01.000` through `V01.008`. Later table, function, view,
-and materialized-view changes are incorporated into those baseline migrations. The generated
-fast-test snapshot is derived from this chain but never replaces it. Existing databases were brought
-to the same final schema before this history cleanup.
+`app/src/main/resources/sql/migration`, from `V01.000` through `V01.010`. `V01.009` adds the
+Market Radar strategist forecast tables. `V01.010` scopes Yahoo export state to a portfolio and
+enforces matching import, provider, file, and source-row provenance links. The generated fast-test
+snapshot is derived from this chain but never replaces it. Retired database objects were archived
+once on existing databases outside the onboarding migration chain; existing databases were brought
+to the canonical schema before migration history was cleaned up. `V01.010` clears the old singleton
+Yahoo export timestamp because it cannot be attributed reliably to a portfolio; each portfolio gets
+fresh status after its next manual export.

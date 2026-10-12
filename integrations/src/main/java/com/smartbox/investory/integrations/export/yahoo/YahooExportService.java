@@ -95,8 +95,8 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
     writeCsv(filePath, payload.rows());
     if (exportStateRepository != null) {
       YahooExportStateEntity state =
-          exportStateRepository.findById(1).orElseGet(YahooExportStateEntity::new);
-      state.setId(1);
+          exportStateRepository.findById(portfolioId).orElseGet(YahooExportStateEntity::new);
+      state.setPortfolioId(portfolioId);
       state.setExportedAt(payload.lastSnapshotAt());
       state.setPortfolioFingerprint(fingerprint(payload.rows()));
       state.setPositionCount(payload.rows().size());
@@ -108,21 +108,20 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
   public ExportStatus status() {
     if (exportStateRepository == null) return new ExportStatus(null, false);
     return exportStateRepository
-        .findById(1)
+        .findFirstByOrderByExportedAtDesc()
         .map(state -> new ExportStatus(state.getExportedAt(), false))
         .orElseGet(() -> new ExportStatus(null, false));
   }
 
   @Override
   public ExportStatus status(Long portfolioId) {
-    if (exportStateRepository == null) return new ExportStatus(null, false);
+    if (exportStateRepository == null || portfolioId == null || portfolioId <= 0) {
+      return new ExportStatus(null, false);
+    }
     return exportStateRepository
-        .findById(1)
+        .findById(portfolioId)
         .map(
             state -> {
-              if (portfolioId == null || portfolioId <= 0) {
-                return new ExportStatus(state.getExportedAt(), false);
-              }
               CsvExportPayload current = buildPayloadFromSummary(portfolioId);
               boolean currentState =
                   state.getPositionCount() != null
