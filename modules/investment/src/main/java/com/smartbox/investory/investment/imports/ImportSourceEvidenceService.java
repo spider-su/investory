@@ -7,7 +7,6 @@ import com.smartbox.investory.investment.infrastructure.persistence.imports.Impo
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRowRepository;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import java.util.Map;
-import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,11 +34,6 @@ public class ImportSourceEvidenceService {
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public ImportSourceFileEntity storeArtifact(
       ImportHistoryEntity batch, byte[] payload, String contentType) {
-    Optional<ImportSourceFileEntity> existing =
-        fileRepository.findByBrokerAndFileSha256(batch.getBroker(), batch.getFileSha256());
-    if (existing.isPresent()) {
-      return existing.get();
-    }
     ImportSourceFileEntity file = new ImportSourceFileEntity();
     file.setBroker(batch.getBroker());
     file.setImportHistoryId(batch.getId());

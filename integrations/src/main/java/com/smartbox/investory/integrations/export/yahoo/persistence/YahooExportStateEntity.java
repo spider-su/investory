@@ -11,7 +11,9 @@ import lombok.Data;
 @Entity
 @Table(name = "yahoo_export_state")
 public class YahooExportStateEntity {
-  @Id private Integer id;
+  @Id
+  @Column(name = "portfolio_id", nullable = false)
+  private Long portfolioId;
 
   @Column(name = "exported_at", nullable = false)
   private ZonedDateTime exportedAt;
