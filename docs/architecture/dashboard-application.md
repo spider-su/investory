@@ -9,7 +9,7 @@ client seam. The public API delegates to
 `DashboardPageView` plus period navigation metadata to the Thymeleaf model.
 
 `InvestmentDashboardFacade` coordinates the existing `PortfolioMetricsService`, `BenchmarkService`, and
-`DashboardPeriodFilterService`. It does not recalculate reporting values. The facade maps those
+`DashboardPeriodViewService`. It does not recalculate reporting values. The facade maps those
 results into immutable section view models: overview, performance, positions, cash flow, risk, and
 data quality. Financial truth remains in the existing portfolio services and the `account_daily`
 reporting pipeline.
