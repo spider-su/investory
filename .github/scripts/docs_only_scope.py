@@ -15,6 +15,8 @@ DOC_NAMES = {"README.md", "CHANGELOG.md", "ROADMAP.md", "AGENTS.md"}
 CI_SUPPORT_FILES = {
     ".github/workflows/tests.yml",
     ".github/scripts/docs_only_scope.py",
+    ".github/scripts/required_check_names.py",
+    ".github/required-checks.txt",
 }
 
 
@@ -39,6 +41,13 @@ def is_docs_only(paths: list[str], *, allow_ci_support: bool) -> bool:
     return True
 
 
+def classify(paths: list[str], *, allow_ci_support: bool, full_ci: bool) -> bool:
+    """Return docs_only; an explicit full-CI request always runs every job."""
+    if full_ci:
+        return False
+    return is_docs_only(paths, allow_ci_support=allow_ci_support)
+
+
 def self_test() -> None:
     cases = [
         (["README.md", "docs/architecture/security.md"], False, True),
@@ -55,6 +64,10 @@ def self_test() -> None:
             raise AssertionError(
                 f"scope mismatch for {paths}: expected {expected}, got {actual}"
             )
+    if classify(["README.md"], allow_ci_support=False, full_ci=True):
+        raise AssertionError("full CI request must disable the documentation-only path")
+    if not classify(["README.md"], allow_ci_support=False, full_ci=False):
+        raise AssertionError("documentation-only policy must apply without a full CI request")
 
 
 def main() -> int:
@@ -66,6 +79,7 @@ def main() -> int:
     base_sha = os.getenv("BASE_SHA", "")
     head_sha = os.getenv("HEAD_SHA", "")
     allow_ci_support = os.getenv("DOCS_ONLY_CI_APPROVED", "false").lower() == "true"
+    full_ci = os.getenv("FULL_CI_REQUESTED", "false").lower() == "true"
     paths: list[str] = []
     docs_only = False
     if base_sha and head_sha and set(base_sha) != {"0"}:
@@ -76,11 +90,12 @@ def main() -> int:
         )
         if result.returncode == 0:
             paths = [path for path in result.stdout.decode().split("\0") if path]
-            docs_only = is_docs_only(paths, allow_ci_support=allow_ci_support)
+            docs_only = classify(paths, allow_ci_support=allow_ci_support, full_ci=full_ci)
 
     print("Changed paths:")
     for path in paths:
         print(f"- {path}")
+    print(f"Full CI requested: {full_ci}")
     print(f"Documentation-only: {docs_only}")
     output = os.getenv("GITHUB_OUTPUT")
     if output:
