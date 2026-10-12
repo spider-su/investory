@@ -130,9 +130,9 @@ public class JdbcStrategistForecastStoreIT {
   }
 
   @Test
-  void additiveTitleMigrationPreservesExistingObservationProvenance() throws Exception {
+  void squashedSchemaPreservesPublicationTitleWhenSourceTitleChanges() throws Exception {
     try (var db = MigrationTestDatabase.open("forecast_title_upgrade")) {
-      MigrationTestDatabase.migrateTo(db, "01.054");
+      MigrationTestDatabase.migrate(db);
       var ds =
           new DriverManagerDataSource(
               db.jdbcUrl() + (db.jdbcUrl().contains("?") ? "&" : "?") + "currentSchema=investory",
@@ -148,10 +148,12 @@ public class JdbcStrategistForecastStoreIT {
               "insert into market_radar_forecast_source (source_url, source_title, source_type) values ('https://example.com/legacy', 'Original source title', 'PRIMARY') returning id",
               Long.class);
       jdbc.update(
-          "insert into market_radar_forecast_observation (institution_id,source_id,published_at,target_date,target_level) values (?,?,'2026-07-01T12:00:00Z','2026-12-31',5200)",
+          "insert into market_radar_forecast_observation (institution_id,source_id,source_title,published_at,target_date,target_level) values (?,?,'Original source title','2026-07-01T12:00:00Z','2026-12-31',5200)",
           institution,
           source);
-      MigrationTestDatabase.flyway(db).migrate();
+      jdbc.update(
+          "update market_radar_forecast_source set source_title='Revised source title' where id=?",
+          source);
       assertThat(new JdbcStrategistForecastStore(jdbc).observations(LocalDate.of(2026, 12, 31)))
           .hasSize(1)
           .allSatisfy(

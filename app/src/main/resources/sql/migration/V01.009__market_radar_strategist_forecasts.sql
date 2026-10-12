@@ -1,11 +1,14 @@
-create table if not exists market_radar_forecast_institution (
+-- Market Radar forecast provenance and publication history.
+SET search_path TO investory, public;
+
+create table market_radar_forecast_institution (
     id bigserial primary key,
     institution_key varchar(96) not null unique,
     display_name varchar(256) not null,
     active boolean not null default true
 );
 
-create table if not exists market_radar_forecast_source (
+create table market_radar_forecast_source (
     id bigserial primary key,
     source_url text not null unique,
     source_title varchar(512) not null,
@@ -16,10 +19,11 @@ create table if not exists market_radar_forecast_source (
       check (source_url ~ '^https?://[^[:space:]]+$')
 );
 
-create table if not exists market_radar_forecast_observation (
+create table market_radar_forecast_observation (
     id bigserial primary key,
     institution_id bigint not null references market_radar_forecast_institution(id),
     source_id bigint not null references market_radar_forecast_source(id),
+    source_title varchar(512) not null,
     strategist varchar(256),
     published_at timestamp with time zone not null,
     target_date date not null,
@@ -32,8 +36,8 @@ create table if not exists market_radar_forecast_observation (
     constraint ck_market_radar_forecast_dates check (target_date > (published_at at time zone 'UTC')::date),
     constraint ck_market_radar_forecast_quality check (quality in ('VERIFIED', 'SECONDARY')),
     constraint ck_market_radar_forecast_status check (status in ('ELIGIBLE')),
-    constraint uk_market_radar_forecast_source_observation unique (source_id, institution_id, target_date)
+    constraint uk_market_radar_forecast_source_observation unique (source_id, institution_id, target_date, published_at)
 );
 
-create index if not exists idx_market_radar_forecast_horizon_history
+create index idx_market_radar_forecast_horizon_history
     on market_radar_forecast_observation (target_date, published_at desc, observed_at desc, id desc);

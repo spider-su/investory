@@ -2,11 +2,13 @@ package com.smartbox.investory.infrastructure;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,11 +42,38 @@ class FlywayMigrationChainIT {
                   + "WHERE success AND version = '01.008' "
                   + "AND script = 'V01.008__long_term_assets.sql'"));
       assertEquals(
-          9,
+          10,
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.flyway_schema_history "
                   + "WHERE success AND type = 'SQL' AND version IS NOT NULL"));
+    }
+  }
+
+  @Test
+  void employmentPeriodsRejectOverlappingSameTypeButAllowAnotherType() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement()) {
+      connection.setAutoCommit(false);
+      try {
+        statement.execute(
+            "INSERT INTO investory.employment_period(profile_id, employment_type, date_from, date_to, qualifies_as_primary_social_insurance) VALUES (1, 'UOP', '2026-01-01', '2026-06-30', true)");
+        var savepoint = connection.setSavepoint();
+        assertThrows(
+            SQLException.class,
+            () ->
+                statement.execute(
+                    "INSERT INTO investory.employment_period(profile_id, employment_type, date_from, date_to, qualifies_as_primary_social_insurance) VALUES (1, 'UOP', '2026-06-01', '2026-07-31', true)"));
+        connection.rollback(savepoint);
+        statement.execute(
+            "INSERT INTO investory.employment_period(profile_id, employment_type, date_from, date_to, qualifies_as_primary_social_insurance) VALUES (1, 'JDG', '2026-06-01', '2026-07-31', false)");
+        assertEquals(
+            2,
+            MigrationTestDatabase.singleInt(
+                statement, "SELECT count(*) FROM investory.employment_period"));
+      } finally {
+        connection.rollback();
+      }
     }
   }
 
