@@ -1,0 +1,22 @@
+# Check names that must succeed on a pull request head before automated review.
+# Keep in sync with the orchestrator repository configuration for spider-su/investory.
+# Verified against tests.yml by .github/scripts/required_check_names.py.
+Change scope
+Docs
+Formatting
+Unit
+App Startup
+UI browser setup
+Golden path
+DB_IT
+BE_IT (contracts)
+BE_IT (imports)
+BE_IT (reconciliation-notifications-longterm)
+BE_IT (exports-and-market-data)
+BE_IT (investment-rest)
+BE_IT (retirement-rest)
+FE_IT (smoke)
+FE_IT (happyinvestor-read-only)
+FE_IT (long-term-assets)
+FE_IT (simulation)
+FE_IT (investment-dashboard)

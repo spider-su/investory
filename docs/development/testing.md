@@ -12,6 +12,21 @@ aggregate coverage report is advisory during stabilization. Advisory failures st
 and must be investigated; they do not prevent an otherwise successful Tests workflow from
 publishing the main-branch image. Coverage thresholds remain unchanged.
 
+Pull requests that change only documentation take a lightweight path: `Change scope`,
+`Docs`, and `Formatting` run, and the remaining jobs are skipped. A skipped job is not a
+pass. When every required check must run on a documentation-only change (for example, an
+automated-agent pilot that requires full CI), request it explicitly:
+
+- add the `full-ci` label before pushing the commit, or
+- run `gh workflow run tests.yml --ref <branch>` (input `full_ci` defaults to `true`) to
+  run every job on the branch head commit without changing it.
+
+`.github/required-checks.txt` lists the check names that must succeed before automated
+review. `Change scope` verifies them against the expanded job and matrix names in
+`tests.yml`, and fails if a required check is missing or advisory (`continue-on-error`).
+Skipped matrix jobs are reported with unexpanded names such as
+`BE_IT (${{ matrix.suite.name }})`, so required matrix checks exist only when the job runs.
+
 Amount assertions may use `DecimalAssertions.assertEqualToThreeDecimals(actual, expected)`
 or the JSON matcher `equalToThreeDecimals(expected)`. Both round independently to scale 3
 with `HALF_UP`; this is rounded equality, not a blanket tolerance of 0.001. Use these only
