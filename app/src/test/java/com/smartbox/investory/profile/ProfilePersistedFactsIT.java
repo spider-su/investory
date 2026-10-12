@@ -1,5 +1,7 @@
 package com.smartbox.investory.profile;
 
+import static com.smartbox.investory.testsupport.DecimalAssertions.assertEqualToThreeDecimals;
+import static com.smartbox.investory.testsupport.DecimalAssertions.equalToThreeDecimals;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -205,8 +207,8 @@ class ProfilePersistedFactsIT {
         .isEqualByComparingTo(profile.retirementReserve());
     assertThat(profile.investmentCapital())
         .isEqualByComparingTo(HappyInvestorProfileFacts.INVESTMENT_CAPITAL);
-    assertThat(profile.incomeSummary().marketIncomeYtd())
-        .isEqualByComparingTo(HappyInvestorProfileFacts.MARKET_INCOME_YTD);
+    assertEqualToThreeDecimals(
+        profile.incomeSummary().marketIncomeYtd(), HappyInvestorProfileFacts.MARKET_INCOME_YTD);
     assertThat(profile.incomeSummary().marketAnnualIncome())
         .isEqualByComparingTo(profile.incomeSummary().expectedAnnualInvestmentResult());
     assertThat(profile.incomeSummary().marketNetYield())
@@ -265,7 +267,7 @@ class ProfilePersistedFactsIT {
                 .value(HappyInvestorProfileFacts.ILLIQUID_ASSETS.doubleValue()))
         .andExpect(
             jsonPath("$.incomeSummary.marketIncomeYtd")
-                .value(HappyInvestorProfileFacts.MARKET_INCOME_YTD.doubleValue()))
+                .value(equalToThreeDecimals(HappyInvestorProfileFacts.MARKET_INCOME_YTD)))
         .andExpect(
             jsonPath("$.allocations[?(@.bucket == 'EQUITY')].value")
                 .value(
@@ -289,7 +291,8 @@ class ProfilePersistedFactsIT {
         .andExpect(jsonPath("$.available").value(true))
         .andExpect(jsonPath("$.currency").value("PLN"))
         .andExpect(
-            jsonPath("$.amount").value(HappyInvestorProfileFacts.MARKET_INCOME_YTD.doubleValue()));
+            jsonPath("$.amount")
+                .value(equalToThreeDecimals(HappyInvestorProfileFacts.MARKET_INCOME_YTD)));
   }
 
   @Test

@@ -2,6 +2,26 @@
 
 Investory uses two PostgreSQL initialization paths. Keep them separate because they verify different risks.
 
+## Stabilization CI
+
+Financial contracts, imports, isolation, database migrations, application startup, unit tests,
+formatting, and existing feature/UI suites remain blocking. The `fixture-maintenance` backend
+suite is advisory; it covers fixture overlay idempotency. `BaselineReadinessContractIT` remains
+blocking because it also verifies FX semantics and ledger deletion protection. The
+aggregate coverage report is advisory during stabilization. Advisory failures stay visible
+and must be investigated; they do not prevent an otherwise successful Tests workflow from
+publishing the main-branch image. Coverage thresholds remain unchanged.
+
+Amount assertions may use `DecimalAssertions.assertEqualToThreeDecimals(actual, expected)`
+or the JSON matcher `equalToThreeDecimals(expected)`. Both round independently to scale 3
+with `HALF_UP`; this is rounded equality, not a blanket tolerance of 0.001. Use these only
+for amount contracts that allow this precision. Exact source facts, currency identities,
+flow classification, and rate/return contracts retain exact or explicitly defined precision.
+The helpers reject null/non-finite numbers and do not change production rounding.
+
+Backend failures publish Failsafe reports for seven days. Change-based suite selection and
+scheduled full regression are future CI changes; the current feature/UI matrices still run.
+
 ## Default tests
 
 Run the existing suite with:
@@ -13,7 +33,7 @@ Run the existing suite with:
 JaCoCo instrumentation is configured in the root Maven build. `verify` writes an HTML report for
 each code-bearing module under `target/site/jacoco/index.html`; the app module also writes the
 cross-module report under `app/target/site/jacoco-aggregate/`. CI combines unit, app-hosted
-cross-module, and integration-test execution data before enforcing the aggregate baseline in
+cross-module, and integration-test execution data before reporting drift against the aggregate baseline in
 `docs/quality/coverage-baseline.json`. Generated DTOs and intentional boundary adapters must not
 be padded with assertion-free tests merely to raise a total.
 

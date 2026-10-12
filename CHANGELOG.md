@@ -2,6 +2,14 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-10-12
+
+- Added shared three-decimal HALF_UP amount assertions, including a JSON numeric matcher,
+  and used them for Profile investment-income contracts.
+- Replaced hardcoded migration totals with Flyway validation and pending-migration checks.
+- Made fixture overlay maintenance and coverage advisory during stabilization; financial,
+  isolation, schema, and feature checks remain blocking. Backend failure reports kept seven days.
+
 ## 2026-10-11
 
 - Squashed Market Radar migrations 01.053–01.055 into create-only 01.009; legacy cleanup executed once on existing databases, outside the onboarding migration chain.
