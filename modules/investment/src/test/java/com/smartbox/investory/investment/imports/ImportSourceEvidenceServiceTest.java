@@ -1,7 +1,6 @@
 package com.smartbox.investory.investment.imports;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,7 +16,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
-import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,19 +51,19 @@ class ImportSourceEvidenceServiceTest {
     ImportEvidenceContext.clear();
   }
 
-  @DisplayName("duplicate Checksum Reuses Immutable Artifact")
+  @DisplayName("artifact Is Stored For Each Import Attempt")
   @Test
-  void duplicateChecksumReusesImmutableArtifact() {
+  void artifactIsStoredForEachImportAttempt() {
     ImportHistoryEntity batch = batch();
-    ImportSourceFileEntity existing = new ImportSourceFileEntity();
-    existing.setId(7L);
-    when(fileRepository.findByBrokerAndFileSha256(BrokerType.IBKR, batch.getFileSha256()))
-        .thenReturn(Optional.of(existing));
+    when(fileRepository.save(any(ImportSourceFileEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
 
     ImportSourceFileEntity result = service.storeArtifact(batch, new byte[] {1}, "text/csv");
 
-    assertSame(existing, result);
-    verify(fileRepository).findByBrokerAndFileSha256(BrokerType.IBKR, batch.getFileSha256());
+    assertEquals(99L, result.getImportHistoryId());
+    assertEquals(BrokerType.IBKR, result.getBroker());
+    assertEquals(batch.getFileSha256(), result.getFileSha256());
+    verify(fileRepository).save(result);
   }
 
   @DisplayName("source Row Retains Batch Location And Original Values")

@@ -11733,13 +11733,6 @@ CREATE UNIQUE INDEX ux_import_history_provider_sha256_attempt ON investory.impor
 
 
 --
--- Name: ux_import_source_files_provider_sha256; Type: INDEX; Schema: investory; Owner: -
---
-
-CREATE UNIQUE INDEX ux_import_source_files_provider_sha256 ON investory.import_source_files USING btree (provider, file_sha256);
-
-
---
 -- Name: ux_integration_instances_global_plugin; Type: INDEX; Schema: investory; Owner: -
 --
 
