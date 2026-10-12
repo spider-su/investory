@@ -235,8 +235,11 @@ class SystemAuditContractIT {
       long retryId = insertImport(statement, checksum, 2, originalId);
       long sourceFileId =
           insertSourceFile(statement, originalId, checksum, "reprocessed-audit.csv");
+      long reprocessedSourceFileId =
+          insertSourceFile(statement, retryId, checksum, "reprocessed-audit.csv");
       long oldSourceRowId = insertSourceRow(statement, originalId, sourceFileId, "old-row");
-      long currentSourceRowId = insertSourceRow(statement, retryId, sourceFileId, "current-row");
+      long currentSourceRowId =
+          insertSourceRow(statement, retryId, reprocessedSourceFileId, "current-row");
 
       long accountId;
       try (ResultSet result =

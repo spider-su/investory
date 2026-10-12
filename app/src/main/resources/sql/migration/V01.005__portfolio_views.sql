@@ -766,11 +766,11 @@ CREATE VIEW investory.app_v_portfolio_performance_daily AS
             nco.date::date AS snapshot_date,
                 CASE
                     WHEN count(*) FILTER (WHERE NOT investory.fx_status_usable(nco.portfolio_conversion_status)) > 0 THEN NULL::numeric
-                    ELSE sum(nco.account_flow_amount_in_portfolio_base_currency) FILTER (WHERE nco.account_flow_amount_in_portfolio_base_currency > 0::numeric)
+                    ELSE sum(nco.performance_flow_amount_in_portfolio_base_currency) FILTER (WHERE nco.performance_flow_amount_in_portfolio_base_currency > 0::numeric)
                 END AS deposits,
                 CASE
                     WHEN count(*) FILTER (WHERE NOT investory.fx_status_usable(nco.portfolio_conversion_status)) > 0 THEN NULL::numeric
-                    ELSE sum(- nco.account_flow_amount_in_portfolio_base_currency) FILTER (WHERE nco.account_flow_amount_in_portfolio_base_currency < 0::numeric)
+                    ELSE sum(- nco.performance_flow_amount_in_portfolio_base_currency) FILTER (WHERE nco.performance_flow_amount_in_portfolio_base_currency < 0::numeric)
                 END AS withdrawals,
             count(*) FILTER (WHERE NOT investory.fx_status_usable(nco.portfolio_conversion_status)) AS missing_flow_fx_count
            FROM investory.app_v_normalized_cash_operation_flows nco
@@ -814,7 +814,11 @@ CREATE VIEW investory.app_v_portfolio_performance_daily AS
         END AS realized_profit,
         CASE
             WHEN count(*) FILTER (WHERE NOT investory.fx_status_usable(converted.conversion_status)) > 0 THEN NULL::numeric
-            ELSE sum(converted.total_profit - converted.initialization_adjustment)
+            ELSE sum(converted.equity)
+                - lag(sum(converted.equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date)
+                - COALESCE(max(ef.deposits), 0::numeric)
+                + COALESCE(max(ef.withdrawals), 0::numeric)
+                - sum(converted.initialization_adjustment)
         END AS total_profit,
         CASE
             WHEN count(*) FILTER (WHERE NOT investory.fx_status_usable(converted.conversion_status)) > 0 THEN NULL::numeric
@@ -823,7 +827,11 @@ CREATE VIEW investory.app_v_portfolio_performance_daily AS
         CASE
             WHEN count(*) FILTER (WHERE NOT investory.fx_status_usable(converted.conversion_status)) > 0 OR max(COALESCE(ef.missing_flow_fx_count, 0::bigint)) > 0 THEN NULL::numeric
             WHEN lag(sum(converted.equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date) IS NULL THEN NULL::numeric
-            ELSE sum(converted.total_profit - converted.initialization_adjustment) / NULLIF(lag(sum(converted.equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date) + COALESCE(max(ef.deposits), 0::numeric) - COALESCE(max(ef.withdrawals), 0::numeric) + sum(converted.initialization_adjustment), 0::numeric)
+            ELSE (sum(converted.equity)
+                - lag(sum(converted.equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date)
+                - COALESCE(max(ef.deposits), 0::numeric)
+                + COALESCE(max(ef.withdrawals), 0::numeric)
+                - sum(converted.initialization_adjustment)) / NULLIF(lag(sum(converted.equity)) OVER (PARTITION BY converted.portfolio_id ORDER BY converted.snapshot_date) + COALESCE(max(ef.deposits), 0::numeric) - COALESCE(max(ef.withdrawals), 0::numeric) + sum(converted.initialization_adjustment), 0::numeric)
         END AS daily_return_pct
    FROM account_boundaries converted
      LEFT JOIN performance_flows ef ON ef.portfolio_id = converted.portfolio_id AND ef.snapshot_date = converted.snapshot_date

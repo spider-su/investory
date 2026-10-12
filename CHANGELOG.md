@@ -2,6 +2,35 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-10-12
+
+- Added shared three-decimal HALF_UP amount assertions, including a JSON numeric matcher,
+  and used them for Profile investment-income contracts.
+- Replaced hardcoded migration totals with Flyway validation and pending-migration checks.
+- Made fixture overlay maintenance and coverage advisory during stabilization; financial,
+  isolation, schema, and feature checks remain blocking. Backend failure reports kept seven days.
+- Added V01.010: Yahoo export status is portfolio-scoped, and composite foreign keys enforce
+  matching provider/import/file/source-row provenance. The ambiguous legacy singleton export
+  timestamp is cleared.
+- Added V01.011 so each import attempt owns its source artifact row, preserving the V01.010
+  provenance constraints when the same file is reprocessed.
+- Added V01.012 to deploy the portfolio inception return calculation to databases that already
+  applied the earlier portfolio view migration. Scoped critical price refresh to Yahoo Finance.
+
+## 2026-10-11
+
+- Squashed Market Radar migrations 01.053–01.055 into create-only 01.009; legacy cleanup executed once on existing databases, outside the onboarding migration chain.
+
+### Canonical schema and legacy archive
+
+- Added the active Profile employment-period table and overlap constraints to the consolidated
+  core schema and regenerated the test database snapshot.
+- Executed guarded retirement maintenance that moves Accounting/Ryczałt objects, former portfolio
+  taxpayer fields, and historical repair snapshots into `investory_legacy_archive` without
+  deleting their data. Archive foreign keys no longer cascade from active profiles/accounts.
+- Preserved the cash-flow-neutral portfolio equity-change calculation in the consolidated
+  daily-performance definition.
+
 ## 2026-10-06
 
 ### v1 roadmap and implementation alignment

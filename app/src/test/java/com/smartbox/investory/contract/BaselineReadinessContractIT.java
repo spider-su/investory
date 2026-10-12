@@ -28,17 +28,19 @@ class BaselineReadinessContractIT {
 
   private static final WorkerDatabase DATABASE = SharedPostgres.database("baseline");
 
+  private static final Flyway FLYWAY =
+      Flyway.configure()
+          .dataSource(DATABASE.jdbcUrl(), DATABASE.username(), DATABASE.password())
+          .schemas("investory")
+          .defaultSchema("investory")
+          .createSchemas(true)
+          .locations("classpath:sql/migration")
+          .load();
+
   @BeforeAll
   static void migrateEmptyDatabase() {
 
-    Flyway.configure()
-        .dataSource(DATABASE.jdbcUrl(), DATABASE.username(), DATABASE.password())
-        .schemas("investory")
-        .defaultSchema("investory")
-        .createSchemas(true)
-        .locations("classpath:sql/migration")
-        .load()
-        .migrate();
+    FLYWAY.migrate();
   }
 
   @AfterAll
@@ -59,12 +61,8 @@ class BaselineReadinessContractIT {
               "SELECT count(*) FROM investory.flyway_schema_history "
                   + "WHERE success AND version = '01.008' "
                   + "AND script = 'V01.008__long_term_assets.sql'"));
-      assertEquals(
-          9,
-          singleInt(
-              statement,
-              "SELECT count(*) FROM investory.flyway_schema_history "
-                  + "WHERE success AND type = 'SQL' AND version IS NOT NULL"));
+      FLYWAY.validate();
+      assertEquals(0, FLYWAY.info().pending().length, "all discovered migrations applied");
       assertEquals(
           "sample.user|Sample User",
           singleString(

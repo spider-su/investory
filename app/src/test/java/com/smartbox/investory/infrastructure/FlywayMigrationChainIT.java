@@ -2,11 +2,13 @@ package com.smartbox.investory.infrastructure;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,11 +42,79 @@ class FlywayMigrationChainIT {
                   + "WHERE success AND version = '01.008' "
                   + "AND script = 'V01.008__long_term_assets.sql'"));
       assertEquals(
-          9,
+          1,
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.flyway_schema_history "
-                  + "WHERE success AND type = 'SQL' AND version IS NOT NULL"));
+                  + "WHERE success AND version = '01.012' "
+                  + "AND script = 'V01.012__portfolio_return_from_inception.sql'"));
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT pg_get_viewdef('investory.app_v_portfolio_performance_daily'::regclass, true)")) {
+        assertTrue(result.next());
+        String performanceView = result.getString(1);
+        assertTrue(performanceView.contains("portfolio_dates"));
+        assertTrue(performanceView.contains("initialization_adjustment"));
+        assertTrue(performanceView.contains("performance_flow_amount_in_portfolio_base_currency"));
+      }
+      var flyway = MigrationTestDatabase.flyway(DATABASE);
+      flyway.validate();
+      assertEquals(0, flyway.info().pending().length, "all discovered migrations applied");
+    }
+  }
+
+  @Test
+  void employmentPeriodsRejectOverlappingSameTypeButAllowAnotherType() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement()) {
+      connection.setAutoCommit(false);
+      try {
+        statement.execute(
+            "INSERT INTO investory.employment_period(profile_id, employment_type, date_from, date_to, qualifies_as_primary_social_insurance) VALUES (1, 'UOP', '2026-01-01', '2026-06-30', true)");
+        var savepoint = connection.setSavepoint();
+        assertThrows(
+            SQLException.class,
+            () ->
+                statement.execute(
+                    "INSERT INTO investory.employment_period(profile_id, employment_type, date_from, date_to, qualifies_as_primary_social_insurance) VALUES (1, 'UOP', '2026-06-01', '2026-07-31', true)"));
+        connection.rollback(savepoint);
+        statement.execute(
+            "INSERT INTO investory.employment_period(profile_id, employment_type, date_from, date_to, qualifies_as_primary_social_insurance) VALUES (1, 'JDG', '2026-06-01', '2026-07-31', false)");
+        assertEquals(
+            2,
+            MigrationTestDatabase.singleInt(
+                statement, "SELECT count(*) FROM investory.employment_period"));
+      } finally {
+        connection.rollback();
+      }
+    }
+  }
+
+  @Test
+  void strategistForecastHistoryHasPreciseImmutableObservationSchema() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement();
+        ResultSet result =
+            statement.executeQuery(
+                """
+                SELECT count(DISTINCT table_name) FILTER (WHERE table_name IN (
+                         'market_radar_forecast_institution',
+                         'market_radar_forecast_source',
+                         'market_radar_forecast_observation')) AS tables,
+                       bool_or(table_name = 'market_radar_forecast_observation'
+                         AND column_name = 'target_level' AND numeric_precision = 14 AND numeric_scale = 4) AS precise_target,
+                       bool_or(table_name = 'market_radar_forecast_observation'
+                         AND column_name = 'supersedes_id') AS revision_link,
+                       bool_or(table_name = 'market_radar_forecast_observation'
+                         AND column_name = 'observed_at') AS capture_time
+                FROM information_schema.columns
+                WHERE table_schema = 'investory'
+                """)) {
+      result.next();
+      assertEquals(3, result.getInt("tables"));
+      assertTrue(result.getBoolean("precise_target"));
+      assertTrue(result.getBoolean("revision_link"));
+      assertTrue(result.getBoolean("capture_time"));
     }
   }
 
