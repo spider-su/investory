@@ -5,7 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface YahooExportStateRepository
-    extends JpaRepository<YahooExportStateEntity, Long> {
+public interface YahooExportStateRepository extends JpaRepository<YahooExportStateEntity, Long> {
   Optional<YahooExportStateEntity> findFirstByOrderByExportedAtDesc();
 }

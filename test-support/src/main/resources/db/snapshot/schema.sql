@@ -9378,8 +9378,7 @@ CREATE TABLE investory.yahoo_export_state (
     exported_at timestamp with time zone NOT NULL,
     portfolio_fingerprint character varying(64) NOT NULL,
     position_count integer DEFAULT 0 NOT NULL,
-    CONSTRAINT yahoo_export_state_pkey PRIMARY KEY (portfolio_id),
-    CONSTRAINT yahoo_export_state_portfolio_id_fkey FOREIGN KEY (portfolio_id) REFERENCES investory.portfolios(id) ON DELETE CASCADE
+    CONSTRAINT yahoo_export_state_pkey PRIMARY KEY (portfolio_id)
 );
 
 
@@ -12283,6 +12282,14 @@ ALTER TABLE ONLY investory.personal_asset
 
 ALTER TABLE ONLY investory.portfolios
     ADD CONSTRAINT portfolios_base_currency_fkey FOREIGN KEY (base_currency) REFERENCES investory.currencies(id);
+
+
+--
+-- Name: yahoo_export_state yahoo_export_state_portfolio_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.yahoo_export_state
+    ADD CONSTRAINT yahoo_export_state_portfolio_id_fkey FOREIGN KEY (portfolio_id) REFERENCES investory.portfolios(id) ON DELETE CASCADE;
 
 
 --
