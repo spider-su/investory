@@ -26,8 +26,7 @@ public class CriticalRefreshJobInitializer {
   private static final List<JobSpec> JOBS =
       List.of(
           new JobSpec(IntegrationType.FX_DATA, NbpFxDataPlugin.ID, "refresh-rates"),
-          new JobSpec(
-              IntegrationType.MARKET_DATA, YAHOO_FINANCE_PLUGIN_ID, "refresh-prices"));
+          new JobSpec(IntegrationType.MARKET_DATA, YAHOO_FINANCE_PLUGIN_ID, "refresh-prices"));
 
   private final IntegrationInstanceRepository instanceRepository;
   private final IntegrationJobRepository jobRepository;

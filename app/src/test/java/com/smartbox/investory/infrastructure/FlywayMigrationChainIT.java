@@ -41,6 +41,22 @@ class FlywayMigrationChainIT {
               "SELECT count(*) FROM investory.flyway_schema_history "
                   + "WHERE success AND version = '01.008' "
                   + "AND script = 'V01.008__long_term_assets.sql'"));
+      assertEquals(
+          1,
+          MigrationTestDatabase.singleInt(
+              statement,
+              "SELECT count(*) FROM investory.flyway_schema_history "
+                  + "WHERE success AND version = '01.012' "
+                  + "AND script = 'V01.012__portfolio_return_from_inception.sql'"));
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT pg_get_viewdef('investory.app_v_portfolio_performance_daily'::regclass, true)")) {
+        assertTrue(result.next());
+        String performanceView = result.getString(1);
+        assertTrue(performanceView.contains("portfolio_dates"));
+        assertTrue(performanceView.contains("initialization_adjustment"));
+        assertTrue(performanceView.contains("performance_flow_amount_in_portfolio_base_currency"));
+      }
       var flyway = MigrationTestDatabase.flyway(DATABASE);
       flyway.validate();
       assertEquals(0, flyway.info().pending().length, "all discovered migrations applied");
