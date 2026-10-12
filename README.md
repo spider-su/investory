@@ -243,6 +243,23 @@ Requirements:
 - PostgreSQL
 - Maven
 
+### Native Maven validation
+
+Install Java and Maven, and make Docker available for tests that use Testcontainers. Run the
+repository validation script to execute the full native Maven checks together:
+
+```bash
+bash scripts/agent-validate.sh
+```
+
+The script runs these Maven commands, shown here for reference:
+
+```bash
+mvn -B spotless:check
+mvn -B test
+mvn -B package -DskipTests
+```
+
 For a reproducible Java, Maven, and PostgreSQL environment, use the Dev Container described in
 [`docs/development/dev-container.md`](docs/development/dev-container.md).
 
