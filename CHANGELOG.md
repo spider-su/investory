@@ -14,6 +14,8 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
   timestamp is cleared.
 - Added V01.011 so each import attempt owns its source artifact row, preserving the V01.010
   provenance constraints when the same file is reprocessed.
+- Added V01.012 to deploy the portfolio inception return calculation to databases that already
+  applied the earlier portfolio view migration. Scoped critical price refresh to Yahoo Finance.
 
 ## 2026-10-11
 
