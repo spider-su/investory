@@ -21,6 +21,13 @@ page and section models live in `investment.api.reporting.model`. Supporting
 queries and mappers live in `investment.reporting.dashboard.service`. Investment REST controllers
 live in `investment.web`. Thymeleaf MVC controllers and page formatting remain in `adapters/web-ui`.
 
+The Investment Profile page composes its Investment and Long-Term source facts through the public
+`ProfileSnapshotReader` contract. Those source reads stay inside one repeatable-read transaction so
+the assembled profile comes from a consistent snapshot. The MVC adapter may run the independent
+current-year retirement-cost lookup alongside profile loading when the portfolio currency is known;
+it reuses profile-provided Investment income facts and only loads the legacy KPI/YTD fallback when
+those facts are unavailable. This avoids repeating Investment reads already included in the profile.
+
 Initial rendering remains server-side Thymeleaf. A small presentation alias in `dashboard.html`
 keeps existing expressions stable while the page is incrementally split into section-heading
 fragments. Chart data is still injected by Thymeleaf because Chart.js needs the prepared server

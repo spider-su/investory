@@ -89,7 +89,12 @@ they must not replace it with a January-1-only balance or infer it from a label.
 Dashboard TWR and XIRR read base-currency, non-cash-only daily boundaries from
 `app_v_portfolio_performance_daily`; application code must not rebuild them by summing raw
 account-currency `account_daily` rows. Selected-period and fixed KPI-start returns therefore share
-the same reporting boundary and differ only by their requested dates.
+the same reporting boundary and differ only by their requested dates. At portfolio inception, the
+first monthly row can use its closing equity as the opening valuation when there is no earlier monthly
+observation. That same first day's external flows are already reflected in this fallback valuation,
+so the first daily boundary is excluded from the return calculation; counting those flows again would
+distort TWR and XIRR. When a prior monthly observation exists, the ordinary daily flow-adjustment path
+applies.
 
 ### Reconciliation materialization boundary
 
