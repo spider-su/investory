@@ -27,9 +27,10 @@ class FinancialLandscapeControllerTest {
   private final RetirementPlanClient plans = mock(RetirementPlanClient.class);
   private final RetirementProjectionClient projections = mock(RetirementProjectionClient.class);
   private final RetirementTimelineClient timeline = mock(RetirementTimelineClient.class);
+  private final AnnualCostsClient annualCosts = mock(AnnualCostsClient.class);
   private final Clock clock = Clock.fixed(Instant.parse("2026-10-13T10:00:00Z"), ZoneOffset.UTC);
   private final FinancialLandscapeController controller =
-      new FinancialLandscapeController(profiles, plans, projections, timeline, clock);
+      new FinancialLandscapeController(profiles, plans, projections, timeline, clock, annualCosts);
 
   @BeforeEach
   void setup() {
@@ -54,6 +55,13 @@ class FinancialLandscapeControllerTest {
 
   @Test
   void usesOnlyLivePlanningCashFlowAndProfileAssetFacts() {
+    when(annualCosts.load(7L, 11L, 2026)).thenReturn(
+        new com.smartbox.investory.retirement.api.RetirementAnnualCostsApi.AnnualCosts(
+            11L, 2026, "Plan",
+            List.of(new com.smartbox.investory.retirement.api.RetirementAnnualCostsApi.Group(
+                1L, "Housing", new BigDecimal("6000"), 0)),
+            new BigDecimal("6000"), new BigDecimal("72000"),
+            BigDecimal.ZERO, null, null, BigDecimal.ZERO));
     var live = new PlanningTimelineYear(2026, 40, PlanningTimelineState.LIVE, null, null, null);
     var projected =
         new PlanningTimelineYear(2027, 41, PlanningTimelineState.PROJECTED, null, null, null);
@@ -92,6 +100,8 @@ class FinancialLandscapeControllerTest {
         .containsEntry("illiquidAssets", new BigDecimal("850000"))
         .containsEntry("currency", "PLN")
         .containsEntry("year", 2026);
+    assertThat((List<?>) result.get("expenseGroups")).hasSize(1);
+    verify(annualCosts).load(7L, 11L, 2026);
     verify(timeline, never()).ensurePlanningTimeline(anyLong());
     verify(money, never()).bondReturn();
     verify(money, never()).equityReturn();
