@@ -20,7 +20,7 @@
   set('fl-expense-rate', expenses === null ? 'No planning expenses' : rate(expenses / (365.2425 * 24 * 60)) + ' / min');
   const net = income === null || expenses === null ? null : (income - expenses) / 12;
   set('fl-net', (net !== null && net > 0 ? '+' : '') + format(net) + ' / month');
-  const flowPanel = document.querySelector('.fl-center');
+  const flowPanel = document.querySelector('.fl-center, .fl-compact-net');
   if (flowPanel) flowPanel.dataset.flow = net === null || net === 0 ? 'neutral' : net < 0 ? 'negative' : 'positive';
   set('fl-coverage', income === null || expenses === null ? 'Planning data unavailable' : expenses === 0 ? 'No planned spending' : Math.round(income / expenses * 100) + '% income coverage');
   const coverage = income === null || expenses === null || expenses <= 0 ? null : Math.max(0, income / expenses * 100);
