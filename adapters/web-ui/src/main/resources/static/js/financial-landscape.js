@@ -9,7 +9,7 @@
   const income = numeric(data.annualIncome);
   const expenses = numeric(data.annualExpenses);
   const currency = data.currency || 'PLN';
-  // Mirrors FinancialPresentation.compactMoney(): 3 significant display digits,
+  // Mirrors FinancialPresentation.compactMoneyTrimmed(): up to 3 display digits,
   // K/M suffixes, HALF_UP rounding and a rounded 1000K -> 1.00M rollover.
   const compactNumber = value => {
     const abs = Math.abs(value);
@@ -18,7 +18,7 @@
       const scaled = abs / divisor;
       const digits = scaled < 10 ? 2 : 1;
       const rounded = Math.round((scaled + Number.EPSILON) * 10 ** digits) / 10 ** digits;
-      return {rounded, text: rounded.toFixed(digits) + suffix};
+      return {rounded, text: String(rounded) + suffix};
     };
     if (abs >= 1000000) return render(1000000, 'M').text;
     const thousands = render(1000, 'K');
