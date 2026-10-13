@@ -55,7 +55,10 @@ record InvestmentProfilePageView(
         income.investmentIncomeBase() != null
             ? income.investmentIncomeBase()
             : profile.marketPortfolioValue();
-    BigDecimal forecastAnnualReturn = performance.expectedAnnualReturn();
+    BigDecimal forecastAnnualReturn =
+        income.expectedAnnualReturn() != null
+            ? income.expectedAnnualReturn()
+            : performance == null ? null : performance.expectedAnnualReturn();
     BigDecimal forecastAnnualInvestmentResult =
         income.expectedAnnualInvestmentResult() != null
             ? income.expectedAnnualInvestmentResult()
@@ -87,7 +90,7 @@ record InvestmentProfilePageView(
             ? "Forecast annual return"
             : hasAnnualizedInvestmentResult
                 ? "Annualized current result"
-                : performance.kpiStartDate() == null
+                : performance == null || performance.kpiStartDate() == null
                     ? "Total return"
                     : "Since " + performance.kpiStartDate(),
         money(
@@ -99,7 +102,7 @@ record InvestmentProfilePageView(
                 + (forecastAnnualInvestmentResult != null
                     ? " of forecast annual result"
                     : " of annualized current result")
-            : performance.totalReturn() == null
+            : performance == null || performance.totalReturn() == null
                 ? ""
                 : UiPresentation.percentage(performance.totalReturn()),
         money(profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth)),
