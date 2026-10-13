@@ -136,7 +136,7 @@ The separate reserve is the appropriate cash input for runway. Profile defines i
 - Full and Compact render from the same controller map. Profile, Simulation and Profile JSON were read for comparison; no mutation request was issued. The planning timeline loader is `@Transactional(readOnly = true)`.
 - Added a separately visible reserve and clarified it is included in liquid assets. Renamed the display to illiquid Long-Term assets so the label matches `InvestmentProfile.illiquidAssets()`.
 - Runway behavior was exercised for negative, positive, zero and unavailable cash flow. All four passed. A negative case with zero reserve also returns zero months.
-- Implementation commit: pending. Documentation commit: pending.
+- Implementation and reconciliation report: commit `3d6c1005` on the existing PR branch.
 
 ### Verification completed
 
