@@ -326,6 +326,38 @@ class MarketDataServiceTest {
             "EXACT_LISTING_MARKET_CLOSE");
   }
 
+  @DisplayName("update Stocks continues Yahoo Fallback After One Symbol Failure")
+  @Test
+  void updateStocksContinuesYahooFallbackAfterOneSymbolFailure() {
+    AssetEntity a = newAsset("A.US", "A", true);
+    AssetEntity b = newAsset("B.US", "B", true);
+    when(assetRepository.findAll()).thenReturn(List.of(a, b));
+    when(positionRepository.findOpen())
+        .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
+    when(marketDataProvider.fetchQuotes(List.of("A", "B"))).thenReturn(Map.of());
+    when(marketDataProvider.fetchLatestQuote("A"))
+        .thenAnswer(
+            invocation -> {
+              assertEquals(false, TransactionSynchronizationManager.isActualTransactionActive());
+              throw new IllegalStateException("network unavailable");
+            });
+    when(marketDataProvider.fetchLatestQuote("B"))
+        .thenReturn(
+            Optional.of(new LatestQuote("B", "USD", java.time.LocalDate.of(2026, 8, 12), 12.5)));
+
+    marketDataService.updateStocks(1L);
+
+    assertEquals(12.5, b.getMarketPrice().doubleValue(), 0.00000001);
+    assertTrue(a.getMarketPrice() == null);
+    verify(assetRepository, times(2)).saveAll(assetIterableCaptor.capture());
+    List<List<AssetEntity>> savedBatches =
+        assetIterableCaptor.getAllValues().stream().map(MarketDataServiceTest::toList).toList();
+    assertTrue(
+        savedBatches.stream()
+            .anyMatch(batch -> batch.stream().anyMatch(asset -> "B.US".equals(asset.getSymbol()))));
+    verify(statisticsRefreshService).refreshAll();
+  }
+
   @DisplayName("update Stocks Converts Native Quote Into Legacy Usd Cache")
   @Test
   void updateStocksConvertsNativeQuoteIntoLegacyUsdCache() {
@@ -387,7 +419,7 @@ class MarketDataServiceTest {
     when(marketDataProvider.fetchLatestQuote("VWRA.L"))
         .thenThrow(new IllegalStateException("network unavailable"));
 
-    assertThrows(IllegalStateException.class, () -> marketDataService.updateStocks(1L));
+    marketDataService.updateStocks(1L);
 
     verify(statisticsRefreshService).refreshAll();
   }

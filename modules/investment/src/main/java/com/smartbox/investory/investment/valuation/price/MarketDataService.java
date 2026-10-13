@@ -244,10 +244,15 @@ public class MarketDataService {
   private List<YahooFallbackCandidate> fetchYahooFallbackCandidates(List<AssetEntity> assets) {
     List<YahooFallbackCandidate> candidates = new ArrayList<>();
     for (AssetEntity asset : assets) {
-      marketDataProvider
-          .fetchLatestQuote(YahooSymbolResolver.resolve(asset.getSymbol(), asset.getYahoo()))
-          .filter(quote -> quoteCurrencyMatchesAsset(asset, quote))
-          .ifPresent(quote -> candidates.add(new YahooFallbackCandidate(asset, quote)));
+      try {
+        marketDataProvider
+            .fetchLatestQuote(YahooSymbolResolver.resolve(asset.getSymbol(), asset.getYahoo()))
+            .filter(quote -> quoteCurrencyMatchesAsset(asset, quote))
+            .ifPresent(quote -> candidates.add(new YahooFallbackCandidate(asset, quote)));
+      } catch (RuntimeException exception) {
+        log.warn(
+            "Yahoo Finance fallback skipped for {}: {}", asset.getSymbol(), exception.getMessage());
+      }
     }
     return candidates;
   }
