@@ -154,7 +154,6 @@ The separate reserve is the appropriate cash input for runway. Profile defines i
 - Full includes a foreground dune and stronger layered mountain silhouettes; Compact includes a small version of both.
 - Reduced-motion preference disables sand animation.
 - Manual acceptance still required: inspect at 1440×900, 1024×768, 390×844; check overlay collisions, contrast, fullscreen, zero/missing amounts and console errors. No Playwright screenshots have been captured in this environment.
-
 ## Profile reconciliation and semantic color scheme
 - Primary projected economic income comes from `InvestmentProfile.incomeSummary().combinedNetAnnualIncome()`, consistent with Profile.
 - Planning cash income remains separately available as `annualCashIncome` from the LIVE timeline's `totalIncome()`; it is **not** additive to the Profile economic result.
