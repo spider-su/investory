@@ -41,11 +41,7 @@ public class DashboardPeriodViewService {
       DashboardPortfolioPeriodService portfolioPeriodService,
       DashboardBenchmarkPeriodService benchmarkPeriodService) {
     // Preserve the original Spring construction default: MAX does not impose a history cutoff.
-    this(
-        portfolioPeriodService,
-        benchmarkPeriodService,
-        null,
-        Clock.systemDefaultZone());
+    this(portfolioPeriodService, benchmarkPeriodService, null, Clock.systemDefaultZone());
   }
 
   private DashboardPeriodViewService(

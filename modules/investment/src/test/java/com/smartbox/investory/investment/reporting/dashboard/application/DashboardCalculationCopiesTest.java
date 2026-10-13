@@ -6,8 +6,8 @@ import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.model.*;
 import com.smartbox.investory.investment.performance.model.Performance;
 import com.smartbox.investory.investment.performance.model.Portfolio;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodViewService;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardBenchmarkPeriodService;
+import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodViewService;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPortfolioPeriodService;
 import java.time.Clock;
 import java.time.Instant;
@@ -107,7 +107,7 @@ class DashboardPeriodProjectionTest {
 
   @Test
   void missingAndUnavailableModelsDoNotRequireAPeriodBoundary() {
-    DashboardPeriodViewService service = new DashboardPeriodViewService(null, null);
+    DashboardPeriodViewService service = new DashboardPeriodViewService((LocalDate) null, null);
 
     assertThat(service.filter((Portfolio) null, null)).isNull();
     assertThat(service.filter((Benchmark) null, null)).isNull();
