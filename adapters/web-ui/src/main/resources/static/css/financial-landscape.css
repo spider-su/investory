@@ -106,7 +106,6 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 .fl-scene[data-reserve-direction="save"] .fl-dune:after,.fl-compact[data-reserve-direction="save"] .fl-compact-dune:after{content:"";position:absolute;top:8%;right:5%;width:65px;height:4px;border-radius:100%;background:#9edcba;box-shadow:0 0 12px #9edcba;transform:rotate(-30deg);animation:fl-reserve-draw 2.4s ease-in-out infinite reverse}
 @keyframes fl-reserve-draw{0%,100%{opacity:.18;transform:translate(0,0) rotate(-30deg)}50%{opacity:.9;transform:translate(12px,-10px) rotate(-30deg)}}
 @media(prefers-reduced-motion:reduce){.fl-scene .fl-dune:after,.fl-compact .fl-compact-dune:after{animation:none}}
-
 /* Cinematic visual pass. All artwork is layered and non-interactive. */
 .fl-scene{background:radial-gradient(ellipse at 18% 44%,#ad694b7a 0%,transparent 36%),radial-gradient(ellipse at 73% 28%,#34506d9c 0%,transparent 48%),linear-gradient(180deg,#071729 0%,#152738 40%,#574236 68%,#111c28 100%);box-shadow:inset 0 0 95px #02070e9e}
 .fl-atmosphere{position:absolute;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse at 10% 54%,#f6a75e55,transparent 31%),radial-gradient(ellipse at 55% 57%,#e5a36728,transparent 30%);mix-blend-mode:screen}
