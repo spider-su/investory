@@ -46,8 +46,8 @@ class FlywayMigrationChainIT {
           MigrationTestDatabase.singleInt(
               statement,
               "SELECT count(*) FROM investory.flyway_schema_history "
-                  + "WHERE success AND version = '01.012' "
-                  + "AND script = 'V01.012__portfolio_return_from_inception.sql'"));
+                  + "WHERE success AND version = '01.009' "
+                  + "AND script = 'V01.009__market_radar_strategist_forecasts.sql'"));
       try (ResultSet result =
           statement.executeQuery(
               "SELECT pg_get_viewdef('investory.app_v_portfolio_performance_daily'::regclass, true)")) {

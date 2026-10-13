@@ -26,6 +26,21 @@ class InfrastructureConfigTest {
   }
 
   @Test
+  void investmentProfileReadExecutorIsBoundedAndNamed() {
+    var executor = new AsyncConfig().investmentProfileReadExecutor();
+    executor.initialize();
+    try {
+      assertThat(executor.getCorePoolSize()).isEqualTo(4);
+      assertThat(executor.getMaxPoolSize()).isEqualTo(4);
+      assertThat(executor.getThreadNamePrefix()).isEqualTo("investment-profile-read-");
+      assertThat(executor.getThreadPoolExecutor().getRejectedExecutionHandler())
+          .isInstanceOf(java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy.class);
+    } finally {
+      executor.shutdown();
+    }
+  }
+
+  @Test
   void openApiDeclaresVersionAndBasicAuthentication() {
     var api = new OpenApiConfig().investoryOpenAPI();
     assertThat(api.getInfo().getTitle()).isEqualTo("Investory REST API");

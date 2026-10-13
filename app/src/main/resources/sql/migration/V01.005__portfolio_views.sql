@@ -2335,16 +2335,17 @@ CREATE VIEW investory.app_v_portfolio_kpi_summary AS
     investory.application_display_value(contributions.total_deposits) AS total_deposits,
     investory.application_display_value(contributions.total_withdrawals) AS total_withdrawals,
     investory.application_display_value(contributions.net_deposits) AS net_deposits,
-    investory.application_display_value(src.total_cash) AS total_cash,
-    investory.application_display_value(src.total_market_value) AS total_market_value,
-    investory.application_display_value(src.total_equity) AS total_equity,
+    CASE WHEN src.is_complete THEN investory.application_display_value(src.total_cash) ELSE NULL::numeric END AS total_cash,
+    CASE WHEN src.is_complete THEN investory.application_display_value(src.total_market_value) ELSE NULL::numeric END AS total_market_value,
+    CASE WHEN src.is_complete THEN investory.application_display_value(src.total_equity) ELSE NULL::numeric END AS total_equity,
     investory.application_display_value(src.total_realized_profit) AS total_realized_profit,
-    investory.application_display_value(src.total_unrealized_profit) AS total_unrealized_profit,
+    CASE WHEN src.is_complete THEN investory.application_display_value(src.total_unrealized_profit) ELSE NULL::numeric END AS total_unrealized_profit,
     investory.application_display_value(src.total_dividends) AS total_dividends,
     investory.application_display_value(src.total_interest) AS total_interest,
     investory.application_display_value(src.total_fees) AS total_fees,
     investory.application_display_value(src.total_taxes) AS total_taxes,
         CASE
+            WHEN NOT src.is_complete THEN NULL::numeric
             WHEN (contributions.net_deposits > (0)::numeric) THEN investory.application_display_value((((src.total_equity - contributions.net_deposits) / contributions.net_deposits) * (100)::numeric))
             ELSE (0)::numeric
         END AS roi_pct,

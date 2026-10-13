@@ -161,6 +161,15 @@ public class PortfolioPerformanceQuery {
     }
     List<DailyPortfolioValue> dailyValues =
         dailyValues(first.getPortfolioId(), first.getFirstDate(), last.getEndDate());
+    // The first monthly row falls back to its closing equity when there is no earlier
+    // observation. In that case this first day's cash flows are already included in the
+    // opening valuation, so applying them again would distort inception TWR/XIRR.
+    boolean hasPriorMonth =
+        repository.existsByPortfolioIdAndMonthLessThan(
+            first.getPortfolioId(), YearMonth.from(first.getMonth()).atDay(1));
+    if (!hasPriorMonth && !dailyValues.isEmpty()) {
+      dailyValues = dailyValues.stream().skip(1).toList();
+    }
     return new PerformanceResult(
         result.period(),
         result.baseCurrency(),
