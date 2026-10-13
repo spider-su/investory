@@ -14,6 +14,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /** Read-only visualization of existing profile and retirement planning facts. */
 @Controller
@@ -26,7 +27,7 @@ public class FinancialLandscapeController {
   private final Clock clock;
 
   @GetMapping("/portfolios/{portfolioId}/financial-landscape")
-  public String landscape(@PathVariable Long portfolioId, Model model) {
+  public String landscape(@PathVariable Long portfolioId, @RequestParam(name = "view", defaultValue = "full") String view, Model model) {
     InvestmentProfile profile = profiles.loadProfile(portfolioId);
     var currency = profile.currency();
     var planId = plans.resolvePlanId(portfolioId, null).orElse(null);
@@ -59,7 +60,7 @@ public class FinancialLandscapeController {
         "Events", zero(money.eventIncome())));
     model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("landscape", values);
-    return "financial-landscape";
+    return "compact".equalsIgnoreCase(view) ? "financial-landscape-compact" : "financial-landscape";
   }
 
   private static BigDecimal zero(BigDecimal value) {
