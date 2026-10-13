@@ -65,7 +65,7 @@ class FinancialLandscapeControllerTest {
             new PlanningTimeline(CurrencyType.PLN, List.of(live, projected)), Map.of(2026, money)));
 
     var model = new ConcurrentModel();
-    assertThat(controller.landscape(7L, model)).isEqualTo("financial-landscape");
+    assertThat(controller.landscape(7L, "full", model)).isEqualTo("financial-landscape");
     @SuppressWarnings("unchecked")
     Map<String, Object> result = (Map<String, Object>) model.getAttribute("landscape");
     assertThat(result).containsEntry("annualIncome", new BigDecimal("240000"))
@@ -81,6 +81,18 @@ class FinancialLandscapeControllerTest {
   }
 
   @Test
+  void compactUsesSameDataAdapter() {
+    when(timeline.loadForwardTimeline(eq(7L), any(), eq(SimulationScenario.BASE), eq(CurrencyType.PLN)))
+        .thenReturn(new RetirementTimelineContracts.ForwardTimelineResponse(
+            new PlanningTimeline(CurrencyType.PLN, List.of()), Map.of()));
+    var model = new ConcurrentModel();
+    assertThat(controller.landscape(7L, "compact", model)).isEqualTo("financial-landscape-compact");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> data = (Map<String, Object>) model.getAttribute("landscape");
+    assertThat(data).containsEntry("liquidAssets", new BigDecimal("120000"));
+  }
+
+  @Test
   void gracefullyHandlesMissingLiveYearAndPlan() {
     when(plans.resolvePlanId(7L, null)).thenReturn(Optional.empty());
     RetirementProjection projection = mock(RetirementProjection.class);
@@ -91,7 +103,7 @@ class FinancialLandscapeControllerTest {
             new PlanningTimeline(CurrencyType.PLN, List.of()), Map.of()));
 
     var model = new ConcurrentModel();
-    assertThat(controller.landscape(7L, model)).isEqualTo("financial-landscape");
+    assertThat(controller.landscape(7L, "full", model)).isEqualTo("financial-landscape");
     @SuppressWarnings("unchecked")
     Map<String, Object> result = (Map<String, Object>) model.getAttribute("landscape");
     assertThat(result).containsEntry("year", 2026)
