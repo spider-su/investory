@@ -6,7 +6,7 @@ import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.model.*;
 import com.smartbox.investory.investment.performance.model.Performance;
 import com.smartbox.investory.investment.performance.model.Portfolio;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
+import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodViewService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -29,7 +29,7 @@ class DashboardPeriodProjectionTest {
     cached.setMonthlyPerformance(performance);
 
     Portfolio dashboard =
-        new DashboardPeriodFilterService("2020-01-01").filter(cached, DashboardPeriod.YEAR_TO_DATE);
+        new DashboardPeriodViewService("2020-01-01").filter(cached, DashboardPeriod.YEAR_TO_DATE);
 
     assertThat(dashboard.getMonthlyPerformance().getCalculateMonthlyPerformance())
         .containsKey("2026-01");
@@ -49,7 +49,7 @@ class DashboardPeriodProjectionTest {
     cached.setBenchmarkReturnCurve(Arrays.asList(0.5, null));
 
     Benchmark dashboard =
-        new DashboardPeriodFilterService(
+        new DashboardPeriodViewService(
                 LocalDate.of(2020, 1, 1),
                 Clock.fixed(Instant.parse("2026-10-01T10:00:00Z"), ZoneId.of("Europe/Warsaw")))
             .filter(cached, DashboardPeriod.YEAR_TO_DATE);

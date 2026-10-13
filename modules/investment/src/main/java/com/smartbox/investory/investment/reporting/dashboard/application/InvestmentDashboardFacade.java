@@ -30,7 +30,7 @@ import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
 import com.smartbox.investory.investment.reporting.ReturnEstimateCalculator;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardOperationalContextService;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
+import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodViewService;
 import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -49,7 +49,7 @@ public class InvestmentDashboardFacade {
 
   private final PortfolioMetricsService portfolioMetricsService;
   private final BenchmarkService benchmarkService;
-  private final DashboardPeriodFilterService periodFilterService;
+  private final DashboardPeriodViewService periodViewService;
   private final PortfolioPeriodMetricsService periodMetricsService;
   private final String performanceKpiStart;
   private final PortfolioPerformanceQuery performanceQuery;
@@ -60,11 +60,11 @@ public class InvestmentDashboardFacade {
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
       BenchmarkService benchmarkService,
-      DashboardPeriodFilterService periodFilterService) {
+      DashboardPeriodViewService periodViewService) {
     this(
         portfolioMetricsService,
         benchmarkService,
-        periodFilterService,
+        periodViewService,
         new PortfolioPeriodMetricsService(),
         "2026-01-01",
         null,
@@ -76,13 +76,13 @@ public class InvestmentDashboardFacade {
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
       BenchmarkService benchmarkService,
-      DashboardPeriodFilterService periodFilterService,
+      DashboardPeriodViewService periodViewService,
       PortfolioPeriodMetricsService periodMetricsService,
       String performanceKpiStart) {
     this(
         portfolioMetricsService,
         benchmarkService,
-        periodFilterService,
+        periodViewService,
         periodMetricsService,
         performanceKpiStart,
         null,
@@ -94,7 +94,7 @@ public class InvestmentDashboardFacade {
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
       BenchmarkService benchmarkService,
-      DashboardPeriodFilterService periodFilterService,
+      DashboardPeriodViewService periodViewService,
       PortfolioPeriodMetricsService periodMetricsService,
       String performanceKpiStart,
       PortfolioPerformanceQuery performanceQuery,
@@ -103,7 +103,7 @@ public class InvestmentDashboardFacade {
     this(
         portfolioMetricsService,
         benchmarkService,
-        periodFilterService,
+        periodViewService,
         periodMetricsService,
         performanceKpiStart,
         performanceQuery,
@@ -116,7 +116,7 @@ public class InvestmentDashboardFacade {
   public InvestmentDashboardFacade(
       PortfolioMetricsService portfolioMetricsService,
       BenchmarkService benchmarkService,
-      DashboardPeriodFilterService periodFilterService,
+      DashboardPeriodViewService periodViewService,
       PortfolioPeriodMetricsService periodMetricsService,
       @Value("${app.portfolio.performance-kpi-start}") String performanceKpiStart,
       PortfolioPerformanceQuery performanceQuery,
@@ -126,7 +126,7 @@ public class InvestmentDashboardFacade {
           BigDecimal benchmarkExpectedReturn) {
     this.portfolioMetricsService = portfolioMetricsService;
     this.benchmarkService = benchmarkService;
-    this.periodFilterService = periodFilterService;
+    this.periodViewService = periodViewService;
     this.periodMetricsService = periodMetricsService;
     this.performanceKpiStart = yearMonth(performanceKpiStart);
     this.performanceQuery = performanceQuery;
@@ -141,13 +141,13 @@ public class InvestmentDashboardFacade {
         portfolioMetricsService.calculateTotalProfitLoss(query.portfolioId());
     PerformanceResult historicalPerformance =
         canonicalKpiPerformance(calculatedPortfolio.getMonthlyPerformance(), query.portfolioId());
-    Portfolio portfolio = periodFilterService.filter(calculatedPortfolio, selectedPeriod);
+    Portfolio portfolio = periodViewService.filter(calculatedPortfolio, selectedPeriod);
 
     Benchmark benchmarkInput =
         query.hasExplicitAccountSelection()
             ? benchmarkService.calculate(query.portfolioId(), query.accountIds())
             : benchmarkService.calculate(query.portfolioId(), null);
-    Benchmark benchmark = periodFilterService.filter(benchmarkInput, selectedPeriod);
+    Benchmark benchmark = periodViewService.filter(benchmarkInput, selectedPeriod);
     Map<Long, AccountPeriodMetrics> accountPeriodMetrics =
         accountPeriodMetrics(portfolio.getMonthlyPerformance());
     portfolio.setAccountBalances(

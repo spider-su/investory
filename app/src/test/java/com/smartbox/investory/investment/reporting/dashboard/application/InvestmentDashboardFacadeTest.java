@@ -31,7 +31,7 @@ import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.PerformancePeriod;
 import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
+import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodViewService;
 import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -54,7 +54,7 @@ class InvestmentDashboardFacadeTest {
 
   @Mock private PortfolioMetricsService portfolioMetricsService;
   @Mock private BenchmarkService benchmarkService;
-  @Mock private DashboardPeriodFilterService periodFilterService;
+  @Mock private DashboardPeriodViewService periodFilterService;
 
   @BeforeEach
   void returnFilteredCopiesAsExpected() {
@@ -359,7 +359,7 @@ class InvestmentDashboardFacadeTest {
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_MONTH, 1L));
 
     assertEquals(900.0, result.overview().balance());
@@ -428,7 +428,7 @@ class InvestmentDashboardFacadeTest {
         new InvestmentDashboardFacade(
             portfolioMetricsService,
             benchmarkService,
-            new DashboardPeriodFilterService(),
+            new DashboardPeriodViewService(),
             new PortfolioPeriodMetricsService(),
             "2026-01-01",
             performanceQuery,
@@ -473,7 +473,7 @@ class InvestmentDashboardFacadeTest {
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
 
     assertEquals(0.0, result.performance().summary().currentDrawdownPct());
@@ -519,7 +519,7 @@ class InvestmentDashboardFacadeTest {
 
     InvestmentDashboardFacade facade =
         new InvestmentDashboardFacade(
-            portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService());
+            portfolioMetricsService, benchmarkService, new DashboardPeriodViewService());
     DashboardPageView oneMonth =
         facade.loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_MONTH, 1L));
     DashboardPageView threeMonths =
@@ -639,11 +639,11 @@ class InvestmentDashboardFacadeTest {
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.YEAR_TO_DATE, 1L));
     DashboardPageView maxResult =
         new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
 
     AccountBalance periodAccount = result.overview().accountBalances().getFirst();

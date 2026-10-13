@@ -1,81 +1,22 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.model.Benchmark;
-import com.smartbox.investory.investment.performance.model.Performance;
-import com.smartbox.investory.investment.performance.model.Portfolio;
-import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
-import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
-public class DashboardPeriodFilterService {
-
-  private final LocalDate historyStart;
-  private final Clock clock;
-
-  public DashboardPeriodFilterService() {
-    this(null, Clock.systemDefaultZone());
-  }
-
-  public DashboardPeriodFilterService(
-      @Value("${app.history-start:" + FinancialPolicyDefaults.HISTORY_START_TEXT + "}")
-          String historyStart) {
-    this(LocalDate.parse(historyStart), Clock.systemDefaultZone());
-  }
-
-  public DashboardPeriodFilterService(LocalDate historyStart, Clock clock) {
-    this.historyStart = historyStart;
-    this.clock = clock;
-  }
-
-  public Portfolio filter(Portfolio source, DashboardPeriod period) {
-    Portfolio portfolio = copyPortfolio(source);
-    apply(portfolio, period);
-    return portfolio;
-  }
-
-  public Benchmark filter(Benchmark source, DashboardPeriod period) {
-    Benchmark benchmark = copyBenchmark(source);
-    apply(benchmark, period);
-    return benchmark;
-  }
-
-  private void apply(Portfolio portfolio, DashboardPeriod period) {
-    if (portfolio == null || portfolio.getMonthlyPerformance() == null) {
-      return;
-    }
-    Performance performance = portfolio.getMonthlyPerformance();
-    YearMonth start = startMonth(period);
-    if (start == null) {
-      return;
-    }
-    performance.setCalculateMonthlyPerformance(
-        filter(performance.getCalculateMonthlyPerformance(), start));
-    performance.setMonthlyOperationsCount(filter(performance.getMonthlyOperationsCount(), start));
-    performance.setMonthlyCashflow(filter(performance.getMonthlyCashflow(), start));
-    performance.setMonthlyAttributions(filter(performance.getMonthlyAttributions(), start));
-    performance.setTotalProfit(
-        performance.getCalculateMonthlyPerformance().values().stream()
-            .mapToDouble(Double::doubleValue)
-            .sum());
-  }
-
-  private void apply(Benchmark benchmark, DashboardPeriod period) {
+public class DashboardBenchmarkPeriodService {
+  void apply(Benchmark benchmark, YearMonth start) {
     if (benchmark == null || !benchmark.isAvailable()) {
       return;
     }
-    YearMonth start = startMonth(period);
     if (start == null) {
       refreshSummary(benchmark);
       return;
@@ -261,20 +202,6 @@ public class DashboardPeriodFilterService {
     return new java.util.ArrayList<>(values.subList(firstIndex, values.size()));
   }
 
-  private <T> Map<String, T> filter(Map<String, T> values, YearMonth start) {
-    if (values == null || values.isEmpty()) {
-      return new LinkedHashMap<>();
-    }
-    Map<String, T> filtered = new LinkedHashMap<>();
-    values.forEach(
-        (label, value) -> {
-          if (!labelMonth(label).isBefore(start)) {
-            filtered.put(label, value);
-          }
-        });
-    return filtered;
-  }
-
   private int firstIncludedIndex(List<String> labels, YearMonth start) {
     for (int i = 0; i < labels.size(); i++) {
       if (!labelMonth(labels.get(i)).isBefore(start)) {
@@ -290,19 +217,6 @@ public class DashboardPeriodFilterService {
     } catch (DateTimeParseException ignored) {
       return YearMonth.from(LocalDate.parse(label));
     }
-  }
-
-  private YearMonth startMonth(DashboardPeriod period) {
-    // Reporting inputs are monthly. A trailing date range includes the calendar month containing
-    // its start date, so a 1M selection on 15 August includes the July monthly observation.
-    ZonedDateTime now = ZonedDateTime.now(clock);
-    ZonedDateTime requested = period.startDate(now);
-    YearMonth configured = historyStart == null ? null : YearMonth.from(historyStart);
-    return requested == null
-        ? configured
-        : configured != null && YearMonth.from(requested).isBefore(configured)
-            ? configured
-            : YearMonth.from(requested);
   }
 
   private double last(List<Double> values) {
@@ -326,54 +240,7 @@ public class DashboardPeriodFilterService {
     return Math.round(value * 100.0) / 100.0;
   }
 
-  private static Portfolio copyPortfolio(Portfolio source) {
-    if (source == null) return null;
-    Portfolio copy = new Portfolio();
-    copy.setBaseCurrency(source.getBaseCurrency());
-    copy.setRealizedProfit(source.getRealizedProfit());
-    copy.setDividends(source.getDividends());
-    copy.setDividendTax(source.getDividendTax());
-    copy.setCapitalGainsTax(source.getCapitalGainsTax());
-    copy.setLossCarryForward(source.getLossCarryForward());
-    copy.setDeposits(source.getDeposits());
-    copy.setWithdrawals(source.getWithdrawals());
-    copy.setNetDeposits(source.getNetDeposits());
-    copy.setInterest(source.getInterest());
-    copy.setUnrealizedProfit(source.getUnrealizedProfit());
-    copy.setTotalProfit(source.getTotalProfit());
-    copy.setReconciliationStatus(source.getReconciliationStatus());
-    copy.setReconciliationDifference(source.getReconciliationDifference());
-    copy.setDataQuality(source.getDataQuality());
-    copy.setRiskExposure(source.getRiskExposure());
-    copy.setBalance(source.getBalance());
-    copy.setCash(source.getCash());
-    copy.setAccountBalances(source.getAccountBalances());
-    copy.setAccountBalancesTotal(source.getAccountBalancesTotal());
-    copy.setOpenPositionValues(source.getOpenPositionValues());
-    copy.setOpenPositionValuesTotal(source.getOpenPositionValuesTotal());
-    copy.setDividendGainers(source.getDividendGainers());
-    copy.setRoi(source.getRoi());
-    copy.setExchangeRates(copyMap(source.getExchangeRates()));
-    copy.setPerformancePerSymbol(source.getPerformancePerSymbol());
-    copy.setMonthlyPerformance(copyPerformance(source.getMonthlyPerformance()));
-    return copy;
-  }
-
-  private static Performance copyPerformance(Performance source) {
-    if (source == null) return null;
-    Performance copy = new Performance();
-    copy.setBaseCurrency(source.getBaseCurrency());
-    copy.setTotalOpen(source.getTotalOpen());
-    copy.setTotalProfit(source.getTotalProfit());
-    copy.setCalculateMonthlyPerformance(copyMap(source.getCalculateMonthlyPerformance()));
-    copy.setMonthlyOperationsCount(copyMap(source.getMonthlyOperationsCount()));
-    copy.setMonthlyCashflow(copyMap(source.getMonthlyCashflow()));
-    copy.setMonthlyAttributions(copyMap(source.getMonthlyAttributions()));
-    copy.setBase(source.getBase());
-    return copy;
-  }
-
-  private static Benchmark copyBenchmark(Benchmark source) {
+  static Benchmark copyBenchmark(Benchmark source) {
     if (source == null) return null;
     Benchmark copy = new Benchmark();
     copy.setAvailable(source.isAvailable());
