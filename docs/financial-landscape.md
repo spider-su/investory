@@ -57,3 +57,25 @@ The page depends on the same local DB, portfolio, and retirement plan setup as P
 - Both render from the **same** controller data map; compact shows income, expenses, net monthly flow, and liquid assets.
 - Compact has no separate backend, persistence, or calculations; it links back to Full.
 - Added a compact controller unit test; browser/Playwright validation still pending.
+
+## Screenshot test follow-up (2026-10-13)
+
+The first full-mode browser screenshot exposed overlapping mountain artwork, wrapped net cash-flow values, insufficient contrast for asset totals and a fragile absolute-position layout. Follow-up commits on this same PR:
+- Use CSS grid regions for income, hourglass, net cash flow, expenses and asset panels.
+- Reduce the opacity of purely decorative mountains; keep data on solid, contrasting surfaces.
+- Add narrow-screen stacking and wrapping safeguards.
+- Color net cash flow according to sign, rather than showing a negative number in positive green.
+- Show **illustrative liquid-asset runway** only for a negative planned net flow and a known nonnegative liquid-asset balance: `liquidAssets / (-annualNet / 12)`. This is a simplified ratio, not a retirement projection or a guarantee that all assets are available for spending.
+- Reject non-finite numeric inputs for display; do not silently present NaN as a monetary amount.
+- Hide decorative landscape layers from assistive technology.
+
+### Required validation before merge
+- [ ] Run Maven controller tests and application compile.
+- [ ] Test Full and Compact in browser at 1440px, 1024px, 768px, 390px and 320px.
+- [ ] Verify no overlap, clipping, horizontal scroll or unreadable contrast at those widths.
+- [ ] Compare income/expenses/net, currency and year against the authoritative LIVE planning timeline; validate same-currency assumption for liquid assets.
+- [ ] Verify runway for negative, zero, positive and unavailable cash flow; distinguish total liquid assets from the separately reported reserve amount.
+- [ ] Check fullscreen, reduced-motion, keyboard focus and missing-data behavior.
+- [ ] Verify that read-only rendering does not mutate retirement planning data.
+
+No automated browser/device verification is claimed by these follow-up commits.
