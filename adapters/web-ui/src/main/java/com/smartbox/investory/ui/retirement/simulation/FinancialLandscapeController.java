@@ -4,6 +4,9 @@ import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.ui.profile.ProfileClient;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.time.Clock;
 import java.time.Year;
 import java.util.LinkedHashMap;
@@ -24,6 +27,7 @@ public class FinancialLandscapeController {
   private final RetirementProjectionClient projections;
   private final RetirementTimelineClient timeline;
   private final Clock clock;
+  private final AnnualCostsClient annualCosts;
 
   @GetMapping("/portfolios/{portfolioId}/financial-landscape")
   public String landscape(
@@ -59,6 +63,23 @@ public class FinancialLandscapeController {
     values.put("illiquidAssets", profile.illiquidAssets());
     values.put("netWorth", profile.totalNetWorth());
     values.put("reserve", profile.retirementReserve());
+    List<Map<String, Object>> expenseGroups = new ArrayList<>();
+    if (planId != null && year != null) {
+      var costs = annualCosts.load(portfolioId, planId, year.year());
+      for (var group : costs.groups()) {
+        if (group.monthlyAmount() != null && group.monthlyAmount().signum() > 0) {
+          expenseGroups.add(Map.of("name", group.name(), "monthlyAmount", group.monthlyAmount()));
+        }
+      }
+      if (costs.otherMonthlyCosts() != null && costs.otherMonthlyCosts().signum() > 0) {
+        expenseGroups.add(Map.of("name", "Other", "monthlyAmount", costs.otherMonthlyCosts()));
+      }
+      if (costs.annualExtras() != null && costs.annualExtras().signum() > 0) {
+        expenseGroups.add(Map.of("name", "Annual extras",
+            "monthlyAmount", costs.annualExtras().divide(BigDecimal.valueOf(12), 8, java.math.RoundingMode.HALF_UP)));
+      }
+    }
+    values.put("expenseGroups", expenseGroups);
     model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("landscape", values);
     return "compact".equalsIgnoreCase(view) ? "financial-landscape-compact" : "financial-landscape";
