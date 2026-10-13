@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Financial Landscape · Investory</title>
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+  <link href="/css/financial-landscape.css" rel="stylesheet">
+</head>
+<body class="fl-body">
+<main class="fl-app">
+  <header class="fl-header">
+    <div><div class="fl-eyebrow">INVESTORY · FINANCIAL LANDSCAPE</div><h1>Money in motion</h1></div>
+    <div class="fl-actions">
+      <a th:href="@{/portfolios/{id}/investment-profile(id=${portfolioId})}" class="fl-button">← Profile</a>
+      <button type="button" id="fl-fullscreen" class="fl-button">Fullscreen</button>
+    </div>
+  </header>
+  <section class="fl-scene" aria-label="Financial landscape">
+    <div class="fl-stars"></div>
+    <div class="fl-horizon"></div>
+    <div class="fl-mountain fl-mountain--far"></div>
+    <div class="fl-mountain fl-mountain--near"></div>
+    <div class="fl-top"><span>INCOME</span><strong id="fl-income">—</strong><small id="fl-income-rate">—</small></div>
+    <div class="fl-hourglass" aria-hidden="true">
+      <svg viewBox="0 0 260 360" role="img">
+        <defs>
+          <linearGradient id="fl-glass" x1="0" x2="1"><stop stop-color="#79b4d5" stop-opacity=".23"/><stop offset=".5" stop-color="#fff" stop-opacity=".03"/><stop offset="1" stop-color="#79b4d5" stop-opacity=".25"/></linearGradient>
+          <linearGradient id="fl-sand" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe7a4"/><stop offset="1" stop-color="#bd7e37"/></linearGradient>
+          <clipPath id="fl-clip"><path d="M56 20H204Q204 94 139 169Q130 180 139 191Q204 265 204 340H56Q56 265 121 191Q130 180 121 169Q56 94 56 20Z"/></clipPath>
+        </defs>
+        <path d="M56 20H204Q204 94 139 169Q130 180 139 191Q204 265 204 340H56Q56 265 121 191Q130 180 121 169Q56 94 56 20Z" fill="url(#fl-glass)" stroke="#a4c3d1" stroke-width="2"/>
+        <g clip-path="url(#fl-clip)">
+          <path d="M50 84H210L130 177Z" fill="url(#fl-sand)"/>
+          <path class="fl-stream" d="M130 177V283" stroke="#ffe4a0" stroke-width="3" stroke-dasharray="3 7"/>
+          <path d="M50 292Q90 255 130 258Q170 255 210 292V355H50Z" fill="url(#fl-sand)"/>
+        </g>
+        <path d="M48 18H212M48 342H212" stroke="#d5bd91" stroke-width="8" stroke-linecap="round"/>
+        <path d="M68 29Q60 91 119 161M192 29Q200 91 141 161" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="3"/>
+      </svg>
+    </div>
+    <div class="fl-center">
+      <span>AVERAGE CASH FLOW</span>
+      <strong id="fl-net">—</strong>
+      <small id="fl-coverage">—</small>
+    </div>
+    <div class="fl-bottom"><span>EXPENSES</span><strong id="fl-expenses">—</strong><small id="fl-expense-rate">—</small></div>
+    <div class="fl-ground">
+      <div class="fl-reserve"><span>LIQUID RESERVE</span><strong id="fl-liquid">—</strong></div>
+      <div class="fl-reserve"><span>LONG-TERM ASSETS</span><strong id="fl-illiquid">—</strong></div>
+    </div>
+  </section>
+  <footer class="fl-footer">
+    <span id="fl-period">Annual plan, displayed as monthly averages</span>
+    <span>Visual motion is illustrative · values are not live transactions</span>
+  </footer>
+</main>
+<script th:inline="javascript">
+  window.financialLandscape = /*[[${landscape}]]*/ {};
+</script>
+<script src="/js/financial-landscape.js" defer></script>
+</body>
+</html>
