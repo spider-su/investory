@@ -50,3 +50,10 @@ The page depends on the same local DB, portfolio, and retirement plan setup as P
 - Categories, target reserve horizon, interactive asset breakdown, scenario/year selection, automated UI tests, HA integration, and accessibility polish remain follow-ups.
 - Verify current LIVE year semantics and ensure money fields share a display currency before shipping.
 - Verify whether timeline `ensurePlanningTimeline` has writes in the request path; if so, move to an existing safe read-only initialization flow before calling this feature production-ready.
+
+## Compact view (same source of truth)
+- URL: `/portfolios/{portfolioId}/financial-landscape?view=compact`.
+- Full URL remains `/portfolios/{portfolioId}/financial-landscape`.
+- Both render from the **same** controller data map; compact shows income, expenses, net monthly flow, and liquid assets.
+- Compact has no separate backend, persistence, or calculations; it links back to Full.
+- Added a compact controller unit test; browser/Playwright validation still pending.
