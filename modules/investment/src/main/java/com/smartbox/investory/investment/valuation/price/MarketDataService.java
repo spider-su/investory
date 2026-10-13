@@ -214,7 +214,8 @@ public class MarketDataService {
 
   private Set<Long> runChunkInNewTransaction(Map<String, List<AssetEntity>> chunkByTicker) {
     Map<String, MarketQuote> quotes = fetchQuotes(chunkByTicker);
-    Set<Long> updated = chunkTransactionTemplate.execute(ignored -> upsertPrices(chunkByTicker, quotes));
+    Set<Long> updated =
+        chunkTransactionTemplate.execute(ignored -> upsertPrices(chunkByTicker, quotes));
     return com.smartbox.investory.shared.util.CollectionUtils.immutableSetOrEmpty(updated);
   }
 
@@ -658,7 +659,9 @@ public class MarketDataService {
             .collect(Collectors.toSet());
     Map<String, AssetEntity> assetsBySymbol =
         assetRepository.findAllBySymbolIn(symbols).stream()
-            .collect(Collectors.toMap(AssetEntity::getSymbol, asset -> asset, (ignored, latest) -> latest));
+            .collect(
+                Collectors.toMap(
+                    AssetEntity::getSymbol, asset -> asset, (ignored, latest) -> latest));
 
     for (PositionEntity position : positions) {
       AssetEntity asset = assetsBySymbol.get(position.getSymbol());
