@@ -8,11 +8,12 @@
   const format = value => value === null || !Number.isFinite(value)
     ? 'Unavailable'
     : new Intl.NumberFormat('en-GB', {maximumFractionDigits: 0, style: 'currency', currency}).format(value);
+  const rate = value => value === null ? 'Unavailable' : new Intl.NumberFormat('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 3}).format(value) + ' ' + currency;
   const set = (id, value) => {const el = document.getElementById(id); if (el) el.textContent = value;};
   set('fl-income', format(income === null ? null : income / 12) + ' / month');
   set('fl-expenses', format(expenses === null ? null : expenses / 12) + ' / month');
-  set('fl-income-rate', income === null ? 'No planning income' : format(income / (365.2425 * 24 * 60)) + ' / min');
-  set('fl-expense-rate', expenses === null ? 'No planning expenses' : format(expenses / (365.2425 * 24 * 60)) + ' / min');
+  set('fl-income-rate', income === null ? 'No planning income' : rate(income / (365.2425 * 24 * 60)) + ' / min');
+  set('fl-expense-rate', expenses === null ? 'No planning expenses' : rate(expenses / (365.2425 * 24 * 60)) + ' / min');
   const net = income === null || expenses === null ? null : (income - expenses) / 12;
   set('fl-net', (net !== null && net > 0 ? '+' : '') + format(net) + ' / month');
   set('fl-coverage', income === null || expenses === null ? 'Planning data unavailable' : expenses === 0 ? 'No planned spending' : Math.round(income / expenses * 100) + '% income coverage');
