@@ -4,7 +4,6 @@ import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.ui.profile.ProfileClient;
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Year;
 import java.util.LinkedHashMap;
@@ -27,18 +26,23 @@ public class FinancialLandscapeController {
   private final Clock clock;
 
   @GetMapping("/portfolios/{portfolioId}/financial-landscape")
-  public String landscape(@PathVariable Long portfolioId, @RequestParam(name = "view", defaultValue = "full") String view, Model model) {
+  public String landscape(
+      @PathVariable Long portfolioId,
+      @RequestParam(name = "view", defaultValue = "full") String view,
+      Model model) {
     InvestmentProfile profile = profiles.loadProfile(portfolioId);
     var currency = profile.currency();
     var planId = plans.resolvePlanId(portfolioId, null).orElse(null);
     var display = projections.loadDisplay(portfolioId, planId, null, null, currency);
-    timeline.ensurePlanningTimeline(portfolioId);
-    var response = timeline.loadForwardTimeline(
-        portfolioId, display.projection(), SimulationScenario.BASE, currency);
+    var response =
+        timeline.loadForwardTimeline(
+            portfolioId, display.projection(), SimulationScenario.BASE, currency);
     int currentYear = Year.now(clock).getValue();
-    var year = response.timeline().years().stream()
-        .filter(row -> row.state() == PlanningTimelineState.LIVE)
-        .findFirst().orElse(null);
+    var year =
+        response.timeline().years().stream()
+            .filter(row -> row.state() == PlanningTimelineState.LIVE)
+            .findFirst()
+            .orElse(null);
     var money = year == null ? null : response.money().get(year.year());
 
     Map<String, Object> values = new LinkedHashMap<>();
@@ -52,18 +56,8 @@ public class FinancialLandscapeController {
     values.put("illiquidAssets", profile.illiquidAssets());
     values.put("netWorth", profile.totalNetWorth());
     values.put("reserve", profile.retirementReserve());
-    values.put("incomeSources", money == null ? Map.of() : Map.of(
-        "Rental", zero(money.rentalIncome()),
-        "Bonds", zero(money.bondIncome()),
-        "Employment", zero(money.employmentIncome()),
-        "Pension", zero(money.pensionIncome()),
-        "Events", zero(money.eventIncome())));
     model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("landscape", values);
     return "compact".equalsIgnoreCase(view) ? "financial-landscape-compact" : "financial-landscape";
-  }
-
-  private static BigDecimal zero(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
   }
 }

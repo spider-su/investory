@@ -42,13 +42,15 @@ class FinancialLandscapeControllerTest {
     when(plans.resolvePlanId(7L, null)).thenReturn(Optional.of(11L));
     RetirementProjection projection = mock(RetirementProjection.class);
     when(projections.loadDisplay(eq(7L), eq(11L), isNull(), isNull(), eq(CurrencyType.PLN)))
-        .thenReturn(new RetirementProjectionContracts.DisplayProjectionResponse(projection, Map.of()));
+        .thenReturn(
+            new RetirementProjectionContracts.DisplayProjectionResponse(projection, Map.of()));
   }
 
   @Test
   void usesOnlyLivePlanningCashFlowAndProfileAssetFacts() {
     var live = new PlanningTimelineYear(2026, 40, PlanningTimelineState.LIVE, null, null, null);
-    var projected = new PlanningTimelineYear(2027, 41, PlanningTimelineState.PROJECTED, null, null, null);
+    var projected =
+        new PlanningTimelineYear(2027, 41, PlanningTimelineState.PROJECTED, null, null, null);
     PlanningTimelineMoney money = mock(PlanningTimelineMoney.class);
     when(money.totalIncome()).thenReturn(new BigDecimal("240000"));
     when(money.annualCosts()).thenReturn(new BigDecimal("180000"));
@@ -60,21 +62,28 @@ class FinancialLandscapeControllerTest {
     when(money.bondReturn()).thenReturn(new BigDecimal("999999"));
     when(money.equityReturn()).thenReturn(new BigDecimal("999999"));
     when(money.investmentWithdrawal()).thenReturn(new BigDecimal("999999"));
-    when(timeline.loadForwardTimeline(eq(7L), any(), eq(SimulationScenario.BASE), eq(CurrencyType.PLN)))
-        .thenReturn(new RetirementTimelineContracts.ForwardTimelineResponse(
-            new PlanningTimeline(CurrencyType.PLN, List.of(live, projected)), Map.of(2026, money)));
+    when(timeline.loadForwardTimeline(
+            eq(7L), any(), eq(SimulationScenario.BASE), eq(CurrencyType.PLN)))
+        .thenReturn(
+            new RetirementTimelineContracts.ForwardTimelineResponse(
+                new PlanningTimeline(CurrencyType.PLN, List.of(live, projected)),
+                Map.of(2026, money)));
 
     var model = new ConcurrentModel();
     assertThat(controller.landscape(7L, "full", model)).isEqualTo("financial-landscape");
     @SuppressWarnings("unchecked")
     Map<String, Object> result = (Map<String, Object>) model.getAttribute("landscape");
-    assertThat(result).containsEntry("annualIncome", new BigDecimal("240000"))
+    assertThat(result)
+        .containsEntry("annualIncome", new BigDecimal("240000"))
         .containsEntry("annualExpenses", new BigDecimal("180000"))
         .containsEntry("annualSurplus", new BigDecimal("60000"))
+        .containsEntry("annualGap", BigDecimal.ZERO)
         .containsEntry("liquidAssets", new BigDecimal("120000"))
+        .containsEntry("reserve", new BigDecimal("90000"))
         .containsEntry("illiquidAssets", new BigDecimal("850000"))
-        .containsEntry("currency", "PLN").containsEntry("year", 2026);
-    verify(timeline).ensurePlanningTimeline(7L);
+        .containsEntry("currency", "PLN")
+        .containsEntry("year", 2026);
+    verify(timeline, never()).ensurePlanningTimeline(anyLong());
     verify(money, never()).bondReturn();
     verify(money, never()).equityReturn();
     verify(money, never()).investmentWithdrawal();
@@ -82,9 +91,11 @@ class FinancialLandscapeControllerTest {
 
   @Test
   void compactUsesSameDataAdapter() {
-    when(timeline.loadForwardTimeline(eq(7L), any(), eq(SimulationScenario.BASE), eq(CurrencyType.PLN)))
-        .thenReturn(new RetirementTimelineContracts.ForwardTimelineResponse(
-            new PlanningTimeline(CurrencyType.PLN, List.of()), Map.of()));
+    when(timeline.loadForwardTimeline(
+            eq(7L), any(), eq(SimulationScenario.BASE), eq(CurrencyType.PLN)))
+        .thenReturn(
+            new RetirementTimelineContracts.ForwardTimelineResponse(
+                new PlanningTimeline(CurrencyType.PLN, List.of()), Map.of()));
     var model = new ConcurrentModel();
     assertThat(controller.landscape(7L, "compact", model)).isEqualTo("financial-landscape-compact");
     @SuppressWarnings("unchecked")
@@ -97,17 +108,22 @@ class FinancialLandscapeControllerTest {
     when(plans.resolvePlanId(7L, null)).thenReturn(Optional.empty());
     RetirementProjection projection = mock(RetirementProjection.class);
     when(projections.loadDisplay(eq(7L), isNull(), isNull(), isNull(), eq(CurrencyType.PLN)))
-        .thenReturn(new RetirementProjectionContracts.DisplayProjectionResponse(projection, Map.of()));
-    when(timeline.loadForwardTimeline(eq(7L), any(), eq(SimulationScenario.BASE), eq(CurrencyType.PLN)))
-        .thenReturn(new RetirementTimelineContracts.ForwardTimelineResponse(
-            new PlanningTimeline(CurrencyType.PLN, List.of()), Map.of()));
+        .thenReturn(
+            new RetirementProjectionContracts.DisplayProjectionResponse(projection, Map.of()));
+    when(timeline.loadForwardTimeline(
+            eq(7L), any(), eq(SimulationScenario.BASE), eq(CurrencyType.PLN)))
+        .thenReturn(
+            new RetirementTimelineContracts.ForwardTimelineResponse(
+                new PlanningTimeline(CurrencyType.PLN, List.of()), Map.of()));
 
     var model = new ConcurrentModel();
     assertThat(controller.landscape(7L, "full", model)).isEqualTo("financial-landscape");
     @SuppressWarnings("unchecked")
     Map<String, Object> result = (Map<String, Object>) model.getAttribute("landscape");
-    assertThat(result).containsEntry("year", 2026)
-        .containsEntry("annualIncome", null).containsEntry("annualExpenses", null);
+    assertThat(result)
+        .containsEntry("year", 2026)
+        .containsEntry("annualIncome", null)
+        .containsEntry("annualExpenses", null);
     verify(projections).loadDisplay(7L, null, null, null, CurrencyType.PLN);
   }
 }

@@ -28,14 +28,16 @@
   const coverageFill = document.getElementById('fl-coverage-fill');
   if (coverageBar) { coverageBar.setAttribute('aria-valuenow', String(Math.round(Math.min(100, coverage ?? 0)))); coverageBar.setAttribute('aria-valuetext', coverage === null ? 'Unavailable' : Math.round(coverage) + '% income coverage'); }
   if (coverageFill) coverageFill.style.width = Math.min(100, coverage ?? 0) + '%';
-  const annualGap = income === null || expenses === null ? null : Math.max(0, expenses - income);
+  const annualGap = numeric(data.annualGap);
   set('fl-annual-gap', annualGap === null ? 'Annual gap unavailable' : annualGap > 0 ? format(annualGap) + ' projected annual gap' : 'No projected annual gap');
   const liquid = numeric(data.liquidAssets);
   set('fl-liquid', format(liquid));
+  const reserve = numeric(data.reserve);
+  set('fl-cash-reserve', format(reserve));
   const runway = document.getElementById('fl-runway');
   if (runway) {
-    const months = net !== null && net < 0 && liquid !== null && liquid >= 0 ? liquid / -net : null;
-    runway.textContent = months === null ? (net !== null && net >= 0 ? 'No projected monthly deficit' : 'Reserve runway unavailable') : 'Illustrative liquid-asset runway: ' + new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 }).format(months) + ' months';
+    const months = net !== null && net < 0 && reserve !== null && reserve >= 0 ? reserve / -net : null;
+    runway.textContent = months === null ? (net !== null && net >= 0 ? 'No projected monthly deficit' : 'Cash-reserve runway unavailable') : 'Illustrative cash-reserve runway: ' + new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 }).format(months) + ' months';
   }
   set('fl-illiquid', format(numeric(data.illiquidAssets)));
   set('fl-worth', format(numeric(data.netWorth)));
