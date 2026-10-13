@@ -12,7 +12,9 @@ client seam. The public API delegates to
 `DashboardPeriodViewService`. It does not recalculate reporting values. The facade maps those
 results into immutable section view models: overview, performance, positions, cash flow, risk, and
 data quality. Financial truth remains in the existing portfolio services and the `account_daily`
-reporting pipeline.
+reporting pipeline. Canonical performance results are reused by portfolio and inclusive month range
+within each dashboard or KPI load. A later load starts with no retained results, so this reuse does
+not add another cache invalidation boundary.
 
 The dashboard facade lives in `investment.reporting.dashboard.application`; its public immutable
 page and section models live in `investment.api.reporting.model`. Supporting

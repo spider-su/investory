@@ -55,13 +55,13 @@ public class DashboardOperationalContextService {
     Optional<ImportHistoryEntity> latestImport =
         importRepository.findFirstByPortfolioIdAndStatusOrderByFinishedAtDesc(
             portfolioId, ImportBatchStatus.COMPLETED);
+    List<AccountEntity> portfolioAccounts =
+        accountRepository == null ? List.of() : accountRepository.findAllByPortfolioId(portfolioId);
     var portfolioAccountIds =
-        accountRepository == null
-            ? java.util.Set.<Long>of()
-            : accountRepository.findAllByPortfolioId(portfolioId).stream()
-                .map(AccountEntity::getId)
-                .filter(java.util.Objects::nonNull)
-                .collect(java.util.stream.Collectors.toSet());
+        portfolioAccounts.stream()
+            .map(AccountEntity::getId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
     List<AccountStatisticsEntity> accounts =
         accountStatisticsRepository.findAllByAccountIdIn(portfolioAccountIds);
     ZonedDateTime latestTransaction =
@@ -71,7 +71,7 @@ public class DashboardOperationalContextService {
             .max(Comparator.naturalOrder())
             .orElse(null);
     ImportHistoryEntity imported = latestImport.orElse(null);
-    long updatedAccounts = countReportingAccounts(portfolioId, quality, accounts);
+    long updatedAccounts = countReportingAccounts(quality, accounts, portfolioAccounts);
     var importContext =
         new DashboardOperationalView.ImportContext(
             imported == null ? null : imported.getFinishedAt(),
@@ -98,13 +98,11 @@ public class DashboardOperationalContextService {
   }
 
   private long countReportingAccounts(
-      Long portfolioId,
       PortfolioDataQuality quality,
-      List<AccountStatisticsEntity> accountStatistics) {
+      List<AccountStatisticsEntity> accountStatistics,
+      List<AccountEntity> portfolioAccounts) {
     if (accountRepository != null) {
-      return accountRepository.findAllByPortfolioId(portfolioId).stream()
-          .filter(account -> !account.isCashOnly())
-          .count();
+      return portfolioAccounts.stream().filter(account -> !account.isCashOnly()).count();
     }
     return quality.reconciledAccounts() > 0
         ? quality.reconciledAccounts()
