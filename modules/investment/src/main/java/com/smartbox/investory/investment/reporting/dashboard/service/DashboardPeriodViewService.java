@@ -39,13 +39,12 @@ public class DashboardPeriodViewService {
   @org.springframework.beans.factory.annotation.Autowired
   public DashboardPeriodViewService(
       DashboardPortfolioPeriodService portfolioPeriodService,
-      DashboardBenchmarkPeriodService benchmarkPeriodService,
-      @Value("${app.history-start:" + FinancialPolicyDefaults.HISTORY_START_TEXT + "}")
-          String historyStart) {
+      DashboardBenchmarkPeriodService benchmarkPeriodService) {
+    // Preserve the original Spring construction default: MAX does not impose a history cutoff.
     this(
         portfolioPeriodService,
         benchmarkPeriodService,
-        LocalDate.parse(historyStart),
+        null,
         Clock.systemDefaultZone());
   }
 
@@ -62,13 +61,18 @@ public class DashboardPeriodViewService {
 
   public Portfolio filter(Portfolio source, DashboardPeriod period) {
     Portfolio portfolio = DashboardPortfolioPeriodService.copyPortfolio(source);
-    portfolioPeriodService.apply(portfolio, startMonth(period));
+    // The original service skipped period calculation for absent monthly performance.
+    YearMonth start =
+        source == null || source.getMonthlyPerformance() == null ? null : startMonth(period);
+    portfolioPeriodService.apply(portfolio, start);
     return portfolio;
   }
 
   public Benchmark filter(Benchmark source, DashboardPeriod period) {
     Benchmark benchmark = DashboardBenchmarkPeriodService.copyBenchmark(source);
-    benchmarkPeriodService.apply(benchmark, startMonth(period));
+    // Preserve the original early return for null and unavailable benchmarks.
+    YearMonth start = source == null || !source.isAvailable() ? null : startMonth(period);
+    benchmarkPeriodService.apply(benchmark, start);
     return benchmark;
   }
 
