@@ -132,7 +132,6 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 .fl-expense-stream::before{content:"";display:block;width:85%;height:32%;border-top:var(--stream-weight,3px) dotted #f5bf77;border-radius:60% 40% 0 0;filter:drop-shadow(0 0 6px #ffbc69);opacity:.8}
 .fl-expense-stream strong{font-size:11px;color:#f3bd80}
 @media(max-width:760px){.fl-expense-stream{font-size:9px}.fl-expense-stream strong{font-size:9px}}
-
 /* Focused cinematic composition: compact clock and full-view distribution. */
 .fl-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .fl-compact{width:min(100%,900px);background:radial-gradient(ellipse at 32% 62%,#92623f60,transparent 55%),linear-gradient(180deg,#0c192a,#172536 72%,#101b29)}
