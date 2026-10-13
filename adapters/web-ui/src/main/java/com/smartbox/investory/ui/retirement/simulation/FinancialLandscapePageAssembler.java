@@ -38,7 +38,8 @@ final class FinancialLandscapePageAssembler {
     RetirementProjection projection = projections.load(portfolioId, planId);
     var profile = projection.profile();
     var currency = profile.currency();
-    var response = timeline.loadForwardTimeline(portfolioId, projection, SimulationScenario.BASE, currency);
+    var response =
+        timeline.loadForwardTimeline(portfolioId, projection, SimulationScenario.BASE, currency);
     int currentYear = Year.now(clock).getValue();
     var liveYear =
         response.timeline().years().stream()
@@ -48,20 +49,25 @@ final class FinancialLandscapePageAssembler {
     var money = liveYear == null ? null : response.money().get(liveYear.year());
     List<FinancialLandscapePageView.ExpenseGroupView> expenseGroups = new ArrayList<>();
     if (planId != null && liveYear != null) {
-      RetirementAnnualCostsApi.AnnualCosts costs = annualCosts.load(portfolioId, planId, liveYear.year());
+      RetirementAnnualCostsApi.AnnualCosts costs =
+          annualCosts.load(portfolioId, planId, liveYear.year());
       for (var group : costs.groups()) {
         if (group.monthlyAmount() != null && group.monthlyAmount().signum() > 0) {
-          expenseGroups.add(new FinancialLandscapePageView.ExpenseGroupView(group.name(), group.monthlyAmount()));
+          expenseGroups.add(
+              new FinancialLandscapePageView.ExpenseGroupView(group.name(), group.monthlyAmount()));
         }
       }
       if (costs.otherMonthlyCosts() != null && costs.otherMonthlyCosts().signum() > 0) {
-        expenseGroups.add(new FinancialLandscapePageView.ExpenseGroupView("Other", costs.otherMonthlyCosts()));
+        expenseGroups.add(
+            new FinancialLandscapePageView.ExpenseGroupView("Other", costs.otherMonthlyCosts()));
       }
       if (costs.annualExtras() != null && costs.annualExtras().signum() > 0) {
         expenseGroups.add(
             new FinancialLandscapePageView.ExpenseGroupView(
                 "Annual extras",
-                costs.annualExtras().divide(BigDecimal.valueOf(12), 8, java.math.RoundingMode.HALF_UP)));
+                costs
+                    .annualExtras()
+                    .divide(BigDecimal.valueOf(12), 8, java.math.RoundingMode.HALF_UP)));
       }
     }
     return new FinancialLandscapePageView(
