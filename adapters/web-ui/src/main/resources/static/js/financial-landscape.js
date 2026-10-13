@@ -23,6 +23,13 @@
   const flowPanel = document.querySelector('.fl-center');
   if (flowPanel) flowPanel.dataset.flow = net === null || net === 0 ? 'neutral' : net < 0 ? 'negative' : 'positive';
   set('fl-coverage', income === null || expenses === null ? 'Planning data unavailable' : expenses === 0 ? 'No planned spending' : Math.round(income / expenses * 100) + '% income coverage');
+  const coverage = income === null || expenses === null || expenses <= 0 ? null : Math.max(0, income / expenses * 100);
+  const coverageBar = document.getElementById('fl-coverage-bar');
+  const coverageFill = document.getElementById('fl-coverage-fill');
+  if (coverageBar) { coverageBar.setAttribute('aria-valuenow', String(Math.round(Math.min(100, coverage ?? 0)))); coverageBar.setAttribute('aria-valuetext', coverage === null ? 'Unavailable' : Math.round(coverage) + '% income coverage'); }
+  if (coverageFill) coverageFill.style.width = Math.min(100, coverage ?? 0) + '%';
+  const annualGap = income === null || expenses === null ? null : Math.max(0, expenses - income);
+  set('fl-annual-gap', annualGap === null ? 'Annual gap unavailable' : annualGap > 0 ? format(annualGap) + ' projected annual gap' : 'No projected annual gap');
   const liquid = numeric(data.liquidAssets);
   set('fl-liquid', format(liquid));
   const runway = document.getElementById('fl-runway');
@@ -31,6 +38,7 @@
     runway.textContent = months === null ? (net !== null && net >= 0 ? 'No projected monthly deficit' : 'Reserve runway unavailable') : 'Illustrative liquid-asset runway: ' + new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 }).format(months) + ' months';
   }
   set('fl-illiquid', format(numeric(data.illiquidAssets)));
+  set('fl-worth', format(numeric(data.netWorth)));
   set('fl-period', (data.year || 'Current') + ' · full-year plan as monthly averages');
   const full = document.getElementById('fl-fullscreen');
   full?.addEventListener('click', () => {
