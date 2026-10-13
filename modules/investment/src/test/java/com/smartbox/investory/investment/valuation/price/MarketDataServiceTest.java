@@ -725,8 +725,7 @@ class MarketDataServiceTest {
               return null;
             })
         .when(assetPriceHistoryRepository)
-        .upsertObservedPrice(
-            any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        .upsertObservedPrice(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
     marketDataService.updateStocks(1L);
 
@@ -763,8 +762,7 @@ class MarketDataServiceTest {
               return null;
             })
         .when(assetPriceHistoryRepository)
-        .upsertObservedPrice(
-            any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        .upsertObservedPrice(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
     marketDataService.updateStocks(1L);
 
