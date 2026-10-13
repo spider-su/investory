@@ -213,14 +213,109 @@ public class MarketDataService {
   }
 
   private Set<Long> runChunkInNewTransaction(Map<String, List<AssetEntity>> chunkByTicker) {
-    Set<Long> updated =
-        chunkTransactionTemplate.execute(status -> fetchAndUpsertPrices(chunkByTicker));
+    Map<String, MarketQuote> quotes = fetchQuotes(chunkByTicker);
+    Set<Long> updated = chunkTransactionTemplate.execute(ignored -> upsertPrices(chunkByTicker, quotes));
     return com.smartbox.investory.shared.util.CollectionUtils.immutableSetOrEmpty(updated);
   }
 
   private void runYahooFallbackInNewTransaction(List<AssetEntity> assets) {
-    if (!assets.isEmpty()) {
-      chunkTransactionTemplate.executeWithoutResult(status -> fetchAndUpsertYahooFallbacks(assets));
+    List<YahooFallbackCandidate> candidates = fetchYahooFallbackCandidates(assets);
+    if (!candidates.isEmpty()) {
+      chunkTransactionTemplate.executeWithoutResult(ignored -> upsertYahooFallbacks(candidates));
+    }
+  }
+
+  private Map<String, MarketQuote> fetchQuotes(Map<String, List<AssetEntity>> chunkByTicker) {
+    List<String> tickers = List.copyOf(chunkByTicker.keySet());
+    if (tickers.isEmpty()) {
+      return Map.of();
+    }
+    log.info("Fetching quotes for: {}", tickers);
+    return marketDataProvider.fetchQuotes(tickers);
+  }
+
+  private List<YahooFallbackCandidate> fetchYahooFallbackCandidates(List<AssetEntity> assets) {
+    List<YahooFallbackCandidate> candidates = new ArrayList<>();
+    for (AssetEntity asset : assets) {
+      marketDataProvider
+          .fetchLatestQuote(YahooSymbolResolver.resolve(asset.getSymbol(), asset.getYahoo()))
+          .filter(quote -> quoteCurrencyMatchesAsset(asset, quote))
+          .ifPresent(quote -> candidates.add(new YahooFallbackCandidate(asset, quote)));
+    }
+    return candidates;
+  }
+
+  private Set<Long> upsertPrices(
+      Map<String, List<AssetEntity>> chunkByTicker, Map<String, MarketQuote> quotes) {
+    ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
+    List<AssetEntity> toSave = new ArrayList<>();
+    Set<Long> updatedAssetIds = new java.util.HashSet<>();
+    chunkByTicker.forEach(
+        (ticker, assets) -> {
+          MarketQuote quote = findQuote(quotes, ticker, assets);
+          if (quote == null) {
+            return;
+          }
+          for (AssetEntity asset : assets) {
+            if (!isUsableQuote(asset, quote)) {
+              continue;
+            }
+            double marketPrice = quote.getClose();
+            BigDecimal monetaryPrice = monetaryPrice(asset, marketPrice);
+            asset.setMarketPrice(monetaryPrice);
+            // Legacy UI/export cache only. Reporting selects price and currency from
+            // app_v_current_asset_price, then performs the one required FX conversion.
+            updateUsdPriceCache(
+                asset, monetaryPrice.doubleValue(), asset.getCurrency(), quoteDate(quote));
+            asset.setPriceSource("YahooFinance");
+            asset.setPriceUpdatedAt(now);
+            toSave.add(asset);
+            if (asset.getId() != null) {
+              updatedAssetIds.add(asset.getId());
+            }
+            assetPriceHistoryRepository.upsertObservedPrice(
+                asset.getId(),
+                quoteDate(quote),
+                "YAHOO_FINANCE",
+                yahooSymbol(asset),
+                asset.getSymbol(),
+                "YAHOO_FINANCE_MARKET_CLOSE",
+                quoteCurrency(asset, quote),
+                BigDecimal.valueOf(marketPrice),
+                100,
+                marketPriceQuality(asset));
+          }
+        });
+    assetRepository.saveAll(toSave);
+    return updatedAssetIds;
+  }
+
+  private void upsertYahooFallbacks(List<YahooFallbackCandidate> candidates) {
+    List<AssetEntity> toSave = new ArrayList<>();
+    for (YahooFallbackCandidate candidate : candidates) {
+      AssetEntity asset = candidate.asset();
+      LatestQuote quote = candidate.quote();
+      BigDecimal monetaryPrice = monetaryPrice(asset, quote.price());
+      asset.setMarketPrice(monetaryPrice);
+      updateUsdPriceCache(asset, monetaryPrice.doubleValue(), asset.getCurrency(), quote.date());
+      asset.setPriceSource("YahooFinance");
+      asset.setPriceUpdatedAt(applicationTime.now(applicationTime.businessZone()));
+      toSave.add(asset);
+      assetPriceHistoryRepository.upsertObservedPrice(
+          asset.getId(),
+          quote.date(),
+          "YAHOO_FINANCE",
+          quote.symbol(),
+          asset.getSymbol(),
+          "YAHOO_FINANCE_MARKET_CLOSE",
+          quote.currency(),
+          BigDecimal.valueOf(quote.price()),
+          100,
+          marketPriceQuality(asset));
+    }
+    if (!toSave.isEmpty()) {
+      assetRepository.saveAll(toSave);
+      log.info("Yahoo Finance fallback updated {} active asset prices", toSave.size());
     }
   }
 
@@ -302,91 +397,6 @@ public class MarketDataService {
     }
   }
 
-  private Set<Long> fetchAndUpsertPrices(Map<String, List<AssetEntity>> chunkByTicker) {
-    List<String> tickers = List.copyOf(chunkByTicker.keySet());
-    if (tickers.isEmpty()) {
-      return Set.of();
-    }
-    log.info("Fetching quotes for: {}", tickers);
-    Map<String, MarketQuote> quotes = marketDataProvider.fetchQuotes(tickers);
-    ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
-
-    List<AssetEntity> toSave = new ArrayList<>();
-    Set<Long> updatedAssetIds = new java.util.HashSet<>();
-    chunkByTicker.forEach(
-        (ticker, assets) -> {
-          MarketQuote quote = findQuote(quotes, ticker, assets);
-          if (quote == null) {
-            return;
-          }
-          for (AssetEntity asset : assets) {
-            if (!isUsableQuote(asset, quote)) {
-              continue;
-            }
-            double marketPrice = quote.getClose();
-            BigDecimal monetaryPrice = monetaryPrice(asset, marketPrice);
-            asset.setMarketPrice(monetaryPrice);
-            // Legacy UI/export cache only. Reporting selects price and currency from
-            // app_v_current_asset_price, then performs the one required FX conversion.
-            updateUsdPriceCache(
-                asset, monetaryPrice.doubleValue(), asset.getCurrency(), quoteDate(quote));
-            asset.setPriceSource("YahooFinance");
-            asset.setPriceUpdatedAt(now);
-            toSave.add(asset);
-            if (asset.getId() != null) {
-              updatedAssetIds.add(asset.getId());
-            }
-            assetPriceHistoryRepository.upsertObservedPrice(
-                asset.getId(),
-                quoteDate(quote),
-                "YAHOO_FINANCE",
-                yahooSymbol(asset),
-                asset.getSymbol(),
-                "YAHOO_FINANCE_MARKET_CLOSE",
-                quoteCurrency(asset, quote),
-                BigDecimal.valueOf(marketPrice),
-                100,
-                marketPriceQuality(asset));
-          }
-        });
-    assetRepository.saveAll(toSave);
-    return updatedAssetIds;
-  }
-
-  private void fetchAndUpsertYahooFallbacks(List<AssetEntity> assets) {
-    List<AssetEntity> toSave = new ArrayList<>();
-    for (AssetEntity asset : assets) {
-      marketDataProvider
-          .fetchLatestQuote(YahooSymbolResolver.resolve(asset.getSymbol(), asset.getYahoo()))
-          .filter(quote -> quoteCurrencyMatchesAsset(asset, quote))
-          .ifPresent(
-              quote -> {
-                BigDecimal monetaryPrice = monetaryPrice(asset, quote.price());
-                asset.setMarketPrice(monetaryPrice);
-                updateUsdPriceCache(
-                    asset, monetaryPrice.doubleValue(), asset.getCurrency(), quote.date());
-                asset.setPriceSource("YahooFinance");
-                asset.setPriceUpdatedAt(applicationTime.now(applicationTime.businessZone()));
-                toSave.add(asset);
-                assetPriceHistoryRepository.upsertObservedPrice(
-                    asset.getId(),
-                    quote.date(),
-                    "YAHOO_FINANCE",
-                    quote.symbol(),
-                    asset.getSymbol(),
-                    "YAHOO_FINANCE_MARKET_CLOSE",
-                    quote.currency(),
-                    BigDecimal.valueOf(quote.price()),
-                    100,
-                    marketPriceQuality(asset));
-              });
-    }
-    if (!toSave.isEmpty()) {
-      assetRepository.saveAll(toSave);
-      log.info("Yahoo Finance fallback updated {} active asset prices", toSave.size());
-    }
-  }
-
   private boolean quoteCurrencyMatchesAsset(AssetEntity asset, LatestQuote quote) {
     if (asset.getCurrency() == null
         || !StringUtils.hasText(quote.currency())
@@ -448,7 +458,7 @@ public class MarketDataService {
   private void updateUsdPriceCache(
       AssetEntity asset, double nativePrice, CurrencyType nativeCurrency, LocalDate valuationDate) {
     if (nativeCurrency == null || valuationDate == null) {
-      asset.setMarketPriceUsd((BigDecimal) null);
+      asset.setMarketPriceUsd(null);
       log.warn(
           "USD price cache unavailable for {}: native currency or valuation date is missing",
           asset.getSymbol());
@@ -463,7 +473,7 @@ public class MarketDataService {
           currencyRateService.convertToBaseCurrency(
               BigDecimal.valueOf(nativePrice), CurrencyType.USD, nativeCurrency, valuationDate));
     } catch (FxRateUnavailableException exception) {
-      asset.setMarketPriceUsd((BigDecimal) null);
+      asset.setMarketPriceUsd(null);
       log.warn(
           "USD price cache unavailable for {} at {}: {}",
           asset.getSymbol(),
@@ -648,7 +658,7 @@ public class MarketDataService {
             .collect(Collectors.toSet());
     Map<String, AssetEntity> assetsBySymbol =
         assetRepository.findAllBySymbolIn(symbols).stream()
-            .collect(Collectors.toMap(AssetEntity::getSymbol, asset -> asset, (a, b) -> b));
+            .collect(Collectors.toMap(AssetEntity::getSymbol, asset -> asset, (ignored, latest) -> latest));
 
     for (PositionEntity position : positions) {
       AssetEntity asset = assetsBySymbol.get(position.getSymbol());
@@ -675,6 +685,8 @@ public class MarketDataService {
     // AccountEntity cash/equity is broker-imported state. Quote refresh must not rewrite it:
     // account statistics will combine broker cash with current market value from assets.
   }
+
+  private record YahooFallbackCandidate(AssetEntity asset, LatestQuote quote) {}
 
   public void syncIbkrPositions(Long portfolioId) {
     requirePortfolioId(portfolioId);
