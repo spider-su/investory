@@ -1,6 +1,6 @@
 # Financial Landscape — decisions and local draft
 
-Status: **Draft / local validation required**. First implementation branch: `codex/financial-landscape-draft`. Do not merge before running and reviewing the page.
+Status: **Draft / local validation required**. Controller unit tests have been added but have **not been executed**; compile and browser checks remain required. First implementation branch: `codex/financial-landscape-draft`. Do not merge before running and reviewing the page.
 
 ## Purpose
 A calm, ambient financial landscape inside Investory. The hourglass represents average planned income and expenses; sand dunes represent liquid and illiquid capital. This is a visualization of existing financial facts, **not** transaction replay, an accounting engine, or a replacement for Profile/Retirement Planning.
@@ -35,7 +35,7 @@ Log in with the development account as described in the project README and open
 The page depends on the same local DB, portfolio, and retirement plan setup as Profile and Simulation. It may show "Unavailable" when no LIVE planning year or annual income/expenses exist. The current version does not add a navigation menu entry: access it directly by URL.
 
 ## Local acceptance checklist
-- [ ] Application compiles and starts; page renders under authenticated portfolio.
+- [ ] Run controller unit tests: `./mvnw -pl adapters/web-ui -am -Dtest=FinancialLandscapeControllerTest -Dsurefire.failIfNoSpecifiedTests=false test` (verify Maven module selector in local checkout).\n- [ ] Application compiles and starts; page renders under authenticated portfolio.
 - [ ] Income/expenses match Simulation LIVE annual amounts divided by 12.
 - [ ] Liquid/illiquid values match Profile in the same display currency.
 - [ ] Annual investment result/unrealized P/L are **not** counted as cash income.
