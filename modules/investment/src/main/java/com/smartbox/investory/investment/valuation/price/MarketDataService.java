@@ -629,8 +629,9 @@ public class MarketDataService {
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void fullPortfolioUpdate() {
     for (Long portfolioId : accountRepository.findDistinctPortfolioIds()) {
-      fullPortfolioUpdate(portfolioId);
+      refreshMarketPricesAndPositions(portfolioId);
     }
+    statisticsRefreshService.refreshCurrentMarketPrices();
   }
 
   /**
