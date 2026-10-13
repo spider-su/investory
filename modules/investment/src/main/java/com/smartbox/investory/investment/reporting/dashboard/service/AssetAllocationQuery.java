@@ -28,6 +28,15 @@ public class AssetAllocationQuery {
   }
 
   public AssetAllocationView load(Long portfolioId, Portfolio portfolio) {
+    return allocation(load(portfolioId), portfolio);
+  }
+
+  AllocationSnapshot loadSnapshot(Long portfolioId) {
+    return load(portfolioId);
+  }
+
+  /** Loads the request-local input shared by allocation and canonical holding projections. */
+  AllocationSnapshot load(Long portfolioId) {
     List<PortfolioAssetAllocationEntity> rows =
         allocationRepository.findAllByPortfolioId(portfolioId);
     Map<Long, AssetEntity> assets =
@@ -35,12 +44,17 @@ public class AssetAllocationQuery {
             .findAllById(rows.stream().map(PortfolioAssetAllocationEntity::getAssetId).toList())
             .stream()
             .collect(java.util.stream.Collectors.toMap(AssetEntity::getId, asset -> asset));
+    return new AllocationSnapshot(rows, assets);
+  }
+
+  AssetAllocationView allocation(AllocationSnapshot snapshot, Portfolio portfolio) {
     Map<String, MutableBucket> buckets = new LinkedHashMap<>();
     double invested = 0.0;
-    for (PortfolioAssetAllocationEntity row : rows) {
+    for (PortfolioAssetAllocationEntity row : snapshot.rows()) {
       double value = nz(row.getTotalValueInBaseCurrency());
       if (Math.abs(value) < 0.005) continue;
-      String category = PortfolioAssetCategoryMapper.category(assets.get(row.getAssetId()));
+      String category =
+          PortfolioAssetCategoryMapper.category(snapshot.assets().get(row.getAssetId()));
       buckets
           .computeIfAbsent(category, ignored -> new MutableBucket())
           .add(value, row.getAssetSymbol());
@@ -64,7 +78,11 @@ public class AssetAllocationQuery {
 
   /** Canonical valued holdings from app_v_portfolio_asset_allocation. */
   List<CanonicalHolding> canonicalHoldings(Long portfolioId) {
-    return allocationRepository.findAllByPortfolioId(portfolioId).stream()
+    return canonicalHoldings(load(portfolioId));
+  }
+
+  List<CanonicalHolding> canonicalHoldings(AllocationSnapshot snapshot) {
+    return snapshot.rows().stream()
         .filter(
             row ->
                 row.getAssetSymbol() != null
@@ -93,6 +111,9 @@ public class AssetAllocationQuery {
 
   record CanonicalHolding(
       String symbol, java.math.BigDecimal value, java.math.BigDecimal unrealized) {}
+
+  record AllocationSnapshot(
+      List<PortfolioAssetAllocationEntity> rows, Map<Long, AssetEntity> assets) {}
 
   private static double nz(java.math.BigDecimal value) {
     return value == null ? 0.0 : value.doubleValue();

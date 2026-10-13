@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +32,7 @@ import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.PerformancePeriod;
 import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
+import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodViewService;
 import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -54,7 +55,7 @@ class InvestmentDashboardFacadeTest {
 
   @Mock private PortfolioMetricsService portfolioMetricsService;
   @Mock private BenchmarkService benchmarkService;
-  @Mock private DashboardPeriodFilterService periodFilterService;
+  @Mock private DashboardPeriodViewService periodFilterService;
 
   @BeforeEach
   void returnFilteredCopiesAsExpected() {
@@ -359,7 +360,7 @@ class InvestmentDashboardFacadeTest {
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_MONTH, 1L));
 
     assertEquals(900.0, result.overview().balance());
@@ -428,7 +429,7 @@ class InvestmentDashboardFacadeTest {
         new InvestmentDashboardFacade(
             portfolioMetricsService,
             benchmarkService,
-            new DashboardPeriodFilterService(),
+            periodFilterService,
             new PortfolioPeriodMetricsService(),
             "2026-01-01",
             performanceQuery,
@@ -436,7 +437,12 @@ class InvestmentDashboardFacadeTest {
             new PortfolioStructureQuery(null));
     DashboardPageView result =
         facade.loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
+    verify(performanceQuery, times(1))
+        .forPortfolioMonths(1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-02"));
     InvestmentDashboardFacade.PerformanceKpi profileKpi = facade.loadPerformanceKpi(1L);
+    // A separate load reads again instead of retaining potentially stale financial values.
+    verify(performanceQuery, times(2))
+        .forPortfolioMonths(1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-02"));
 
     assertEquals(98.45, result.overview().totalProfit(), 0.001);
     assertEquals(7.25, result.overview().gainPct(), 0.001);
@@ -450,6 +456,21 @@ class InvestmentDashboardFacadeTest {
     // The KPI starts in 2026, so all prior-year slots use fixed SPY returns.
     assertEquals(new BigDecimal("0.1884"), profileKpi.expectedAnnualReturn());
     assertEquals(result.performance().summary().totalReturnStartDate(), profileKpi.startDate());
+
+    Portfolio filtered = new Portfolio();
+    Performance filteredPerformance = new Performance();
+    filteredPerformance.setCalculateMonthlyPerformance(
+        new LinkedHashMap<>(java.util.Map.of("2026-02", 20.0)));
+    filtered.setMonthlyPerformance(filteredPerformance);
+    when(periodFilterService.filter(portfolio, DashboardPeriod.ONE_MONTH)).thenReturn(filtered);
+    when(performanceQuery.forPortfolioMonths(
+            1L, YearMonth.parse("2026-02"), YearMonth.parse("2026-02")))
+        .thenReturn(canonical);
+    facade.loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_MONTH, 1L));
+    verify(performanceQuery, times(3))
+        .forPortfolioMonths(1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-02"));
+    verify(performanceQuery)
+        .forPortfolioMonths(1L, YearMonth.parse("2026-02"), YearMonth.parse("2026-02"));
   }
 
   @DisplayName("calculates Drawdown Income Yield And Concentration Warning")
@@ -473,7 +494,7 @@ class InvestmentDashboardFacadeTest {
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
 
     assertEquals(0.0, result.performance().summary().currentDrawdownPct());
@@ -519,7 +540,7 @@ class InvestmentDashboardFacadeTest {
 
     InvestmentDashboardFacade facade =
         new InvestmentDashboardFacade(
-            portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService());
+            portfolioMetricsService, benchmarkService, new DashboardPeriodViewService());
     DashboardPageView oneMonth =
         facade.loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_MONTH, 1L));
     DashboardPageView threeMonths =
@@ -639,11 +660,11 @@ class InvestmentDashboardFacadeTest {
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.YEAR_TO_DATE, 1L));
     DashboardPageView maxResult =
         new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
 
     AccountBalance periodAccount = result.overview().accountBalances().getFirst();

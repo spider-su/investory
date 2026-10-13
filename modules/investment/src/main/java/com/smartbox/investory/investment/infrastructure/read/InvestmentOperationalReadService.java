@@ -31,6 +31,9 @@ public class InvestmentOperationalReadService
   @Override
   public PortfolioOperationsSnapshot portfolio(Long portfolioId) {
     var value = portfolios.calculateTotalProfitLoss(portfolioId);
+    if (!value.isValuationComplete()) {
+      throw new IllegalStateException("Portfolio valuation incomplete; notifications deferred");
+    }
     return new PortfolioOperationsSnapshot(
         value.getBaseCurrency().name(),
         decimal(value.getBalance()),

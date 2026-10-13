@@ -2,6 +2,8 @@ package com.smartbox.investory.investment.reporting.dashboard.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
@@ -70,5 +72,6 @@ class DashboardOperationalContextServiceTest {
 
     assertThat(view.importContext().accountsProcessed()).isEqualTo(1);
     assertThat(view.freshness().accountsUpdated()).isEqualTo(1);
+    verify(accounts, times(1)).findAllByPortfolioId(1L);
   }
 }

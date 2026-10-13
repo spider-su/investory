@@ -392,14 +392,7 @@ CREATE TABLE investory.reconciliation_price_anomaly_reviews (
     CONSTRAINT reconciliation_price_anomaly_reviews_pkey PRIMARY KEY (issue_code, entity_id, event_date, previous_date, source, source_symbol, previous_value, current_value)
 );
 
-CREATE TABLE investory.yahoo_export_state (
-    id integer NOT NULL,
-    exported_at timestamp with time zone NOT NULL,
-    portfolio_fingerprint character varying(64) NOT NULL,
-    position_count integer DEFAULT 0 NOT NULL,
-    CONSTRAINT yahoo_export_state_id_check CHECK ((id = 1)),
-    CONSTRAINT yahoo_export_state_pkey PRIMARY KEY (id)
-);
+
 
 CREATE TABLE investory.assets (
     id bigint DEFAULT nextval('investory.assets_id_seq'::regclass) NOT NULL,
@@ -492,6 +485,15 @@ CREATE TABLE investory.portfolios (
     CONSTRAINT portfolios_base_currency_fkey FOREIGN KEY (base_currency) REFERENCES investory.currencies(id),
     CONSTRAINT portfolios_local_currency_fkey FOREIGN KEY (local_currency) REFERENCES investory.currencies(id),
     CONSTRAINT portfolios_user_id_fkey FOREIGN KEY (user_id) REFERENCES investory.app_users(id)
+);
+
+CREATE TABLE investory.yahoo_export_state (
+    portfolio_id bigint NOT NULL,
+    exported_at timestamp with time zone NOT NULL,
+    portfolio_fingerprint character varying(64) NOT NULL,
+    position_count integer DEFAULT 0 NOT NULL,
+    CONSTRAINT yahoo_export_state_pkey PRIMARY KEY (portfolio_id),
+    CONSTRAINT yahoo_export_state_portfolio_id_fkey FOREIGN KEY (portfolio_id) REFERENCES investory.portfolios(id) ON DELETE CASCADE
 );
 
 CREATE TABLE investory.accounts (
@@ -607,6 +609,7 @@ CREATE TABLE investory.import_history (
     CONSTRAINT chk_import_history_status_partial_lifecycle CHECK (((status IS DISTINCT FROM 'PARTIAL'::text) OR ((finished_at IS NOT NULL) AND (COALESCE(rows_failed, 0) > 0)))),
     CONSTRAINT chk_import_history_status_started_lifecycle CHECK (((status IS DISTINCT FROM 'STARTED'::text) OR (finished_at IS NULL))),
     CONSTRAINT import_history_pkey PRIMARY KEY (id),
+    CONSTRAINT uq_import_history_id_provider UNIQUE (id, provider),
     CONSTRAINT import_history_portfolio_id_fkey FOREIGN KEY (portfolio_id) REFERENCES investory.portfolios(id),
     CONSTRAINT import_history_provider_fkey FOREIGN KEY (provider) REFERENCES investory.providers(id),
     CONSTRAINT import_history_reprocess_of_fkey FOREIGN KEY (reprocess_of) REFERENCES investory.import_history(id)
@@ -737,7 +740,8 @@ CREATE TABLE investory.import_source_files (
     CONSTRAINT chk_import_source_files_sha256_lower_hex CHECK (((file_sha256)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT chk_import_source_files_size_non_negative CHECK ((original_size >= 0)),
     CONSTRAINT import_source_files_pkey PRIMARY KEY (id),
-    CONSTRAINT import_source_files_import_history_id_fkey FOREIGN KEY (import_history_id) REFERENCES investory.import_history(id) ON DELETE RESTRICT,
+    CONSTRAINT uq_import_source_files_id_history_provider UNIQUE (id, import_history_id, provider),
+    CONSTRAINT import_source_files_history_provider_fkey FOREIGN KEY (import_history_id, provider) REFERENCES investory.import_history(id, provider) ON DELETE RESTRICT,
     CONSTRAINT import_source_files_provider_fkey FOREIGN KEY (provider) REFERENCES investory.providers(id)
 );
 
@@ -799,9 +803,10 @@ CREATE TABLE investory.import_source_rows (
     CONSTRAINT chk_import_source_rows_logical_sha256_lower_hex CHECK (((logical_row_sha256 IS NULL) OR ((logical_row_sha256)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT chk_import_source_rows_occurrence_positive CHECK ((source_row_occurrence >= 1)),
     CONSTRAINT import_source_rows_pkey PRIMARY KEY (id),
-    CONSTRAINT import_source_rows_import_history_id_fkey FOREIGN KEY (import_history_id) REFERENCES investory.import_history(id) ON DELETE RESTRICT,
+    CONSTRAINT uq_import_source_rows_id_history UNIQUE (id, import_history_id),
+    CONSTRAINT import_source_rows_history_provider_fkey FOREIGN KEY (import_history_id, provider) REFERENCES investory.import_history(id, provider) ON DELETE RESTRICT,
     CONSTRAINT import_source_rows_provider_fkey FOREIGN KEY (provider) REFERENCES investory.providers(id),
-    CONSTRAINT import_source_rows_source_file_id_fkey FOREIGN KEY (source_file_id) REFERENCES investory.import_source_files(id) ON DELETE RESTRICT
+    CONSTRAINT import_source_rows_file_history_provider_fkey FOREIGN KEY (source_file_id, import_history_id, provider) REFERENCES investory.import_source_files(id, import_history_id, provider) ON DELETE RESTRICT
 );
 
 CREATE TABLE investory.system_audit_issues (
@@ -843,7 +848,8 @@ CREATE TABLE investory.cash_operations (
     CONSTRAINT cash_operations_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES investory.assets(id),
     CONSTRAINT cash_operations_currency_fkey FOREIGN KEY (currency) REFERENCES investory.currencies(id),
     CONSTRAINT cash_operations_import_history_id_fkey FOREIGN KEY (import_history_id) REFERENCES investory.import_history(id) ON DELETE RESTRICT,
-    CONSTRAINT cash_operations_import_source_row_id_fkey FOREIGN KEY (import_source_row_id) REFERENCES investory.import_source_rows(id) ON DELETE RESTRICT
+    CONSTRAINT chk_cash_operations_source_row_requires_import CHECK (import_source_row_id IS NULL OR import_history_id IS NOT NULL),
+    CONSTRAINT cash_operations_source_row_history_fkey FOREIGN KEY (import_source_row_id, import_history_id) REFERENCES investory.import_source_rows(id, import_history_id) ON DELETE RESTRICT
 );
 
 CREATE TABLE investory.positions (
@@ -890,7 +896,8 @@ CREATE TABLE investory.positions (
     CONSTRAINT positions_commission_currency_fkey FOREIGN KEY (commission_currency) REFERENCES investory.currencies(id),
     CONSTRAINT positions_cost_currency_fkey FOREIGN KEY (cost_currency) REFERENCES investory.currencies(id),
     CONSTRAINT positions_import_history_id_fkey FOREIGN KEY (import_history_id) REFERENCES investory.import_history(id) ON DELETE RESTRICT,
-    CONSTRAINT positions_import_source_row_id_fkey FOREIGN KEY (import_source_row_id) REFERENCES investory.import_source_rows(id) ON DELETE RESTRICT,
+    CONSTRAINT chk_positions_source_row_requires_import CHECK (import_source_row_id IS NULL OR import_history_id IS NOT NULL),
+    CONSTRAINT positions_source_row_history_fkey FOREIGN KEY (import_source_row_id, import_history_id) REFERENCES investory.import_source_rows(id, import_history_id) ON DELETE RESTRICT,
     CONSTRAINT positions_price_currency_fkey FOREIGN KEY (price_currency) REFERENCES investory.currencies(id),
     CONSTRAINT positions_profit_currency_fkey FOREIGN KEY (profit_currency) REFERENCES investory.currencies(id)
 );
@@ -1125,7 +1132,7 @@ CREATE UNIQUE INDEX ux_exchange_rates_valuation ON investory.exchange_rates USIN
 
 CREATE UNIQUE INDEX ux_import_history_provider_sha256_attempt ON investory.import_history USING btree (portfolio_id, provider, file_sha256, attempt_no);
 
-CREATE UNIQUE INDEX ux_import_source_files_provider_sha256 ON investory.import_source_files USING btree (provider, file_sha256);
+
 
 CREATE UNIQUE INDEX ux_integration_instances_global_plugin ON investory.integration_instances USING btree (plugin_id, plugin_type) WHERE (owner_id IS NULL);
 
@@ -1145,3 +1152,26 @@ CREATE TABLE investory.employment_period (
         daterange(date_from, COALESCE(date_to + 1, 'infinity'::date), '[)') WITH &&
     )
 );
+
+CREATE INDEX ix_import_source_files_history_provider
+    ON investory.import_source_files (import_history_id, provider);
+
+CREATE INDEX ix_import_source_rows_history_provider
+    ON investory.import_source_rows (import_history_id, provider);
+
+CREATE INDEX ix_import_source_rows_file_history_provider
+    ON investory.import_source_rows (source_file_id, import_history_id, provider)
+    WHERE source_file_id IS NOT NULL;
+
+CREATE INDEX ix_cash_operations_source_row_history
+    ON investory.cash_operations (import_source_row_id, import_history_id)
+    WHERE import_source_row_id IS NOT NULL;
+
+CREATE INDEX ix_positions_source_row_history
+    ON investory.positions (import_source_row_id, import_history_id)
+    WHERE import_source_row_id IS NOT NULL;
+
+CREATE INDEX ix_exchange_rates_valuation_pair_date
+    ON investory.exchange_rates (base, to_currency, rate_date DESC)
+    INCLUDE (rate, source, method, source_rate_date)
+    WHERE purpose = 'VALUATION';

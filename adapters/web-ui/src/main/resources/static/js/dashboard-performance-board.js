@@ -1,7 +1,8 @@
 export function initPerformanceBoard({
-        Chart, selectedDashboardPeriod, portfolioId, baseCurrency, amountFormatter, percentFormatter, chartTheme, renderTable, enableKeyboardChart, gridColor, tickColor, percentValue}) {
+        Chart, selectedDashboardPeriod, portfolioId, baseCurrency, amountFormatter, percentFormatter, chartTheme, renderTable, enableKeyboardChart, gridColor, tickColor, percentValue, initialView}) {
 const performanceBoardEl = document.getElementById('performance-board-chart');
 let performanceBoardChart = null;
+let currentPerformanceBoardView = null;
 const performanceBoardState = { metric: 'return', style: 'line' };
 const performanceBoardAccountPalette = ['#5b4bff', '#38bdf8', '#f59e0b', '#f43f5e', '#a855f7', '#14b8a6', '#f97316', '#ec4899'];
 const performanceBoardBenchmarkColor = '#16a34a';
@@ -83,14 +84,15 @@ function writePerformanceKpis(view) {
     if (worst) worst.textContent = kpis.worstPeriod && kpis.worstValue != null ? kpis.worstPeriod + ' · ' + (kpis.worstValue >= 0 ? '+' : '') + percentFormatter.format(Number(kpis.worstValue)) : '—';
 }
 
-async function renderPerformanceBoard() {
+async function renderPerformanceBoard(initialData = null) {
     if (!performanceBoardEl) return;
     performanceBoardUpdateAccountLabel();
     const empty = document.getElementById('performance-board-empty');
     const content = document.getElementById('performance-board-content');
     try {
         const selectedIds = performanceBoardSelectedIds();
-        const view = await performanceBoardView(selectedIds);
+        const view = initialData || await performanceBoardView(selectedIds);
+        currentPerformanceBoardView = view;
         if (selectedIds.length > 0) (view.accounts || []).forEach(account => { const input = document.querySelector('.js-performance-board-account[value="' + account.id + '"]'); if (input) input.checked = account.selected; });
         let labels = view.labels || [];
         const bars = performanceBoardState.style === 'bars';
@@ -122,10 +124,10 @@ document.querySelectorAll('.js-performance-board-metric').forEach(button => butt
 document.querySelectorAll('.js-performance-board-style').forEach(button => button.addEventListener('click', () => { performanceBoardState.style = button.dataset.style; document.querySelectorAll('.js-performance-board-style').forEach(item => { const active = item === button; item.classList.toggle('btn-primary', active); item.classList.toggle('btn-outline-secondary', !active); }); renderPerformanceBoard(); }));
 document.querySelectorAll('.js-performance-board-account').forEach(input => input.addEventListener('change', renderPerformanceBoard));
 document.getElementById('performance-board-aggregation')?.addEventListener('change', renderPerformanceBoard);
-document.getElementById('performance-board-show-spy')?.addEventListener('change', renderPerformanceBoard);
+document.getElementById('performance-board-show-spy')?.addEventListener('change', () => renderPerformanceBoard(currentPerformanceBoardView));
 document.getElementById('performance-board-check-all')?.addEventListener('click', () => { document.querySelectorAll('.js-performance-board-account').forEach(input => input.checked = true); renderPerformanceBoard(); });
 document.getElementById('performance-board-uncheck-all')?.addEventListener('click', () => { document.querySelectorAll('.js-performance-board-account').forEach(input => input.checked = false); renderPerformanceBoard(); });
-renderPerformanceBoard();
+renderPerformanceBoard(initialView);
 
 
     return {getPerformanceBoardChart: () => performanceBoardChart};

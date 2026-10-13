@@ -37,6 +37,11 @@
         }
         .iv-hero__title { margin: 0 0 6px; font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em; }
         .iv-hero__subtitle { margin: 0 0 28px; color: var(--iv-text-muted); }
+        .iv-hero__actions {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
         .iv-btn {
             display: inline-flex;
             align-items: center;
@@ -61,8 +66,10 @@
         <div class="iv-hero__logo">I</div>
         <h1 class="iv-hero__title">Welcome to Investory</h1>
         <p class="iv-hero__subtitle">Track your portfolio performance across brokers.</p>
-        <a class="iv-btn" th:if="${googleLoginEnabled}" href="/oauth2/authorization/google">Continue with Google</a>
-        <a class="iv-btn" href="/portfolios/1/dashboard">Open dashboard →</a>
+        <div class="iv-hero__actions">
+            <a class="iv-btn" th:if="${googleLoginEnabled}" href="/oauth2/authorization/google">Continue with Google</a>
+            <a class="iv-btn" href="/portfolios/1/dashboard">Open dashboard →</a>
+        </div>
     </div>
 </main>
 </body>

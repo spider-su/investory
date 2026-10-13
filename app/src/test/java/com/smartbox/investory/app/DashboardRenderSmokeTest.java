@@ -11,7 +11,7 @@ import com.smartbox.investory.investment.performance.PortfolioMetricsService;
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.dashboard.application.InvestmentDashboardFacade;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
+import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodViewService;
 import com.smartbox.investory.ui.common.BuildMetadata;
 import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +45,7 @@ class DashboardRenderSmokeTest {
 
     var dashboard =
         new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_YEAR, 1L));
 
     var webApplication = JakartaServletWebApplication.buildApplication(new MockServletContext());

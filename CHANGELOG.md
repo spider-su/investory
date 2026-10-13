@@ -2,6 +2,17 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-10-13
+
+- Folded 01.010–01.014 final definitions into the core schema, FX functions and portfolio
+  views. Existing databases aligned with per-attempt evidence preserved before history repair.
+
+- Refresh current-day FX before portfolio valuation and publish dependent MVs atomically.
+- Hide incomplete portfolio balances, defer notifications, avoid caching incomplete results,
+  and invalidate caches after full reporting publication.
+- Default persisted Telegram daily jobs to 09:00 Europe/Warsaw on weekdays and prevent overnight
+  catch-up after restarts.
+
 ## 2026-10-12
 
 - Added shared three-decimal HALF_UP amount assertions, including a JSON numeric matcher,

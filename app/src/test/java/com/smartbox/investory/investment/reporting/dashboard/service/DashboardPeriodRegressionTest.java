@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Dashboard Period Regression")
 class DashboardPeriodRegressionTest {
 
-  private final DashboardPeriodFilterService service = new DashboardPeriodFilterService();
+  private final DashboardPeriodViewService service = new DashboardPeriodViewService();
 
   @DisplayName("invalid Period Is Rejected")
   @Test
@@ -181,7 +181,7 @@ class DashboardPeriodRegressionTest {
     Benchmark benchmark = benchmarkHistory(YearMonth.of(2023, 1), YearMonth.of(2026, 8));
 
     benchmark =
-        new DashboardPeriodFilterService(portfolioStart.atDay(1), java.time.Clock.systemUTC())
+        new DashboardPeriodViewService(portfolioStart.atDay(1), java.time.Clock.systemUTC())
             .filter(benchmark, DashboardPeriod.MAX);
 
     assertEquals(portfolioStart.toString(), benchmark.getLabels().getFirst());
