@@ -79,3 +79,14 @@ The first full-mode browser screenshot exposed overlapping mountain artwork, wra
 - [ ] Verify that read-only rendering does not mutate retirement planning data.
 
 No automated browser/device verification is claimed by these follow-up commits.
+
+## Financial hierarchy iteration (2026-10-13)
+
+A subsequent set of commits on PR #135 adds:
+- A bounded 0–100% visual coverage bar; the text retains the actual coverage percentage, including values over 100%.
+- A projected annual gap derived from the same annual income/expense inputs as monthly net flow.
+- Net worth from the existing landscape payload, without recomputing or modifying the domain model.
+- Corrected `LIQUID ASSETS` label (the previous `LIQUID RESERVE` label was misleading).
+- Consistent sign coloring for full and compact net flow, and a responsive three-value asset summary.
+
+These are presentation changes only. Do not merge before local real-DB reconciliation, browser responsiveness review, controller tests and verification of runway/reserve semantics. No runtime verification is claimed by these commits.
