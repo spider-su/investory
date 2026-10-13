@@ -356,30 +356,37 @@ public class MarketDataService {
   private void fetchAndUpsertYahooFallbacks(List<AssetEntity> assets) {
     List<AssetEntity> toSave = new ArrayList<>();
     for (AssetEntity asset : assets) {
-      marketDataProvider
-          .fetchLatestQuote(YahooSymbolResolver.resolve(asset.getSymbol(), asset.getYahoo()))
-          .filter(quote -> quoteCurrencyMatchesAsset(asset, quote))
-          .ifPresent(
-              quote -> {
-                BigDecimal monetaryPrice = monetaryPrice(asset, quote.price());
-                asset.setMarketPrice(monetaryPrice);
-                updateUsdPriceCache(
-                    asset, monetaryPrice.doubleValue(), asset.getCurrency(), quote.date());
-                asset.setPriceSource("YahooFinance");
-                asset.setPriceUpdatedAt(applicationTime.now(applicationTime.businessZone()));
-                toSave.add(asset);
-                assetPriceHistoryRepository.upsertObservedPrice(
-                    asset.getId(),
-                    quote.date(),
-                    "YAHOO_FINANCE",
-                    quote.symbol(),
-                    asset.getSymbol(),
-                    "YAHOO_FINANCE_MARKET_CLOSE",
-                    quote.currency(),
-                    BigDecimal.valueOf(quote.price()),
-                    100,
-                    marketPriceQuality(asset));
-              });
+      try {
+        marketDataProvider
+            .fetchLatestQuote(YahooSymbolResolver.resolve(asset.getSymbol(), asset.getYahoo()))
+            .filter(quote -> quoteCurrencyMatchesAsset(asset, quote))
+            .ifPresent(
+                quote -> {
+                  BigDecimal monetaryPrice = monetaryPrice(asset, quote.price());
+                  asset.setMarketPrice(monetaryPrice);
+                  updateUsdPriceCache(
+                      asset, monetaryPrice.doubleValue(), asset.getCurrency(), quote.date());
+                  asset.setPriceSource("YahooFinance");
+                  asset.setPriceUpdatedAt(applicationTime.now(applicationTime.businessZone()));
+                  toSave.add(asset);
+                  assetPriceHistoryRepository.upsertObservedPrice(
+                      asset.getId(),
+                      quote.date(),
+                      "YAHOO_FINANCE",
+                      quote.symbol(),
+                      asset.getSymbol(),
+                      "YAHOO_FINANCE_MARKET_CLOSE",
+                      quote.currency(),
+                      BigDecimal.valueOf(quote.price()),
+                      100,
+                      marketPriceQuality(asset));
+                });
+      } catch (RuntimeException exception) {
+        log.warn(
+            "Yahoo Finance fallback skipped for {}: {}",
+            asset.getSymbol(),
+            exception.getMessage());
+      }
     }
     if (!toSave.isEmpty()) {
       assetRepository.saveAll(toSave);

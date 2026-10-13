@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
  * <p>Yahoo Finance supplies current quotes and historical daily/monthly closes.
  */
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class ConfiguredMarketDataProvider implements MarketDataProvider {
   private final YahooFinanceService yahooFinance;
@@ -27,10 +29,14 @@ public class ConfiguredMarketDataProvider implements MarketDataProvider {
   public Map<String, MarketQuote> fetchQuotes(List<String> symbols) {
     Map<String, MarketQuote> quotes = new LinkedHashMap<>();
     for (String symbol : symbols) {
-      yahooFinance
-          .fetchLatestQuote(symbol)
-          .map(this::toMarketQuote)
-          .ifPresent(quote -> quotes.put(symbol, quote));
+      try {
+        yahooFinance
+            .fetchLatestQuote(symbol)
+            .map(this::toMarketQuote)
+            .ifPresent(quote -> quotes.put(symbol, quote));
+      } catch (RuntimeException exception) {
+        log.warn("Yahoo Finance quote skipped for {}: {}", symbol, exception.getMessage());
+      }
     }
     return quotes;
   }
@@ -57,7 +63,7 @@ public class ConfiguredMarketDataProvider implements MarketDataProvider {
 
   @Override
   public String externalSymbol(String canonicalSymbol, String ticker) {
-    return YahooSymbolResolver.resolve(canonicalSymbol, null);
+    return YahooSymbolResolver.resolve(canonicalSymbol, ticker);
   }
 
   private MarketQuote toMarketQuote(YahooFinanceService.YahooQuote quote) {
