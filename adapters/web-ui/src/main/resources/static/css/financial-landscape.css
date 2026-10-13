@@ -90,7 +90,6 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 .fl-compact-hourglass{filter:drop-shadow(0 0 13px #e3b66c55)}
 @media(max-width:760px){.fl-scene .fl-mountain{height:23%;bottom:18%;opacity:.45}.fl-scene .fl-dune{height:18%;width:95%;bottom:0;opacity:.58}.fl-scene .fl-horizon{top:72%}}
 @media(prefers-reduced-motion:reduce){.fl-scene .fl-stream,.fl-compact .fl-stream{animation:none}}
-
 /* Economic result and cash income are distinguished by meaning, not asset class. */
 .fl-income-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;margin-top:6px;font-size:11px}
 .fl-income-legend span{font-size:11px;letter-spacing:0;color:#c2d0d9}
