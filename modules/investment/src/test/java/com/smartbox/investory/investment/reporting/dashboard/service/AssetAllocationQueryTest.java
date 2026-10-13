@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -126,6 +127,55 @@ class AssetAllocationQueryTest {
     verifyNoMoreInteractions(allocations);
     verify(assets).findAllById(List.of(1L, 2L, 3L, 4L));
     verifyNoMoreInteractions(assets);
+  }
+
+  @Test
+  void standaloneLoadReadsRowsAndMetadataOnceAndPreservesNullAndEncounterSemantics() {
+    PortfolioAssetAllocationEntity nullValue = allocation(1L, null, 0);
+    nullValue.setTotalValueInBaseCurrency(null);
+    PortfolioAssetAllocationEntity first = allocation(2L, "A", 2);
+    PortfolioAssetAllocationEntity next = allocation(3L, "B", 2);
+    PortfolioAssetAllocationEntity last = allocation(4L, "C", 2);
+    List<PortfolioAssetAllocationEntity> rows =
+        List.of(
+            nullValue,
+            first,
+            next,
+            last,
+            allocation(5L, "D", 2),
+            allocation(6L, "E", 2),
+            allocation(7L, "F", 2));
+    PortfolioAssetAllocationRepository allocations = mock(PortfolioAssetAllocationRepository.class);
+    AssetRepository assets = mock(AssetRepository.class);
+    when(allocations.findAllByPortfolioId(1L)).thenReturn(rows);
+    when(assets.findAllById(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L))).thenReturn(List.of());
+    var before = rows.stream().map(PortfolioAssetAllocationEntity::getAssetSymbol).toList();
+
+    var view = new AssetAllocationQuery(allocations, assets).load(1L, new Portfolio());
+
+    assertThat(view.totalValue()).isEqualByComparingTo("12");
+    assertThat(view.buckets().getFirst().symbols()).containsExactly("A", "B", "C", "D", "E");
+    assertThat(rows)
+        .extracting(PortfolioAssetAllocationEntity::getAssetSymbol)
+        .containsExactlyElementsOf(before);
+    verify(allocations).findAllByPortfolioId(1L);
+    verifyNoMoreInteractions(allocations);
+    verify(assets).findAllById(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L));
+    verifyNoMoreInteractions(assets);
+  }
+
+  @Test
+  void propagatesRepositoryFailureWithoutRetry() {
+    PortfolioAssetAllocationRepository allocations = mock(PortfolioAssetAllocationRepository.class);
+    AssetRepository assets = mock(AssetRepository.class);
+    RuntimeException failure = new RuntimeException("read failed");
+    when(allocations.findAllByPortfolioId(1L)).thenThrow(failure);
+
+    assertThatThrownBy(
+            () -> new AssetAllocationQuery(allocations, assets).load(1L, new Portfolio()))
+        .isSameAs(failure);
+    verify(allocations).findAllByPortfolioId(1L);
+    verifyNoMoreInteractions(allocations, assets);
   }
 
   private static PortfolioAssetAllocationEntity allocation(Long id, String symbol, double value) {
