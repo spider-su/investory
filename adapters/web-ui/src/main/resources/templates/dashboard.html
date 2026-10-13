@@ -36,8 +36,15 @@
         "baseCurrency": /*[[${stats.baseCurrency}]]*/ "USD",
         "portfolioId": /*[[${portfolioId}]]*/ null,
         "benchmarkLabels": /*[[${benchmark != null ? benchmark.labels : null}]]*/ [],
+        "benchmarkAvailable": /*[[${benchmark != null ? benchmark.available : false}]]*/ false,
+        "portfolioReturnCurve": /*[[${benchmark != null ? benchmark.portfolioReturnCurve : null}]]*/ [],
         "benchmarkAccountSeries": /*[[${benchmark != null ? benchmark.accountSeries : null}]]*/ [],
         "benchmarkReturnCurve": /*[[${benchmark != null ? benchmark.benchmarkReturnCurve : null}]]*/ [],
+        "benchmarkAccountOptions": /*[[${benchmark != null ? benchmark.accountOptions : null}]]*/ [],
+        "dashboardPortfolioReturn": /*[[${dashboard.performance.summary != null ? dashboard.performance.summary.portfolioReturnPct : null}]]*/ null,
+        "dashboardBenchmarkReturn": /*[[${dashboard.performance.summary != null ? dashboard.performance.summary.benchmarkReturnPct : null}]]*/ null,
+        "dashboardExcessReturn": /*[[${dashboard.performance.summary != null ? dashboard.performance.summary.excessReturnPct : null}]]*/ null,
+        "dashboardPortfolioProfitLoss": /*[[${dashboard.performance.summary != null ? dashboard.performance.summary.portfolioPl : null}]]*/ null,
         "selectedDashboardPeriod": /*[[${selectedPeriod.urlValue()}]]*/ "YTD",
         "accountValueYears": /*[[${benchmark != null ? benchmark.accountValueYears : null}]]*/ []
     }

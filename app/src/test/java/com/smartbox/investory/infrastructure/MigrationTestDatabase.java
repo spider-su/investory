@@ -23,6 +23,17 @@ final class MigrationTestDatabase {
     flyway(database).migrate();
   }
 
+  static void migrateTo(WorkerDatabase database, String version) {
+    assertDisposable(database);
+    Flyway targeted =
+        Flyway.configure()
+            .configuration(flyway(database).getConfiguration())
+            .target(version)
+            .load();
+    targeted.clean();
+    targeted.migrate();
+  }
+
   static Connection connection(WorkerDatabase database) throws SQLException {
     return DriverManager.getConnection(
         database.jdbcUrl(), database.username(), database.password());

@@ -33,6 +33,35 @@ export function initDashboardCharts() {
     const signedValue = value => (Number(value) >= 0 ? '+' : '') + amountFormatter.format(Number(value || 0));
     const signedPercentValue = value => (Number(value) >= 0 ? '+' : '') + percentFormatter.format(Number(value || 0)) + '%';
     const percentValue = value => percentFormatter.format(Number(value || 0)) + '%';
+    const boardLabels = data.benchmarkLabels || [];
+    const portfolioCurve = data.portfolioReturnCurve || [];
+    const monthReturns = portfolioCurve.map((value, index) => {
+        const prior = index === 0 ? 0 : portfolioCurve[index - 1];
+        return value == null || prior == null ? null : Math.round((((1 + value / 100) / (1 + prior / 100)) - 1) * 10000) / 100;
+    });
+    const extreme = findBest => monthReturns.reduce((best, value, index) =>
+        value == null || (best && (findBest ? value <= best.value : value >= best.value))
+            ? best
+            : {label: boardLabels[index], value}, null);
+    const bestPeriod = extreme(true);
+    const worstPeriod = extreme(false);
+    const initialBoardView = {
+        available: Boolean(data.benchmarkAvailable && boardLabels.length),
+        labels: boardLabels,
+        series: [{label: 'Portfolio', values: portfolioCurve}],
+        benchmarkValues: data.benchmarkReturnCurve || [],
+        accounts: (data.benchmarkAccountOptions || []).map(account => ({id: account.id, name: account.name, selected: account.selected})),
+        kpis: {
+            portfolioReturn: data.dashboardPortfolioReturn,
+            benchmarkReturn: data.dashboardBenchmarkReturn,
+            excessReturn: data.dashboardExcessReturn,
+            portfolioProfitLoss: data.dashboardPortfolioProfitLoss,
+            bestPeriod: bestPeriod?.label || null,
+            bestValue: bestPeriod?.value ?? null,
+            worstPeriod: worstPeriod?.label || null,
+            worstValue: worstPeriod?.value ?? null
+        }
+    };
     const theme = chartTheme();
     Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
     Chart.defaults.font.size = 12;
@@ -60,7 +89,8 @@ export function initDashboardCharts() {
     initPerformanceMode({updateAccountValueChart: benchmark.updateAccountValueChart, selectedAccountValueAccountIds});
     const board = initPerformanceBoard({
         ...common,
-        selectedDashboardPeriod: data.selectedDashboardPeriod || 'YTD'
+        selectedDashboardPeriod: data.selectedDashboardPeriod || 'YTD',
+        initialView: initialBoardView
     });
 
     const charts = [benchmark.benchmarkChart, benchmark.accountValueChart, monthly.monthlyChart].filter(Boolean);

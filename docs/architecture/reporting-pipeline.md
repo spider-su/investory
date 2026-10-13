@@ -89,7 +89,12 @@ they must not replace it with a January-1-only balance or infer it from a label.
 Dashboard TWR and XIRR read base-currency, non-cash-only daily boundaries from
 `app_v_portfolio_performance_daily`; application code must not rebuild them by summing raw
 account-currency `account_daily` rows. Selected-period and fixed KPI-start returns therefore share
-the same reporting boundary and differ only by their requested dates.
+the same reporting boundary and differ only by their requested dates. At portfolio inception, the
+first monthly row can use its closing equity as the opening valuation when there is no earlier monthly
+observation. That same first day's external flows are already reflected in this fallback valuation,
+so the first daily boundary is excluded from the return calculation; counting those flows again would
+distort TWR and XIRR. When a prior monthly observation exists, the ordinary daily flow-adjustment path
+applies.
 
 ### Reconciliation materialization boundary
 
@@ -257,18 +262,13 @@ change the `account_daily` boundary.
 
 ## Migration history contract
 
-The current empty-database chain is the complete ordered set under
-`app/src/main/resources/sql/migration`, from `V01.000` through `V01.012`. `V01.009` adds the
-Market Radar strategist forecast tables. `V01.010` scopes Yahoo export state to a portfolio and
-enforces matching import, provider, file, and source-row provenance links. `V01.011` gives each
-import attempt its own source artifact row so reprocessing preserves those links. `V01.012`
-updates the daily portfolio return view so existing databases exclude initial position population
-from return and carry forward account valuations across portfolio observation dates. The generated
-fast-test snapshot is derived from this chain but never replaces it. Retired database objects were archived
-once on existing databases outside the onboarding migration chain; existing databases were brought
-to the canonical schema before migration history was cleaned up. `V01.010` clears the old singleton
-Yahoo export timestamp because it cannot be attributed reliably to a portfolio; each portfolio gets
-fresh status after its next manual export.
+The empty-database chain is `V01.000` through `V01.009`. Final portfolio-scoped Yahoo
+export state, per-attempt import evidence links, and valuation FX indexes live in the core
+schema. The final optimized FX resolver lives in `V01.001`; inception performance and
+complete-valuation presentation live in `V01.005`. Existing databases receive reviewed
+operational alignment before their obsolete upgrade history is removed. The generated
+snapshot follows this create/insert chain. Historical repair scripts are not replayed on
+new onboarding.
 
 ## Complete valuation publication
 
