@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Financial Landscape · Compact</title>
+  <link href="/css/financial-landscape.css" rel="stylesheet">
+</head>
+<body class="fl-body fl-compact-body">
+<main class="fl-compact" aria-label="Financial Landscape compact overview">
+  <header class="fl-compact-header">
+    <div><span class="fl-eyebrow">FINANCIAL LANDSCAPE</span><h1>Cash flow</h1></div>
+    <a th:href="@{/portfolios/{id}/financial-landscape(id=${portfolioId})}" class="fl-button">Full view ↗</a>
+  </header>
+  <div class="fl-compact-content">
+    <div class="fl-compact-hourglass" aria-hidden="true">
+      <svg viewBox="0 0 160 220">
+        <defs><linearGradient id="compact-sand" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#ffe6a5"/><stop offset="1" stop-color="#bc7f38"/></linearGradient>
+        <clipPath id="compact-clip"><path d="M26 12H134Q134 64 86 103Q80 110 86 117Q134 156 134 208H26Q26 156 74 117Q80 110 74 103Q26 64 26 12Z"/></clipPath></defs>
+        <path d="M26 12H134Q134 64 86 103Q80 110 86 117Q134 156 134 208H26Q26 156 74 117Q80 110 74 103Q26 64 26 12Z" fill="#8ab8c322" stroke="#a4c3d1" stroke-width="2"/>
+        <g clip-path="url(#compact-clip)"><path d="M20 53H140L80 108Z" fill="url(#compact-sand)"/><path class="fl-stream" d="M80 110V175" stroke="#ffe6a5" stroke-width="3" stroke-dasharray="3 7"/><path d="M20 180Q80 143 140 180V220H20Z" fill="url(#compact-sand)"/></g>
+        <path d="M22 10H138M22 210H138" stroke="#d5bd91" stroke-width="7" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="fl-compact-metrics">
+      <div><span>Income / month</span><strong id="fl-income">—</strong></div>
+      <div><span>Expenses / month</span><strong id="fl-expenses">—</strong></div>
+      <div class="fl-compact-net"><span>Net flow / month</span><strong id="fl-net">—</strong></div>
+      <div><span>Liquid assets</span><strong id="fl-liquid">—</strong></div>
+    </div>
+  </div>
+  <footer class="fl-compact-footer"><span id="fl-period">Annual plan · monthly averages</span><small>Illustrative motion · not live transactions</small></footer>
+</main>
+<script th:inline="javascript">window.financialLandscape = /*[[${landscape}]]*/ {};</script>
+<script src="/js/financial-landscape.js" defer></script>
+</body>
+</html>
