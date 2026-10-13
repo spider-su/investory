@@ -23,10 +23,12 @@ public class PortfolioStructureQuery {
   }
 
   public PortfolioStructureView load(Long portfolioId, Portfolio portfolio) {
+    AssetAllocationQuery.AllocationSnapshot snapshot =
+        assetAllocationQuery == null ? null : assetAllocationQuery.loadSnapshot(portfolioId);
     AssetAllocationView allocation =
-        assetAllocationQuery == null
+        snapshot == null
             ? new AssetAllocationView(0.0, List.of())
-            : assetAllocationQuery.load(portfolioId, portfolio);
+            : assetAllocationQuery.allocation(snapshot, portfolio);
     double total =
         assetAllocationQuery == null
             ? portfolio.getBalance()
@@ -34,7 +36,7 @@ public class PortfolioStructureQuery {
     List<PortfolioStructureView.Holding> holdings =
         assetAllocationQuery == null
             ? List.of()
-            : assetAllocationQuery.canonicalHoldings(portfolioId).stream()
+            : assetAllocationQuery.canonicalHoldings(snapshot).stream()
                 .map(
                     row ->
                         new PortfolioStructureView.Holding(

@@ -2,6 +2,8 @@ package com.smartbox.investory.investment.reporting.dashboard.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.reporting.model.AssetAllocationView;
@@ -93,6 +95,37 @@ class AssetAllocationQueryTest {
     assertThat(view.buckets()).extracting("name").containsExactly("ETF");
     assertThat(view.buckets().getFirst().value())
         .isEqualByComparingTo(java.math.BigDecimal.valueOf(70));
+  }
+
+  @Test
+  void preservesAllocationThresholdCashClampAndMissingMetadataSemantics() {
+    List<PortfolioAssetAllocationEntity> rows =
+        List.of(
+            allocation(1L, "below", 0.004),
+            allocation(2L, "edge", 0.005),
+            allocation(3L, "negative", -2),
+            allocation(4L, "missing", 3));
+    PortfolioAssetAllocationRepository allocations = mock(PortfolioAssetAllocationRepository.class);
+    AssetRepository assets = mock(AssetRepository.class);
+    when(allocations.findAllByPortfolioId(1L)).thenReturn(rows);
+    when(assets.findAllById(List.of(1L, 2L, 3L, 4L))).thenReturn(List.of(asset(2L, "ETF")));
+    Portfolio portfolio = new Portfolio();
+    portfolio.setCash(-5);
+
+    var view = new AssetAllocationQuery(allocations, assets).load(1L, portfolio);
+
+    assertThat(view.totalValue()).isEqualByComparingTo("1.005");
+    assertThat(view.buckets()).extracting("name").containsExactly("Other", "ETF");
+    assertThat(view.buckets().get(0).value().doubleValue())
+        .isCloseTo(1.0, org.assertj.core.data.Offset.offset(0.000001));
+    assertThat(view.buckets().get(1).value().doubleValue())
+        .isCloseTo(0.005, org.assertj.core.data.Offset.offset(0.000001));
+    assertThat(view.buckets().getFirst().weightPct().doubleValue())
+        .isCloseTo(100.0 / 1.005, org.assertj.core.data.Offset.offset(0.000001));
+    verify(allocations).findAllByPortfolioId(1L);
+    verifyNoMoreInteractions(allocations);
+    verify(assets).findAllById(List.of(1L, 2L, 3L, 4L));
+    verifyNoMoreInteractions(assets);
   }
 
   private static PortfolioAssetAllocationEntity allocation(Long id, String symbol, double value) {
