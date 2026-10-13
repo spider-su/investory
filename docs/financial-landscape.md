@@ -163,7 +163,6 @@ The separate reserve is the appropriate cash input for runway. Profile defines i
 - Reserve accent direction is determined by LIVE planning funding gap or surplus, **not** economic return.
 - A reserve-direction highlight is illustrative only; it does not mutate balances. This iteration does not yet depict a physically connected particle stream between the dune and the hourglass.
 - Check the live Profile numbers against the page and inspect if combinedNetAnnualIncome is based on a different reporting horizon from the planning expenses.
-
 ## Cinematic Full prototype
 - Full scene now uses layered sunset gradients, distant/near mountains, a reflective lake, a luminous foreground dune, six decorative sand trails and a dedicated Canvas particle layer.
 - Canvas follows the rendered hourglass bounding box and scales to scene dimensions; it is decorative, not an accounting simulation.
