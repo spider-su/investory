@@ -4,6 +4,9 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 
 ## 2026-10-13
 
+- Folded 01.010–01.014 final definitions into the core schema, FX functions and portfolio
+  views. Existing databases aligned with per-attempt evidence preserved before history repair.
+
 - Refresh current-day FX before portfolio valuation and publish dependent MVs atomically.
 - Hide incomplete portfolio balances, defer notifications, avoid caching incomplete results,
   and invalidate caches after full reporting publication.

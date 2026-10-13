@@ -262,21 +262,13 @@ change the `account_daily` boundary.
 
 ## Migration history contract
 
-The current empty-database chain is the complete ordered set under
-`app/src/main/resources/sql/migration`, from `V01.000` through `V01.014`. `V01.009` adds the
-Market Radar strategist forecast tables. `V01.010` scopes Yahoo export state to a portfolio and
-enforces matching import, provider, file, and source-row provenance links. `V01.011` gives each
-import attempt its own source artifact row so reprocessing preserves those links. `V01.012`
-updates the daily portfolio return view so existing databases exclude initial position population
-from return and carry forward account valuations across portfolio observation dates. The generated
-fast-test snapshot is derived from this chain but never replaces it. Retired database objects were archived
-once on existing databases outside the onboarding migration chain; existing databases were brought
-to the canonical schema before migration history was cleaned up. `V01.013` completes atomic
-portfolio valuation publication. `V01.014` adds a currency-pair/date valuation index, skips
-same-currency rate scans, and bounds each resolver direction to its latest eligible observation,
-preserving resolver outputs, date precedence, and the direct-rate tie break. `V01.010` clears the old singleton
-Yahoo export timestamp because it cannot be attributed reliably to a portfolio; each portfolio gets
-fresh status after its next manual export.
+The empty-database chain is `V01.000` through `V01.009`. Final portfolio-scoped Yahoo
+export state, per-attempt import evidence links, and valuation FX indexes live in the core
+schema. The final optimized FX resolver lives in `V01.001`; inception performance and
+complete-valuation presentation live in `V01.005`. Existing databases receive reviewed
+operational alignment before their obsolete upgrade history is removed. The generated
+snapshot follows this create/insert chain. Historical repair scripts are not replayed on
+new onboarding.
 
 ## Complete valuation publication
 

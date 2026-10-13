@@ -273,22 +273,28 @@ CREATE FUNCTION investory.resolve_fx_rate(p_valuation_date date, p_source_curren
     LANGUAGE sql STABLE
     AS $$
 WITH candidates AS (
-    SELECT er.rate, er.source, er.method,
+    (SELECT er.rate, er.source, er.method,
            COALESCE(er.source_rate_date, er.rate_date) AS source_rate_date,
            er.rate_date, 0 AS direction_priority
     FROM investory.exchange_rates er
-    WHERE er.purpose = 'VALUATION'
+    WHERE p_source_currency IS DISTINCT FROM p_target_currency
+      AND er.purpose = 'VALUATION'
       AND er.base = p_source_currency
       AND er.to_currency = p_target_currency
       AND er.rate_date <= p_valuation_date
+    ORDER BY er.rate_date DESC
+    LIMIT 1)
     UNION ALL
-    SELECT 1 / er.rate, er.source, er.method,
+    (SELECT 1 / er.rate, er.source, er.method,
            COALESCE(er.source_rate_date, er.rate_date), er.rate_date, 1
     FROM investory.exchange_rates er
-    WHERE er.purpose = 'VALUATION'
+    WHERE p_source_currency IS DISTINCT FROM p_target_currency
+      AND er.purpose = 'VALUATION'
       AND er.base = p_target_currency
       AND er.to_currency = p_source_currency
       AND er.rate_date <= p_valuation_date
+    ORDER BY er.rate_date DESC
+    LIMIT 1)
 ), selected AS (
     SELECT * FROM candidates
     ORDER BY rate_date DESC, direction_priority

@@ -17,9 +17,9 @@ import org.xml.sax.InputSource;
 class SameCurrencyFxMigrationIT {
 
   @Test
-  void upgradePreservesFxAndDailyValuesAndSkipsIdentityRateScans() throws Exception {
+  void baselinePreservesFxAndDailyValuesAndSkipsIdentityRateScans() throws Exception {
     try (var database = MigrationTestDatabase.open("same_currency_fx_upgrade")) {
-      MigrationTestDatabase.migrateTo(database, "01.013");
+      MigrationTestDatabase.migrate(database);
       try (Connection connection = MigrationTestDatabase.connection(database);
           Statement statement = connection.createStatement()) {
         statement.execute("SET search_path TO investory, public");
