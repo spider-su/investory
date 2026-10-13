@@ -8,6 +8,8 @@
   };
   const income = numeric(data.annualIncome);
   const expenses = numeric(data.annualExpenses);
+  const cashIncome = numeric(data.annualCashIncome);
+  const marketResult = numeric(data.annualMarketResult);
   const currency = data.currency || 'PLN';
   // Mirrors FinancialPresentation.compactMoneyTrimmed(): up to 3 display digits,
   // K/M suffixes, HALF_UP rounding and a rounded 1000K -> 1.00M rollover.
@@ -29,16 +31,25 @@
     const sign = value < 0 ? '−' : '';
     return sign + compactNumber(value) + ' ' + currency;
   };
+  const compact = !!document.querySelector('.fl-compact');
+  const compactValue = value => value === null || !Number.isFinite(value) ? '—' : (value < 0 ? '−' : '') + compactNumber(value);
   const rate = value => value === null ? 'Unavailable' : new Intl.NumberFormat('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 3}).format(value) + ' ' + currency;
   const set = (id, value) => {const el = document.getElementById(id); if (el) el.textContent = value;};
-  set('fl-income', format(income === null ? null : income / 12) + ' / month');
-  set('fl-expenses', format(expenses === null ? null : expenses / 12) + ' / month');
+  set('fl-income', compact ? compactValue(income === null ? null : income / 12) : format(income === null ? null : income / 12) + ' / month');
+  set('fl-cash-income', cashIncome === null ? 'Unavailable' : format(cashIncome / 12) + ' / mo');
+  set('fl-market-result', marketResult === null ? 'Unavailable' : format(marketResult / 12) + ' / mo');
+  set('fl-expenses', compact ? compactValue(expenses === null ? null : expenses / 12) : format(expenses === null ? null : expenses / 12) + ' / month');
   set('fl-income-rate', income === null ? 'No planning income' : rate(income / (365.2425 * 24 * 60)) + ' / min');
   set('fl-expense-rate', expenses === null ? 'No planning expenses' : rate(expenses / (365.2425 * 24 * 60)) + ' / min');
   const net = income === null || expenses === null ? null : (income - expenses) / 12;
   set('fl-net', (net !== null && net > 0 ? '+' : '') + format(net) + ' / month');
+  set('fl-base', cashIncome === null ? 'Unavailable' : format(cashIncome / 12) + ' / mo');
+  set('fl-spread', marketResult === null ? 'Unavailable' : format(marketResult / 12) + ' / mo');
+  set('fl-consumption-total', expenses === null ? 'Unavailable' : format(expenses / 12) + ' / month');
+  const tolerance = expenses !== null && expenses > 0 ? Math.abs(income - expenses) / expenses : null;
+  const flowState = net === null ? 'unknown' : tolerance !== null && tolerance <= 0.02 ? 'neutral' : net < 0 ? 'negative' : net > 0 ? 'positive' : 'neutral';
   const flowPanel = document.querySelector('.fl-center, .fl-compact-net');
-  if (flowPanel) flowPanel.dataset.flow = net === null || net === 0 ? 'neutral' : net < 0 ? 'negative' : 'positive';
+  if (flowPanel) flowPanel.dataset.flow = flowState;
   set('fl-coverage', income === null || expenses === null ? 'Planning data unavailable' : expenses === 0 ? 'No planned spending' : Math.round(income / expenses * 100) + '% income coverage');
   const coverage = income === null || expenses === null || expenses <= 0 ? null : Math.max(0, income / expenses * 100);
   const coverageBar = document.getElementById('fl-coverage-bar');
@@ -59,6 +70,85 @@
   set('fl-illiquid', format(numeric(data.illiquidAssets)));
   set('fl-worth', format(numeric(data.netWorth)));
   set('fl-period', (data.year || 'Current') + ' · full-year plan as monthly averages');
+  // Visual encoding is normalized to the portfolio's own total assets, not screen pixels.
+  // It is illustrative: no displayed or persisted monetary value is changed.
+  const illiquid = numeric(data.illiquidAssets);
+  const assetsTotal = Math.max(0, liquid ?? 0) + Math.max(0, illiquid ?? 0);
+  const liquidShare = assetsTotal > 0 ? Math.max(0, liquid ?? 0) / assetsTotal : 0;
+  const illiquidShare = assetsTotal > 0 ? Math.max(0, illiquid ?? 0) / assetsTotal : 0;
+  const root = document.querySelector('.fl-scene, .fl-compact');
+  if (root) {
+    root.style.setProperty('--fl-dune-scale', String(0.45 + 0.55 * Math.sqrt(liquidShare)));
+    root.style.setProperty('--fl-mountain-scale', String(0.55 + 0.45 * Math.sqrt(illiquidShare)));
+    const ratio = income !== null && expenses !== null && Math.max(income, expenses) > 0
+      ? Math.min(1, Math.max(0, income) / Math.max(Math.max(0, income), Math.max(0, expenses)))
+      : 0.5;
+    root.style.setProperty('--fl-stream-opacity', String(0.3 + 0.7 * ratio));
+    root.style.setProperty('--fl-stream-duration', (2.2 - ratio * 1.25).toFixed(2) + 's');
+    root.dataset.flow = flowState;
+    const cashRatio = income !== null && income > 0 && cashIncome !== null ? Math.min(1, Math.max(0, cashIncome / income)) : 0;
+    root.style.setProperty('--fl-cash-share', (cashRatio * 100).toFixed(2) + '%');
+    const financing = numeric(data.annualGap);
+    const saving = numeric(data.annualSurplus);
+    root.dataset.reserveDirection = financing !== null && financing > 0 ? 'draw' : saving !== null && saving > 0 ? 'save' : 'still';
+  }
+  const trails = document.querySelector('.fl-sand-trails');
+  if (trails) {
+    trails.replaceChildren();
+    const groups = Array.isArray(data.expenseGroups) ? data.expenseGroups.filter(g => Number(g.monthlyAmount) > 0) : [];
+    const sum = groups.reduce((total, g) => total + Number(g.monthlyAmount), 0);
+    for (const group of groups) {
+      const share = sum > 0 ? Number(group.monthlyAmount) / sum : 0;
+      const item = document.createElement('div');
+      item.className = 'fl-expense-stream';
+      item.style.setProperty('--stream-weight', String(Math.max(2, Math.min(12, 2 + share * 12))) + 'px');
+      const name = document.createElement('span');
+      name.textContent = String(group.name);
+      const percentage = document.createElement('strong');
+      percentage.textContent = Math.round(share * 100) + '%';
+      item.append(name, percentage);
+      trails.append(item);
+    }
+    trails.setAttribute('aria-label', 'Planned expense categories');
+    trails.removeAttribute('aria-hidden');
+  }
+  const consumptionBar = document.getElementById('fl-consumption-bar');
+  const consumptionLegend = document.getElementById('fl-consumption-legend');
+  if (consumptionBar && consumptionLegend) {
+    const groups = Array.isArray(data.expenseGroups) ? data.expenseGroups.filter(g => numeric(g.monthlyAmount) > 0) : [];
+    const sum = groups.reduce((total, g) => total + Number(g.monthlyAmount), 0);
+    const colors = ['#efb75e', '#5ba7f0', '#ec896e', '#67c39a', '#aa8de1', '#dba9c5', '#7fbdc6'];
+    for (const [index, group] of groups.entries()) {
+      const amount = Number(group.monthlyAmount);
+      const share = sum > 0 ? amount / sum : 0;
+      const color = colors[index % colors.length];
+      const segment = document.createElement('div');
+      segment.className = 'fl-consumption-segment';
+      segment.style.backgroundColor = color;
+      segment.style.flexGrow = String(amount);
+      segment.setAttribute('title', String(group.name) + ': ' + format(amount) + ' / month');
+      segment.textContent = Math.round(share * 100) >= 8 ? Math.round(share * 100) + '%' : '';
+      consumptionBar.append(segment);
+      const item = document.createElement('div');
+      item.className = 'fl-consumption-item';
+      const label = document.createElement('span');
+      label.className = 'fl-consumption-name';
+      const dot = document.createElement('i');
+      dot.style.backgroundColor = color;
+      label.append(dot, document.createTextNode(String(group.name)));
+      const value = document.createElement('strong');
+      value.textContent = format(amount);
+      const percent = document.createElement('small');
+      percent.textContent = Math.round(share * 100) + '%';
+      item.append(label, value, percent);
+      consumptionLegend.append(item);
+    }
+    if (!groups.length) {
+      const empty = document.createElement('p');
+      empty.textContent = 'Consumption categories are not available for this plan.';
+      consumptionLegend.append(empty);
+    }
+  }
   const full = document.getElementById('fl-fullscreen');
   full?.addEventListener('click', () => {
     const app = document.querySelector('.fl-app');

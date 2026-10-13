@@ -45,10 +45,23 @@ class ConfiguredMarketDataProviderTest {
   }
 
   @Test
+  void fetchQuotesSkipsSingleSymbolFailures() {
+    var yahooQuote =
+        new YahooFinanceService.YahooQuote("AAPL", "USD", LocalDate.of(2026, 1, 2), 200.0);
+    when(yahoo.fetchLatestQuote("AAPL")).thenReturn(Optional.of(yahooQuote));
+    when(yahoo.fetchLatestQuote("FAIL")).thenThrow(new IllegalStateException("boom"));
+
+    assertThat(provider.fetchQuotes(List.of("AAPL", "FAIL")))
+        .containsOnlyKeys("AAPL")
+        .satisfies(quotes -> assertThat(quotes.get("AAPL").getClose()).isEqualTo(200.0));
+  }
+
+  @Test
   void adaptsLatestQuoteAndExternalSymbol() {
     var quote = new YahooFinanceService.YahooQuote("AAPL", "USD", LocalDate.of(2026, 1, 2), 200.0);
     when(yahoo.fetchLatestQuote("AAPL")).thenReturn(Optional.of(quote));
     assertThat(provider.fetchLatestQuote("AAPL")).get().extracting("currency").isEqualTo("USD");
     assertThat(provider.externalSymbol("AAPL.US", "AAPL")).isEqualTo("AAPL");
+    assertThat(provider.externalSymbol("BRKB.US", "BRK-B")).isEqualTo("BRK-B");
   }
 }

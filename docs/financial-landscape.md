@@ -18,7 +18,7 @@ A calm, ambient financial landscape inside Investory. The hourglass represents a
 10. Follow-up: optional HA iframe/ambient mode only after local UX and security validation.
 
 ## Implementation in this draft
-- `FinancialLandscapeController`: reads `ProfileClient`, `RetirementPlanClient`, `RetirementProjectionClient`, `RetirementTimelineClient`; selects LIVE row.
+- `FinancialLandscapeController`: resolves the active plan once, loads a single `RetirementProjection`, and derives profile assets plus LIVE timeline values from that shared projection.
 - `financial-landscape.html`: Thymeleaf page; server data embedded into a page-local JS object.
 - `financial-landscape.css`: responsive dark landscape, sand dunes, SVG hourglass.
 - `financial-landscape.js`: currency formatting, averages, fullscreen toggle, no polling.
@@ -145,3 +145,30 @@ The separate reserve is the appropriate cash input for runway. Profile defines i
 - Local app build/start and authenticated Full and Compact GETs succeeded. Browser snapshots confirmed monthly values, coverage, reserve runway and asset labels. Simulation LIVE 2026 and Profile views were inspected.
 - No real-data integration test was run; the live app GET used the development database with Flyway disabled. Unit tests and the rendered live read path were used instead.
 - **Final recommendation: NOT READY** until a fresh read-only Profile and Landscape comparison completes against the same stable database snapshot. Formulas, cash-only income mapping, currency and reserve semantics passed; exact current liquid-assets/net-worth reconciliation remains outstanding.
+
+## Landscape visual encoding v2
+- Full and Compact now share CSS variables populated by the existing browser-side presentation script.
+- Dune height uses a bounded square-root normalization of liquid assets / (liquid + illiquid assets).
+- Mountain height uses the same normalization for illiquid assets. These are **relative visual encodings**, not absolute comparable quantities across portfolios.
+- Decorative sand opacity and speed vary with the ratio of planned annual income to planned annual expenses; no simulation time is advanced, and no actual account balance is animated or persisted.
+- Full includes a foreground dune and stronger layered mountain silhouettes; Compact includes a small version of both.
+- Reduced-motion preference disables sand animation.
+- Manual acceptance still required: inspect at 1440×900, 1024×768, 390×844; check overlay collisions, contrast, fullscreen, zero/missing amounts and console errors. No Playwright screenshots have been captured in this environment.
+
+## Profile reconciliation and semantic color scheme
+- Primary projected economic income comes from `InvestmentProfile.incomeSummary().combinedNetAnnualIncome()`, consistent with Profile.
+- Planning cash income remains separately available as `annualCashIncome` from the LIVE timeline's `totalIncome()`; it is **not** additive to the Profile economic result.
+- Profile's market result is shown in blue; spendable planning cash in gold. These are distinct perspectives, not necessarily a partition of the same sum. In particular, do not assume that all long-term asset returns are spendable.
+- Annual expenses remain from LIVE Retirement Planning.
+- Neutral cash-flow presentation applies when absolute annual economic difference is at most 2% of annual expenses. Display the signed amount regardless of color.
+- Reserve accent direction is determined by LIVE planning funding gap or surplus, **not** economic return.
+- A reserve-direction highlight is illustrative only; it does not mutate balances. This iteration does not yet depict a physically connected particle stream between the dune and the hourglass.
+- Check the live Profile numbers against the page and inspect if combinedNetAnnualIncome is based on a different reporting horizon from the planning expenses.
+
+## Cinematic Full prototype
+- Full scene now uses layered sunset gradients, distant/near mountains, a reflective lake, a luminous foreground dune, six decorative sand trails and a dedicated Canvas particle layer.
+- Canvas follows the rendered hourglass bounding box and scales to scene dimensions; it is decorative, not an accounting simulation.
+- Reduced-motion preference disables the Canvas layer and CSS particle motion. The Canvas animation pauses while the page is hidden.
+- This is a first implementation pass, **not** a pixel-perfect reproduction of the reference artwork. The generated design concept is not bundled as a binary background asset in this commit; artwork is CSS/SVG/Canvas.
+- Expense trails are decorative placeholders, **not** six claimed spending categories. Actual category amounts require a verified Investory source.
+- Required before merge: compile, run, inspect desktop/mobile and fullscreen screenshots, check animation performance and semantic income-versus-cash-flow consistency.
