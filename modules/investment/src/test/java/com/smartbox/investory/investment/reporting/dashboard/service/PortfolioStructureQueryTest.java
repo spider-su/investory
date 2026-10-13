@@ -151,6 +151,62 @@ class PortfolioStructureQueryTest {
     assertThat(view.topHoldings().getFirst().unrealized()).isEqualTo(20);
   }
 
+  @Test
+  void canonicalHoldingsPreserveThresholdAndNullMonetaryFields() {
+    PortfolioAssetAllocationEntity below = row(1L, "BELOW", 0.004, 111);
+    PortfolioAssetAllocationEntity edge = row(2L, "EDGE", 0.005, 0);
+    edge.setUnrealizedPlInBaseCurrency(null);
+    PortfolioAssetAllocationEntity missing = row(3L, "NULL_VALUE", 1, 999);
+    missing.setTotalValueInBaseCurrency(null);
+    PortfolioAssetAllocationEntity first = row(4L, "AGG", 2, 0);
+    first.setUnrealizedPlInBaseCurrency(null);
+    PortfolioAssetAllocationEntity second = row(5L, "AGG", 3, 0.7);
+    PortfolioAssetAllocationEntity noSymbol = row(6L, null, 1, 0);
+    PortfolioAssetAllocationRepository allocations = mock(PortfolioAssetAllocationRepository.class);
+    AssetRepository assets = mock(AssetRepository.class);
+    when(allocations.findAllByPortfolioId(7L))
+        .thenReturn(List.of(below, edge, missing, first, second, noSymbol));
+    when(assets.findAllById(List.of(1L, 2L, 3L, 4L, 5L, 6L))).thenReturn(List.of());
+    Portfolio portfolio = new Portfolio();
+    portfolio.setCash(1);
+
+    var view =
+        new PortfolioStructureQuery(new AssetAllocationQuery(allocations, assets))
+            .load(7L, portfolio);
+
+    assertThat(view.topHoldings()).extracting("symbol").containsExactly("AGG", "EDGE");
+    assertThat(view.topHoldings()).extracting("value").containsExactly(5.0, 0.005);
+    assertThat(view.topHoldings()).extracting("unrealized").containsExactly(0.7, 0.0);
+    // The null-symbol valuation remains in allocation but never becomes a canonical holding.
+    assertThat(view.assetAllocation().totalValue()).isEqualByComparingTo("7.005");
+    assertThat(missing.getTotalValueInBaseCurrency()).isNull();
+    assertThat(first.getUnrealizedPlInBaseCurrency()).isNull();
+  }
+
+  @Test
+  void negativeValuationDenominatorKeepsSignedHoldingsWithZeroWeights() {
+    PortfolioAssetAllocationRepository allocations = mock(PortfolioAssetAllocationRepository.class);
+    AssetRepository assets = mock(AssetRepository.class);
+    when(allocations.findAllByPortfolioId(7L))
+        .thenReturn(List.of(row(1L, "NEG", -1, -0.2), row(2L, "EDGE", 0.005, 0)));
+    when(assets.findAllById(List.of(1L, 2L))).thenReturn(List.of());
+    Portfolio portfolio = new Portfolio();
+    portfolio.setCash(-0.1);
+
+    var view =
+        new PortfolioStructureQuery(new AssetAllocationQuery(allocations, assets))
+            .load(7L, portfolio);
+
+    assertThat(view.assetAllocation().totalValue()).isEqualByComparingTo("-0.995");
+    assertThat(view.topHoldings()).extracting("symbol").containsExactly("EDGE", "NEG");
+    assertThat(view.topHoldings()).extracting("value").containsExactly(0.005, -1.0);
+    assertThat(view.topHoldings()).extracting("unrealized").containsExactly(0.0, -0.2);
+    assertThat(view.topHoldings()).extracting("weightPct").containsExactly(0.0, 0.0);
+    assertThat(view.cashWeightPct()).isZero();
+    assertThat(view.topFiveWeightPct()).isZero();
+    assertThat(view.topTenWeightPct()).isZero();
+  }
+
   private static PortfolioAssetAllocationEntity row(
       Long assetId, String symbol, double value, double unrealized) {
     PortfolioAssetAllocationEntity row = new PortfolioAssetAllocationEntity();
