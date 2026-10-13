@@ -62,6 +62,8 @@ public class Portfolio {
   /** Total assets value (cash + open positions) across all accounts, converted to base currency. */
   double balance = 0.0;
 
+  boolean valuationComplete = true;
+
   /** Free cash across all accounts in base currency. */
   double cash = 0.0;
 

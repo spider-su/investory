@@ -81,7 +81,7 @@
                 <div class="iv-topbar-metric__content">
                     <div class="iv-topbar-metric__value-row">
                     <span class="iv-topbar-metric__value"
-                          th:text="${format.compactMoney(stats.balance)}">0</span>
+                          th:text="${stats.balance == null ? 'Unavailable' : format.compactMoney(stats.balance)}">0</span>
                     </div>
                     <span class="iv-topbar-metric__label">BALANCE</span>
                 </div>

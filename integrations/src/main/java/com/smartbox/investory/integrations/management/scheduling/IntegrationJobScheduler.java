@@ -116,6 +116,15 @@ public class IntegrationJobScheduler implements IntegrationJobExecutionApi {
     try {
       ZoneId zone = ZoneId.of(job.getTimezone());
       ZonedDateTime reference = job.getLastCompletedAt();
+      if ("daily-notifications".equals(job.getJobType())) {
+        // Morning notifications must not catch up overnight after a restart.
+        ZonedDateTime scheduled =
+            CronExpression.parse(job.getCron())
+                .next(now.withZoneSameInstant(zone).minusMinutes(15));
+        return scheduled != null
+            && !scheduled.isAfter(now.withZoneSameInstant(zone))
+            && (reference == null || reference.toInstant().isBefore(scheduled.toInstant()));
+      }
       if (reference == null) {
         return true;
       }

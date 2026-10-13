@@ -37,6 +37,7 @@ public class PortfolioProjectionRefreshService {
           "app_v_canonical_asset_daily_price_mv",
           "app_v_canonical_asset_daily_price_ranked_mv",
           "app_v_current_asset_price_mv",
+          "app_v_portfolio_daily_fx_rate_mv",
           "app_v_account_statistics",
           "app_v_portfolio_currency_breakdown",
           "app_v_portfolio_asset_allocation",
@@ -126,31 +127,32 @@ public class PortfolioProjectionRefreshService {
   }
 
   private void refreshViews(String plan, List<String> views) {
-    for (String view : views) {
-      refreshOne(plan, view, !"reconciliation".equals(plan));
-    }
+    // Publish the dependency bundle together; readers see the previous or new generation.
+    transactionTemplate.executeWithoutResult(
+        status -> {
+          jdbcTemplate.execute(
+              "SELECT pg_advisory_xact_lock("
+                  + ADVISORY_LOCK_KEY_1
+                  + ", "
+                  + ADVISORY_LOCK_KEY_2
+                  + ")");
+          jdbcTemplate.execute("SET LOCAL jit=off");
+          for (String view : views) {
+            refreshOne(plan, view, !"reconciliation".equals(plan));
+          }
+        });
   }
 
   private void refreshOne(String plan, String view, boolean concurrently) {
     long started = System.nanoTime();
     log.info("MV refresh started plan={} view={}", plan, view);
     try {
-      transactionTemplate.executeWithoutResult(
-          status -> {
-            jdbcTemplate.execute(
-                "SELECT pg_advisory_xact_lock("
-                    + ADVISORY_LOCK_KEY_1
-                    + ", "
-                    + ADVISORY_LOCK_KEY_2
-                    + ")");
-            jdbcTemplate.execute("SET LOCAL jit=off");
-            jdbcTemplate.execute(
-                "REFRESH MATERIALIZED VIEW "
-                    + (concurrently ? "CONCURRENTLY " : "")
-                    + "investory."
-                    + view);
-            jdbcTemplate.execute("ANALYZE investory." + view);
-          });
+      jdbcTemplate.execute(
+          "REFRESH MATERIALIZED VIEW "
+              + (concurrently ? "CONCURRENTLY " : "")
+              + "investory."
+              + view);
+      jdbcTemplate.execute("ANALYZE investory." + view);
       log.info(
           "MV refresh completed plan={} view={} durationMs={}",
           plan,

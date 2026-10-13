@@ -269,3 +269,17 @@ once on existing databases outside the onboarding migration chain; existing data
 to the canonical schema before migration history was cleaned up. `V01.010` clears the old singleton
 Yahoo export timestamp because it cannot be attributed reliably to a portfolio; each portfolio gets
 fresh status after its next manual export.
+
+## Complete valuation publication
+
+Current-price refresh rebuilds the portfolio/date FX input before account statistics. Each
+application MV refresh bundle holds the shared advisory lock and commits in one transaction;
+readers cannot observe an intermediate bundle. Portfolio KPI presentation masks cash, market
+value, equity, unrealized P/L and ROI when valuation is incomplete. The dashboard shows an
+unavailable balance, incomplete calculations are not cached, and operational notifications
+are deferred without changing drawdown state. Full projection refresh invalidates calculation
+caches after the reporting bundle completes (also on failure to remove stale entries).
+
+Persisted Telegram daily notifications default to 09:00 Europe/Warsaw on weekdays. Automatic
+execution is limited to fifteen minutes following the scheduled time; missed runs do not catch
+up overnight on startup. Explicit manual execution remains available.
