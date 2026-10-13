@@ -114,6 +114,11 @@ public class MarketDataService {
   }
 
   private void updateStocks(Long portfolioId, boolean refreshAfterUpdate) {
+    updateStocks(portfolioId, refreshAfterUpdate, false);
+  }
+
+  private void updateStocks(
+      Long portfolioId, boolean refreshAfterUpdate, boolean refreshAfterIncompleteUpdate) {
     log.info("Updating asset prices started");
     List<String> refreshFailures = new ArrayList<>();
 
@@ -187,7 +192,7 @@ public class MarketDataService {
       if (idx < chunks.size() && !chunkPause.isZero()) {
         if (!sleep(chunkPause)) {
           log.warn("AssetEntity price sync interrupted after chunk {}; reporting incomplete", idx);
-          refreshStatisticsIfNeeded(refreshAfterUpdate);
+          refreshStatisticsIfNeeded(refreshAfterUpdate || refreshAfterIncompleteUpdate);
           throw new IllegalStateException(
               "Market refresh interrupted after chunk " + idx + " of " + chunks.size());
         }
@@ -204,7 +209,8 @@ public class MarketDataService {
       refreshFailures.add("Yahoo fallback: " + exception.getMessage());
       log.warn("Yahoo Finance fallback failed: {}", exception.getMessage());
     }
-    refreshStatisticsIfNeeded(refreshAfterUpdate);
+    refreshStatisticsIfNeeded(
+        refreshAfterUpdate || (refreshAfterIncompleteUpdate && !refreshFailures.isEmpty()));
     if (!refreshFailures.isEmpty()) {
       throw new IllegalStateException(
           "Market refresh incomplete: " + String.join("; ", refreshFailures));
@@ -622,16 +628,24 @@ public class MarketDataService {
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void fullPortfolioUpdate(Long portfolioId) {
-    refreshMarketPricesAndPositions(portfolioId);
+    refreshPortfolioForFullUpdate(portfolioId);
     statisticsRefreshService.refreshCurrentMarketPrices();
   }
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void fullPortfolioUpdate() {
     for (Long portfolioId : accountRepository.findDistinctPortfolioIds()) {
-      refreshMarketPricesAndPositions(portfolioId);
+      refreshPortfolioForFullUpdate(portfolioId);
     }
     statisticsRefreshService.refreshCurrentMarketPrices();
+  }
+
+  private void refreshPortfolioForFullUpdate(Long portfolioId) {
+    requirePortfolioId(portfolioId);
+    // A full update refreshes statistics after partial/interrupted price updates, but not
+    // after each successful portfolio; aggregate success performs one global refresh below.
+    updateStocks(portfolioId, false, true);
+    syncIbkrPositions(portfolioId);
   }
 
   /**

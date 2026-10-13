@@ -698,6 +698,22 @@ class MarketDataServiceTest {
   void fullPortfolioUpdate_refreshesGlobalStatisticsOnceAfterAllPortfolios() {
     when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L, 2L, 3L));
     when(assetRepository.findAll()).thenReturn(List.of());
+    List<Long> updatedPortfolioIds = new java.util.ArrayList<>();
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              updatedPortfolioIds.add(invocation.getArgument(0));
+              return List.of();
+            })
+        .when(accountRepository)
+        .findAllByPortfolioId(any());
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              assertEquals(List.of(1L, 1L, 2L, 2L, 3L, 3L), updatedPortfolioIds);
+              return null;
+            })
+        .when(statisticsRefreshService)
+        .refreshCurrentMarketPrices();
+
     marketDataService.fullPortfolioUpdate();
 
     verify(statisticsRefreshService, times(1)).refreshCurrentMarketPrices();
@@ -743,6 +759,37 @@ class MarketDataServiceTest {
         assertThrows(IllegalStateException.class, () -> marketDataService.fullPortfolioUpdate());
 
     assertTrue(failure.getMessage().contains("Market refresh incomplete"));
+    verify(statisticsRefreshService, never()).refreshCurrentMarketPrices();
+  }
+
+  @Test
+  void fullPortfolioUpdate_refreshesStatisticsAfterPartialSuccessBeforePropagatingFailure() {
+    when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L));
+    AssetEntity successfulAsset = newAsset("AAPL.US", "AAPL", true);
+    AssetEntity failedAsset = newAsset("MSFT.US", "MSFT", true);
+    when(assetRepository.findAll()).thenReturn(List.of(successfulAsset, failedAsset));
+    when(positionRepository.findOpen())
+        .thenReturn(List.of(openPosition("AAPL.US"), openPosition("MSFT.US")));
+
+    MarketQuote successfulQuote = new MarketQuote();
+    successfulQuote.setSymbol("AAPL");
+    successfulQuote.setClose(210.0);
+    successfulQuote.setCurrency("USD");
+    when(marketDataProvider.fetchQuotes(List.of("AAPL", "MSFT")))
+        .thenThrow(new RuntimeException("batch unavailable"));
+    when(marketDataProvider.fetchQuotes(List.of("AAPL")))
+        .thenReturn(Map.of("AAPL", successfulQuote));
+    when(marketDataProvider.fetchQuotes(List.of("MSFT")))
+        .thenThrow(new RuntimeException("quote unavailable"));
+
+    IllegalStateException failure =
+        assertThrows(IllegalStateException.class, () -> marketDataService.fullPortfolioUpdate());
+
+    assertEquals("Market refresh incomplete: MSFT: quote unavailable", failure.getMessage());
+    assertEquals(210.0, successfulAsset.getMarketPrice().doubleValue());
+    verify(marketDataProvider, times(3)).fetchQuotes(any());
+    verify(assetRepository).saveAll(org.mockito.ArgumentMatchers.any());
+    verify(statisticsRefreshService, times(1)).refreshAll();
     verify(statisticsRefreshService, never()).refreshCurrentMarketPrices();
   }
 
