@@ -185,6 +185,8 @@ class PortfolioPerformanceQueryTest {
     PortfolioMonthlyPerformanceEntity row = row("2026-05-01", "2026-05-31");
     row.setStartEquity(new BigDecimal("100"));
     row.setEndEquity(new BigDecimal("110"));
+    when(repository.existsByPortfolioIdAndMonthLessThan(1L, LocalDate.parse("2026-05-01")))
+        .thenReturn(true);
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(List.of(row));
     PortfolioPerformanceDailyRow dailyRow =
@@ -204,12 +206,41 @@ class PortfolioPerformanceQueryTest {
             1L, LocalDate.parse("2026-05-01"), LocalDate.parse("2026-05-31"));
   }
 
+  @DisplayName("does not count inception day flows twice")
+  @Test
+  void doesNotCountInceptionDayFlowsTwice() {
+    PortfolioMonthlyPerformanceEntity row = row("2025-01-07", "2025-01-31");
+    row.setStartEquity(new BigDecimal("100"));
+    row.setEndEquity(new BigDecimal("110"));
+    when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
+        .thenReturn(List.of(row));
+    PortfolioPerformanceDailyRow firstDay =
+        daily("2025-01-07", new BigDecimal("100"), new BigDecimal("100"), BigDecimal.ZERO);
+    PortfolioPerformanceDailyRow secondDay =
+        daily("2025-01-08", new BigDecimal("110"), BigDecimal.ZERO, BigDecimal.ZERO);
+    when(dailyRepository.findPortfolioPerformanceDaily(
+            1L, LocalDate.parse("2025-01-07"), LocalDate.parse("2025-01-31")))
+        .thenReturn(List.of(firstDay, secondDay));
+
+    PerformanceResult result =
+        query.forPortfolioMonths(1L, YearMonth.of(2025, 1), YearMonth.of(2025, 1));
+
+    assertThat(result.timeWeightedReturn().status()).isEqualTo(ReturnMetric.Status.AVAILABLE);
+    assertThat(result.timeWeightedReturn().value()).isEqualByComparingTo("0.1");
+    assertThat(result.moneyWeightedReturn().status()).isEqualTo(ReturnMetric.Status.AVAILABLE);
+    verify(repository).existsByPortfolioIdAndMonthLessThan(1L, LocalDate.parse("2025-01-01"));
+  }
+
   @DisplayName("missing Normalized Flow Makes Return Unavailable")
   @Test
   void missingNormalizedFlowMakesReturnUnavailable() {
     PortfolioMonthlyPerformanceEntity row = row("2026-06-01", "2026-06-30");
     row.setStartEquity(new BigDecimal("100"));
     row.setEndEquity(new BigDecimal("110"));
+    when(repository.existsByPortfolioIdAndMonthLessThan(1L, LocalDate.parse("2026-06-01")))
+        .thenReturn(true);
+    when(repository.existsByPortfolioIdAndMonthLessThan(1L, LocalDate.parse("2026-06-01")))
+        .thenReturn(true);
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(List.of(row));
     PortfolioPerformanceDailyRow dailyRow =

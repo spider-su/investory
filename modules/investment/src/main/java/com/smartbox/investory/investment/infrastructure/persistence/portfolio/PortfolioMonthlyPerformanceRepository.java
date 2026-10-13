@@ -30,4 +30,6 @@ public interface PortfolioMonthlyPerformanceRepository
 
   List<PortfolioMonthlyPerformanceEntity> findByPortfolioIdAndMonthBetweenOrderByMonthAsc(
       Long portfolioId, LocalDate from, LocalDate to);
+
+  boolean existsByPortfolioIdAndMonthLessThan(Long portfolioId, LocalDate month);
 }
