@@ -9,9 +9,26 @@
   const income = numeric(data.annualIncome);
   const expenses = numeric(data.annualExpenses);
   const currency = data.currency || 'PLN';
-  const format = value => value === null || !Number.isFinite(value)
-    ? 'Unavailable'
-    : new Intl.NumberFormat('en-GB', {maximumFractionDigits: 0, style: 'currency', currency}).format(value);
+  // Mirrors FinancialPresentation.compactMoney(): 3 significant display digits,
+  // K/M suffixes, HALF_UP rounding and a rounded 1000K -> 1.00M rollover.
+  const compactNumber = value => {
+    const abs = Math.abs(value);
+    if (abs < 1000) return new Intl.NumberFormat('en-US', {maximumFractionDigits: 0}).format(Math.round(abs));
+    const render = (divisor, suffix) => {
+      const scaled = abs / divisor;
+      const digits = scaled < 10 ? 2 : 1;
+      const rounded = Math.round((scaled + Number.EPSILON) * 10 ** digits) / 10 ** digits;
+      return {rounded, text: rounded.toFixed(digits) + suffix};
+    };
+    if (abs >= 1000000) return render(1000000, 'M').text;
+    const thousands = render(1000, 'K');
+    return thousands.rounded >= 1000 ? render(1000000, 'M').text : thousands.text;
+  };
+  const format = value => {
+    if (value === null || !Number.isFinite(value)) return 'Unavailable';
+    const sign = value < 0 ? '−' : '';
+    return sign + compactNumber(value) + ' ' + currency;
+  };
   const rate = value => value === null ? 'Unavailable' : new Intl.NumberFormat('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 3}).format(value) + ' ' + currency;
   const set = (id, value) => {const el = document.getElementById(id); if (el) el.textContent = value;};
   set('fl-income', format(income === null ? null : income / 12) + ' / month');
