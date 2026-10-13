@@ -127,7 +127,6 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 .fl-scene .fl-ground{z-index:6;background:#091825cf;backdrop-filter:blur(12px)}
 @media(prefers-reduced-motion:reduce){.fl-sand-trails i{animation:none}}
 @media(max-width:760px){.fl-sand-trails{opacity:.3;height:11%}.fl-scene .fl-mountain--far{opacity:.55}.fl-scene .fl-mountain--near{opacity:.48}}
-
 .fl-sand-trails{gap:8px;align-items:flex-end;bottom:5%;z-index:4}
 .fl-expense-stream{flex:1;min-width:0;height:70%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px;color:#ffe1ad;text-align:center;font-size:clamp(10px,.85vw,13px);text-shadow:0 2px 8px #000;overflow-wrap:anywhere}
 .fl-expense-stream::before{content:"";display:block;width:85%;height:32%;border-top:var(--stream-weight,3px) dotted #f5bf77;border-radius:60% 40% 0 0;filter:drop-shadow(0 0 6px #ffbc69);opacity:.8}
