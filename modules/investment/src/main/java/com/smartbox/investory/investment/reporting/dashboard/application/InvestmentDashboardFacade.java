@@ -527,7 +527,7 @@ public class InvestmentDashboardFacade {
     PortfolioStructureView structure = portfolioStructureQuery.load(portfolioId, portfolio);
     AssetAllocationView allocation = structure.assetAllocation();
     return new OverviewView(
-        BigDecimal.valueOf(portfolio.getBalance()),
+        portfolio.isValuationComplete() ? BigDecimal.valueOf(portfolio.getBalance()) : null,
         BigDecimal.valueOf(periodPerformance.profit()),
         BigDecimal.valueOf(portfolio.getNetDeposits()),
         decimal(periodPerformance.returnPct()),

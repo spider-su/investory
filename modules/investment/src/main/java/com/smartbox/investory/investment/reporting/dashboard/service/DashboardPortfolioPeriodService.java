@@ -68,6 +68,7 @@ public class DashboardPortfolioPeriodService {
     copy.setDataQuality(source.getDataQuality());
     copy.setRiskExposure(source.getRiskExposure());
     copy.setBalance(source.getBalance());
+    copy.setValuationComplete(source.isValuationComplete());
     copy.setCash(source.getCash());
     copy.setAccountBalances(source.getAccountBalances());
     copy.setAccountBalancesTotal(source.getAccountBalancesTotal());

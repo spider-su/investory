@@ -113,7 +113,10 @@ public class PortfolioMetricsService {
     return value.doubleValue();
   }
 
-  @Cacheable(cacheNames = "portfolioCalculation", key = "#portfolioId")
+  @Cacheable(
+      cacheNames = "portfolioCalculation",
+      key = "#portfolioId",
+      unless = "!#result.valuationComplete")
   public Portfolio calculateTotalProfitLoss(Long portfolioId) {
     if (portfolioId == null || portfolioId <= 0) {
       throw new IllegalArgumentException("portfolioId must be positive");
@@ -142,7 +145,7 @@ public class PortfolioMetricsService {
       // independently of the optional enrichment (fallback details and risk exposure), otherwise
       // the default unknown value is rendered as "Critical" with misleading 0/0 counts.
       applyDataQuality(portfolio);
-      if (properties.isDashboardEnrichmentEnabled()) {
+      if (portfolio.isValuationComplete() && properties.isDashboardEnrichmentEnabled()) {
         applyFallbackReconciliationStatus(portfolio);
         riskExposureCalculator.applyTo(portfolio, portfolioId);
       }
@@ -299,6 +302,7 @@ public class PortfolioMetricsService {
     }
 
     PortfolioKpiSummaryEntity kpi = summary.get();
+    portfolio.setValuationComplete(kpi.getTotalEquity() != null);
     CurrencyType baseCurrency = kpi.getBaseCurrency();
     BigDecimal realized = bd(kpi.getTotalRealizedProfit());
     BigDecimal unrealized = bd(kpi.getTotalUnrealizedProfit());

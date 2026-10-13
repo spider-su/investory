@@ -25,15 +25,11 @@ public class StatisticsRefreshService {
 
   public void refreshAll() {
     refresh(portfolioProjectionService::recalculateAll);
-    projectionRefreshService.refreshApplicationViews(
-        PortfolioProjectionRefreshService.ApplicationRefreshScope.FULL);
   }
 
   /** Rebuilds after the calling transaction has committed, so the rebuild sees committed data. */
   public void refreshAllAfterCommittedMutation() {
     refresh(portfolioProjectionService::recalculateAllInNewTransaction);
-    projectionRefreshService.refreshApplicationViews(
-        PortfolioProjectionRefreshService.ApplicationRefreshScope.FULL);
   }
 
   public void refreshCurrentMarketPrices() {
@@ -67,6 +63,8 @@ public class StatisticsRefreshService {
     log.info("Refreshing persisted portfolio projections...");
     try {
       recalculate.run();
+      projectionRefreshService.refreshApplicationViews(
+          PortfolioProjectionRefreshService.ApplicationRefreshScope.FULL);
       log.info("Projection refresh complete.");
     } finally {
       calculationCache.invalidate();
