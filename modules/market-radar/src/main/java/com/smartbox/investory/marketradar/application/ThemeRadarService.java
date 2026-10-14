@@ -76,10 +76,11 @@ public class ThemeRadarService implements ThemeRadarApi {
     Map<SeriesKey, Optional<SeriesMetrics>> requestMetrics = new HashMap<>();
     MetricsLookup metricsLookup =
         (symbol, requestedDate) -> {
-          SeriesKey key = new SeriesKey(symbol, requestedDate);
+          LocalDate from = requestedDate.minusDays(100);
+          SeriesKey key = new SeriesKey(symbol, from, requestedDate);
           Optional<SeriesMetrics> cached = requestMetrics.get(key);
           if (cached != null) return cached;
-          Optional<SeriesMetrics> fetched = metrics(symbol, requestedDate);
+          Optional<SeriesMetrics> fetched = metrics(symbol, from, requestedDate);
           requestMetrics.put(key, fetched);
           return fetched;
         };
@@ -105,8 +106,12 @@ public class ThemeRadarService implements ThemeRadarApi {
   }
 
   private Optional<SeriesMetrics> metrics(String symbol, LocalDate date) {
+    return metrics(symbol, date.minusDays(100), date);
+  }
+
+  private Optional<SeriesMetrics> metrics(String symbol, LocalDate from, LocalDate date) {
     List<DailyMarketBar> bars =
-        marketData.dailyBars(symbol, date.minusDays(100), date).stream()
+        marketData.dailyBars(symbol, from, date).stream()
             .sorted(Comparator.comparing(DailyMarketBar::date))
             .toList();
     if (bars.size() < 51) return Optional.empty();
@@ -126,7 +131,7 @@ public class ThemeRadarService implements ThemeRadarApi {
     Optional<SeriesMetrics> metrics(String symbol, LocalDate date);
   }
 
-  private record SeriesKey(String symbol, LocalDate date) {}
+  private record SeriesKey(String symbol, LocalDate from, LocalDate to) {}
 
   private ThemeState classify(
       double breadthAbove, double breadthOutperforming, double relativeStrength) {
