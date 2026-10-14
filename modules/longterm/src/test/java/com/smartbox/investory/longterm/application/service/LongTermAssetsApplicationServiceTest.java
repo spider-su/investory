@@ -174,6 +174,22 @@ class LongTermAssetsApplicationServiceTest {
         .findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID);
   }
 
+  @Test
+  void weightedReturnKeepsPositiveNullRateBondInCapitalDenominator() {
+    when(conversion.convertToBaseCurrency(
+            new BigDecimal("400"), CurrencyType.PLN, CurrencyType.EUR, DATE))
+        .thenReturn(new BigDecimal("400"));
+    when(conversion.convertToBaseCurrency(
+            new BigDecimal("800"), CurrencyType.PLN, CurrencyType.EUR, DATE))
+        .thenReturn(new BigDecimal("800"));
+    var rated = bondObservation("400", "0.10", DATE.plusDays(1));
+    var nullRate = bondObservation("800", null, DATE.plusDays(1));
+    when(bonds.findWeightedReturnBonds(PORTFOLIO_ID, DATE)).thenReturn(List.of(rated, nullRate));
+
+    assertThat(service.currentWeightedEffectiveReturn(PORTFOLIO_ID, DATE))
+        .isEqualByComparingTo("0.03333333333333333333");
+  }
+
   private BondRepository.WeightedReturnBond bondObservation(
       String value, String rate, LocalDate maturityDate) {
     return new BondRepository.WeightedReturnBond() {
@@ -189,7 +205,7 @@ class LongTermAssetsApplicationServiceTest {
 
       @Override
       public BigDecimal getInterestRate() {
-        return new BigDecimal(rate);
+        return rate == null ? null : new BigDecimal(rate);
       }
 
       @Override

@@ -170,13 +170,12 @@ public class LongTermAssetReadService {
                         toBase(row.getValue(), row.getCurrency(), currency, date),
                         row.getInterestRate()))
             .filter(row -> row.value() != null && row.value().signum() > 0)
-            .filter(row -> row.rate() != null)
             .toList();
     BigDecimal capital =
         bonds.stream().map(BondReturn::value).reduce(BigDecimal.ZERO, BigDecimal::add);
     if (capital.signum() == 0) return null;
     return bonds.stream()
-        .map(row -> row.value().multiply(row.rate()))
+        .map(row -> row.rate() == null ? BigDecimal.ZERO : row.value().multiply(row.rate()))
         .reduce(BigDecimal.ZERO, BigDecimal::add)
         .divide(capital, 20, RoundingMode.HALF_UP);
   }
