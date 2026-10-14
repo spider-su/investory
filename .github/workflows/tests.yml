@@ -163,7 +163,7 @@ jobs:
             tests: JdbcStrategistForecastStoreIT,DatabaseEvidenceReconciliationCheckIT,NotificationEventContractIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT,LongTermAssetLifecyclePostgresIT
           - name: exports-and-market-data
             project: app
-            tests: ExportHappyInvestorIT,MarketDataRefreshPostgresIT
+            tests: ExportHappyInvestorIT,MarketDataRefreshPostgresIT,AssetPriceHistoryBatchPostgresIT
           - name: investment-rest
             project: modules/investment
             tests: DailyPerformanceControllerIT,InvestmentAssetRestControllerIT,InvestmentDashboardRestControllerIT,InvestmentPerformanceControllerIT,InvestmentReconciliationRestControllerIT
