@@ -18,9 +18,8 @@
     if (abs < 1000) return new Intl.NumberFormat('en-US', {maximumFractionDigits: 0}).format(Math.round(abs));
     const render = (divisor, suffix) => {
       const scaled = abs / divisor;
-      const digits = scaled < 10 ? 2 : 1;
-      const rounded = Math.round((scaled + Number.EPSILON) * 10 ** digits) / 10 ** digits;
-      return {rounded, text: String(rounded) + suffix};
+      const rounded = Math.round((scaled + Number.EPSILON) * 10) / 10;
+      return {rounded, text: rounded.toFixed(1) + suffix};
     };
     if (abs >= 1000000) return render(1000000, 'M').text;
     const thousands = render(1000, 'K');

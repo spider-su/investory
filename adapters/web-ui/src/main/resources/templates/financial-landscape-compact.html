@@ -27,16 +27,11 @@
       </div>
       <div class="fl-clock-value fl-clock-value--expenses"><span class="fl-visually-hidden">Monthly expenses</span><strong id="fl-expenses">—</strong></div>
     </div>
-    <div class="fl-compact-metrics">
-      <div><span>Income / month</span><strong id="fl-income">—</strong></div>
-      <div><span>Expenses / month</span><strong id="fl-expenses">—</strong></div>
-      <div class="fl-income-legend"><span class="fl-legend-cash">● Cash income</span><span class="fl-legend-market">● Market result</span></div>
-      <div class="fl-compact-net"><span>Net flow / month</span><strong id="fl-net">—</strong></div>
-      <div><span>Liquid assets</span><strong id="fl-liquid">—</strong></div>
-      <div><span>Cash reserve · included in liquid assets</span><strong id="fl-cash-reserve">—</strong></div>
+    <div class="fl-compact-flow fl-compact-net">
+      <span>Flow:</span>
+      <strong id="fl-net">—</strong>
     </div>
   </div>
-  
 </main>
 <script th:inline="javascript">window.financialLandscape = /*[[${landscape}]]*/ {};</script>
 <script src="/js/financial-landscape.js" defer></script>

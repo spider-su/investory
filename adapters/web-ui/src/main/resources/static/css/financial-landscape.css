@@ -135,14 +135,15 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 /* Focused cinematic composition: compact clock and full-view distribution. */
 .fl-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .fl-compact{width:min(100%,900px);background:radial-gradient(ellipse at 32% 62%,#92623f60,transparent 55%),linear-gradient(180deg,#0c192a,#172536 72%,#101b29)}
-.fl-compact-content{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(220px,1fr);gap:24px;padding:12px 0 4px}
+.fl-compact-content{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(220px,1fr);gap:24px;padding:12px 0 4px;align-items:center}
 .fl-compact-clock{display:flex;flex-direction:column;align-items:center;gap:0;min-width:0}
 .fl-clock-value strong{font-size:clamp(28px,4vw,44px);line-height:1.1;color:#ffe0a0;text-shadow:0 0 22px #dba45770}
 .fl-compact-hourglass{flex:none;width:min(100%,210px);margin:4px 0;position:relative}
 .fl-compact-hourglass svg{width:100%;display:block}
-.fl-compact-flow{position:relative;inset:auto;left:auto;top:auto;transform:none;align-self:center;justify-self:stretch;min-width:0}
+.fl-compact-flow{position:relative;inset:auto;left:auto;top:auto;transform:none;min-width:0;width:min(100%,420px);box-sizing:border-box;padding:18px 20px;border:1px solid #486075;border-radius:18px;background:#091827ed;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
 .fl-compact-flow .fl-coverage-track{width:100%}
-.fl-compact-flow strong{font-size:clamp(21px,3vw,30px)}
+.fl-compact-flow span{font-size:11px;letter-spacing:.11em;color:#a8bbc9;text-transform:uppercase}
+.fl-compact-flow strong{display:block;margin-top:6px;font-size:clamp(22px,3vw,32px);line-height:1.1}
 .fl-consumption{margin-top:12px;background:#091827ed;border:1px solid #486075;border-radius:18px;padding:18px 22px;color:#e9f1f5}
 .fl-consumption-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;color:#a8bbc9;font-size:12px}
 .fl-consumption-heading h2{font-size:12px;letter-spacing:.11em;font-weight:600;margin:0}
@@ -157,5 +158,5 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 .fl-flow-breakdown{width:100%;border-top:1px solid #415569;margin-top:6px;padding-top:10px;display:grid;gap:9px}
 .fl-flow-breakdown>div{display:flex;justify-content:space-between;gap:12px;font-size:12px;align-items:center}
 .fl-flow-breakdown b{white-space:nowrap;font-weight:600}
-@media(max-width:650px){.fl-compact-content{grid-template-columns:1fr;gap:18px}.fl-compact-flow{width:100%;box-sizing:border-box}.fl-compact-hourglass{width:160px}.fl-compact-clock{gap:1px}.fl-consumption{padding:14px}.fl-consumption-legend{grid-template-columns:repeat(2,minmax(0,1fr))}.fl-consumption-heading strong{font-size:15px}}
+@media(max-width:650px){.fl-compact-content{grid-template-columns:1fr;gap:18px;padding:14px 0 4px}.fl-compact-flow{width:100%}.fl-compact-hourglass{width:160px}.fl-compact-clock{gap:1px}.fl-consumption{padding:14px}.fl-consumption-legend{grid-template-columns:repeat(2,minmax(0,1fr))}.fl-consumption-heading strong{font-size:15px}}
 @media(max-width:420px){.fl-consumption-legend{grid-template-columns:1fr}.fl-compact{border-radius:14px}}
