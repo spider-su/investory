@@ -3,6 +3,8 @@ package com.smartbox.investory.integrations.notifications.application;
 import com.smartbox.investory.integrations.notifications.formatting.TelegramText;
 import com.smartbox.investory.integrations.notifications.persistence.NotificationEventEntity;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -22,26 +24,44 @@ public class DailyDigestFormatter implements NotificationMessageFormatter {
   public String format(NotificationEventEntity event) {
     Map<String, String> p = NotificationPayload.read(objectMapper, event);
     String currency = p.getOrDefault("currency", "");
-    if (!p.containsKey("balance")) {
-      return TelegramText.heading("📊", "Portfolio · Daily")
+    if (!p.containsKey("period")) {
+      return TelegramText.heading("📊", "Portfolio")
           + "\n\n"
           + TelegramText.escape(p.getOrDefault("message", event.getTitle()));
     }
-    return TelegramText.heading("📊", "Portfolio · Daily")
-        + "\n\n💰 <b>"
-        + TelegramText.escape(money(p.get("balance"), currency))
-        + "</b>  Portfolio value"
-        + "\n\n📈 P/L  <b>"
-        + TelegramText.escape(money(p.get("profit"), currency))
-        + "</b>"
-        + "\n├ Realized   "
-        + TelegramText.escape(money(p.get("realized"), currency))
-        + "\n├ Unrealized "
-        + TelegramText.escape(money(p.get("unrealized"), currency))
-        + "\n└ Dividends  "
-        + TelegramText.escape(money(p.get("dividends"), currency))
-        + "\n\n🧾 Tax estimate  "
-        + TelegramText.escape(money(p.get("tax"), currency));
+    LocalDate date = LocalDate.parse(p.get("date"));
+    String heading =
+        p.get("period").equals("week")
+            ? "Portfolio Weekly " + date.format(DateTimeFormatter.ofPattern("dd.MM.yy"))
+            : "Portfolio "
+                + date.format(DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH));
+    String result = TelegramText.heading("📊", heading);
+    if (p.get("period").equals("week")) {
+      return result
+          + "\n💰  Total: <b>"
+          + TelegramText.escape(money(p.get("balance"), currency))
+          + "</b>\n📈  Last week: <b>"
+          + TelegramText.escape(money(p.get("profit"), currency))
+          + "</b>\n💵  Dividends "
+          + TelegramText.escape(money(p.get("dividends"), currency));
+    }
+    String message =
+        result + "\n" + TelegramText.escape(money(p.get("profit"), currency)) + " today";
+    if (!isZero(p.get("dividends"))) {
+      message +=
+          " (" + TelegramText.escape(money(p.get("dividends"), currency)) + " are dividends)";
+    }
+    String movers = p.getOrDefault("movers", "");
+    if (!movers.isBlank()) {
+      message += "\n" + TelegramText.escape(movers);
+    }
+    return message;
+  }
+
+  private static boolean isZero(String amount) {
+    return amount == null
+        || amount.replaceAll("[^0-9]", "").isBlank()
+        || amount.replaceAll("[^0-9]", "").chars().allMatch(c -> c == '0');
   }
 
   private static String money(String value, String currency) {

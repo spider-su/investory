@@ -1018,6 +1018,14 @@ public class PortfolioMetricsService {
     return performanceQueryService.dailyPerformanceDetail(portfolioId, date, accountIds);
   }
 
+  public List<
+          com.smartbox.investory.investment.api.reporting.InvestmentDailyPerformanceApi
+              .DailyTickerMove>
+      dailyTickerMovers(Long portfolioId, LocalDate date, double thresholdPct, int limit) {
+    requirePortfolioId(portfolioId);
+    return performanceQueryService.dailyTickerMovers(portfolioId, date, thresholdPct, limit);
+  }
+
   private Long activePortfolioId() {
     Long portfolioId = scopedPortfolio.get();
     if (portfolioId == null) throw new IllegalStateException("No active portfolio");

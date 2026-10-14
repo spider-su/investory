@@ -3,6 +3,7 @@ package com.smartbox.investory.investment.performance.application;
 import com.smartbox.investory.investment.api.reporting.InvestmentDailyPerformanceApi;
 import com.smartbox.investory.investment.performance.PortfolioMetricsService;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,5 +18,11 @@ public class InvestmentDailyPerformanceApplicationService implements InvestmentD
   public com.smartbox.investory.investment.api.reporting.model.DailyPerformanceDetail load(
       Long portfolioId, LocalDate date, Set<Long> accountIds) {
     return portfolioMetricsService.dailyPerformanceDetail(portfolioId, date, accountIds);
+  }
+
+  @Override
+  public List<InvestmentDailyPerformanceApi.DailyTickerMove> movers(
+      Long portfolioId, LocalDate date, double thresholdPct, int limit) {
+    return portfolioMetricsService.dailyTickerMovers(portfolioId, date, thresholdPct, limit);
   }
 }
