@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.asset.model.*;
@@ -163,6 +164,37 @@ class AssetDetailServiceTest {
     assertThat(view.totalGrossDividends()).isEqualTo(14d);
     assertThat(view.totalWithholdingTax()).isEqualTo(1.8d);
     assertThat(view.totalNetDividends()).isEqualTo(12.2d);
+  }
+
+  @Test
+  void boundedPeriodsUseInclusivePersistenceFiltersWhileMaxKeepsAllHistoryReads() {
+    AssetEntity asset =
+        AssetEntity.builder().id(9L).symbol("VWCE").currency(CurrencyType.EUR).build();
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L)));
+    when(assets.findBySymbol("VWCE")).thenReturn(Optional.of(asset));
+    when(open.findOpenByAssetIdAndAccountIn(eq(9L), any())).thenReturn(List.of());
+    when(closed.findClosedByAssetIdAndAccountIn(eq(9L), any())).thenReturn(List.of());
+    when(cash.findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(eq(9L), any(), any()))
+        .thenReturn(List.of());
+    when(performance.findAllByPortfolioIdAndSymbol(1L, "VWCE")).thenReturn(List.of());
+
+    service.findBySymbol(1L, "VWCE", DashboardPeriod.MAX);
+    verify(closed).findClosedByAssetIdAndAccountIn(eq(9L), any());
+    verify(cash).findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(eq(9L), any(), any());
+
+    service.findBySymbol(1L, "VWCE", DashboardPeriod.ONE_MONTH);
+    ZonedDateTime inclusiveStart =
+        DashboardPeriod.ONE_MONTH.startDate(TIME.now(TIME.businessZone()));
+    verify(closed)
+        .findClosedByAssetIdAndAccountInAndCloseTimeGreaterThanEqualOrderByCloseTimeDesc(
+            9L, java.util.Set.of(1L), inclusiveStart);
+    verify(cash)
+        .findAllByAssetIdAndAccountInAndTypeInAndDateGreaterThanEqualOrderByDateDescIdDesc(
+            9L,
+            java.util.Set.of(1L),
+            java.util.Set.of(CashOperationType.DIVIDEND, CashOperationType.WITHHOLDING_TAX),
+            inclusiveStart);
+    verify(closed, org.mockito.Mockito.times(1)).findClosedByAssetIdAndAccountIn(eq(9L), any());
   }
 
   private PositionEntity position(Long account, PositionType type, double quantity, double price) {

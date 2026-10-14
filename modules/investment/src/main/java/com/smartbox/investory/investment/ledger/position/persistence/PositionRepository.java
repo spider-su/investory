@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.ledger.position.persistence;
 
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -48,6 +49,14 @@ public interface PositionRepository extends JpaRepository<PositionEntity, Long> 
       "SELECT position FROM PositionEntity position WHERE position.closeTime IS NOT NULL AND position.assetId = :assetId AND position.account IN :accounts ORDER BY position.closeTime DESC")
   List<PositionEntity> findClosedByAssetIdAndAccountIn(
       @Param("assetId") Long assetId, @Param("accounts") Collection<Long> accounts);
+
+  @Query(
+      "SELECT position FROM PositionEntity position WHERE position.closeTime IS NOT NULL AND position.assetId = :assetId AND position.account IN :accounts AND position.closeTime >= :startDate ORDER BY position.closeTime DESC")
+  List<PositionEntity>
+      findClosedByAssetIdAndAccountInAndCloseTimeGreaterThanEqualOrderByCloseTimeDesc(
+          @Param("assetId") Long assetId,
+          @Param("accounts") Collection<Long> accounts,
+          @Param("startDate") ZonedDateTime startDate);
 
   @Modifying
   @Query(

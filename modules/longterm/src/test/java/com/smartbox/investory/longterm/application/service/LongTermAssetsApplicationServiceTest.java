@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -136,6 +137,82 @@ class LongTermAssetsApplicationServiceTest {
     when(rentalCommandService.list(PORTFOLIO_ID, 8L)).thenReturn(List.of());
     assertThat(service.archived(PORTFOLIO_ID, DATE)).isEmpty();
     assertThat(service.rentalContracts(PORTFOLIO_ID, 8L, DATE)).isEmpty();
+  }
+
+  @Test
+  void weightedReturnReadsOnlyBondProjectionAndPreservesEmptyResult() {
+    when(bonds.findWeightedReturnBonds(PORTFOLIO_ID, DATE)).thenReturn(List.of());
+
+    assertThat(service.currentWeightedEffectiveReturn(PORTFOLIO_ID, DATE)).isNull();
+
+    verify(bonds).findWeightedReturnBonds(PORTFOLIO_ID, DATE);
+    verify(realEstates, never()).findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID);
+    verify(cashReserves, never()).findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID);
+    verify(personalAssets, never())
+        .findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID);
+  }
+
+  @Test
+  void weightedReturnUsesPositiveUnmaturedBondCapitalOnly() {
+    when(conversion.convertToBaseCurrency(
+            new BigDecimal("100"), CurrencyType.PLN, CurrencyType.EUR, DATE))
+        .thenReturn(new BigDecimal("400"));
+    when(conversion.convertToBaseCurrency(
+            new BigDecimal("200"), CurrencyType.PLN, CurrencyType.EUR, DATE))
+        .thenReturn(new BigDecimal("800"));
+    var active = bondObservation("100", "0.10", DATE.plusDays(1));
+    var zeroValue = bondObservation("0", "0.99", DATE.plusDays(1));
+    var matured = bondObservation("200", "0.50", DATE);
+    when(bonds.findWeightedReturnBonds(PORTFOLIO_ID, DATE))
+        .thenReturn(List.of(active, zeroValue, matured));
+
+    assertThat(service.currentWeightedEffectiveReturn(PORTFOLIO_ID, DATE))
+        .isEqualByComparingTo("0.10000000000000000000");
+    verify(realEstates, never()).findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID);
+    verify(cashReserves, never()).findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID);
+    verify(personalAssets, never())
+        .findAllByPortfolioIdAndArchivedAtIsNullOrderByName(PORTFOLIO_ID);
+  }
+
+  @Test
+  void weightedReturnKeepsPositiveNullRateBondInCapitalDenominator() {
+    when(conversion.convertToBaseCurrency(
+            new BigDecimal("400"), CurrencyType.PLN, CurrencyType.EUR, DATE))
+        .thenReturn(new BigDecimal("400"));
+    when(conversion.convertToBaseCurrency(
+            new BigDecimal("800"), CurrencyType.PLN, CurrencyType.EUR, DATE))
+        .thenReturn(new BigDecimal("800"));
+    var rated = bondObservation("400", "0.10", DATE.plusDays(1));
+    var nullRate = bondObservation("800", null, DATE.plusDays(1));
+    when(bonds.findWeightedReturnBonds(PORTFOLIO_ID, DATE)).thenReturn(List.of(rated, nullRate));
+
+    assertThat(service.currentWeightedEffectiveReturn(PORTFOLIO_ID, DATE))
+        .isEqualByComparingTo("0.03333333333333333333");
+  }
+
+  private BondRepository.WeightedReturnBond bondObservation(
+      String value, String rate, LocalDate maturityDate) {
+    return new BondRepository.WeightedReturnBond() {
+      @Override
+      public BigDecimal getValue() {
+        return new BigDecimal(value);
+      }
+
+      @Override
+      public CurrencyType getCurrency() {
+        return CurrencyType.EUR;
+      }
+
+      @Override
+      public BigDecimal getInterestRate() {
+        return rate == null ? null : new BigDecimal(rate);
+      }
+
+      @Override
+      public LocalDate getMaturityDate() {
+        return maturityDate;
+      }
+    };
   }
 
   @Test
