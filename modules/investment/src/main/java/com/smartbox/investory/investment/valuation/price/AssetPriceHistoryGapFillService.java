@@ -1,5 +1,7 @@
 package com.smartbox.investory.investment.valuation.price;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
@@ -8,9 +10,11 @@ import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceH
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -26,6 +30,9 @@ import org.springframework.util.StringUtils;
 @Service
 @RequiredArgsConstructor
 public class AssetPriceHistoryGapFillService {
+
+  private static final int WINDOW_DAYS = 31;
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final PositionRepository openedPositionRepository;
   private final AssetRepository assetRepository;
@@ -52,61 +59,99 @@ public class AssetPriceHistoryGapFillService {
       return;
     }
 
-    List<AssetPriceHistoryRepository.HistoricalAssetPriceRow> rows =
-        assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(openSymbols, asOfDate);
-    Map<String, NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow>>
-        bySymbol = new HashMap<>();
-    for (AssetPriceHistoryRepository.HistoricalAssetPriceRow row : rows) {
-      if (!StringUtils.hasText(row.getSymbol())
-          || row.getPriceDate() == null
-          || row.getClosePrice() == null
-          || row.getClosePrice().compareTo(BigDecimal.ZERO) <= 0) {
-        continue;
-      }
-      NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> datedRows =
-          bySymbol.computeIfAbsent(row.getSymbol(), ignored -> new TreeMap<>());
-      AssetPriceHistoryRepository.HistoricalAssetPriceRow existing =
-          datedRows.get(row.getPriceDate());
-      if (existing == null || compareRows(row, existing) < 0) {
-        datedRows.put(row.getPriceDate(), row);
-      }
+    List<AssetPriceHistoryRepository.HistoricalPriceStart> starts =
+        assetPriceHistoryRepository.findHistoricalPriceStartsBySymbolInBefore(
+            openSymbols, asOfDate);
+    if (starts.isEmpty()) {
+      return;
+    }
+    LocalDate firstDate =
+        starts.stream()
+            .map(AssetPriceHistoryRepository.HistoricalPriceStart::getPriceDate)
+            .filter(java.util.Objects::nonNull)
+            .min(LocalDate::compareTo)
+            .orElse(null);
+    if (firstDate == null) {
+      return;
     }
 
     int inserted = 0;
-    for (Map.Entry<String, AssetEntity> entry : assetsBySymbol.entrySet()) {
-      String symbol = entry.getKey();
-      AssetEntity asset = entry.getValue();
-      NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> datedRows =
-          bySymbol.get(symbol);
-      if (datedRows == null || datedRows.isEmpty()) {
-        continue;
+    for (LocalDate windowStart = firstDate;
+        !windowStart.isAfter(asOfDate);
+        windowStart = windowStart.plusDays(WINDOW_DAYS)) {
+      LocalDate windowEnd = windowStart.plusDays(WINDOW_DAYS - 1L);
+      if (windowEnd.isAfter(asOfDate)) {
+        windowEnd = asOfDate;
       }
-      List<LocalDate> dates = List.copyOf(datedRows.navigableKeySet());
-      for (int i = 0; i < dates.size(); i++) {
-        LocalDate left = dates.get(i);
-        LocalDate right = i + 1 < dates.size() ? dates.get(i + 1) : asOfDate.plusDays(1);
-        AssetPriceHistoryRepository.HistoricalAssetPriceRow source = datedRows.get(left);
-        if (source == null || shouldSkipCarryForwardSource(source)) {
+      List<AssetPriceHistoryRepository.HistoricalAssetPriceRow> rows =
+          assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(
+              openSymbols, windowStart, windowEnd);
+      Map<String, NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow>>
+          bySymbol = new HashMap<>();
+      for (AssetPriceHistoryRepository.HistoricalAssetPriceRow row : rows) {
+        if (!StringUtils.hasText(row.getSymbol())
+            || row.getPriceDate() == null
+            || row.getClosePrice() == null
+            || row.getClosePrice().compareTo(BigDecimal.ZERO) <= 0) {
           continue;
         }
-        LocalDate day = left.plusDays(1);
-        while (day.isBefore(right) && !day.isAfter(asOfDate)) {
-          if (isBusinessDay(day)) {
-            assetPriceHistoryRepository.upsertCarryForwardPrice(
-                asset.getId(),
-                day,
-                left,
-                source.getSymbol(),
-                source.getSymbol(),
-                source.getPriceCurrency(),
-                source.getClosePrice(),
-                source.getPriceScaleFactor() == null
-                    ? BigDecimal.ONE
-                    : source.getPriceScaleFactor(),
-                source.getQualityClass());
-            inserted++;
+        NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> datedRows =
+            bySymbol.computeIfAbsent(row.getSymbol(), ignored -> new TreeMap<>());
+        AssetPriceHistoryRepository.HistoricalAssetPriceRow existing =
+            datedRows.get(row.getPriceDate());
+        if (existing == null || compareRows(row, existing) < 0) {
+          datedRows.put(row.getPriceDate(), row);
+        }
+      }
+
+      List<Map<String, Object>> carryForwards = new ArrayList<>();
+      for (Map.Entry<String, AssetEntity> entry : assetsBySymbol.entrySet()) {
+        String symbol = entry.getKey();
+        AssetEntity asset = entry.getValue();
+        NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> datedRows =
+            bySymbol.get(symbol);
+        if (datedRows == null || datedRows.isEmpty()) {
+          continue;
+        }
+        List<LocalDate> dates = List.copyOf(datedRows.navigableKeySet());
+        for (int i = 0; i < dates.size(); i++) {
+          LocalDate left = dates.get(i);
+          LocalDate right = i + 1 < dates.size() ? dates.get(i + 1) : windowEnd.plusDays(1);
+          AssetPriceHistoryRepository.HistoricalAssetPriceRow source = datedRows.get(left);
+          if (source == null || shouldSkipCarryForwardSource(source)) {
+            continue;
           }
-          day = day.plusDays(1);
+          LocalDate day = left.plusDays(1);
+          while (day.isBefore(right) && !day.isAfter(windowEnd)) {
+            if (isBusinessDay(day)) {
+              Map<String, Object> candidate = new LinkedHashMap<>();
+              candidate.put("asset_id", asset.getId());
+              candidate.put("price_date", day.toString());
+              candidate.put("source_date", left.toString());
+              candidate.put("source_symbol", source.getSymbol());
+              candidate.put("original_source_symbol", source.getSymbol());
+              candidate.put("price_currency", source.getPriceCurrency());
+              candidate.put("price_value", source.getClosePrice());
+              candidate.put(
+                  "price_scale_factor",
+                  source.getPriceScaleFactor() == null
+                      ? BigDecimal.ONE
+                      : source.getPriceScaleFactor());
+              candidate.put("scale_reason", source.getQualityClass());
+              carryForwards.add(candidate);
+              inserted++;
+            }
+            day = day.plusDays(1);
+          }
+        }
+      }
+
+      if (!carryForwards.isEmpty()) {
+        try {
+          assetPriceHistoryRepository.upsertCarryForwardPrices(
+              OBJECT_MAPPER.writeValueAsString(carryForwards));
+        } catch (JsonProcessingException ex) {
+          throw new IllegalStateException("Could not encode carry-forward price batch", ex);
         }
       }
     }

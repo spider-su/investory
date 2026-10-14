@@ -213,9 +213,11 @@ public class PortfolioPerformanceQueryService {
             .toList();
     if (symbols.isEmpty()) return List.of();
 
+    LocalDate dateFrom =
+        date.isBefore(LocalDate.MIN.plusDays(5)) ? LocalDate.MIN : date.minusDays(5);
     Map<String, TreeMap<LocalDate, BigDecimal>> pricesBySymbol = new TreeMap<>();
     for (var row :
-        assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(symbols, date)) {
+        assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(symbols, dateFrom, date)) {
       if (Boolean.TRUE.equals(row.getEstimated())
           || row.getClosePrice() == null
           || row.getPriceDate() == null) continue;

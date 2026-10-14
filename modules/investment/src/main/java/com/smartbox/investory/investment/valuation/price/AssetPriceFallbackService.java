@@ -111,7 +111,7 @@ public class AssetPriceFallbackService {
                     AssetEntity::getSymbol, Function.identity(), (left, right) -> right));
     Map<String, HistoricalQuote> historicalQuotesBySymbol =
         assetPriceHistoryRepository
-            .findHistoricalPricesBySymbolInBefore(weightedPrices.keySet(), rateDate)
+            .findLatestHistoricalPricesBySymbolInBefore(weightedPrices.keySet(), rateDate)
             .stream()
             .filter(row -> row.getPriceDate() != null)
             .collect(

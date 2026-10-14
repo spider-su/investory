@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -394,7 +395,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 historicalPrice(
@@ -470,7 +471,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 historicalPrice(
@@ -494,6 +495,12 @@ class PortfolioProjectionServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     service.recalculateAll();
+
+    ArgumentCaptor<LocalDate> historyFrom = ArgumentCaptor.forClass(LocalDate.class);
+    verify(assetPriceHistoryRepository)
+        .findHistoricalPricesBySymbolInRange(
+            eq(Set.of("AAPL.US")), historyFrom.capture(), any(LocalDate.class));
+    assertEquals(tradeDate.toLocalDate(), historyFrom.getValue());
 
     ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
         ArgumentCaptor.forClass(Iterable.class);
@@ -528,7 +535,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
     when(assetRepository.findAll()).thenReturn(List.of());
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 historicalPrice(
@@ -624,7 +631,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, purchase, sale));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(List.of(historicalPrice("CSPX.UK", tradeDate.toLocalDate(), 100.0, "USD", 95)));
     lenient()
         .when(
@@ -687,7 +694,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
     when(assetRepository.findAll()).thenReturn(List.of());
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 historicalPrice(
@@ -751,7 +758,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
     when(assetRepository.findAll()).thenReturn(List.of());
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 historicalPrice(
@@ -811,7 +818,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 historicalPrice(
@@ -879,7 +886,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, stockPurchase));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(List.of(historicalPrice("AAPL.US", tradeDate.toLocalDate(), 80.0, "USD", 95)));
     lenient()
         .when(
@@ -943,7 +950,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, stockPurchase));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(List.of());
     lenient()
         .when(
@@ -1008,7 +1015,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, stockPurchase));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(historicalPrice("JGPI.DE", LocalDate.parse("2025-03-03"), 26.65, "USD", 95)));
     lenient()
@@ -1093,7 +1100,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of(closed));
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, purchase, sale));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 historicalPrice(
@@ -1333,7 +1340,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of(februaryRoundTrip));
     when(cashOperationRepository.findAll()).thenReturn(List.of());
     when(assetRepository.findAll()).thenReturn(List.of(apple, microsoft));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 historicalPrice("AAPL.US", january.toLocalDate(), 100.0, "USD", 95),
@@ -1402,7 +1409,7 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, stockPurchase));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(List.of(historicalPrice("PKO.WA", tradeDate.toLocalDate(), 100.0, "PLN", 95)));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.any(BigDecimal.class),

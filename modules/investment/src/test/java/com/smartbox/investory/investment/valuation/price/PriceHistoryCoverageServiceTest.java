@@ -73,7 +73,8 @@ class PriceHistoryCoverageServiceTest {
     when(assets.findById(5L)).thenReturn(Optional.of(asset));
     var first = row("2026-01-01");
     var last = row("2026-01-03");
-    when(history.findHistoricalPricesBySymbolInBefore(List.of("AAPL"), LocalDate.of(2026, 1, 3)))
+    when(history.findHistoricalPricesBySymbolInRange(
+            List.of("AAPL"), LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 3)))
         .thenReturn(List.of(first, last));
 
     var result =
@@ -89,7 +90,8 @@ class PriceHistoryCoverageServiceTest {
     AssetEntity asset = asset(5L, "AAPL", "AAPL.US");
     when(assets.findById(5L)).thenReturn(Optional.of(asset));
     var existing = row("2026-01-02");
-    when(history.findHistoricalPricesBySymbolInBefore(List.of("AAPL"), LocalDate.of(2026, 1, 3)))
+    when(history.findHistoricalPricesBySymbolInRange(
+            List.of("AAPL"), LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 3)))
         .thenReturn(List.of(existing));
     when(market.externalSymbol("AAPL", "AAPL.US")).thenReturn("AAPL.US");
     NavigableMap<LocalDate, Double> fetched = new TreeMap<>();
@@ -120,7 +122,7 @@ class PriceHistoryCoverageServiceTest {
   @Test
   void emptyProviderResponseIsReportedWithoutCacheInvalidation() {
     when(assets.findById(5L)).thenReturn(Optional.of(asset(5L, "AAPL", "AAPL.US")));
-    when(history.findHistoricalPricesBySymbolInBefore(any(), any())).thenReturn(List.of());
+    when(history.findHistoricalPricesBySymbolInRange(any(), any(), any())).thenReturn(List.of());
     when(market.externalSymbol("AAPL", "AAPL.US")).thenReturn("AAPL.US");
     when(market.fetchDailyCloses(any(), any(), any())).thenReturn(new TreeMap<>());
 
