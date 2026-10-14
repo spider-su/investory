@@ -70,13 +70,17 @@ public class AssetDetailService {
     return toView(
         asset,
         openedPositionRepository.findOpenByAssetIdAndAccountIn(asset.getId(), accountIds),
-        filterPositionEntities(
-            closedPositionRepository.findClosedByAssetIdAndAccountIn(asset.getId(), accountIds),
-            startDate),
-        filterDividendOperations(
-            cashOperationRepository.findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(
-                asset.getId(), accountIds, DIVIDEND_TYPES),
-            startDate),
+        startDate == null
+            ? closedPositionRepository.findClosedByAssetIdAndAccountIn(asset.getId(), accountIds)
+            : closedPositionRepository
+                .findClosedByAssetIdAndAccountInAndCloseTimeGreaterThanEqualOrderByCloseTimeDesc(
+                    asset.getId(), accountIds, startDate),
+        startDate == null
+            ? cashOperationRepository.findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(
+                asset.getId(), accountIds, DIVIDEND_TYPES)
+            : cashOperationRepository
+                .findAllByAssetIdAndAccountInAndTypeInAndDateGreaterThanEqualOrderByDateDescIdDesc(
+                    asset.getId(), accountIds, DIVIDEND_TYPES, startDate),
         period,
         aggregatePerformance(
             symbolPerformanceRepository.findAllByPortfolioIdAndSymbol(
@@ -139,28 +143,6 @@ public class AssetDetailService {
         totalNetDividends,
         period,
         performance);
-  }
-
-  private List<PositionEntity> filterPositionEntities(
-      List<PositionEntity> positions, ZonedDateTime startDate) {
-    if (startDate == null) {
-      return positions;
-    }
-    return positions.stream()
-        .filter(position -> position.getCloseTime() != null)
-        .filter(position -> !position.getCloseTime().isBefore(startDate))
-        .toList();
-  }
-
-  private List<CashOperationEntity> filterDividendOperations(
-      List<CashOperationEntity> operations, ZonedDateTime startDate) {
-    if (startDate == null) {
-      return operations;
-    }
-    return operations.stream()
-        .filter(operation -> operation.getDate() != null)
-        .filter(operation -> !operation.getDate().isBefore(startDate))
-        .toList();
   }
 
   private AssetPerformanceView aggregatePerformance(List<SymbolPerformanceEntity> rows) {

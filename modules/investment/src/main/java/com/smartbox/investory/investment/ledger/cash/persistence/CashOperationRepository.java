@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.ledger.cash.persistence;
 
 import com.smartbox.investory.investment.ledger.cash.CashOperationType;
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +23,11 @@ public interface CashOperationRepository extends JpaRepository<CashOperationEnti
 
   List<CashOperationEntity> findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(
       Long assetId, Collection<Long> accounts, Collection<CashOperationType> types);
+
+  List<CashOperationEntity>
+      findAllByAssetIdAndAccountInAndTypeInAndDateGreaterThanEqualOrderByDateDescIdDesc(
+          Long assetId,
+          Collection<Long> accounts,
+          Collection<CashOperationType> types,
+          ZonedDateTime startDate);
 }

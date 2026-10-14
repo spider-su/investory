@@ -12,6 +12,7 @@ import com.smartbox.investory.longterm.api.model.RentalContractCommand;
 import com.smartbox.investory.longterm.api.model.RentalContractStatusModel;
 import com.smartbox.investory.longterm.api.model.RentalTermCommand;
 import com.smartbox.investory.longterm.api.model.UpdateRentalContractCommand;
+import com.smartbox.investory.longterm.infrastructure.bond.BondRepository;
 import com.smartbox.investory.shared.assets.AssetEconomicCategory;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
@@ -38,6 +39,7 @@ class LongTermAssetLifecyclePostgresIT extends FastDatabaseTest {
   @Autowired private LongTermAssetAnnualSnapshotReader annualSnapshots;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private EntityManager entityManager;
+  @Autowired private BondRepository bonds;
 
   @Test
   void realEstateAndRentalContractLifecycleRoundTripsThroughPostgres() {
@@ -179,6 +181,39 @@ class LongTermAssetLifecyclePostgresIT extends FastDatabaseTest {
                 Integer.class,
                 estate.id()))
         .isOne();
+  }
+
+  @Test
+  void weightedReturnBondProjectionFiltersPortfolioArchiveAndAcquisitionDate() {
+    jdbc.update(
+        "insert into portfolios(id, name, base_currency, local_currency, user_id) values (?, ?, 'USD', 'USD', 1)",
+        PORTFOLIO_ID,
+        "Bond projection test");
+    jdbc.update(
+        "insert into investory.bond(portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date) values (?, ?, 'USD', 100, ?, 0.05, ?), (?, ?, 'USD', 200, ?, 0.06, ?), (?, ?, 'USD', 300, ?, 0.07, ?)",
+        PORTFOLIO_ID,
+        "boundary",
+        LocalDate.of(2026, 9, 6),
+        LocalDate.of(2027, 9, 6),
+        PORTFOLIO_ID,
+        "future",
+        LocalDate.of(2026, 9, 7),
+        LocalDate.of(2027, 9, 7),
+        PORTFOLIO_ID,
+        "archived",
+        LocalDate.of(2026, 9, 6),
+        LocalDate.of(2027, 9, 6));
+    jdbc.update(
+        "update investory.bond set archived_at = ? where portfolio_id = ? and name = ?",
+        LocalDate.of(2026, 9, 5),
+        PORTFOLIO_ID,
+        "archived");
+
+    var rows = bonds.findWeightedReturnBonds(PORTFOLIO_ID, LocalDate.of(2026, 9, 6));
+
+    assertThat(rows).hasSize(1);
+    assertThat(rows.getFirst().getValue()).isEqualByComparingTo("100");
+    assertThat(rows.getFirst().getInterestRate()).isEqualByComparingTo("0.05");
   }
 
   private void assertPersistedContractFacts(Long assetId, Long firstId, Long successorId) {

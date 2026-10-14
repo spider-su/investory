@@ -162,20 +162,26 @@ public class LongTermAssetReadService {
   public BigDecimal currentWeightedEffectiveReturn(Long portfolioId, LocalDate date) {
     CurrencyType currency = localCurrency(portfolioId);
     var bonds =
-        summaries(load(portfolioId, false, date), date, currency).stream()
-            .filter(row -> row.type() == LongTermAssetType.BOND)
-            .filter(row -> row.maturityDate() == null || date.isBefore(row.maturityDate()))
-            .filter(row -> row.currentValue() != null && row.currentValue().signum() > 0)
-            .filter(row -> row.currentAnnualRate() != null)
+        bondRepository.findWeightedReturnBonds(portfolioId, date).stream()
+            .filter(row -> row.getMaturityDate() == null || date.isBefore(row.getMaturityDate()))
+            .map(
+                row ->
+                    new BondReturn(
+                        toBase(row.getValue(), row.getCurrency(), currency, date),
+                        row.getInterestRate()))
+            .filter(row -> row.value() != null && row.value().signum() > 0)
+            .filter(row -> row.rate() != null)
             .toList();
     BigDecimal capital =
-        bonds.stream().map(AssetSummaryView::currentValue).reduce(BigDecimal.ZERO, BigDecimal::add);
+        bonds.stream().map(BondReturn::value).reduce(BigDecimal.ZERO, BigDecimal::add);
     if (capital.signum() == 0) return null;
     return bonds.stream()
-        .map(row -> row.currentValue().multiply(row.currentAnnualRate()))
+        .map(row -> row.value().multiply(row.rate()))
         .reduce(BigDecimal.ZERO, BigDecimal::add)
         .divide(capital, 20, RoundingMode.HALF_UP);
   }
+
+  private record BondReturn(BigDecimal value, BigDecimal rate) {}
 
   private record ReadSet(
       List<BondEntity> bonds,
