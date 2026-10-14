@@ -383,9 +383,7 @@ public class MarketDataService {
                 });
       } catch (RuntimeException exception) {
         log.warn(
-            "Yahoo Finance fallback skipped for {}: {}",
-            asset.getSymbol(),
-            exception.getMessage());
+            "Yahoo Finance fallback skipped for {}: {}", asset.getSymbol(), exception.getMessage());
       }
     }
     if (!toSave.isEmpty()) {
