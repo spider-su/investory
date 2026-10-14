@@ -16,7 +16,6 @@ import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEn
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.ledger.position.PositionSettlementModel;
 import com.smartbox.investory.investment.ledger.position.PositionSettlementModelService;
-import com.smartbox.investory.investment.ledger.position.PositionType;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
@@ -31,17 +30,13 @@ import java.nio.file.StandardCopyOption;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -65,10 +60,6 @@ public class XtbImportService {
 
   private static final DataFormatter DATA_FORMATTER = new DataFormatter(Locale.ROOT);
   private static final ZoneId UTC = ZoneId.of("UTC");
-  private static final Pattern LOT_PATTERN =
-      Pattern.compile(
-          "^(OPEN|CLOSE)\\s+(BUY|SELL)\\s+(?:([A-Z0-9._-]+)\\s+)?([0-9]+(?:[\\.,][0-9]+)?)(?:/[0-9]+(?:[\\.,][0-9]+)?)?\\s+@\\s+([0-9]+(?:[\\.,][0-9]+)?)$",
-          Pattern.CASE_INSENSITIVE);
   private static final List<DateTimeFormatter> DATE_FORMATTERS =
       List.of(
           DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS"),
@@ -88,6 +79,9 @@ public class XtbImportService {
   private final AssignedIdBatchWriter assignedIdBatchWriter;
   private final AssetPriceHistoryBatchWriter priceBatchWriter;
   private final ImportSourceEvidenceService sourceEvidenceService;
+  private final XtbFifoReconstructor fifoReconstructor = new XtbFifoReconstructor();
+  private final XtbTradePriceObservationPreparer priceObservationPreparer =
+      new XtbTradePriceObservationPreparer();
 
   @org.springframework.beans.factory.annotation.Autowired
   public XtbImportService(
@@ -652,50 +646,7 @@ public class XtbImportService {
 
   List<PositionEntity> reconstructPositionEntities(
       List<CashOperationEntity> cashOperations, Long account, CurrencyType currency) {
-    Map<String, Deque<Lot>> buyLots = new HashMap<>();
-    Map<String, Deque<Lot>> sellLots = new HashMap<>();
-
-    cashOperations.stream()
-        .filter(
-            op ->
-                op.getType() == CashOperationType.STOCK_PURCHASE
-                    || op.getType() == CashOperationType.STOCK_SELL)
-        .filter(op -> StringUtils.hasText(op.getSymbol()))
-        .sorted(
-            Comparator.comparing(
-                    CashOperationEntity::getDate, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(
-                    CashOperationEntity::getId, Comparator.nullsLast(Comparator.naturalOrder())))
-        .forEach(
-            op -> {
-              LotEvent event = parseLotEvent(op.getComment(), op.getSymbol()).orElse(null);
-              if (event == null || event.volume.signum() <= 0) {
-                return;
-              }
-
-              Map<String, Deque<Lot>> openLots =
-                  event.side == PositionType.BUY ? buyLots : sellLots;
-              Deque<Lot> lots =
-                  openLots.computeIfAbsent(op.getSymbol(), ignored -> new ArrayDeque<>());
-
-              if (event.actionOpen) {
-                lots.addLast(
-                    new Lot(
-                        event.volume,
-                        event.price,
-                        op.getDate(),
-                        op.getImportHistoryId(),
-                        op.getImportSourceRowId()));
-              } else {
-                consumeFifo(lots, event.volume);
-              }
-            });
-
-    List<PositionEntity> openedPositions = new ArrayList<>();
-    appendPositionEntitiesForAccount(openedPositions, account, currency, buyLots, PositionType.BUY);
-    appendPositionEntitiesForAccount(
-        openedPositions, account, currency, sellLots, PositionType.SELL);
-    return openedPositions;
+    return fifoReconstructor.reconstruct(cashOperations, account, currency);
   }
 
   List<CashOperationEntity> operationsForOpenReconstruction(
@@ -714,89 +665,6 @@ public class XtbImportService {
     return new ArrayList<>(operationsById.values());
   }
 
-  private void appendPositionEntitiesForAccount(
-      List<PositionEntity> output,
-      Long account,
-      CurrencyType currency,
-      Map<String, Deque<Lot>> lotsBySymbol,
-      PositionType type) {
-    Long accountId = account;
-    for (Map.Entry<String, Deque<Lot>> entry : lotsBySymbol.entrySet()) {
-      String symbol = entry.getKey();
-      int lotIndex = 0;
-      for (Lot lot : entry.getValue()) {
-        if (lot.volume.signum() <= 0) {
-          continue;
-        }
-        String idKey =
-            String.format(
-                Locale.ROOT,
-                "%s|open|%s|%s|%s|%s|%d",
-                accountId,
-                symbol,
-                type,
-                lot.openTime,
-                lot.openPrice,
-                lotIndex++);
-
-        PositionEntity position = new PositionEntity();
-        position.setId(BrokerSourceRowIdentity.id(idKey, 1));
-        position.setAccount(accountId);
-        position.setSymbol(symbol);
-        position.setType(type);
-        position.setPriceCurrency(currency);
-        position.setCostCurrency(currency);
-        position.setProfitCurrency(currency);
-        position.setCommissionCurrency(currency);
-        position.setVolume(lot.volume);
-        position.setOpenTime(lot.openTime);
-        position.setOpenPrice(lot.openPrice);
-        position.setSourceOpenPrice(lot.openPrice);
-        position.setImportHistoryId(lot.importHistoryId);
-        position.setImportSourceRowId(lot.sourceRowId);
-        position.setMarketPrice(lot.openPrice);
-        position.setPurchaseValue(lot.volume.multiply(lot.openPrice));
-        position.setProfit(BigDecimal.ZERO);
-        position.setComment("Reconstructed from Cash Operations");
-        output.add(position);
-      }
-    }
-  }
-
-  private void consumeFifo(Deque<Lot> lots, BigDecimal closeVolume) {
-    BigDecimal remaining = closeVolume;
-    while (remaining.signum() > 0 && !lots.isEmpty()) {
-      Lot lot = lots.peekFirst();
-      if (lot.volume.compareTo(remaining) <= 0) {
-        remaining = remaining.subtract(lot.volume);
-        lots.removeFirst();
-      } else {
-        lot.volume = lot.volume.subtract(remaining);
-        remaining = BigDecimal.ZERO;
-      }
-    }
-  }
-
-  private Optional<LotEvent> parseLotEvent(String comment, String symbol) {
-    if (!StringUtils.hasText(comment)) {
-      return Optional.empty();
-    }
-    Matcher matcher = LOT_PATTERN.matcher(comment.trim());
-    if (!matcher.matches()) {
-      return Optional.empty();
-    }
-    String commentSymbol = matcher.group(3);
-    if (StringUtils.hasText(commentSymbol) && !commentSymbol.equalsIgnoreCase(symbol)) {
-      return Optional.empty();
-    }
-
-    boolean open = "OPEN".equalsIgnoreCase(matcher.group(1));
-    PositionType side = XtbWorkbookReader.parsePositionType(matcher.group(2), -1);
-    BigDecimal volume = XtbWorkbookReader.parseDecimal(matcher.group(4)).orElseThrow();
-    BigDecimal price = XtbWorkbookReader.parseDecimal(matcher.group(5)).orElseThrow();
-    return Optional.of(new LotEvent(open, side, volume, price));
-  }
-
   List<PositionEntity> reconstructOpenPositions(
       Long account, List<CashOperationEntity> importedOperations, CurrencyType currency) {
     List<CashOperationEntity> operations =
@@ -808,7 +676,7 @@ public class XtbImportService {
                     (op.getType() == CashOperationType.STOCK_PURCHASE
                             || op.getType() == CashOperationType.STOCK_SELL)
                         && StringUtils.hasText(op.getSymbol())
-                        && parseLotEvent(op.getComment(), op.getSymbol()).isEmpty())
+                        && !fifoReconstructor.hasParsedTradeEvent(op.getComment(), op.getSymbol()))
             .toList();
     if (!unparsedTrades.isEmpty()) {
       String rows =
@@ -917,64 +785,16 @@ public class XtbImportService {
                 java.util.stream.Collectors.toMap(
                     AssetEntity::getSymbol, AssetEntity::getCurrency, (left, right) -> right));
 
-    Map<PriceCheckpointKey, WeightedPrice> aggregated = new LinkedHashMap<>();
-
-    for (PositionEntity position : closedPositions) {
-      CurrencyType quoteCurrency =
-          resolveTradeObservationCurrency(
-              position.getSymbol(),
-              position.getPriceCurrency(),
-              defaultCurrency,
-              quoteCurrencyBySymbol);
-      BigDecimal normalizedOpenPrice =
-          normalizeTradeObservationPrice(
-              position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
-      BigDecimal normalizedClosePrice =
-          normalizeTradeObservationPrice(
-              position.getClosePrice(), position.getSaleValue(), position.getVolume());
-      addCheckpoint(
-          aggregated,
-          position.getSymbol(),
-          position.getOpenTime(),
-          normalizedOpenPrice,
-          position.getVolume(),
-          quoteCurrency,
-          "XTB_TRADE_OPEN",
-          "XTB_TRADE_OPEN",
-          "XTB_TRADE_OPEN_OBSERVATION");
-      addCheckpoint(
-          aggregated,
-          position.getSymbol(),
-          position.getCloseTime(),
-          normalizedClosePrice,
-          position.getVolume(),
-          quoteCurrency,
-          "XTB_TRADE_CLOSE",
-          "XTB_TRADE_CLOSE",
-          "XTB_TRADE_CLOSE_OBSERVATION");
-    }
-
-    for (PositionEntity position : openedPositions) {
-      CurrencyType quoteCurrency =
-          resolveTradeObservationCurrency(
-              position.getSymbol(),
-              position.getPriceCurrency(),
-              defaultCurrency,
-              quoteCurrencyBySymbol);
-      BigDecimal normalizedOpenPrice =
-          normalizeTradeObservationPrice(
-              position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
-      addCheckpoint(
-          aggregated,
-          position.getSymbol(),
-          position.getOpenTime(),
-          normalizedOpenPrice,
-          position.getVolume(),
-          quoteCurrency,
-          "XTB_TRADE_OPEN",
-          "XTB_TRADE_OPEN",
-          "XTB_TRADE_OPEN_OBSERVATION");
-    }
+    Map<
+            XtbTradePriceObservationPreparer.PriceCheckpointKey,
+            XtbTradePriceObservationPreparer.WeightedPrice>
+        aggregated =
+            priceObservationPreparer.prepare(
+                closedPositions,
+                openedPositions,
+                defaultCurrency,
+                quoteCurrencyBySymbol,
+                this::resolveTradeObservationCurrency);
 
     if (aggregated.isEmpty()) {
       return;
@@ -990,13 +810,16 @@ public class XtbImportService {
                     AssetEntity::getSymbol, AssetEntity::getId, (a, b) -> a));
 
     List<AssetPriceHistoryBatchWriter.ObservedPrice> prices = new ArrayList<>();
-    for (Map.Entry<PriceCheckpointKey, WeightedPrice> entry : aggregated.entrySet()) {
+    for (Map.Entry<
+            XtbTradePriceObservationPreparer.PriceCheckpointKey,
+            XtbTradePriceObservationPreparer.WeightedPrice>
+        entry : aggregated.entrySet()) {
       Long assetId = assetIdsBySymbol.get(entry.getKey().symbol());
       if (assetId == null) {
         continue;
       }
-      WeightedPrice weightedPrice = entry.getValue();
-      if (weightedPrice.totalWeight.signum() <= 0) {
+      XtbTradePriceObservationPreparer.WeightedPrice weightedPrice = entry.getValue();
+      if (weightedPrice.totalWeight().signum() <= 0) {
         continue;
       }
       prices.add(
@@ -1029,34 +852,6 @@ public class XtbImportService {
     } else {
       priceBatchWriter.upsertObserved(prices);
     }
-  }
-
-  private void addCheckpoint(
-      Map<PriceCheckpointKey, WeightedPrice> aggregated,
-      String symbol,
-      ZonedDateTime timestamp,
-      BigDecimal price,
-      BigDecimal volume,
-      CurrencyType currency,
-      String source,
-      String priceOrigin,
-      String qualityClass) {
-    if (!StringUtils.hasText(symbol) || timestamp == null || price == null || price.signum() <= 0) {
-      return;
-    }
-    BigDecimal weight = volume == null ? BigDecimal.ZERO : volume.abs();
-    if (weight.signum() <= 0) {
-      weight = BigDecimal.ONE;
-    }
-    PriceCheckpointKey key =
-        new PriceCheckpointKey(
-            symbol,
-            timestamp.toLocalDate(),
-            java.util.Objects.requireNonNull(currency, "XTB trade price currency"),
-            source,
-            priceOrigin,
-            qualityClass);
-    aggregated.computeIfAbsent(key, ignored -> new WeightedPrice()).add(price, weight);
   }
 
   private void normalizeImportedSymbols(
@@ -1182,39 +977,6 @@ public class XtbImportService {
       }
     }
     return null;
-  }
-
-  private BigDecimal normalizeTradeObservationPrice(
-      BigDecimal rawPrice, BigDecimal grossValue, BigDecimal volume) {
-    if (rawPrice == null || rawPrice.signum() <= 0) {
-      return rawPrice;
-    }
-    if (grossValue == null || volume == null || volume.abs().signum() == 0) {
-      return rawPrice;
-    }
-
-    BigDecimal effectivePrice = grossValue.divide(volume, 16, java.math.RoundingMode.HALF_UP).abs();
-    if (effectivePrice.signum() <= 0) {
-      return rawPrice;
-    }
-
-    BigDecimal ratio = rawPrice.divide(effectivePrice, 16, java.math.RoundingMode.HALF_UP);
-    if (approximately(ratio, BigDecimal.TEN)
-        || approximately(ratio, BigDecimal.valueOf(100))
-        || approximately(ratio, BigDecimal.valueOf(1000))) {
-      return effectivePrice;
-    }
-    if (approximately(ratio, new BigDecimal("0.1"))
-        || approximately(ratio, new BigDecimal("0.01"))
-        || approximately(ratio, new BigDecimal("0.001"))) {
-      return effectivePrice;
-    }
-    return rawPrice;
-  }
-
-  private boolean approximately(BigDecimal value, BigDecimal target) {
-    return value.subtract(target).abs().compareTo(target.abs().multiply(new BigDecimal("0.05")))
-        <= 0;
   }
 
   private CurrencyType firstNonNull(CurrencyType first, CurrencyType second) {
@@ -1355,53 +1117,5 @@ public class XtbImportService {
       return first;
     }
     return StringUtils.hasText(second) ? second : null;
-  }
-
-  private static class Lot {
-    private BigDecimal volume;
-    private final BigDecimal openPrice;
-    private final ZonedDateTime openTime;
-    private final Long importHistoryId;
-    private final Long sourceRowId;
-
-    private Lot(
-        BigDecimal volume,
-        BigDecimal openPrice,
-        ZonedDateTime openTime,
-        Long importHistoryId,
-        Long sourceRowId) {
-      this.volume = volume;
-      this.openPrice = openPrice;
-      this.openTime = openTime;
-      this.importHistoryId = importHistoryId;
-      this.sourceRowId = sourceRowId;
-    }
-  }
-
-  private record LotEvent(
-      boolean actionOpen, PositionType side, BigDecimal volume, BigDecimal price) {}
-
-  private record PriceCheckpointKey(
-      String symbol,
-      java.time.LocalDate priceDate,
-      CurrencyType currency,
-      String source,
-      String priceOrigin,
-      String qualityClass) {}
-
-  private static class WeightedPrice {
-    private BigDecimal weightedPriceSum = BigDecimal.ZERO;
-    private BigDecimal totalWeight = BigDecimal.ZERO;
-
-    private void add(BigDecimal price, BigDecimal weight) {
-      weightedPriceSum = weightedPriceSum.add(price.multiply(weight));
-      totalWeight = totalWeight.add(weight);
-    }
-
-    private BigDecimal weightedAverage() {
-      return totalWeight.signum() <= 0
-          ? BigDecimal.ZERO
-          : weightedPriceSum.divide(totalWeight, 16, java.math.RoundingMode.HALF_UP);
-    }
   }
 }
