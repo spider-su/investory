@@ -1,10 +1,15 @@
 package com.smartbox.investory.investment.valuation.price;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
@@ -18,6 +23,7 @@ import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,7 +38,8 @@ class AssetPriceHistoryGapFillServiceTest {
   @DisplayName(
       "fill Missing Business Day Gaps backfills Business Days Between Known Rows And To As Of Date")
   @Test
-  void fillMissingBusinessDayGaps_backfillsBusinessDaysBetweenKnownRowsAndToAsOfDate() {
+  void fillMissingBusinessDayGaps_backfillsBusinessDaysBetweenKnownRowsAndToAsOfDate()
+      throws Exception {
     AssetPriceHistoryGapFillService service =
         new AssetPriceHistoryGapFillService(
             openedPositionRepository, assetRepository, assetPriceHistoryRepository);
@@ -47,8 +54,11 @@ class AssetPriceHistoryGapFillServiceTest {
 
     when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
     when(assetRepository.findAllBySymbolIn(Set.of("IUVL"))).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(
+    when(assetPriceHistoryRepository.findHistoricalPriceStartsBySymbolInBefore(
             Set.of("IUVL"), LocalDate.of(2026, 7, 17)))
+        .thenReturn(List.of(start(LocalDate.of(2026, 7, 10))));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(
+            Set.of("IUVL"), LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 17)))
         .thenReturn(
             List.of(
                 row(
@@ -70,50 +80,15 @@ class AssetPriceHistoryGapFillServiceTest {
 
     service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
 
-    verify(assetPriceHistoryRepository)
-        .upsertCarryForwardPrice(
-            101L,
-            LocalDate.of(2026, 7, 13),
-            LocalDate.of(2026, 7, 10),
-            "IUVL",
-            "IUVL",
-            "USD",
-            BigDecimal.valueOf(18.50),
-            BigDecimal.ONE,
-            "VERIFIED_ALTERNATE_LISTING");
-    verify(assetPriceHistoryRepository)
-        .upsertCarryForwardPrice(
-            101L,
-            LocalDate.of(2026, 7, 14),
-            LocalDate.of(2026, 7, 10),
-            "IUVL",
-            "IUVL",
-            "USD",
-            BigDecimal.valueOf(18.50),
-            BigDecimal.ONE,
-            "VERIFIED_ALTERNATE_LISTING");
-    verify(assetPriceHistoryRepository)
-        .upsertCarryForwardPrice(
-            101L,
-            LocalDate.of(2026, 7, 15),
-            LocalDate.of(2026, 7, 10),
-            "IUVL",
-            "IUVL",
-            "USD",
-            BigDecimal.valueOf(18.50),
-            BigDecimal.ONE,
-            "VERIFIED_ALTERNATE_LISTING");
-    verify(assetPriceHistoryRepository)
-        .upsertCarryForwardPrice(
-            101L,
-            LocalDate.of(2026, 7, 16),
-            LocalDate.of(2026, 7, 10),
-            "IUVL",
-            "IUVL",
-            "USD",
-            BigDecimal.valueOf(18.50),
-            BigDecimal.ONE,
-            "VERIFIED_ALTERNATE_LISTING");
+    ArgumentCaptor<String> batch = ArgumentCaptor.forClass(String.class);
+    verify(assetPriceHistoryRepository, times(1)).upsertCarryForwardPrices(batch.capture());
+    JsonNode rows = new ObjectMapper().readTree(batch.getValue());
+    assertEquals(4, rows.size());
+    assertEquals("2026-07-13", rows.get(0).get("price_date").asText());
+    assertEquals("2026-07-16", rows.get(3).get("price_date").asText());
+    assertEquals("2026-07-10", rows.get(0).get("source_date").asText());
+    assertEquals("VERIFIED_ALTERNATE_LISTING", rows.get(0).get("scale_reason").asText());
+    assertEquals("18.5", rows.get(0).get("price_value").asText());
   }
 
   @DisplayName("fill Missing Business Day Gaps does Not Use Carry Forward Row As Source")
@@ -132,7 +107,9 @@ class AssetPriceHistoryGapFillServiceTest {
 
     when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
     when(assetRepository.findAllBySymbolIn(Set.of("IUVL"))).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPriceStartsBySymbolInBefore(any(), any()))
+        .thenReturn(List.of(start(LocalDate.of(2026, 7, 10))));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 row(
@@ -146,8 +123,7 @@ class AssetPriceHistoryGapFillServiceTest {
 
     service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
 
-    verify(assetPriceHistoryRepository, never())
-        .upsertCarryForwardPrice(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    verify(assetPriceHistoryRepository, never()).upsertCarryForwardPrices(any());
   }
 
   @DisplayName("fill Missing Business Day Gaps ignores Excluded Asset")
@@ -169,14 +145,109 @@ class AssetPriceHistoryGapFillServiceTest {
 
     service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
 
-    verify(assetPriceHistoryRepository, never()).findHistoricalPricesBySymbolInBefore(any(), any());
     verify(assetPriceHistoryRepository, never())
-        .upsertCarryForwardPrice(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        .findHistoricalPriceStartsBySymbolInBefore(any(), any());
+    verify(assetPriceHistoryRepository, never())
+        .findHistoricalPricesBySymbolInRange(any(), any(), any());
+    verify(assetPriceHistoryRepository, never()).upsertCarryForwardPrices(any());
+  }
+
+  @Test
+  void fillMissingBusinessDayGaps_usesBoundedWindowsAndPrecedingObservationAnchor()
+      throws Exception {
+    AssetPriceHistoryGapFillService service =
+        new AssetPriceHistoryGapFillService(
+            openedPositionRepository, assetRepository, assetPriceHistoryRepository);
+    PositionEntity opened = new PositionEntity();
+    opened.setSymbol("IUVL");
+    AssetEntity asset = new AssetEntity();
+    asset.setId(101L);
+    asset.setSymbol("IUVL");
+
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
+    when(assetRepository.findAllBySymbolIn(Set.of("IUVL"))).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPriceStartsBySymbolInBefore(any(), any()))
+        .thenReturn(List.of(start(LocalDate.of(2026, 1, 1))));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
+        .thenReturn(
+            List.of(
+                row("IUVL", LocalDate.of(2026, 1, 1), 18.50, "USD", 80, "STOOQ", "VERIFIED"),
+                row("IUVL", LocalDate.of(2026, 1, 30), 18.75, "USD", 90, "IBKR", "OBSERVED")),
+            List.of(row("IUVL", LocalDate.of(2026, 1, 30), 18.75, "USD", 90, "IBKR", "OBSERVED")));
+
+    service.fillMissingBusinessDayGaps(LocalDate.of(2026, 2, 15));
+
+    ArgumentCaptor<LocalDate> from = ArgumentCaptor.forClass(LocalDate.class);
+    ArgumentCaptor<LocalDate> to = ArgumentCaptor.forClass(LocalDate.class);
+    verify(assetPriceHistoryRepository, times(2))
+        .findHistoricalPricesBySymbolInRange(any(), from.capture(), to.capture());
+    verify(assetPriceHistoryRepository)
+        .findHistoricalPriceStartsBySymbolInBefore(any(), eq(LocalDate.of(2026, 2, 15)));
+    assertEquals(List.of(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 2, 1)), from.getAllValues());
+    assertEquals(List.of(LocalDate.of(2026, 1, 31), LocalDate.of(2026, 2, 15)), to.getAllValues());
+
+    ArgumentCaptor<String> batches = ArgumentCaptor.forClass(String.class);
+    verify(assetPriceHistoryRepository, times(2)).upsertCarryForwardPrices(batches.capture());
+    JsonNode secondWindow = new ObjectMapper().readTree(batches.getAllValues().get(1));
+    assertEquals(10, secondWindow.size());
+    assertEquals("2026-01-30", secondWindow.get(0).get("source_date").asText());
+    assertEquals("18.75", secondWindow.get(0).get("price_value").asText());
+  }
+
+  @Test
+  void fillMissingBusinessDayGaps_leavesEmptyHistoryUnchanged() {
+    AssetPriceHistoryGapFillService service =
+        new AssetPriceHistoryGapFillService(
+            openedPositionRepository, assetRepository, assetPriceHistoryRepository);
+    PositionEntity opened = new PositionEntity();
+    opened.setSymbol("IUVL");
+    AssetEntity asset = new AssetEntity();
+    asset.setId(101L);
+    asset.setSymbol("IUVL");
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
+    when(assetRepository.findAllBySymbolIn(Set.of("IUVL"))).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPriceStartsBySymbolInBefore(any(), any()))
+        .thenReturn(List.of());
+
+    service.fillMissingBusinessDayGaps(LocalDate.of(2026, 2, 15));
+
+    verify(assetPriceHistoryRepository, never())
+        .findHistoricalPricesBySymbolInRange(any(), any(), any());
+    verify(assetPriceHistoryRepository, never()).upsertCarryForwardPrices(any());
+  }
+
+  @Test
+  void fillMissingBusinessDayGaps_keepsWeekdayHolidayBehaviorUnchanged() throws Exception {
+    AssetPriceHistoryGapFillService service =
+        new AssetPriceHistoryGapFillService(
+            openedPositionRepository, assetRepository, assetPriceHistoryRepository);
+    PositionEntity opened = new PositionEntity();
+    opened.setSymbol("TSLA.US");
+    AssetEntity asset = new AssetEntity();
+    asset.setId(1001L);
+    asset.setSymbol("TSLA.US");
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
+    when(assetRepository.findAllBySymbolIn(Set.of("TSLA.US"))).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPriceStartsBySymbolInBefore(any(), any()))
+        .thenReturn(List.of(start(LocalDate.of(2026, 7, 2))));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
+        .thenReturn(
+            List.of(
+                row("TSLA.US", LocalDate.of(2026, 7, 2), 300, "USD", 90, "STOOQ", "OBSERVED"),
+                row("TSLA.US", LocalDate.of(2026, 7, 6), 305, "USD", 90, "STOOQ", "OBSERVED")));
+
+    service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 6));
+
+    ArgumentCaptor<String> batch = ArgumentCaptor.forClass(String.class);
+    verify(assetPriceHistoryRepository).upsertCarryForwardPrices(batch.capture());
+    JsonNode rows = new ObjectMapper().readTree(batch.getValue());
+    assertEquals(1, rows.size());
+    assertEquals("2026-07-03", rows.get(0).get("price_date").asText());
   }
 
   @DisplayName("fill Missing Business Day Gaps prefers Open Lot Price When Split Observations Tie")
   @Test
-  void fillMissingBusinessDayGaps_prefersOpenLotPriceWhenSplitObservationsTie() {
+  void fillMissingBusinessDayGaps_prefersOpenLotPriceWhenSplitObservationsTie() throws Exception {
     AssetPriceHistoryGapFillService service =
         new AssetPriceHistoryGapFillService(
             openedPositionRepository, assetRepository, assetPriceHistoryRepository);
@@ -189,7 +260,9 @@ class AssetPriceHistoryGapFillServiceTest {
 
     when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
     when(assetRepository.findAllBySymbolIn(Set.of("NFLX.US"))).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPriceStartsBySymbolInBefore(any(), any()))
+        .thenReturn(List.of(start(LocalDate.of(2025, 11, 16))));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 row(
@@ -211,22 +284,17 @@ class AssetPriceHistoryGapFillServiceTest {
 
     service.fillMissingBusinessDayGaps(LocalDate.of(2025, 11, 17));
 
-    verify(assetPriceHistoryRepository)
-        .upsertCarryForwardPrice(
-            202L,
-            LocalDate.of(2025, 11, 17),
-            LocalDate.of(2025, 11, 16),
-            "NFLX.US",
-            "NFLX.US",
-            "USD",
-            BigDecimal.valueOf(112.98),
-            BigDecimal.ONE,
-            "XTB_TRADE_OPEN_OBSERVATION");
+    ArgumentCaptor<String> batch = ArgumentCaptor.forClass(String.class);
+    verify(assetPriceHistoryRepository).upsertCarryForwardPrices(batch.capture());
+    JsonNode rows = new ObjectMapper().readTree(batch.getValue());
+    assertEquals(1, rows.size());
+    assertEquals("112.98", rows.get(0).get("price_value").asText());
+    assertEquals("XTB_TRADE_OPEN_OBSERVATION", rows.get(0).get("scale_reason").asText());
   }
 
   @DisplayName("fill Missing Business Day Gaps copies Currency And Scale Metadata")
   @Test
-  void fillMissingBusinessDayGaps_copiesCurrencyAndScaleMetadata() {
+  void fillMissingBusinessDayGaps_copiesCurrencyAndScaleMetadata() throws Exception {
     AssetPriceHistoryGapFillService service =
         new AssetPriceHistoryGapFillService(
             openedPositionRepository, assetRepository, assetPriceHistoryRepository);
@@ -239,7 +307,9 @@ class AssetPriceHistoryGapFillServiceTest {
 
     when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
     when(assetRepository.findAllBySymbolIn(Set.of("VWCE.DE"))).thenReturn(List.of(asset));
-    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+    when(assetPriceHistoryRepository.findHistoricalPriceStartsBySymbolInBefore(any(), any()))
+        .thenReturn(List.of(start(LocalDate.of(2026, 7, 10))));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(any(), any(), any()))
         .thenReturn(
             List.of(
                 scaledRow(
@@ -262,17 +332,11 @@ class AssetPriceHistoryGapFillServiceTest {
 
     service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
 
-    verify(assetPriceHistoryRepository)
-        .upsertCarryForwardPrice(
-            303L,
-            LocalDate.of(2026, 7, 13),
-            LocalDate.of(2026, 7, 10),
-            "VWCE.DE",
-            "VWCE.DE",
-            "EUR",
-            BigDecimal.valueOf(139.8),
-            BigDecimal.valueOf(0.01),
-            "XTB_TRADE_OPEN_OBSERVATION");
+    ArgumentCaptor<String> batch = ArgumentCaptor.forClass(String.class);
+    verify(assetPriceHistoryRepository).upsertCarryForwardPrices(batch.capture());
+    JsonNode rows = new ObjectMapper().readTree(batch.getValue());
+    assertEquals("0.01", rows.get(0).get("price_scale_factor").asText());
+    assertEquals("EUR", rows.get(0).get("price_currency").asText());
   }
 
   private static AssetPriceHistoryRepository.HistoricalAssetPriceRow row(
@@ -357,6 +421,20 @@ class AssetPriceHistoryGapFillServiceTest {
       @Override
       public LocalDate getInterpolationRightDate() {
         return null;
+      }
+    };
+  }
+
+  private static AssetPriceHistoryRepository.HistoricalPriceStart start(LocalDate date) {
+    return new AssetPriceHistoryRepository.HistoricalPriceStart() {
+      @Override
+      public String getSymbol() {
+        return "TEST";
+      }
+
+      @Override
+      public LocalDate getPriceDate() {
+        return date;
       }
     };
   }
