@@ -35,7 +35,9 @@ class FinancialLandscapeControllerTest {
                 new BigDecimal("850000"),
                 new BigDecimal("970000"),
                 new BigDecimal("90000"),
-                List.of(new FinancialLandscapePageView.ExpenseGroupView("Housing", new BigDecimal("6000")))));
+                List.of(
+                    new FinancialLandscapePageView.ExpenseGroupView(
+                        "Housing", new BigDecimal("6000")))));
   }
 
   @Test
@@ -73,20 +75,7 @@ class FinancialLandscapeControllerTest {
     when(pageAssembler.assemble(7L))
         .thenReturn(
             new FinancialLandscapePageView(
-                7L,
-                "PLN",
-                2026,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
+                7L, "PLN", 2026, null, null, null, null, null, null, null, null, null, null, null,
                 List.of()));
     var model = new ConcurrentModel();
     assertThat(controller.landscape(7L, "compact", model)).isEqualTo("financial-landscape-compact");

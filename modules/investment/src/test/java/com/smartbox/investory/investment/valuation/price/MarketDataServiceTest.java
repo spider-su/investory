@@ -46,6 +46,10 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Market Service")
@@ -59,7 +63,7 @@ class MarketDataServiceTest {
   @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
   @Mock private CurrencyRateService currencyRateService;
   @Mock private StatisticsRefreshService statisticsRefreshService;
-  @Mock private PlatformTransactionManager transactionManager;
+  private final PlatformTransactionManager transactionManager = new RecordingTransactionManager();
   @Captor private ArgumentCaptor<Iterable<AssetEntity>> assetIterableCaptor;
 
   private MarketDataService marketDataService;
@@ -86,10 +90,10 @@ class MarketDataServiceTest {
     org.mockito.Mockito.lenient().when(assetRepository.findAll()).thenReturn(List.of());
     org.mockito.Mockito.lenient()
         .when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
-        .thenAnswer(invocation -> assetRepository.findAll());
+        .thenAnswer(ignored -> assetRepository.findAll());
     org.mockito.Mockito.lenient()
         .when(assetRepository.findAllByActiveFalseAndSymbolIsNotNull())
-        .thenAnswer(invocation -> assetRepository.findAll());
+        .thenAnswer(ignored -> assetRepository.findAll());
     org.mockito.Mockito.lenient().when(positionRepository.findOpen()).thenReturn(List.of());
     org.mockito.Mockito.lenient().when(positionRepository.findClosed()).thenReturn(List.of());
     // updateStocks resolves the portfolio's open positions through the scoped
@@ -97,10 +101,10 @@ class MarketDataServiceTest {
     // the individual tests still control the source data via findAll/findOpen.
     org.mockito.Mockito.lenient()
         .when(accountRepository.findAllByPortfolioId(any()))
-        .thenAnswer(invocation -> accountRepository.findAll());
+        .thenAnswer(ignored -> accountRepository.findAll());
     org.mockito.Mockito.lenient()
         .when(positionRepository.findOpenByAccountIn(any()))
-        .thenAnswer(invocation -> positionRepository.findOpen());
+        .thenAnswer(ignored -> positionRepository.findOpen());
   }
 
   @DisplayName("split Into Chunks divides Map Evenly")
@@ -332,7 +336,11 @@ class MarketDataServiceTest {
         .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
     when(marketDataProvider.fetchQuotes(List.of("A", "B"))).thenReturn(Map.of());
     when(marketDataProvider.fetchLatestQuote("A"))
-        .thenThrow(new IllegalStateException("network unavailable"));
+        .thenAnswer(
+            invocation -> {
+              assertEquals(false, TransactionSynchronizationManager.isActualTransactionActive());
+              throw new IllegalStateException("network unavailable");
+            });
     when(marketDataProvider.fetchLatestQuote("B"))
         .thenReturn(
             Optional.of(new LatestQuote("B", "USD", java.time.LocalDate.of(2026, 8, 12), 12.5)));
@@ -718,6 +726,182 @@ class MarketDataServiceTest {
     verify(statisticsRefreshService, times(1)).refreshCurrentMarketPrices();
   }
 
+  @Test
+  void fullPortfolioUpdate_refreshesGlobalStatisticsOnceAfterAllPortfolios() {
+    when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L, 2L, 3L));
+    when(assetRepository.findAll()).thenReturn(List.of());
+    List<Long> updatedPortfolioIds = new java.util.ArrayList<>();
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              updatedPortfolioIds.add(invocation.getArgument(0));
+              return List.of();
+            })
+        .when(accountRepository)
+        .findAllByPortfolioId(any());
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              assertEquals(List.of(1L, 1L, 2L, 2L, 3L, 3L), updatedPortfolioIds);
+              return null;
+            })
+        .when(statisticsRefreshService)
+        .refreshCurrentMarketPrices();
+
+    marketDataService.fullPortfolioUpdate();
+
+    verify(statisticsRefreshService, times(1)).refreshCurrentMarketPrices();
+    org.mockito.ArgumentCaptor<Long> portfolioIds = org.mockito.ArgumentCaptor.forClass(Long.class);
+    verify(accountRepository, times(6)).findAllByPortfolioId(portfolioIds.capture());
+    assertEquals(List.of(1L, 1L, 2L, 2L, 3L, 3L), portfolioIds.getAllValues());
+  }
+
+  @Test
+  void fullPortfolioUpdate_refreshesStatisticsForEmptyPortfolioList() {
+    when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of());
+
+    marketDataService.fullPortfolioUpdate();
+
+    verify(statisticsRefreshService, times(1)).refreshCurrentMarketPrices();
+  }
+
+  @Test
+  void fullPortfolioUpdate_doesNotRefreshStatisticsAfterPortfolioFailure() {
+    when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L, 2L));
+    org.mockito.Mockito.doThrow(new IllegalStateException("portfolio failed"))
+        .when(accountRepository)
+        .findAllByPortfolioId(2L);
+
+    IllegalStateException failure =
+        assertThrows(IllegalStateException.class, () -> marketDataService.fullPortfolioUpdate());
+
+    assertEquals("portfolio failed", failure.getMessage());
+    verify(statisticsRefreshService, never()).refreshCurrentMarketPrices();
+    verify(accountRepository, times(2)).findAllByPortfolioId(1L);
+    verify(accountRepository).findAllByPortfolioId(2L);
+  }
+
+  @Test
+  void fullPortfolioUpdate_preservesFailureWithoutRefreshingStatistics() {
+    when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L));
+    AssetEntity asset = newAsset("AAPL.US", "AAPL", true);
+    when(assetRepository.findAll()).thenReturn(List.of(asset));
+    when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
+    when(marketDataProvider.fetchQuotes(List.of("AAPL"))).thenThrow(new RuntimeException("failed"));
+
+    IllegalStateException failure =
+        assertThrows(IllegalStateException.class, () -> marketDataService.fullPortfolioUpdate());
+
+    assertTrue(failure.getMessage().contains("Market refresh incomplete"));
+    verify(statisticsRefreshService, never()).refreshCurrentMarketPrices();
+  }
+
+  @Test
+  void fullPortfolioUpdate_refreshesStatisticsAfterPartialSuccessBeforePropagatingFailure() {
+    when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L));
+    AssetEntity successfulAsset = newAsset("AAPL.US", "AAPL", true);
+    AssetEntity failedAsset = newAsset("MSFT.US", "MSFT", true);
+    when(assetRepository.findAll()).thenReturn(List.of(successfulAsset, failedAsset));
+    when(positionRepository.findOpen())
+        .thenReturn(List.of(openPosition("AAPL.US"), openPosition("MSFT.US")));
+
+    MarketQuote successfulQuote = new MarketQuote();
+    successfulQuote.setSymbol("AAPL");
+    successfulQuote.setClose(210.0);
+    successfulQuote.setCurrency("USD");
+    when(marketDataProvider.fetchQuotes(List.of("AAPL", "MSFT")))
+        .thenThrow(new RuntimeException("batch unavailable"));
+    when(marketDataProvider.fetchQuotes(List.of("AAPL")))
+        .thenReturn(Map.of("AAPL", successfulQuote));
+    when(marketDataProvider.fetchQuotes(List.of("MSFT")))
+        .thenThrow(new RuntimeException("quote unavailable"));
+
+    IllegalStateException failure =
+        assertThrows(IllegalStateException.class, () -> marketDataService.fullPortfolioUpdate());
+
+    assertEquals("Market refresh incomplete: MSFT: quote unavailable", failure.getMessage());
+    assertEquals(210.0, successfulAsset.getMarketPrice().doubleValue());
+    verify(marketDataProvider, times(3)).fetchQuotes(any());
+    verify(assetRepository).saveAll(org.mockito.ArgumentMatchers.any());
+    verify(statisticsRefreshService, times(1)).refreshAll();
+    verify(statisticsRefreshService, never()).refreshCurrentMarketPrices();
+  }
+
+  @DisplayName("update Stocks Fetches Batch Quotes Outside the Transaction")
+  @Test
+  void updateStocksFetchesBatchQuotesOutsideTheTransaction() {
+    AssetEntity aapl = newAsset("AAPL.US", "AAPL", true);
+    when(assetRepository.findAll()).thenReturn(List.of(aapl));
+    when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
+
+    MarketQuote quote = new MarketQuote();
+    quote.setSymbol("AAPL");
+    quote.setClose(110.0);
+    quote.setCurrency("USD");
+    quote.setDatetime("2026-09-05");
+    when(marketDataProvider.fetchQuotes(List.of("AAPL")))
+        .thenAnswer(
+            invocation -> {
+              assertEquals(false, TransactionSynchronizationManager.isActualTransactionActive());
+              return Map.of("AAPL", quote);
+            });
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              assertEquals(true, TransactionSynchronizationManager.isActualTransactionActive());
+              return null;
+            })
+        .when(assetRepository)
+        .saveAll(org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              assertEquals(true, TransactionSynchronizationManager.isActualTransactionActive());
+              return null;
+            })
+        .when(assetPriceHistoryRepository)
+        .upsertObservedPrice(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+
+    marketDataService.updateStocks(1L);
+
+    verify(marketDataProvider).fetchQuotes(List.of("AAPL"));
+    verify(marketDataProvider, never()).fetchLatestQuote(anyString());
+    verify(assetRepository).saveAll(org.mockito.ArgumentMatchers.any());
+    assertEquals(110.0, aapl.getMarketPrice().doubleValue(), 0.00000001);
+    assertEquals("YahooFinance", aapl.getPriceSource());
+  }
+
+  @DisplayName("update Stocks Fetches Yahoo Fallback Outside the Transaction")
+  @Test
+  void updateStocksFetchesYahooFallbackOutsideTheTransaction() {
+    AssetEntity vwra = newAsset("VWRA.UK", "VWRA", true);
+    when(assetRepository.findAll()).thenReturn(List.of(vwra));
+    when(positionRepository.findOpen()).thenReturn(List.of(openPosition("VWRA.UK")));
+    when(marketDataProvider.fetchLatestQuote("VWRA.L"))
+        .thenAnswer(
+            invocation -> {
+              assertEquals(false, TransactionSynchronizationManager.isActualTransactionActive());
+              return Optional.of(
+                  new LatestQuote("VWRA.L", "USD", java.time.LocalDate.of(2026, 9, 5), 194.8));
+            });
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              assertEquals(true, TransactionSynchronizationManager.isActualTransactionActive());
+              return null;
+            })
+        .when(assetRepository)
+        .saveAll(org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              assertEquals(true, TransactionSynchronizationManager.isActualTransactionActive());
+              return null;
+            })
+        .when(assetPriceHistoryRepository)
+        .upsertObservedPrice(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+
+    marketDataService.updateStocks(1L);
+
+    verify(marketDataProvider).fetchLatestQuote("VWRA.L");
+    assertEquals(194.8, vwra.getMarketPrice().doubleValue(), 0.00000001);
+    assertEquals("YahooFinance", vwra.getPriceSource());
+  }
+
   private static AssetEntity newAsset(String symbol, String ticker, boolean active) {
     AssetEntity asset = new AssetEntity();
     asset.setSymbol(symbol);
@@ -769,5 +953,26 @@ class MarketDataServiceTest {
     java.util.ArrayList<T> list = new java.util.ArrayList<>();
     iterable.forEach(list::add);
     return list;
+  }
+
+  private static final class RecordingTransactionManager implements PlatformTransactionManager {
+    @Override
+    public TransactionStatus getTransaction(TransactionDefinition definition) {
+      TransactionSynchronizationManager.initSynchronization();
+      TransactionSynchronizationManager.setActualTransactionActive(true);
+      return new SimpleTransactionStatus();
+    }
+
+    @Override
+    public void commit(TransactionStatus status) {
+      TransactionSynchronizationManager.setActualTransactionActive(false);
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+
+    @Override
+    public void rollback(TransactionStatus status) {
+      TransactionSynchronizationManager.setActualTransactionActive(false);
+      TransactionSynchronizationManager.clearSynchronization();
+    }
   }
 }

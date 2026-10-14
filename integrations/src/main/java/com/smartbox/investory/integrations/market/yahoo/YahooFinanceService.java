@@ -32,7 +32,7 @@ public class YahooFinanceService {
   private final ObjectMapper objectMapper;
 
   private HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
-  private String baseUrl = DEFAULT_BASE_URL;
+  private volatile String baseUrl = DEFAULT_BASE_URL;
 
   public YahooFinanceService(ObjectMapper objectMapper) {
     this.objectMapper = objectMapper;
@@ -53,7 +53,7 @@ public class YahooFinanceService {
   }
 
   public Optional<YahooQuote> fetchLatestQuote(String symbol) {
-    return fetchLatestQuote(symbol, baseUrl);
+    return fetchLatestQuote(symbol, null);
   }
 
   /** Fetches using a request-specific endpoint without changing the runtime default. */
@@ -61,14 +61,12 @@ public class YahooFinanceService {
     if (!StringUtils.hasText(symbol)) {
       return Optional.empty();
     }
-    String previousBaseUrl = baseUrl;
-    if (StringUtils.hasText(requestBaseUrl)) {
-      baseUrl = requestBaseUrl.endsWith("/") ? requestBaseUrl : requestBaseUrl + "/";
-    }
+    String endpoint =
+        StringUtils.hasText(requestBaseUrl) ? normalizeBaseUrl(requestBaseUrl) : baseUrl;
     try {
       URI uri =
           URI.create(
-              baseUrl
+              endpoint
                   + URLEncoder.encode(symbol, StandardCharsets.UTF_8)
                   + "?range=5d&interval=1d");
       HttpRequest request =
@@ -109,8 +107,6 @@ public class YahooFinanceService {
       throw new IllegalStateException("Yahoo Finance request interrupted for " + symbol, e);
     } catch (RuntimeException e) {
       throw new IllegalStateException("Yahoo Finance response failed for " + symbol, e);
-    } finally {
-      baseUrl = previousBaseUrl;
     }
   }
 
@@ -198,12 +194,13 @@ public class YahooFinanceService {
   }
 
   private JsonNode fetchChart(String symbol, LocalDate from, LocalDate to) {
+    String endpoint = baseUrl;
     try {
       long period1 = from.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
       long period2 = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
       URI uri =
           URI.create(
-              baseUrl
+              endpoint
                   + URLEncoder.encode(symbol, StandardCharsets.UTF_8)
                   + "?period1="
                   + period1
@@ -232,6 +229,10 @@ public class YahooFinanceService {
     } catch (RuntimeException e) {
       throw new IllegalStateException("Yahoo Finance history response failed for " + symbol, e);
     }
+  }
+
+  private static String normalizeBaseUrl(String baseUrl) {
+    return baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
   }
 
   public record YahooQuote(String symbol, String currency, LocalDate date, double price) {}

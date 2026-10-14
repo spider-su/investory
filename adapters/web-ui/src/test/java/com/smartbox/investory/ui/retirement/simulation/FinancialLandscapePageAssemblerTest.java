@@ -71,7 +71,8 @@ class FinancialLandscapePageAssemblerTest {
                 11L,
                 2026,
                 "Plan",
-                List.of(new RetirementAnnualCostsApi.Group(1L, "Housing", new BigDecimal("6000"), 0)),
+                List.of(
+                    new RetirementAnnualCostsApi.Group(1L, "Housing", new BigDecimal("6000"), 0)),
                 new BigDecimal("6000"),
                 new BigDecimal("72000"),
                 BigDecimal.ZERO,
