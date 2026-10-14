@@ -16,6 +16,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Sy
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -33,9 +34,10 @@ class PortfolioPerformanceQueryServiceTest {
   private final AccountMonthlyAttributionRepository accountMonths = mock();
   private final PortfolioMonthlySummaryRepository portfolioMonths = mock();
   private final SymbolPerformanceRepository symbols = mock();
+  private final AssetPriceHistoryRepository prices = mock();
   private final PortfolioPerformanceQueryService service =
       new PortfolioPerformanceQueryService(
-          closedPositions, daily, accounts, portfolioMonths, accountMonths, symbols);
+          closedPositions, daily, accounts, portfolioMonths, accountMonths, symbols, prices);
 
   @DisplayName("win Rate Uses Closed Position Profit Sign")
   @Test

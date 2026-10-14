@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.reporting;
 
+import com.smartbox.investory.investment.api.reporting.InvestmentDailyPerformanceApi.DailyTickerMove;
 import com.smartbox.investory.investment.api.reporting.model.DailyPerformanceDetail;
 import com.smartbox.investory.investment.api.reporting.model.InstrumentPerformance;
 import com.smartbox.investory.investment.api.reporting.model.MonthlyAttribution;
@@ -14,6 +15,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Sy
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.performance.model.Performance;
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -38,6 +40,7 @@ public class PortfolioPerformanceQueryService {
   private final PortfolioMonthlySummaryRepository portfolioMonthlySummaryRepository;
   private final AccountMonthlyAttributionRepository accountMonthlyAttributionRepository;
   private final SymbolPerformanceRepository symbolPerformanceRepository;
+  private final AssetPriceHistoryRepository assetPriceHistoryRepository;
 
   public Performance calculateMonthlyPerformance(Long portfolioId) {
     requirePortfolioId(portfolioId);
@@ -191,6 +194,68 @@ public class PortfolioPerformanceQueryService {
         profit.subtract(dividends).subtract(interest).subtract(fees).subtract(taxes).doubleValue(),
         accounts,
         "Daily account_daily data cannot separate price movement from FX; residual is combined market/FX movement.");
+  }
+
+  public List<DailyTickerMove> dailyTickerMovers(
+      Long portfolioId, LocalDate date, double thresholdPct, int limit) {
+    requirePortfolioId(portfolioId);
+    Set<Long> accountIds =
+        accountRepository.findAllByPortfolioId(portfolioId).stream()
+            .map(AccountEntity::getId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    if (accountIds.isEmpty()) return List.of();
+    List<String> symbols =
+        closedPositionRepository.findOpenByAccountIn(accountIds).stream()
+            .map(PositionEntity::getCanonicalSymbol)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    if (symbols.isEmpty()) return List.of();
+
+    LocalDate dateFrom =
+        date.isBefore(LocalDate.MIN.plusDays(5)) ? LocalDate.MIN : date.minusDays(5);
+    Map<String, TreeMap<LocalDate, BigDecimal>> pricesBySymbol = new TreeMap<>();
+    for (var row :
+        assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(symbols, dateFrom, date)) {
+      if (Boolean.TRUE.equals(row.getEstimated())
+          || row.getClosePrice() == null
+          || row.getPriceDate() == null) continue;
+      BigDecimal scale =
+          row.getPriceScaleFactor() == null ? BigDecimal.ONE : row.getPriceScaleFactor();
+      pricesBySymbol
+          .computeIfAbsent(row.getSymbol(), ignored -> new TreeMap<>())
+          .put(row.getPriceDate(), row.getClosePrice().multiply(scale));
+    }
+    return pricesBySymbol.entrySet().stream()
+        .map(
+            entry -> {
+              var prices = entry.getValue();
+              var current = prices.floorEntry(date);
+              var previous = current == null ? null : prices.lowerEntry(current.getKey());
+              if (current == null
+                  || previous == null
+                  || previous.getValue().signum() == 0
+                  || java.time.temporal.ChronoUnit.DAYS.between(current.getKey(), date) > 4) {
+                return null;
+              }
+              double change =
+                  current
+                      .getValue()
+                      .subtract(previous.getValue())
+                      .divide(previous.getValue(), 8, java.math.RoundingMode.HALF_UP)
+                      .multiply(BigDecimal.valueOf(100))
+                      .doubleValue();
+              return Math.abs(change) >= thresholdPct
+                  ? new DailyTickerMove(entry.getKey(), change)
+                  : null;
+            })
+        .filter(Objects::nonNull)
+        .sorted(
+            Comparator.comparingDouble((DailyTickerMove move) -> Math.abs(move.changePct()))
+                .reversed())
+        .limit(Math.max(0, limit))
+        .toList();
   }
 
   private InstrumentPerformance toInstrumentPerformance(SymbolPerformanceEntity row) {

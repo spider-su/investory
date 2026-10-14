@@ -6,6 +6,7 @@ import com.smartbox.investory.integrations.notifications.persistence.AlertRuleSt
 import com.smartbox.investory.integrations.notifications.persistence.AlertRuleStateRepository;
 import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader;
 import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader.PortfolioOperationsSnapshot;
+import com.smartbox.investory.investment.api.reporting.InvestmentDailyPerformanceApi;
 import com.smartbox.investory.shared.notifications.NotificationCandidate;
 import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
 import java.math.BigDecimal;
@@ -26,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
   @Mock private PortfolioOperationsReader investment;
+  @Mock private InvestmentDailyPerformanceApi dailyPerformance;
   @Mock private NotificationEventPublisher publisher;
   @Mock private AlertRuleStateRepository alertStates;
   @Mock private AlertRule firingRule;
@@ -41,6 +43,7 @@ class NotificationServiceTest {
     service =
         new NotificationService(
             investment,
+            dailyPerformance,
             List.of(),
             properties,
             publisher,
@@ -63,7 +66,7 @@ class NotificationServiceTest {
         ArgumentCaptor.forClass(NotificationCandidate.class);
     verify(publisher).publish(candidate.capture());
     org.assertj.core.api.Assertions.assertThat(candidate.getValue().fingerprint())
-        .isEqualTo("DAILY_DIGEST:2026-08-25");
+        .isEqualTo("DAILY_DIGEST:2026-08-24");
     org.assertj.core.api.Assertions.assertThat(candidate.getValue().payload())
         .containsEntry("balance", "12,345")
         .containsEntry("currency", "USD");
@@ -79,6 +82,7 @@ class NotificationServiceTest {
     service =
         new NotificationService(
             investment,
+            dailyPerformance,
             List.of(firingRule, throwingRule),
             properties,
             publisher,
@@ -105,6 +109,7 @@ class NotificationServiceTest {
     service =
         new NotificationService(
             investment,
+            dailyPerformance,
             List.of(firingRule),
             properties,
             publisher,
@@ -150,6 +155,7 @@ class NotificationServiceTest {
     service =
         new NotificationService(
             investment,
+            dailyPerformance,
             List.of(firingRule),
             properties,
             publisher,

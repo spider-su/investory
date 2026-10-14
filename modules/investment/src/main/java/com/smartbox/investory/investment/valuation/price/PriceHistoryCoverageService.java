@@ -95,7 +95,7 @@ public class PriceHistoryCoverageService {
           assetId, from, to, 0, 0, 0, CoverageStatus.NO_SOURCE, List.of("No source mapping"));
     }
     List<AssetPriceHistoryRepository.HistoricalAssetPriceRow> existingRows =
-        historyRepository.findHistoricalPricesBySymbolInBefore(List.of(asset.getSymbol()), to);
+        historyRepository.findHistoricalPricesBySymbolInRange(List.of(asset.getSymbol()), from, to);
     Map<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> existing =
         existingRows.stream()
             .filter(row -> row.getPriceDate() != null && !row.getPriceDate().isBefore(from))

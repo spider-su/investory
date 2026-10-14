@@ -45,6 +45,7 @@ import com.smartbox.investory.investment.performance.model.Performance;
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQueryService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
@@ -93,6 +94,7 @@ class PortfolioMetricsServiceTest {
   @Mock private PortfolioFallbackReconciliationRepository fallbackReconciliationRepository;
   @Mock private PortfolioDataQualityRepository dataQualityRepository;
   @Mock private PortfolioRiskExposureCalculator riskExposureCalculator;
+  @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
 
   private PortfolioMetricsService portfolioMetricsService;
   private PortfolioProperties portfolioProperties;
@@ -116,7 +118,8 @@ class PortfolioMetricsServiceTest {
             accountRepository,
             portfolioMonthlySummaryRepository,
             accountMonthlyAttributionRepository,
-            symbolPerformanceRepository);
+            symbolPerformanceRepository,
+            assetPriceHistoryRepository);
     portfolioMetricsService =
         new PortfolioMetricsService(
             applicationTime,

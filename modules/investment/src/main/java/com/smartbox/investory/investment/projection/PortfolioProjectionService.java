@@ -969,10 +969,13 @@ public class PortfolioProjectionService {
         tickerDays.stream()
             .map(DayTickerKey::date)
             .reduce(currentDate, (latest, date) -> date.isAfter(latest) ? date : latest);
+    LocalDate dateFrom =
+        tickerDays.stream().map(DayTickerKey::date).min(LocalDate::compareTo).orElse(dateTo);
 
     Map<String, NavigableMap<LocalDate, HistoricalPrice>> prices = new HashMap<>();
     for (AssetPriceHistoryRepository.HistoricalAssetPriceRow row :
-        assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(symbols, dateTo)) {
+        assetPriceHistoryRepository.findHistoricalPricesBySymbolInRange(
+            symbols, dateFrom, dateTo)) {
       if (!StringUtils.hasText(row.getSymbol())
           || row.getPriceDate() == null
           || row.getClosePrice() == null) {

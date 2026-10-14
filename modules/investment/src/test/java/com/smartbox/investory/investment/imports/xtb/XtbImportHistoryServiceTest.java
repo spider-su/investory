@@ -517,6 +517,8 @@ class XtbImportHistoryServiceTest {
             argThat(value -> value != null && value.compareTo(BigDecimal.valueOf(102)) == 0),
             eq(90),
             eq("XTB_TRADE_OPEN_OBSERVATION"));
+    verify(assetRepository, org.mockito.Mockito.times(6))
+        .findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection());
     verify(closedPositionRepository).saveAll(closedPositionsCaptor.capture());
     List<PositionEntity> savedClosed = new ArrayList<>();
     closedPositionsCaptor.getValue().forEach(savedClosed::add);
@@ -544,6 +546,58 @@ class XtbImportHistoryServiceTest {
     assertTrue(
         savedOpened.stream()
             .allMatch(position -> position.getCommissionCurrency() == CurrencyType.PLN));
+  }
+
+  @DisplayName("price Observation Preparation Preserves Closed Legs And Weighted Open Price")
+  @Test
+  void priceObservationPreparationPreservesClosedLegsAndWeightedOpenPrice() {
+    PositionEntity closed = new PositionEntity();
+    closed.setSymbol("AAPL.US");
+    closed.setPriceCurrency(CurrencyType.USD);
+    closed.setVolume(new BigDecimal("2"));
+    closed.setOpenTime(ZonedDateTime.parse("2026-07-01T10:00:00Z"));
+    closed.setCloseTime(ZonedDateTime.parse("2026-07-02T10:00:00Z"));
+    closed.setOpenPrice(new BigDecimal("100"));
+    closed.setClosePrice(new BigDecimal("110"));
+    closed.setPurchaseValue(new BigDecimal("800"));
+    closed.setSaleValue(new BigDecimal("880"));
+
+    PositionEntity opened = new PositionEntity();
+    opened.setSymbol("AAPL.US");
+    opened.setPriceCurrency(CurrencyType.USD);
+    opened.setVolume(new BigDecimal("1"));
+    opened.setOpenTime(ZonedDateTime.parse("2026-07-01T10:00:00Z"));
+    opened.setOpenPrice(new BigDecimal("104"));
+    opened.setPurchaseValue(new BigDecimal("104"));
+
+    XtbTradePriceObservationPreparer preparer = new XtbTradePriceObservationPreparer();
+    Map<
+            XtbTradePriceObservationPreparer.PriceCheckpointKey,
+            XtbTradePriceObservationPreparer.WeightedPrice>
+        prices =
+            preparer.prepare(
+                List.of(closed),
+                List.of(opened),
+                CurrencyType.PLN,
+                Map.of("AAPL.US", CurrencyType.USD),
+                (symbol, positionCurrency, fallbackCurrency, quoteCurrencies) ->
+                    quoteCurrencies.getOrDefault(symbol, fallbackCurrency));
+
+    assertEquals(2, prices.size());
+    XtbTradePriceObservationPreparer.WeightedPrice openPrice =
+        prices.entrySet().stream()
+            .filter(entry -> entry.getKey().source().equals("XTB_TRADE_OPEN"))
+            .findFirst()
+            .orElseThrow()
+            .getValue();
+    assertEquals(0, openPrice.totalWeight().compareTo(new BigDecimal("3")));
+    assertEquals(
+        0,
+        openPrice
+            .weightedAverage()
+            .setScale(3, java.math.RoundingMode.HALF_UP)
+            .compareTo(new BigDecimal("101.333")));
+    assertTrue(prices.keySet().stream().anyMatch(key -> key.source().equals("XTB_TRADE_CLOSE")));
   }
 
   @DisplayName("import Workbook keeps Asset Marked Excluded From Import")
