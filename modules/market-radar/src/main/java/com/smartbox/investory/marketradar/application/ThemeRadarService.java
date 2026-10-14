@@ -10,7 +10,9 @@ import com.smartbox.investory.marketradar.port.ThemeSnapshotStore;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 
@@ -26,8 +28,13 @@ public class ThemeRadarService implements ThemeRadarApi {
 
   public Optional<ThemeSnapshot> analyze(
       ThemeDefinition definition, String benchmark, LocalDate date) {
-    Optional<SeriesMetrics> proxy = metrics(definition.proxySymbol(), date);
-    Optional<SeriesMetrics> benchmarkMetrics = metrics(benchmark, date);
+    return analyze(definition, benchmark, date, this::metrics);
+  }
+
+  private Optional<ThemeSnapshot> analyze(
+      ThemeDefinition definition, String benchmark, LocalDate date, MetricsLookup metricsLookup) {
+    Optional<SeriesMetrics> proxy = metricsLookup.metrics(definition.proxySymbol(), date);
+    Optional<SeriesMetrics> benchmarkMetrics = metricsLookup.metrics(benchmark, date);
     if (proxy.isEmpty() || benchmarkMetrics.isEmpty()) return Optional.empty();
 
     int available = 0;
@@ -35,7 +42,7 @@ public class ThemeRadarService implements ThemeRadarApi {
     int outperforming = 0;
     double benchmarkReturn = benchmarkMetrics.orElseThrow().return20d();
     for (String member : definition.members()) {
-      Optional<SeriesMetrics> metrics = metrics(member, date);
+      Optional<SeriesMetrics> metrics = metricsLookup.metrics(member, date);
       if (metrics.isEmpty()) continue;
       available++;
       if (metrics.orElseThrow().aboveSma50()) aboveSma50++;
@@ -66,8 +73,18 @@ public class ThemeRadarService implements ThemeRadarApi {
   public List<ThemeSnapshot> refresh(
       List<ThemeDefinition> definitions, String benchmark, LocalDate date) {
     List<ThemeSnapshot> result = new ArrayList<>();
+    Map<SeriesKey, Optional<SeriesMetrics>> requestMetrics = new HashMap<>();
+    MetricsLookup metricsLookup =
+        (symbol, requestedDate) -> {
+          SeriesKey key = new SeriesKey(symbol, requestedDate);
+          Optional<SeriesMetrics> cached = requestMetrics.get(key);
+          if (cached != null) return cached;
+          Optional<SeriesMetrics> fetched = metrics(symbol, requestedDate);
+          requestMetrics.put(key, fetched);
+          return fetched;
+        };
     for (ThemeDefinition definition : definitions) {
-      analyze(definition, benchmark, date)
+      analyze(definition, benchmark, date, metricsLookup)
           .ifPresent(
               snapshot -> {
                 store.save(snapshot);
@@ -103,6 +120,13 @@ public class ThemeRadarService implements ThemeRadarApi {
             .orElse(close);
     return Optional.of(new SeriesMetrics(return20, close > sma50));
   }
+
+  @FunctionalInterface
+  private interface MetricsLookup {
+    Optional<SeriesMetrics> metrics(String symbol, LocalDate date);
+  }
+
+  private record SeriesKey(String symbol, LocalDate date) {}
 
   private ThemeState classify(
       double breadthAbove, double breadthOutperforming, double relativeStrength) {
