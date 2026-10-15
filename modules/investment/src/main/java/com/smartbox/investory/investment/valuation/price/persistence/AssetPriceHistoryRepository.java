@@ -10,6 +10,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Canonical history reads stay native where they need a prior-date anchor plus the full rows for
+ * that anchor (CTE/UNION), or PostgreSQL DISTINCT ON winner selection. JPQL has no portable CTE or
+ * UNION support and cannot reproduce those shapes without changing the read contract.
+ */
 public interface AssetPriceHistoryRepository extends Repository<AssetEntity, Long> {
 
   @Query(
