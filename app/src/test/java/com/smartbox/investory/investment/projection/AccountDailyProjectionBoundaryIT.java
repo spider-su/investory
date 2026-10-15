@@ -95,6 +95,27 @@ class AccountDailyProjectionBoundaryIT {
         .isEqualByComparingTo(HappyInvestorDailyFacts.DEPOSITS);
     assertThat((BigDecimal) daily("2026-08-06").get("realized_profit"))
         .isEqualByComparingTo(HappyInvestorDailyFacts.REALIZED_PROFIT);
+    assertThat(dailyProjection("2026-08-10"))
+        .isEqualTo(
+            new DailyProjection(
+                java.time.LocalDate.parse("2026-08-10"),
+                "EUR",
+                new BigDecimal("927.00000000"),
+                new BigDecimal("216.00000000"),
+                new BigDecimal("1143.00000000"),
+                new BigDecimal("180.00000000"),
+                new BigDecimal("36.00000000"),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                new BigDecimal("216.00000000"),
+                new BigDecimal("0.23300971"),
+                null));
+    List<DailyProjection> before = dailyProjectionSnapshot();
     long rows =
         jdbc.queryForObject(
             "SELECT count(*) FROM investory.account_daily WHERE account_id = ?",
@@ -108,6 +129,8 @@ class AccountDailyProjectionBoundaryIT {
                 ACCOUNT_ID))
         .isEqualTo(rows);
     assertThat(daily("2026-08-10")).isEqualTo(row);
+    assertThat(dailyProjectionSnapshot()).isEqualTo(before);
+    assertReconciliationBridge("2026-08-10");
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM investory.account_daily d JOIN investory.accounts a ON a.id = d.account_id WHERE a.portfolio_id = ? AND d.account_id <> ?",
@@ -198,4 +221,93 @@ class AccountDailyProjectionBoundaryIT {
         ACCOUNT_ID,
         java.sql.Date.valueOf(date));
   }
+
+  private DailyProjection dailyProjection(String date) {
+    Map<String, Object> row =
+        jdbc.queryForMap(
+            "SELECT snapshot_date, valuation_currency, cash_balance, market_value, equity, cost_base, unrealized_profit, realized_profit, dividends, interest, fees, taxes, deposits, withdrawals, daily_profit_amount, daily_return_pct, portfolio_weight "
+                + "FROM investory.account_daily WHERE account_id = ? AND snapshot_date = ?",
+            ACCOUNT_ID,
+            java.sql.Date.valueOf(date));
+    return new DailyProjection(
+        ((java.sql.Date) row.get("snapshot_date")).toLocalDate(),
+        (String) row.get("valuation_currency"),
+        (BigDecimal) row.get("cash_balance"),
+        (BigDecimal) row.get("market_value"),
+        (BigDecimal) row.get("equity"),
+        (BigDecimal) row.get("cost_base"),
+        (BigDecimal) row.get("unrealized_profit"),
+        (BigDecimal) row.get("realized_profit"),
+        (BigDecimal) row.get("dividends"),
+        (BigDecimal) row.get("interest"),
+        (BigDecimal) row.get("fees"),
+        (BigDecimal) row.get("taxes"),
+        (BigDecimal) row.get("deposits"),
+        (BigDecimal) row.get("withdrawals"),
+        (BigDecimal) row.get("daily_profit_amount"),
+        (BigDecimal) row.get("daily_return_pct"),
+        (BigDecimal) row.get("portfolio_weight"));
+  }
+
+  private List<DailyProjection> dailyProjectionSnapshot() {
+    return jdbc.query(
+        "SELECT snapshot_date, valuation_currency, cash_balance, market_value, equity, cost_base, unrealized_profit, realized_profit, dividends, interest, fees, taxes, deposits, withdrawals, daily_profit_amount, daily_return_pct, portfolio_weight "
+            + "FROM investory.account_daily WHERE account_id = ? ORDER BY snapshot_date",
+        (resultSet, rowNum) ->
+            new DailyProjection(
+                resultSet.getDate("snapshot_date").toLocalDate(),
+                resultSet.getString("valuation_currency"),
+                resultSet.getBigDecimal("cash_balance"),
+                resultSet.getBigDecimal("market_value"),
+                resultSet.getBigDecimal("equity"),
+                resultSet.getBigDecimal("cost_base"),
+                resultSet.getBigDecimal("unrealized_profit"),
+                resultSet.getBigDecimal("realized_profit"),
+                resultSet.getBigDecimal("dividends"),
+                resultSet.getBigDecimal("interest"),
+                resultSet.getBigDecimal("fees"),
+                resultSet.getBigDecimal("taxes"),
+                resultSet.getBigDecimal("deposits"),
+                resultSet.getBigDecimal("withdrawals"),
+                resultSet.getBigDecimal("daily_profit_amount"),
+                resultSet.getBigDecimal("daily_return_pct"),
+                resultSet.getBigDecimal("portfolio_weight")),
+        ACCOUNT_ID);
+  }
+
+  private void assertReconciliationBridge(String date) {
+    Map<String, Object> reconciliation =
+        jdbc.queryForMap(
+            "SELECT equity_difference, cash_difference, market_value_difference, unrealized_difference "
+                + "FROM investory.recon_v_account_daily WHERE account_id = ? AND valuation_date = ?",
+            ACCOUNT_ID,
+            java.sql.Date.valueOf(date));
+    assertThat((BigDecimal) reconciliation.get("equity_difference"))
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat((BigDecimal) reconciliation.get("cash_difference"))
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat((BigDecimal) reconciliation.get("market_value_difference"))
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat((BigDecimal) reconciliation.get("unrealized_difference"))
+        .isEqualByComparingTo(BigDecimal.ZERO);
+  }
+
+  private record DailyProjection(
+      java.time.LocalDate date,
+      String currency,
+      BigDecimal cash,
+      BigDecimal marketValue,
+      BigDecimal equity,
+      BigDecimal costBase,
+      BigDecimal unrealizedProfit,
+      BigDecimal realizedProfit,
+      BigDecimal dividends,
+      BigDecimal interest,
+      BigDecimal fees,
+      BigDecimal taxes,
+      BigDecimal deposits,
+      BigDecimal withdrawals,
+      BigDecimal dailyProfit,
+      BigDecimal dailyReturn,
+      BigDecimal portfolioWeight) {}
 }
