@@ -375,7 +375,8 @@ public class InvestmentDashboardFacade {
     if (performance == null
         || performance.getCalculateMonthlyPerformance() == null
         || performance.getCalculateMonthlyPerformance().isEmpty()) {
-      return null;
+      throw new IllegalStateException(
+          "No monthly performance range available for canonical dashboard reporting");
     }
     java.util.NavigableSet<java.time.YearMonth> months = new java.util.TreeSet<>();
     performance

@@ -73,6 +73,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void composesFilteredPortfolioAndBenchmarkIntoDashboardSections() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     portfolio.setBalance(123.0);
     portfolio.setNetDeposits(100.0);
     portfolio.setPerformancePerSymbol(
@@ -103,6 +104,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void attributionKeepsFourteenNamedRowsAndAggregatesTheRestPerResultSide() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     List<InstrumentPerformance> rows = new ArrayList<>();
     for (int value = 1; value <= 16; value++) {
       rows.add(new InstrumentPerformance("GAIN-" + value, value, 0.0, value));
@@ -227,6 +229,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void exposesConfiguredPerformanceBoardKpiStart() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     Benchmark benchmark = new Benchmark();
     when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
@@ -252,6 +255,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void mapsSubmittedBenchmarkAccountSelectionToBenchmarkService() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     Benchmark benchmark = new Benchmark();
     List<Long> accountIds = List.of(11L, 12L);
     benchmark.setAccountOptions(
@@ -276,6 +280,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void treatsAnEmptySubmittedAccountSelectionAsAllEligibleAccounts() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     Benchmark benchmark = new Benchmark();
     benchmark.setPortfolioPerformanceAvailable(true);
     benchmark.setAccountOptions(
@@ -303,6 +308,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void doesNotKeepRedundantAccountIdsInPeriodLinksWhenAllAccountsAreSelected() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     Benchmark benchmark = new Benchmark();
     List<Long> accountIds = List.of(1L, 3L);
     benchmark.setAccountOptions(
@@ -511,6 +517,33 @@ class InvestmentDashboardFacadeTest {
     assertTrue(failure.getMessage().contains("PortfolioPerformanceQuery returned no result"));
     verify(performanceQuery)
         .forPortfolioMonths(1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-01"));
+  }
+
+  @DisplayName("does Not Invent Dashboard Performance When Monthly History Is Empty")
+  @Test
+  void doesNotInventDashboardPerformanceWhenMonthlyHistoryIsEmpty() {
+    Performance performance = new Performance();
+    performance.setCalculateMonthlyPerformance(new LinkedHashMap<>());
+    performance.setMonthlyAttributions(
+        new LinkedHashMap<>(java.util.Map.of("2026-01", attributionWithIncome())));
+    Portfolio portfolio = new Portfolio();
+    portfolio.setMonthlyPerformance(performance);
+    Benchmark benchmark = new Benchmark();
+    benchmark.setAvailable(true);
+    benchmark.setPortfolioPl(500.0);
+    benchmark.setPortfolioReturnPct(25.0);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+
+    IllegalStateException failure =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
+                    .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L)));
+
+    assertTrue(failure.getMessage().contains("canonical dashboard reporting"));
+    verify(performanceQuery, org.mockito.Mockito.never()).forPortfolioMonths(any(), any(), any());
   }
 
   @DisplayName("calculates Drawdown Income Yield And Concentration Warning")
@@ -792,6 +825,20 @@ class InvestmentDashboardFacadeTest {
         new PortfolioStructureQuery(null),
         com.smartbox.investory.investment.reporting.ReturnEstimateCalculator
             .DEFAULT_BENCHMARK_EXPECTATION);
+  }
+
+  private void addCanonicalMonth(Portfolio portfolio) {
+    Performance performance = new Performance();
+    performance.setCalculateMonthlyPerformance(
+        new LinkedHashMap<>(java.util.Map.of("2026-01", 0.0)));
+    portfolio.setMonthlyPerformance(performance);
+    lenient()
+        .when(
+            performanceQuery.forPortfolioMonths(
+                1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-01")))
+        .thenReturn(
+            performanceResult(
+                YearMonth.parse("2026-01"), YearMonth.parse("2026-01"), 0, 0, 0, 0, 0, 0, 0));
   }
 
   private PerformanceResult performanceResult(

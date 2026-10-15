@@ -7,9 +7,13 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardQuery;
 import com.smartbox.investory.investment.api.reporting.model.Benchmark;
+import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.investment.performance.PortfolioMetricsService;
+import com.smartbox.investory.investment.performance.model.Performance;
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
+import com.smartbox.investory.investment.reporting.PerformancePeriod;
+import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
 import com.smartbox.investory.investment.reporting.ReturnEstimateCalculator;
 import com.smartbox.investory.investment.reporting.dashboard.application.InvestmentDashboardFacade;
@@ -18,7 +22,10 @@ import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPe
 import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
 import com.smartbox.investory.ui.common.BuildMetadata;
 import com.smartbox.investory.ui.presentation.UiPresentation;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -41,11 +48,38 @@ class DashboardRenderSmokeTest {
   void dashboardTemplateRendersThroughThymeleaf() {
     Portfolio portfolio = new Portfolio();
     portfolio.setBalance(100.0);
+    Performance performance = new Performance();
+    performance.setCalculateMonthlyPerformance(
+        new java.util.LinkedHashMap<>(Map.of("2026-01", 0.0)));
+    portfolio.setMonthlyPerformance(performance);
     Benchmark benchmark = new Benchmark();
     PortfolioMetricsService portfolioMetricsService = mock(PortfolioMetricsService.class);
     BenchmarkService benchmarkService = mock(BenchmarkService.class);
+    PortfolioPerformanceQuery performanceQuery = mock(PortfolioPerformanceQuery.class);
     when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    when(performanceQuery.forPortfolioMonths(
+            1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-01")))
+        .thenReturn(
+            new PerformanceResult(
+                new PerformancePeriod(LocalDate.parse("2026-01-01"), LocalDate.parse("2026-01-31")),
+                com.smartbox.investory.shared.currency.CurrencyType.USD,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No return"),
+                ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No return"),
+                null));
 
     var dashboard =
         new InvestmentDashboardFacade(
@@ -54,7 +88,7 @@ class DashboardRenderSmokeTest {
                 new DashboardPeriodViewService(),
                 new PortfolioPeriodMetricsService(),
                 "2026-01-01",
-                mock(PortfolioPerformanceQuery.class),
+                performanceQuery,
                 null,
                 new PortfolioStructureQuery(null),
                 ReturnEstimateCalculator.DEFAULT_BENCHMARK_EXPECTATION)
