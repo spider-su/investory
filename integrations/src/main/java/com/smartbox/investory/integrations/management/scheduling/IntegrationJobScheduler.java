@@ -14,6 +14,10 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.ConnectionCallback;
@@ -54,9 +58,18 @@ public class IntegrationJobScheduler implements IntegrationJobExecutionApi {
   @Scheduled(fixedDelayString = "${app.integrations.scheduler-poll-ms:60000}")
   public void poll() {
     ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
-    for (IntegrationJobEntity job : jobRepository.findByEnabledTrue()) {
-      IntegrationInstanceEntity instance =
-          instanceRepository.findById(job.getIntegrationInstanceId()).orElse(null);
+    var jobs = jobRepository.findByEnabledTrue();
+    if (jobs.isEmpty()) return;
+    var instanceIds =
+        jobs.stream()
+            .map(IntegrationJobEntity::getIntegrationInstanceId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    Map<Long, IntegrationInstanceEntity> instancesById = new LinkedHashMap<>();
+    for (IntegrationInstanceEntity instance : instanceRepository.findAllById(instanceIds)) {
+      instancesById.put(instance.getId(), instance);
+    }
+    for (IntegrationJobEntity job : jobs) {
+      IntegrationInstanceEntity instance = instancesById.get(job.getIntegrationInstanceId());
       if (instance == null || !instance.isEnabled()) {
         continue;
       }
