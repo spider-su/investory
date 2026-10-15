@@ -6,3 +6,5 @@ includes the full persisted financial row, including EUR-converted cash/market/e
 returns. The reconciliation TSV records reported and independently reconstructed values and their
 differences. Nonzero fixture reconciliation differences are historical baseline, not zero-drift
 assertions between different sources.
+
+Empty SQL values in the TSV snapshots are encoded as `<null>` so every row has an explicit final field and remains whitespace-clean. The test compares all reconciliation rows to this snapshot at the initial fixture state. It does not require reconciliation differences to be zero or compare rows produced by a later refresh scope to this initial snapshot.
