@@ -8,7 +8,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-/** Read-only native query adapter for persisted reconciliation evidence. */
+/**
+ * Read-only PostgreSQL query adapter for persisted reconciliation evidence.
+ *
+ * <p>The four reads intentionally remain native despite simple joins, predicates, and ordering
+ * being expressible through ORM projections. Each returns filtered window counts over the full
+ * optionally portfolio-scoped issue set, calculated before the 250-row limit. In particular, {@code
+ * COUNT(*) FILTER (...) OVER ()} is PostgreSQL-specific; ORM pagination/count projections cannot
+ * preserve that output contract. The typed interface projections avoid positional mapping.
+ */
 public interface ReconciliationEvidenceRepository extends Repository<AccountDailyEntity, Long> {
 
   @Query(

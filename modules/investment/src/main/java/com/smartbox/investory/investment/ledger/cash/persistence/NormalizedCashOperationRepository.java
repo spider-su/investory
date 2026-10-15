@@ -7,6 +7,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Read adapter for normalized cash-flow reporting.
+ *
+ * <p>Both reads stay native. The detailed query projects the flow view's calculated fields and
+ * converts its timestamp to a Warsaw-local date; mapping the view as an entity and projecting
+ * {@code LocalDate} through ORM conversion risks using the JVM/JDBC zone at the boundary day. The
+ * grouped query additionally relies on that exact PostgreSQL expression as a selected, grouped, and
+ * ordered key, enum-to-text casts, and {@code MIN}/{@code MAX}/{@code SUM} null/value semantics. An
+ * ORM rewrite would need to reproduce those database expressions exactly. Interface projections
+ * keep results typed and avoid positional result mapping.
+ */
 public interface NormalizedCashOperationRepository extends Repository<CashOperationEntity, Long> {
 
   /**
