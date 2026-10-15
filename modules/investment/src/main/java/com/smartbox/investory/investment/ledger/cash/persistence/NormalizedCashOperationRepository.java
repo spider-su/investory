@@ -28,6 +28,11 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
    * existing portfolio and benchmark calculations while substantially reducing transferred rows and
    * projection work.
    */
+  /**
+   * Native: grouped reads need the exact Warsaw-local date expression as selected/grouped/ordered
+   * key and PostgreSQL enum-to-text casts plus MIN/MAX/SUM null semantics; ORM grouping would risk
+   * changing the key or aggregate results.
+   */
   @Query(
       value =
           """
@@ -67,6 +72,12 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
   List<NormalizedCashOperationRow> findAllByAccountIdIn(
       @Param("accountIds") Collection<Long> accountIds);
 
+  /**
+   * Native: detailed reads require PostgreSQL {@code AT TIME ZONE 'Europe/Warsaw'} before casting
+   * the timestamp to {@code date}, and left-join assets while preserving view values and
+   * account/date/operation ordering. ORM timestamp conversion can shift boundary dates by JVM/JDBC
+   * zone.
+   */
   @Query(
       value =
           """
