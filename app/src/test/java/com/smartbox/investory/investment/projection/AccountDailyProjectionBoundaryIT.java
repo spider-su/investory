@@ -8,7 +8,10 @@ import com.smartbox.investory.investment.valuation.fx.FxRateUnavailableException
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorDailyFacts;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -80,6 +84,12 @@ class AccountDailyProjectionBoundaryIT {
         PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
 
     projections.recalculateAccounts(Set.of(ACCOUNT_ID));
+    projections.refreshReconciliationViews();
+    // Golden rows come from the exact pre-refactor develop base, 88dfbb7.
+    assertThat(accountDailyParityLines())
+        .containsExactlyElementsOf(baselineLines("account-daily.tsv"));
+    assertThat(reconciliationParityLines())
+        .containsExactlyElementsOf(baselineLines("reconciliation.tsv"));
     Map<String, Object> row = daily("2026-08-10");
     assertThat(row.get("valuation_currency")).isEqualTo("EUR");
     assertThat((BigDecimal) row.get("cash_balance"))
@@ -223,6 +233,33 @@ class AccountDailyProjectionBoundaryIT {
         "SELECT valuation_currency, cash_balance, market_value, equity, realized_profit, dividends, deposits FROM investory.account_daily WHERE account_id = ? AND snapshot_date = ?",
         ACCOUNT_ID,
         java.sql.Date.valueOf(date));
+  }
+
+  private List<String> accountDailyParityLines() {
+    return jdbc.queryForList(
+        "SELECT concat_ws(E'\\t', snapshot_date::text, COALESCE(valuation_currency::text, ''), COALESCE(cash_balance::text, ''), COALESCE(market_value::text, ''), COALESCE(equity::text, ''), COALESCE(cost_base::text, ''), COALESCE(unrealized_profit::text, ''), COALESCE(realized_profit::text, ''), COALESCE(dividends::text, ''), COALESCE(interest::text, ''), COALESCE(fees::text, ''), COALESCE(taxes::text, ''), COALESCE(deposits::text, ''), COALESCE(withdrawals::text, ''), COALESCE(daily_profit_amount::text, ''), COALESCE(daily_return_pct::text, ''), COALESCE(portfolio_weight::text, '')) "
+            + "FROM investory.account_daily WHERE account_id = ? ORDER BY snapshot_date",
+        String.class,
+        ACCOUNT_ID);
+  }
+
+  private List<String> reconciliationParityLines() {
+    return jdbc.queryForList(
+        "SELECT concat_ws(E'\\t', valuation_date::text, COALESCE(reported_cash_balance::text, ''), COALESCE(reconstructed_cash_balance::text, ''), COALESCE(cash_difference::text, ''), COALESCE(reported_market_value::text, ''), COALESCE(reconstructed_market_value::text, ''), COALESCE(market_value_difference::text, ''), COALESCE(reported_cost_base::text, ''), COALESCE(reconstructed_cost_base::text, ''), COALESCE(cost_base_difference::text, ''), COALESCE(reported_unrealized_profit::text, ''), COALESCE(reconstructed_unrealized_profit::text, ''), COALESCE(unrealized_difference::text, ''), COALESCE(reported_equity::text, ''), COALESCE(reconstructed_equity::text, ''), COALESCE(equity_difference::text, ''), COALESCE(reported_realized_profit::text, ''), COALESCE(reconstructed_total_realized_result::text, ''), COALESCE(realized_difference::text, ''), COALESCE(status::text, ''), COALESCE(severity::text, ''), COALESCE(validation_message::text, '')) "
+            + "FROM investory.recon_v_account_daily WHERE account_id = ? ORDER BY valuation_date",
+        String.class,
+        ACCOUNT_ID);
+  }
+
+  private List<String> baselineLines(String name) {
+    try (var input = new ClassPathResource("fixtures/issue-147/" + name).getInputStream()) {
+      return new String(input.readAllBytes(), StandardCharsets.UTF_8)
+          .lines()
+          .filter(line -> !line.isBlank() && !line.startsWith("#"))
+          .toList();
+    } catch (IOException error) {
+      throw new UncheckedIOException(error);
+    }
   }
 
   private DailyProjection dailyProjection(String date) {
