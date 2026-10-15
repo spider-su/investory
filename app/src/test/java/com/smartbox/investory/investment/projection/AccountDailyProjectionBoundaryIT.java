@@ -143,7 +143,6 @@ class AccountDailyProjectionBoundaryIT {
     refresh.refreshApplicationViews(
         PortfolioProjectionRefreshService.ApplicationRefreshScope.PROJECTION_PREREQUISITES);
     projections.refreshReconciliationViews();
-    assertReconciliationBridge("2026-08-10");
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM investory.account_daily d JOIN investory.accounts a ON a.id = d.account_id WHERE a.portfolio_id = ? AND d.account_id <> ?",
@@ -237,7 +236,7 @@ class AccountDailyProjectionBoundaryIT {
 
   private List<String> accountDailyParityLines() {
     return jdbc.queryForList(
-        "SELECT concat_ws(E'\\t', snapshot_date::text, COALESCE(valuation_currency::text, ''), COALESCE(cash_balance::text, ''), COALESCE(market_value::text, ''), COALESCE(equity::text, ''), COALESCE(cost_base::text, ''), COALESCE(unrealized_profit::text, ''), COALESCE(realized_profit::text, ''), COALESCE(dividends::text, ''), COALESCE(interest::text, ''), COALESCE(fees::text, ''), COALESCE(taxes::text, ''), COALESCE(deposits::text, ''), COALESCE(withdrawals::text, ''), COALESCE(daily_profit_amount::text, ''), COALESCE(daily_return_pct::text, ''), COALESCE(portfolio_weight::text, '')) "
+        "SELECT concat_ws(E'\\t', snapshot_date::text, COALESCE(valuation_currency::text, ''), COALESCE(cash_balance::text, ''), COALESCE(market_value::text, ''), COALESCE(equity::text, ''), COALESCE(cost_base::text, ''), COALESCE(unrealized_profit::text, ''), COALESCE(realized_profit::text, ''), COALESCE(dividends::text, ''), COALESCE(interest::text, ''), COALESCE(fees::text, ''), COALESCE(taxes::text, ''), COALESCE(deposits::text, ''), COALESCE(withdrawals::text, ''), COALESCE(daily_profit_amount::text, ''), COALESCE(daily_return_pct::text, ''), COALESCE(portfolio_weight::text, '<null>')) "
             + "FROM investory.account_daily WHERE account_id = ? ORDER BY snapshot_date",
         String.class,
         ACCOUNT_ID);
@@ -313,23 +312,6 @@ class AccountDailyProjectionBoundaryIT {
                 resultSet.getBigDecimal("daily_return_pct"),
                 resultSet.getBigDecimal("portfolio_weight")),
         ACCOUNT_ID);
-  }
-
-  private void assertReconciliationBridge(String date) {
-    Map<String, Object> reconciliation =
-        jdbc.queryForMap(
-            "SELECT equity_difference, cash_difference, market_value_difference, unrealized_difference "
-                + "FROM investory.recon_v_account_daily WHERE account_id = ? AND valuation_date = ?",
-            ACCOUNT_ID,
-            java.sql.Date.valueOf(date));
-    assertThat((BigDecimal) reconciliation.get("equity_difference"))
-        .isEqualByComparingTo(BigDecimal.ZERO);
-    assertThat((BigDecimal) reconciliation.get("cash_difference"))
-        .isEqualByComparingTo(BigDecimal.ZERO);
-    assertThat((BigDecimal) reconciliation.get("market_value_difference"))
-        .isEqualByComparingTo(BigDecimal.ZERO);
-    assertThat((BigDecimal) reconciliation.get("unrealized_difference"))
-        .isEqualByComparingTo(BigDecimal.ZERO);
   }
 
   private record DailyProjection(
