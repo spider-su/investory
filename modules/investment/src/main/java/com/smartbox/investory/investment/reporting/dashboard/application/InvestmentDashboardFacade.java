@@ -11,7 +11,6 @@ import com.smartbox.investory.investment.api.reporting.model.CashFlowView;
 import com.smartbox.investory.investment.api.reporting.model.DashboardNavigationView;
 import com.smartbox.investory.investment.api.reporting.model.DataQualityView;
 import com.smartbox.investory.investment.api.reporting.model.InstrumentPerformance;
-import com.smartbox.investory.investment.api.reporting.model.MonthlyAttribution;
 import com.smartbox.investory.investment.api.reporting.model.MonthlyPerformanceView;
 import com.smartbox.investory.investment.api.reporting.model.OverviewView;
 import com.smartbox.investory.investment.api.reporting.model.PerformanceSummary;
@@ -40,6 +39,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -56,61 +56,6 @@ public class InvestmentDashboardFacade {
   private final DashboardOperationalContextService operationalContextService;
   private final PortfolioStructureQuery portfolioStructureQuery;
   private final BigDecimal benchmarkExpectedReturn;
-
-  public InvestmentDashboardFacade(
-      PortfolioMetricsService portfolioMetricsService,
-      BenchmarkService benchmarkService,
-      DashboardPeriodViewService periodViewService) {
-    this(
-        portfolioMetricsService,
-        benchmarkService,
-        periodViewService,
-        new PortfolioPeriodMetricsService(),
-        "2026-01-01",
-        null,
-        null,
-        new PortfolioStructureQuery(null),
-        ReturnEstimateCalculator.DEFAULT_BENCHMARK_EXPECTATION);
-  }
-
-  public InvestmentDashboardFacade(
-      PortfolioMetricsService portfolioMetricsService,
-      BenchmarkService benchmarkService,
-      DashboardPeriodViewService periodViewService,
-      PortfolioPeriodMetricsService periodMetricsService,
-      String performanceKpiStart) {
-    this(
-        portfolioMetricsService,
-        benchmarkService,
-        periodViewService,
-        periodMetricsService,
-        performanceKpiStart,
-        null,
-        null,
-        new PortfolioStructureQuery(null),
-        ReturnEstimateCalculator.DEFAULT_BENCHMARK_EXPECTATION);
-  }
-
-  public InvestmentDashboardFacade(
-      PortfolioMetricsService portfolioMetricsService,
-      BenchmarkService benchmarkService,
-      DashboardPeriodViewService periodViewService,
-      PortfolioPeriodMetricsService periodMetricsService,
-      String performanceKpiStart,
-      PortfolioPerformanceQuery performanceQuery,
-      DashboardOperationalContextService operationalContextService,
-      PortfolioStructureQuery portfolioStructureQuery) {
-    this(
-        portfolioMetricsService,
-        benchmarkService,
-        periodViewService,
-        periodMetricsService,
-        performanceKpiStart,
-        performanceQuery,
-        operationalContextService,
-        portfolioStructureQuery,
-        ReturnEstimateCalculator.DEFAULT_BENCHMARK_EXPECTATION);
-  }
 
   @org.springframework.beans.factory.annotation.Autowired
   public InvestmentDashboardFacade(
@@ -129,7 +74,7 @@ public class InvestmentDashboardFacade {
     this.periodViewService = periodViewService;
     this.periodMetricsService = periodMetricsService;
     this.performanceKpiStart = yearMonth(performanceKpiStart);
-    this.performanceQuery = performanceQuery;
+    this.performanceQuery = Objects.requireNonNull(performanceQuery, "performanceQuery");
     this.operationalContextService = operationalContextService;
     this.portfolioStructureQuery = portfolioStructureQuery;
     this.benchmarkExpectedReturn = benchmarkExpectedReturn;
@@ -163,8 +108,7 @@ public class InvestmentDashboardFacade {
     PerformanceResult canonical =
         canonicalPerformance(portfolio.getMonthlyPerformance(), performanceResults);
     PerformanceResult totalReturnPerformance = canonical;
-    PeriodPerformance periodPerformance =
-        periodPerformance(benchmark, portfolio.getMonthlyPerformance(), canonical);
+    PeriodPerformance periodPerformance = periodPerformance(canonical);
     OverviewView overview =
         overview(portfolio, benchmark, periodPerformance, selectedPeriod, query.portfolioId());
     return new DashboardPageView(
@@ -267,11 +211,14 @@ public class InvestmentDashboardFacade {
     PerformanceKpi performanceKpi =
         performanceKpi(
             performanceResults, benchmarkHistory, historicalPerformance, totalReturnPerformance);
+    ReturnMetric selectedPeriodReturn = metric(canonical, true);
     return new PerformanceSummary(
-        benchmark.getPortfolioReturnPct(),
+        selectedPeriodReturn.status() == ReturnMetric.Status.AVAILABLE
+            ? selectedPeriodReturn.value().movePointRight(2).doubleValue()
+            : benchmark.getPortfolioReturnPct(),
         benchmark.getBenchmarkReturnPct(),
         benchmark.getAlpha(),
-        benchmark.getPortfolioPl(),
+        canonical == null ? benchmark.getPortfolioPl() : canonical.investmentResult().doubleValue(),
         currentDrawdown(benchmark),
         maximumDrawdown(benchmark),
         best,
@@ -345,8 +292,7 @@ public class InvestmentDashboardFacade {
 
   private Map<Integer, BigDecimal> annualPortfolioReturns(
       PerformanceResults performanceResults, int currentYear, LocalDate periodStart) {
-    if (performanceQuery == null || performanceResults.portfolioId == null || periodStart == null)
-      return Map.of();
+    if (performanceResults.portfolioId == null || periodStart == null) return Map.of();
     Map<Integer, BigDecimal> result = new LinkedHashMap<>();
     for (int year = currentYear - 4; year < currentYear; year++) {
       // Portfolio history before the configured KPI start is outside the observed scope.
@@ -387,38 +333,14 @@ public class InvestmentDashboardFacade {
     return result;
   }
 
-  private PeriodPerformance periodPerformance(
-      Benchmark benchmark, Performance performance, PerformanceResult canonical) {
-    // Canonical SQL reporting is authoritative. Keep the in-memory attribution as a transition
-    // fallback for callers/tests that do not have the reporting adapter wired yet.
-    double deposits =
-        canonical == null
-            ? legacyAttributionTotal(performance, MonthlyAttribution::deposits)
-            : canonical.contributions().doubleValue();
-    double withdrawals =
-        canonical == null
-            ? legacyAttributionTotal(performance, MonthlyAttribution::withdrawals)
-            : canonical.withdrawals().doubleValue();
-    double netExternalFlow =
-        canonical == null
-            ? legacyAttributionTotal(performance, MonthlyAttribution::netExternalFlow)
-            : canonical.netExternalFlows().doubleValue();
-    double realizedProfit =
-        canonical == null
-            ? legacyAttributionTotal(performance, MonthlyAttribution::realizedTradingResult)
-            : canonical.realizedProfit().doubleValue();
-    double dividends =
-        canonical == null
-            ? legacyAttributionTotal(performance, MonthlyAttribution::dividends)
-            : canonical.dividends().doubleValue();
-    double taxes =
-        canonical == null
-            ? legacyAttributionTotal(performance, MonthlyAttribution::taxes)
-            : canonical.taxes().doubleValue();
-    double interest =
-        canonical == null
-            ? legacyAttributionTotal(performance, MonthlyAttribution::cashInterest)
-            : canonical.interest().doubleValue();
+  private PeriodPerformance periodPerformance(PerformanceResult canonical) {
+    double deposits = canonical == null ? 0.0 : canonical.contributions().doubleValue();
+    double withdrawals = canonical == null ? 0.0 : canonical.withdrawals().doubleValue();
+    double netExternalFlow = canonical == null ? 0.0 : canonical.netExternalFlows().doubleValue();
+    double realizedProfit = canonical == null ? 0.0 : canonical.realizedProfit().doubleValue();
+    double dividends = canonical == null ? 0.0 : canonical.dividends().doubleValue();
+    double taxes = canonical == null ? 0.0 : canonical.taxes().doubleValue();
+    double interest = canonical == null ? 0.0 : canonical.interest().doubleValue();
     double equityTotal = 0.0;
     int equityObservations = 0;
     if (canonical != null && canonical.startValue() != null && canonical.endValue() != null) {
@@ -430,9 +352,8 @@ public class InvestmentDashboardFacade {
       }
     }
     ReturnMetric selectedPeriodReturn = metric(canonical, true);
-    double profit =
-        canonical == null ? benchmark.getPortfolioPl() : canonical.investmentResult().doubleValue();
-    Double returnPct = canonical == null ? benchmark.getPortfolioReturnPct() : null;
+    double profit = canonical == null ? 0.0 : canonical.investmentResult().doubleValue();
+    Double returnPct = null;
     if (selectedPeriodReturn.status() == ReturnMetric.Status.AVAILABLE) {
       returnPct = selectedPeriodReturn.value().movePointRight(2).doubleValue();
     }
@@ -449,18 +370,9 @@ public class InvestmentDashboardFacade {
         equityObservations == 0 ? 0.0 : equityTotal / equityObservations);
   }
 
-  private double legacyAttributionTotal(
-      Performance performance, java.util.function.ToDoubleFunction<MonthlyAttribution> value) {
-    if (performance == null || performance.getMonthlyAttributions() == null) {
-      return 0.0;
-    }
-    return performance.getMonthlyAttributions().values().stream().mapToDouble(value).sum();
-  }
-
   private PerformanceResult canonicalPerformance(
       Performance performance, PerformanceResults performanceResults) {
-    if (performanceQuery == null
-        || performance == null
+    if (performance == null
         || performance.getCalculateMonthlyPerformance() == null
         || performance.getCalculateMonthlyPerformance().isEmpty()) {
       return null;
@@ -475,8 +387,7 @@ public class InvestmentDashboardFacade {
 
   private PerformanceResult canonicalKpiPerformance(
       Performance performance, PerformanceResults performanceResults) {
-    if (performanceQuery == null
-        || performance == null
+    if (performance == null
         || performance.getCalculateMonthlyPerformance() == null
         || performance.getCalculateMonthlyPerformance().isEmpty()) {
       return null;
@@ -494,8 +405,7 @@ public class InvestmentDashboardFacade {
 
   private PerformanceResult canonicalCurrentPeriodPerformance(
       Performance performance, PerformanceResults performanceResults) {
-    if (performanceQuery == null
-        || performance == null
+    if (performance == null
         || performance.getCalculateMonthlyPerformance() == null
         || performance.getCalculateMonthlyPerformance().isEmpty()) {
       return null;
@@ -522,7 +432,14 @@ public class InvestmentDashboardFacade {
     private PerformanceResult forMonths(YearMonth from, YearMonth to) {
       return results.computeIfAbsent(
           new MonthRange(from, to),
-          range -> performanceQuery.forPortfolioMonths(portfolioId, range.from(), range.to()));
+          range -> {
+            PerformanceResult result =
+                performanceQuery.forPortfolioMonths(portfolioId, range.from(), range.to());
+            if (result == null) {
+              throw new IllegalStateException("PortfolioPerformanceQuery returned no result");
+            }
+            return result;
+          });
     }
   }
 
