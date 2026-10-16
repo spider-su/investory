@@ -7,8 +7,11 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 import xml.etree.ElementTree as ET
 
+# Selection must not create untracked bytecode that changes its own Git impact.
+sys.dont_write_bytecode = True
 from docs_only_scope import is_documentation_path
 
 NS = {"m": "http://maven.apache.org/POM/4.0.0"}

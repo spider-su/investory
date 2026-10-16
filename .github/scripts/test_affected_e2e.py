@@ -66,6 +66,25 @@ class AffectedE2ETests(unittest.TestCase):
         self.assertEqual(e2e.changed_paths(self.root, baseline),
                          ['committed.txt', 'new.txt', 'other/pom.xml', 'staged.txt', 'web/pom.xml'])
 
+    def test_documentation_cli_does_not_create_untracked_bytecode(self):
+        import shutil
+        source = Path(__file__).resolve().parent
+        scripts = self.root / ".github/scripts"
+        scripts.mkdir(parents=True)
+        for name in ("affected_e2e.py", "docs_only_scope.py"):
+            shutil.copy(source / name, scripts / name)
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=self.root, stderr=subprocess.DEVNULL).decode().strip()
+        git("init"); git("config", "user.name", "Test"); git("config", "user.email", "test@example.test")
+        (self.root / "README.md").write_text("baseline")
+        git("add", "."); git("commit", "-m", "baseline")
+        baseline = git("rev-parse", "HEAD")
+        (self.root / "README.md").write_text("documentation change")
+        output = subprocess.check_output(["python3", str(scripts / "affected_e2e.py"),
+            "--baseline-sha", baseline, "--plan-only"], cwd=self.root, text=True)
+        self.assertIn('"modules": []', output)
+        self.assertEqual(git("ls-files", "--others", "--exclude-standard"), "")
+
     def test_invalid_baseline_falls_back_to_all(self):
         self.assertIsNone(e2e.changed_paths(self.root, '--unsafe'))
 

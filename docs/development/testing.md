@@ -405,7 +405,8 @@ for manual browser evidence; synthetic calculation tests are not live-provider p
 
 `scripts/agent-validate.sh --baseline-sha <full-starting-commit>` retains formatting,
 unit tests and packaging, then runs `.github/scripts/affected_e2e.py`. The Worker
-supplies its recorded starting revision on every implementation/repair pass;
+supplies its recorded target baseline on every implementation/repair pass and
+unchanged-candidate reproduction, preserving whole-issue coverage;
 selection includes committed, staged, unstaged, deleted and untracked files.
 
 The selector reads reactor POM dependencies and includes transitive consumers of
