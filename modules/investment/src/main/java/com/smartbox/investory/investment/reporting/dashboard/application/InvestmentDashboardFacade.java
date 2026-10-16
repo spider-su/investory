@@ -106,7 +106,7 @@ public class InvestmentDashboardFacade {
             accountPeriodMetrics));
 
     PerformanceResult canonical =
-        canonicalPerformance(portfolio.getMonthlyPerformance(), performanceResults);
+        canonicalPerformance(portfolio.getMonthlyPerformance(), performanceResults, selectedPeriod);
     PerformanceResult totalReturnPerformance = canonical;
     PeriodPerformance periodPerformance = periodPerformance(canonical);
     OverviewView overview =
@@ -371,12 +371,13 @@ public class InvestmentDashboardFacade {
   }
 
   private PerformanceResult canonicalPerformance(
-      Performance performance, PerformanceResults performanceResults) {
+      Performance performance, PerformanceResults performanceResults, DashboardPeriod period) {
     if (performance == null
         || performance.getCalculateMonthlyPerformance() == null
         || performance.getCalculateMonthlyPerformance().isEmpty()) {
-      throw new IllegalStateException(
-          "No monthly performance range available for canonical dashboard reporting");
+      // Display history does not determine whether canonical reporting is available.
+      // Reuse the same configured/selected lower bound as the period view filter.
+      return performanceResults.forMonths(periodViewService.startMonth(period), null);
     }
     java.util.NavigableSet<java.time.YearMonth> months = new java.util.TreeSet<>();
     performance

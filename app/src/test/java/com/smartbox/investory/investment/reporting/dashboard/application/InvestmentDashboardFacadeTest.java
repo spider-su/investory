@@ -519,6 +519,117 @@ class InvestmentDashboardFacadeTest {
         .forPortfolioMonths(1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-01"));
   }
 
+  @DisplayName("reads Canonical Reporting Even Without Monthly Display History")
+  @Test
+  void readsCanonicalReportingEvenWithoutMonthlyDisplayHistory() {
+    Performance empty = new Performance();
+    empty.setCalculateMonthlyPerformance(new LinkedHashMap<>());
+    Performance absentMap = new Performance();
+    absentMap.setCalculateMonthlyPerformance(null);
+    for (Performance history : java.util.Arrays.asList(empty, absentMap, null)) {
+      org.mockito.Mockito.clearInvocations(performanceQuery);
+      Portfolio portfolio = new Portfolio();
+      portfolio.setMonthlyPerformance(history);
+      Benchmark benchmark = new Benchmark();
+      benchmark.setPortfolioPl(999.0);
+      when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+      when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+      when(performanceQuery.forPortfolioMonths(1L, null, null))
+          .thenReturn(
+              performanceResult(
+                  YearMonth.of(2026, 1), YearMonth.of(2026, 2), 42, 7, 3, 2, 1, 100, 142));
+
+      DashboardPageView page =
+          newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
+              .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
+
+      assertEquals(42.0, page.overview().totalProfit());
+      assertEquals(42.0, page.performance().summary().portfolioPl());
+      assertEquals(7.0, page.overview().realizedProfit());
+      verify(performanceQuery).forPortfolioMonths(1L, null, null);
+    }
+  }
+
+  @DisplayName(
+      "empty Display History Keeps Configured And Selected Period Bounds And Portfolio Scope")
+  @Test
+  void emptyDisplayHistoryKeepsConfiguredAndSelectedPeriodBoundsAndPortfolioScope() {
+    Portfolio portfolio = new Portfolio();
+    portfolio.setMonthlyPerformance(new Performance());
+    Benchmark benchmark = new Benchmark();
+    when(portfolioMetricsService.calculateTotalProfitLoss(7L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(7L, List.of(17L))).thenReturn(benchmark);
+    DashboardPeriodViewService periods =
+        new DashboardPeriodViewService(
+            LocalDate.of(2025, 2, 1),
+            java.time.Clock.fixed(
+                java.time.Instant.parse("2026-08-15T12:00:00Z"), java.time.ZoneOffset.UTC));
+    for (DashboardPeriod period :
+        List.of(DashboardPeriod.MAX, DashboardPeriod.YEAR_TO_DATE, DashboardPeriod.ONE_MONTH)) {
+      YearMonth from =
+          switch (period) {
+            case MAX -> YearMonth.of(2025, 2);
+            case YEAR_TO_DATE -> YearMonth.of(2026, 1);
+            default -> YearMonth.of(2026, 7);
+          };
+      when(performanceQuery.forPortfolioMonths(7L, from, null))
+          .thenReturn(performanceResult(from, YearMonth.of(2026, 8), 42, 0, 0, 0, 0, 100, 142));
+      DashboardPageView page =
+          newFacade(portfolioMetricsService, benchmarkService, periods)
+              .loadDashboard(new DashboardQuery(List.of(17L), true, period, 7L));
+      assertEquals(42.0, page.overview().totalProfit());
+      verify(performanceQuery).forPortfolioMonths(7L, from, null);
+    }
+    verify(benchmarkService, times(3)).calculate(7L, List.of(17L));
+  }
+
+  @DisplayName("no Canonical Reporting Rows Keep Returns Explicitly Unavailable")
+  @Test
+  void noCanonicalReportingRowsKeepReturnsExplicitlyUnavailable() {
+    Portfolio portfolio = new Portfolio();
+    portfolio.setMonthlyPerformance(new Performance());
+    Benchmark benchmark = new Benchmark();
+    benchmark.setPortfolioPl(500.0);
+    PortfolioPerformanceQuery emptyQuery =
+        new PortfolioPerformanceQuery(
+            mock(
+                com.smartbox.investory.investment.infrastructure.persistence.portfolio
+                    .PortfolioMonthlyPerformanceRepository.class),
+            mock(
+                com.smartbox.investory.investment.infrastructure.persistence.account
+                    .AccountDailyRepository.class));
+    PerformanceResult emptyResult = emptyQuery.forPortfolioMonths(1L, null, null);
+    when(performanceQuery.forPortfolioMonths(1L, null, null)).thenReturn(emptyResult);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    DashboardPageView page =
+        newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
+            .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
+    assertEquals(
+        ReturnMetric.Status.INSUFFICIENT_DATA,
+        page.performance().summary().timeWeightedReturn().status());
+    assertEquals(0.0, page.overview().totalProfit());
+    assertEquals(0.0, page.performance().summary().portfolioPl());
+    verify(performanceQuery).forPortfolioMonths(1L, null, null);
+  }
+
+  @DisplayName("canonical Query Errors Remain Visible Without Display History")
+  @Test
+  void canonicalQueryErrorsRemainVisibleWithoutDisplayHistory() {
+    Portfolio portfolio = new Portfolio();
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(new Benchmark());
+    IllegalStateException expected = new IllegalStateException("canonical storage failure");
+    when(performanceQuery.forPortfolioMonths(1L, null, null)).thenThrow(expected);
+    assertSame(
+        expected,
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
+                    .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L))));
+  }
+
   @DisplayName("does Not Invent Dashboard Performance When Monthly History Is Empty")
   @Test
   void doesNotInventDashboardPerformanceWhenMonthlyHistoryIsEmpty() {
@@ -542,8 +653,8 @@ class InvestmentDashboardFacadeTest {
                 newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
                     .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L)));
 
-    assertTrue(failure.getMessage().contains("canonical dashboard reporting"));
-    verify(performanceQuery, org.mockito.Mockito.never()).forPortfolioMonths(any(), any(), any());
+    assertTrue(failure.getMessage().contains("PortfolioPerformanceQuery returned no result"));
+    verify(performanceQuery).forPortfolioMonths(1L, null, null);
   }
 
   @DisplayName("calculates Drawdown Income Yield And Concentration Warning")
