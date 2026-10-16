@@ -72,7 +72,8 @@ public class DashboardPeriodViewService {
     return benchmark;
   }
 
-  private YearMonth startMonth(DashboardPeriod period) {
+  /** Monthly lower bound shared by display filtering and canonical reporting queries. */
+  public YearMonth startMonth(DashboardPeriod period) {
     // Reporting inputs are monthly. A trailing date range includes the calendar month containing
     // its start date, so a 1M selection on 15 August includes the July monthly observation.
     ZonedDateTime now = ZonedDateTime.now(clock);
