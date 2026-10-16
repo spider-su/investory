@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class LongTermPaymentAuditJobHandler implements IntegrationJobHandler {
+  private static final int MAX_TABLE_HTML_LENGTH = 3_500;
   private final IntegrationConfigurationService configurationService;
   private final TelegramNotificationDeliveryChannel notificationDelivery;
   private final LongTermAssetPaymentAuditReader paymentAudit;
@@ -72,13 +73,17 @@ public class LongTermPaymentAuditJobHandler implements IntegrationJobHandler {
         .append('\n');
     for (var row : rows) {
       String amount = format(row.totalMonthlyPayment()) + " " + row.currency();
-      table
-          .append(pad(row.assetName(), propertyWidth))
-          .append("  ")
-          .append(pad(row.tenantName(), tenantWidth))
-          .append("  ")
-          .append(leftPad(amount, amountWidth))
-          .append('\n');
+      String line =
+          pad(row.assetName(), propertyWidth)
+              + "  "
+              + pad(row.tenantName(), tenantWidth)
+              + "  "
+              + leftPad(amount, amountWidth);
+      if (TelegramText.escape(table + line).length() > MAX_TABLE_HTML_LENGTH) {
+        table.append("…");
+        break;
+      }
+      table.append(line).append('\n');
     }
     return "<b>Rental payments · review</b>\n<pre>"
         + TelegramText.escape(table.toString().stripTrailing())
@@ -97,13 +102,51 @@ public class LongTermPaymentAuditJobHandler implements IntegrationJobHandler {
   }
 
   private static int displayWidth(String value) {
-    return value.codePointCount(0, value.length());
+    int width = 0;
+    for (int i = 0; i < value.length(); ) {
+      int cp = value.codePointAt(i);
+      i += Character.charCount(cp);
+      int type = Character.getType(cp);
+      if (type == Character.NON_SPACING_MARK
+          || type == Character.COMBINING_SPACING_MARK
+          || type == Character.ENCLOSING_MARK
+          || cp == 0x200D
+          || cp == 0xFE0F) continue;
+      width += isWide(cp) ? 2 : 1;
+    }
+    return width;
+  }
+
+  private static boolean isWide(int cp) {
+    return cp >= 0x1100
+        && (cp <= 0x115F
+            || cp == 0x2329
+            || cp == 0x232A
+            || cp >= 0x2E80 && cp <= 0xA4CF && cp != 0x303F
+            || cp >= 0xAC00 && cp <= 0xD7A3
+            || cp >= 0xF900 && cp <= 0xFAFF
+            || cp >= 0xFE10 && cp <= 0xFE19
+            || cp >= 0xFE30 && cp <= 0xFE6F
+            || cp >= 0xFF00 && cp <= 0xFF60
+            || cp >= 0xFFE0 && cp <= 0xFFE6
+            || cp >= 0x1F300 && cp <= 0x1FAFF
+            || cp >= 0x20000 && cp <= 0x3FFFD);
   }
 
   private static String clipped(String value, int width) {
     String safe = value == null ? "" : value.replace('\n', ' ').replace('\r', ' ');
     if (displayWidth(safe) <= width) return safe;
-    return safe.substring(0, safe.offsetByCodePoints(0, Math.max(0, width - 1))) + "…";
+    StringBuilder clipped = new StringBuilder();
+    int used = 0;
+    for (int i = 0; i < safe.length(); ) {
+      int cp = safe.codePointAt(i);
+      int cells = displayWidth(new String(Character.toChars(cp)));
+      if (used + cells > Math.max(0, width - 1)) break;
+      clipped.appendCodePoint(cp);
+      used += cells;
+      i += Character.charCount(cp);
+    }
+    return clipped + "…";
   }
 
   private static String pad(String value, int width) {

@@ -161,7 +161,7 @@ app:
     bot-username: ${TELEGRAM_BOT_USERNAME:}
     bot-token: ${TELEGRAM_BOT_TOKEN:}
     chat-id: ${TELEGRAM_CHAT_ID:}
-    rental-payment-audit-chat-id: ${TELEGRAM_RENTAL_PAYMENT_AUDIT_CHAT_ID:${TELEGRAM_CHAT_ID:}}
+    rental-payment-audit-chat-id: ${TELEGRAM_RENTAL_PAYMENT_AUDIT_CHAT_ID:}
   openai:
     enabled: ${OPENAI_ENABLED:false}
     api-key: ${OPENAI_API_KEY:}
