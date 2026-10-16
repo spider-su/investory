@@ -220,16 +220,18 @@ do not carry migration-version suffixes; historical migration names are not rena
 ## FX usable-status contract
 
 Authoritative SQL monetary conversion uses a single helper, `investory.fx_status_usable(status)`, defined in
-`V01.001__functions.sql`. It treats `OK`, `ESTIMATED`, and `SAME_CURRENCY` as usable and
-`STALE`, `MISSING_RATE`, `MISSING_CURRENCY` as not usable. The usable-status list is not duplicated or
-patched after the fact; production views and materialized views call the helper directly. Historical
-interpolation in `resolve_fx_rate()` is bracketed deterministically by the nearest observation strictly
-before and strictly after the valuation date within one source/method series, and only before the
-`fx_configuration.daily_history_start` boundary.
+`V01.001__functions.sql`. `OK`, `ESTIMATED`, `SAME_CURRENCY`, and `CARRY_FORWARD` are usable;
+`MISSING_RATE` and `MISSING_CURRENCY` are not. Production views and materialized views call the helper
+directly. `resolve_fx_rate()` selects the latest neutral valuation observation on or before the
+valuation date (direct pair before inverse on a date tie); it preserves source date and age for a
+`CARRY_FORWARD` result and imposes no age cutoff. The daily-history boundary controls refresh coverage,
+not resolver eligibility. Execution observations have separate transaction-only purpose rules; see
+[`../domain/fx-normalization.md`](../domain/fx-normalization.md).
 
 The Java `CurrencyRateService` is the application conversion boundary. It reads resolved valuation
 matrices through `CurrencyRateRepository`, caches complete matrices by date, performs `BigDecimal`
-conversion, and rejects `STALE` and `MISSING_RATE` results. FX refresh no longer depends on a database
+conversion, accepts the same usable statuses as SQL, and fails closed for missing or otherwise
+unusable rates. FX refresh no longer depends on a database
 FX trigger: `CurrencyRateUpdaterService` persists observations explicitly and advances the daily-history
 boundary only after `setDailyHistoryStartIfSupported(...)` confirms neutral coverage.
 

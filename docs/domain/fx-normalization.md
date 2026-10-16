@@ -24,6 +24,18 @@ market/reference rates. Transaction accounting uses an exact `XTB_EXECUTION` or
 valuation observation and `CARRY_FORWARD` policy. Execution spreads are not used as neutral
 portfolio valuation rates.
 
+| Case | Valuation result | Authoritative valuation behavior |
+| --- | --- | --- |
+| Same currency | `SAME_CURRENCY`, rate 1 | Usable |
+| Exact neutral observation | `OK`, or `ESTIMATED` for an interpolated observation | Usable; provenance remains visible |
+| Latest neutral observation is earlier than valuation date | `CARRY_FORWARD`, with `source_rate_date` and `age_days` | Usable with no fixed age cutoff |
+| No neutral observation on or before valuation date | `MISSING_RATE` | Not usable; fail closed and do not relabel the amount or substitute zero |
+| Broker execution observation | Not eligible for valuation | Transaction-only; transaction accounting applies its execution-first, valuation-fallback rules |
+
+Operational freshness review is separate from resolver usability: an old quote/source may merit a
+warning or review based on its provenance and age, but age alone does not turn usable
+`CARRY_FORWARD` into `MISSING_RATE`. An explicitly unusable status such as `STALE` remains unusable.
+
 ## FX data sources and refresh
 
 All FX observations are stored in `exchange_rates` with one `rate` and an explicit `purpose`:
