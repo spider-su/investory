@@ -7,6 +7,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Read adapter for normalized cash-flow reporting.
+ *
+ * <p>Both reads stay native. The detailed query projects the flow view's calculated fields and
+ * converts its timestamp to a Warsaw-local date; mapping the view as an entity and projecting
+ * {@code LocalDate} through ORM conversion risks using the JVM/JDBC zone at the boundary day. The
+ * grouped query additionally relies on that exact PostgreSQL expression as a selected, grouped, and
+ * ordered key, enum-to-text casts, and {@code MIN}/{@code MAX}/{@code SUM} null/value semantics. An
+ * ORM rewrite would need to reproduce those database expressions exactly. Interface projections
+ * keep results typed and avoid positional result mapping.
+ */
 public interface NormalizedCashOperationRepository extends Repository<CashOperationEntity, Long> {
 
   /**
@@ -16,6 +27,11 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
    * times and performed the grouping in Java. Keeping the category and day dimensions preserves the
    * existing portfolio and benchmark calculations while substantially reducing transferred rows and
    * projection work.
+   */
+  /**
+   * Native: grouped reads need the exact Warsaw-local date expression as selected/grouped/ordered
+   * key and PostgreSQL enum-to-text casts plus MIN/MAX/SUM null semantics; ORM grouping would risk
+   * changing the key or aggregate results.
    */
   @Query(
       value =
@@ -56,6 +72,12 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
   List<NormalizedCashOperationRow> findAllByAccountIdIn(
       @Param("accountIds") Collection<Long> accountIds);
 
+  /**
+   * Native: detailed reads require PostgreSQL {@code AT TIME ZONE 'Europe/Warsaw'} before casting
+   * the timestamp to {@code date}, and left-join assets while preserving view values and
+   * account/date/operation ordering. ORM timestamp conversion can shift boundary dates by JVM/JDBC
+   * zone.
+   */
   @Query(
       value =
           """
