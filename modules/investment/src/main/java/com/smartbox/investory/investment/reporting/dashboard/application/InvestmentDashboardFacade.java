@@ -334,13 +334,14 @@ public class InvestmentDashboardFacade {
   }
 
   private PeriodPerformance periodPerformance(PerformanceResult canonical) {
-    double deposits = canonical == null ? 0.0 : canonical.contributions().doubleValue();
-    double withdrawals = canonical == null ? 0.0 : canonical.withdrawals().doubleValue();
-    double netExternalFlow = canonical == null ? 0.0 : canonical.netExternalFlows().doubleValue();
-    double realizedProfit = canonical == null ? 0.0 : canonical.realizedProfit().doubleValue();
-    double dividends = canonical == null ? 0.0 : canonical.dividends().doubleValue();
-    double taxes = canonical == null ? 0.0 : canonical.taxes().doubleValue();
-    double interest = canonical == null ? 0.0 : canonical.interest().doubleValue();
+    Objects.requireNonNull(canonical, "canonical performance result");
+    double deposits = canonical.contributions().doubleValue();
+    double withdrawals = canonical.withdrawals().doubleValue();
+    double netExternalFlow = canonical.netExternalFlows().doubleValue();
+    double realizedProfit = canonical.realizedProfit().doubleValue();
+    double dividends = canonical.dividends().doubleValue();
+    double taxes = canonical.taxes().doubleValue();
+    double interest = canonical.interest().doubleValue();
     double equityTotal = 0.0;
     int equityObservations = 0;
     if (canonical != null && canonical.startValue() != null && canonical.endValue() != null) {
@@ -352,7 +353,7 @@ public class InvestmentDashboardFacade {
       }
     }
     ReturnMetric selectedPeriodReturn = metric(canonical, true);
-    double profit = canonical == null ? 0.0 : canonical.investmentResult().doubleValue();
+    double profit = canonical.investmentResult().doubleValue();
     Double returnPct = null;
     if (selectedPeriodReturn.status() == ReturnMetric.Status.AVAILABLE) {
       returnPct = selectedPeriodReturn.value().movePointRight(2).doubleValue();
