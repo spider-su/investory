@@ -22,6 +22,8 @@ Telegram is an optional notification/command transport. When disabled or unavail
 
 Telegram delivery failure is an adapter failure, not a financial-state failure. Notification persistence/deduplication semantics must remain separate from accounting facts.
 
+The scheduled rental payment audit uses the same Telegram bot credentials as other notifications. Its destination is configured with `app.telegram.rental-payment-audit-chat-id` (`TELEGRAM_RENTAL_PAYMENT_AUDIT_CHAT_ID`); when unset, it falls back to the runtime Telegram integration `chatId`. The shipped YAML default follows `TELEGRAM_CHAT_ID`, so deployments can override the audit destination independently.
+
 ## OpenAI
 
 OpenAI-backed analysis/reporting is optional and downstream. It may receive explicitly prepared portfolio context for analysis but is not an accounting, pricing, planning, or reconciliation authority. Generated text must not write or silently change canonical financial facts.
