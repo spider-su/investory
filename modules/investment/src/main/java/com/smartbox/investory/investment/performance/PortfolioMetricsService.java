@@ -11,6 +11,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Po
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityIssueRow;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioFallbackReconciliationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
@@ -35,7 +36,6 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -226,72 +226,43 @@ public class PortfolioMetricsService {
             row ->
                 portfolio.setDataQuality(
                     new PortfolioDataQuality(
-                        String.valueOf(row[0]),
-                        number(row[1]).longValue(),
-                        number(row[2]).longValue(),
-                        number(row[3]).longValue(),
-                        number(row[4]).longValue(),
-                        number(row[5]).longValue(),
-                        number(row[6]).longValue(),
-                        number(row[7]).longValue(),
-                        number(row[8]).longValue(),
-                        number(row[9]).longValue(),
-                        number(row[10]).longValue(),
-                        number(row[11]).longValue(),
-                        toOffsetDateTime(row[12]),
-                        toOffsetDateTime(row[13]),
-                        toLocalDate(row[14]),
-                        toLocalDate(row[15]),
-                        toOffsetDateTime(row[16]),
+                        row.state(),
+                        row.reconciledAccounts(),
+                        row.totalAccounts(),
+                        row.pricedOpenPositions(),
+                        row.totalOpenPositions(),
+                        row.missingPriceOpenPositions(),
+                        row.stalePriceOpenPositions(),
+                        row.reconstructedPriceOpenPositions(),
+                        row.missingFxOpenPositions(),
+                        row.staleFxOpenPositions(),
+                        row.missingCostBasisPositions(),
+                        row.unreconciledPositions(),
+                        row.latestImportAt(),
+                        row.latestCompletedImportAt(),
+                        row.latestPriceDate(),
+                        row.latestFxDate(),
+                        row.latestAccountRefreshAt(),
                         issues)));
   }
 
-  private PortfolioDataQualityIssue toDataQualityIssue(Object[] row) {
+  private PortfolioDataQualityIssue toDataQualityIssue(PortfolioDataQualityIssueRow row) {
     return new PortfolioDataQualityIssue(
-        String.valueOf(row[0]),
-        row[1] == null ? null : String.valueOf(row[1]),
-        row[2] == null ? null : String.valueOf(row[2]),
-        String.valueOf(row[3]),
-        row[4] instanceof Number value ? value.intValue() : null,
-        toLocalDate(row[5]),
-        row[6] == null ? null : String.valueOf(row[6]),
-        row[7] == null ? null : String.valueOf(row[7]),
-        row[8] == null ? null : String.valueOf(row[8]),
-        row[9] == null ? null : String.valueOf(row[9]),
-        row[10] instanceof Number value ? value.longValue() : null);
-  }
-
-  private LocalDate toLocalDate(Object value) {
-    return switch (value) {
-      case null -> null;
-      case LocalDate localDate -> localDate;
-      case java.sql.Date sqlDate -> sqlDate.toLocalDate();
-      case TemporalAccessor temporal -> {
-        try {
-          yield LocalDate.from(temporal);
-        } catch (java.time.DateTimeException ignored) {
-          yield parseLocalDateText(value);
-        }
-      }
-      default -> parseLocalDateText(value);
-    };
-  }
-
-  private LocalDate parseLocalDateText(Object value) {
-    String text = String.valueOf(value);
-    return LocalDate.parse(text.length() >= 10 ? text.substring(0, 10) : text);
+        row.issueType(),
+        row.accountId(),
+        row.assetId(),
+        row.issueCode(),
+        row.priceAgeDays(),
+        row.selectedPriceDate(),
+        row.priceCurrency(),
+        row.priceQuality(),
+        row.priceOrigin(),
+        row.reconstructionStatus(),
+        row.selectedPriceHistoryId());
   }
 
   private static Number number(Object value) {
     return value instanceof Number n ? n : 0;
-  }
-
-  private static java.time.OffsetDateTime toOffsetDateTime(Object value) {
-    return value instanceof java.time.OffsetDateTime odt
-        ? odt
-        : value instanceof java.sql.Timestamp ts
-            ? ts.toInstant().atOffset(java.time.ZoneOffset.UTC)
-            : null;
   }
 
   private boolean applyKpiSummary(Portfolio portfolio) {

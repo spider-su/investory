@@ -22,7 +22,9 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityIssueRow;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualitySnapshotRow;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioFallbackReconciliationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
@@ -375,24 +377,22 @@ class PortfolioMetricsServiceTest {
   @Test
   void calculateTotalProfitLoss_loadsDetailedDataQualityIssuesWhenEnabled() {
     portfolioProperties.setDataQualityIssuesEnabled(true);
-    when(dataQualityRepository.findSnapshot(1L))
-        .thenReturn(List.<Object[]>of(dataQualitySnapshot()));
+    when(dataQualityRepository.findSnapshot(1L)).thenReturn(List.of(dataQualitySnapshot()));
     when(dataQualityRepository.findIssues(1L))
         .thenReturn(
-            List.<Object[]>of(
-                new Object[] {
-                  "PRICE",
-                  90000002L,
-                  12501L,
-                  "STALE_PRICE",
-                  12,
-                  java.sql.Date.valueOf("2026-07-20"),
-                  "USD",
-                  "STALE_CARRY_FORWARD",
-                  "HISTORICAL",
-                  "WARN",
-                  77L
-                }));
+            List.of(
+                new PortfolioDataQualityIssueRow(
+                    "PRICE",
+                    "90000002",
+                    "12501",
+                    "STALE_PRICE",
+                    12,
+                    LocalDate.of(2026, 7, 20),
+                    "USD",
+                    "STALE_CARRY_FORWARD",
+                    "HISTORICAL",
+                    "WARN",
+                    77L)));
 
     Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
 
@@ -410,8 +410,7 @@ class PortfolioMetricsServiceTest {
   @Test
   void calculateTotalProfitLoss_loadsDataQualitySummaryWithoutEnrichment() {
     portfolioProperties.setDashboardEnrichmentEnabled(false);
-    when(dataQualityRepository.findSnapshot(1L))
-        .thenReturn(List.<Object[]>of(dataQualitySnapshot()));
+    when(dataQualityRepository.findSnapshot(1L)).thenReturn(List.of(dataQualitySnapshot()));
 
     Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
 
@@ -970,26 +969,25 @@ class PortfolioMetricsServiceTest {
     };
   }
 
-  private static Object[] dataQualitySnapshot() {
-    return new Object[] {
-      "HEALTHY",
-      1L,
-      1L,
-      1L,
-      1L,
-      0L,
-      0L,
-      0L,
-      0L,
-      0L,
-      0L,
-      0L,
-      null,
-      null,
-      java.sql.Date.valueOf("2026-08-01"),
-      java.sql.Date.valueOf("2026-08-01"),
-      null
-    };
+  private static PortfolioDataQualitySnapshotRow dataQualitySnapshot() {
+    return new PortfolioDataQualitySnapshotRow(
+        "HEALTHY",
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        null,
+        null,
+        LocalDate.of(2026, 8, 1),
+        LocalDate.of(2026, 8, 1),
+        null);
   }
 
   @DisplayName("calculate Total Profit Loss populates Dividend Tax When Kpi Summary Is Used")

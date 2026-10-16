@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.valuation.price;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceChartRepository;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.math.BigDecimal;
@@ -23,7 +24,46 @@ class AssetPriceHistoryBatchPostgresIT extends FastDatabaseTest {
   private static final Logger LOG = LoggerFactory.getLogger(AssetPriceHistoryBatchPostgresIT.class);
 
   @Autowired private AssetPriceHistoryRepository history;
+  @Autowired private AssetPriceChartRepository chart;
   @Autowired private JdbcTemplate jdbc;
+
+  @Test
+  @Transactional
+  void chartOrmReadKeepsCanonicalPerDateWinnerAndInclusiveDateBounds() {
+    jdbc.update(
+        """
+        insert into investory.asset_price_history (
+            asset_id, price_date, source, source_symbol, price_origin, price_currency,
+            open_price, high_price, low_price, close_price, source_date, quality_score,
+            quality_class, is_observed, is_proxy, price_scale_factor, original_source_symbol, imported_at
+        ) values
+            (1001, date '2025-02-01', 'CHART_BEFORE', 'TSLA.US', 'STOOQ', 'USD', 9, 9, 9, 9,
+             date '2025-02-01', 80, 'VERIFIED_ALTERNATE_LISTING', true, false, 1, 'TSLA.US', timestamptz '2025-02-02 10:00:00+00'),
+            (1001, date '2025-02-02', 'CHART_LOWER_BOUND', 'TSLA.US', 'STOOQ', 'USD', 8, 8, 8, 8,
+             date '2025-02-02', 80, 'VERIFIED_ALTERNATE_LISTING', true, false, 1, 'TSLA.US', timestamptz '2025-02-03 10:00:00+00'),
+            (1001, date '2025-02-03', 'CHART_A', 'TSLA.US', 'STOOQ', 'USD', 10, 10, 10, 10,
+             date '2025-02-03', 80, 'VERIFIED_ALTERNATE_LISTING', true, false, 1, 'TSLA.US', timestamptz '2025-02-04 10:00:00+00'),
+            (1001, date '2025-02-03', 'CHART_B', 'TSLA.US', 'STOOQ', 'USD', 11, 11, 11, 11,
+             date '2025-02-03', 80, 'VERIFIED_ALTERNATE_LISTING', true, false, 1, 'TSLA.US', timestamptz '2025-02-04 10:00:00+00'),
+            (1001, date '2025-02-04', 'CHART_C', 'TSLA.US', 'STOOQ', 'USD', 12, 12, 12, 12,
+             date '2025-02-04', 80, 'VERIFIED_ALTERNATE_LISTING', true, false, 1, 'TSLA.US', timestamptz '2025-02-05 10:00:00+00')
+        on conflict (asset_id, price_date, source) do nothing
+        """);
+    jdbc.execute("refresh materialized view investory.app_v_canonical_asset_daily_price_mv");
+
+    var rows = chart.findBestPrices(1001L, LocalDate.of(2025, 2, 2), LocalDate.of(2025, 2, 3));
+
+    assertThat(rows).hasSize(2);
+    assertThat(rows.getFirst().getPriceDate()).isEqualTo(LocalDate.of(2025, 2, 2));
+    var selected = rows.get(1);
+    assertThat(selected.getPriceDate()).isEqualTo(LocalDate.of(2025, 2, 3));
+    assertThat(selected.getClosePrice()).isEqualByComparingTo("10");
+    assertThat(selected.getSource()).isEqualTo("CHART_A");
+    assertThat(selected.getQualityScore()).isEqualTo(80);
+    assertThat(selected.getQualityClass()).isEqualTo("VERIFIED_ALTERNATE_LISTING");
+    assertThat(selected.getPriceOrigin()).isEqualTo("STOOQ");
+    assertThat(selected.getPriceCurrency()).isEqualTo("USD");
+  }
 
   @Test
   @Transactional

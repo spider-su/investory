@@ -61,6 +61,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Test affected-module browser selection
+        run: python3 -m unittest discover -s .github/scripts -p test_affected_e2e.py
+
       - name: Check integration-test registration
         run: python3 .github/check_it_registration.py
 
