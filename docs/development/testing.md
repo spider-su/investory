@@ -399,3 +399,39 @@ renders populated and missing-data states, separate SVG scales, quote dates and 
 Module tests own timestamp-aware publication comparison, as-of selection, exact trading-date
 baselines/outcomes and VIX session alignment. See the [acceptance record](issue-112-outlook-acceptance.md)
 for manual browser evidence; synthetic calculation tests are not live-provider proof.
+
+
+## Native Worker: affected-module browser validation
+
+`scripts/agent-validate.sh --baseline-sha <full-starting-commit>` retains formatting,
+unit tests and packaging, then runs `.github/scripts/affected_e2e.py`. The Worker
+supplies its recorded target baseline on every implementation/repair pass and
+unchanged-candidate reproduction, preserving whole-issue coverage;
+selection includes committed, staged, unstaged, deleted and untracked files.
+
+The selector reads reactor POM dependencies and includes transitive consumers of
+changed modules. Browser `*IT.java` classes under a module's `src/test/java/**/ui/`
+are selected together for each affected owner. Today all six browser classes are
+owned by `app`; business-module changes reaching `app` therefore run all six.
+This is module-level selection, not an inferred per-feature test map.
+Documentation-only changes skip browser tests, but keep the existing Maven checks.
+Missing baseline, root/build/tooling changes and unmapped paths select all browser
+owners. Invalid reactor configuration fails validation instead of silently skipping.
+
+Inspect without running Maven:
+
+```bash
+python3 .github/scripts/affected_e2e.py --baseline-sha <full-starting-commit> --plan-only
+python3 -m unittest discover -s .github/scripts -p test_affected_e2e.py
+```
+
+Selected tests run with the same Failsafe goals as required browser CI. A nonzero
+exit prevents publication and feeds the existing bounded Worker repair loop.
+Docker/Testcontainers and the project's matching Playwright Chromium must already
+be available to the Worker account. The script does not install browsers or tools;
+prepare these prerequisites as an operator. A missing Chromium executable is an
+Orchestrator environment failure, not a coding repair. Required GitHub CI and the
+existing attempt/validation timeouts are unchanged. CI/browser test reports remain
+under `app/target/failsafe-reports` and browser diagnostics under
+`app/target/ui-test-results`; the Worker records fresh Failsafe/Surefire test counts
+and keeps the full validation log in its execution evidence artifact.
