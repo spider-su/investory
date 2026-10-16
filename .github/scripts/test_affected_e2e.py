@@ -117,6 +117,7 @@ class AffectedE2ETests(unittest.TestCase):
             self.assertEqual(e2e.main(), 1)
         command = run.call_args.args[0]
         self.assertIn('failsafe:verify', command)
+        self.assertEqual(run.call_args.kwargs['env']['PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD'], '1')
         self.assertIn('-Dit.test=HappyInvestorReadOnlyUiIT,InvestmentDashboardGoldenUiIT,LongTermAssetCrudUiIT,MarketRadarOutlookUiIT,PlanSimulationCrudUiIT,UiPageSmokeIT', command)
 
 

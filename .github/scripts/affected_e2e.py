@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -106,7 +107,7 @@ def main() -> int:
         "mvn", "-B", "-pl", ",".join(plan["modules"]), "-am",
         "initialize", "test-compile", "failsafe:integration-test", "failsafe:verify",
         "-Dit.test=" + ",".join(plan["tests"]), "-Dfailsafe.failIfNoSpecifiedTests=false",
-    ], cwd=root)
+    ], cwd=root, env={**os.environ, "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"})
 
 
 if __name__ == "__main__":
