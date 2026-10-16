@@ -6,6 +6,7 @@ import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEn
 import com.smartbox.investory.investment.ledger.cash.persistence.NormalizedCashOperationRepository;
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
@@ -52,6 +53,10 @@ class NormalizedCashOperationRepositoryContractIT {
 
   @BeforeEach
   void seedCashFlows() {
+    // This class owns a disposable scoped database. Remove snapshot FX for a deterministic
+    // missing-rate case.
+    jdbc.update(
+        "DELETE FROM investory.exchange_rates WHERE (base = 'USD' AND to_currency = 'PLN') OR (base = 'PLN' AND to_currency = 'USD')");
     Long userId =
         jdbc.queryForObject("SELECT id FROM investory.app_users ORDER BY id LIMIT 1", Long.class);
     jdbc.update(
@@ -130,7 +135,7 @@ class NormalizedCashOperationRepositoryContractIT {
         .containsExactly("EXTERNAL_DEPOSIT", "EXTERNAL_DEPOSIT", "EXTERNAL_WITHDRAWAL");
     assertThat(grouped)
         .extracting(NormalizedCashOperationRepository.NormalizedCashOperationRow::getOperationId)
-        .containsExactly(OPERATION_IDS.get(0), OPERATION_IDS.get(1), OPERATION_IDS.get(3));
+        .containsExactly(OPERATION_IDS.get(0), OPERATION_IDS.get(2), OPERATION_IDS.get(3));
     assertThat(grouped)
         .extracting(NormalizedCashOperationRepository.NormalizedCashOperationRow::getCurrency)
         .containsOnly("USD");
@@ -150,12 +155,30 @@ class NormalizedCashOperationRepositoryContractIT {
             });
   }
 
+  @Test
+  @DisplayName("preserves non-null detailed and grouped amounts with a known FX rate")
+  void preservesConvertedAggregates() {
+    jdbc.update(
+        "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, purpose, source, method) VALUES ('2099-01-01', 'USD', 'PLN', 4, 'VALUATION', 'TEST', 'OBSERVED')");
+    jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_normalized_cash_operations");
+    assertThat(operations.findAllDetailedByAccountIdIn(List.of(ACCOUNT_ID)))
+        .extracting(
+            NormalizedCashOperationRepository.NormalizedCashOperationRow
+                ::getAmountInPortfolioBaseCurrency)
+        .containsExactly(29.0, 40.4, 61.0, -17.6);
+    assertThat(operations.findAllByAccountIdIn(List.of(ACCOUNT_ID)))
+        .extracting(
+            NormalizedCashOperationRepository.NormalizedCashOperationRow
+                ::getAccountFlowAmountInPortfolioBaseCurrency)
+        .containsExactly(29.0, 101.4, -17.6);
+  }
+
   private void insertOperation(long operationId, String amount, String timestamp) {
     jdbc.update(
         "INSERT INTO investory.cash_operations (id, account_id, operation, amount, currency, comment, date) VALUES (?, ?, 'TRANSFER', ?, 'USD', 'cash transfer', ?::timestamptz)",
         operationId,
         ACCOUNT_ID,
-        amount,
+        new BigDecimal(amount),
         timestamp);
   }
 
