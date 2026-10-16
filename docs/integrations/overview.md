@@ -12,7 +12,7 @@ The Yahoo export snapshot participates in C7 reconciliation against the adapter 
 
 ## FX data
 
-NBP is the primary exchange-rate integration. Its adapter reads PLN-relative Table A rates and normalizes them into Investory's USD-based `FxQuote` contract, deriving USD -> EUR locally. The requested effective date is retained while `providerDate` is the actual NBP publication date; the adapter uses only the latest publication on or before the request and keeps both source rates on one table date. Investory derives and resolves rates according to `../domain/fx-normalization.md`. Estimated-but-usable rates, stale data, missing data, direction, and cross-rate semantics are owned by that domain contract rather than by the provider adapter.
+NBP is the primary exchange-rate integration. Its adapter reads PLN-relative Table A rates and normalizes them into Investory's USD-based `FxQuote` contract, deriving USD -> EUR locally. The requested effective date is retained while `providerDate` is the actual NBP publication date; the adapter uses only the latest publication on or before the request and keeps both source rates on one table date. Investory derives and resolves rates according to `../domain/fx-normalization.md`. Estimated and carried-forward usable rates, explicit unusable or missing data, direction, and cross-rate semantics are owned by that domain contract rather than by the provider adapter.
 
 A provider response must never override fail-closed FX semantics.
 

@@ -95,9 +95,9 @@ class ValuationInputContractIT {
     }
   }
 
-  @DisplayName("valuation Fx Uses Documented Source And Freshness Precedence")
+  @DisplayName("valuation Fx Uses Latest Neutral Observation And Carry Forward Policy")
   @Test
-  void valuationFxUsesDocumentedSourceAndFreshnessPrecedence() throws SQLException {
+  void valuationFxUsesLatestNeutralObservationAndCarryForwardPolicy() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       statement.execute(

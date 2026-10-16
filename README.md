@@ -159,9 +159,12 @@ not real transactions. See [`docs/domain/planning-timeline.md`](docs/domain/plan
 - Internal transfers change account cash but do not change portfolio contributed capital.
 - Currency conversion is not a deposit, withdrawal, or investment profit.
 - Broker corrections and reversals retain their imported signs.
-- When no usable FX rate exists, or a daily/reference rate is outside the four-day safety window, the affected calculation
+- Valuation uses the latest neutral valuation observation on or before the valuation date. An older
+  observation is usable as `CARRY_FORWARD` with its source date and age retained; there is no fixed
+  age cutoff. If no preceding valuation observation exists, the affected authoritative calculation
   fails with an `FX rate unavailable` error. An unconverted amount is not silently treated as target
-  currency.
+  currency. Transaction execution FX follows its separate purpose/source rules in
+  [`docs/domain/fx-normalization.md`](docs/domain/fx-normalization.md).
 
 ## Current limitations
 

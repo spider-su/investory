@@ -221,6 +221,17 @@ class BaselineReadinessContractIT {
           "4.00000000|CARRY_FORWARD", resolverValue(statement, "2025-01-15", "USD", "PLN"));
       assertEquals(
           "4.00000000|CARRY_FORWARD", resolverValue(statement, "2030-01-15", "USD", "PLN"));
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT source_rate_date, age_days, conversion_status, "
+                  + "investory.fx_status_usable(conversion_status) AS usable "
+                  + "FROM investory.resolve_fx_rate(DATE '2030-01-15', 'USD', 'PLN')")) {
+        assertTrue(result.next());
+        assertEquals("2025-01-14", result.getDate("source_rate_date").toString());
+        assertTrue(result.getInt("age_days") > 4);
+        assertEquals("CARRY_FORWARD", result.getString("conversion_status"));
+        assertTrue(result.getBoolean("usable"));
+      }
 
       statement.execute(
           "INSERT INTO investory.exchange_rates "
