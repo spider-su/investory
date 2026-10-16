@@ -3,6 +3,7 @@ package com.smartbox.investory.investment.reporting.dashboard.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
@@ -56,6 +57,7 @@ class InvestmentDashboardFacadeTest {
   @Mock private PortfolioMetricsService portfolioMetricsService;
   @Mock private BenchmarkService benchmarkService;
   @Mock private DashboardPeriodViewService periodFilterService;
+  @Mock private PortfolioPerformanceQuery performanceQuery;
 
   @BeforeEach
   void returnFilteredCopiesAsExpected() {
@@ -71,6 +73,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void composesFilteredPortfolioAndBenchmarkIntoDashboardSections() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     portfolio.setBalance(123.0);
     portfolio.setNetDeposits(100.0);
     portfolio.setPerformancePerSymbol(
@@ -81,10 +84,8 @@ class InvestmentDashboardFacadeTest {
     Benchmark benchmark = new Benchmark();
     when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
-
     DashboardPageView result =
-        new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, periodFilterService)
+        newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_YEAR, 1L));
 
     assertEquals(123.0, result.overview().balance());
@@ -103,6 +104,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void attributionKeepsFourteenNamedRowsAndAggregatesTheRestPerResultSide() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     List<InstrumentPerformance> rows = new ArrayList<>();
     for (int value = 1; value <= 16; value++) {
       rows.add(new InstrumentPerformance("GAIN-" + value, value, 0.0, value));
@@ -113,8 +115,7 @@ class InvestmentDashboardFacadeTest {
     when(benchmarkService.calculate(1L, null)).thenReturn(new Benchmark());
 
     DashboardPageView result =
-        new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, periodFilterService)
+        newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
 
     assertEquals(15, result.performance().topGainers().size());
@@ -202,9 +203,7 @@ class InvestmentDashboardFacadeTest {
                 .balanceLocal(BigDecimal.valueOf(140))
                 .build()));
     portfolio.setAccountBalancesTotal(new AccountBalance());
-    var facade =
-        new InvestmentDashboardFacade(
-            portfolioMetricsService, benchmarkService, periodFilterService);
+    var facade = newFacade(portfolioMetricsService, benchmarkService, periodFilterService);
     var method =
         InvestmentDashboardFacade.class.getDeclaredMethod(
             "portfolioStructure", Portfolio.class, AssetAllocationView.class);
@@ -230,6 +229,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void exposesConfiguredPerformanceBoardKpiStart() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     Benchmark benchmark = new Benchmark();
     when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
@@ -240,7 +240,12 @@ class InvestmentDashboardFacadeTest {
                 benchmarkService,
                 periodFilterService,
                 new PortfolioPeriodMetricsService(),
-                "2027-03-01")
+                "2027-03-01",
+                performanceQuery,
+                null,
+                new PortfolioStructureQuery(null),
+                com.smartbox.investory.investment.reporting.ReturnEstimateCalculator
+                    .DEFAULT_BENCHMARK_EXPECTATION)
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
 
     assertEquals("2027-03", result.performance().kpiStart());
@@ -250,6 +255,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void mapsSubmittedBenchmarkAccountSelectionToBenchmarkService() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     Benchmark benchmark = new Benchmark();
     List<Long> accountIds = List.of(11L, 12L);
     benchmark.setAccountOptions(
@@ -261,8 +267,7 @@ class InvestmentDashboardFacadeTest {
     when(benchmarkService.calculate(1L, accountIds)).thenReturn(benchmark);
 
     DashboardPageView result =
-        new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, periodFilterService)
+        newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
             .loadDashboard(new DashboardQuery(accountIds, true, DashboardPeriod.YEAR_TO_DATE, 1L));
 
     verify(benchmarkService).calculate(1L, accountIds);
@@ -275,6 +280,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void treatsAnEmptySubmittedAccountSelectionAsAllEligibleAccounts() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     Benchmark benchmark = new Benchmark();
     benchmark.setPortfolioPerformanceAvailable(true);
     benchmark.setAccountOptions(
@@ -285,8 +291,7 @@ class InvestmentDashboardFacadeTest {
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     DashboardPageView result =
-        new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, periodFilterService)
+        newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
             .loadDashboard(new DashboardQuery(List.of(), true, DashboardPeriod.YEAR_TO_DATE, 1L));
 
     verify(benchmarkService).calculate(1L, null);
@@ -303,6 +308,7 @@ class InvestmentDashboardFacadeTest {
   @Test
   void doesNotKeepRedundantAccountIdsInPeriodLinksWhenAllAccountsAreSelected() {
     Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
     Benchmark benchmark = new Benchmark();
     List<Long> accountIds = List.of(1L, 3L);
     benchmark.setAccountOptions(
@@ -313,8 +319,7 @@ class InvestmentDashboardFacadeTest {
     when(benchmarkService.calculate(1L, accountIds)).thenReturn(benchmark);
 
     DashboardPageView result =
-        new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, periodFilterService)
+        newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
             .loadDashboard(new DashboardQuery(accountIds, true, DashboardPeriod.YEAR_TO_DATE, 1L));
 
     assertEquals(
@@ -357,10 +362,22 @@ class InvestmentDashboardFacadeTest {
     benchmark.setInvestedCapital(1_000.0);
     when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    when(performanceQuery.forPortfolioMonths(any(), any(), any()))
+        .thenAnswer(
+            invocation ->
+                performanceResult(
+                    invocation.getArgument(1),
+                    invocation.getArgument(2),
+                    200,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1_000,
+                    1_200));
 
     DashboardPageView result =
-        new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
+        newFacade(portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_MONTH, 1L));
 
     assertEquals(900.0, result.overview().balance());
@@ -434,7 +451,9 @@ class InvestmentDashboardFacadeTest {
             "2026-01-01",
             performanceQuery,
             null,
-            new PortfolioStructureQuery(null));
+            new PortfolioStructureQuery(null),
+            com.smartbox.investory.investment.reporting.ReturnEstimateCalculator
+                .DEFAULT_BENCHMARK_EXPECTATION);
     DashboardPageView result =
         facade.loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
     verify(performanceQuery, times(1))
@@ -473,12 +492,179 @@ class InvestmentDashboardFacadeTest {
         .forPortfolioMonths(1L, YearMonth.parse("2026-02"), YearMonth.parse("2026-02"));
   }
 
+  @DisplayName("does Not Substitute Legacy Attribution When Canonical Reporting Has No Result")
+  @Test
+  void doesNotSubstituteLegacyAttributionWhenCanonicalReportingHasNoResult() {
+    Performance performance = new Performance();
+    performance.setCalculateMonthlyPerformance(
+        new LinkedHashMap<>(java.util.Map.of("2026-01", 999.0)));
+    performance.setMonthlyAttributions(
+        new LinkedHashMap<>(java.util.Map.of("2026-01", attributionWithIncome())));
+    Portfolio portfolio = new Portfolio();
+    portfolio.setMonthlyPerformance(performance);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(performanceQuery.forPortfolioMonths(
+            1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-01")))
+        .thenReturn(null);
+
+    IllegalStateException failure =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
+                    .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L)));
+
+    assertTrue(failure.getMessage().contains("PortfolioPerformanceQuery returned no result"));
+    verify(performanceQuery)
+        .forPortfolioMonths(1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-01"));
+  }
+
+  @DisplayName("reads Canonical Reporting Even Without Monthly Display History")
+  @Test
+  void readsCanonicalReportingEvenWithoutMonthlyDisplayHistory() {
+    Performance empty = new Performance();
+    empty.setCalculateMonthlyPerformance(new LinkedHashMap<>());
+    Performance absentMap = new Performance();
+    absentMap.setCalculateMonthlyPerformance(null);
+    for (Performance history : java.util.Arrays.asList(empty, absentMap, null)) {
+      org.mockito.Mockito.clearInvocations(performanceQuery);
+      Portfolio portfolio = new Portfolio();
+      portfolio.setMonthlyPerformance(history);
+      Benchmark benchmark = new Benchmark();
+      benchmark.setPortfolioPl(999.0);
+      when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+      when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+      when(performanceQuery.forPortfolioMonths(1L, null, null))
+          .thenReturn(
+              performanceResult(
+                  YearMonth.of(2026, 1), YearMonth.of(2026, 2), 42, 7, 3, 2, 1, 100, 142));
+
+      DashboardPageView page =
+          newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
+              .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
+
+      assertEquals(42.0, page.overview().totalProfit());
+      assertEquals(42.0, page.performance().summary().portfolioPl());
+      assertEquals(7.0, page.overview().realizedProfit());
+      verify(performanceQuery).forPortfolioMonths(1L, null, null);
+    }
+  }
+
+  @DisplayName(
+      "empty Display History Keeps Configured And Selected Period Bounds And Portfolio Scope")
+  @Test
+  void emptyDisplayHistoryKeepsConfiguredAndSelectedPeriodBoundsAndPortfolioScope() {
+    Portfolio portfolio = new Portfolio();
+    portfolio.setMonthlyPerformance(new Performance());
+    Benchmark benchmark = new Benchmark();
+    when(portfolioMetricsService.calculateTotalProfitLoss(7L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(7L, List.of(17L))).thenReturn(benchmark);
+    DashboardPeriodViewService periods =
+        new DashboardPeriodViewService(
+            LocalDate.of(2025, 2, 1),
+            java.time.Clock.fixed(
+                java.time.Instant.parse("2026-08-15T12:00:00Z"), java.time.ZoneOffset.UTC));
+    for (DashboardPeriod period :
+        List.of(DashboardPeriod.MAX, DashboardPeriod.YEAR_TO_DATE, DashboardPeriod.ONE_MONTH)) {
+      YearMonth from =
+          switch (period) {
+            case MAX -> YearMonth.of(2025, 2);
+            case YEAR_TO_DATE -> YearMonth.of(2026, 1);
+            default -> YearMonth.of(2026, 7);
+          };
+      when(performanceQuery.forPortfolioMonths(7L, from, null))
+          .thenReturn(performanceResult(from, YearMonth.of(2026, 8), 42, 0, 0, 0, 0, 100, 142));
+      DashboardPageView page =
+          newFacade(portfolioMetricsService, benchmarkService, periods)
+              .loadDashboard(new DashboardQuery(List.of(17L), true, period, 7L));
+      assertEquals(42.0, page.overview().totalProfit());
+      verify(performanceQuery).forPortfolioMonths(7L, from, null);
+    }
+    verify(benchmarkService, times(3)).calculate(7L, List.of(17L));
+  }
+
+  @DisplayName("no Canonical Reporting Rows Keep Returns Explicitly Unavailable")
+  @Test
+  void noCanonicalReportingRowsKeepReturnsExplicitlyUnavailable() {
+    Portfolio portfolio = new Portfolio();
+    portfolio.setMonthlyPerformance(new Performance());
+    Benchmark benchmark = new Benchmark();
+    benchmark.setPortfolioPl(500.0);
+    PortfolioPerformanceQuery emptyQuery =
+        new PortfolioPerformanceQuery(
+            mock(
+                com.smartbox.investory.investment.infrastructure.persistence.portfolio
+                    .PortfolioMonthlyPerformanceRepository.class),
+            mock(
+                com.smartbox.investory.investment.infrastructure.persistence.account
+                    .AccountDailyRepository.class));
+    PerformanceResult emptyResult = emptyQuery.forPortfolioMonths(1L, null, null);
+    when(performanceQuery.forPortfolioMonths(1L, null, null)).thenReturn(emptyResult);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    DashboardPageView page =
+        newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
+            .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
+    assertEquals(
+        ReturnMetric.Status.INSUFFICIENT_DATA,
+        page.performance().summary().timeWeightedReturn().status());
+    assertEquals(0.0, page.overview().totalProfit());
+    assertEquals(0.0, page.performance().summary().portfolioPl());
+    verify(performanceQuery).forPortfolioMonths(1L, null, null);
+  }
+
+  @DisplayName("canonical Query Errors Remain Visible Without Display History")
+  @Test
+  void canonicalQueryErrorsRemainVisibleWithoutDisplayHistory() {
+    Portfolio portfolio = new Portfolio();
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(new Benchmark());
+    IllegalStateException expected = new IllegalStateException("canonical storage failure");
+    when(performanceQuery.forPortfolioMonths(1L, null, null)).thenThrow(expected);
+    assertSame(
+        expected,
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
+                    .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L))));
+  }
+
+  @DisplayName("does Not Invent Dashboard Performance When Monthly History Is Empty")
+  @Test
+  void doesNotInventDashboardPerformanceWhenMonthlyHistoryIsEmpty() {
+    Performance performance = new Performance();
+    performance.setCalculateMonthlyPerformance(new LinkedHashMap<>());
+    performance.setMonthlyAttributions(
+        new LinkedHashMap<>(java.util.Map.of("2026-01", attributionWithIncome())));
+    Portfolio portfolio = new Portfolio();
+    portfolio.setMonthlyPerformance(performance);
+    Benchmark benchmark = new Benchmark();
+    benchmark.setAvailable(true);
+    benchmark.setPortfolioPl(500.0);
+    benchmark.setPortfolioReturnPct(25.0);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+
+    IllegalStateException failure =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                newFacade(portfolioMetricsService, benchmarkService, periodFilterService)
+                    .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L)));
+
+    assertTrue(failure.getMessage().contains("PortfolioPerformanceQuery returned no result"));
+    verify(performanceQuery).forPortfolioMonths(1L, null, null);
+  }
+
   @DisplayName("calculates Drawdown Income Yield And Concentration Warning")
   @Test
   void calculatesDrawdownIncomeYieldAndConcentrationWarning() {
     Portfolio portfolio = new Portfolio();
     portfolio.setNetDeposits(1_000.0);
     Performance performance = new Performance();
+    performance.setCalculateMonthlyPerformance(
+        new LinkedHashMap<>(java.util.Map.of("2026-01", 23.0)));
     performance.setMonthlyAttributions(
         new LinkedHashMap<>(java.util.Map.of("2026-01", attributionWithIncome())));
     portfolio.setMonthlyPerformance(performance);
@@ -491,10 +677,22 @@ class InvestmentDashboardFacadeTest {
     benchmark.setPortfolioPl(120.0);
     when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    when(performanceQuery.forPortfolioMonths(any(), any(), any()))
+        .thenAnswer(
+            invocation ->
+                performanceResult(
+                    invocation.getArgument(1),
+                    invocation.getArgument(2),
+                    23,
+                    0,
+                    20,
+                    -2,
+                    5,
+                    1_000,
+                    1_023));
 
     DashboardPageView result =
-        new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
+        newFacade(portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
 
     assertEquals(0.0, result.performance().summary().currentDrawdownPct());
@@ -537,10 +735,26 @@ class InvestmentDashboardFacadeTest {
     Benchmark benchmark = benchmark(labels);
     when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    when(performanceQuery.forPortfolioMonths(any(), any(), any()))
+        .thenAnswer(
+            invocation -> {
+              YearMonth from = invocation.getArgument(1);
+              YearMonth to = invocation.getArgument(2);
+              long months = java.time.temporal.ChronoUnit.MONTHS.between(from, to) + 1;
+              return performanceResult(
+                  from,
+                  to,
+                  months * 25,
+                  months * 25,
+                  months * 2.5,
+                  months * -2.5,
+                  months * 2.5,
+                  1_000,
+                  1_000 + months * 25);
+            });
 
     InvestmentDashboardFacade facade =
-        new InvestmentDashboardFacade(
-            portfolioMetricsService, benchmarkService, new DashboardPeriodViewService());
+        newFacade(portfolioMetricsService, benchmarkService, new DashboardPeriodViewService());
     DashboardPageView oneMonth =
         facade.loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_MONTH, 1L));
     DashboardPageView threeMonths =
@@ -558,8 +772,8 @@ class InvestmentDashboardFacadeTest {
     assertEquals(oneMonth.overview().totalProfit(), oneMonth.performance().summary().portfolioPl());
     assertEquals(
         threeMonths.overview().totalProfit(), threeMonths.performance().summary().portfolioPl());
-    assertEquals(100.0, max.overview().realizedProfit());
-    assertEquals(10.0, max.overview().incomeTotal());
+    assertEquals(125.0, max.overview().realizedProfit());
+    assertEquals(12.5, max.overview().incomeTotal());
   }
 
   @DisplayName("dashboard Cards Declare Current And Selected Period Semantics")
@@ -657,14 +871,25 @@ class InvestmentDashboardFacadeTest {
 
     when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    when(performanceQuery.forPortfolioMonths(any(), any(), any()))
+        .thenAnswer(
+            invocation ->
+                performanceResult(
+                    invocation.getArgument(1),
+                    invocation.getArgument(2),
+                    1,
+                    1,
+                    1,
+                    -1,
+                    1,
+                    1_000,
+                    1_001));
 
     DashboardPageView result =
-        new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
+        newFacade(portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.YEAR_TO_DATE, 1L));
     DashboardPageView maxResult =
-        new InvestmentDashboardFacade(
-                portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
+        newFacade(portfolioMetricsService, benchmarkService, new DashboardPeriodViewService())
             .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
 
     AccountBalance periodAccount = result.overview().accountBalances().getFirst();
@@ -694,6 +919,68 @@ class InvestmentDashboardFacadeTest {
     assertEquals(1_000.0, page.overview().netDeposits());
     assertEquals(1_500.0, page.overview().balance());
     assertEquals(250.0, page.overview().unrealizedProfit());
+  }
+
+  private InvestmentDashboardFacade newFacade(
+      PortfolioMetricsService portfolioMetricsService,
+      BenchmarkService benchmarkService,
+      DashboardPeriodViewService periodViewService) {
+    return new InvestmentDashboardFacade(
+        portfolioMetricsService,
+        benchmarkService,
+        periodViewService,
+        new PortfolioPeriodMetricsService(),
+        "2026-01-01",
+        performanceQuery,
+        null,
+        new PortfolioStructureQuery(null),
+        com.smartbox.investory.investment.reporting.ReturnEstimateCalculator
+            .DEFAULT_BENCHMARK_EXPECTATION);
+  }
+
+  private void addCanonicalMonth(Portfolio portfolio) {
+    Performance performance = new Performance();
+    performance.setCalculateMonthlyPerformance(
+        new LinkedHashMap<>(java.util.Map.of("2026-01", 0.0)));
+    portfolio.setMonthlyPerformance(performance);
+    lenient()
+        .when(
+            performanceQuery.forPortfolioMonths(
+                1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-01")))
+        .thenReturn(
+            performanceResult(
+                YearMonth.parse("2026-01"), YearMonth.parse("2026-01"), 0, 0, 0, 0, 0, 0, 0));
+  }
+
+  private PerformanceResult performanceResult(
+      YearMonth from,
+      YearMonth to,
+      double profit,
+      double realized,
+      double dividends,
+      double taxes,
+      double interest,
+      double startValue,
+      double endValue) {
+    return new PerformanceResult(
+        new PerformancePeriod(from.atDay(1), to.atEndOfMonth()),
+        CurrencyType.USD,
+        BigDecimal.valueOf(startValue),
+        BigDecimal.valueOf(endValue),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.valueOf(profit),
+        BigDecimal.valueOf(realized),
+        null,
+        BigDecimal.valueOf(dividends),
+        BigDecimal.valueOf(interest),
+        BigDecimal.ZERO,
+        BigDecimal.valueOf(taxes),
+        null,
+        ReturnMetric.available(new BigDecimal("0.0404")),
+        ReturnMetric.available(new BigDecimal("0.0404")),
+        null);
   }
 
   private Benchmark benchmark(List<String> labels) {
