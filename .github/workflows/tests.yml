@@ -20,8 +20,8 @@ env:
   MAVEN_USER_HOME: ${{ github.workspace }}/.m2
 
 concurrency:
-  group: tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: tests-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changeScope:
@@ -62,7 +62,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Test affected-module browser selection
-        run: python3 -m unittest discover -s .github/scripts -p test_affected_e2e.py
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 
       - name: Check integration-test registration
         run: python3 .github/check_it_registration.py
