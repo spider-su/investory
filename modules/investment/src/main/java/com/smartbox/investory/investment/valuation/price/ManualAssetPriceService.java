@@ -3,10 +3,12 @@ package com.smartbox.investory.investment.valuation.price;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,9 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /**
- * Legacy manual-price flow. It intentionally updates only the asset's current manual price fields;
- * deprecated manual updates do not rebuild projections, refresh statistics, synchronize IBKR
- * positions, or write {@code MANUAL} observations to {@code asset_price_history}.
+ * Records a forward-only manual price observation and maintains the legacy current-price fields.
  */
 @Service
 @RequiredArgsConstructor
@@ -26,6 +26,7 @@ public class ManualAssetPriceService {
 
   private final AssetRepository assetRepository;
   private final CurrencyRateService currencyRateService;
+  private final AssetPriceHistoryRepository priceHistoryRepository;
   private final ApplicationTime applicationTime;
 
   @Transactional
@@ -55,6 +56,9 @@ public class ManualAssetPriceService {
                 normalizedPrice, BASE_CURRENCY, currency, applicationTime.today());
 
     ZonedDateTime updatedAt = applicationTime.now(applicationTime.businessZone());
+    LocalDate effectiveDate = applicationTime.today();
+    priceHistoryRepository.upsertManualObservation(
+        asset.getId(), effectiveDate, asset.getSymbol(), currency.name(), normalizedPrice);
     asset.setMarketPrice(normalizedPrice);
     asset.setMarketPriceUsd(marketPriceUsd);
     asset.setPriceSource("Manual");

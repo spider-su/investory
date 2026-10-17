@@ -129,7 +129,14 @@ class InvestmentMaintenanceApplicationServiceTest {
     assertEquals(expected.currency(), actual.currency());
     assertEquals(expected.source(), actual.source());
     assertEquals(expected.updatedAt(), actual.updatedAt());
-    verify(manualPrices).updatePrice("ABC", BigDecimal.TEN);
+    InOrder order = inOrder(manualPrices, projections, projectionRefresh);
+    order.verify(manualPrices).updatePrice("ABC", BigDecimal.TEN);
+    order.verify(projections).recalculateAllInNewTransaction();
+    order
+        .verify(projectionRefresh)
+        .refreshApplicationViews(PortfolioProjectionRefreshService.ApplicationRefreshScope.FULL);
+    order.verify(projections).refreshReconciliationViews();
+    verifyNoMoreInteractions(projections, projectionRefresh);
   }
 
   @Test
@@ -145,5 +152,24 @@ class InvestmentMaintenanceApplicationServiceTest {
 
     assertEquals("Market price must be positive", error.getMessage());
     verify(manualPrices).updatePrice("ABC", BigDecimal.ZERO);
+  }
+
+  @Test
+  void updateManualAssetPricePropagatesRefreshFailure() {
+    when(manualPrices.updatePrice("ABC", BigDecimal.TEN))
+        .thenReturn(
+            new ManualAssetPriceService.ManualAssetPrice(
+                "ABC",
+                BigDecimal.TEN,
+                BigDecimal.TEN,
+                com.smartbox.investory.shared.currency.CurrencyType.USD,
+                "Manual",
+                ZonedDateTime.now(ZoneId.of("UTC"))));
+    doThrow(new IllegalStateException("refresh unavailable"))
+        .when(projections)
+        .recalculateAllInNewTransaction();
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        IllegalStateException.class, () -> service.updateManualAssetPrice("ABC", BigDecimal.TEN));
   }
 }

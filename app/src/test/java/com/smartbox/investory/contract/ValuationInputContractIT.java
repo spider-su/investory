@@ -13,6 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -92,6 +93,52 @@ class ValuationInputContractIT {
         assertEquals("2030-01-02", result.getDate("price_date").toString());
         assertEquals(0, result.getBigDecimal("close_price").compareTo(new BigDecimal("100")));
       }
+    }
+  }
+
+  @DisplayName("today manual override wins without changing earlier canonical prices")
+  @Test
+  void todayManualOverrideWinsWithoutChangingEarlierCanonicalPrices() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      long assetId;
+      try (ResultSet result =
+          statement.executeQuery("SELECT id FROM investory.assets ORDER BY id LIMIT 1")) {
+        assertTrue(result.next());
+        assetId = result.getLong(1);
+      }
+      LocalDate today = LocalDate.now();
+      LocalDate yesterday = today.minusDays(1);
+      statement.execute(
+          "DELETE FROM investory.asset_price_history WHERE asset_id = "
+              + assetId
+              + " AND source IN ('OVERRIDE_PROVIDER_TEST', 'MANUAL') AND price_date IN (CURRENT_DATE, CURRENT_DATE - 1)");
+      statement.execute(
+          "INSERT INTO investory.asset_price_history(asset_id, price_date, source, source_symbol, price_origin, price_currency, close_price, quality_score, quality_class, is_observed, is_proxy) VALUES ("
+              + assetId
+              + ", CURRENT_DATE - 1, 'OVERRIDE_PROVIDER_TEST', 'T', 'MARKET_CLOSE', 'USD', 80, 100, 'EXACT_LISTING_MARKET_CLOSE', true, false), ("
+              + assetId
+              + ", CURRENT_DATE, 'OVERRIDE_PROVIDER_TEST', 'T', 'MARKET_CLOSE', 'USD', 90, 100, 'EXACT_LISTING_MARKET_CLOSE', true, false), ("
+              + assetId
+              + ", CURRENT_DATE, 'MANUAL', 'T', 'MANUAL', 'USD', 100, 100, 'MANUAL_ACCEPTED', true, false)");
+      statement.execute("REFRESH MATERIALIZED VIEW investory.app_v_canonical_asset_daily_price_mv");
+      try (ResultSet selected =
+          statement.executeQuery(
+              "SELECT price_date, close_price FROM investory.app_v_canonical_asset_daily_price WHERE asset_id = "
+                  + assetId
+                  + " AND price_date IN (CURRENT_DATE - 1, CURRENT_DATE) ORDER BY price_date")) {
+        assertTrue(selected.next());
+        assertEquals(yesterday, selected.getDate(1).toLocalDate());
+        assertEquals(0, new BigDecimal("80").compareTo(selected.getBigDecimal(2)));
+        assertTrue(selected.next());
+        assertEquals(today, selected.getDate(1).toLocalDate());
+        assertEquals(0, new BigDecimal("100").compareTo(selected.getBigDecimal(2)));
+      }
+      statement.execute(
+          "DELETE FROM investory.asset_price_history WHERE asset_id = "
+              + assetId
+              + " AND source IN ('OVERRIDE_PROVIDER_TEST', 'MANUAL') AND price_date IN (CURRENT_DATE, CURRENT_DATE - 1)");
+      statement.execute("REFRESH MATERIALIZED VIEW investory.app_v_canonical_asset_daily_price_mv");
     }
   }
 

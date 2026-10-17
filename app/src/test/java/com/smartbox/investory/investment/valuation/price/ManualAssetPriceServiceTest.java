@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -12,6 +13,7 @@ import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService.ManualAssetPrice;
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
@@ -34,6 +36,7 @@ class ManualAssetPriceServiceTest {
 
   @Mock private AssetRepository assetRepository;
   @Mock private CurrencyRateService currencyRateService;
+  @Mock private AssetPriceHistoryRepository priceHistoryRepository;
 
   private ManualAssetPriceService service;
 
@@ -43,6 +46,7 @@ class ManualAssetPriceServiceTest {
         new ManualAssetPriceService(
             assetRepository,
             currencyRateService,
+            priceHistoryRepository,
             MutableApplicationTime.fixed(
                 Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw")));
   }
@@ -68,6 +72,13 @@ class ManualAssetPriceServiceTest {
     assertEquals(0, asset.getMarketPrice().compareTo(BigDecimal.valueOf(123.45)));
     assertEquals(0, asset.getMarketPriceUsd().compareTo(BigDecimal.valueOf(30.0)));
     assertEquals("Manual", asset.getPriceSource());
+    verify(priceHistoryRepository)
+        .upsertManualObservation(
+            asset.getId(),
+            LocalDate.parse("2026-09-05"),
+            "PKO.PL",
+            "PLN",
+            BigDecimal.valueOf(123.45));
 
     verify(assetRepository).save(asset);
   }
@@ -88,6 +99,13 @@ class ManualAssetPriceServiceTest {
     assertEquals(0, result.marketPrice().compareTo(BigDecimal.valueOf(0.9881)));
     assertEquals(0, bond.getMarketPrice().compareTo(BigDecimal.valueOf(0.9881)));
     assertEquals(0, bond.getMarketPriceUsd().compareTo(BigDecimal.valueOf(0.9881)));
+    verify(priceHistoryRepository)
+        .upsertManualObservation(
+            bond.getId(),
+            LocalDate.parse("2026-09-05"),
+            "US91282CRC72",
+            "USD",
+            BigDecimal.valueOf(0.9881));
     verify(assetRepository).save(bond);
   }
 
@@ -98,6 +116,22 @@ class ManualAssetPriceServiceTest {
         IllegalArgumentException.class, () -> service.updatePrice("CDR.PL", BigDecimal.ZERO));
 
     verifyNoInteractions(assetRepository, currencyRateService);
+  }
+
+  @Test
+  void updatePriceDoesNotChangeLegacyFieldsWhenManualObservationWriteFails() {
+    AssetEntity asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
+    BigDecimal previousPrice = asset.getMarketPrice();
+    when(assetRepository.findBySymbol("PKO.PL")).thenReturn(Optional.of(asset));
+    doThrow(new IllegalStateException("history unavailable"))
+        .when(priceHistoryRepository)
+        .upsertManualObservation(
+            asset.getId(), LocalDate.parse("2026-09-05"), "PKO.PL", "PLN", BigDecimal.TEN);
+
+    assertThrows(IllegalStateException.class, () -> service.updatePrice("PKO.PL", BigDecimal.TEN));
+
+    assertEquals(previousPrice, asset.getMarketPrice());
+    org.mockito.Mockito.verify(assetRepository, org.mockito.Mockito.never()).save(asset);
   }
 
   @DisplayName("update Price Rejects Blank Symbol")
