@@ -20,8 +20,6 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityIssueRow;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualitySnapshotRow;
@@ -87,7 +85,6 @@ class PortfolioMetricsServiceTest {
   @Mock private AccountMonthlyAttributionRepository accountMonthlyAttributionRepository;
   @Mock private PortfolioAssetAllocationRepository portfolioAssetAllocationRepository;
   @Mock private AssetRepository assetRepository;
-  @Mock private PortfolioCurrencyBreakdownRepository portfolioCurrencyBreakdownRepository;
   @Mock private PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
   @Mock private PortfolioMonthlyPerformanceRepository portfolioMonthlyPerformanceRepository;
   @Mock private PortfolioMonthlySummaryRepository portfolioMonthlySummaryRepository;
@@ -134,7 +131,6 @@ class PortfolioMetricsServiceTest {
             accountStatisticsRepository,
             portfolioAssetAllocationRepository,
             assetRepository,
-            portfolioCurrencyBreakdownRepository,
             portfolioKpiSummaryRepository,
             fallbackReconciliationRepository,
             dataQualityRepository,
@@ -181,12 +177,6 @@ class PortfolioMetricsServiceTest {
     org.mockito.Mockito.lenient()
         .when(portfolioAssetAllocationRepository.findAllByPortfolioId(1L))
         .thenAnswer(invocation -> portfolioAssetAllocationRepository.findAll());
-    org.mockito.Mockito.lenient()
-        .when(portfolioCurrencyBreakdownRepository.findAll())
-        .thenReturn(List.of());
-    org.mockito.Mockito.lenient()
-        .when(portfolioCurrencyBreakdownRepository.findAllByPortfolioId(1L))
-        .thenAnswer(invocation -> portfolioCurrencyBreakdownRepository.findAll());
     org.mockito.Mockito.lenient().when(symbolPerformanceRepository.findAll()).thenReturn(List.of());
     org.mockito.Mockito.lenient()
         .when(symbolPerformanceRepository.findAllByPortfolioId(1L))
@@ -417,6 +407,19 @@ class PortfolioMetricsServiceTest {
     assertEquals("HEALTHY", result.getDataQuality().state());
     assertEquals(1L, result.getDataQuality().pricedOpenPositions());
     assertEquals(1L, result.getDataQuality().totalOpenPositions());
+  }
+
+  @Test
+  void calculateTotalProfitLoss_doesNotReconstructHeadlineWhenKpiSummaryIsMissing() {
+    when(closedPositionRepository.findClosed()).thenReturn(List.of());
+    when(openedPositionRepository.findOpen()).thenReturn(List.of());
+    when(accountStatisticsRepository.findAll()).thenReturn(List.of());
+
+    Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
+
+    assertFalse(result.isValuationComplete());
+    assertEquals(0.0, result.getTotalProfit(), 0.0);
+    verify(openedPositionRepository, never()).findOpen();
   }
 
   @DisplayName("calculate Total Profit Loss uses Portfolio Kpi Summary For Dashboard Metrics")
@@ -1097,37 +1100,6 @@ class PortfolioMetricsServiceTest {
     assertEquals(15949.1714029, result.getTotalProfit(), 0.01);
   }
 
-  @DisplayName("calculate Total Profit Loss skips Currency Breakdown Projection When Kpi Exists")
-  @Test
-  void calculateTotalProfitLoss_skipsCurrencyBreakdownProjectionWhenKpiExists() {
-    when(portfolioKpiSummaryRepository.findAll())
-        .thenReturn(
-            List.of(
-                new PortfolioKpiSummaryEntity(
-                    1L,
-                    "Main",
-                    CurrencyType.USD,
-                    1000.0,
-                    800.0,
-                    100.0,
-                    700.0,
-                    800.0,
-                    999.0,
-                    999.0,
-                    999.0,
-                    0.0,
-                    ZonedDateTime.now())));
-    when(closedPositionRepository.findClosed()).thenReturn(List.of());
-
-    Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
-
-    assertEquals(999.0, result.getRealizedProfit(), 0.01);
-    assertEquals(999.0, result.getUnrealizedProfit(), 0.01);
-    assertEquals(999.0, result.getDividends(), 0.01);
-    assertEquals(2997.0, result.getTotalProfit(), 0.01);
-    verify(portfolioCurrencyBreakdownRepository, never()).findAll();
-  }
-
   @DisplayName("calculate Total Profit Loss preserves Configured Portfolio Base Currency")
   @Test
   void calculateTotalProfitLoss_preservesConfiguredPortfolioBaseCurrency() {
@@ -1157,45 +1129,26 @@ class PortfolioMetricsServiceTest {
     assertEquals(CurrencyType.EUR, result.getOpenPositionValuesTotal().getCurrency());
   }
 
-  @DisplayName(
-      "calculate Total Profit Loss falls Back When Currency Breakdown Contains Unsupported Metric Type")
-  @Test
-  void calculateTotalProfitLoss_fallsBackWhenCurrencyBreakdownContainsUnsupportedMetricType() {
-    when(portfolioCurrencyBreakdownRepository.findAll())
-        .thenReturn(
-            List.of(
-                new PortfolioCurrencyBreakdownEntity(
-                    1L,
-                    CurrencyType.USD,
-                    "ACCOUNT_LATEST",
-                    CurrencyType.USD,
-                    500.0,
-                    500.0,
-                    ZonedDateTime.now())));
-    when(accountStatisticsRepository.findAll())
-        .thenReturn(
-            List.of(
-                PortfolioBuilders.accountStatistics()
-                    .account(new AccountDefinition(1L, "Main", CurrencyType.USD, "Broker"))
-                    .performance(10.0, 20.0, 30.0)
-                    .build()));
-    AccountEntity account = new AccountEntity();
-    account.setId(1L);
-    account.setCurrency(CurrencyType.USD);
-    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(1L, account));
-    when(closedPositionRepository.findClosed()).thenReturn(List.of());
-
-    Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
-
-    assertEquals(10.0, result.getRealizedProfit(), 0.01);
-    assertEquals(20.0, result.getUnrealizedProfit(), 0.01);
-    assertEquals(30.0, result.getDividends(), 0.01);
-    assertEquals(60.0, result.getTotalProfit(), 0.01);
-  }
-
   @DisplayName("calculate Total Profit Loss aggregates Realized And Unrealized And Dividends")
   @Test
   void calculateTotalProfitLoss_aggregatesRealizedAndUnrealizedAndDividends() {
+    when(portfolioKpiSummaryRepository.findAll())
+        .thenReturn(
+            List.of(
+                new PortfolioKpiSummaryEntity(
+                    1L,
+                    "Main",
+                    CurrencyType.USD,
+                    1000.0,
+                    800.0,
+                    200.0,
+                    800.0,
+                    5000.0,
+                    99.0,
+                    50.0,
+                    25.0,
+                    0.0,
+                    ZonedDateTime.now())));
     when(closedPositionRepository.findClosed())
         .thenReturn(
             List.of(
@@ -1230,7 +1183,7 @@ class PortfolioMetricsServiceTest {
     assertEquals(25.0, result.getDividends(), 0.01);
     assertEquals(174.0, result.getTotalProfit(), 0.01);
     assertEquals(1000.0, result.getDeposits(), 0.01);
-    assertEquals(-200.0, result.getWithdrawals(), 0.01);
+    assertEquals(200.0, result.getWithdrawals(), 0.01);
     assertEquals(800.0, result.getNetDeposits(), 0.01);
     assertEquals(5000.0, result.getBalance(), 0.01);
   }
@@ -1238,6 +1191,23 @@ class PortfolioMetricsServiceTest {
   @DisplayName("calculate Total Profit Loss excludes Currency Conversion Deposits")
   @Test
   void calculateTotalProfitLoss_excludesCurrencyConversionDeposits() {
+    when(portfolioKpiSummaryRepository.findAll())
+        .thenReturn(
+            List.of(
+                new PortfolioKpiSummaryEntity(
+                    1L,
+                    "Main",
+                    CurrencyType.USD,
+                    1000.0,
+                    1000.0,
+                    0.0,
+                    1000.0,
+                    1000.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    ZonedDateTime.now())));
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(cashOperationRepository.findAll())
