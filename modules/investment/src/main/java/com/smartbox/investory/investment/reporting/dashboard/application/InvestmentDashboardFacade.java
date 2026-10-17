@@ -86,7 +86,10 @@ public class InvestmentDashboardFacade {
     Portfolio calculatedPortfolio =
         portfolioMetricsService.calculateTotalProfitLoss(query.portfolioId());
     PerformanceResult historicalPerformance =
-        canonicalKpiPerformance(calculatedPortfolio.getMonthlyPerformance(), performanceResults);
+        calculatedPortfolio.isValuationComplete()
+            ? canonicalKpiPerformance(
+                calculatedPortfolio.getMonthlyPerformance(), performanceResults)
+            : null;
     Portfolio portfolio = periodViewService.filter(calculatedPortfolio, selectedPeriod);
 
     Benchmark benchmarkInput =
@@ -122,7 +125,8 @@ public class InvestmentDashboardFacade {
                 portfolio.getMonthlyPerformance(),
                 canonical,
                 historicalPerformance,
-                totalReturnPerformance),
+                totalReturnPerformance,
+                portfolio.isValuationComplete()),
             topGainers(portfolio),
             topLosers(portfolio),
             performanceKpiStart),
@@ -139,6 +143,9 @@ public class InvestmentDashboardFacade {
     PerformanceResults performanceResults = new PerformanceResults(portfolioId);
     Portfolio portfolio = portfolioMetricsService.calculateTotalProfitLoss(portfolioId);
     Benchmark benchmark = benchmarkService.calculate(portfolioId, null);
+    if (!portfolio.isValuationComplete()) {
+      return performanceKpi(performanceResults, benchmark, null, null);
+    }
     return performanceKpi(
         performanceResults,
         benchmark,
@@ -189,7 +196,33 @@ public class InvestmentDashboardFacade {
       Performance performance,
       PerformanceResult canonical,
       PerformanceResult historicalPerformance,
-      PerformanceResult totalReturnPerformance) {
+      PerformanceResult totalReturnPerformance,
+      boolean valuationComplete) {
+    if (!valuationComplete) {
+      ReturnMetric unavailable =
+          ReturnMetric.unavailable(
+              ReturnMetric.Status.INSUFFICIENT_DATA,
+              "Authoritative portfolio valuation is incomplete");
+      return new PerformanceSummary(
+          null,
+          benchmark.getBenchmarkReturnPct(),
+          null,
+          null,
+          null,
+          null,
+          "—",
+          null,
+          "—",
+          null,
+          unavailable,
+          unavailable,
+          null,
+          unavailable,
+          unavailable,
+          null,
+          ReturnMetric.available(benchmarkExpectedReturn),
+          "Benchmark estimate; portfolio valuation unavailable");
+    }
     String best = "—", worst = "—";
     double bestValue = 0, worstValue = 0;
     if (performance != null
@@ -469,12 +502,14 @@ public class InvestmentDashboardFacade {
     AssetAllocationView allocation = structure.assetAllocation();
     return new OverviewView(
         portfolio.isValuationComplete() ? BigDecimal.valueOf(portfolio.getBalance()) : null,
-        BigDecimal.valueOf(periodPerformance.profit()),
+        portfolio.isValuationComplete() ? BigDecimal.valueOf(periodPerformance.profit()) : null,
         BigDecimal.valueOf(portfolio.getNetDeposits()),
-        decimal(periodPerformance.returnPct()),
+        portfolio.isValuationComplete() ? decimal(periodPerformance.returnPct()) : null,
         BigDecimal.valueOf(periodPerformance.incomeTotal()),
-        BigDecimal.valueOf(incomeYield(periodPerformance, portfolio)),
-        BigDecimal.valueOf(periodPerformance.profit()),
+        portfolio.isValuationComplete()
+            ? BigDecimal.valueOf(incomeYield(periodPerformance, portfolio))
+            : null,
+        portfolio.isValuationComplete() ? BigDecimal.valueOf(periodPerformance.profit()) : null,
         decimal(crossRateToPln(portfolio, com.smartbox.investory.shared.currency.CurrencyType.EUR)),
         decimal(rate(portfolio, com.smartbox.investory.shared.currency.CurrencyType.PLN)),
         portfolio.getAccountBalances(),
@@ -488,7 +523,17 @@ public class InvestmentDashboardFacade {
         positions(portfolio),
         risk(portfolio.getRiskExposure()),
         dataQuality(portfolio.getDataQuality()),
-        monthlyPerformance(portfolio.getMonthlyPerformance()),
+        portfolio.isValuationComplete()
+            ? monthlyPerformance(portfolio.getMonthlyPerformance())
+            : new MonthlyPerformanceView(
+                null,
+                portfolio.getMonthlyPerformance() == null
+                    ? null
+                    : portfolio.getMonthlyPerformance().getMonthlyOperationsCount(),
+                portfolio.getMonthlyPerformance() == null
+                    ? null
+                    : portfolio.getMonthlyPerformance().getMonthlyCashflow(),
+                null),
         operationalContextService == null
             ? null
             : operationalContextService.load(portfolioId, portfolio),
