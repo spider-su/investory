@@ -2,7 +2,7 @@ package com.smartbox.investory.investment.reporting;
 
 import com.smartbox.investory.investment.api.reporting.model.PerformanceAttribution;
 import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.account.PortfolioPerformanceDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -23,10 +23,11 @@ public class PortfolioPerformanceQuery {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
 
   private final PortfolioMonthlyPerformanceRepository repository;
-  private final AccountDailyRepository dailyRepository;
+  private final PortfolioPerformanceDailyRepository dailyRepository;
 
   public PortfolioPerformanceQuery(
-      PortfolioMonthlyPerformanceRepository repository, AccountDailyRepository dailyRepository) {
+      PortfolioMonthlyPerformanceRepository repository,
+      PortfolioPerformanceDailyRepository dailyRepository) {
     this.repository = repository;
     this.dailyRepository = dailyRepository;
   }
@@ -254,7 +255,9 @@ public class PortfolioPerformanceQuery {
   }
 
   private List<DailyPortfolioValue> dailyValues(Long portfolioId, LocalDate from, LocalDate to) {
-    return dailyRepository.findPortfolioPerformanceDaily(portfolioId, from, to).stream()
+    return dailyRepository
+        .findByPortfolioIdAndDateBetweenOrderByDateAsc(portfolioId, from, to)
+        .stream()
         .map(
             row ->
                 new DailyPortfolioValue(

@@ -9,8 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository.PortfolioPerformanceDailyRow;
+import com.smartbox.investory.investment.infrastructure.persistence.account.PortfolioPerformanceDailyRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.account.PortfolioPerformanceDailyRepository.PortfolioPerformanceDailyRow;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Portfolio Performance Query")
 class PortfolioPerformanceQueryTest {
   private final PortfolioMonthlyPerformanceRepository repository = mock();
-  private final AccountDailyRepository dailyRepository = mock();
+  private final PortfolioPerformanceDailyRepository dailyRepository = mock();
   private final PortfolioPerformanceQuery query =
       new PortfolioPerformanceQuery(repository, dailyRepository);
 
@@ -191,7 +191,7 @@ class PortfolioPerformanceQueryTest {
         .thenReturn(List.of(row));
     PortfolioPerformanceDailyRow dailyRow =
         daily("2026-05-31", new BigDecimal("110"), BigDecimal.ZERO, BigDecimal.ZERO);
-    when(dailyRepository.findPortfolioPerformanceDaily(
+    when(dailyRepository.findByPortfolioIdAndDateBetweenOrderByDateAsc(
             1L, LocalDate.parse("2026-05-01"), LocalDate.parse("2026-05-31")))
         .thenReturn(List.of(dailyRow));
 
@@ -202,7 +202,7 @@ class PortfolioPerformanceQueryTest {
     assertThat(result.timeWeightedReturn().value()).isEqualByComparingTo("0.1");
     assertThat(result.moneyWeightedReturn().status()).isEqualTo(ReturnMetric.Status.AVAILABLE);
     verify(dailyRepository)
-        .findPortfolioPerformanceDaily(
+        .findByPortfolioIdAndDateBetweenOrderByDateAsc(
             1L, LocalDate.parse("2026-05-01"), LocalDate.parse("2026-05-31"));
   }
 
@@ -218,7 +218,7 @@ class PortfolioPerformanceQueryTest {
         daily("2025-01-07", new BigDecimal("100"), new BigDecimal("100"), BigDecimal.ZERO);
     PortfolioPerformanceDailyRow secondDay =
         daily("2025-01-08", new BigDecimal("110"), BigDecimal.ZERO, BigDecimal.ZERO);
-    when(dailyRepository.findPortfolioPerformanceDaily(
+    when(dailyRepository.findByPortfolioIdAndDateBetweenOrderByDateAsc(
             1L, LocalDate.parse("2025-01-07"), LocalDate.parse("2025-01-31")))
         .thenReturn(List.of(firstDay, secondDay));
 
@@ -245,7 +245,7 @@ class PortfolioPerformanceQueryTest {
         .thenReturn(List.of(row));
     PortfolioPerformanceDailyRow dailyRow =
         daily("2026-06-30", new BigDecimal("110"), null, BigDecimal.ZERO);
-    when(dailyRepository.findPortfolioPerformanceDaily(
+    when(dailyRepository.findByPortfolioIdAndDateBetweenOrderByDateAsc(
             1L, LocalDate.parse("2026-06-01"), LocalDate.parse("2026-06-30")))
         .thenReturn(List.of(dailyRow));
 
@@ -273,7 +273,7 @@ class PortfolioPerformanceQueryTest {
 
     assertThat(result.investmentResult()).isEqualByComparingTo("0");
     verify(dailyRepository)
-        .findPortfolioPerformanceDaily(
+        .findByPortfolioIdAndDateBetweenOrderByDateAsc(
             1L, LocalDate.parse("2026-07-01"), LocalDate.parse("2026-07-31"));
   }
 

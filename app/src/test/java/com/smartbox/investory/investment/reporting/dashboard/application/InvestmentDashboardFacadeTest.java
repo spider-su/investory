@@ -597,7 +597,7 @@ class InvestmentDashboardFacadeTest {
                     .PortfolioMonthlyPerformanceRepository.class),
             mock(
                 com.smartbox.investory.investment.infrastructure.persistence.account
-                    .AccountDailyRepository.class));
+                    .PortfolioPerformanceDailyRepository.class));
     PerformanceResult emptyResult = emptyQuery.forPortfolioMonths(1L, null, null);
     when(performanceQuery.forPortfolioMonths(1L, null, null)).thenReturn(emptyResult);
     when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
