@@ -1,10 +1,10 @@
 package com.smartbox.investory.config;
 
+import com.smartbox.investory.user.infrastructure.AppUserEntity;
+import com.smartbox.investory.user.infrastructure.AppUserRepository;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -20,10 +20,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class GoogleOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
   private final DefaultOAuth2UserService delegate = new DefaultOAuth2UserService();
-  private final JdbcTemplate jdbc;
+  private final AppUserRepository users;
 
-  public GoogleOAuth2UserService(JdbcTemplate jdbc) {
-    this.jdbc = jdbc;
+  public GoogleOAuth2UserService(AppUserRepository users) {
+    this.users = users;
   }
 
   @Override
@@ -42,15 +42,15 @@ public class GoogleOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
           "Google account is not linked to an active Investory user: " + email);
     }
     if (linked.subject() == null) {
-      int updated =
-          jdbc.update(
-              "UPDATE investory.app_users SET google_subject = ?, updated_at = now() "
-                  + "WHERE username = ? AND google_subject IS NULL",
-              subject,
-              linked.username());
-      if (updated != 1) {
+      if (users
+          .findByUsernameAndActiveTrue(linked.username())
+          .filter(u -> u.getGoogleSubject() == null)
+          .isEmpty()) {
         throw authenticationFailure("Google account could not be linked safely");
       }
+      AppUserEntity entity = users.findByUsernameAndActiveTrue(linked.username()).orElseThrow();
+      entity.setGoogleSubject(subject);
+      users.save(entity);
     }
 
     Map<String, Object> attributes = new HashMap<>(googleUser.getAttributes());
@@ -61,20 +61,10 @@ public class GoogleOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
   }
 
   private LinkedUser findBySubjectOrEmail(String subject, String email) {
-    try {
-      return jdbc.queryForObject(
-          "SELECT username, role, google_subject FROM investory.app_users "
-              + "WHERE active AND (google_subject = ? OR lower(email) = lower(?)) "
-              + "ORDER BY CASE WHEN google_subject = ? THEN 0 ELSE 1 END LIMIT 1",
-          (rs, row) ->
-              new LinkedUser(
-                  rs.getString("username"), rs.getString("role"), rs.getString("google_subject")),
-          subject,
-          email,
-          subject);
-    } catch (EmptyResultDataAccessException ignored) {
-      return null;
-    }
+    return users.findLinkedIdentity(subject, email).stream()
+        .findFirst()
+        .map(u -> new LinkedUser(u.getUsername(), u.getRole(), u.getGoogleSubject()))
+        .orElse(null);
   }
 
   private static String required(Object value) {
