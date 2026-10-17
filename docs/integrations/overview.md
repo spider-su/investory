@@ -12,7 +12,7 @@ The Yahoo export snapshot participates in C7 reconciliation against the adapter 
 
 ## FX data
 
-NBP is the primary exchange-rate integration. Its adapter reads PLN-relative Table A rates and normalizes them into Investory's USD-based `FxQuote` contract, deriving USD -> EUR locally. The requested effective date is retained while `providerDate` is the actual NBP publication date; the adapter uses only the latest publication on or before the request and keeps both source rates on one table date. Investory derives and resolves rates according to `../domain/fx-normalization.md`. Estimated-but-usable rates, stale data, missing data, direction, and cross-rate semantics are owned by that domain contract rather than by the provider adapter.
+NBP is the primary exchange-rate integration. Its adapter reads PLN-relative Table A rates and normalizes them into Investory's USD-based `FxQuote` contract, deriving USD -> EUR locally. The requested effective date is retained while `providerDate` is the actual NBP publication date; the adapter uses only the latest publication on or before the request and keeps both source rates on one table date. Investory derives and resolves rates according to `../domain/fx-normalization.md`. Estimated and carried-forward usable rates, explicit unusable or missing data, direction, and cross-rate semantics are owned by that domain contract rather than by the provider adapter.
 
 A provider response must never override fail-closed FX semantics.
 
@@ -21,6 +21,8 @@ A provider response must never override fail-closed FX semantics.
 Telegram is an optional notification/command transport. When disabled or unavailable, core accounting, portfolio reporting, long-term assets, retirement planning, and reconciliation remain valid and independently usable.
 
 Telegram delivery failure is an adapter failure, not a financial-state failure. Notification persistence/deduplication semantics must remain separate from accounting facts.
+
+The scheduled rental payment audit uses the same Telegram bot credentials as other notifications. Its destination can be overridden with `app.telegram.rental-payment-audit-chat-id` (`TELEGRAM_RENTAL_PAYMENT_AUDIT_CHAT_ID`); when unset, it falls back to the effective runtime Telegram integration `chatId`. This makes the shipped default resolve to the same destination as common notifications, including when that destination is managed through integration settings.
 
 ## OpenAI
 

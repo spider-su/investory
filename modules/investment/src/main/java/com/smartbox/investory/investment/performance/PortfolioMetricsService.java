@@ -9,8 +9,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityIssueRow;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioFallbackReconciliationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
@@ -35,10 +34,8 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -63,7 +60,6 @@ public class PortfolioMetricsService {
   private final AccountStatisticsRepository accountStatisticsRepository;
   private final PortfolioAssetAllocationRepository portfolioAssetAllocationRepository;
   private final AssetRepository assetRepository;
-  private final PortfolioCurrencyBreakdownRepository portfolioCurrencyBreakdownRepository;
   private final PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
   private final PortfolioFallbackReconciliationRepository fallbackReconciliationRepository;
   private final PortfolioDataQualityRepository dataQualityRepository;
@@ -128,7 +124,9 @@ public class PortfolioMetricsService {
       if (kpiApplied) {
         applyCashFlowSupplement(portfolio);
       } else {
-        applyCalculatedTotals(portfolio);
+        // A missing materialization is a data-quality/unavailable state, not a request to
+        // reconstruct a second version of portfolio accounting in the dashboard service.
+        portfolio.setValuationComplete(false);
       }
       portfolio.setAccountBalances(calculateAccountBalances(portfolio.getBaseCurrency()));
       portfolio.setAccountBalancesTotal(
@@ -148,12 +146,6 @@ public class PortfolioMetricsService {
       if (portfolio.isValuationComplete() && properties.isDashboardEnrichmentEnabled()) {
         applyFallbackReconciliationStatus(portfolio);
         riskExposureCalculator.applyTo(portfolio, portfolioId);
-      }
-      if (!kpiApplied && !applyPortfolioCurrencyTotals(portfolio)) {
-        boolean usedAccountStatistics = applyAccountStatisticsTotals(portfolio);
-        if (!usedAccountStatistics) {
-          applyOpenPositionUnrealizedTotal(portfolio);
-        }
       }
       applyInvestmentProfitFromComponents(portfolio);
 
@@ -226,72 +218,43 @@ public class PortfolioMetricsService {
             row ->
                 portfolio.setDataQuality(
                     new PortfolioDataQuality(
-                        String.valueOf(row[0]),
-                        number(row[1]).longValue(),
-                        number(row[2]).longValue(),
-                        number(row[3]).longValue(),
-                        number(row[4]).longValue(),
-                        number(row[5]).longValue(),
-                        number(row[6]).longValue(),
-                        number(row[7]).longValue(),
-                        number(row[8]).longValue(),
-                        number(row[9]).longValue(),
-                        number(row[10]).longValue(),
-                        number(row[11]).longValue(),
-                        toOffsetDateTime(row[12]),
-                        toOffsetDateTime(row[13]),
-                        toLocalDate(row[14]),
-                        toLocalDate(row[15]),
-                        toOffsetDateTime(row[16]),
+                        row.state(),
+                        row.reconciledAccounts(),
+                        row.totalAccounts(),
+                        row.pricedOpenPositions(),
+                        row.totalOpenPositions(),
+                        row.missingPriceOpenPositions(),
+                        row.stalePriceOpenPositions(),
+                        row.reconstructedPriceOpenPositions(),
+                        row.missingFxOpenPositions(),
+                        row.staleFxOpenPositions(),
+                        row.missingCostBasisPositions(),
+                        row.unreconciledPositions(),
+                        row.latestImportAt(),
+                        row.latestCompletedImportAt(),
+                        row.latestPriceDate(),
+                        row.latestFxDate(),
+                        row.latestAccountRefreshAt(),
                         issues)));
   }
 
-  private PortfolioDataQualityIssue toDataQualityIssue(Object[] row) {
+  private PortfolioDataQualityIssue toDataQualityIssue(PortfolioDataQualityIssueRow row) {
     return new PortfolioDataQualityIssue(
-        String.valueOf(row[0]),
-        row[1] == null ? null : String.valueOf(row[1]),
-        row[2] == null ? null : String.valueOf(row[2]),
-        String.valueOf(row[3]),
-        row[4] instanceof Number value ? value.intValue() : null,
-        toLocalDate(row[5]),
-        row[6] == null ? null : String.valueOf(row[6]),
-        row[7] == null ? null : String.valueOf(row[7]),
-        row[8] == null ? null : String.valueOf(row[8]),
-        row[9] == null ? null : String.valueOf(row[9]),
-        row[10] instanceof Number value ? value.longValue() : null);
-  }
-
-  private LocalDate toLocalDate(Object value) {
-    return switch (value) {
-      case null -> null;
-      case LocalDate localDate -> localDate;
-      case java.sql.Date sqlDate -> sqlDate.toLocalDate();
-      case TemporalAccessor temporal -> {
-        try {
-          yield LocalDate.from(temporal);
-        } catch (java.time.DateTimeException ignored) {
-          yield parseLocalDateText(value);
-        }
-      }
-      default -> parseLocalDateText(value);
-    };
-  }
-
-  private LocalDate parseLocalDateText(Object value) {
-    String text = String.valueOf(value);
-    return LocalDate.parse(text.length() >= 10 ? text.substring(0, 10) : text);
+        row.issueType(),
+        row.accountId(),
+        row.assetId(),
+        row.issueCode(),
+        row.priceAgeDays(),
+        row.selectedPriceDate(),
+        row.priceCurrency(),
+        row.priceQuality(),
+        row.priceOrigin(),
+        row.reconstructionStatus(),
+        row.selectedPriceHistoryId());
   }
 
   private static Number number(Object value) {
     return value instanceof Number n ? n : 0;
-  }
-
-  private static java.time.OffsetDateTime toOffsetDateTime(Object value) {
-    return value instanceof java.time.OffsetDateTime odt
-        ? odt
-        : value instanceof java.sql.Timestamp ts
-            ? ts.toInstant().atOffset(java.time.ZoneOffset.UTC)
-            : null;
   }
 
   private boolean applyKpiSummary(Portfolio portfolio) {
@@ -347,162 +310,6 @@ public class PortfolioMetricsService {
       CashFlowAggregator.CashFlowSummary cashFlow =
           cashFlowAggregator.aggregate(cashOperations, portfolio.getBaseCurrency());
       portfolio.setDividendTax(cashFlow.dividendTax().doubleValue());
-    }
-  }
-
-  private void applyCalculatedTotals(Portfolio portfolio) {
-    List<PositionEntity> closedPositions = closedPositions();
-    List<CashOperationEntity> cashOperations = cashOperations();
-    warmHistoricalFxRates(closedPositions, cashOperations);
-
-    // ── Realized P/L from imported closed positions ──────────────────────
-    for (PositionEntity position : closedPositions) {
-      LocalDate rateDate =
-          position.getCloseTime() != null
-              ? position.getCloseTime().toLocalDate()
-              : applicationTime.today();
-      CurrencyType profitCurrency = position.getProfitCurrency();
-      CurrencyType commissionCurrency = position.getCommissionCurrency();
-      BigDecimal profitAndSwap = bd(position.getProfit()).add(bd(position.getSwap()));
-      BigDecimal commission = bd(position.getCommission());
-      portfolio.setRealizedProfit(
-          display(
-              bd(portfolio.getRealizedProfit())
-                  .add(
-                      currencyRateService.convertToBaseCurrency(
-                          profitAndSwap, portfolio.getBaseCurrency(), profitCurrency, rateDate))
-                  .add(
-                      currencyRateService.convertToBaseCurrency(
-                          commission, portfolio.getBaseCurrency(), commissionCurrency, rateDate))));
-    }
-
-    // ── Unrealized P/L (live from open positions — always real-time) ─────
-    for (PositionEntity position : openPositions()) {
-      CurrencyType profitCurrency = position.getProfitCurrency();
-      CurrencyType commissionCurrency = position.getCommissionCurrency();
-      BigDecimal profitAndSwap = bd(position.getProfit()).add(bd(position.getSwap()));
-      BigDecimal commission = bd(position.getCommission());
-      portfolio.setUnrealizedProfit(
-          display(
-              bd(portfolio.getUnrealizedProfit())
-                  .add(
-                      currencyRateService.convertToBaseCurrency(
-                          profitAndSwap,
-                          portfolio.getBaseCurrency(),
-                          profitCurrency,
-                          applicationTime.today()))
-                  .add(
-                      currencyRateService.convertToBaseCurrency(
-                          commission,
-                          portfolio.getBaseCurrency(),
-                          commissionCurrency,
-                          applicationTime.today()))));
-    }
-
-    // ── Dividends from imported cash operations ──────────────────────────
-    BigDecimal dividendsTotal = BigDecimal.ZERO;
-    for (CashOperationEntity cashOperation : cashOperations) {
-      if (cashOperation.getType() == CashOperationType.DIVIDEND) {
-        CurrencyType currency =
-            cashOperation.getCurrency() != null
-                ? cashOperation.getCurrency()
-                : portfolio.getBaseCurrency();
-        LocalDate rateDate =
-            cashOperation.getDate() != null
-                ? cashOperation.getDate().toLocalDate()
-                : applicationTime.today();
-        BigDecimal amount = bd(cashOperation.getAmount());
-        BigDecimal amountInBase =
-            currencyRateService.convertToBaseCurrency(
-                amount, portfolio.getBaseCurrency(), currency, rateDate);
-        dividendsTotal = dividendsTotal.add(amountInBase);
-      }
-    }
-
-    // Fall back to cash_operations for deposits/withdrawals/interest/tax.
-    CashFlowAggregator.CashFlowSummary cashFlow =
-        cashFlowAggregator.aggregate(cashOperations, portfolio.getBaseCurrency());
-    portfolio.setDeposits(cashFlow.deposits().doubleValue());
-    portfolio.setWithdrawals(cashFlow.withdrawals().doubleValue());
-    portfolio.setNetDeposits(cashFlow.netDeposits().doubleValue());
-    portfolio.setInterest(cashFlow.interest().doubleValue());
-    // Use summary-derived dividends when available, fall back to cashflow aggregator
-    portfolio.setDividends(
-        dividendsTotal.signum() > 0 ? display(dividendsTotal) : cashFlow.dividends().doubleValue());
-    portfolio.setDividendTax(cashFlow.dividendTax().doubleValue());
-    // Balance breakdown from account_statistics.
-    List<AccountStatisticsEntity> stats = accountStatistics();
-    stats = stats.stream().filter(stat -> !stat.isCashOnly()).toList();
-    BigDecimal cash;
-    BigDecimal balance;
-    if (!stats.isEmpty()) {
-      List<AccountStatisticsEntity> activeStats =
-          stats.stream().filter(this::isDashboardVisible).toList();
-      BigDecimal marketValue =
-          activeStats.stream()
-              .map(s -> bd(s.getMarketValue()))
-              .reduce(BigDecimal.ZERO, BigDecimal::add);
-      cash =
-          activeStats.stream()
-              .map(s -> bd(s.getCashBalance()))
-              .reduce(BigDecimal.ZERO, BigDecimal::add);
-      balance = marketValue.add(cash);
-    } else {
-      balance =
-          openPositions().stream()
-              .map(
-                  position ->
-                      currencyRateService
-                          .convertToBaseCurrency(
-                              bd(position.getPurchaseValue()), portfolio.getBaseCurrency(),
-                              position.getCostCurrency(), applicationTime.today())
-                          .add(
-                              currencyRateService.convertToBaseCurrency(
-                                  bd(position.getProfit()).add(bd(position.getSwap())),
-                                  portfolio.getBaseCurrency(),
-                                  position.getProfitCurrency(),
-                                  applicationTime.today()))
-                          .add(
-                              currencyRateService.convertToBaseCurrency(
-                                  bd(position.getCommission()), portfolio.getBaseCurrency(),
-                                  position.getCommissionCurrency(), applicationTime.today())))
-              .reduce(BigDecimal.ZERO, BigDecimal::add);
-      cash = BigDecimal.ZERO;
-    }
-    portfolio.setBalance(display(balance));
-    portfolio.setCash(display(cash));
-    BigDecimal netDep = bd(portfolio.getNetDeposits());
-    portfolio.setRoi(
-        netDep.signum() > 0
-            ? display(
-                balance
-                    .subtract(netDep)
-                    .divide(netDep, 16, java.math.RoundingMode.HALF_UP)
-                    .movePointRight(2))
-            : 0.0);
-  }
-
-  private void warmHistoricalFxRates(
-      List<PositionEntity> closedPositions, List<CashOperationEntity> cashOperations) {
-    List<LocalDate> dates =
-        Stream.concat(
-                closedPositions.stream()
-                    .map(
-                        position ->
-                            position.getCloseTime() == null
-                                ? applicationTime.today()
-                                : position.getCloseTime().toLocalDate()),
-                cashOperations.stream()
-                    .map(
-                        operation ->
-                            operation.getDate() == null
-                                ? applicationTime.today()
-                                : operation.getDate().toLocalDate()))
-            .toList();
-    if (!dates.isEmpty()) {
-      currencyRateService.warmValuationMatrices(
-          dates.stream().min(LocalDate::compareTo).orElseThrow(),
-          dates.stream().max(LocalDate::compareTo).orElseThrow());
     }
   }
 
@@ -837,104 +644,8 @@ public class PortfolioMetricsService {
     return topRows;
   }
 
-  private boolean applyAccountStatisticsTotals(Portfolio portfolio) {
-    List<AccountStatisticsEntity> stats = accountStatistics();
-    stats = stats.stream().filter(stat -> !stat.isCashOnly()).toList();
-    if (CollectionUtils.isEmpty(stats)) {
-      return false;
-    }
-
-    BigDecimal realizedInBase = BigDecimal.ZERO;
-    BigDecimal unrealizedInBase = BigDecimal.ZERO;
-    BigDecimal dividendsInBase = BigDecimal.ZERO;
-    for (AccountStatisticsEntity stat : stats) {
-      // Every monetary value in account_statistics is already expressed in
-      // valuation_currency (normally the portfolio base). AccountEntity currency is only
-      // display metadata and must never be used to relabel these converted values.
-      BigDecimal realized = bd(stat.getRealizedProfit());
-      BigDecimal unrealized = bd(stat.getUnrealizedProfit());
-      BigDecimal dividends = bd(stat.getDividends());
-      realizedInBase = realizedInBase.add(realized);
-      unrealizedInBase = unrealizedInBase.add(unrealized);
-      dividendsInBase = dividendsInBase.add(dividends);
-    }
-    portfolio.setRealizedProfit(display(realizedInBase));
-    portfolio.setUnrealizedProfit(display(unrealizedInBase));
-    portfolio.setDividends(display(dividendsInBase));
-    portfolio.setTotalProfit(display(realizedInBase.add(unrealizedInBase).add(dividendsInBase)));
-    return true;
-  }
-
-  private boolean applyPortfolioCurrencyTotals(Portfolio portfolio) {
-    List<PortfolioCurrencyBreakdownEntity> rows =
-        portfolioCurrencyBreakdownRepository.findAllByPortfolioId(activePortfolioId());
-    if (CollectionUtils.isEmpty(rows)) {
-      return false;
-    }
-
-    BigDecimal realizedInBase = BigDecimal.ZERO;
-    BigDecimal unrealizedInBase = BigDecimal.ZERO;
-    BigDecimal dividendsInBase = BigDecimal.ZERO;
-    boolean hasSupportedMetric = false;
-    for (PortfolioCurrencyBreakdownEntity row : rows) {
-      BigDecimal baseAmount = bd(row.getAmountInBaseCurrency());
-      switch (row.getMetricType()) {
-        case "REALIZED" -> {
-          hasSupportedMetric = true;
-          realizedInBase = realizedInBase.add(baseAmount);
-        }
-        case "UNREALIZED" -> {
-          hasSupportedMetric = true;
-          unrealizedInBase = unrealizedInBase.add(baseAmount);
-        }
-        case "DIVIDENDS" -> {
-          hasSupportedMetric = true;
-          dividendsInBase = dividendsInBase.add(baseAmount);
-        }
-        default -> {
-          // Ignore unknown projection metric rows; the MV owns the supported set.
-        }
-      }
-    }
-
-    if (!hasSupportedMetric) {
-      return false;
-    }
-
-    portfolio.setRealizedProfit(display(realizedInBase));
-    portfolio.setUnrealizedProfit(display(unrealizedInBase));
-    portfolio.setDividends(display(dividendsInBase));
-    portfolio.setTotalProfit(display(realizedInBase.add(unrealizedInBase).add(dividendsInBase)));
-    return true;
-  }
-
   private Map<Long, AccountEntity> accountsById(Collection<Long> accountIds) {
     return accountRepository.findMapByIdIn(accountIds);
-  }
-
-  private void applyOpenPositionUnrealizedTotal(Portfolio portfolio) {
-    BigDecimal unrealizedProfit = BigDecimal.ZERO;
-    LocalDate rateDate = applicationTime.today();
-    for (PositionEntity position : openPositions()) {
-      CurrencyType profitCurrency = position.getProfitCurrency();
-      CurrencyType commissionCurrency = position.getCommissionCurrency();
-      BigDecimal profitAndSwap = bd(position.getProfit()).add(bd(position.getSwap()));
-      BigDecimal commission = bd(position.getCommission());
-      unrealizedProfit =
-          unrealizedProfit
-              .add(
-                  currencyRateService.convertToBaseCurrency(
-                      profitAndSwap, portfolio.getBaseCurrency(), profitCurrency, rateDate))
-              .add(
-                  currencyRateService.convertToBaseCurrency(
-                      commission, portfolio.getBaseCurrency(), commissionCurrency, rateDate));
-    }
-    portfolio.setUnrealizedProfit(display(unrealizedProfit));
-    portfolio.setTotalProfit(
-        display(
-            bd(portfolio.getRealizedProfit())
-                .add(unrealizedProfit)
-                .add(bd(portfolio.getDividends()))));
   }
 
   private BigDecimal localBalance(

@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.imports.ibkr;
 
-import com.smartbox.investory.investment.imports.ImportExecutionResult;
+import com.smartbox.investory.investment.imports.ImportPortResultMapper;
 import com.smartbox.investory.investment.port.importing.BrokerImportResult;
 import com.smartbox.investory.investment.port.importing.IbkrImportPort;
 import java.io.InputStream;
@@ -18,15 +18,7 @@ final class IbkrImportPortAdapter implements IbkrImportPort {
   @Override
   public BrokerImportResult importStatement(InputStream inputStream, String fileName)
       throws Exception {
-    return toPortResult(importService.importStatement(inputStream, fileName));
-  }
-
-  private static BrokerImportResult toPortResult(ImportExecutionResult result) {
-    return new BrokerImportResult(
-        result.rowsTotal(),
-        result.rowsApplied(),
-        result.rowsFailed(),
-        result.details(),
-        result.affectedAccountIds());
+    return ImportPortResultMapper.toPortResult(
+        importService.importStatement(inputStream, fileName));
   }
 }

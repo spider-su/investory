@@ -71,6 +71,23 @@ models and may retain `double` fields at their legacy chart/UI boundary. The pub
 `investment.api.reporting.InvestmentPerformanceApi` exposes canonical reporting numbers as
 `BigDecimal`; conversion to chart/display primitives happens only in the adapter boundary.
 
+### Portfolio dashboard metric source matrix
+
+| Metric | Authoritative source | Currency and period | Missing-data behavior | Production fallback |
+| --- | --- | --- | --- | --- |
+| Portfolio equity, cash, deposits, withdrawals, net deposits, realized/unrealized result, headline ROI | `app_v_portfolio_kpi_summary_mv` via `PortfolioKpiSummaryRepository` | Portfolio base currency; since inception/current snapshot | Missing row or null equity sets `Portfolio.valuationComplete=false`; zero-initialized display fields are unavailable placeholders, not valid zero results | None. Java ledger reconstruction, currency-breakdown totals, account-statistics totals, and open-position P/L reconstruction are not used |
+| Headline interest and dividend withholding tax enrichment | `app_v_account_statistics` plus normalized cash operations aggregated by `CashFlowAggregator` | Portfolio base currency; cumulative through snapshot | Existing KPI remains authoritative; optional enrichment retains initialized zero if contributing projections/rows are absent | Supplement only; does not replace KPI headline accounting |
+| Per-account balance, cash, profit, ROI | `app_v_account_statistics` for account rows, joined to scoped `accounts`; funding from normalized account-flow rows | Portfolio base amounts plus account-native display amounts; since inception/current snapshot | No statistics means no account cards; absent funding rows use the account-statistics net-deposit fields | Legacy XTB subaccount funding adjustment remains when normalized account-flow base amounts are unavailable; older `amount_in_account_currency` remains a compatibility source for local account-funding display. Neither changes portfolio headline totals |
+| Selected-period and monthly performance | Canonical SQL reporting over `account_daily` / `app_v_portfolio_performance_daily` and monthly portfolio rows, composed by `PortfolioPerformanceQueryService` | Portfolio base currency; requested period | Missing/invalid valuation boundaries produce unavailable reporting metrics per the reporting contract | No raw-ledger dashboard reconstruction |
+| Capital-gains tax estimate | `app_v_portfolio_tax_year_realized` when present, otherwise `TaxCalculator` over scoped closed positions | Portfolio base currency; current tax year with loss carry-forward | Empty tax projection invokes the existing explicit estimate calculation | Retained tax estimate path; separate from headline earnings |
+
+The previous Java headline reconstruction from closed/open positions and raw cash operations,
+followed by portfolio-currency, account-statistics, or open-position substitutions when KPI data was
+missing, is retired from normal reads. Those algorithms are not interchangeable with the canonical
+normalized reporting boundary and must not be reintroduced as an implicit missing-projection repair.
+XTB account-level funding remains a separate unresolved compatibility behavior; changing it requires
+independent characterization and financial-contract review, not a headline cleanup.
+
 Return metrics use the canonical normalized flow semantics. `EXTERNAL_DEPOSIT` and
 `EXTERNAL_WITHDRAWAL` are investor cash flows; `INTERNAL_TRANSFER_IN/OUT`, security transfers,
 and `FX_CONVERSION` do not become portfolio-level investor flows. Dividends, interest, fees, and
@@ -220,16 +237,18 @@ do not carry migration-version suffixes; historical migration names are not rena
 ## FX usable-status contract
 
 Authoritative SQL monetary conversion uses a single helper, `investory.fx_status_usable(status)`, defined in
-`V01.001__functions.sql`. It treats `OK`, `ESTIMATED`, and `SAME_CURRENCY` as usable and
-`STALE`, `MISSING_RATE`, `MISSING_CURRENCY` as not usable. The usable-status list is not duplicated or
-patched after the fact; production views and materialized views call the helper directly. Historical
-interpolation in `resolve_fx_rate()` is bracketed deterministically by the nearest observation strictly
-before and strictly after the valuation date within one source/method series, and only before the
-`fx_configuration.daily_history_start` boundary.
+`V01.001__functions.sql`. `OK`, `ESTIMATED`, `SAME_CURRENCY`, and `CARRY_FORWARD` are usable;
+`MISSING_RATE` and `MISSING_CURRENCY` are not. Production views and materialized views call the helper
+directly. `resolve_fx_rate()` selects the latest neutral valuation observation on or before the
+valuation date (direct pair before inverse on a date tie); it preserves source date and age for a
+`CARRY_FORWARD` result and imposes no age cutoff. The daily-history boundary controls refresh coverage,
+not resolver eligibility. Execution observations have separate transaction-only purpose rules; see
+[`../domain/fx-normalization.md`](../domain/fx-normalization.md).
 
 The Java `CurrencyRateService` is the application conversion boundary. It reads resolved valuation
 matrices through `CurrencyRateRepository`, caches complete matrices by date, performs `BigDecimal`
-conversion, and rejects `STALE` and `MISSING_RATE` results. FX refresh no longer depends on a database
+conversion, accepts the same usable statuses as SQL, and fails closed for missing or otherwise
+unusable rates. FX refresh no longer depends on a database
 FX trigger: `CurrencyRateUpdaterService` persists observations explicitly and advances the daily-history
 boundary only after `setDailyHistoryStartIfSupported(...)` confirms neutral coverage.
 

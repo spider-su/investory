@@ -73,9 +73,10 @@ class MarketDataServiceTest {
     // chunkPauseMs=0 keeps the chunked sync synchronous so we don't need
     // the daemon-thread + Thread.interrupt() dance the old test used.
     marketDataService = marketDataService(true, "");
+  }
 
-    org.mockito.Mockito.lenient()
-        .when(marketDataProvider.externalSymbol(any(), any()))
+  private void stubExternalSymbols() {
+    when(marketDataProvider.externalSymbol(any(), any()))
         .thenAnswer(
             invocation -> {
               String symbol = invocation.getArgument(0);
@@ -86,25 +87,6 @@ class MarketDataServiceTest {
               if (symbol != null && symbol.endsWith(".UK")) return ticker + ":LSE";
               return ticker;
             });
-
-    org.mockito.Mockito.lenient().when(assetRepository.findAll()).thenReturn(List.of());
-    org.mockito.Mockito.lenient()
-        .when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
-        .thenAnswer(ignored -> assetRepository.findAll());
-    org.mockito.Mockito.lenient()
-        .when(assetRepository.findAllByActiveFalseAndSymbolIsNotNull())
-        .thenAnswer(ignored -> assetRepository.findAll());
-    org.mockito.Mockito.lenient().when(positionRepository.findOpen()).thenReturn(List.of());
-    org.mockito.Mockito.lenient().when(positionRepository.findClosed()).thenReturn(List.of());
-    // updateStocks resolves the portfolio's open positions through the scoped
-    // repository methods. Keep the common fixture aligned with that contract;
-    // the individual tests still control the source data via findAll/findOpen.
-    org.mockito.Mockito.lenient()
-        .when(accountRepository.findAllByPortfolioId(any()))
-        .thenAnswer(ignored -> accountRepository.findAll());
-    org.mockito.Mockito.lenient()
-        .when(positionRepository.findOpenByAccountIn(any()))
-        .thenAnswer(ignored -> positionRepository.findOpen());
   }
 
   @DisplayName("split Into Chunks divides Map Evenly")
@@ -230,8 +212,13 @@ class MarketDataServiceTest {
   void updateStocks_skipsUnsupportedSymbolsAndPersistsQuoteData() {
     AssetEntity supported = newAsset("AAPL.US", "AAPL", true);
     AssetEntity unsupported = newAsset("CSPX.UK", "CSPX", true);
-    when(assetRepository.findAll()).thenReturn(List.of(unsupported, supported));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenReturn(List.of(unsupported, supported));
+    stubExternalSymbols();
     when(positionRepository.findOpen())
+        .thenReturn(List.of(openPosition("AAPL.US"), openPosition("CSPX.UK")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
         .thenReturn(List.of(openPosition("AAPL.US"), openPosition("CSPX.UK")));
 
     MarketQuote quote = new MarketQuote();
@@ -246,6 +233,9 @@ class MarketDataServiceTest {
     marketDataService.updateStocks(1L);
 
     verify(marketDataProvider, times(1)).fetchQuotes(List.of("AAPL"));
+    verify(accountRepository).findAllByPortfolioId(1L);
+    verify(positionRepository).findOpenByAccountIn(List.of(1L));
+    verify(assetRepository).findAllByActiveTrueAndExcludeFromImportFalse();
     verify(assetRepository, times(1)).saveAll(org.mockito.ArgumentMatchers.any());
     verify(assetPriceHistoryRepository)
         .upsertObservedPrice(
@@ -267,8 +257,11 @@ class MarketDataServiceTest {
   void updateStocks_skipsDirectBondQuote() {
     AssetEntity bond = newAsset("US91282CKB62", "US91282CKB62", true);
     bond.setAssetType("BOND");
-    when(assetRepository.findAll()).thenReturn(List.of(bond));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(bond));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("US91282CKB62")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("US91282CKB62")));
 
     marketDataService.updateStocks(1L);
 
@@ -284,8 +277,13 @@ class MarketDataServiceTest {
     AssetEntity recent = newAsset("AAPL.US", "AAPL", true);
     recent.setPriceSource("YahooFinance");
     recent.setPriceUpdatedAt(java.time.ZonedDateTime.now().minusHours(3));
-    when(assetRepository.findAll()).thenReturn(List.of(recent));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenReturn(List.of(recent));
+    stubExternalSymbols();
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("AAPL.US")));
 
     marketDataService.updateStocks(1L);
 
@@ -299,8 +297,11 @@ class MarketDataServiceTest {
   @Test
   void updateStocksUsesYahooWhenNoPrimaryQuoteExists() {
     AssetEntity vwra = newAsset("VWRA.UK", "VWRA", true);
-    when(assetRepository.findAll()).thenReturn(List.of(vwra));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(vwra));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("VWRA.UK")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("VWRA.UK")));
     when(marketDataProvider.fetchLatestQuote("VWRA.L"))
         .thenReturn(
             Optional.of(
@@ -331,8 +332,12 @@ class MarketDataServiceTest {
   void updateStocksContinuesYahooFallbackAfterOneSymbolFailure() {
     AssetEntity a = newAsset("A.US", "A", true);
     AssetEntity b = newAsset("B.US", "B", true);
-    when(assetRepository.findAll()).thenReturn(List.of(a, b));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(a, b));
+    stubExternalSymbols();
     when(positionRepository.findOpen())
+        .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
         .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
     when(marketDataProvider.fetchQuotes(List.of("A", "B"))).thenReturn(Map.of());
     when(marketDataProvider.fetchLatestQuote("A"))
@@ -363,8 +368,13 @@ class MarketDataServiceTest {
   void updateStocksConvertsNativeQuoteIntoLegacyUsdCache() {
     AssetEntity supported = newAsset("CDR.PL", "CDR", true);
     supported.setCurrency(CurrencyType.PLN);
-    when(assetRepository.findAll()).thenReturn(List.of(supported));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenReturn(List.of(supported));
+    stubExternalSymbols();
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("CDR.PL")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("CDR.PL")));
 
     MarketQuote quote = new MarketQuote();
     quote.setSymbol("CDR");
@@ -395,7 +405,7 @@ class MarketDataServiceTest {
     latest.setClosePrice(java.math.BigDecimal.valueOf(160.0));
     latest.setPriceCurrency(CurrencyType.PLN);
     latest.setCloseTime(java.time.ZonedDateTime.parse("2026-08-24T16:00:00+02:00[Europe/Warsaw]"));
-    when(assetRepository.findAll()).thenReturn(List.of(inactive));
+    when(assetRepository.findAllByActiveFalseAndSymbolIsNotNull()).thenReturn(List.of(inactive));
     when(positionRepository.findClosed()).thenReturn(List.of(latest));
     when(currencyRateService.convertToBaseCurrency(
             BigDecimal.valueOf(160.0),
@@ -414,8 +424,11 @@ class MarketDataServiceTest {
   @Test
   void updateStocksReportsYahooFailureAfterRefreshingPersistedProjections() {
     AssetEntity vwra = newAsset("VWRA.UK", "VWRA", true);
-    when(assetRepository.findAll()).thenReturn(List.of(vwra));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(vwra));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("VWRA.UK")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("VWRA.UK")));
     when(marketDataProvider.fetchLatestQuote("VWRA.L"))
         .thenThrow(new IllegalStateException("network unavailable"));
 
@@ -429,8 +442,12 @@ class MarketDataServiceTest {
   void updateStocksDerivesYahooExchangeSuffixesForFallback() {
     AssetEntity etfbw20tr = newAsset("ETFBW20TR.PL", "ETFBW20TR", true);
     etfbw20tr.setCurrency(CurrencyType.PLN);
-    when(assetRepository.findAll()).thenReturn(List.of(etfbw20tr));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenReturn(List.of(etfbw20tr));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("ETFBW20TR.PL")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("ETFBW20TR.PL")));
     when(marketDataProvider.fetchLatestQuote("ETFBW20TR.WA")).thenReturn(Optional.empty());
 
     marketDataService.updateStocks(1L);
@@ -444,8 +461,13 @@ class MarketDataServiceTest {
     AssetEntity recentImport = newAsset("AAPL.US", "AAPL", true);
     recentImport.setPriceSource("XTB");
     recentImport.setPriceUpdatedAt(java.time.ZonedDateTime.now().minusHours(3));
-    when(assetRepository.findAll()).thenReturn(List.of(recentImport));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenReturn(List.of(recentImport));
+    stubExternalSymbols();
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("AAPL.US")));
 
     MarketQuote quote = new MarketQuote();
     quote.setClose(110.0);
@@ -461,8 +483,11 @@ class MarketDataServiceTest {
   @Test
   void updateStocksUsesExactYahooListingForRemxUk() {
     AssetEntity remx = newAsset("REMX.UK", "REMX", true);
-    when(assetRepository.findAll()).thenReturn(List.of(remx));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(remx));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("REMX.UK")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("REMX.UK")));
     when(marketDataProvider.fetchLatestQuote("REMX.L"))
         .thenReturn(
             Optional.of(
@@ -498,8 +523,17 @@ class MarketDataServiceTest {
     AssetEntity cdr = newAsset("CDR.PL", "CDR", true);
     AssetEntity sgld = newAsset("SGLD.UK", "SGLD", true);
     AssetEntity vhyd = newAsset("VHYD.UK", "VHYD", true);
-    when(assetRepository.findAll()).thenReturn(List.of(jgpi, cdr, sgld, vhyd));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenReturn(List.of(jgpi, cdr, sgld, vhyd));
     when(positionRepository.findOpen())
+        .thenReturn(
+            List.of(
+                openPosition("JGPI.DE"),
+                openPosition("CDR.PL"),
+                openPosition("SGLD.UK"),
+                openPosition("VHYD.UK")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
         .thenReturn(
             List.of(
                 openPosition("JGPI.DE"),
@@ -521,8 +555,18 @@ class MarketDataServiceTest {
     AssetEntity cdr = newAsset("CDR.PL", "CDR", true);
     AssetEntity sgld = newAsset("SGLD.UK", "SGLD", true);
     AssetEntity vhyd = newAsset("VHYD.UK", "VHYD", true);
-    when(assetRepository.findAll()).thenReturn(List.of(jgpi, cdr, sgld, vhyd));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenReturn(List.of(jgpi, cdr, sgld, vhyd));
+    stubExternalSymbols();
     when(positionRepository.findOpen())
+        .thenReturn(
+            List.of(
+                openPosition("JGPI.DE"),
+                openPosition("CDR.PL"),
+                openPosition("SGLD.UK"),
+                openPosition("VHYD.UK")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
         .thenReturn(
             List.of(
                 openPosition("JGPI.DE"),
@@ -552,8 +596,11 @@ class MarketDataServiceTest {
   void updateStocksSkipsConfiguredExcludedSymbolsBeforeHttpCall() {
     marketDataService = marketDataService(false, "AAPL.US");
     AssetEntity aapl = newAsset("AAPL.US", "AAPL", true);
-    when(assetRepository.findAll()).thenReturn(List.of(aapl));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(aapl));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("AAPL.US")));
 
     marketDataService.updateStocks(1L);
 
@@ -567,8 +614,12 @@ class MarketDataServiceTest {
     marketDataService = marketDataService(false, "");
     AssetEntity excluded = newAsset("AIGI.UK", "AIGI", true);
     excluded.setExcludeFromImport(true);
-    when(assetRepository.findAll()).thenReturn(List.of(excluded));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenReturn(List.of(excluded));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AIGI.UK")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("AIGI.UK")));
 
     marketDataService.updateStocks(1L);
 
@@ -581,8 +632,12 @@ class MarketDataServiceTest {
   void updateStocks_continuesWhenFetchFailsAndLogsTheChunk() {
     AssetEntity a = newAsset("A.US", "A", true);
     AssetEntity b = newAsset("B.US", "B", true);
-    when(assetRepository.findAll()).thenReturn(List.of(a, b));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(a, b));
+    stubExternalSymbols();
     when(positionRepository.findOpen())
+        .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
         .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
     when(marketDataProvider.fetchQuotes(any())).thenThrow(new RuntimeException("rate limit"));
 
@@ -598,8 +653,12 @@ class MarketDataServiceTest {
   void updateStocks_fallsBackToSingleTickerRequestsWhenChunkFails() {
     AssetEntity a = newAsset("A.US", "A", true);
     AssetEntity b = newAsset("B.US", "B", true);
-    when(assetRepository.findAll()).thenReturn(List.of(a, b));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(a, b));
+    stubExternalSymbols();
     when(positionRepository.findOpen())
+        .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
         .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
     when(marketDataProvider.fetchQuotes(List.of("A", "B")))
         .thenThrow(new RuntimeException("chunk failed"));
@@ -623,8 +682,12 @@ class MarketDataServiceTest {
   void updateStocksRejectsQuoteCurrencyMismatchAndUsesYahooFallback() {
     AssetEntity aapl = newAsset("AAPL.US", "AAPL", true);
     aapl.setMarketPrice(java.math.BigDecimal.valueOf(100.0));
-    when(assetRepository.findAll()).thenReturn(List.of(aapl));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(aapl));
+    stubExternalSymbols();
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("AAPL.US")));
 
     MarketQuote quote = new MarketQuote();
     quote.setSymbol("AAPL");
@@ -670,8 +733,11 @@ class MarketDataServiceTest {
         firstChunk.put(ticker, quote);
       }
     }
-    when(assetRepository.findAll()).thenReturn(assets);
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(assets);
+    stubExternalSymbols();
     when(positionRepository.findOpen()).thenReturn(positions);
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L))).thenReturn(positions);
     CountDownLatch firstChunkFetched = new CountDownLatch(1);
     when(marketDataProvider.fetchQuotes(List.of("A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7")))
         .thenAnswer(
@@ -707,8 +773,11 @@ class MarketDataServiceTest {
   @Test
   void updateStocks_skipsHttpCallWhenAllSymbolsAreUnsupported() {
     AssetEntity only = newAsset("CSPX.UK", "CSPX", true);
-    when(assetRepository.findAll()).thenReturn(List.of(only));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(only));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("CSPX.UK")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("CSPX.UK")));
 
     marketDataService.updateStocks(1L);
 
@@ -719,8 +788,10 @@ class MarketDataServiceTest {
   @DisplayName("full Portfolio Update refreshes Current Market Views After Sync")
   @Test
   void fullPortfolioUpdate_refreshesStatisticsAfterSync() {
-    when(assetRepository.findAll()).thenReturn(List.of());
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of());
     when(positionRepository.findOpen()).thenReturn(List.of());
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L))).thenReturn(List.of());
     marketDataService.fullPortfolioUpdate(1L);
 
     verify(statisticsRefreshService, times(1)).refreshCurrentMarketPrices();
@@ -729,7 +800,7 @@ class MarketDataServiceTest {
   @Test
   void fullPortfolioUpdate_refreshesGlobalStatisticsOnceAfterAllPortfolios() {
     when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L, 2L, 3L));
-    when(assetRepository.findAll()).thenReturn(List.of());
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of());
     List<Long> updatedPortfolioIds = new java.util.ArrayList<>();
     org.mockito.Mockito.doAnswer(
             invocation -> {
@@ -766,6 +837,7 @@ class MarketDataServiceTest {
   @Test
   void fullPortfolioUpdate_doesNotRefreshStatisticsAfterPortfolioFailure() {
     when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L, 2L));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of());
     org.mockito.Mockito.doThrow(new IllegalStateException("portfolio failed"))
         .when(accountRepository)
         .findAllByPortfolioId(2L);
@@ -783,8 +855,12 @@ class MarketDataServiceTest {
   void fullPortfolioUpdate_preservesFailureWithoutRefreshingStatistics() {
     when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L));
     AssetEntity asset = newAsset("AAPL.US", "AAPL", true);
-    when(assetRepository.findAll()).thenReturn(List.of(asset));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(asset));
+    stubExternalSymbols();
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("AAPL.US")));
     when(marketDataProvider.fetchQuotes(List.of("AAPL"))).thenThrow(new RuntimeException("failed"));
 
     IllegalStateException failure =
@@ -799,8 +875,13 @@ class MarketDataServiceTest {
     when(accountRepository.findDistinctPortfolioIds()).thenReturn(List.of(1L));
     AssetEntity successfulAsset = newAsset("AAPL.US", "AAPL", true);
     AssetEntity failedAsset = newAsset("MSFT.US", "MSFT", true);
-    when(assetRepository.findAll()).thenReturn(List.of(successfulAsset, failedAsset));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenReturn(List.of(successfulAsset, failedAsset));
+    stubExternalSymbols();
     when(positionRepository.findOpen())
+        .thenReturn(List.of(openPosition("AAPL.US"), openPosition("MSFT.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
         .thenReturn(List.of(openPosition("AAPL.US"), openPosition("MSFT.US")));
 
     MarketQuote successfulQuote = new MarketQuote();
@@ -829,8 +910,12 @@ class MarketDataServiceTest {
   @Test
   void updateStocksFetchesBatchQuotesOutsideTheTransaction() {
     AssetEntity aapl = newAsset("AAPL.US", "AAPL", true);
-    when(assetRepository.findAll()).thenReturn(List.of(aapl));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(aapl));
+    stubExternalSymbols();
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("AAPL.US")));
 
     MarketQuote quote = new MarketQuote();
     quote.setSymbol("AAPL");
@@ -871,8 +956,11 @@ class MarketDataServiceTest {
   @Test
   void updateStocksFetchesYahooFallbackOutsideTheTransaction() {
     AssetEntity vwra = newAsset("VWRA.UK", "VWRA", true);
-    when(assetRepository.findAll()).thenReturn(List.of(vwra));
+    when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse()).thenReturn(List.of(vwra));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("VWRA.UK")));
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L, "TEST")));
+    when(positionRepository.findOpenByAccountIn(List.of(1L)))
+        .thenReturn(List.of(openPosition("VWRA.UK")));
     when(marketDataProvider.fetchLatestQuote("VWRA.L"))
         .thenAnswer(
             invocation -> {

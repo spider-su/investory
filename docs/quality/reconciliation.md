@@ -61,7 +61,8 @@ Also check:
   endpoint must not be selected for that date;
 - result-only positions are not valued at full notional;
 - broker truth is used as an independent oracle where the broker export provides it;
-- missing/stale FX follows `docs/domain/fx-normalization.md`;
+- missing FX is an error and fails closed; usable `CARRY_FORWARD` FX retains source date and age and
+  has no fixed age cutoff, as defined by `docs/domain/fx-normalization.md`;
 - dashboard and adapter totals trace back to the same reporting lineage.
 
 Temporal anomaly evidence is a review layer over C3 and C4. `recon_v_temporal_anomaly`
@@ -151,7 +152,8 @@ Keep explicit regression coverage for defect classes already observed in this pr
 - cross-account currency conversion misclassified as investment flow/profit;
 - inception-period double counting;
 - inconsistent current price sources across projection and allocation surfaces;
-- stale or missing FX treated as valid converted value.
+- missing or otherwise unusable FX treated as a valid converted value; carry-forward age alone is not
+  a failure.
 
 ## Automation levels
 
@@ -167,7 +169,9 @@ Reconciliation has a separate SQL boundary. Production calculations live in
 `V01.006__reconciliation_views.sql`; persisted audit tables, triggers, and reports live in
 `V01.007__persisted_system_audit.sql`. Normal reporting refresh uses an explicit production-MV order
 and never refreshes the trade-settlement reconciliation MV. Reconciliation refresh is explicit/on
-demand. Estimated FX is usable for authoritative conversion; stale and missing FX fail closed.
+demand. `ESTIMATED` and `CARRY_FORWARD` FX are usable for authoritative conversion; missing and other
+unusable FX fail closed. A separate operational quote/source freshness warning may flag an old
+observation, but it does not change valuation usability or relabel `CARRY_FORWARD` as missing.
 
 Account quality has three distinct states:
 

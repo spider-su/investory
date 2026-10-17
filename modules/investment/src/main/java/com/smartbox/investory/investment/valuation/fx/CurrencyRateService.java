@@ -92,9 +92,10 @@ public class CurrencyRateService implements CurrencyConversion {
   }
 
   /**
-   * Converts a value for a current dashboard display, allowing a dated stale carry-forward rate.
-   * Authoritative conversions must continue to use {@link #convertToBaseCurrency(BigDecimal,
-   * CurrencyType, CurrencyType, LocalDate)} and fail closed for stale rates.
+   * Converts a value for current dashboard display, allowing a dated fallback with valid provenance
+   * even when its status is not authoritative-usable. Authoritative conversions must continue to
+   * use {@link #convertToBaseCurrency(BigDecimal, CurrencyType, CurrencyType, LocalDate)} and fail
+   * closed when no usable valuation rate exists.
    */
   public BigDecimal convertToBaseCurrencyForDisplay(
       BigDecimal amount,
@@ -113,7 +114,7 @@ public class CurrencyRateService implements CurrencyConversion {
     }
     if (!resolution.isUsable()) {
       log.warn(
-          "Dashboard display uses stale FX rate: source={}, target={}, valuationDate={}, sourceRateDate={}, ageDays={}",
+          "Dashboard display uses non-authoritative stale FX fallback: source={}, target={}, valuationDate={}, sourceRateDate={}, ageDays={}",
           positionCurrency,
           baseCurrency,
           rateDate,
