@@ -41,6 +41,12 @@ public class AppUserEntity {
   @Column(name = "password_hash")
   private String passwordHash;
 
+  @Column(length = 320)
+  private String email;
+
+  @Column(name = "google_subject", length = 255)
+  private String googleSubject;
+
   @Column(nullable = false, length = 32)
   private String role;
 }
