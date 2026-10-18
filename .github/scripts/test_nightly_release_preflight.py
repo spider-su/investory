@@ -7,6 +7,12 @@ class NightlyReleasePreflightTest(unittest.TestCase):
     def test_unchanged_branches_skip(self):
         self.assertEqual("skip", assess("a", "a", [])[0])
 
+    def test_absent_branch_sha_never_skips(self):
+        self.assertEqual("fail", assess("", "", [])[0])
+
+    def test_missing_required_job_fails(self):
+        self.assertEqual("fail", assess("a", "b", [{"head_sha": "a", "name": "Unit", "conclusion": "success"}], required=["Unit", "DB_IT"])[0])
+
     def test_exact_sha_success_stops_at_preflight(self):
         self.assertEqual("preflight", assess("a", "b", [{"head_sha": "a", "conclusion": "success"}])[0])
 

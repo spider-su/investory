@@ -5,13 +5,16 @@ import json
 import sys
 
 
-def assess(develop_sha: str, main_sha: str, checks: list[dict]) -> tuple[str, str]:
-    if develop_sha == main_sha:
-        return "skip", "develop and main are identical; no release needed"
+def assess(develop_sha: str, main_sha: str, checks: list[dict], required: list[str] | None = None) -> tuple[str, str]:
     if not develop_sha or not main_sha:
         return "fail", "missing branch SHA"
+    if develop_sha == main_sha:
+        return "skip", "develop and main are identical; no release needed"
     if not checks:
         return "fail", f"no checks reported for exact develop SHA {develop_sha}"
+    missing = set(required or []) - {c.get("name") for c in checks}
+    if missing:
+        return "fail", "missing required jobs: " + ", ".join(sorted(missing))
     mismatched = [c for c in checks if c.get("head_sha") != develop_sha]
     if mismatched:
         return "fail", "check result does not match exact develop SHA"
@@ -24,7 +27,9 @@ def assess(develop_sha: str, main_sha: str, checks: list[dict]) -> tuple[str, st
 if __name__ == "__main__":
     try:
         data = json.load(sys.stdin)
-        state, reason = assess(data["develop_sha"], data["main_sha"], data["checks"])
+        from pathlib import Path
+        required = [line.strip() for line in Path(".github/required-checks.txt").read_text().splitlines() if line.strip() and not line.startswith("#")]
+        state, reason = assess(data["develop_sha"], data["main_sha"], data["checks"], required)
         print(json.dumps({"state": state, "reason": reason}))
         sys.exit(1 if state == "fail" else 0)
     except (KeyError, TypeError, json.JSONDecodeError) as exc:

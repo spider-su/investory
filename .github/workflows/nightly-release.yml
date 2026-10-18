@@ -1,9 +1,6 @@
 name: Nightly release preflight
 
 on:
-  schedule:
-    # 01:30 UTC (02:30/03:30 Europe/Warsaw depending on daylight saving).
-    - cron: '30 1 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -27,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - name: Fetch release branches
         run: git fetch origin main develop
@@ -46,10 +43,23 @@ jobs:
           CANDIDATE_SHA: ${{ steps.refs.outputs.develop }}
           MAIN_SHA: ${{ steps.refs.outputs.main }}
         run: |
-          gh api "repos/${GITHUB_REPOSITORY}/commits/${CANDIDATE_SHA}/check-runs" > checks.json
-          python3 .github/scripts/nightly_release_preflight.py <<EOF
-          {"develop_sha":"${CANDIDATE_SHA}","main_sha":"${MAIN_SHA}","checks":$(python3 -c 'import json; print(json.dumps([{"head_sha": x.get("head_sha"), "conclusion": x.get("conclusion")} for x in json.load(open("checks.json")).get("check_runs", [])]))')}
-          EOF
+          RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow tests.yml --branch develop --commit "$CANDIDATE_SHA" --event push --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$RUN_ID" ]; then
+            echo "No push CI run for the exact develop revision." >&2
+            exit 1
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" > run.json
+          ATTEMPT=$(python3 -c 'import json; print(json.load(open("run.json"))["run_attempt"])')
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/attempts/${ATTEMPT}/jobs?per_page=100" > jobs.json
+          python3 - <<'PYINPUT' > preflight.json
+          import json, os
+          run = json.load(open("run.json"))
+          jobs = [job for page in json.load(open("jobs.json")) for job in page["jobs"]]
+          checks = [{"head_sha": run["head_sha"], "name": job["name"], "conclusion": job["conclusion"]} for job in jobs]
+          checks.append({"head_sha": run["head_sha"], "name": "workflow_run", "conclusion": run["conclusion"] if run["status"] == "completed" else None})
+          print(json.dumps({"develop_sha": os.environ["CANDIDATE_SHA"], "main_sha": os.environ["MAIN_SHA"], "checks": checks}))
+          PYINPUT
+          python3 .github/scripts/nightly_release_preflight.py < preflight.json
       - name: Report gated status
         if: always()
         run: |
