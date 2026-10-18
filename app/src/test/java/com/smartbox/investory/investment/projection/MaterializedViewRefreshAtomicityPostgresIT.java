@@ -65,7 +65,7 @@ class MaterializedViewRefreshAtomicityPostgresIT {
         "CREATE OR REPLACE FUNCTION "
             + APP_SCHEMA
             + ".fail_on_two(input integer, stage text) RETURNS integer "
-            + "LANGUAGE plpgsql AS $$ BEGIN IF input = 2 AND stage = (SELECT name FROM investory.failure_stage) THEN RAISE EXCEPTION 'injected refresh failure'; END IF; RETURN input; END $$");
+            + "LANGUAGE plpgsql AS $$ BEGIN IF EXISTS (SELECT 1 FROM investory.source WHERE value=2) AND stage = (SELECT name FROM investory.failure_stage) THEN RAISE EXCEPTION 'injected refresh failure'; END IF; RETURN input; END $$");
     createTableAndView(
         "app_v_canonical_asset_daily_price_mv",
         "SELECT investory.fail_on_two(value, 'first') AS value FROM " + APP_SCHEMA + ".source");
@@ -74,7 +74,7 @@ class MaterializedViewRefreshAtomicityPostgresIT {
         "SELECT value + 10 AS value FROM " + APP_SCHEMA + ".source");
     createTableAndView(
         "app_v_current_asset_price_mv",
-        "SELECT value + 20 AS value FROM " + APP_SCHEMA + ".source");
+        "SELECT value + 10 AS value FROM investory.app_v_canonical_asset_daily_price_ranked_mv");
     createTableAndView(
         "app_v_portfolio_daily_fx_rate_mv",
         "SELECT value + 30 AS value FROM " + APP_SCHEMA + ".source");
@@ -94,6 +94,33 @@ class MaterializedViewRefreshAtomicityPostgresIT {
     createTableAndView(
         "app_v_portfolio_kpi_summary_mv",
         "SELECT investory.fail_on_two(value, 'last') + 80 AS value FROM " + APP_SCHEMA + ".source");
+    createTableAndView(
+        "app_v_normalized_daily_price_mv",
+        "SELECT value + 10 AS value FROM investory.app_v_canonical_asset_daily_price_ranked_mv");
+    createTableAndView(
+        "recon_v_reconstructed_position_daily_mv",
+        "SELECT investory.fail_on_two(value, 'reconstruction_last') + 10 AS value FROM investory.app_v_normalized_daily_price_mv");
+    createTableAndView(
+        "recon_v_reconstructed_account_market_daily_mv",
+        "SELECT investory.fail_on_two(value, 'reporting_first') + 10 AS value FROM investory.recon_v_reconstructed_position_daily_mv");
+    String[] reporting = {
+      "recon_v_reconstructed_cash_daily_mv",
+      "recon_v_account_daily_reconciliation_mv",
+      "recon_v_account_monthly_profit",
+      "recon_v_account_statistics_vs_daily",
+      "recon_v_account_daily_cashflow",
+      "recon_v_account_daily_cashflow_scope",
+      "recon_v_trade_settlement"
+    };
+    for (int i = 0; i < reporting.length; i++) {
+      createTableAndView(
+          reporting[i],
+          "SELECT investory.fail_on_two(value, '"
+              + (i == reporting.length - 1 ? "reporting_last" : "unused")
+              + "') + "
+              + (i + 1) * 10
+              + " AS value FROM investory.recon_v_reconstructed_account_market_daily_mv");
+    }
   }
 
   @AfterAll
@@ -106,6 +133,7 @@ class MaterializedViewRefreshAtomicityPostgresIT {
     jdbc.update("DELETE FROM " + APP_SCHEMA + ".source");
     jdbc.update("INSERT INTO " + APP_SCHEMA + ".source VALUES (1)");
     refreshBundle();
+    service.refreshReconciliationViews();
   }
 
   @ParameterizedTest
@@ -176,11 +204,37 @@ class MaterializedViewRefreshAtomicityPostgresIT {
       reader.setAutoCommit(false);
       reader.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
       assertThat(read(statement, "app_v_canonical_asset_daily_price_mv")).isEqualTo(1);
+      assertThat(read(statement, "app_v_current_asset_price_mv")).isEqualTo(21);
       refreshBundle();
       assertThat(read(statement, "app_v_canonical_asset_daily_price_mv")).isEqualTo(1);
+      assertThat(read(statement, "app_v_current_asset_price_mv")).isEqualTo(21);
       reader.commit();
       assertThat(read(statement, "app_v_canonical_asset_daily_price_mv")).isEqualTo(3);
+      assertThat(read(statement, "app_v_current_asset_price_mv")).isEqualTo(23);
+      assertThat(value("app_v_canonical_asset_daily_price_mv")).isEqualTo(3);
+      assertThat(value("app_v_current_asset_price_mv")).isEqualTo(23);
     }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"first", "reconstruction_last", "reporting_first", "reporting_last"})
+  void reconciliationFailurePreservesItsTwoTransactionRecoveryBoundary(String stage) {
+    jdbc.update("UPDATE investory.failure_stage SET name=?", stage);
+    jdbc.update("UPDATE investory.source SET value=2");
+    assertThatThrownBy(service::refreshReconciliationViews)
+        .hasMessageContaining("injected refresh failure");
+    boolean reportingFailure = stage.startsWith("reporting_");
+    assertThat(value("app_v_canonical_asset_daily_price_mv")).isEqualTo(reportingFailure ? 2 : 1);
+    assertThat(value("recon_v_reconstructed_position_daily_mv"))
+        .isEqualTo(reportingFailure ? 32 : 31);
+    assertThat(value("recon_v_reconstructed_account_market_daily_mv")).isEqualTo(41);
+    assertThat(value("recon_v_trade_settlement")).isEqualTo(111);
+    assertLockIsImmediatelyAvailable();
+    jdbc.update("UPDATE investory.source SET value=3");
+    service.refreshReconciliationViews();
+    assertThat(value("recon_v_reconstructed_position_daily_mv")).isEqualTo(33);
+    assertThat(value("recon_v_reconstructed_account_market_daily_mv")).isEqualTo(43);
+    assertThat(value("recon_v_trade_settlement")).isEqualTo(113);
   }
 
   @Test
@@ -224,6 +278,7 @@ class MaterializedViewRefreshAtomicityPostgresIT {
 
   private static void createTableAndView(String suffix, String query) {
     String table = APP_SCHEMA + "." + suffix;
+    jdbc.execute("DROP MATERIALIZED VIEW IF EXISTS " + table + " CASCADE");
     jdbc.execute("CREATE MATERIALIZED VIEW " + table + " AS " + query + " WITH DATA");
     jdbc.execute("CREATE UNIQUE INDEX " + suffix + "_value_idx ON " + table + " (value)");
   }
