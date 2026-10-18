@@ -43,6 +43,7 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -67,6 +68,114 @@ class InvestmentDashboardFacadeTest {
     lenient()
         .when(periodFilterService.filter(any(Benchmark.class), any(DashboardPeriod.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
+  }
+
+  @Test
+  void incompleteValuationDoesNotPublishPlausiblePeriodOrProfileMetrics() {
+    Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
+    portfolio.setValuationComplete(false);
+    portfolio.setNetDeposits(100.0);
+    AccountBalance account =
+        AccountBalance.builder()
+            .accountId(17L)
+            .accountName("Known account")
+            .netDepositBase(BigDecimal.valueOf(100))
+            .balanceBase(BigDecimal.valueOf(125))
+            .cashBase(BigDecimal.valueOf(40))
+            .profitLocal(BigDecimal.valueOf(25))
+            .profitBase(BigDecimal.valueOf(25))
+            .profitLossPercent(BigDecimal.valueOf(25))
+            .build();
+    portfolio.setPerformancePerSymbol(List.of(new InstrumentPerformance("GAIN", 25.0, 0.0, 25.0)));
+    account.setFxEffect(BigDecimal.valueOf(5));
+    portfolio.setAccountBalances(List.of(account));
+    portfolio.setAccountBalancesTotal(account.toBuilder().accountName("Total").build());
+    portfolio.getMonthlyPerformance().setMonthlyOperationsCount(Map.of("2026-01", 7L));
+    portfolio.getMonthlyPerformance().setMonthlyCashflow(Map.of("2026-01", 100.0));
+    portfolio.getMonthlyPerformance().getCalculateMonthlyPerformance().put("2026-01", 250.0);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    Benchmark benchmark = new Benchmark();
+    benchmark.setBenchmarkReturnPct(12.0);
+    benchmark.setPortfolioPerformanceAvailable(true);
+    benchmark.setPortfolioPl(999);
+    benchmark.setPortfolioReturnPct(19);
+    benchmark.setPortfolioReturnCurve(List.of(19.0));
+    benchmark.setAccountSeries(
+        List.of(
+            new Benchmark.AccountSeries(
+                17L,
+                100,
+                999,
+                12,
+                List.of(999.0),
+                List.of(12.0),
+                List.of(100.0),
+                List.of(19.0),
+                List.of(19.0))));
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    when(performanceQuery.forPortfolioMonths(
+            1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-01")))
+        .thenReturn(
+            performanceResult(
+                YearMonth.parse("2026-01"),
+                YearMonth.parse("2026-01"),
+                250,
+                100,
+                20,
+                5,
+                3,
+                1000,
+                1250));
+    InvestmentDashboardFacade facade =
+        newFacade(portfolioMetricsService, benchmarkService, new DashboardPeriodViewService());
+    DashboardPageView result =
+        facade.loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.MAX, 1L));
+    org.junit.jupiter.api.Assertions.assertNull(result.overview().balance());
+    org.junit.jupiter.api.Assertions.assertNull(result.overview().totalProfit());
+    org.junit.jupiter.api.Assertions.assertNull(result.overview().gainPct());
+    org.junit.jupiter.api.Assertions.assertNull(result.overview().netGain());
+    org.junit.jupiter.api.Assertions.assertNull(result.overview().incomeYieldPct());
+    org.junit.jupiter.api.Assertions.assertNull(result.performance().summary().portfolioPl());
+    org.junit.jupiter.api.Assertions.assertNull(
+        result.performance().summary().portfolioReturnPct());
+    assertEquals(
+        ReturnMetric.Status.INSUFFICIENT_DATA,
+        result.performance().summary().totalReturn().status());
+    assertEquals(
+        ReturnMetric.Status.INSUFFICIENT_DATA,
+        result.performance().summary().timeWeightedReturn().status());
+    assertEquals("—", result.performance().summary().bestPeriod());
+    assertTrue(result.performance().topGainers().isEmpty());
+    assertTrue(result.performance().topLosers().isEmpty());
+    AccountBalance unavailableAccount = result.overview().accountBalances().getFirst();
+    org.junit.jupiter.api.Assertions.assertNull(unavailableAccount.getProfitBase());
+    org.junit.jupiter.api.Assertions.assertNull(unavailableAccount.getFxEffect());
+    assertEquals(BigDecimal.valueOf(25), account.getProfitBase());
+    org.junit.jupiter.api.Assertions.assertNull(unavailableAccount.getProfitLocal());
+    org.junit.jupiter.api.Assertions.assertNull(unavailableAccount.getProfitLossPercent());
+    org.junit.jupiter.api.Assertions.assertNull(
+        result.overview().accountBalancesTotal().getProfitBase());
+    org.junit.jupiter.api.Assertions.assertNull(
+        result.overview().accountBalancesTotal().getProfitLocal());
+    org.junit.jupiter.api.Assertions.assertNull(
+        result.overview().accountBalancesTotal().getProfitLossPercent());
+    assertEquals(BigDecimal.valueOf(125), unavailableAccount.getBalanceBase());
+    assertEquals(BigDecimal.valueOf(40), unavailableAccount.getCashBase());
+    assertEquals(BigDecimal.valueOf(100), unavailableAccount.getNetDepositBase());
+    assertEquals(
+        BigDecimal.valueOf(125), result.overview().accountBalancesTotal().getBalanceBase());
+    assertEquals(12.0, result.performance().summary().benchmarkReturnPct());
+    assertEquals(BigDecimal.valueOf(100.0), result.overview().netDeposits());
+    assertTrue(result.overview().monthlyPerformance().calculateMonthlyPerformance().isEmpty());
+    assertEquals(
+        Map.of("2026-01", 7L), result.overview().monthlyPerformance().monthlyOperationsCount());
+    assertEquals(
+        Map.of("2026-01", 100.0), result.overview().monthlyPerformance().monthlyCashflow());
+    assertEquals(
+        ReturnMetric.Status.INSUFFICIENT_DATA,
+        facade.loadPerformanceKpi(1L).totalReturn().status());
+    assertEquals("Benchmark estimate", facade.loadPerformanceKpi(1L).historyContext());
   }
 
   @DisplayName("composes Filtered Portfolio And Benchmark Into Dashboard Sections")

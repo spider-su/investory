@@ -1,7 +1,7 @@
 package com.smartbox.investory.config;
 
-import com.smartbox.investory.user.infrastructure.AppUserEntity;
 import com.smartbox.investory.user.infrastructure.AppUserRepository;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,15 +42,9 @@ public class GoogleOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
           "Google account is not linked to an active Investory user: " + email);
     }
     if (linked.subject() == null) {
-      if (users
-          .findByUsernameAndActiveTrue(linked.username())
-          .filter(u -> u.getGoogleSubject() == null)
-          .isEmpty()) {
+      if (users.linkGoogleSubjectIfUnlinked(linked.username(), subject, Instant.now()) != 1) {
         throw authenticationFailure("Google account could not be linked safely");
       }
-      AppUserEntity entity = users.findByUsernameAndActiveTrue(linked.username()).orElseThrow();
-      entity.setGoogleSubject(subject);
-      users.save(entity);
     }
 
     Map<String, Object> attributes = new HashMap<>(googleUser.getAttributes());

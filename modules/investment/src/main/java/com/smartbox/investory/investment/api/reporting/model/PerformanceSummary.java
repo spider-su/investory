@@ -3,16 +3,16 @@ package com.smartbox.investory.investment.api.reporting.model;
 import java.math.BigDecimal;
 
 public record PerformanceSummary(
-    double portfolioReturnPct,
+    Double portfolioReturnPct,
     Double benchmarkReturnPct,
     Double excessReturnPct,
-    double portfolioPl,
-    double currentDrawdownPct,
-    double maxDrawdownPct,
+    Double portfolioPl,
+    Double currentDrawdownPct,
+    Double maxDrawdownPct,
     String bestPeriod,
-    double bestPeriodPl,
+    Double bestPeriodPl,
     String worstPeriod,
-    double worstPeriodPl,
+    Double worstPeriodPl,
     ReturnMetric timeWeightedReturn,
     ReturnMetric moneyWeightedReturn,
     PerformanceAttribution attribution,
