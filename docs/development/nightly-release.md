@@ -1,6 +1,6 @@
 # Nightly release preflight
 
-The workflow is manual-only and has no active schedule. The proposed nightly time is 01:30 UTC (02:30/03:30 Europe/Warsaw depending on daylight saving), pending operator approval. `workflow_dispatch` performs a read-only preflight; no input enables production actions. It serializes runs and skips when `main` and `develop` are identical. For a candidate, it reads all jobs from one exact `develop` SHA push-CI run and its specific attempt, requiring every name in `.github/required-checks.txt` and fails closed if results are missing, pending, unsuccessful, or refer to another SHA.
+The workflow is manual-only and has no active schedule. The proposed nightly time is 01:30 UTC (02:30/03:30 Europe/Warsaw depending on daylight saving), pending operator approval. `workflow_dispatch` performs a read-only preflight; no input enables production actions. It serializes runs and skips when `develop` has no commits outside `main`, including the normal post-release merge-commit case where their SHA values differ. For a candidate, it reads all jobs from one exact `develop` SHA push-CI run and its specific attempt, requiring every name in `.github/required-checks.txt` and fails closed if results are missing, pending, unsuccessful, or refer to another SHA.
 
 ## Current boundary
 

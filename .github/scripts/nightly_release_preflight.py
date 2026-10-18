@@ -5,9 +5,13 @@ import json
 import sys
 
 
-def assess(develop_sha: str, main_sha: str, checks: list[dict], required: list[str] | None = None) -> tuple[str, str]:
+def assess(develop_sha: str, main_sha: str, checks: list[dict], required: list[str] | None = None, *, unreleased_commits: int | None = None) -> tuple[str, str]:
     if not develop_sha or not main_sha:
         return "fail", "missing branch SHA"
+    if unreleased_commits is not None and (type(unreleased_commits) is not int or unreleased_commits < 0):
+        return "fail", "invalid unreleased commit count"
+    if unreleased_commits == 0:
+        return "skip", "develop is already included in main; no release needed"
     if develop_sha == main_sha:
         return "skip", "develop and main are identical; no release needed"
     if not checks:
@@ -29,7 +33,7 @@ if __name__ == "__main__":
         data = json.load(sys.stdin)
         from pathlib import Path
         required = [line.strip() for line in Path(".github/required-checks.txt").read_text().splitlines() if line.strip() and not line.startswith("#")]
-        state, reason = assess(data["develop_sha"], data["main_sha"], data["checks"], required)
+        state, reason = assess(data["develop_sha"], data["main_sha"], data["checks"], required, unreleased_commits=data.get("unreleased_commits"))
         print(json.dumps({"state": state, "reason": reason}))
         sys.exit(1 if state == "fail" else 0)
     except (KeyError, TypeError, json.JSONDecodeError) as exc:

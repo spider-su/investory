@@ -7,6 +7,14 @@ class NightlyReleasePreflightTest(unittest.TestCase):
     def test_unchanged_branches_skip(self):
         self.assertEqual("skip", assess("a", "a", [])[0])
 
+    def test_already_released_develop_skips_despite_merge_commit_sha(self):
+        self.assertEqual("skip", assess("develop-tip", "main-merge", [], unreleased_commits=0)[0])
+
+    def test_invalid_unreleased_count_fails_closed(self):
+        for value in (-1, True, "0"):
+            with self.subTest(value=value):
+                self.assertEqual("fail", assess("develop-tip", "main-merge", [], unreleased_commits=value)[0])
+
     def test_absent_branch_sha_never_skips(self):
         self.assertEqual("fail", assess("", "", [])[0])
 

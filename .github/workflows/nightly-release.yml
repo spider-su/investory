@@ -31,17 +31,21 @@ jobs:
       - name: Compare branch revisions
         id: refs
         run: |
-          echo "main=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
-          echo "develop=$(git rev-parse origin/develop)" >> "$GITHUB_OUTPUT"
+          {
+            echo "main=$(git rev-parse origin/main)"
+            echo "develop=$(git rev-parse origin/develop)"
+            echo "unreleased=$(git rev-list --count origin/main..origin/develop)"
+          } >> "$GITHUB_OUTPUT"
       - name: Skip when unchanged
-        if: steps.refs.outputs.main == steps.refs.outputs.develop
+        if: steps.refs.outputs.unreleased == '0'
         run: echo "No new changes on develop; no release needed."
       - name: Read exact develop SHA checks
-        if: steps.refs.outputs.main != steps.refs.outputs.develop
+        if: steps.refs.outputs.unreleased != '0'
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_SHA: ${{ steps.refs.outputs.develop }}
           MAIN_SHA: ${{ steps.refs.outputs.main }}
+          UNRELEASED_COMMITS: ${{ steps.refs.outputs.unreleased }}
         run: |
           RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow tests.yml --branch develop --commit "$CANDIDATE_SHA" --event push --limit 1 --json databaseId --jq '.[0].databaseId // empty')
           if [ -z "$RUN_ID" ]; then
@@ -57,7 +61,7 @@ jobs:
           jobs = [job for page in json.load(open("jobs.json")) for job in page["jobs"]]
           checks = [{"head_sha": run["head_sha"], "name": job["name"], "conclusion": job["conclusion"]} for job in jobs]
           checks.append({"head_sha": run["head_sha"], "name": "workflow_run", "conclusion": run["conclusion"] if run["status"] == "completed" else None})
-          print(json.dumps({"develop_sha": os.environ["CANDIDATE_SHA"], "main_sha": os.environ["MAIN_SHA"], "checks": checks}))
+          print(json.dumps({"develop_sha": os.environ["CANDIDATE_SHA"], "main_sha": os.environ["MAIN_SHA"], "unreleased_commits": int(os.environ["UNRELEASED_COMMITS"]), "checks": checks}))
           PYINPUT
           python3 .github/scripts/nightly_release_preflight.py < preflight.json
       - name: Report gated status
