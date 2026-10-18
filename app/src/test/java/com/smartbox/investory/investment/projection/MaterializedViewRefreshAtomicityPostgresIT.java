@@ -183,6 +183,40 @@ class MaterializedViewRefreshAtomicityPostgresIT {
     }
   }
 
+  @Test
+  void populatedSnapshotRefreshScopesPreserveCanonicalLedgerFacts() {
+    try (WorkerDatabase populated = FastDatabase.scopedDatabase("mv_refresh_populated")) {
+      DriverManagerDataSource dataSource = new DriverManagerDataSource();
+      dataSource.setUrl(populated.jdbcUrl());
+      dataSource.setUsername(populated.username());
+      dataSource.setPassword(populated.password());
+      JdbcTemplate populatedJdbc = new JdbcTemplate(dataSource);
+      PortfolioProjectionRefreshService populatedService =
+          new PortfolioProjectionRefreshService(
+              populatedJdbc, new DataSourceTransactionManager(dataSource));
+      var before =
+          populatedJdbc.queryForList(
+              "SELECT account_id, count(*) AS rows, sum(amount) AS amount FROM investory.cash_operations GROUP BY account_id ORDER BY account_id");
+      assertThat(before).isNotEmpty();
+      for (var scope : PortfolioProjectionRefreshService.ApplicationRefreshScope.values()) {
+        long started = System.nanoTime();
+        populatedService.refreshApplicationViews(scope);
+        System.out.printf(
+            "Populated synthetic snapshot refresh scope=%s durationMs=%.3f%n",
+            scope, (System.nanoTime() - started) / 1_000_000.0);
+      }
+      long started = System.nanoTime();
+      populatedService.refreshReconciliationViews();
+      System.out.printf(
+          "Populated synthetic snapshot reconciliation durationMs=%.3f%n",
+          (System.nanoTime() - started) / 1_000_000.0);
+      assertThat(
+              populatedJdbc.queryForList(
+                  "SELECT account_id, count(*) AS rows, sum(amount) AS amount FROM investory.cash_operations GROUP BY account_id ORDER BY account_id"))
+          .isEqualTo(before);
+    }
+  }
+
   private static void refreshBundle() {
     service.refreshApplicationViews(
         PortfolioProjectionRefreshService.ApplicationRefreshScope.CURRENT_MARKET_PRICE);
