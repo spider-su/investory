@@ -14,6 +14,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
@@ -82,8 +84,12 @@ class NormalizedCashOperationRepositoryContractIT {
   void removeCashFlows() {
     jdbc.update(
         "DELETE FROM investory.cash_operations WHERE id IN (?, ?, ?, ?)", OPERATION_IDS.toArray());
-    jdbc.update("DELETE FROM investory.accounts WHERE id = ?", ACCOUNT_ID);
-    jdbc.update("DELETE FROM investory.portfolios WHERE id = ?", PORTFOLIO_ID);
+    jdbc.update(
+        "DELETE FROM investory.accounts WHERE portfolio_id IN (?, ?)",
+        PORTFOLIO_ID,
+        PORTFOLIO_ID - 1);
+    jdbc.update(
+        "DELETE FROM investory.portfolios WHERE id IN (?, ?)", PORTFOLIO_ID, PORTFOLIO_ID - 1);
     jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_normalized_cash_operations");
   }
 
@@ -171,6 +177,104 @@ class NormalizedCashOperationRepositoryContractIT {
             NormalizedCashOperationRepository.NormalizedCashOperationRow
                 ::getAccountFlowAmountInPortfolioBaseCurrency)
         .containsExactly(29.0, 101.4, -17.6);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"UNTRACKED", "XTB", "OTHER", "OTHER_PORTFOLIO"})
+  void brokerIdentifiersDriveFundingAndBoundaryNettingInMaterializedConsumers(String counterparty) {
+    if (!"UNTRACKED".equals(counterparty)) {
+      long targetPortfolio = PORTFOLIO_ID;
+      if ("OTHER_PORTFOLIO".equals(counterparty)) {
+        targetPortfolio = PORTFOLIO_ID - 1;
+        jdbc.update(
+            "INSERT INTO investory.portfolios (id, name, base_currency, owner, user_id) SELECT ?, 'other test portfolio', base_currency, owner, user_id FROM investory.portfolios WHERE id=?",
+            targetPortfolio,
+            PORTFOLIO_ID);
+      }
+      jdbc.update(
+          "INSERT INTO investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only) VALUES (?, '90000010', 'USD', ?, 'counterparty', 'cash-flow-contract', ?, false)",
+          ACCOUNT_ID - 1,
+          "OTHER".equals(counterparty) ? "IBKR" : "XTB",
+          targetPortfolio);
+    }
+    String expectedContribution = "XTB".equals(counterparty) ? "0" : "240";
+    jdbc.update(
+        "UPDATE investory.accounts SET external_account_id='90000002' WHERE id=?", ACCOUNT_ID);
+    jdbc.update(
+        "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, purpose, source, method) VALUES ('2099-01-01', 'USD', 'PLN', 4, 'VALUATION', 'TEST', 'OBSERVED')");
+    String[] amounts = {"-100", "100", "-40", "40"};
+    for (int i = 0; i < 4; i++) {
+      jdbc.update(
+          "UPDATE investory.cash_operations SET operation='SUBACCOUNT_TRANSFER', amount=?, comment=? WHERE id=?",
+          new BigDecimal(amounts[i]),
+          i < 2 ? "Transfer from 90000010 to 90000002" : "Transfer from 90000002 to 90000010",
+          OPERATION_IDS.get(i));
+    }
+    jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_normalized_cash_operations");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT sum(account_flow_amount) FROM investory.app_v_normalized_cash_operation_flows WHERE account_id=?",
+                BigDecimal.class,
+                ACCOUNT_ID))
+        .isEqualByComparingTo("60");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT sum(performance_flow_amount) FROM investory.app_v_normalized_cash_operation_flows WHERE account_id=?",
+                BigDecimal.class,
+                ACCOUNT_ID))
+        .isEqualByComparingTo("0");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT sum(amount) FROM investory.app_v_normalized_cash_operations WHERE account_id=?",
+                BigDecimal.class,
+                ACCOUNT_ID))
+        .isEqualByComparingTo("0");
+    jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_account_statistics");
+    jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_portfolio_contribution_summary_mv");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT net_deposit FROM investory.app_v_account_statistics WHERE account_id=?",
+                BigDecimal.class,
+                ACCOUNT_ID))
+        .isEqualByComparingTo(expectedContribution);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT net_deposits FROM investory.app_v_portfolio_contribution_summary_mv WHERE portfolio_id=?",
+                BigDecimal.class,
+                PORTFOLIO_ID))
+        .isEqualByComparingTo(expectedContribution);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT total_deposits FROM investory.app_v_portfolio_contribution_summary_mv WHERE portfolio_id=?",
+                BigDecimal.class,
+                PORTFOLIO_ID))
+        .isEqualByComparingTo(expectedContribution);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT total_withdrawals FROM investory.app_v_portfolio_contribution_summary_mv WHERE portfolio_id=?",
+                BigDecimal.class,
+                PORTFOLIO_ID))
+        .isEqualByComparingTo("0");
+  }
+
+  @Test
+  void unmatchedBookkeepingRemainsDiagnosticWithoutInventedFunding() {
+    jdbc.update(
+        "UPDATE investory.cash_operations SET operation='SUBACCOUNT_TRANSFER', comment='unresolved broker note' WHERE account_id=?",
+        ACCOUNT_ID);
+    jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_normalized_cash_operations");
+    assertThat(
+            jdbc.queryForList(
+                "SELECT pairing_status FROM investory.app_v_normalized_cash_operations WHERE account_id=?",
+                String.class,
+                ACCOUNT_ID))
+        .containsOnly("UNMATCHED");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT sum(account_flow_amount) FROM investory.app_v_normalized_cash_operation_flows WHERE account_id=?",
+                BigDecimal.class,
+                ACCOUNT_ID))
+        .isEqualByComparingTo("0");
   }
 
   private void insertOperation(long operationId, String amount, String timestamp) {

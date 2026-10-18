@@ -93,6 +93,19 @@ class XtbAccountFundingCalculatorTest {
             List.of(operation, pair, eurOperation, eurPair), Map.of(100L, ibkr, 200L, xtbEur)));
   }
 
+  @Test
+  void usesBrokerIdentityRatherThanGeneratedAccountId() {
+    AccountEntity account = account(100L, "XTB", CurrencyType.USD);
+    account.setExternalAccountId("90000002");
+    assertEquals(
+        Map.of(100L, 1000.0),
+        calculator.calculate(
+            List.of(
+                transfer(1L, 100L, -1000, "Transfer from 90000010 to 90000002"),
+                transfer(2L, 100L, 1000, "Transfer from 90000010 to 90000002")),
+            Map.of(100L, account)));
+  }
+
   private Map<Long, Double> calculate(CashOperationEntity... operations) {
     return calculator.calculate(
         List.of(operations), Map.of(100L, account(100L, "XTB", CurrencyType.USD)));
@@ -101,6 +114,7 @@ class XtbAccountFundingCalculatorTest {
   private static AccountEntity account(Long id, String provider, CurrencyType currency) {
     AccountEntity account = new AccountEntity();
     account.setId(id);
+    account.setExternalAccountId(String.valueOf(id));
     account.setProvider(provider);
     account.setCurrency(currency);
     return account;

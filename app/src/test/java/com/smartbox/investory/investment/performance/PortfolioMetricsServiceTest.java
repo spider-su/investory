@@ -699,6 +699,7 @@ class PortfolioMetricsServiceTest {
   void xtbUsdSubaccountTransferAdjustsAccountBasisNotPortfolioBasis() {
     AccountEntity account = new AccountEntity();
     account.setId(90000002L);
+    account.setExternalAccountId("90000002");
     account.setName("XTB USD");
     account.setProvider("XTB");
     account.setCurrency(CurrencyType.USD);

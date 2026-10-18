@@ -46,6 +46,34 @@ loss.
 A cash movement must not become investment profit merely because it is not classified as an external
 flow.
 
+### Broker transfer identity and comparison matrix
+
+Broker IDs in `Transfer from … to …` comments resolve by portfolio, provider and
+`accounts.external_account_id`; `accounts.id` is only the internal join key. Both
+materialized contribution consumers and the retained XTB diagnostic funding
+calculator use that broker identity. A matching ID in another portfolio or
+provider does not make the counterparty tracked.
+
+| Operation | Cash effect | Account funding | Performance flow | Portfolio contribution |
+| --- | --- | --- | --- | --- |
+| External deposit/withdrawal | Signed amount | Signed amount | Signed amount | Signed amount |
+| Bookkeeping transfer with both accounts tracked | Ledger amount | Directional allocation on the identified account | Zero | Zero |
+| Bookkeeping transfer crossing tracked boundary | Ledger amount | Directional allocation on the identified account | Zero | Boundary inflow/outflow net, then grossed on only one side |
+| Unrecognized bookkeeping note | Ledger amount | No invented allocation | Zero | No invented contribution; unmatched diagnostic retained |
+| Missing required FX | Native amount remains visible | Converted amount unavailable | Converted amount unavailable | Required converted contribution unavailable |
+
+The SQL normalization layer deliberately retains `UNMATCHED` diagnostics rather
+than claiming Java transfer-pair evidence. The retained Java adjustment requires
+a proven pair and remains a diagnostic fallback when canonical base-currency
+funding is unavailable. Those pairing contracts are not interchangeable.
+
+**Deferred:** the economic interpretation of `Currency conversion … from TA … to`
+remains unchanged. Java classifies this hint as FX conversion while the existing
+SQL raw `TRANSFER` classifier uses its existing transfer categories. This repair
+does not decide that unresolved financial rule or use it to change historical
+contributions. The approved correction covers explicit subaccount-transfer
+identity, not a new interpretation of those FX rows.
+
 ## Investment earnings
 
 Headline investment earnings are composed from:

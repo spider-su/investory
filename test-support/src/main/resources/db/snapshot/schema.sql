@@ -1478,15 +1478,15 @@ CREATE VIEW investory.app_v_normalized_cash_operation_flows AS
             nco.classification_version,
             nco.conversion_status,
                 CASE
-                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text)) THEN ("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint
-                    ELSE NULL::bigint
-                END AS transfer_source_account,
+                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text)) THEN "substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text)
+                    ELSE NULL::text
+                END AS transfer_source_external_id,
                 CASE
-                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text)) THEN ("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint
-                    ELSE NULL::bigint
-                END AS transfer_target_account
+                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text)) THEN "substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text)
+                    ELSE NULL::text
+                END AS transfer_target_external_id
            FROM investory.app_v_normalized_cash_operations nco
-        ), effects AS (
+        ), resolved AS (
          SELECT parsed.operation_id,
             parsed.account_id,
             parsed.portfolio_id,
@@ -1528,23 +1528,81 @@ CREATE VIEW investory.app_v_normalized_cash_operation_flows AS
             parsed.classification_reason,
             parsed.classification_version,
             parsed.conversion_status,
-            parsed.transfer_source_account,
-            parsed.transfer_target_account,
+            parsed.transfer_source_external_id,
+            parsed.transfer_target_external_id,
+            source_account.id AS transfer_source_account,
+            target_account.id AS transfer_target_account
+           FROM (((parsed
+             JOIN investory.accounts current_account ON ((current_account.id = parsed.account_id)))
+             LEFT JOIN LATERAL ( SELECT a.id
+                   FROM investory.accounts a
+                  WHERE ((a.portfolio_id = current_account.portfolio_id) AND ((a.provider)::text = (current_account.provider)::text) AND ((a.external_account_id)::text = parsed.transfer_source_external_id))
+                 LIMIT 1) source_account ON (true))
+             LEFT JOIN LATERAL ( SELECT a.id
+                   FROM investory.accounts a
+                  WHERE ((a.portfolio_id = current_account.portfolio_id) AND ((a.provider)::text = (current_account.provider)::text) AND ((a.external_account_id)::text = parsed.transfer_target_external_id))
+                 LIMIT 1) target_account ON (true))
+        ), effects AS (
+         SELECT resolved.operation_id,
+            resolved.account_id,
+            resolved.portfolio_id,
+            resolved.account_currency,
+            resolved.currency,
+            resolved.portfolio_base_currency,
+            resolved.base_currency,
+            resolved.raw_operation,
+            resolved.normalized_category,
+            resolved.normalized_subtype,
+            resolved.economic_direction,
+            resolved.is_external_flow,
+            resolved.is_internal_transfer,
+            resolved.is_fx_conversion,
+            resolved.is_trade_cash_flow,
+            resolved.is_correction,
+            resolved.is_reversal,
+            resolved.asset_id,
+            resolved.amount,
+            resolved.amount_in_portfolio_base_currency,
+            resolved.amount_in_base_currency,
+            resolved.amount_in_account_currency,
+            resolved.comment,
+            resolved.date,
+            resolved.rate_month,
+            resolved.fx_rate_to_base,
+            resolved.portfolio_fx_source,
+            resolved.portfolio_source_rate_date,
+            resolved.portfolio_fx_age_days,
+            resolved.portfolio_conversion_status,
+            resolved.fx_rate_to_account_currency,
+            resolved.account_fx_source,
+            resolved.account_source_rate_date,
+            resolved.account_fx_age_days,
+            resolved.account_conversion_status,
+            resolved.related_operation_id,
+            resolved.transfer_group_id,
+            resolved.pairing_status,
+            resolved.classification_reason,
+            resolved.classification_version,
+            resolved.conversion_status,
+            resolved.transfer_source_external_id,
+            resolved.transfer_target_external_id,
+            resolved.transfer_source_account,
+            resolved.transfer_target_account,
                 CASE
-                    WHEN ((parsed.normalized_category)::text = ANY (ARRAY[('EXTERNAL_DEPOSIT'::character varying)::text, ('EXTERNAL_WITHDRAWAL'::character varying)::text, ('INTERNAL_TRANSFER_IN'::character varying)::text, ('INTERNAL_TRANSFER_OUT'::character varying)::text, ('FX_CONVERSION'::character varying)::text])) THEN parsed.amount
-                    WHEN (((parsed.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND (parsed.transfer_source_account = parsed.account_id) AND (parsed.amount < (0)::numeric)) THEN parsed.amount
-                    WHEN (((parsed.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND (parsed.transfer_target_account = parsed.account_id) AND (parsed.amount > (0)::numeric)) THEN parsed.amount
+                    WHEN ((resolved.normalized_category)::text = ANY (ARRAY['EXTERNAL_DEPOSIT'::text, 'EXTERNAL_WITHDRAWAL'::text, 'INTERNAL_TRANSFER_IN'::text, 'INTERNAL_TRANSFER_OUT'::text, 'FX_CONVERSION'::text])) THEN resolved.amount
+                    WHEN (((resolved.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND (resolved.transfer_source_account = resolved.account_id) AND (resolved.amount < (0)::numeric)) THEN resolved.amount
+                    WHEN (((resolved.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND (resolved.transfer_target_account = resolved.account_id) AND (resolved.amount > (0)::numeric)) THEN resolved.amount
                     ELSE (0)::numeric
                 END AS account_flow_amount,
                 CASE
-                    WHEN ((parsed.normalized_category)::text = ANY (ARRAY[('EXTERNAL_DEPOSIT'::character varying)::text, ('EXTERNAL_WITHDRAWAL'::character varying)::text, ('INTERNAL_TRANSFER_IN'::character varying)::text, ('INTERNAL_TRANSFER_OUT'::character varying)::text])) THEN parsed.amount
+                    WHEN ((resolved.normalized_category)::text = ANY (ARRAY['EXTERNAL_DEPOSIT'::text, 'EXTERNAL_WITHDRAWAL'::text, 'INTERNAL_TRANSFER_IN'::text, 'INTERNAL_TRANSFER_OUT'::text])) THEN resolved.amount
                     ELSE (0)::numeric
                 END AS performance_flow_amount,
                 CASE
-                    WHEN ((parsed.normalized_category)::text = ANY (ARRAY[('EXTERNAL_DEPOSIT'::character varying)::text, ('EXTERNAL_WITHDRAWAL'::character varying)::text])) THEN parsed.amount
+                    WHEN ((resolved.normalized_category)::text = ANY (ARRAY['EXTERNAL_DEPOSIT'::text, 'EXTERNAL_WITHDRAWAL'::text])) THEN resolved.amount
                     ELSE (0)::numeric
                 END AS portfolio_flow_amount
-           FROM parsed
+           FROM resolved
         )
  SELECT operation_id,
     account_id,
@@ -2015,10 +2073,10 @@ CREATE TABLE investory.asset_price_history (
 
 
 --
--- Name: app_v_canonical_asset_daily_price; Type: VIEW; Schema: investory; Owner: -
+-- Name: app_v_canonical_asset_daily_price_mv; Type: MATERIALIZED VIEW; Schema: investory; Owner: -
 --
 
-CREATE VIEW investory.app_v_canonical_asset_daily_price AS
+CREATE MATERIALIZED VIEW investory.app_v_canonical_asset_daily_price_mv AS
  SELECT DISTINCT ON (aph.asset_id, aph.price_date) aph.asset_id,
     aph.price_date,
     aph.source,
@@ -2047,16 +2105,47 @@ CREATE VIEW investory.app_v_canonical_asset_daily_price AS
     aph.imported_at
    FROM (investory.asset_price_history aph
      JOIN investory.assets asset ON (((asset.id = aph.asset_id) AND (asset.exclude_from_import = false))))
-  ORDER BY aph.asset_id, aph.price_date,
-        CASE
-            WHEN (((aph.price_origin)::text = 'MANUAL'::text) AND (aph.price_date = CURRENT_DATE)) THEN 0
-            ELSE 1
-        END, aph.quality_score DESC, aph.is_observed DESC, aph.is_proxy,
+  ORDER BY aph.asset_id, aph.price_date, aph.quality_score DESC, aph.is_observed DESC, aph.is_proxy,
         CASE aph.price_origin
             WHEN 'XTB_TRADE_OPEN'::text THEN 0
             WHEN 'XTB_TRADE_CLOSE'::text THEN 2
             ELSE 1
-        END, aph.imported_at DESC, aph.source;
+        END, aph.imported_at DESC, aph.source
+  WITH NO DATA;
+
+
+--
+-- Name: app_v_canonical_asset_daily_price; Type: VIEW; Schema: investory; Owner: -
+--
+
+CREATE VIEW investory.app_v_canonical_asset_daily_price AS
+ SELECT asset_id,
+    price_date,
+    source,
+    source_symbol,
+    price_origin,
+    price_currency,
+    source_mapping_id,
+    interpolation_method,
+    interpolation_left_date,
+    interpolation_right_date,
+    open_price,
+    high_price,
+    low_price,
+    close_price,
+    adjusted_close_price,
+    volume,
+    estimated,
+    quality_score,
+    quality_class,
+    is_observed,
+    is_proxy,
+    price_scale_factor,
+    scale_reason,
+    original_source_symbol,
+    source_date,
+    imported_at
+   FROM investory.app_v_canonical_asset_daily_price_mv;
 
 
 --
@@ -2413,14 +2502,22 @@ CREATE MATERIALIZED VIEW investory.app_v_account_statistics AS
             nco.conversion_status,
                 CASE
                     WHEN ((nco.normalized_category)::text = ANY (ARRAY[('EXTERNAL_DEPOSIT'::character varying)::text, ('EXTERNAL_WITHDRAWAL'::character varying)::text])) THEN nco.amount_in_portfolio_base_currency
-                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND (("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint = nco.account_id) AND (nco.amount > (0)::numeric) AND (NOT (EXISTS ( SELECT 1
+                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND ("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text) = (( SELECT identity_account.external_account_id
+                       FROM investory.accounts identity_account
+                      WHERE (identity_account.id = nco.account_id)))::text) AND (nco.amount > (0)::numeric) AND (NOT (EXISTS ( SELECT 1
                        FROM investory.accounts counterparty
-                      WHERE ((counterparty.id = ("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
+                      WHERE (((counterparty.external_account_id)::text = "substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text)) AND ((counterparty.provider)::text = (( SELECT identity_account.provider
+                               FROM investory.accounts identity_account
+                              WHERE (identity_account.id = nco.account_id)))::text) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
                                FROM investory.accounts source
                               WHERE (source.id = nco.account_id)))))))) THEN nco.amount_in_portfolio_base_currency
-                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND (("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint = nco.account_id) AND (nco.amount < (0)::numeric) AND (NOT (EXISTS ( SELECT 1
+                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND ("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text) = (( SELECT identity_account.external_account_id
+                       FROM investory.accounts identity_account
+                      WHERE (identity_account.id = nco.account_id)))::text) AND (nco.amount < (0)::numeric) AND (NOT (EXISTS ( SELECT 1
                        FROM investory.accounts counterparty
-                      WHERE ((counterparty.id = ("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
+                      WHERE (((counterparty.external_account_id)::text = "substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text)) AND ((counterparty.provider)::text = (( SELECT identity_account.provider
+                               FROM investory.accounts identity_account
+                              WHERE (identity_account.id = nco.account_id)))::text) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
                                FROM investory.accounts source
                               WHERE (source.id = nco.account_id)))))))) THEN nco.amount_in_portfolio_base_currency
                     ELSE (0)::numeric
@@ -2611,48 +2708,6 @@ CREATE VIEW investory.app_v_account_statistics_reporting AS
     cash_only,
     is_visible
    FROM investory.app_v_account_statistics;
-
-
---
--- Name: app_v_canonical_asset_daily_price_mv; Type: MATERIALIZED VIEW; Schema: investory; Owner: -
---
-
-CREATE MATERIALIZED VIEW investory.app_v_canonical_asset_daily_price_mv AS
- SELECT DISTINCT ON (aph.asset_id, aph.price_date) aph.asset_id,
-    aph.price_date,
-    aph.source,
-    aph.source_symbol,
-    aph.price_origin,
-    aph.price_currency,
-    aph.source_mapping_id,
-    aph.interpolation_method,
-    aph.interpolation_left_date,
-    aph.interpolation_right_date,
-    aph.open_price,
-    aph.high_price,
-    aph.low_price,
-    aph.close_price,
-    aph.adjusted_close_price,
-    aph.volume,
-    aph.estimated,
-    aph.quality_score,
-    aph.quality_class,
-    aph.is_observed,
-    aph.is_proxy,
-    aph.price_scale_factor,
-    aph.scale_reason,
-    aph.original_source_symbol,
-    aph.source_date,
-    aph.imported_at
-   FROM (investory.asset_price_history aph
-     JOIN investory.assets asset ON (((asset.id = aph.asset_id) AND (asset.exclude_from_import = false))))
-  ORDER BY aph.asset_id, aph.price_date, aph.quality_score DESC, aph.is_observed DESC, aph.is_proxy,
-        CASE aph.price_origin
-            WHEN 'XTB_TRADE_OPEN'::text THEN 0
-            WHEN 'XTB_TRADE_CLOSE'::text THEN 2
-            ELSE 1
-        END, aph.imported_at DESC, aph.source
-  WITH NO DATA;
 
 
 --
@@ -3245,14 +3300,22 @@ CREATE MATERIALIZED VIEW investory.app_v_portfolio_contribution_summary_mv AS
                 CASE
                     WHEN ((nco.normalized_category)::text = 'EXTERNAL_DEPOSIT'::text) THEN 'EXTERNAL_DEPOSIT'::text
                     WHEN ((nco.normalized_category)::text = 'EXTERNAL_WITHDRAWAL'::text) THEN 'EXTERNAL_WITHDRAWAL'::text
-                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND (("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint = nco.account_id) AND (nco.amount > (0)::numeric) AND (NOT (EXISTS ( SELECT 1
+                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND ("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text) = (( SELECT identity_account.external_account_id
+                       FROM investory.accounts identity_account
+                      WHERE (identity_account.id = nco.account_id)))::text) AND (nco.amount > (0)::numeric) AND (NOT (EXISTS ( SELECT 1
                        FROM investory.accounts counterparty
-                      WHERE ((counterparty.id = ("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
+                      WHERE (((counterparty.external_account_id)::text = "substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text)) AND ((counterparty.provider)::text = (( SELECT identity_account.provider
+                               FROM investory.accounts identity_account
+                              WHERE (identity_account.id = nco.account_id)))::text) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
                                FROM investory.accounts source
                               WHERE (source.id = nco.account_id)))))))) THEN 'BOUNDARY_TRANSFER'::text
-                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND (("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text))::bigint = nco.account_id) AND (nco.amount < (0)::numeric) AND (NOT (EXISTS ( SELECT 1
+                    WHEN (((nco.normalized_category)::text = 'INTERNAL_BOOKKEEPING'::text) AND ((nco.comment)::text ~* 'transfer from [0-9]+ to [0-9]+'::text) AND ("substring"((nco.comment)::text, '(?i)transfer from ([0-9]+)'::text) = (( SELECT identity_account.external_account_id
+                       FROM investory.accounts identity_account
+                      WHERE (identity_account.id = nco.account_id)))::text) AND (nco.amount < (0)::numeric) AND (NOT (EXISTS ( SELECT 1
                        FROM investory.accounts counterparty
-                      WHERE ((counterparty.id = ("substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text))::bigint) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
+                      WHERE (((counterparty.external_account_id)::text = "substring"((nco.comment)::text, '(?i)to ([0-9]+)'::text)) AND ((counterparty.provider)::text = (( SELECT identity_account.provider
+                               FROM investory.accounts identity_account
+                              WHERE (identity_account.id = nco.account_id)))::text) AND (counterparty.portfolio_id = ( SELECT source.portfolio_id
                                FROM investory.accounts source
                               WHERE (source.id = nco.account_id)))))))) THEN 'BOUNDARY_TRANSFER'::text
                     ELSE NULL::text
@@ -9488,7 +9551,7 @@ COPY investory.app_user_invitations (id, email, display_name, profile_id, profil
 
 COPY investory.app_users (id, username, display_name, birth_date, active, created_at, updated_at, password_hash, role, email, google_subject) FROM stdin;
 1	sample.user	Sample User	1985-09-09	t	2026-10-10 18:11:46.823514+00	2026-10-10 18:11:47.864536+00	\N	PROFILE_OWNER	\N	\N
-2	happy.investor	Happy Investor	1984-01-01	t	2026-10-10 18:11:46.82435+00	2026-10-17 22:40:22.463545+00	\N	PROFILE_OWNER	\N	\N
+2	happy.investor	Happy Investor	1984-01-01	t	2026-10-10 18:11:46.82435+00	2026-10-18 09:45:15.454099+00	\N	PROFILE_OWNER	\N	\N
 \.
 
 
@@ -9520,49 +9583,49 @@ COPY investory.asset_price_history (asset_id, price_date, source, source_symbol,
 1001	2025-01-01	STOOQ	tsla.us	6	STOOQ	USD	423.79000000	427.93000000	402.54000000	403.84000000	\N	76825121.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-10 18:11:46.849418+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	tsla.us
 1101	2025-01-01	STOOQ	vhyd.uk	20	STOOQ	USD	66.26500000	66.65000000	66.26000000	66.51250000	\N	2136.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-10 18:11:46.849418+00	95	EXACT_LISTING_MARKET_CLOSE	t	f	1.00000000	\N	vhyd.uk
 1151	2025-01-01	STOOQ	vwra.uk	1	STOOQ	USD	138.78000000	139.40000000	138.70000000	139.34000000	\N	27062.00000000	f	\N	\N	\N	1	2024-12-31	2026-10-10 18:11:46.849418+00	80	VERIFIED_ALTERNATE_LISTING	t	t	1.00000000	\N	vwra.uk
-1251	2026-08-03	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.03125000	\N	\N	f	\N	\N	\N	\N	2026-08-03	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-04	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.43750000	\N	\N	f	\N	\N	\N	\N	2026-08-04	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-05	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.43750000	\N	\N	f	\N	\N	\N	\N	2026-08-05	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-06	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.09375000	\N	\N	f	\N	\N	\N	\N	2026-08-06	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-07	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.34375000	\N	\N	f	\N	\N	\N	\N	2026-08-07	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-10	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.93750000	\N	\N	f	\N	\N	\N	\N	2026-08-10	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-11	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.03125000	\N	\N	f	\N	\N	\N	\N	2026-08-11	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-12	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.15625000	\N	\N	f	\N	\N	\N	\N	2026-08-12	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-13	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.46875000	\N	\N	f	\N	\N	\N	\N	2026-08-13	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-14	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.18750000	\N	\N	f	\N	\N	\N	\N	2026-08-14	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-17	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.03125000	\N	\N	f	\N	\N	\N	\N	2026-08-17	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-18	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.09375000	\N	\N	f	\N	\N	\N	\N	2026-08-18	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-19	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.37500000	\N	\N	f	\N	\N	\N	\N	2026-08-19	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-20	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.12500000	\N	\N	f	\N	\N	\N	\N	2026-08-20	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-21	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.87500000	\N	\N	f	\N	\N	\N	\N	2026-08-21	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-24	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.00000000	\N	\N	f	\N	\N	\N	\N	2026-08-24	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-25	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.40625000	\N	\N	f	\N	\N	\N	\N	2026-08-25	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-26	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.25000000	\N	\N	f	\N	\N	\N	\N	2026-08-26	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-27	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.15625000	\N	\N	f	\N	\N	\N	\N	2026-08-27	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-28	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.68750000	\N	\N	f	\N	\N	\N	\N	2026-08-28	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-08-31	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.59375000	\N	\N	f	\N	\N	\N	\N	2026-08-31	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-01	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.28125000	\N	\N	f	\N	\N	\N	\N	2026-09-01	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-02	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.31250000	\N	\N	f	\N	\N	\N	\N	2026-09-02	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-03	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.50000000	\N	\N	f	\N	\N	\N	\N	2026-09-03	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-04	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.37500000	\N	\N	f	\N	\N	\N	\N	2026-09-04	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-08	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.25000000	\N	\N	f	\N	\N	\N	\N	2026-09-08	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-09	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.03125000	\N	\N	f	\N	\N	\N	\N	2026-09-09	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-10	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.28125000	\N	\N	f	\N	\N	\N	\N	2026-09-10	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-11	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.15625000	\N	\N	f	\N	\N	\N	\N	2026-09-11	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-14	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.06250000	\N	\N	f	\N	\N	\N	\N	2026-09-14	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-15	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.90625000	\N	\N	f	\N	\N	\N	\N	2026-09-15	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-16	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.71875000	\N	\N	f	\N	\N	\N	\N	2026-09-16	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-17	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.21875000	\N	\N	f	\N	\N	\N	\N	2026-09-17	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-18	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.78125000	\N	\N	f	\N	\N	\N	\N	2026-09-18	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-21	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.03125000	\N	\N	f	\N	\N	\N	\N	2026-09-21	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-22	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.03125000	\N	\N	f	\N	\N	\N	\N	2026-09-22	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-23	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.09375000	\N	\N	f	\N	\N	\N	\N	2026-09-23	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-24	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.78125000	\N	\N	f	\N	\N	\N	\N	2026-09-24	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-25	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.00000000	\N	\N	f	\N	\N	\N	\N	2026-09-25	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-28	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.59375000	\N	\N	f	\N	\N	\N	\N	2026-09-28	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-29	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.53125000	\N	\N	f	\N	\N	\N	\N	2026-09-29	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1251	2026-09-30	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.37500000	\N	\N	f	\N	\N	\N	\N	2026-09-30	2026-10-17 22:40:22.463545+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
-1201	2025-12-31	HAPPYINVESTOR_FIXTURE	US91282CKB62	\N	FIXTURE	USD	100.00000000	100.00000000	100.00000000	100.00000000	\N	\N	f	\N	\N	\N	\N	2025-12-31	2026-10-17 22:40:22.463545+00	100	FIXTURE_PERCENT_OF_PAR	t	f	1.00000000	\N	T458022826
+1251	2026-08-03	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.03125000	\N	\N	f	\N	\N	\N	\N	2026-08-03	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-04	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.43750000	\N	\N	f	\N	\N	\N	\N	2026-08-04	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-05	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.43750000	\N	\N	f	\N	\N	\N	\N	2026-08-05	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-06	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.09375000	\N	\N	f	\N	\N	\N	\N	2026-08-06	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-07	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.34375000	\N	\N	f	\N	\N	\N	\N	2026-08-07	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-10	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.93750000	\N	\N	f	\N	\N	\N	\N	2026-08-10	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-11	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.03125000	\N	\N	f	\N	\N	\N	\N	2026-08-11	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-12	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.15625000	\N	\N	f	\N	\N	\N	\N	2026-08-12	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-13	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.46875000	\N	\N	f	\N	\N	\N	\N	2026-08-13	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-14	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.18750000	\N	\N	f	\N	\N	\N	\N	2026-08-14	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-17	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.03125000	\N	\N	f	\N	\N	\N	\N	2026-08-17	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-18	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.09375000	\N	\N	f	\N	\N	\N	\N	2026-08-18	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-19	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.37500000	\N	\N	f	\N	\N	\N	\N	2026-08-19	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-20	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.12500000	\N	\N	f	\N	\N	\N	\N	2026-08-20	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-21	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.87500000	\N	\N	f	\N	\N	\N	\N	2026-08-21	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-24	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.00000000	\N	\N	f	\N	\N	\N	\N	2026-08-24	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-25	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.40625000	\N	\N	f	\N	\N	\N	\N	2026-08-25	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-26	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.25000000	\N	\N	f	\N	\N	\N	\N	2026-08-26	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-27	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	99.15625000	\N	\N	f	\N	\N	\N	\N	2026-08-27	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-28	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.68750000	\N	\N	f	\N	\N	\N	\N	2026-08-28	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-08-31	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.59375000	\N	\N	f	\N	\N	\N	\N	2026-08-31	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-01	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.28125000	\N	\N	f	\N	\N	\N	\N	2026-09-01	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-02	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.31250000	\N	\N	f	\N	\N	\N	\N	2026-09-02	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-03	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.50000000	\N	\N	f	\N	\N	\N	\N	2026-09-03	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-04	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.37500000	\N	\N	f	\N	\N	\N	\N	2026-09-04	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-08	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.25000000	\N	\N	f	\N	\N	\N	\N	2026-09-08	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-09	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	98.03125000	\N	\N	f	\N	\N	\N	\N	2026-09-09	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-10	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.28125000	\N	\N	f	\N	\N	\N	\N	2026-09-10	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-11	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.15625000	\N	\N	f	\N	\N	\N	\N	2026-09-11	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-14	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.06250000	\N	\N	f	\N	\N	\N	\N	2026-09-14	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-15	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.90625000	\N	\N	f	\N	\N	\N	\N	2026-09-15	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-16	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.71875000	\N	\N	f	\N	\N	\N	\N	2026-09-16	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-17	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.21875000	\N	\N	f	\N	\N	\N	\N	2026-09-17	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-18	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.78125000	\N	\N	f	\N	\N	\N	\N	2026-09-18	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-21	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.03125000	\N	\N	f	\N	\N	\N	\N	2026-09-21	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-22	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	97.03125000	\N	\N	f	\N	\N	\N	\N	2026-09-22	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-23	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.09375000	\N	\N	f	\N	\N	\N	\N	2026-09-23	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-24	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.78125000	\N	\N	f	\N	\N	\N	\N	2026-09-24	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-25	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	96.00000000	\N	\N	f	\N	\N	\N	\N	2026-09-25	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-28	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.59375000	\N	\N	f	\N	\N	\N	\N	2026-09-28	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-29	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.53125000	\N	\N	f	\N	\N	\N	\N	2026-09-29	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1251	2026-09-30	FEDINVEST	91282CRC7	\N	MARKET_CLOSE	USD	\N	\N	\N	95.37500000	\N	\N	f	\N	\N	\N	\N	2026-09-30	2026-10-18 09:45:15.454099+00	95	EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR	t	f	1.00000000	\N	91282CRC7
+1201	2025-12-31	HAPPYINVESTOR_FIXTURE	US91282CKB62	\N	FIXTURE	USD	100.00000000	100.00000000	100.00000000	100.00000000	\N	\N	f	\N	\N	\N	\N	2025-12-31	2026-10-18 09:45:15.454099+00	100	FIXTURE_PERCENT_OF_PAR	t	f	1.00000000	\N	T458022826
 \.
 
 
@@ -9661,8 +9724,8 @@ COPY investory.benchmark_monthly_closes (id, symbol, month, close_price, fetched
 --
 
 COPY investory.bond (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9405	2	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00
-9407	2	United States Treasury 4 3/8 07/31/33	PLN	10000.000000000000	2026-08-03	0.043750000000	2033-07-31	\N	Happy Investor reinvestment of Treasury 2026 principal	\N	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00
+9405	2	Treasury 2026	PLN	10000.000000000000	2024-07-31	0.046250000000	2026-02-28	\N	Happy Investor canonical fixed income	\N	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00
+9407	2	United States Treasury 4 3/8 07/31/33	PLN	10000.000000000000	2026-08-03	0.043750000000	2033-07-31	\N	Happy Investor reinvestment of Treasury 2026 principal	\N	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00
 \.
 
 
@@ -9706,8 +9769,8 @@ COPY investory.cash_operations (id, account_id, operation, asset_id, source_asse
 --
 
 COPY investory.cash_reserve (id, portfolio_id, name, currency, value, acquisition_date, interest_rate, maturity_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9406	2	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00
-9401	2	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00
+9406	2	Term cash reserve	PLN	25000.000000000000	2024-08-01	0.040000000000	2027-08-01	\N	Happy Investor interest-bearing cash reserve	\N	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00
+9401	2	Cash reserve	PLN	25000.000000000000	2024-08-01	0.000000000000	\N	\N	Happy Investor canonical profile	\N	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00
 \.
 
 
@@ -10034,7 +10097,7 @@ COPY investory.notification_event (id, event_type, severity, portfolio_id, sourc
 --
 
 COPY investory.personal_asset (id, portfolio_id, name, category, currency, value, acquisition_date, archived_at, notes, external_key, created_at, updated_at) FROM stdin;
-9404	2	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00
+9404	2	Family Car	VEHICLE	PLN	10000.000000000000	2024-08-01	\N	Happy Investor canonical profile	\N	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00
 \.
 
 
@@ -10092,8 +10155,8 @@ IBKR
 --
 
 COPY investory.real_estate (id, portfolio_id, name, currency, value, tax_base, acquisition_date, land_register_number, archived_at, notes, external_key, created_at, updated_at, acquisition_value) FROM stdin;
-9402	2	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	TEST-LAND-REGISTER-001	\N	Happy Investor canonical profile	\N	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00	\N
-9403	2	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00	\N
+9402	2	Apartment A	PLN	400000.000000000000	3200.000000000000	2024-08-01	TEST-LAND-REGISTER-001	\N	Happy Investor canonical profile	\N	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00	\N
+9403	2	Apartment B	PLN	500000.000000000000	3000.000000000000	2024-08-01	\N	\N	Happy Investor canonical profile	\N	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00	\N
 \.
 
 
@@ -10167,9 +10230,9 @@ COPY investory.reconciliation_price_anomaly_reviews (issue_code, entity_id, enti
 --
 
 COPY investory.rental_contract (id, real_estate_id, start_date, end_date, terminated_date, bootstrap_managed, tenant_name, tenant_email, tenant_phone, notes, created_at, updated_at) FROM stdin;
-9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00
-9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00
-9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00
+9501	9402	2024-08-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00
+9502	9403	2024-08-01	2025-06-30	\N	f	\N	\N	\N	Happy Investor canonical profile B1	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00
+9503	9403	2025-07-01	\N	\N	f	\N	\N	\N	Happy Investor canonical profile B2	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00
 \.
 
 
@@ -10225,7 +10288,7 @@ COPY investory.retirement_plan_events (id, plan_id, event_year, name, amount, ev
 --
 
 COPY investory.retirement_planning_years (id, portfolio_id, planning_year, status, state, created_at, updated_at) FROM stdin;
-9301	2	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-10-17 22:40:22.463545+00	2026-10-17 22:40:22.463545+00
+9301	2	2025	DRAFT	{"values": {"ACTUAL": {"NET_WORTH": {"note": "Happy Investor canonical profile: investment baseline plus whole-wealth assets", "metric": "NET_WORTH", "source": "PORTFOLIO_DERIVED", "derivedValue": 1179307.015664}, "CORE_SPENDING": {"note": "Happy Investor canonical profile", "metric": "CORE_SPENDING", "source": "USER_ENTERED", "approvedValue": 36000}, "DISCRETIONARY_SPENDING": {"note": "Happy Investor canonical profile", "metric": "DISCRETIONARY_SPENDING", "source": "USER_ENTERED", "approvedValue": 6000}}, "BASELINE": {}}}	2026-10-18 09:45:15.454099+00	2026-10-18 09:45:15.454099+00
 \.
 
 
@@ -12551,6 +12614,12 @@ ALTER TABLE ONLY investory.yahoo_export_state
 
 
 --
+-- Name: app_v_canonical_asset_daily_price_mv; Type: MATERIALIZED VIEW DATA; Schema: investory; Owner: -
+--
+
+
+
+--
 -- Name: app_v_current_asset_price_mv; Type: MATERIALIZED VIEW DATA; Schema: investory; Owner: -
 --
 
@@ -12570,12 +12639,6 @@ ALTER TABLE ONLY investory.yahoo_export_state
 
 --
 -- Name: app_v_account_statistics; Type: MATERIALIZED VIEW DATA; Schema: investory; Owner: -
---
-
-
-
---
--- Name: app_v_canonical_asset_daily_price_mv; Type: MATERIALIZED VIEW DATA; Schema: investory; Owner: -
 --
 
 
