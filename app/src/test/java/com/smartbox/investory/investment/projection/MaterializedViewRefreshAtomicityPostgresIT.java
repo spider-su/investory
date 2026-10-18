@@ -17,6 +17,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -57,20 +59,19 @@ class MaterializedViewRefreshAtomicityPostgresIT {
     jdbc.execute("DROP TABLE IF EXISTS " + APP_SCHEMA + ".source CASCADE");
     jdbc.execute("CREATE TABLE " + APP_SCHEMA + ".source (value integer NOT NULL)");
     jdbc.update("INSERT INTO " + APP_SCHEMA + ".source VALUES (1)");
-    createTableAndView(
-        "app_v_canonical_asset_daily_price_mv", "SELECT value FROM " + APP_SCHEMA + ".source");
+    jdbc.execute("CREATE TABLE " + APP_SCHEMA + ".failure_stage (name text NOT NULL)");
+    jdbc.update("INSERT INTO " + APP_SCHEMA + ".failure_stage VALUES ('middle')");
     jdbc.execute(
         "CREATE OR REPLACE FUNCTION "
             + APP_SCHEMA
-            + ".fail_on_two(input integer) RETURNS integer "
-            + "LANGUAGE plpgsql AS $$ BEGIN IF input = 2 THEN RAISE EXCEPTION 'injected refresh failure'; END IF; RETURN input; END $$");
+            + ".fail_on_two(input integer, stage text) RETURNS integer "
+            + "LANGUAGE plpgsql AS $$ BEGIN IF input = 2 AND stage = (SELECT name FROM investory.failure_stage) THEN RAISE EXCEPTION 'injected refresh failure'; END IF; RETURN input; END $$");
+    createTableAndView(
+        "app_v_canonical_asset_daily_price_mv",
+        "SELECT investory.fail_on_two(value, 'first') AS value FROM " + APP_SCHEMA + ".source");
     createTableAndView(
         "app_v_canonical_asset_daily_price_ranked_mv",
-        "SELECT "
-            + APP_SCHEMA
-            + ".fail_on_two(value) + 10 AS value FROM "
-            + APP_SCHEMA
-            + ".source");
+        "SELECT value + 10 AS value FROM " + APP_SCHEMA + ".source");
     createTableAndView(
         "app_v_current_asset_price_mv",
         "SELECT value + 20 AS value FROM " + APP_SCHEMA + ".source");
@@ -78,7 +79,10 @@ class MaterializedViewRefreshAtomicityPostgresIT {
         "app_v_portfolio_daily_fx_rate_mv",
         "SELECT value + 30 AS value FROM " + APP_SCHEMA + ".source");
     createTableAndView(
-        "app_v_account_statistics", "SELECT value + 40 AS value FROM " + APP_SCHEMA + ".source");
+        "app_v_account_statistics",
+        "SELECT investory.fail_on_two(value, 'middle') + 40 AS value FROM "
+            + APP_SCHEMA
+            + ".source");
     createTableAndView(
         "app_v_portfolio_currency_breakdown",
         "SELECT value + 50 AS value FROM " + APP_SCHEMA + ".source");
@@ -89,7 +93,7 @@ class MaterializedViewRefreshAtomicityPostgresIT {
         "app_v_symbol_performance", "SELECT value + 70 AS value FROM " + APP_SCHEMA + ".source");
     createTableAndView(
         "app_v_portfolio_kpi_summary_mv",
-        "SELECT value + 80 AS value FROM " + APP_SCHEMA + ".source");
+        "SELECT investory.fail_on_two(value, 'last') + 80 AS value FROM " + APP_SCHEMA + ".source");
   }
 
   @AfterAll
@@ -104,13 +108,19 @@ class MaterializedViewRefreshAtomicityPostgresIT {
     refreshBundle();
   }
 
-  @Test
-  void injectedFailureRollsBackPriorViewAndReleasesLockForRetry() {
+  @ParameterizedTest
+  @ValueSource(strings = {"first", "middle", "last"})
+  void injectedFailureRollsBackPriorViewAndReleasesLockForRetry(String stage) {
+    jdbc.update("UPDATE investory.failure_stage SET name=?", stage);
+    long started = System.nanoTime();
     jdbc.update("UPDATE " + APP_SCHEMA + ".source SET value = 2");
     assertThatThrownBy(() -> refreshBundle()).hasMessageContaining("injected refresh failure");
     assertThat(value("app_v_canonical_asset_daily_price_mv")).isEqualTo(1);
     assertThat(value("app_v_portfolio_daily_fx_rate_mv")).isEqualTo(31);
     assertLockIsImmediatelyAvailable();
+    System.out.printf(
+        "Refresh failure rollback and lock-release stage=%s durationMs=%.3f%n",
+        stage, (System.nanoTime() - started) / 1_000_000.0);
 
     jdbc.update("UPDATE " + APP_SCHEMA + ".source SET value = 3");
     refreshBundle();
