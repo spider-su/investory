@@ -172,4 +172,47 @@ class InvestmentMaintenanceApplicationServiceTest {
     org.junit.jupiter.api.Assertions.assertThrows(
         IllegalStateException.class, () -> service.updateManualAssetPrice("ABC", BigDecimal.TEN));
   }
+
+  @Test
+  void updateManualAssetPricePropagatesApplicationViewFailureAndCanRetry() {
+    var result =
+        new ManualAssetPriceService.ManualAssetPrice(
+            "ABC",
+            BigDecimal.TEN,
+            BigDecimal.TEN,
+            com.smartbox.investory.shared.currency.CurrencyType.USD,
+            "Manual",
+            ZonedDateTime.now(ZoneId.of("UTC")));
+    when(manualPrices.updatePrice("ABC", BigDecimal.TEN)).thenReturn(result);
+    doThrow(new IllegalStateException("application refresh unavailable"))
+        .doNothing()
+        .when(projectionRefresh)
+        .refreshApplicationViews(PortfolioProjectionRefreshService.ApplicationRefreshScope.FULL);
+
+    assertThrows(
+        IllegalStateException.class, () -> service.updateManualAssetPrice("ABC", BigDecimal.TEN));
+    var retried = service.updateManualAssetPrice("ABC", BigDecimal.TEN);
+    assertEquals(result.symbol(), retried.symbol());
+    assertEquals(result.marketPrice(), retried.marketPrice());
+    assertEquals(result.marketPriceUsd(), retried.marketPriceUsd());
+    assertEquals(result.currency(), retried.currency());
+    assertEquals(result.source(), retried.source());
+    assertEquals(result.updatedAt(), retried.updatedAt());
+    verify(manualPrices, times(2)).updatePrice("ABC", BigDecimal.TEN);
+    verify(projections, times(2)).recalculateAllInNewTransaction();
+    verify(projections).refreshReconciliationViews();
+  }
+
+  @Test
+  void updateManualAssetPricePropagatesReconciliationFailure() {
+    doThrow(new IllegalStateException("reconciliation refresh unavailable"))
+        .when(projections)
+        .refreshReconciliationViews();
+
+    assertThrows(
+        IllegalStateException.class, () -> service.updateManualAssetPrice("ABC", BigDecimal.TEN));
+    verify(projections).recalculateAllInNewTransaction();
+    verify(projectionRefresh)
+        .refreshApplicationViews(PortfolioProjectionRefreshService.ApplicationRefreshScope.FULL);
+  }
 }
