@@ -190,17 +190,17 @@ public class PortfolioMetricsService {
   }
 
   private void applyFallbackReconciliationStatus(Portfolio portfolio) {
-    fallbackReconciliationRepository.findAllStatuses(activePortfolioId()).stream()
+    fallbackReconciliationRepository.findAllByPortfolioId(activePortfolioId()).stream()
         .findFirst()
         .ifPresent(
             row -> {
-              portfolio.setReconciliationStatus(String.valueOf(row[0]));
+              portfolio.setReconciliationStatus(row.getFallbackReconciliationStatus());
               portfolio.setReconciliationDifference(
-                  bd(number(row[1]).doubleValue())
+                  bd(number(row.getRealizedProfitDifference()).doubleValue())
                       .abs()
-                      .add(bd(number(row[2]).doubleValue()).abs())
-                      .add(bd(number(row[3]).doubleValue()).abs())
-                      .add(bd(number(row[4]).doubleValue()).abs())
+                      .add(bd(number(row.getUnrealizedProfitDifference()).doubleValue()).abs())
+                      .add(bd(number(row.getDividendsDifference()).doubleValue()).abs())
+                      .add(bd(number(row.getInterestDifference()).doubleValue()).abs())
                       .doubleValue());
             });
   }

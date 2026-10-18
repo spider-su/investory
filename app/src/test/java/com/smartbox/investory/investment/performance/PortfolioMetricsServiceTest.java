@@ -24,6 +24,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Po
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualitySnapshotRow;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioFallbackReconciliationRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioFallbackReconciliationRepository.FallbackReconciliationStatusRow;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
@@ -1132,6 +1133,13 @@ class PortfolioMetricsServiceTest {
   @DisplayName("calculate Total Profit Loss aggregates Realized And Unrealized And Dividends")
   @Test
   void calculateTotalProfitLoss_aggregatesRealizedAndUnrealizedAndDividends() {
+    FallbackReconciliationStatusRow fallback = org.mockito.Mockito.mock();
+    when(fallback.getFallbackReconciliationStatus()).thenReturn("REVIEW");
+    when(fallback.getRealizedProfitDifference()).thenReturn(new BigDecimal("0.123456789"));
+    when(fallback.getUnrealizedProfitDifference()).thenReturn(new BigDecimal("-0.000000001"));
+    when(fallback.getDividendsDifference()).thenReturn(null);
+    when(fallback.getInterestDifference()).thenReturn(new BigDecimal("0.25"));
+    when(fallbackReconciliationRepository.findAllByPortfolioId(1L)).thenReturn(List.of(fallback));
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
@@ -1186,6 +1194,8 @@ class PortfolioMetricsServiceTest {
     assertEquals(200.0, result.getWithdrawals(), 0.01);
     assertEquals(800.0, result.getNetDeposits(), 0.01);
     assertEquals(5000.0, result.getBalance(), 0.01);
+    assertEquals("REVIEW", result.getReconciliationStatus());
+    assertEquals(0.37345679, result.getReconciliationDifference(), 0.00000001);
   }
 
   @DisplayName("calculate Total Profit Loss excludes Currency Conversion Deposits")
