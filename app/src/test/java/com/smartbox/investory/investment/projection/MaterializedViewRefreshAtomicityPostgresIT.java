@@ -161,6 +161,7 @@ class MaterializedViewRefreshAtomicityPostgresIT {
   void competingRefreshWaitsForTransactionScopedAdvisoryLock() throws Exception {
     CountDownLatch locked = new CountDownLatch(1);
     CountDownLatch release = new CountDownLatch(1);
+    CountDownLatch contenderStarted = new CountDownLatch(1);
     ExecutorService pool = Executors.newFixedThreadPool(2);
     try {
       Future<?> holder =
@@ -179,16 +180,22 @@ class MaterializedViewRefreshAtomicityPostgresIT {
                 }
               });
       assertThat(locked.await(2, TimeUnit.SECONDS)).isTrue();
-      Future<?> contender =
+      Future<Long> contender =
           pool.submit(
               () -> {
-                locked.countDown();
+                long started = System.nanoTime();
+                contenderStarted.countDown();
                 refreshBundle();
+                return System.nanoTime() - started;
               });
+      assertThat(contenderStarted.await(2, TimeUnit.SECONDS)).isTrue();
       Thread.sleep(200);
       assertThat(contender.isDone()).isFalse();
       release.countDown();
-      contender.get(5, TimeUnit.SECONDS);
+      long contendedDuration = contender.get(5, TimeUnit.SECONDS);
+      System.out.printf(
+          "Observed contended service refresh durationMs=%.3f (includes lock wait and refresh execution)%n",
+          contendedDuration / 1_000_000.0);
       holder.get(5, TimeUnit.SECONDS);
     } finally {
       release.countDown();
