@@ -1,23 +1,23 @@
 package com.smartbox.investory.investment.infrastructure.persistence.portfolio;
 
-import jakarta.persistence.EntityManager;
+import com.smartbox.investory.investment.infrastructure.persistence.ReadOnlyRepository;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@RequiredArgsConstructor
-public class PortfolioFallbackReconciliationRepository {
-  private final EntityManager entityManager;
+public interface PortfolioFallbackReconciliationRepository
+    extends ReadOnlyRepository<PortfolioFallbackReconciliationEntity, Long> {
+  List<FallbackReconciliationStatusRow> findAllByPortfolioId(Long portfolioId);
 
-  @SuppressWarnings("unchecked")
-  public List<Object[]> findAllStatuses(Long portfolioId) {
-    return entityManager
-        .createNativeQuery(
-            "SELECT fallback_reconciliation_status, realized_profit_difference, "
-                + "unrealized_profit_difference, dividends_difference, interest_difference "
-                + "FROM investory.recon_v_portfolio_service_fallback WHERE portfolio_id = :portfolioId")
-        .setParameter("portfolioId", portfolioId)
-        .getResultList();
+  interface FallbackReconciliationStatusRow {
+    String getFallbackReconciliationStatus();
+
+    java.math.BigDecimal getRealizedProfitDifference();
+
+    java.math.BigDecimal getUnrealizedProfitDifference();
+
+    java.math.BigDecimal getDividendsDifference();
+
+    java.math.BigDecimal getInterestDifference();
   }
 }

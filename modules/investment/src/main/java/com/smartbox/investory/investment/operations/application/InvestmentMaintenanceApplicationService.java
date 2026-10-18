@@ -86,7 +86,14 @@ public class InvestmentMaintenanceApplicationService implements InvestmentMainte
       price =
           command(
               "update manual asset price " + symbol,
-              () -> manualPrices.updatePrice(symbol, marketPrice));
+              () -> {
+                var updated = manualPrices.updatePrice(symbol, marketPrice);
+                projections.recalculateAllInNewTransaction();
+                projectionRefreshService.refreshApplicationViews(
+                    PortfolioProjectionRefreshService.ApplicationRefreshScope.FULL);
+                projections.refreshReconciliationViews();
+                return updated;
+              });
     } catch (IllegalArgumentException exception) {
       throw new InvalidMaintenanceRequest(exception.getMessage(), exception);
     }

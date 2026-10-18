@@ -38,8 +38,20 @@ class BaselineReadinessContractIT {
           .load();
 
   @BeforeAll
-  static void migrateEmptyDatabase() {
-
+  static void migrateEmptyDatabase() throws SQLException {
+    Flyway.configure().configuration(FLYWAY.getConfiguration()).target("01.009").load().migrate();
+    try (Connection connection =
+            DriverManager.getConnection(
+                DATABASE.jdbcUrl(), DATABASE.username(), DATABASE.password());
+        Statement statement = connection.createStatement()) {
+      long assetId = singleInt(statement, "SELECT id FROM investory.assets ORDER BY id LIMIT 1");
+      statement.execute(
+          "INSERT INTO investory.asset_price_history(asset_id, price_date, source, source_symbol, price_origin, price_currency, close_price, quality_score, quality_class, is_observed, is_proxy) VALUES ("
+              + assetId
+              + ", CURRENT_DATE - 1, 'MANUAL', 'MIGRATION_TEST', 'MANUAL', 'USD', 80, 25, 'MANUAL_ACCEPTED', true, false), ("
+              + assetId
+              + ", CURRENT_DATE, 'MANUAL', 'MIGRATION_TEST', 'MANUAL', 'USD', 90, 25, 'MANUAL_ACCEPTED', true, false)");
+    }
     FLYWAY.migrate();
   }
 
@@ -197,6 +209,23 @@ class BaselineReadinessContractIT {
     }
   }
 
+  @DisplayName("manual price selection migration raises only forward manual rank")
+  @Test
+  @Order(2)
+  void manualPriceMigrationRaisesOnlyForwardManualRank() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          "25|100",
+          singleString(
+              statement,
+              "SELECT string_agg(quality_score::text, '|' ORDER BY price_date) "
+                  + "FROM investory.asset_price_history "
+                  + "WHERE source = 'MANUAL' AND source_symbol = 'MIGRATION_TEST' "
+                  + "AND price_date IN (CURRENT_DATE - 1, CURRENT_DATE)"));
+    }
+  }
+
   @DisplayName("resolver Uses Canonical Daily FX And Never Execution Fallback")
   @Test
   @Order(2)
@@ -221,6 +250,17 @@ class BaselineReadinessContractIT {
           "4.00000000|CARRY_FORWARD", resolverValue(statement, "2025-01-15", "USD", "PLN"));
       assertEquals(
           "4.00000000|CARRY_FORWARD", resolverValue(statement, "2030-01-15", "USD", "PLN"));
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT source_rate_date, age_days, conversion_status, "
+                  + "investory.fx_status_usable(conversion_status) AS usable "
+                  + "FROM investory.resolve_fx_rate(DATE '2030-01-15', 'USD', 'PLN')")) {
+        assertTrue(result.next());
+        assertEquals("2025-01-14", result.getDate("source_rate_date").toString());
+        assertTrue(result.getInt("age_days") > 4);
+        assertEquals("CARRY_FORWARD", result.getString("conversion_status"));
+        assertTrue(result.getBoolean("usable"));
+      }
 
       statement.execute(
           "INSERT INTO investory.exchange_rates "

@@ -82,3 +82,20 @@ jobs:
           path: investory.spdx.json
           if-no-files-found: error
           retention-days: 7
+
+      - name: Record scanned image publication identity
+        env:
+          RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          RELEASE_TESTS_RUN_ID: ${{ github.event.workflow_run.id || '' }}
+          RELEASE_TESTS_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || '' }}
+          RELEASE_DIGEST: ${{ steps.image.outputs.digest }}
+          RELEASE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/investory
+        run: python3 .github/scripts/image_release_receipt.py
+
+      - name: Upload release image receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: investory-image-release-${{ github.run_attempt }}
+          path: image-release.json
+          if-no-files-found: error
+          retention-days: 30

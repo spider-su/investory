@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.imports.xtb;
 
-import com.smartbox.investory.investment.imports.ImportExecutionResult;
+import com.smartbox.investory.investment.imports.ImportPortResultMapper;
 import com.smartbox.investory.investment.port.importing.BrokerImportResult;
 import com.smartbox.investory.investment.port.importing.XtbImportPort;
 import java.io.InputStream;
@@ -27,21 +27,13 @@ final class XtbImportPortAdapter implements XtbImportPort {
 
   @Override
   public BrokerImportResult importZip(InputStream inputStream, String sourceName) throws Exception {
-    return toPortResult(importService.importZip(inputStream, sourceName));
+    return ImportPortResultMapper.toPortResult(importService.importZip(inputStream, sourceName));
   }
 
   @Override
   public BrokerImportResult importWorkbook(InputStream inputStream, String sourceName)
       throws Exception {
-    return toPortResult(importService.importWorkbook(inputStream, sourceName));
-  }
-
-  private static BrokerImportResult toPortResult(ImportExecutionResult result) {
-    return new BrokerImportResult(
-        result.rowsTotal(),
-        result.rowsApplied(),
-        result.rowsFailed(),
-        result.details(),
-        result.affectedAccountIds());
+    return ImportPortResultMapper.toPortResult(
+        importService.importWorkbook(inputStream, sourceName));
   }
 }

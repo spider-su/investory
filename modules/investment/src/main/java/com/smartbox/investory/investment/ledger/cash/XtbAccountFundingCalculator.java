@@ -44,9 +44,9 @@ public final class XtbAccountFundingCalculator {
         continue;
       }
       double effect = Math.abs(nz(operation.getAmount()));
-      if (hint.targetAccount() == accountId) {
+      if (Long.toString(hint.targetAccount()).equals(account.getExternalAccountId())) {
         effects.merge(accountId, effect, Double::sum);
-      } else if (hint.sourceAccount() == accountId) {
+      } else if (Long.toString(hint.sourceAccount()).equals(account.getExternalAccountId())) {
         effects.merge(accountId, -effect, Double::sum);
       }
     }

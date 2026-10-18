@@ -28,6 +28,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.ConnectionCallback;
@@ -56,11 +57,13 @@ class IntegrationJobSchedulerTest {
     IntegrationJobEntity disabled = job("0 0 * * * *", "Europe/Warsaw");
     IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, false);
     when(jobs.findByEnabledTrue()).thenReturn(List.of(disabled));
-    when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
+    when(instances.findAllById(Set.of(3L))).thenReturn(List.of(instance));
 
     scheduler.poll();
 
     verify(jdbc, never()).execute(any(ConnectionCallback.class));
+    verify(instances).findAllById(Set.of(3L));
+    verify(instances, never()).findById(anyLong());
   }
 
   @DisplayName("runs Due Market Job And Records Success")
@@ -69,7 +72,7 @@ class IntegrationJobSchedulerTest {
     IntegrationJobEntity job = job("* * * * * *", "Europe/Warsaw");
     IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, true);
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
-    when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
+    when(instances.findAllById(Set.of(3L))).thenReturn(List.of(instance));
     allowLock();
     when(handlers.require(IntegrationType.MARKET_DATA, "refresh-prices"))
         .thenReturn(new RefreshPricesJobHandler(investmentMaintenance));
@@ -97,7 +100,7 @@ class IntegrationJobSchedulerTest {
     IntegrationInstanceEntity instance = instance(IntegrationType.FX_DATA, true);
     instance.setPluginId("nbp");
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
-    when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
+    when(instances.findAllById(Set.of(3L))).thenReturn(List.of(instance));
     allowLock();
     when(handlers.require(IntegrationType.FX_DATA, "refresh-rates"))
         .thenReturn(new RefreshFxJobHandler(investmentMaintenance));
@@ -119,7 +122,7 @@ class IntegrationJobSchedulerTest {
     IntegrationJobEntity job = job("* * * * * *", "Europe/Warsaw");
     IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, true);
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
-    when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
+    when(instances.findAllById(Set.of(3L))).thenReturn(List.of(instance));
     allowLock();
     when(handlers.require(IntegrationType.MARKET_DATA, "refresh-prices"))
         .thenReturn(new RefreshPricesJobHandler(investmentMaintenance));
@@ -143,7 +146,7 @@ class IntegrationJobSchedulerTest {
     job.setLastCompletedAt(ZonedDateTime.of(2026, 9, 3, 6, 15, 0, 0, ZoneId.of("Europe/Warsaw")));
     IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, true);
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
-    when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
+    when(instances.findAllById(Set.of(3L))).thenReturn(List.of(instance));
     allowLock();
     when(handlers.require(IntegrationType.MARKET_DATA, "refresh-prices"))
         .thenReturn(new RefreshPricesJobHandler(investmentMaintenance));
@@ -153,6 +156,63 @@ class IntegrationJobSchedulerTest {
     verify(alerts)
         .stale(
             job, instance, ZonedDateTime.of(2026, 9, 4, 6, 15, 0, 0, ZoneId.of("Europe/Warsaw")));
+  }
+
+  @DisplayName("loads Shared Instances Once And Preserves Job Order")
+  @Test
+  void loadsSharedInstancesOnceAndPreservesJobOrder() {
+    IntegrationJobEntity first = job("* * * * * *", "Europe/Warsaw");
+    first.setId(1L);
+    IntegrationJobEntity second = job("* * * * * *", "Europe/Warsaw");
+    second.setId(2L);
+    IntegrationJobEntity disabled = job("* * * * * *", "Europe/Warsaw");
+    disabled.setId(3L);
+    disabled.setEnabled(false);
+    IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, true);
+    when(jobs.findByEnabledTrue()).thenReturn(List.of(first, second));
+    when(instances.findAllById(Set.of(3L))).thenReturn(List.of(instance));
+    allowLock();
+    when(handlers.require(IntegrationType.MARKET_DATA, "refresh-prices"))
+        .thenReturn(new RefreshPricesJobHandler(investmentMaintenance));
+
+    scheduler.poll();
+
+    verify(instances).findAllById(Set.of(3L));
+    verify(instances, never()).findById(anyLong());
+    verify(investmentMaintenance, times(2)).refreshPrices();
+    org.mockito.ArgumentCaptor<IntegrationJobEntity> saved =
+        org.mockito.ArgumentCaptor.forClass(IntegrationJobEntity.class);
+    verify(jobs, times(4)).save(saved.capture());
+    org.assertj.core.api.Assertions.assertThat(saved.getAllValues())
+        .containsExactly(first, first, second, second);
+    verify(jobs, never()).save(disabled);
+  }
+
+  @DisplayName("skips Missing Instances And Does Not Load Disabled Jobs")
+  @Test
+  void skipsMissingInstancesAndDoesNotLoadDisabledJobs() {
+    IntegrationJobEntity enabled = job("* * * * * *", "Europe/Warsaw");
+    enabled.setIntegrationInstanceId(7L);
+    when(jobs.findByEnabledTrue()).thenReturn(List.of(enabled));
+    when(instances.findAllById(Set.of(7L))).thenReturn(List.of());
+
+    scheduler.poll();
+
+    verify(instances).findAllById(Set.of(7L));
+    verify(jobs, never()).save(any());
+    verify(jdbc, never()).execute(any(ConnectionCallback.class));
+  }
+
+  @DisplayName("does Not Query Instances For Empty Poll")
+  @Test
+  void doesNotQueryInstancesForEmptyPoll() {
+    when(jobs.findByEnabledTrue()).thenReturn(List.of());
+
+    scheduler.poll();
+
+    verify(instances, never()).findAllById(any());
+    verify(instances, never()).findById(anyLong());
+    verify(jdbc, never()).execute(any(ConnectionCallback.class));
   }
 
   @DisplayName("records And Alerts Failed Manual Reruns")

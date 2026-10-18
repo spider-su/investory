@@ -8,7 +8,10 @@ import com.smartbox.investory.investment.valuation.fx.FxRateUnavailableException
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorDailyFacts;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -80,6 +84,12 @@ class AccountDailyProjectionBoundaryIT {
         PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
 
     projections.recalculateAccounts(Set.of(ACCOUNT_ID));
+    projections.refreshReconciliationViews();
+    // Golden rows come from the exact pre-refactor develop base, 88dfbb7.
+    assertThat(accountDailyParityLines())
+        .containsExactlyElementsOf(baselineLines("account-daily.tsv"));
+    assertThat(reconciliationParityLines())
+        .containsExactlyElementsOf(baselineLines("reconciliation.tsv"));
     Map<String, Object> row = daily("2026-08-10");
     assertThat(row.get("valuation_currency")).isEqualTo("EUR");
     assertThat((BigDecimal) row.get("cash_balance"))
@@ -95,6 +105,27 @@ class AccountDailyProjectionBoundaryIT {
         .isEqualByComparingTo(HappyInvestorDailyFacts.DEPOSITS);
     assertThat((BigDecimal) daily("2026-08-06").get("realized_profit"))
         .isEqualByComparingTo(HappyInvestorDailyFacts.REALIZED_PROFIT);
+    assertThat(dailyProjection("2026-08-10"))
+        .isEqualTo(
+            new DailyProjection(
+                java.time.LocalDate.parse("2026-08-10"),
+                "EUR",
+                new BigDecimal("927.00000000"),
+                new BigDecimal("216.00000000"),
+                new BigDecimal("1143.00000000"),
+                new BigDecimal("180.00000000"),
+                new BigDecimal("36.00000000"),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                BigDecimal.ZERO.setScale(8),
+                new BigDecimal("216.00000000"),
+                new BigDecimal("0.23300971"),
+                null));
+    List<DailyProjection> before = dailyProjectionSnapshot();
     long rows =
         jdbc.queryForObject(
             "SELECT count(*) FROM investory.account_daily WHERE account_id = ?",
@@ -108,6 +139,10 @@ class AccountDailyProjectionBoundaryIT {
                 ACCOUNT_ID))
         .isEqualTo(rows);
     assertThat(daily("2026-08-10")).isEqualTo(row);
+    assertThat(dailyProjectionSnapshot()).isEqualTo(before);
+    refresh.refreshApplicationViews(
+        PortfolioProjectionRefreshService.ApplicationRefreshScope.PROJECTION_PREREQUISITES);
+    projections.refreshReconciliationViews();
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM investory.account_daily d JOIN investory.accounts a ON a.id = d.account_id WHERE a.portfolio_id = ? AND d.account_id <> ?",
@@ -198,4 +233,103 @@ class AccountDailyProjectionBoundaryIT {
         ACCOUNT_ID,
         java.sql.Date.valueOf(date));
   }
+
+  private List<String> accountDailyParityLines() {
+    return jdbc.queryForList(
+        "SELECT concat_ws(E'\\t', snapshot_date::text, COALESCE(valuation_currency::text, ''), COALESCE(cash_balance::text, ''), COALESCE(market_value::text, ''), COALESCE(equity::text, ''), COALESCE(cost_base::text, ''), COALESCE(unrealized_profit::text, ''), COALESCE(realized_profit::text, ''), COALESCE(dividends::text, ''), COALESCE(interest::text, ''), COALESCE(fees::text, ''), COALESCE(taxes::text, ''), COALESCE(deposits::text, ''), COALESCE(withdrawals::text, ''), COALESCE(daily_profit_amount::text, ''), COALESCE(daily_return_pct::text, ''), COALESCE(portfolio_weight::text, '<null>')) "
+            + "FROM investory.account_daily WHERE account_id = ? ORDER BY snapshot_date",
+        String.class,
+        ACCOUNT_ID);
+  }
+
+  private List<String> reconciliationParityLines() {
+    return jdbc.queryForList(
+        "SELECT concat_ws(E'\\t', valuation_date::text, COALESCE(reported_cash_balance::text, ''), COALESCE(reconstructed_cash_balance::text, ''), COALESCE(cash_difference::text, ''), COALESCE(reported_market_value::text, ''), COALESCE(reconstructed_market_value::text, ''), COALESCE(market_value_difference::text, ''), COALESCE(reported_cost_base::text, ''), COALESCE(reconstructed_cost_base::text, ''), COALESCE(cost_base_difference::text, ''), COALESCE(reported_unrealized_profit::text, ''), COALESCE(reconstructed_unrealized_profit::text, ''), COALESCE(unrealized_difference::text, ''), COALESCE(reported_equity::text, ''), COALESCE(reconstructed_equity::text, ''), COALESCE(equity_difference::text, ''), COALESCE(reported_realized_profit::text, ''), COALESCE(reconstructed_total_realized_result::text, ''), COALESCE(realized_difference::text, ''), COALESCE(status::text, ''), COALESCE(severity::text, ''), COALESCE(validation_message::text, '')) "
+            + "FROM investory.recon_v_account_daily WHERE account_id = ? ORDER BY valuation_date",
+        String.class,
+        ACCOUNT_ID);
+  }
+
+  private List<String> baselineLines(String name) {
+    try (var input = new ClassPathResource("fixtures/issue-147/" + name).getInputStream()) {
+      return new String(input.readAllBytes(), StandardCharsets.UTF_8)
+          .lines()
+          .filter(line -> !line.isBlank() && !line.startsWith("#"))
+          .toList();
+    } catch (IOException error) {
+      throw new UncheckedIOException(error);
+    }
+  }
+
+  private DailyProjection dailyProjection(String date) {
+    Map<String, Object> row =
+        jdbc.queryForMap(
+            "SELECT snapshot_date, valuation_currency, cash_balance, market_value, equity, cost_base, unrealized_profit, realized_profit, dividends, interest, fees, taxes, deposits, withdrawals, daily_profit_amount, daily_return_pct, portfolio_weight "
+                + "FROM investory.account_daily WHERE account_id = ? AND snapshot_date = ?",
+            ACCOUNT_ID,
+            java.sql.Date.valueOf(date));
+    return new DailyProjection(
+        ((java.sql.Date) row.get("snapshot_date")).toLocalDate(),
+        (String) row.get("valuation_currency"),
+        (BigDecimal) row.get("cash_balance"),
+        (BigDecimal) row.get("market_value"),
+        (BigDecimal) row.get("equity"),
+        (BigDecimal) row.get("cost_base"),
+        (BigDecimal) row.get("unrealized_profit"),
+        (BigDecimal) row.get("realized_profit"),
+        (BigDecimal) row.get("dividends"),
+        (BigDecimal) row.get("interest"),
+        (BigDecimal) row.get("fees"),
+        (BigDecimal) row.get("taxes"),
+        (BigDecimal) row.get("deposits"),
+        (BigDecimal) row.get("withdrawals"),
+        (BigDecimal) row.get("daily_profit_amount"),
+        (BigDecimal) row.get("daily_return_pct"),
+        (BigDecimal) row.get("portfolio_weight"));
+  }
+
+  private List<DailyProjection> dailyProjectionSnapshot() {
+    return jdbc.query(
+        "SELECT snapshot_date, valuation_currency, cash_balance, market_value, equity, cost_base, unrealized_profit, realized_profit, dividends, interest, fees, taxes, deposits, withdrawals, daily_profit_amount, daily_return_pct, portfolio_weight "
+            + "FROM investory.account_daily WHERE account_id = ? ORDER BY snapshot_date",
+        (resultSet, rowNum) ->
+            new DailyProjection(
+                resultSet.getDate("snapshot_date").toLocalDate(),
+                resultSet.getString("valuation_currency"),
+                resultSet.getBigDecimal("cash_balance"),
+                resultSet.getBigDecimal("market_value"),
+                resultSet.getBigDecimal("equity"),
+                resultSet.getBigDecimal("cost_base"),
+                resultSet.getBigDecimal("unrealized_profit"),
+                resultSet.getBigDecimal("realized_profit"),
+                resultSet.getBigDecimal("dividends"),
+                resultSet.getBigDecimal("interest"),
+                resultSet.getBigDecimal("fees"),
+                resultSet.getBigDecimal("taxes"),
+                resultSet.getBigDecimal("deposits"),
+                resultSet.getBigDecimal("withdrawals"),
+                resultSet.getBigDecimal("daily_profit_amount"),
+                resultSet.getBigDecimal("daily_return_pct"),
+                resultSet.getBigDecimal("portfolio_weight")),
+        ACCOUNT_ID);
+  }
+
+  private record DailyProjection(
+      java.time.LocalDate date,
+      String currency,
+      BigDecimal cash,
+      BigDecimal marketValue,
+      BigDecimal equity,
+      BigDecimal costBase,
+      BigDecimal unrealizedProfit,
+      BigDecimal realizedProfit,
+      BigDecimal dividends,
+      BigDecimal interest,
+      BigDecimal fees,
+      BigDecimal taxes,
+      BigDecimal deposits,
+      BigDecimal withdrawals,
+      BigDecimal dailyProfit,
+      BigDecimal dailyReturn,
+      BigDecimal portfolioWeight) {}
 }

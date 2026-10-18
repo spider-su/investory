@@ -71,6 +71,23 @@ models and may retain `double` fields at their legacy chart/UI boundary. The pub
 `investment.api.reporting.InvestmentPerformanceApi` exposes canonical reporting numbers as
 `BigDecimal`; conversion to chart/display primitives happens only in the adapter boundary.
 
+### Portfolio dashboard metric source matrix
+
+| Metric | Authoritative source | Currency and period | Missing-data behavior | Production fallback |
+| --- | --- | --- | --- | --- |
+| Portfolio equity, cash, deposits, withdrawals, net deposits, realized/unrealized result, headline ROI | `app_v_portfolio_kpi_summary_mv` via `PortfolioKpiSummaryRepository` | Portfolio base currency; since inception/current snapshot | Missing row or null equity sets `Portfolio.valuationComplete=false`; zero-initialized display fields are unavailable placeholders, not valid zero results | None. Java ledger reconstruction, currency-breakdown totals, account-statistics totals, and open-position P/L reconstruction are not used |
+| Headline interest and dividend withholding tax enrichment | `app_v_account_statistics` plus normalized cash operations aggregated by `CashFlowAggregator` | Portfolio base currency; cumulative through snapshot | Existing KPI remains authoritative; optional enrichment retains initialized zero if contributing projections/rows are absent | Supplement only; does not replace KPI headline accounting |
+| Per-account balance, cash, profit, ROI | `app_v_account_statistics` for account rows, joined to scoped `accounts`; funding from normalized account-flow rows | Portfolio base amounts plus account-native display amounts; since inception/current snapshot | No statistics means no account cards; absent funding rows use the account-statistics net-deposit fields | Legacy XTB subaccount funding adjustment remains when normalized account-flow base amounts are unavailable; older `amount_in_account_currency` remains a compatibility source for local account-funding display. Neither changes portfolio headline totals |
+| Selected-period and monthly performance | Canonical SQL reporting over `account_daily` / `app_v_portfolio_performance_daily` and monthly portfolio rows, composed by `PortfolioPerformanceQueryService` | Portfolio base currency; requested period | Missing/invalid valuation boundaries produce unavailable reporting metrics per the reporting contract | No raw-ledger dashboard reconstruction |
+| Capital-gains tax estimate | `app_v_portfolio_tax_year_realized` when present, otherwise `TaxCalculator` over scoped closed positions | Portfolio base currency; current tax year with loss carry-forward | Empty tax projection invokes the existing explicit estimate calculation | Retained tax estimate path; separate from headline earnings |
+
+The previous Java headline reconstruction from closed/open positions and raw cash operations,
+followed by portfolio-currency, account-statistics, or open-position substitutions when KPI data was
+missing, is retired from normal reads. Those algorithms are not interchangeable with the canonical
+normalized reporting boundary and must not be reintroduced as an implicit missing-projection repair.
+XTB account-level funding remains a separate unresolved compatibility behavior; changing it requires
+independent characterization and financial-contract review, not a headline cleanup.
+
 Return metrics use the canonical normalized flow semantics. `EXTERNAL_DEPOSIT` and
 `EXTERNAL_WITHDRAWAL` are investor cash flows; `INTERNAL_TRANSFER_IN/OUT`, security transfers,
 and `FX_CONVERSION` do not become portfolio-level investor flows. Dividends, interest, fees, and
@@ -144,17 +161,33 @@ The complete materialized-view refresh order is:
    `recon_v_account_statistics_vs_daily`, `recon_v_account_daily_cashflow`,
    `recon_v_account_daily_cashflow_scope`, and `recon_v_trade_settlement`.
 
-`PortfolioProjectionRefreshService` owns production refresh orchestration. It refreshes each
-materialized view in dependency order, with one transaction per view, and selects the application
-plan for broker imports, FX updates, current market prices, historical rebuilds, or full repair.
-Reconciliation is a separate Java plan; stage 3 must follow stage 2 when it consumes reconstructed
-facts. The SQL refresh functions remain migration/compatibility infrastructure and are not used by
-production application orchestration. View-only aliases do not require refreshes.
+`PortfolioProjectionRefreshService` owns production refresh orchestration. Each application refresh
+scope runs its selected dependency-ordered bundle in one `REQUIRES_NEW` transaction under the shared
+transaction-scoped advisory lock. PostgreSQL readers retain MVCC visibility of the previous
+committed materialized-view generation while refreshes run; a successful commit publishes the
+bundle, while a failure rolls back the transaction and leaves the prior committed generation
+visible. PostgreSQL releases the advisory lock on either commit or rollback. The application uses
+`REFRESH MATERIALIZED VIEW CONCURRENTLY` (except the canonical daily-price MV, which is refreshed
+non-concurrently); transaction rollback, retry, and reader behavior are covered by PostgreSQL
+contract tests. A failed refresh is logged with plan, view, and elapsed time and propagated to the
+caller; success is not reported. The caller's cache invalidation remains in `finally` where
+applicable, removing potentially stale cached calculations after either outcome.
+
+Reconciliation has a distinct policy. `refresh_reconstructed_position_daily()` runs in its own
+transaction and refreshes source price MVs plus the first reconstruction MV; reconciliation
+reporting MVs then run in a second transaction in explicit dependency order. Each stage is atomic,
+but the complete reconstruction-plus-reporting sequence is not one published generation. A failure
+propagates, keeps the failed transaction's prior MV state, and does not prevent a later retry.
+Ordinary dashboard refresh plans do not invoke reconstruction. The SQL refresh functions remain
+migration/compatibility infrastructure and are not used by production application orchestration.
+View-only aliases do not require refreshes.
 
 The reconstruction stage functions rebuild the facts in graph order. Post-import application
 orchestration invokes its stages separately, so a slow stage is measurable and does not hold one
-large application transaction. The system audit runs asynchronously after import finalization has
-committed; an audit failure cannot roll back canonical imported data.
+large application transaction. The transaction policy above applies to the production Java plan;
+compatibility SQL function transaction behavior is determined by the caller's transaction. The
+system audit runs asynchronously after import finalization has committed; an audit failure cannot
+roll back canonical imported data.
 
 For exact current view names and definitions, inspect `app/src/main/resources/sql/migration`.
 
@@ -220,16 +253,18 @@ do not carry migration-version suffixes; historical migration names are not rena
 ## FX usable-status contract
 
 Authoritative SQL monetary conversion uses a single helper, `investory.fx_status_usable(status)`, defined in
-`V01.001__functions.sql`. It treats `OK`, `ESTIMATED`, and `SAME_CURRENCY` as usable and
-`STALE`, `MISSING_RATE`, `MISSING_CURRENCY` as not usable. The usable-status list is not duplicated or
-patched after the fact; production views and materialized views call the helper directly. Historical
-interpolation in `resolve_fx_rate()` is bracketed deterministically by the nearest observation strictly
-before and strictly after the valuation date within one source/method series, and only before the
-`fx_configuration.daily_history_start` boundary.
+`V01.001__functions.sql`. `OK`, `ESTIMATED`, `SAME_CURRENCY`, and `CARRY_FORWARD` are usable;
+`MISSING_RATE` and `MISSING_CURRENCY` are not. Production views and materialized views call the helper
+directly. `resolve_fx_rate()` selects the latest neutral valuation observation on or before the
+valuation date (direct pair before inverse on a date tie); it preserves source date and age for a
+`CARRY_FORWARD` result and imposes no age cutoff. The daily-history boundary controls refresh coverage,
+not resolver eligibility. Execution observations have separate transaction-only purpose rules; see
+[`../domain/fx-normalization.md`](../domain/fx-normalization.md).
 
 The Java `CurrencyRateService` is the application conversion boundary. It reads resolved valuation
 matrices through `CurrencyRateRepository`, caches complete matrices by date, performs `BigDecimal`
-conversion, and rejects `STALE` and `MISSING_RATE` results. FX refresh no longer depends on a database
+conversion, accepts the same usable statuses as SQL, and fails closed for missing or otherwise
+unusable rates. FX refresh no longer depends on a database
 FX trigger: `CurrencyRateUpdaterService` persists observations explicitly and advances the daily-history
 boundary only after `setDailyHistoryStartIfSupported(...)` confirms neutral coverage.
 
@@ -274,8 +309,9 @@ new onboarding.
 
 Current-price refresh rebuilds the portfolio/date FX input before account statistics. Each
 application MV refresh bundle holds the shared advisory lock and commits in one transaction;
-readers cannot observe an intermediate bundle. Portfolio KPI presentation masks cash, market
-value, equity, unrealized P/L and ROI when valuation is incomplete. The dashboard shows an
+readers cannot observe an intermediate bundle. Reconstruction and reconciliation reporting are
+separate atomic stages as described above, not one cross-stage transaction. Portfolio KPI
+presentation masks cash, market value, equity, unrealized P/L and ROI when valuation is incomplete. The dashboard shows an
 unavailable balance, incomplete calculations are not cached, and operational notifications
 are deferred without changing drawdown state. Full projection refresh invalidates calculation
 caches after the reporting bundle completes (also on failure to remove stale entries).

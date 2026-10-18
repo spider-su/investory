@@ -46,6 +46,71 @@ loss.
 A cash movement must not become investment profit merely because it is not classified as an external
 flow.
 
+### Broker transfer identity and comparison matrix
+
+Broker IDs in `Transfer from … to …` comments resolve by portfolio, provider and
+`accounts.external_account_id`; `accounts.id` is only the internal join key. Both
+materialized contribution consumers and the retained XTB diagnostic funding
+calculator use that broker identity. A matching ID in another portfolio or
+provider does not make the counterparty tracked.
+
+| Operation | Cash effect | Account funding | Performance flow | Portfolio contribution |
+| --- | --- | --- | --- | --- |
+| External deposit/withdrawal | Signed amount | Signed amount | Signed amount | Signed amount |
+| Bookkeeping transfer with both accounts tracked | Ledger amount | Directional allocation on the identified account | Zero | Zero |
+| Bookkeeping transfer crossing tracked boundary | Ledger amount | Directional allocation on the identified account | Zero | Boundary inflow/outflow net, then grossed on only one side |
+| Unrecognized bookkeeping note | Ledger amount | No invented allocation | Zero | No invented contribution; unmatched diagnostic retained |
+| Missing required FX | Native amount remains visible | Converted amount unavailable | Converted amount unavailable | Required converted contribution unavailable |
+
+The SQL normalization layer deliberately retains `UNMATCHED` diagnostics rather
+than claiming Java transfer-pair evidence. The retained Java adjustment requires
+a proven pair and remains a diagnostic fallback when canonical base-currency
+funding is unavailable. Those pairing contracts are not interchangeable.
+
+**Deferred:** the economic interpretation of `Currency conversion … from TA … to`
+remains unchanged. Java classifies this hint as FX conversion while the existing
+SQL raw `TRANSFER` classifier uses its existing transfer categories. This repair
+does not decide that unresolved financial rule or use it to change historical
+contributions. The approved correction covers explicit subaccount-transfer
+identity, not a new interpretation of those FX rows.
+
+#### Retained Java/SQL characterization
+
+`NormalizedCashOperationRepositoryContractIT` feeds equivalent IBKR/XTB fixtures
+through `CashOperationNormalizer` and the SQL reporting view. It asserts the
+literal category/subtype, direction, cash and three flow amounts, and pairing
+state. Classification code is unchanged by this identity-only correction; these
+are retained baseline/candidate outcomes, not claims that every old difference
+was repaired.
+
+| Fixture | Java category / subtype | SQL category / subtype | Retained difference |
+| --- | --- | --- | --- |
+| Deposit / withdrawal | External deposit / withdrawal, raw subtype | Same | None |
+| Dividend and negative reversal | Dividend / dividend reversal | Same | None |
+| Positive withholding-tax reversal | Withholding-tax reversal | Same | None |
+| Commission charge | Fee / FEE | Same | None |
+| Positive commission refund | Fee / FEE_REVERSAL | Fee / FEE | Existing subtype difference |
+| Unresolved correction | Correction / UNCLASSIFIED_CORRECTION | Same | None; no invented funding |
+| Commission-refund correction | Fee / FEE_REVERSAL | Correction / UNCLASSIFIED_CORRECTION | Existing classification drift outside the authorized funding correction |
+| Bond redemption | Bond redemption / BOND_REDEMPTION | Bond redemption / IBKR_BOND_REDEMPTION | Provenance subtype only |
+| IBKR cash-transfer hint | Unclassified | External deposit | Existing classification drift outside the funding correction |
+| IBKR forex hint | Unclassified | FX conversion | Existing classification drift outside the funding correction |
+| Explicit XTB transfer | Internal transfer / XTB_ACCOUNT_TRANSFER | Internal transfer / directional XTB_ACCOUNT_TRANSFER_IN or OUT | Directional subtype only |
+| Paired XTB bookkeeping | Bookkeeping, proven pair | Bookkeeping, UNMATCHED | SQL retains diagnostic non-pairing; both funding paths now yield 60 for the paired regression |
+| Missing bookkeeping partner | Bookkeeping, no pair | Bookkeeping, UNMATCHED | SQL explicit allocation and paired-only Java fallback have distinct contracts |
+| Deferred currency-conversion hint | FX conversion, paired across currencies | Internal transfer, UNMATCHED | Owner-deferred economic interpretation |
+| Overlapping-export rows | Both already-ingested rows retained | Both rows retained | Classifiers do not perform importer identity deduplication |
+
+The changed funding fixture has zero net cash and performance flow, account
+allocation 60 instead of the prior incorrect 0, and boundary portfolio net 240
+PLN at USD/PLN 4. Tracked counterparties yield zero portfolio contribution;
+other providers/portfolios remain outside that boundary. The cross-currency
+fixture (+100 USD / -400 PLN) conserves base cash and net flows at zero while
+pinning the deferred classification/pairing difference. Source IDs remain
+explicit; no normalization-layer deduplication or new financial policy is added.
+The newly visible legacy classification differences above require separate
+assessment; this PR does not claim to resolve them.
+
 ## Investment earnings
 
 Headline investment earnings are composed from:

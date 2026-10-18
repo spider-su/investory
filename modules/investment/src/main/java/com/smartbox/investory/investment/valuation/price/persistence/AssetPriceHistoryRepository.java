@@ -10,6 +10,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Canonical history reads stay native where they need a prior-date anchor plus the full rows for
+ * that anchor (CTE/UNION), or PostgreSQL DISTINCT ON winner selection. JPQL has no portable CTE or
+ * UNION support and cannot reproduce those shapes without changing the read contract.
+ */
 public interface AssetPriceHistoryRepository extends Repository<AssetEntity, Long> {
 
   @Query(
@@ -267,6 +272,43 @@ public interface AssetPriceHistoryRepository extends Repository<AssetEntity, Lon
       @Param("priceValue") BigDecimal priceValue,
       @Param("qualityScore") Integer qualityScore,
       @Param("qualityClass") String qualityClass);
+
+  @Modifying
+  @Query(
+      value =
+          """
+          insert into investory.asset_price_history (
+              asset_id, price_date, source, source_symbol, price_origin, price_currency,
+              open_price, high_price, low_price, close_price, source_date, quality_score,
+              quality_class, is_observed, is_proxy, price_scale_factor, original_source_symbol
+          ) values (
+              :assetId, :priceDate, 'MANUAL', :sourceSymbol, 'MANUAL', :priceCurrency,
+              :priceValue, :priceValue, :priceValue, :priceValue, :priceDate, 100,
+              'MANUAL_ACCEPTED', true, false, 1, :sourceSymbol
+          )
+          on conflict (asset_id, price_date, source) do update
+          set source_symbol = excluded.source_symbol,
+              price_origin = excluded.price_origin,
+              price_currency = excluded.price_currency,
+              open_price = excluded.open_price,
+              high_price = excluded.high_price,
+              low_price = excluded.low_price,
+              close_price = excluded.close_price,
+              source_date = excluded.source_date,
+              quality_score = excluded.quality_score,
+              quality_class = excluded.quality_class,
+              is_observed = excluded.is_observed,
+              is_proxy = excluded.is_proxy,
+              price_scale_factor = excluded.price_scale_factor,
+              original_source_symbol = excluded.original_source_symbol
+          """,
+      nativeQuery = true)
+  void upsertManualObservation(
+      @Param("assetId") Long assetId,
+      @Param("priceDate") LocalDate priceDate,
+      @Param("sourceSymbol") String sourceSymbol,
+      @Param("priceCurrency") String priceCurrency,
+      @Param("priceValue") BigDecimal priceValue);
 
   @Modifying
   @Query(

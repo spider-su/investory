@@ -206,10 +206,10 @@ class CurrencyRateServiceTest {
                 LocalDate.of(2026, 7, 5)));
   }
 
-  @DisplayName("authoritative Conversion accepts a dated carry-forward rate")
+  @DisplayName("authoritative Conversion accepts carry-forward older than four days")
   @Test
-  void authoritativeConversionAcceptsDatedCarryForwardRate() {
-    LocalDate date = LocalDate.of(2026, 9, 5);
+  void authoritativeConversionAcceptsCarryForwardOlderThanFourDays() {
+    LocalDate date = LocalDate.of(2026, 9, 10);
     when(currencyRateRepository.resolveFxRatesForDate(date))
         .thenReturn(
             List.of(resolution("USD", "PLN", "4.0", "FX", "NBP", "2026-09-02", "CARRY_FORWARD")));
