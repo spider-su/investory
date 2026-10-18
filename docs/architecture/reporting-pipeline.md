@@ -161,17 +161,33 @@ The complete materialized-view refresh order is:
    `recon_v_account_statistics_vs_daily`, `recon_v_account_daily_cashflow`,
    `recon_v_account_daily_cashflow_scope`, and `recon_v_trade_settlement`.
 
-`PortfolioProjectionRefreshService` owns production refresh orchestration. It refreshes each
-materialized view in dependency order, with one transaction per view, and selects the application
-plan for broker imports, FX updates, current market prices, historical rebuilds, or full repair.
-Reconciliation is a separate Java plan; stage 3 must follow stage 2 when it consumes reconstructed
-facts. The SQL refresh functions remain migration/compatibility infrastructure and are not used by
-production application orchestration. View-only aliases do not require refreshes.
+`PortfolioProjectionRefreshService` owns production refresh orchestration. Each application refresh
+scope runs its selected dependency-ordered bundle in one `REQUIRES_NEW` transaction under the shared
+transaction-scoped advisory lock. PostgreSQL readers retain MVCC visibility of the previous
+committed materialized-view generation while refreshes run; a successful commit publishes the
+bundle, while a failure rolls back the transaction and leaves the prior committed generation
+visible. PostgreSQL releases the advisory lock on either commit or rollback. The application uses
+`REFRESH MATERIALIZED VIEW CONCURRENTLY` (except the canonical daily-price MV, which is refreshed
+non-concurrently); transaction rollback, retry, and reader behavior are covered by PostgreSQL
+contract tests. A failed refresh is logged with plan, view, and elapsed time and propagated to the
+caller; success is not reported. The caller's cache invalidation remains in `finally` where
+applicable, removing potentially stale cached calculations after either outcome.
+
+Reconciliation has a distinct policy. `refresh_reconstructed_position_daily()` runs in its own
+transaction and refreshes source price MVs plus the first reconstruction MV; reconciliation
+reporting MVs then run in a second transaction in explicit dependency order. Each stage is atomic,
+but the complete reconstruction-plus-reporting sequence is not one published generation. A failure
+propagates, keeps the failed transaction's prior MV state, and does not prevent a later retry.
+Ordinary dashboard refresh plans do not invoke reconstruction. The SQL refresh functions remain
+migration/compatibility infrastructure and are not used by production application orchestration.
+View-only aliases do not require refreshes.
 
 The reconstruction stage functions rebuild the facts in graph order. Post-import application
 orchestration invokes its stages separately, so a slow stage is measurable and does not hold one
-large application transaction. The system audit runs asynchronously after import finalization has
-committed; an audit failure cannot roll back canonical imported data.
+large application transaction. The transaction policy above applies to the production Java plan;
+compatibility SQL function transaction behavior is determined by the caller's transaction. The
+system audit runs asynchronously after import finalization has committed; an audit failure cannot
+roll back canonical imported data.
 
 For exact current view names and definitions, inspect `app/src/main/resources/sql/migration`.
 
@@ -293,8 +309,9 @@ new onboarding.
 
 Current-price refresh rebuilds the portfolio/date FX input before account statistics. Each
 application MV refresh bundle holds the shared advisory lock and commits in one transaction;
-readers cannot observe an intermediate bundle. Portfolio KPI presentation masks cash, market
-value, equity, unrealized P/L and ROI when valuation is incomplete. The dashboard shows an
+readers cannot observe an intermediate bundle. Reconstruction and reconciliation reporting are
+separate atomic stages as described above, not one cross-stage transaction. Portfolio KPI
+presentation masks cash, market value, equity, unrealized P/L and ROI when valuation is incomplete. The dashboard shows an
 unavailable balance, incomplete calculations are not cached, and operational notifications
 are deferred without changing drawdown state. Full projection refresh invalidates calculation
 caches after the reporting bundle completes (also on failure to remove stale entries).
