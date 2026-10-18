@@ -13,6 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -92,6 +93,153 @@ class ValuationInputContractIT {
         assertEquals("2030-01-02", result.getDate("price_date").toString());
         assertEquals(0, result.getBigDecimal("close_price").compareTo(new BigDecimal("100")));
       }
+    }
+  }
+
+  @DisplayName("today manual override wins without changing earlier canonical prices")
+  @Test
+  void todayManualOverrideWinsWithoutChangingEarlierCanonicalPrices() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      long assetId;
+      try (ResultSet result =
+          statement.executeQuery("SELECT id FROM investory.assets ORDER BY id LIMIT 1")) {
+        assertTrue(result.next());
+        assetId = result.getLong(1);
+      }
+      LocalDate today = LocalDate.now();
+      LocalDate yesterday = today.minusDays(1);
+      long portfolioId = -987654321L;
+      long accountId = -987654322L;
+      long positionId = -987654323L;
+      statement.execute("DELETE FROM investory.account_daily WHERE account_id = " + accountId);
+      statement.execute("DELETE FROM investory.positions WHERE id = " + positionId);
+      statement.execute("DELETE FROM investory.accounts WHERE id = " + accountId);
+      statement.execute("DELETE FROM investory.portfolios WHERE id = " + portfolioId);
+      statement.execute(
+          "INSERT INTO investory.portfolios(id, name, base_currency, user_id) VALUES ("
+              + portfolioId
+              + ", 'manual override contract', 'USD', 1)");
+      statement.execute(
+          "INSERT INTO investory.accounts(id, external_account_id, currency, name, owner, portfolio_id) VALUES ("
+              + accountId
+              + ", 'manual-override-contract', 'USD', 'manual override contract', 'contract', "
+              + portfolioId
+              + ")");
+      statement.execute(
+          "INSERT INTO investory.positions(id, account_id, asset_id, source_asset_symbol, operation, volume, price_currency, cost_currency, profit_currency, commission_currency, open_time, open_price) VALUES ("
+              + positionId
+              + ", "
+              + accountId
+              + ", "
+              + assetId
+              + ", 'TEST', 'BUY', 1, 'USD', 'USD', 'USD', 'USD', CURRENT_DATE - 3, 80)");
+      statement.execute(
+          "INSERT INTO investory.account_daily(account_id, snapshot_date, valuation_currency) VALUES ("
+              + accountId
+              + ", CURRENT_DATE - 1, 'USD'), ("
+              + accountId
+              + ", CURRENT_DATE, 'USD')");
+      statement.execute(
+          "DELETE FROM investory.asset_price_history WHERE asset_id = "
+              + assetId
+              + " AND source IN ('OVERRIDE_PROVIDER_TEST', 'MANUAL', 'FUTURE_MANUAL_TEST') AND price_date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + 2");
+      statement.execute(
+          "INSERT INTO investory.asset_price_history(asset_id, price_date, source, source_symbol, price_origin, price_currency, close_price, quality_score, quality_class, is_observed, is_proxy) VALUES ("
+              + assetId
+              + ", CURRENT_DATE - 1, 'OVERRIDE_PROVIDER_TEST', 'T', 'MARKET_CLOSE', 'USD', 80, 100, 'EXACT_LISTING_MARKET_CLOSE', true, false), ("
+              + assetId
+              + ", CURRENT_DATE, 'OVERRIDE_PROVIDER_TEST', 'T', 'MARKET_CLOSE', 'USD', 90, 100, 'EXACT_LISTING_MARKET_CLOSE', true, false), ("
+              + assetId
+              + ", CURRENT_DATE, 'MANUAL', 'T', 'MANUAL', 'USD', 100, 100, 'MANUAL_ACCEPTED', true, false), ("
+              + assetId
+              + ", CURRENT_DATE + 2, 'FUTURE_MANUAL_TEST', 'T', 'MANUAL', 'USD', 120, 100, 'MANUAL_ACCEPTED', true, false)");
+      statement.execute(
+          "UPDATE investory.asset_price_history SET open_price = 105, high_price = 105, low_price = 105, close_price = 105, imported_at = now() "
+              + "WHERE asset_id = "
+              + assetId
+              + " AND source = 'MANUAL' AND price_date = CURRENT_DATE");
+      statement.execute(
+          "SELECT investory.refresh_materialized_view('app_v_canonical_asset_daily_price_mv', false)");
+      statement.execute(
+          "SELECT investory.refresh_materialized_view('app_v_canonical_asset_daily_price_ranked_mv', true)");
+      statement.execute(
+          "SELECT investory.refresh_materialized_view('app_v_normalized_daily_price_mv', true)");
+      statement.execute(
+          "SELECT investory.refresh_materialized_view('app_v_current_asset_price_mv', true)");
+      try (ResultSet selected =
+          statement.executeQuery(
+              "SELECT price_date, close_price, source, price_origin, price_currency FROM investory.app_v_canonical_asset_daily_price WHERE asset_id = "
+                  + assetId
+                  + " AND price_date IN (CURRENT_DATE - 1, CURRENT_DATE) ORDER BY price_date")) {
+        assertTrue(selected.next());
+        assertEquals(yesterday, selected.getDate(1).toLocalDate());
+        assertEquals(0, new BigDecimal("80").compareTo(selected.getBigDecimal(2)));
+        assertTrue(selected.next());
+        assertEquals(today, selected.getDate(1).toLocalDate());
+        assertEquals(0, new BigDecimal("105").compareTo(selected.getBigDecimal(2)));
+        assertEquals("MANUAL", selected.getString("source"));
+        assertEquals("MANUAL", selected.getString("price_origin"));
+        assertEquals("USD", selected.getString("price_currency"));
+      }
+      try (ResultSet selected =
+          statement.executeQuery(
+              "SELECT selected_price, selected_price_date, price_origin, price_currency FROM investory.app_v_current_asset_price_mv WHERE asset_id = "
+                  + assetId)) {
+        assertTrue(selected.next());
+        assertEquals(0, new BigDecimal("105").compareTo(selected.getBigDecimal("selected_price")));
+        assertEquals(today, selected.getDate("selected_price_date").toLocalDate());
+        assertEquals("MANUAL", selected.getString("price_origin"));
+        assertEquals("USD", selected.getString("price_currency"));
+      }
+      try (ResultSet future =
+          statement.executeQuery(
+              "SELECT price_date, source FROM investory.app_v_canonical_asset_daily_price WHERE asset_id = "
+                  + assetId
+                  + " AND price_date = CURRENT_DATE + 2")) {
+        assertTrue(future.next());
+        assertEquals("FUTURE_MANUAL_TEST", future.getString("source"));
+      }
+      try (ResultSet history =
+          statement.executeQuery(
+              "SELECT valuation_date, selected_price, source_name, price_currency FROM investory.app_v_normalized_daily_price_mv WHERE asset_id = "
+                  + assetId
+                  + " AND valuation_date IN (CURRENT_DATE - 1, CURRENT_DATE) ORDER BY valuation_date")) {
+        assertTrue(history.next());
+        assertEquals(yesterday, history.getDate("valuation_date").toLocalDate());
+        assertEquals(0, new BigDecimal("80").compareTo(history.getBigDecimal("selected_price")));
+        assertEquals("USD", history.getString("price_currency"));
+        assertTrue(history.next());
+        assertEquals(today, history.getDate("valuation_date").toLocalDate());
+        assertEquals(0, new BigDecimal("105").compareTo(history.getBigDecimal("selected_price")));
+        assertEquals("USD", history.getString("price_currency"));
+      }
+      try (ResultSet objectTypes =
+          statement.executeQuery(
+              "SELECT c.relname, c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'investory' AND c.relname IN ('app_v_canonical_asset_daily_price_mv', 'app_v_canonical_asset_daily_price') ORDER BY CASE c.relname WHEN 'app_v_canonical_asset_daily_price_mv' THEN 0 ELSE 1 END")) {
+        assertTrue(objectTypes.next());
+        assertEquals("app_v_canonical_asset_daily_price_mv", objectTypes.getString(1));
+        assertEquals("m", objectTypes.getString(2));
+        assertTrue(objectTypes.next());
+        assertEquals("app_v_canonical_asset_daily_price", objectTypes.getString(1));
+        assertEquals("v", objectTypes.getString(2));
+      }
+      statement.execute(
+          "DELETE FROM investory.asset_price_history WHERE asset_id = "
+              + assetId
+              + " AND source IN ('OVERRIDE_PROVIDER_TEST', 'MANUAL', 'FUTURE_MANUAL_TEST') AND price_date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + 2");
+      statement.execute(
+          "SELECT investory.refresh_materialized_view('app_v_canonical_asset_daily_price_mv', false)");
+      statement.execute(
+          "SELECT investory.refresh_materialized_view('app_v_canonical_asset_daily_price_ranked_mv', true)");
+      statement.execute(
+          "SELECT investory.refresh_materialized_view('app_v_normalized_daily_price_mv', true)");
+      statement.execute(
+          "SELECT investory.refresh_materialized_view('app_v_current_asset_price_mv', true)");
+      statement.execute("DELETE FROM investory.account_daily WHERE account_id = " + accountId);
+      statement.execute("DELETE FROM investory.positions WHERE id = " + positionId);
+      statement.execute("DELETE FROM investory.accounts WHERE id = " + accountId);
+      statement.execute("DELETE FROM investory.portfolios WHERE id = " + portfolioId);
     }
   }
 

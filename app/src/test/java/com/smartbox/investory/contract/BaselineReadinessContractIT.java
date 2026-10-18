@@ -38,8 +38,20 @@ class BaselineReadinessContractIT {
           .load();
 
   @BeforeAll
-  static void migrateEmptyDatabase() {
-
+  static void migrateEmptyDatabase() throws SQLException {
+    Flyway.configure().configuration(FLYWAY.getConfiguration()).target("01.009").load().migrate();
+    try (Connection connection =
+            DriverManager.getConnection(
+                DATABASE.jdbcUrl(), DATABASE.username(), DATABASE.password());
+        Statement statement = connection.createStatement()) {
+      long assetId = singleInt(statement, "SELECT id FROM investory.assets ORDER BY id LIMIT 1");
+      statement.execute(
+          "INSERT INTO investory.asset_price_history(asset_id, price_date, source, source_symbol, price_origin, price_currency, close_price, quality_score, quality_class, is_observed, is_proxy) VALUES ("
+              + assetId
+              + ", CURRENT_DATE - 1, 'MANUAL', 'MIGRATION_TEST', 'MANUAL', 'USD', 80, 25, 'MANUAL_ACCEPTED', true, false), ("
+              + assetId
+              + ", CURRENT_DATE, 'MANUAL', 'MIGRATION_TEST', 'MANUAL', 'USD', 90, 25, 'MANUAL_ACCEPTED', true, false)");
+    }
     FLYWAY.migrate();
   }
 
@@ -194,6 +206,23 @@ class BaselineReadinessContractIT {
               "SELECT pg_get_viewdef('investory.app_v_account_monthly_benchmark'::regclass, true)");
       assertTrue(benchmarkDefinition.contains("app_v_account_monthly"));
       assertFalse(benchmarkDefinition.contains("closing_equity - opening_equity"));
+    }
+  }
+
+  @DisplayName("manual price selection migration raises only forward manual rank")
+  @Test
+  @Order(2)
+  void manualPriceMigrationRaisesOnlyForwardManualRank() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          "25|100",
+          singleString(
+              statement,
+              "SELECT string_agg(quality_score::text, '|' ORDER BY price_date) "
+                  + "FROM investory.asset_price_history "
+                  + "WHERE source = 'MANUAL' AND source_symbol = 'MIGRATION_TEST' "
+                  + "AND price_date IN (CURRENT_DATE - 1, CURRENT_DATE)"));
     }
   }
 
