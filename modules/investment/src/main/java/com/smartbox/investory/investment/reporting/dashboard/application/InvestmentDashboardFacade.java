@@ -98,15 +98,22 @@ public class InvestmentDashboardFacade {
             : benchmarkService.calculate(query.portfolioId(), null);
     Benchmark benchmark = periodViewService.filter(benchmarkInput, selectedPeriod);
     Map<Long, AccountPeriodMetrics> accountPeriodMetrics =
-        accountPeriodMetrics(portfolio.getMonthlyPerformance());
+        portfolio.isValuationComplete()
+            ? accountPeriodMetrics(portfolio.getMonthlyPerformance())
+            : Map.of();
     portfolio.setAccountBalances(
-        periodAccountBalances(portfolio.getAccountBalances(), benchmark, accountPeriodMetrics));
+        periodAccountBalances(
+            portfolio.getAccountBalances(),
+            benchmark,
+            accountPeriodMetrics,
+            portfolio.isValuationComplete()));
     portfolio.setAccountBalancesTotal(
         periodAccountBalancesTotal(
             portfolio.getAccountBalances(),
             portfolio.getAccountBalancesTotal(),
             benchmark,
-            accountPeriodMetrics));
+            accountPeriodMetrics,
+            portfolio.isValuationComplete()));
 
     PerformanceResult canonical =
         canonicalPerformance(portfolio.getMonthlyPerformance(), performanceResults, selectedPeriod);
@@ -127,8 +134,8 @@ public class InvestmentDashboardFacade {
                 historicalPerformance,
                 totalReturnPerformance,
                 portfolio.isValuationComplete()),
-            topGainers(portfolio),
-            topLosers(portfolio),
+            portfolio.isValuationComplete() ? topGainers(portfolio) : List.of(),
+            portfolio.isValuationComplete() ? topLosers(portfolio) : List.of(),
             performanceKpiStart),
         overview.positions(),
         overview.cashFlow(),
@@ -692,9 +699,13 @@ public class InvestmentDashboardFacade {
   private List<AccountBalance> periodAccountBalances(
       List<AccountBalance> accounts,
       Benchmark benchmark,
-      Map<Long, AccountPeriodMetrics> accountPeriodMetrics) {
+      Map<Long, AccountPeriodMetrics> accountPeriodMetrics,
+      boolean valuationComplete) {
     if (accounts == null) {
       return List.of();
+    }
+    if (!valuationComplete) {
+      return accounts.stream().map(InvestmentDashboardFacade::withoutValuationReturns).toList();
     }
     Map<Long, Benchmark.AccountSeries> seriesByAccount =
         benchmark.getAccountSeries().stream()
@@ -726,9 +737,13 @@ public class InvestmentDashboardFacade {
       List<AccountBalance> accounts,
       AccountBalance total,
       Benchmark benchmark,
-      Map<Long, AccountPeriodMetrics> accountPeriodMetrics) {
+      Map<Long, AccountPeriodMetrics> accountPeriodMetrics,
+      boolean valuationComplete) {
     if (total == null) {
       return null;
+    }
+    if (!valuationComplete) {
+      return withoutValuationReturns(total);
     }
     BigDecimal periodProfit =
         benchmark.isPortfolioPerformanceAvailable()
@@ -744,6 +759,15 @@ public class InvestmentDashboardFacade {
         .profitBase(periodProfit)
         .profitLocal(localProfit)
         .profitLossPercent(periodReturn)
+        .build();
+  }
+
+  private static AccountBalance withoutValuationReturns(AccountBalance account) {
+    return account.toBuilder()
+        .profitBase(null)
+        .profitLocal(null)
+        .profitLossPercent(null)
+        .fxEffect(null)
         .build();
   }
 

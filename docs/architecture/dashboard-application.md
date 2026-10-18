@@ -117,13 +117,15 @@ annualized TWR is displayed as context only and does not drive those projections
 ### Incomplete authoritative valuation
 
 When the portfolio's authoritative valuation is incomplete, dashboard profit,
-net gain, yield and return headers are unavailable (`null` / `—`); plausible
+net gain, yield and return headers and account profit/return fields are unavailable (`null` / `—`); plausible
 monthly performance rows do not override that state. Portfolio period summaries,
 best/worst periods and monthly return/attribution series are withheld, and Profile's
 portfolio return KPI is unavailable as well. The response keeps its existing
 field names; portfolio summary numbers are nullable when unavailable.
 
 Independent ledger facts (net deposits, operation counts and monthly cash flow)
-and benchmark return/forward benchmark estimates remain visible as diagnostics.
+and benchmark return/forward benchmark estimates remain visible as diagnostics. Known account
+balances, cash and deposit facts stay visible; dependent FX-profit effects and
+gainer/loser rankings are withheld until valuation is complete.
 A benchmark estimate is labelled as such and never becomes an observed portfolio
 return. Complete-valuation behavior is unchanged.
