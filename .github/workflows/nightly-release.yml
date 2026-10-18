@@ -1,0 +1,56 @@
+name: Nightly release preflight
+
+on:
+  schedule:
+    # 01:30 UTC (02:30/03:30 Europe/Warsaw depending on daylight saving).
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Required safe preflight; production actions are not enabled.
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Fetch release branches
+        run: git fetch origin main develop
+      - name: Compare branch revisions
+        id: refs
+        run: |
+          echo "main=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
+          echo "develop=$(git rev-parse origin/develop)" >> "$GITHUB_OUTPUT"
+      - name: Skip when unchanged
+        if: steps.refs.outputs.main == steps.refs.outputs.develop
+        run: echo "No new changes on develop; no release needed."
+      - name: Read exact develop SHA checks
+        if: steps.refs.outputs.main != steps.refs.outputs.develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ steps.refs.outputs.develop }}
+          MAIN_SHA: ${{ steps.refs.outputs.main }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${CANDIDATE_SHA}/check-runs" > checks.json
+          python3 .github/scripts/nightly_release_preflight.py <<EOF
+          {"develop_sha":"${CANDIDATE_SHA}","main_sha":"${MAIN_SHA}","checks":$(python3 -c 'import json; print(json.dumps([{"head_sha": x.get("head_sha"), "conclusion": x.get("conclusion")} for x in json.load(open("checks.json")).get("check_runs", [])]))')}
+          EOF
+      - name: Report gated status
+        if: always()
+        run: |
+          echo "Nightly release is preflight-only. No promotion, image publication, or production deployment was attempted." >> "$GITHUB_STEP_SUMMARY"
