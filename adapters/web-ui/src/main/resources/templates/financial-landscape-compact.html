@@ -9,13 +9,13 @@
 <body class="fl-body fl-compact-body">
 <main class="fl-compact" aria-label="Financial Landscape compact overview">
   <header class="fl-compact-header">
-    <div><span class="fl-eyebrow">FINANCIAL LANDSCAPE</span><h1>Cash flow</h1></div>
+    <div><span class="fl-eyebrow">FINANCIAL LANDSCAPE</span><h1>Money in motion</h1></div>
     <a th:href="@{/portfolios/{id}/financial-landscape(id=${portfolioId})}" class="fl-button">Full view ↗</a>
   </header>
   <div class="fl-compact-landscape" aria-hidden="true"><div class="fl-compact-mountains"></div><div class="fl-compact-dune"></div></div>
   <div class="fl-compact-content">
     <div class="fl-compact-clock">
-      <div class="fl-clock-value fl-clock-value--income"><span class="fl-visually-hidden">Monthly income</span><strong id="fl-income">—</strong></div>
+      <div class="fl-clock-value fl-clock-value--income"><span class="fl-visually-hidden">Monthly projected economic result</span><strong id="fl-income">—</strong></div>
       <div class="fl-compact-hourglass" aria-hidden="true">
         <svg viewBox="0 0 160 220">
           <defs><linearGradient id="compact-sand" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#ffe6a5"/><stop offset="1" stop-color="#bc7f38"/></linearGradient>
@@ -28,10 +28,11 @@
       <div class="fl-clock-value fl-clock-value--expenses"><span class="fl-visually-hidden">Monthly expenses</span><strong id="fl-expenses">—</strong></div>
     </div>
     <div class="fl-center fl-compact-flow">
-      <span>NET CASH FLOW · MONTHLY</span>
+      <span>ECONOMIC BALANCE · MONTHLY</span>
       <strong id="fl-net">—</strong>
+      <small id="fl-cash-net" class="fl-cash-net">—</small>
       <small id="fl-coverage">—</small>
-      <div class="fl-coverage-track" role="progressbar" aria-label="Income coverage of planned expenses" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="fl-coverage-bar"><div id="fl-coverage-fill"></div></div>
+      <div class="fl-coverage-track" role="progressbar" aria-label="Cash income coverage of planned expenses" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="fl-coverage-bar"><div id="fl-coverage-fill"></div></div>
     </div>
   </div>
   

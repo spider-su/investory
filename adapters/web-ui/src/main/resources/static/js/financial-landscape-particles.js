@@ -15,6 +15,7 @@
     size: 0.7 + (i % 4) * .4,
     blue: i % 5 === 0
   }));
+  const reserveParticles = Array.from({length: 30}, (_, i) => ({t: i / 30, size: .7 + (i % 3) * .35}));
   const resize = () => {
     const rect = scene.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -48,6 +49,31 @@
         ctx.fillStyle = p.blue ? 'rgba(113,192,243,.55)' : 'rgba(255,192,97,.78)';
         ctx.shadowColor = p.blue ? '#67b8ff' : '#ffbe63';
         ctx.shadowBlur = 5;
+        ctx.arc(x, y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    const direction = scene.dataset.reserveDirection;
+    const duneRect = scene.querySelector('.fl-dune')?.getBoundingClientRect();
+    const glassRect = scene.querySelector('.fl-hourglass')?.getBoundingClientRect();
+    if ((direction === 'draw' || direction === 'save') && duneRect && glassRect && w > 760) {
+      const parentRect = scene.getBoundingClientRect();
+      const ax = glassRect.left - parentRect.left + glassRect.width * .5;
+      const ay = glassRect.top - parentRect.top + glassRect.height * .93;
+      const bx = duneRect.left - parentRect.left + duneRect.width * .56;
+      const by = duneRect.top - parentRect.top + duneRect.height * .16;
+      const mx = (ax + bx) / 2 - Math.min(50, w * .045);
+      const my = Math.min(ay, by) - 26;
+      for (const p of reserveParticles) {
+        p.t = (p.t + .0036) % 1;
+        const t = direction === 'draw' ? 1 - p.t : p.t; // draw: reserve -> glass
+        const u = 1 - t;
+        const x = u * u * ax + 2 * u * t * mx + t * t * bx;
+        const y = u * u * ay + 2 * u * t * my + t * t * by;
+        ctx.beginPath();
+        ctx.fillStyle = direction === 'draw' ? 'rgba(245,172,119,.74)' : 'rgba(255,217,144,.75)';
+        ctx.shadowColor = direction === 'draw' ? '#f5ac77' : '#ffdc9b';
+        ctx.shadowBlur = 7;
         ctx.arc(x, y, p.size, 0, Math.PI * 2);
         ctx.fill();
       }
