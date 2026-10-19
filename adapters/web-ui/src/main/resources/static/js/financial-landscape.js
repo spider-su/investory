@@ -41,8 +41,11 @@
   set('fl-expenses', compact ? compactValue(expenses === null ? null : expenses / 12) : format(expenses === null ? null : expenses / 12) + ' / month');
   set('fl-income-rate', income === null ? 'No planning income' : rate(income / (365.2425 * 24 * 60)) + ' / min');
   set('fl-expense-rate', expenses === null ? 'No planning expenses' : rate(expenses / (365.2425 * 24 * 60)) + ' / min');
+  // Market-inclusive economic balance is distinct from spendable planning cash.
   const net = income === null || expenses === null ? null : (income - expenses) / 12;
-  set('fl-net', (net !== null && net > 0 ? '+' : '') + format(net) + ' / month');
+  const cashNet = cashIncome === null || expenses === null ? null : (cashIncome - expenses) / 12;
+  set('fl-net', net === null ? 'Unavailable' : (net > 0 ? '+' : '') + format(net) + ' / month');
+  set('fl-cash-net', cashNet === null ? 'Cash funding unavailable' : 'Cash funding: ' + (cashNet > 0 ? '+' : '') + format(cashNet) + ' / month');
   set('fl-base', cashIncome === null ? 'Unavailable' : format(cashIncome / 12) + ' / mo');
   set('fl-spread', marketResult === null ? 'Unavailable' : format(marketResult / 12) + ' / mo');
   set('fl-consumption-total', expenses === null ? 'Unavailable' : format(expenses / 12) + ' / month');
@@ -50,22 +53,22 @@
   const flowState = net === null ? 'unknown' : tolerance !== null && tolerance <= 0.02 ? 'neutral' : net < 0 ? 'negative' : net > 0 ? 'positive' : 'neutral';
   const flowPanel = document.querySelector('.fl-center, .fl-compact-net');
   if (flowPanel) flowPanel.dataset.flow = flowState;
-  set('fl-coverage', income === null || expenses === null ? 'Planning data unavailable' : expenses === 0 ? 'No planned spending' : Math.round(income / expenses * 100) + '% income coverage');
-  const coverage = income === null || expenses === null || expenses <= 0 ? null : Math.max(0, income / expenses * 100);
+  set('fl-coverage', cashIncome === null || expenses === null ? 'Cash planning data unavailable' : expenses === 0 ? 'No planned spending' : Math.round(cashIncome / expenses * 100) + '% cash income coverage');
+  const coverage = cashIncome === null || expenses === null || expenses <= 0 ? null : Math.max(0, cashIncome / expenses * 100);
   const coverageBar = document.getElementById('fl-coverage-bar');
   const coverageFill = document.getElementById('fl-coverage-fill');
-  if (coverageBar) { coverageBar.setAttribute('aria-valuenow', String(Math.round(Math.min(100, coverage ?? 0)))); coverageBar.setAttribute('aria-valuetext', coverage === null ? 'Unavailable' : Math.round(coverage) + '% income coverage'); }
+  if (coverageBar) { coverageBar.setAttribute('aria-valuenow', String(Math.round(Math.min(100, coverage ?? 0)))); coverageBar.setAttribute('aria-valuetext', coverage === null ? 'Unavailable' : Math.round(coverage) + '% cash income coverage'); }
   if (coverageFill) coverageFill.style.width = Math.min(100, coverage ?? 0) + '%';
   const annualGap = numeric(data.annualGap);
-  set('fl-annual-gap', annualGap === null ? 'Annual gap unavailable' : annualGap > 0 ? format(annualGap) + ' projected annual gap' : 'No projected annual gap');
+  set('fl-annual-gap', annualGap === null ? 'Annual gap unavailable' : annualGap > 0 ? format(annualGap) + ' annual cash funding gap' : 'No annual cash funding gap');
   const liquid = numeric(data.liquidAssets);
   set('fl-liquid', format(liquid));
   const reserve = numeric(data.reserve);
   set('fl-cash-reserve', format(reserve));
   const runway = document.getElementById('fl-runway');
   if (runway) {
-    const months = net !== null && net < 0 && reserve !== null && reserve >= 0 ? reserve / -net : null;
-    runway.textContent = months === null ? (net !== null && net >= 0 ? 'No projected monthly deficit' : 'Cash-reserve runway unavailable') : 'Illustrative cash-reserve runway: ' + new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 }).format(months) + ' months';
+    const months = cashNet !== null && cashNet < 0 && reserve !== null && reserve >= 0 ? reserve / -cashNet : null;
+    runway.textContent = months === null ? (cashNet !== null && cashNet >= 0 ? 'No projected cash funding deficit' : 'Cash-reserve runway unavailable') : 'Illustrative cash-reserve runway: ' + new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 }).format(months) + ' months';
   }
   set('fl-illiquid', format(numeric(data.illiquidAssets)));
   set('fl-worth', format(numeric(data.netWorth)));
@@ -90,27 +93,7 @@
     root.style.setProperty('--fl-cash-share', (cashRatio * 100).toFixed(2) + '%');
     const financing = numeric(data.annualGap);
     const saving = numeric(data.annualSurplus);
-    root.dataset.reserveDirection = financing !== null && financing > 0 ? 'draw' : saving !== null && saving > 0 ? 'save' : 'still';
-  }
-  const trails = document.querySelector('.fl-sand-trails');
-  if (trails) {
-    trails.replaceChildren();
-    const groups = Array.isArray(data.expenseGroups) ? data.expenseGroups.filter(g => Number(g.monthlyAmount) > 0) : [];
-    const sum = groups.reduce((total, g) => total + Number(g.monthlyAmount), 0);
-    for (const group of groups) {
-      const share = sum > 0 ? Number(group.monthlyAmount) / sum : 0;
-      const item = document.createElement('div');
-      item.className = 'fl-expense-stream';
-      item.style.setProperty('--stream-weight', String(Math.max(2, Math.min(12, 2 + share * 12))) + 'px');
-      const name = document.createElement('span');
-      name.textContent = String(group.name);
-      const percentage = document.createElement('strong');
-      percentage.textContent = Math.round(share * 100) + '%';
-      item.append(name, percentage);
-      trails.append(item);
-    }
-    trails.setAttribute('aria-label', 'Planned expense categories');
-    trails.removeAttribute('aria-hidden');
+    root.dataset.reserveDirection = financing !== null && financing > 0 ? 'draw' : saving !== null && saving > 0 ? 'save' : cashNet !== null && cashNet < 0 ? 'draw' : cashNet !== null && cashNet > 0 ? 'save' : 'still';
   }
   const consumptionBar = document.getElementById('fl-consumption-bar');
   const consumptionLegend = document.getElementById('fl-consumption-legend');
@@ -139,7 +122,7 @@
       const value = document.createElement('strong');
       value.textContent = format(amount);
       const percent = document.createElement('small');
-      percent.textContent = Math.round(share * 100) + '%';
+      percent.textContent = share > 0 && share < .005 ? '<1%' : Math.round(share * 100) + '%';
       item.append(label, value, percent);
       consumptionLegend.append(item);
     }

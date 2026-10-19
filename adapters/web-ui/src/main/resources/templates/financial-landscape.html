@@ -24,7 +24,7 @@
     <div class="fl-mountain fl-mountain--far" aria-hidden="true"></div>
     <div class="fl-mountain fl-mountain--near" aria-hidden="true"></div>
     <div class="fl-dune" aria-hidden="true"><div class="fl-dune-ridge"></div></div><div class="fl-sand-trails" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="fl-top"><span>PROJECTED RESULT</span><strong id="fl-income">—</strong><small id="fl-income-rate">—</small><div class="fl-income-legend"><span class="fl-legend-cash">● Cash income <b id="fl-cash-income">—</b></span><span class="fl-legend-market">● Market result <b id="fl-market-result">—</b></span></div></div>
+    <div class="fl-top"><span>PROJECTED ECONOMIC RESULT</span><strong id="fl-income">—</strong><small id="fl-income-rate">—</small><div class="fl-income-legend"><span class="fl-legend-cash">● Cash income <b id="fl-cash-income">—</b></span><span class="fl-legend-market">● Market result <b id="fl-market-result">—</b></span></div></div>
     <div class="fl-hourglass" aria-hidden="true">
       <svg viewBox="0 0 260 360" role="img">
         <defs>
@@ -43,10 +43,12 @@
       </svg>
     </div>
     <div class="fl-center">
-      <span>NET CASH FLOW · MONTHLY</span>
+      <span>ECONOMIC BALANCE · MONTHLY</span>
       <strong id="fl-net">—</strong>
+      <small class="fl-economic-note">Includes market result; not necessarily spendable cash</small>
+      <small id="fl-cash-net" class="fl-cash-net">—</small>
       <small id="fl-coverage">—</small>
-      <div class="fl-coverage-track" role="progressbar" aria-label="Income coverage of planned expenses" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="fl-coverage-bar"><div id="fl-coverage-fill"></div></div>
+      <div class="fl-coverage-track" role="progressbar" aria-label="Cash income coverage of planned expenses" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="fl-coverage-bar"><div id="fl-coverage-fill"></div></div>
       <small id="fl-annual-gap">—</small>
       <small id="fl-runway">—</small><div class="fl-flow-breakdown"><div><span class="fl-legend-cash">● Base · cash income</span><b id="fl-base">—</b></div><div><span class="fl-legend-market">● Spread · market result</span><b id="fl-spread">—</b></div></div>
     </div>
