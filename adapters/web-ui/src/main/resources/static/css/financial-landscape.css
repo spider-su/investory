@@ -165,75 +165,146 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 @media(max-width:420px){.fl-consumption-legend{grid-template-columns:1fr}.fl-compact{border-radius:14px}}
 
 
-/* Financial Landscape visual fidelity: soften relief; keep the familiar layout. */
+/* Final cinematic composition: full view only. Keep asset amounts and Compact untouched. */
 .fl-scene {
   min-height: 700px;
   height: min(81vh, 850px);
-  background: radial-gradient(ellipse at 32% 56%, #e0a66a38, transparent 39%),
-              radial-gradient(ellipse at 74% 25%, #61789543, transparent 46%),
-              linear-gradient(180deg, #0c1728, #1b2939 43%, #39404a 66%, #121d2b);
+  grid-template-columns: minmax(0, 530px) minmax(250px, 315px);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  column-gap: clamp(26px, 4vw, 70px);
+  justify-content: center;
+  padding: 28px clamp(24px, 3vw, 48px) 125px;
+  background:
+    radial-gradient(ellipse at 32% 54%, #e4ae7745, transparent 38%),
+    radial-gradient(ellipse at 72% 38%, #657a9340, transparent 51%),
+    linear-gradient(180deg, #0c1728 0%, #1b2939 45%, #363e4a 67%, #121d2b 100%);
 }
-.fl-scene .fl-atmosphere { background: radial-gradient(ellipse at 36% 61%, #ffc7793b, transparent 36%); }
+.fl-scene .fl-atmosphere {
+  background: radial-gradient(ellipse at 35% 57%, #f7c18428, transparent 34%);
+}
 .fl-scene .fl-lake {
-  inset: 66% 0 0;
-  opacity: .52;
-  background: repeating-linear-gradient(179deg, transparent 0 15px, #f0c58a0d 17px 18px, transparent 20px 32px),
-              linear-gradient(180deg, #3a414880, #101b2b);
+  inset: 64% 0 0;
+  opacity: .42;
+  background:
+    repeating-linear-gradient(179deg, transparent 0 15px, #f0c58a0d 17px 18px, transparent 20px 32px),
+    linear-gradient(180deg, #36414c80, #101b2b);
 }
 .fl-scene .fl-mountain {
   clip-path: none;
   transform-origin: bottom center;
-  filter: blur(7px);
+  filter: blur(5px);
 }
 .fl-scene .fl-mountain--far {
-  right: -13%; bottom: 17%; width: 82%; height: 33%;
-  border-radius: 54% 47% 0 0 / 75% 85% 0 0;
-  background: linear-gradient(155deg, #555b6b, #333c50 43%, #152638);
-  opacity: .55;
+  right: -11%; bottom: 17%; width: 70%; height: 38%;
+  border-radius: 48% 64% 0 0 / 83% 96% 0 0;
+  background: linear-gradient(150deg, #798398, #465266 47%, #152638);
+  opacity: .68;
 }
 .fl-scene .fl-mountain--near {
-  left: -19%; bottom: 11%; width: 78%; height: 31%;
-  border-radius: 58% 52% 0 0 / 77% 82% 0 0;
-  background: linear-gradient(150deg, #a18b70, #5f5c60 56%, #293649);
-  opacity: .57;
+  left: -20%; bottom: 12%; width: 77%; height: 29%;
+  border-radius: 45% 61% 0 0 / 92% 100% 0 0;
+  background: linear-gradient(145deg, #b19a7e, #686674 50%, #293649);
+  opacity: .58;
 }
 .fl-scene .fl-dune {
-  left: -9%; bottom: -3%; width: 84%; height: 46%;
+  left: -6%; bottom: -3%; width: 72%; height: 35%;
   clip-path: none;
-  border-radius: 58% 55% 0 0 / 88% 90% 0 0;
-  background: radial-gradient(ellipse at 47% 5%, #f5cf8d, #d8ad71 21%, #936c49 48%, #38404a 86%);
-  opacity: .9;
-  box-shadow: 0 -15px 57px #f0b86f38;
+  border-radius: 46% 65% 0 0 / 95% 100% 0 0;
+  background:
+    radial-gradient(ellipse at 39% 3%, #f2d092, #ca9f66 30%, #795f4b 64%, #35404b 96%);
+  opacity: .86;
+  box-shadow: 0 -12px 47px #eeb6742d;
 }
-.fl-scene .fl-dune-ridge { left: 20%; width: 58%; border-top-color: #ffe2a777; opacity: .63; }
+.fl-scene .fl-dune-ridge {
+  left: 16%; width: 58%;
+  border-top-color: #ffe3ae60;
+  opacity: .48;
+}
+/* The Canvas strand replaces the old unanchored bright CSS streak. */
+.fl-scene[data-reserve-direction="draw"] .fl-dune::after,
+.fl-scene[data-reserve-direction="save"] .fl-dune::after {
+  display: none;
+}
 .fl-scene .fl-hourglass {
   width: min(100%, 300px);
-  filter: drop-shadow(0 0 15px #ffdb9080) drop-shadow(0 0 32px #efa75a48);
+  filter: drop-shadow(0 0 13px #ffda8980) drop-shadow(0 0 30px #efa75a48);
 }
-.fl-scene .fl-hourglass svg { max-height: min(47vh, 385px); }
+.fl-scene .fl-hourglass svg { max-height: min(46vh, 385px); }
 .fl-scene .fl-center {
-  background: #0d1d2baf; border-color: #9aadc03b;
-  box-shadow: 0 10px 36px #0a18223d; backdrop-filter: blur(8px);
+  background: #0d1d2b9c;
+  border-color: #9aadc033;
+  box-shadow: 0 9px 30px #09152032;
+  backdrop-filter: blur(8px);
 }
-.fl-cash-net { font-size: 13px; font-weight: 650; color: #f2c47e !important; }
-.fl-economic-note { font-size: 11px; color: #a9bbc8 !important; }
-.fl-scene .fl-ground { background: #0b1a28d8; border-color: #8c9eaf4a; }
-.fl-sand-trails { left: 17%; right: 17%; bottom: 8%; height: 15%; opacity: .28; z-index: 2; }
+.fl-scene .fl-center .fl-cash-net {
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #f2c47e !important;
+}
+.fl-scene .fl-economic-note { font-size: 11px; color: #b2c0cb !important; }
+.fl-scene .fl-center .fl-flow-breakdown {
+  gap: 6px;
+  opacity: .78;
+  margin-top: 3px;
+  padding-top: 8px;
+}
+.fl-scene .fl-bottom {
+  padding: 12px 35px;
+  border-radius: 38px;
+  background: radial-gradient(ellipse, #152330db 0%, #1725338c 55%, transparent 78%);
+  text-shadow: 0 2px 12px #05111d, 0 0 6px #05111d;
+}
+.fl-scene .fl-ground {
+  position: absolute;
+  grid-column: auto;
+  grid-row: auto;
+  left: 2.7%; right: 2.7%; bottom: 22px;
+  width: auto;
+  background: #0b1a28e6;
+  border-color: #8c9eaf4a;
+}
+.fl-scene .fl-top { max-width: 100%; }
+.fl-income-note {
+  margin-top: 2px;
+  color: #b1c0cd;
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: center;
+  letter-spacing: normal;
+}
+.fl-sand-trails { left: 17%; right: 17%; bottom: 8%; height: 15%; opacity: .24; z-index: 2; }
 .fl-sand-trails i { border-top-width: 2px; }
+
+/* Keep the existing consumption section, with a stable 5-column legend. */
 .fl-consumption-legend { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px 10px; }
 .fl-consumption-item { padding: 10px 8px; border-right: 0; border-top: 1px solid #34485a; }
 .fl-consumption-name { line-height: 1.4; }
 @media (max-width: 1050px) {
   .fl-consumption-legend { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
-@media (max-width: 760px) {
-  .fl-scene { min-height: 0; height: auto; }
-  .fl-scene .fl-hourglass { width: min(60vw, 235px); }
+/* Stack the panel once two central columns no longer have enough room. */
+@media (max-width: 980px) {
+  .fl-scene {
+    height: auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto;
+    row-gap: 16px;
+    padding: 24px 18px;
+  }
+  .fl-scene .fl-top { grid-column: 1; grid-row: 1; }
+  .fl-scene .fl-hourglass { grid-column: 1; grid-row: 2; width: min(60vw, 235px); }
   .fl-scene .fl-hourglass svg { max-height: 295px; }
+  .fl-scene .fl-bottom { grid-column: 1; grid-row: 3; }
+  .fl-scene .fl-center { grid-column: 1; grid-row: 4; width: min(100%, 550px); justify-self: center; align-items: center; text-align: center; }
+  .fl-scene .fl-ground { position: relative; grid-column: 1; grid-row: 5; left: auto; right: auto; bottom: auto; width: 100%; }
   .fl-scene .fl-mountain--far { opacity: .28; }
   .fl-scene .fl-mountain--near { opacity: .32; }
-  .fl-scene .fl-dune { width: 105%; height: 23%; bottom: 20%; opacity: .38; }
+  .fl-scene .fl-dune { width: 105%; height: 23%; bottom: 19%; opacity: .36; }
   .fl-sand-trails { display: none; }
+}
+@media (max-width: 760px) {
   .fl-consumption-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 420px) {
