@@ -82,6 +82,10 @@
     root.dataset.flow = flowState;
     const cashRatio = income !== null && income > 0 && cashIncome !== null ? Math.min(1, Math.max(0, cashIncome / income)) : 0;
     root.style.setProperty('--fl-cash-share', (cashRatio * 100).toFixed(2) + '%');
+    // Atmospheric source intensity reflects monthly cash/market contribution shares only.
+    const positiveSources = Math.max(0, cashIncome ?? 0) + Math.max(0, marketResult ?? 0);
+    root.style.setProperty('--fl-cash-cloud-opacity', String(positiveSources > 0 ? .09 + .22 * Math.max(0, cashIncome ?? 0) / positiveSources : 0));
+    root.style.setProperty('--fl-market-cloud-opacity', String(positiveSources > 0 ? .09 + .22 * Math.max(0, marketResult ?? 0) / positiveSources : 0));
     const financing = numeric(data.annualGap);
     const saving = numeric(data.annualSurplus);
     root.dataset.reserveDirection = financing !== null && financing > 0 ? 'draw' : saving !== null && saving > 0 ? 'save' : cashNet !== null && cashNet < 0 ? 'draw' : cashNet !== null && cashNet > 0 ? 'save' : 'still';
