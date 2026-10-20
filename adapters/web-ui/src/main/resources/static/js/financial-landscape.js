@@ -35,17 +35,17 @@
   const compactValue = value => value === null || !Number.isFinite(value) ? '—' : (value < 0 ? '−' : '') + compactNumber(value);
   const rate = value => value === null ? 'Unavailable' : new Intl.NumberFormat('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 3}).format(value) + ' ' + currency;
   const set = (id, value) => {const el = document.getElementById(id); if (el) el.textContent = value;};
-  set('fl-income', compact ? compactValue(income === null ? null : income / 12) : format(income === null ? null : income / 12) + ' / month');
-  set('fl-cash-income', cashIncome === null ? 'Unavailable' : format(cashIncome / 12) + ' / mo');
-  set('fl-market-result', marketResult === null ? 'Unavailable' : format(marketResult / 12) + ' / mo');
-  set('fl-expenses', compact ? compactValue(expenses === null ? null : expenses / 12) : format(expenses === null ? null : expenses / 12) + ' / month');
+  set('fl-income', compact ? compactValue(income === null ? null : income / 12) : format(income === null ? null : income / 12));
+  set('fl-cash-income', cashIncome === null ? 'Unavailable' : format(cashIncome / 12));
+  set('fl-market-result', marketResult === null ? 'Unavailable' : format(marketResult / 12));
+  set('fl-expenses', compact ? compactValue(expenses === null ? null : expenses / 12) : format(expenses === null ? null : expenses / 12));
   set('fl-income-rate', income === null ? 'No planning income' : rate(income / (365.2425 * 24 * 60)) + ' / min');
   set('fl-expense-rate', expenses === null ? 'No planning expenses' : rate(expenses / (365.2425 * 24 * 60)) + ' / min');
   // Market-inclusive economic balance is distinct from spendable planning cash.
   const net = income === null || expenses === null ? null : (income - expenses) / 12;
   const cashNet = cashIncome === null || expenses === null ? null : (cashIncome - expenses) / 12;
-  set('fl-net', net === null ? 'Unavailable' : (net > 0 ? '+' : '') + format(net) + ' / month');
-  set('fl-cash-net', cashNet === null ? 'Cash funding unavailable' : 'Cash funding: ' + (cashNet > 0 ? '+' : '') + format(cashNet) + ' / month');
+  set('fl-net', net === null ? 'Unavailable' : (net > 0 ? '+' : '') + format(net));
+  set('fl-cash-net', cashNet === null ? 'Cash funding unavailable' : 'Cash funding: ' + (cashNet > 0 ? '+' : '') + format(cashNet));
   const tolerance = expenses !== null && expenses > 0 ? Math.abs(income - expenses) / expenses : null;
   const flowState = net === null ? 'unknown' : tolerance !== null && tolerance <= 0.02 ? 'neutral' : net < 0 ? 'negative' : net > 0 ? 'positive' : 'neutral';
   const flowPanel = document.querySelector('.fl-center, .fl-compact-net');
@@ -60,11 +60,6 @@
   set('fl-annual-gap', annualGap === null ? 'Annual gap unavailable' : annualGap > 0 ? format(annualGap) + ' annual cash funding gap' : 'No annual cash funding gap');
   const liquid = numeric(data.liquidAssets);
   const reserve = numeric(data.reserve);
-  const runway = document.getElementById('fl-runway');
-  if (runway) {
-    const months = cashNet !== null && cashNet < 0 && reserve !== null && reserve >= 0 ? reserve / -cashNet : null;
-    runway.textContent = months === null ? (cashNet !== null && cashNet >= 0 ? 'No projected cash funding deficit' : 'Cash-reserve runway unavailable') : 'Illustrative cash-reserve runway: ' + new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 }).format(months) + ' months';
-  }
   // Scenic measurement guides reuse the same source amounts as the asset footer.
   const terrainValue = value => value === null ? '—' : compactNumber(value) + ' ' + currency;
   set('fl-mountain-value', terrainValue(numeric(data.illiquidAssets)));
@@ -185,13 +180,10 @@
       const amount = document.createElement('strong');
       amount.className = 'fl-spend-value';
       amount.textContent = format(group.amount);
-      const perMonth = document.createElement('span');
-      perMonth.className = 'fl-spend-period';
-      perMonth.textContent = '/ month';
       const percent = document.createElement('span');
       percent.className = 'fl-spend-percent';
       percent.textContent = percentage;
-      content.append(pile, icon, label, amount, perMonth, percent);
+      content.append(pile, icon, label, amount, percent);
       node.append(content);
       if (hasDetails) {
         const breakdown = document.createElement('ul');
