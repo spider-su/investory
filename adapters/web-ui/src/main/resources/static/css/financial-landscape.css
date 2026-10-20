@@ -617,3 +617,45 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 @media (max-width: 540px) {
   .fl-scene .fl-asset-guide { display: none; }
 }
+
+
+/* Terrain measurement guides share terrain baselines and scaling variables.
+   The height is an illustrative proportional visual, not a currency axis. */
+.fl-scene .fl-asset-guide--mountain {
+  top: auto;
+  bottom: 17%;
+  right: 23%;
+  height: calc(30% * var(--fl-mountain-scale, .9));
+}
+.fl-scene .fl-asset-guide--dune {
+  top: auto;
+  bottom: 0;
+  left: 17%;
+  height: calc(32% * var(--fl-dune-scale, .65));
+}
+.fl-scene .fl-asset-guide-line {
+  background: linear-gradient(to top, #b4c5d334, #e0edf4ac);
+}
+.fl-scene .fl-mountain--far { opacity: .77; filter: blur(4px); }
+.fl-scene .fl-mountain--near { opacity: .48; }
+.fl-scene .fl-dune {
+  border-radius: 53% 66% 0 0 / 91% 100% 0 0;
+  background: radial-gradient(ellipse at 36% 5%, #edc987, #cba16c 28%, #695548 66%, #35404b 96%);
+}
+.fl-scene { padding-bottom: 165px; }
+.fl-spending-field { bottom: 29px; }
+@media (max-width: 980px) {
+  .fl-scene { padding-bottom: 24px; }
+  .fl-scene .fl-asset-guide--mountain {
+    top: 41%; right: 8%; bottom: auto;
+    height: calc(110px * var(--fl-mountain-scale, .9));
+  }
+  .fl-scene .fl-asset-guide--dune {
+    top: 60%; left: 7%; bottom: auto;
+    height: calc(75px * var(--fl-dune-scale, .65));
+  }
+  .fl-spending-field { bottom: auto; }
+}
+@media (max-width: 540px) {
+  .fl-scene .fl-asset-guide { display: none; }
+}

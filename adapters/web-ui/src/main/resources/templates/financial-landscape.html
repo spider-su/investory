@@ -35,7 +35,7 @@
     <div id="fl-spending-field" class="fl-spending-field" aria-label="Monthly spending destinations">
       <p class="fl-spending-empty">Spending categories are unavailable for this plan.</p>
     </div>
-    <div class="fl-top"><span>PROJECTED ECONOMIC RESULT</span><strong id="fl-income">—</strong><small id="fl-income-rate">—</small><div class="fl-income-legend"><span class="fl-legend-cash">● Cash income <b id="fl-cash-income">—</b></span><span class="fl-legend-market">● Market result <b id="fl-market-result">—</b></span></div><small class="fl-income-note">Planning cash and Profile market figures use different reporting bases.</small></div>
+    <div class="fl-top"><strong id="fl-income">—</strong><small id="fl-income-rate">—</small><div class="fl-income-legend"><span class="fl-legend-cash">● Cash income <b id="fl-cash-income">—</b></span><span class="fl-legend-market">● Market result <b id="fl-market-result">—</b></span></div></div>
     <div class="fl-hourglass" aria-hidden="true">
       <svg viewBox="0 0 260 360" role="img">
         <defs>
@@ -56,7 +56,7 @@
     <div class="fl-center">
       <span>ECONOMIC BALANCE · MONTHLY</span>
       <strong id="fl-net">—</strong>
-      <small class="fl-economic-note">Includes market result; not necessarily spendable cash</small>
+      
       <small id="fl-cash-net" class="fl-cash-net">—</small>
       <small id="fl-coverage">—</small>
       <div class="fl-coverage-track" role="progressbar" aria-label="Cash income coverage of planned expenses" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="fl-coverage-bar"><div id="fl-coverage-fill"></div></div>
@@ -64,17 +64,7 @@
       <small id="fl-runway">—</small><div class="fl-flow-breakdown"><div><span class="fl-legend-cash">● Base · cash income</span><b id="fl-base">—</b></div><div><span class="fl-legend-market">● Spread · market result</span><b id="fl-spread">—</b></div></div>
     </div>
     <div class="fl-bottom"><span>EXPENSES</span><strong id="fl-expenses">—</strong><small id="fl-expense-rate">—</small></div>
-    <div class="fl-ground">
-      <div class="fl-reserve"><span>LIQUID ASSETS</span><strong id="fl-liquid">—</strong></div>
-      <div class="fl-reserve"><span>CASH RESERVE · INCLUDED IN LIQUID ASSETS</span><strong id="fl-cash-reserve">—</strong></div>
-      <div class="fl-reserve"><span>ILLIQUID LONG-TERM ASSETS</span><strong id="fl-illiquid">—</strong></div>
-      <div class="fl-reserve fl-reserve--networth"><span>NET WORTH</span><strong id="fl-worth">—</strong></div>
-    </div>
   </section>
-  <footer class="fl-footer">
-    <span id="fl-period">Annual plan, displayed as monthly averages</span>
-    <span>Visual motion is illustrative · values are not live transactions</span>
-  </footer>
 </main>
 <script th:inline="javascript">
   window.financialLandscape = /*[[${landscape}]]*/ {};

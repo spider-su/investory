@@ -61,21 +61,16 @@
   const annualGap = numeric(data.annualGap);
   set('fl-annual-gap', annualGap === null ? 'Annual gap unavailable' : annualGap > 0 ? format(annualGap) + ' annual cash funding gap' : 'No annual cash funding gap');
   const liquid = numeric(data.liquidAssets);
-  set('fl-liquid', format(liquid));
   const reserve = numeric(data.reserve);
-  set('fl-cash-reserve', format(reserve));
   const runway = document.getElementById('fl-runway');
   if (runway) {
     const months = cashNet !== null && cashNet < 0 && reserve !== null && reserve >= 0 ? reserve / -cashNet : null;
     runway.textContent = months === null ? (cashNet !== null && cashNet >= 0 ? 'No projected cash funding deficit' : 'Cash-reserve runway unavailable') : 'Illustrative cash-reserve runway: ' + new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 }).format(months) + ' months';
   }
-  set('fl-illiquid', format(numeric(data.illiquidAssets)));
   // Scenic measurement guides reuse the same source amounts as the asset footer.
   const terrainValue = value => value === null ? '—' : compactNumber(value) + ' ' + currency;
   set('fl-mountain-value', terrainValue(numeric(data.illiquidAssets)));
   set('fl-dune-value', terrainValue(liquid));
-  set('fl-worth', format(numeric(data.netWorth)));
-  set('fl-period', (data.year || 'Current') + ' · full-year plan as monthly averages');
   // Visual encoding is normalized to the portfolio's own total assets, not screen pixels.
   // It is illustrative: no displayed or persisted monetary value is changed.
   const illiquid = numeric(data.illiquidAssets);
