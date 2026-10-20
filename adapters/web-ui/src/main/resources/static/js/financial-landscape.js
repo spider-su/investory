@@ -46,8 +46,6 @@
   const cashNet = cashIncome === null || expenses === null ? null : (cashIncome - expenses) / 12;
   set('fl-net', net === null ? 'Unavailable' : (net > 0 ? '+' : '') + format(net) + ' / month');
   set('fl-cash-net', cashNet === null ? 'Cash funding unavailable' : 'Cash funding: ' + (cashNet > 0 ? '+' : '') + format(cashNet) + ' / month');
-  set('fl-base', cashIncome === null ? 'Unavailable' : format(cashIncome / 12) + ' / mo');
-  set('fl-spread', marketResult === null ? 'Unavailable' : format(marketResult / 12) + ' / mo');
   const tolerance = expenses !== null && expenses > 0 ? Math.abs(income - expenses) / expenses : null;
   const flowState = net === null ? 'unknown' : tolerance !== null && tolerance <= 0.02 ? 'neutral' : net < 0 ? 'negative' : net > 0 ? 'positive' : 'neutral';
   const flowPanel = document.querySelector('.fl-center, .fl-compact-net');
