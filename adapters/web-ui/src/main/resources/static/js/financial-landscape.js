@@ -72,8 +72,13 @@
   const illiquidShare = assetsTotal > 0 ? Math.max(0, illiquid ?? 0) / assetsTotal : 0;
   const root = document.querySelector('.fl-scene, .fl-compact');
   if (root) {
-    root.style.setProperty('--fl-dune-scale', String(0.45 + 0.55 * Math.sqrt(liquidShare)));
-    root.style.setProperty('--fl-mountain-scale', String(0.55 + 0.45 * Math.sqrt(illiquidShare)));
+    const duneScale = 0.45 + 0.55 * Math.sqrt(liquidShare);
+    const mountainScale = 0.55 + 0.45 * Math.sqrt(illiquidShare);
+    root.style.setProperty('--fl-dune-scale', String(duneScale));
+    root.style.setProperty('--fl-mountain-scale', String(mountainScale));
+    // CSS calc multiplication is not uniformly available: compute scaled relief in JS.
+    root.style.setProperty('--fl-dune-guide-height', (22 * duneScale).toFixed(3) + '%');
+    root.style.setProperty('--fl-mountain-guide-height', (39 * mountainScale).toFixed(3) + '%');
     const ratio = income !== null && expenses !== null && Math.max(income, expenses) > 0
       ? Math.min(1, Math.max(0, income) / Math.max(Math.max(0, income), Math.max(0, expenses)))
       : 0.5;
