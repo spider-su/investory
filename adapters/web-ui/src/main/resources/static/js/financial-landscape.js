@@ -94,47 +94,59 @@
     const saving = numeric(data.annualSurplus);
     root.dataset.reserveDirection = financing !== null && financing > 0 ? 'draw' : saving !== null && saving > 0 ? 'save' : cashNet !== null && cashNet < 0 ? 'draw' : cashNet !== null && cashNet > 0 ? 'save' : 'still';
   }
-  // Use the real, categorized spending source. Six scenic destinations mirror
-  // the sketch; smaller categories are grouped, never omitted from totals.
+  // The Full scene has four stable budget destinations. Category names come
+  // from the existing simulation CRUD; no totals or domain categories are changed.
+  // Unknown future names stay visible in a separate catch-all destination.
   const spendingField = document.getElementById('fl-spending-field');
   if (spendingField) {
     const groups = Array.isArray(data.expenseGroups) ? data.expenseGroups
       .filter(g => g && typeof g.name === 'string' && g.name.trim() && numeric(g.monthlyAmount) > 0)
-      .map(g => ({name: g.name.trim(), amount: Number(g.monthlyAmount)}))
-      .sort((a, b) => b.amount - a.amount) : [];
-    const sum = groups.reduce((total, g) => total + g.amount, 0);
-    const small = groups.length > 6 ? groups.slice(5) : [];
-    const destinations = small.length
-      ? [...groups.slice(0, 5), {name: 'Other spending', amount: small.reduce((total, g) => total + g.amount, 0), details: small}]
-      : groups;
-    const colors = ['#f0aa73', '#f1c67d', '#a8b9fc', '#dca1c2', '#8dd3bd', '#edc47c'];
+      .map(g => ({name: g.name.trim(), amount: Number(g.monthlyAmount)})) : [];
+    const definitions = [
+      {name: 'Essential living', icon: 'home', color: '#E8BE67',
+        names: ['grocery and restaurants', 'car', 'media lokietka']},
+      {name: 'Education', icon: 'school', color: '#9BB8FF',
+        names: ['school', 'kindergarden', 'kindergarten']},
+      {name: 'Personal', icon: 'person', color: '#8ED8C3',
+        names: ['olga', 'alex', 'online, shopping, gifts', 'other']},
+      {name: 'Annual extras', icon: 'travel', color: '#E9A98C',
+        names: ['annual extras']}
+    ];
+    const assigned = new Set();
+    const destinations = definitions.map(definition => {
+      const details = groups.filter((group, index) => {
+        if (definition.names.includes(group.name.toLocaleLowerCase('en-US'))) {
+          assigned.add(index);
+          return true;
+        }
+        return false;
+      });
+      return {...definition, details, amount: details.reduce((sum, group) => sum + group.amount, 0)};
+    }).filter(group => group.amount > 0);
+    const unmatched = groups.filter((group, index) => !assigned.has(index));
+    if (unmatched.length) {
+      destinations.push({name: 'Other spending', icon: 'other', color: '#C9B6DC',
+        details: unmatched, amount: unmatched.reduce((sum, group) => sum + group.amount, 0)});
+    }
+    const total = destinations.reduce((sum, group) => sum + group.amount, 0);
+    // Largest-remainder rounding adds to 100% for the visible groups rather
+    // than independently rounding a 34.52/22.62/... split to 101%.
+    const fractions = destinations.map(group => total > 0 ? group.amount * 100 / total : 0);
+    const rounded = fractions.map(Math.floor);
+    const remainderOrder = fractions.map((fraction, index) => ({index, remainder: fraction - rounded[index]}))
+      .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+    const missing = Math.max(0, 100 - rounded.reduce((sum, percentage) => sum + percentage, 0));
+    for (const entry of remainderOrder.slice(0, missing)) rounded[entry.index]++;
+
     const NS = 'http://www.w3.org/2000/svg';
     const iconPaths = {
-      school: ['M4 19V5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2Z', 'M20 19V5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2Z'],
-      food: ['M4 3v7', 'M7 3v7', 'M10 3v7', 'M4 10h6', 'M7 10v11', 'M18 3c-4 2-5 8-2 10h3V3Z', 'M19 13v8'],
-      car: ['M5 17h14l1-6-2-5H6l-2 5 1 6Z', 'M4 11h16', 'M5 17v2h3v-2', 'M16 17v2h3v-2'],
       home: ['M3 10 12 3l9 7v11H3V10Z', 'M9 21v-8h6v8'],
+      school: ['M4 19V5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2Z', 'M20 19V5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2Z'],
       person: ['M20 21a8 8 0 0 0-16 0', 'M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8'],
-      shopping: ['M4 8h16l-1 13H5L4 8Z', 'M9 9V6a3 3 0 0 1 6 0v3'],
       travel: ['M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4Z'],
-      shield: ['M12 2 20 5v6c0 5-3 8-8 11-5-3-8-6-8-11V5Z'],
-      receipt: ['M5 3h14v18l-3-2-4 2-4-2-3 2Z', 'M8 8h8', 'M8 12h6'],
       other: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01']
     };
-    const iconFor = name => {
-      const n = name.toLowerCase();
-      if (/school|kindergar|educat|szko|przedszk/.test(n)) return 'school';
-      if (/groc|restaur|food|jedz|żywn/.test(n)) return 'food';
-      if (/car|auto|transport|samoch/.test(n)) return 'car';
-      if (/media|utilit|housing|rent|dom|czynsz/.test(n)) return 'home';
-      if (/shopping|online|gift|zakup/.test(n)) return 'shopping';
-      if (/annual|extra|holiday|vacat|travel|wakac/.test(n)) return 'travel';
-      if (/insur|ubezpiecz/.test(n)) return 'shield';
-      if (/tax|podat/.test(n)) return 'receipt';
-      if (/other|pozosta/.test(n)) return 'other';
-      return 'person';
-    };
-    const makeIcon = name => {
+    const makeIcon = type => {
       const svg = document.createElementNS(NS, 'svg');
       svg.setAttribute('viewBox', '0 0 24 24');
       svg.setAttribute('fill', 'none');
@@ -143,8 +155,7 @@
       svg.setAttribute('stroke-linecap', 'round');
       svg.setAttribute('stroke-linejoin', 'round');
       svg.setAttribute('aria-hidden', 'true');
-      const icon = iconFor(name);
-      for (const d of iconPaths[icon]) {
+      for (const d of iconPaths[type]) {
         const path = document.createElementNS(NS, 'path');
         path.setAttribute('d', d);
         svg.append(path);
@@ -154,14 +165,14 @@
     spendingField.replaceChildren();
     spendingField.style.setProperty('--fl-spend-count', String(destinations.length));
     for (const [index, group] of destinations.entries()) {
-      const share = sum > 0 ? group.amount / sum : 0;
-      const percentage = share > 0 && share < .005 ? '<1%' : Math.round(share * 100) + '%';
-      const hasDetails = !!group.details;
+      const share = total > 0 ? group.amount / total : 0;
+      const percentage = share > 0 && share < .005 ? '<1%' : rounded[index] + '%';
+      const hasDetails = group.details.length > 1;
       const node = document.createElement(hasDetails ? 'details' : 'div');
       node.className = 'fl-spend-node';
       node.dataset.share = String(share);
-      node.dataset.accent = colors[index % colors.length];
-      node.style.setProperty('--fl-accent', colors[index % colors.length]);
+      node.dataset.accent = group.color;
+      node.style.setProperty('--fl-accent', group.color);
       node.style.setProperty('--fl-pile-size', String(0.52 + .48 * Math.sqrt(share)));
       const content = document.createElement(hasDetails ? 'summary' : 'div');
       content.className = 'fl-spend-content';
@@ -170,7 +181,7 @@
       pile.setAttribute('aria-hidden', 'true');
       const icon = document.createElement('span');
       icon.className = 'fl-spend-icon';
-      icon.append(makeIcon(group.name));
+      icon.append(makeIcon(group.icon));
       const label = document.createElement('span');
       label.className = 'fl-spend-label';
       label.textContent = group.name;
@@ -180,21 +191,15 @@
       const perMonth = document.createElement('span');
       perMonth.className = 'fl-spend-period';
       perMonth.textContent = '/ month';
-      const track = document.createElement('span');
-      track.className = 'fl-spend-meter';
-      track.setAttribute('aria-hidden', 'true');
-      const fill = document.createElement('span');
-      fill.style.width = Math.min(100, share * 100) + '%';
-      track.append(fill);
       const percent = document.createElement('span');
       percent.className = 'fl-spend-percent';
       percent.textContent = percentage;
-      content.append(pile, icon, label, amount, perMonth, track, percent);
+      content.append(pile, icon, label, amount, perMonth, percent);
       node.append(content);
       if (hasDetails) {
         const breakdown = document.createElement('ul');
         breakdown.className = 'fl-spend-breakdown';
-        breakdown.setAttribute('aria-label', 'Other spending categories');
+        breakdown.setAttribute('aria-label', group.name + ' budget categories');
         for (const detail of group.details) {
           const line = document.createElement('li');
           const name = document.createElement('span');
@@ -205,7 +210,15 @@
           breakdown.append(line);
         }
         node.append(breakdown);
-        node.title = 'Select to see the included smaller categories';
+        // Mouse hover previews the breakdown; touch and keyboard retain
+        // native <details>/<summary> click, Space and Enter behavior.
+        node.addEventListener('pointerenter', event => {
+          if (event.pointerType === 'mouse') node.open = true;
+        });
+        node.addEventListener('pointerleave', event => {
+          if (event.pointerType === 'mouse' && !node.matches(':focus-within')) node.open = false;
+        });
+        node.title = 'Hover or select to see included categories';
       } else {
         node.title = group.name + ': ' + format(group.amount) + ' / month · ' + percentage;
       }
