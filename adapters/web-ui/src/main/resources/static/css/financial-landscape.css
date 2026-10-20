@@ -780,3 +780,39 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
   .fl-scene .fl-zero-line,.fl-scene .fl-cloud,.fl-scene .fl-peak-connectors {display:none;}
 }
 @media (prefers-reduced-motion:reduce) {.fl-scene .fl-cloud {animation:none;}}
+
+
+/* Asset income cycle: vertical source vapor → visible cloud reservoirs → top glass. */
+@media (min-width:981px) {
+  .fl-scene .fl-peak-connectors { display:none; }
+  .fl-scene .fl-income-vapor {
+    position:absolute;inset:0;width:100%;height:100%;z-index:2;
+    pointer-events:none;overflow:hidden;mix-blend-mode:screen;
+  }
+  .fl-scene .fl-vapor path {fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+  .fl-scene .fl-vapor-haze {stroke-width:17;opacity:.18;filter:url(#fl-vapor-glow);}
+  .fl-scene .fl-vapor-core {stroke-width:2.4;stroke-dasharray:2 14;animation:fl-vapor-rise 7s linear infinite;}
+  .fl-scene .fl-vapor-to-glass {stroke-width:3.4;opacity:.7;stroke-dasharray:3 13;animation:fl-vapor-feed 6s linear infinite;}
+  .fl-scene .fl-vapor--market .fl-vapor-core {animation-duration:10s;}
+  .fl-scene .fl-vapor--market .fl-vapor-to-glass {animation-duration:8s;}
+  .fl-scene .fl-cloud {
+    top:14%;height:23%;width:30%;filter:blur(22px);
+    opacity:clamp(.25, var(--fl-cash-cloud-opacity,.26), .65);
+  }
+  .fl-scene .fl-cloud--cash {
+    left:18%;top:18%;
+    opacity:clamp(.25,var(--fl-cash-cloud-opacity,.26),.65);
+    background:radial-gradient(ellipse at 55% 50%,#e9c68b 0%,#bb925f9c 38%,transparent 78%);
+  }
+  .fl-scene .fl-cloud--market {
+    right:22%;top:17%;width:34%;
+    opacity:clamp(.22,var(--fl-market-cloud-opacity,.24),.65);
+    background:radial-gradient(ellipse at 52% 45%,#a3cbed 0%,#6b97b99c 39%,transparent 78%);
+  }
+}
+@keyframes fl-vapor-rise {to{stroke-dashoffset: -128;}}
+@keyframes fl-vapor-feed {to{stroke-dashoffset: -128;}}
+@media (max-width:980px) {.fl-scene .fl-income-vapor {display:none;}}
+@media (prefers-reduced-motion:reduce) {
+  .fl-scene .fl-vapor-core,.fl-scene .fl-vapor-to-glass {animation:none;stroke-dasharray:none;opacity:.32;}
+}

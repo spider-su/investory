@@ -24,7 +24,23 @@
     <div class="fl-zero-line" aria-hidden="true"></div>
     <div class="fl-cloud fl-cloud--cash" aria-hidden="true"></div>
     <div class="fl-cloud fl-cloud--market" aria-hidden="true"></div>
-    <svg class="fl-peak-connectors" aria-hidden="true" viewBox="0 0 1000 600" preserveAspectRatio="none"><path class="fl-link fl-link--dune" d="M 790 80 Q 440 34 180 455"/><path class="fl-link fl-link--mountain" d="M 835 85 Q 915 90 870 292"/></svg>
+    <svg class="fl-income-vapor" aria-hidden="true" viewBox="0 0 1000 600" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="fl-warm-vapor" x1="0" y1="1" x2="0" y2="0"><stop stop-color="#d6ad66" stop-opacity=".15"/><stop offset=".6" stop-color="#f4ce8b" stop-opacity=".65"/><stop offset="1" stop-color="#fff1c6" stop-opacity=".2"/></linearGradient>
+        <linearGradient id="fl-cool-vapor" x1="0" y1="1" x2="0" y2="0"><stop stop-color="#88b7db" stop-opacity=".12"/><stop offset=".6" stop-color="#a9d2f1" stop-opacity=".64"/><stop offset="1" stop-color="#e3f3ff" stop-opacity=".18"/></linearGradient>
+        <filter id="fl-vapor-glow"><feGaussianBlur stdDeviation="5"/></filter>
+      </defs>
+      <g class="fl-vapor fl-vapor--cash">
+        <path class="fl-vapor-haze" d="M 190 474 C 195 395 170 299 235 235 S 245 170 260 152" stroke="#e4bd75"/>
+        <path class="fl-vapor-core" d="M 190 474 C 195 395 170 299 235 235 S 245 170 260 152" stroke="url(#fl-warm-vapor)"/>
+        <path class="fl-vapor-to-glass" d="M 260 152 C 315 100 350 107 377 130 S 393 161 395 180" stroke="url(#fl-warm-vapor)"/>
+      </g>
+      <g class="fl-vapor fl-vapor--market">
+        <path class="fl-vapor-haze" d="M 855 325 C 850 248 815 214 773 166 S 707 133 687 140" stroke="#98bfde"/>
+        <path class="fl-vapor-core" d="M 855 325 C 850 248 815 214 773 166 S 707 133 687 140" stroke="url(#fl-cool-vapor)"/>
+        <path class="fl-vapor-to-glass" d="M 687 140 C 590 104 510 110 448 146 S 414 173 405 180" stroke="url(#fl-cool-vapor)"/>
+      </g>
+    </svg>
     <div class="fl-mountain fl-mountain--far" aria-hidden="true"></div>
     <div class="fl-mountain fl-mountain--near" aria-hidden="true"></div>
     <div class="fl-dune" aria-hidden="true"><div class="fl-dune-ridge"></div></div>
