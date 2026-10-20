@@ -704,3 +704,79 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
   .fl-scene .fl-asset-guide--mountain { right: 1%; }
   .fl-scene .fl-asset-guide--dune { left: 1%; }
 }
+
+
+/* Shared-baseline scenic composition — all relief and deposits end at one zero level. */
+@media (min-width:981px) {
+  .fl-scene { --fl-zero: 7%; --fl-dune-relief: 22%; --fl-mountain-relief: 39%; }
+  .fl-scene .fl-zero-line {
+    position:absolute;z-index:1;pointer-events:none;
+    bottom:var(--fl-zero);left:2%;right:2%;height:1px;
+    background:linear-gradient(90deg,transparent,#a6bbc660 12%,#a6bbc655 88%,transparent);
+  }
+  .fl-scene .fl-dune {
+    bottom:var(--fl-zero);left:0;width:55%;height:var(--fl-dune-relief);
+    transform:scaleY(var(--fl-dune-scale));transform-origin:bottom left;
+    border-radius:52% 72% 0 0/92% 100% 0 0;
+    opacity:.70;
+  }
+  .fl-scene .fl-mountain--far {
+    bottom:var(--fl-zero);right:-5%;width:68%;height:var(--fl-mountain-relief);
+    transform:scaleY(var(--fl-mountain-scale));transform-origin:bottom center;
+    clip-path:polygon(0 100%,13% 86%,29% 69%,46% 42%,55% 54%,67% 11%,80% 40%,100% 100%);
+    opacity:.58;filter:blur(2px);
+  }
+  .fl-scene .fl-mountain--near {
+    bottom:var(--fl-zero);left:36%;width:49%;height:24%;
+    transform:scaleY(var(--fl-mountain-scale));transform-origin:bottom center;
+    opacity:.24;filter:blur(4px);
+  }
+  .fl-scene .fl-asset-guide { top:auto;bottom:var(--fl-zero);width:130px; }
+  .fl-scene .fl-asset-guide--dune { left:1%;height:var(--fl-dune-guide-height,16%); }
+  .fl-scene .fl-asset-guide--mountain { right:1%;height:var(--fl-mountain-guide-height,34%); }
+  .fl-scene .fl-spending-field {
+    bottom:var(--fl-zero);height:135px;z-index:5;align-items:end;
+  }
+  .fl-scene .fl-spend-node {height:135px;}
+  .fl-scene .fl-spend-content {height:100%;position:relative;justify-content:flex-end;padding-bottom:18px;background:none;}
+  .fl-scene .fl-spend-pile {
+    top:auto;bottom:0;left:5%;right:5%;height:80px;z-index:-1;
+    border-radius:47% 65% 0 0/95% 100% 0 0;
+    transform:scaleY(var(--fl-pile-size,.75));transform-origin:bottom center;
+    background:linear-gradient(165deg,color-mix(in srgb,var(--fl-accent) 55%,#f1c994 45%),color-mix(in srgb,var(--fl-accent) 27%,#253244 73%) 65%,#1b2737);
+    opacity:.58;filter:blur(1.5px);
+  }
+  .fl-scene .fl-spend-content, .fl-scene .fl-spend-node[open] .fl-spend-content {background:none;}
+  .fl-scene .fl-top {
+    position:absolute;display:flex;flex-direction:column;align-items:flex-end;text-align:right;
+    top:3%;right:3%;left:auto;transform:none;grid-column:auto;grid-row:auto;
+    width:min(310px,27%);z-index:9;
+  }
+  .fl-scene .fl-top .fl-income-legend {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:9px;}
+  .fl-scene .fl-center {top:auto;left:auto;max-width:290px;}
+  .fl-scene .fl-peak-connectors {
+    position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible;
+  }
+  .fl-scene .fl-link {fill:none;stroke-width:1;stroke-dasharray:4 9;opacity:.45;vector-effect:non-scaling-stroke;}
+  .fl-scene .fl-link--dune {stroke:#edcb83;}
+  .fl-scene .fl-link--mountain {stroke:#92b7d9;}
+  .fl-scene .fl-cloud {
+    position:absolute;z-index:1;pointer-events:none;top:10%;height:33%;width:52%;
+    filter:blur(33px);border-radius:48%;mix-blend-mode:screen;
+    animation:fl-cloud-drift 16s ease-in-out infinite alternate;
+  }
+  .fl-scene .fl-cloud--cash {
+    left:7%;opacity:var(--fl-cash-cloud-opacity,.22);
+    background:radial-gradient(ellipse at 55% 60%,#e2b369 0%,#9b79596b 42%,transparent 76%);
+  }
+  .fl-scene .fl-cloud--market {
+    right:10%;opacity:var(--fl-market-cloud-opacity,.19);
+    background:radial-gradient(ellipse at 42% 60%,#91bedc 0%,#587ca269 42%,transparent 76%);
+    animation-direction:alternate-reverse;
+  }
+}
+@keyframes fl-cloud-drift {from{transform:translateX(-2%) translateY(1%)}to{transform:translateX(3%) translateY(-2%)}}
+@media (max-width:980px) {
+  .fl-scene .fl-zero-line,.fl-scene .fl-cloud,.fl-scene .fl-peak-connectors {display:none;}
+}
+@media (prefers-reduced-motion:reduce) {.fl-scene .fl-cloud {animation:none;}}
