@@ -9,12 +9,7 @@
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   let w = 0, h = 0, frame = 0;
-  const particles = Array.from({length: 115}, (_, i) => ({
-    t: (i * 0.61803398875) % 1,
-    lane: (i % 7) - 3,
-    size: 0.7 + (i % 4) * .4,
-    blue: i % 5 === 0
-  }));
+  let spendPhase = 0;
   const reserveParticles = Array.from({length: 40}, (_, i) => ({t: i / 40, size: .8 + (i % 3) * .35}));
   const resize = () => {
     const rect = scene.getBoundingClientRect();
@@ -33,24 +28,45 @@
     const parent = scene.getBoundingClientRect();
     if (rect && rect.width > 0) {
       const cx = rect.left - parent.left + rect.width * .5;
-      const cy = rect.top - parent.top;
-      const gh = rect.height;
-      const bottom = cy + gh * .9;
+      const bottom = rect.top - parent.top + rect.height * .94;
       const speed = Math.max(.25, Math.min(1.7, Number.parseFloat(getComputedStyle(scene).getPropertyValue('--fl-stream-opacity')) || .7));
-      for (const p of particles) {
-        p.t = (p.t + .0028 * speed * (1 + p.size / 5)) % 1;
-        // Flow spreads from the hourglass base towards the foreground expense streams.
-        const t = p.t;
-        const spread = Math.min(w * .46, 60 + t * w * .42);
-        const x = cx + p.lane / 3 * spread * t;
-        const y = bottom + t * Math.max(24, h - bottom - 32);
-        if (y > h - 18) continue;
-        ctx.beginPath();
-        ctx.fillStyle = p.blue ? 'rgba(113,192,243,.55)' : 'rgba(255,192,97,.78)';
-        ctx.shadowColor = p.blue ? '#67b8ff' : '#ffbe63';
-        ctx.shadowBlur = 5;
-        ctx.arc(x, y, p.size, 0, Math.PI * 2);
-        ctx.fill();
+      spendPhase = (spendPhase + .003 * speed) % 1;
+      const nodes = [...scene.querySelectorAll('.fl-spend-node')];
+      // Paths share a common glass source and land at the category's sand pile.
+      // They are illustrative averages, not individual transactions.
+      if (w > 980 && nodes.length) {
+        for (const [index, node] of nodes.entries()) {
+          const destination = node.getBoundingClientRect();
+          const x2 = destination.left - parent.left + destination.width * .5;
+          const y2 = destination.top - parent.top + 9;
+          if (y2 <= bottom + 12) continue;
+          const controlX = cx + (x2 - cx) * .62;
+          const controlY = bottom + (y2 - bottom) * .3;
+          const share = Math.max(0, Math.min(1, Number(node.dataset.share) || 0));
+          const accent = node.dataset.accent || '#f1bc84';
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(cx, bottom);
+          ctx.quadraticCurveTo(controlX, controlY, x2, y2);
+          ctx.lineWidth = 1 + Math.sqrt(share) * 3.5;
+          ctx.strokeStyle = 'rgba(246, 191, 119, .20)';
+          ctx.shadowColor = accent;
+          ctx.shadowBlur = 12;
+          ctx.stroke();
+          const count = 9 + Math.round(share * 22);
+          for (let i = 0; i < count; i++) {
+            const t = (spendPhase + i / count + index * .07) % 1;
+            const u = 1 - t;
+            const x = u * u * cx + 2 * u * t * controlX + t * t * x2;
+            const y = u * u * bottom + 2 * u * t * controlY + t * t * y2;
+            ctx.beginPath();
+            ctx.fillStyle = accent;
+            ctx.globalAlpha = .28 + .62 * Math.sin(Math.PI * t);
+            ctx.arc(x, y, .65 + Math.sqrt(share) * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
       }
     }
     const direction = scene.dataset.reserveDirection;

@@ -48,7 +48,6 @@
   set('fl-cash-net', cashNet === null ? 'Cash funding unavailable' : 'Cash funding: ' + (cashNet > 0 ? '+' : '') + format(cashNet) + ' / month');
   set('fl-base', cashIncome === null ? 'Unavailable' : format(cashIncome / 12) + ' / mo');
   set('fl-spread', marketResult === null ? 'Unavailable' : format(marketResult / 12) + ' / mo');
-  set('fl-consumption-total', expenses === null ? 'Unavailable' : format(expenses / 12) + ' / month');
   const tolerance = expenses !== null && expenses > 0 ? Math.abs(income - expenses) / expenses : null;
   const flowState = net === null ? 'unknown' : tolerance !== null && tolerance <= 0.02 ? 'neutral' : net < 0 ? 'negative' : net > 0 ? 'positive' : 'neutral';
   const flowPanel = document.querySelector('.fl-center, .fl-compact-net');
@@ -95,41 +94,128 @@
     const saving = numeric(data.annualSurplus);
     root.dataset.reserveDirection = financing !== null && financing > 0 ? 'draw' : saving !== null && saving > 0 ? 'save' : cashNet !== null && cashNet < 0 ? 'draw' : cashNet !== null && cashNet > 0 ? 'save' : 'still';
   }
-  const consumptionBar = document.getElementById('fl-consumption-bar');
-  const consumptionLegend = document.getElementById('fl-consumption-legend');
-  if (consumptionBar && consumptionLegend) {
-    const groups = Array.isArray(data.expenseGroups) ? data.expenseGroups.filter(g => numeric(g.monthlyAmount) > 0) : [];
-    const sum = groups.reduce((total, g) => total + Number(g.monthlyAmount), 0);
-    const colors = ['#efb75e', '#5ba7f0', '#ec896e', '#67c39a', '#aa8de1', '#dba9c5', '#7fbdc6'];
-    for (const [index, group] of groups.entries()) {
-      const amount = Number(group.monthlyAmount);
-      const share = sum > 0 ? amount / sum : 0;
-      const color = colors[index % colors.length];
-      const segment = document.createElement('div');
-      segment.className = 'fl-consumption-segment';
-      segment.style.backgroundColor = color;
-      segment.style.flexGrow = String(amount);
-      segment.setAttribute('title', String(group.name) + ': ' + format(amount) + ' / month');
-      segment.textContent = Math.round(share * 100) >= 8 ? Math.round(share * 100) + '%' : '';
-      consumptionBar.append(segment);
-      const item = document.createElement('div');
-      item.className = 'fl-consumption-item';
+  // Use the real, categorized spending source. Six scenic destinations mirror
+  // the sketch; smaller categories are grouped, never omitted from totals.
+  const spendingField = document.getElementById('fl-spending-field');
+  if (spendingField) {
+    const groups = Array.isArray(data.expenseGroups) ? data.expenseGroups
+      .filter(g => g && typeof g.name === 'string' && g.name.trim() && numeric(g.monthlyAmount) > 0)
+      .map(g => ({name: g.name.trim(), amount: Number(g.monthlyAmount)}))
+      .sort((a, b) => b.amount - a.amount) : [];
+    const sum = groups.reduce((total, g) => total + g.amount, 0);
+    const small = groups.length > 6 ? groups.slice(5) : [];
+    const destinations = small.length
+      ? [...groups.slice(0, 5), {name: 'Other spending', amount: small.reduce((total, g) => total + g.amount, 0), details: small}]
+      : groups;
+    const colors = ['#f0aa73', '#f1c67d', '#a8b9fc', '#dca1c2', '#8dd3bd', '#edc47c'];
+    const NS = 'http://www.w3.org/2000/svg';
+    const iconPaths = {
+      school: ['M4 19V5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2Z', 'M20 19V5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2Z'],
+      food: ['M4 3v7', 'M7 3v7', 'M10 3v7', 'M4 10h6', 'M7 10v11', 'M18 3c-4 2-5 8-2 10h3V3Z', 'M19 13v8'],
+      car: ['M5 17h14l1-6-2-5H6l-2 5 1 6Z', 'M4 11h16', 'M5 17v2h3v-2', 'M16 17v2h3v-2'],
+      home: ['M3 10 12 3l9 7v11H3V10Z', 'M9 21v-8h6v8'],
+      person: ['M20 21a8 8 0 0 0-16 0', 'M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8'],
+      shopping: ['M4 8h16l-1 13H5L4 8Z', 'M9 9V6a3 3 0 0 1 6 0v3'],
+      travel: ['M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4Z'],
+      shield: ['M12 2 20 5v6c0 5-3 8-8 11-5-3-8-6-8-11V5Z'],
+      receipt: ['M5 3h14v18l-3-2-4 2-4-2-3 2Z', 'M8 8h8', 'M8 12h6'],
+      other: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01']
+    };
+    const iconFor = name => {
+      const n = name.toLowerCase();
+      if (/school|kindergar|educat|szko|przedszk/.test(n)) return 'school';
+      if (/groc|restaur|food|jedz|żywn/.test(n)) return 'food';
+      if (/car|auto|transport|samoch/.test(n)) return 'car';
+      if (/media|utilit|housing|rent|dom|czynsz/.test(n)) return 'home';
+      if (/shopping|online|gift|zakup/.test(n)) return 'shopping';
+      if (/annual|extra|holiday|vacat|travel|wakac/.test(n)) return 'travel';
+      if (/insur|ubezpiecz/.test(n)) return 'shield';
+      if (/tax|podat/.test(n)) return 'receipt';
+      if (/other|pozosta/.test(n)) return 'other';
+      return 'person';
+    };
+    const makeIcon = name => {
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '1.8');
+      svg.setAttribute('stroke-linecap', 'round');
+      svg.setAttribute('stroke-linejoin', 'round');
+      svg.setAttribute('aria-hidden', 'true');
+      const icon = iconFor(name);
+      for (const d of iconPaths[icon]) {
+        const path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', d);
+        svg.append(path);
+      }
+      return svg;
+    };
+    spendingField.replaceChildren();
+    spendingField.style.setProperty('--fl-spend-count', String(destinations.length));
+    for (const [index, group] of destinations.entries()) {
+      const share = sum > 0 ? group.amount / sum : 0;
+      const percentage = share > 0 && share < .005 ? '<1%' : Math.round(share * 100) + '%';
+      const hasDetails = !!group.details;
+      const node = document.createElement(hasDetails ? 'details' : 'div');
+      node.className = 'fl-spend-node';
+      node.dataset.share = String(share);
+      node.dataset.accent = colors[index % colors.length];
+      node.style.setProperty('--fl-accent', colors[index % colors.length]);
+      node.style.setProperty('--fl-pile-size', String(0.52 + .48 * Math.sqrt(share)));
+      const content = document.createElement(hasDetails ? 'summary' : 'div');
+      content.className = 'fl-spend-content';
+      const pile = document.createElement('span');
+      pile.className = 'fl-spend-pile';
+      pile.setAttribute('aria-hidden', 'true');
+      const icon = document.createElement('span');
+      icon.className = 'fl-spend-icon';
+      icon.append(makeIcon(group.name));
       const label = document.createElement('span');
-      label.className = 'fl-consumption-name';
-      const dot = document.createElement('i');
-      dot.style.backgroundColor = color;
-      label.append(dot, document.createTextNode(String(group.name)));
-      const value = document.createElement('strong');
-      value.textContent = format(amount);
-      const percent = document.createElement('small');
-      percent.textContent = share > 0 && share < .005 ? '<1%' : Math.round(share * 100) + '%';
-      item.append(label, value, percent);
-      consumptionLegend.append(item);
+      label.className = 'fl-spend-label';
+      label.textContent = group.name;
+      const amount = document.createElement('strong');
+      amount.className = 'fl-spend-value';
+      amount.textContent = format(group.amount);
+      const perMonth = document.createElement('span');
+      perMonth.className = 'fl-spend-period';
+      perMonth.textContent = '/ month';
+      const track = document.createElement('span');
+      track.className = 'fl-spend-meter';
+      track.setAttribute('aria-hidden', 'true');
+      const fill = document.createElement('span');
+      fill.style.width = Math.min(100, share * 100) + '%';
+      track.append(fill);
+      const percent = document.createElement('span');
+      percent.className = 'fl-spend-percent';
+      percent.textContent = percentage;
+      content.append(pile, icon, label, amount, perMonth, track, percent);
+      node.append(content);
+      if (hasDetails) {
+        const breakdown = document.createElement('ul');
+        breakdown.className = 'fl-spend-breakdown';
+        breakdown.setAttribute('aria-label', 'Other spending categories');
+        for (const detail of group.details) {
+          const line = document.createElement('li');
+          const name = document.createElement('span');
+          name.textContent = detail.name;
+          const value = document.createElement('strong');
+          value.textContent = format(detail.amount);
+          line.append(name, value);
+          breakdown.append(line);
+        }
+        node.append(breakdown);
+        node.title = 'Select to see the included smaller categories';
+      } else {
+        node.title = group.name + ': ' + format(group.amount) + ' / month · ' + percentage;
+      }
+      spendingField.append(node);
     }
-    if (!groups.length) {
+    if (!destinations.length) {
       const empty = document.createElement('p');
-      empty.textContent = 'Consumption categories are not available for this plan.';
-      consumptionLegend.append(empty);
+      empty.className = 'fl-spending-empty';
+      empty.textContent = 'Spending categories are unavailable for this plan.';
+      spendingField.append(empty);
     }
   }
   const full = document.getElementById('fl-fullscreen');
