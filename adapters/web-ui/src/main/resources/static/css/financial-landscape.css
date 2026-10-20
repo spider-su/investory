@@ -311,3 +311,160 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
   .fl-consumption-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fl-consumption-item strong { font-size: 14px; }
 }
+
+
+/* Scenic spending destinations: the landscape itself is the breakdown. */
+.fl-scene {
+  min-height: 900px;
+  height: min(92vh, 950px);
+  padding-bottom: 265px;
+}
+.fl-spending-field {
+  --fl-spend-count: 6;
+  position: absolute;
+  z-index: 5;
+  left: 4%;
+  right: 4%;
+  bottom: 112px;
+  height: 158px;
+  display: grid;
+  grid-template-columns: repeat(var(--fl-spend-count), minmax(0, 1fr));
+  align-items: end;
+  gap: 7px;
+}
+.fl-spend-node {
+  position: relative;
+  min-width: 0;
+  height: 156px;
+  color: #ecf2f9;
+  text-align: center;
+  isolation: isolate;
+}
+.fl-spend-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: end;
+  gap: 4px;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  list-style: none;
+  cursor: default;
+  text-shadow: 0 2px 8px #050e1d;
+}
+.fl-spend-node summary { cursor: pointer; }
+.fl-spend-node summary::-webkit-details-marker { display: none; }
+.fl-spend-node summary::marker { content: ''; }
+.fl-spend-node summary:focus-visible {
+  outline: 2px solid var(--fl-accent);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+.fl-spend-pile {
+  position: absolute;
+  z-index: -1;
+  left: 6%;
+  right: 6%;
+  top: 8px;
+  height: 39px;
+  transform: scaleY(var(--fl-pile-size, .75));
+  transform-origin: bottom;
+  border-radius: 60% 55% 0 0 / 90% 95% 0 0;
+  background: radial-gradient(ellipse at center bottom, var(--fl-accent) 0%, transparent 78%);
+  opacity: .5;
+  pointer-events: none;
+  filter: blur(6px);
+}
+.fl-spend-icon {
+  color: var(--fl-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  filter: drop-shadow(0 0 8px #ffd6a054);
+}
+.fl-spend-icon svg { width: 28px; height: 28px; }
+.fl-spend-label {
+  font-size: 12px;
+  color: #f1f2f4;
+  line-height: 1.15;
+  min-height: 27px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: anywhere;
+}
+.fl-spend-value { font-size: clamp(13px, 1.4vw, 18px); color: var(--fl-accent); line-height: 1.1; }
+.fl-spend-period { color: #c7d2df; font-size: 11px; line-height: 1; }
+.fl-spend-meter {
+  display: block;
+  width: min(120px, 79%);
+  height: 7px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #8993a63b;
+  margin-top: 6px;
+}
+.fl-spend-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--fl-accent);
+  box-shadow: 0 0 7px var(--fl-accent);
+}
+.fl-spend-percent { font-size: 12px; font-weight: 650; color: var(--fl-accent); }
+.fl-spend-breakdown {
+  list-style: none;
+  position: absolute;
+  z-index: 8;
+  bottom: calc(100% - 22px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(240px, 85vw);
+  max-height: 190px;
+  overflow-y: auto;
+  border: 1px solid #71899c88;
+  border-radius: 12px;
+  padding: 10px 13px;
+  margin: 0;
+  background: #0d1a28f2;
+  box-shadow: 0 12px 36px #0008;
+  color: #ebf3f8;
+}
+.fl-spend-node:first-child .fl-spend-breakdown { left: 0; transform: none; }
+.fl-spend-node:last-child .fl-spend-breakdown { left: auto; right: 0; transform: none; }
+.fl-spend-breakdown li { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 5px 0; }
+.fl-spend-breakdown li strong { white-space: nowrap; color: #efc685; }
+.fl-spending-empty { grid-column: 1 / -1; align-self: center; color: #b0c2ce; text-align: center; }
+.fl-scene .fl-ground { bottom: 19px; }
+.fl-scene .fl-bottom { margin-bottom: 5px; }
+@media (max-width: 980px) {
+  .fl-scene {
+    height: auto;
+    min-height: 0;
+    grid-template-rows: auto auto auto auto auto auto;
+    padding: 24px 18px;
+  }
+  .fl-spending-field {
+    position: relative;
+    grid-column: 1;
+    grid-row: 5;
+    left: auto; right: auto; bottom: auto;
+    width: 100%;
+    height: auto;
+    margin-top: 18px;
+    padding: 22px 0 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px 4px;
+  }
+  .fl-spend-node { height: 145px; }
+  .fl-scene .fl-ground { grid-row: 6; }
+}
+@media (max-width: 540px) {
+  .fl-spending-field { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 5px; }
+  .fl-spend-value { font-size: 15px; }
+  .fl-spend-label { font-size: 11px; }
+}
