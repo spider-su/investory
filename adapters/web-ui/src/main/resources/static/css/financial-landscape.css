@@ -315,7 +315,7 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 
 /* Scenic spending destinations: the landscape itself is the breakdown. */
 .fl-scene {
-  min-height: 830px;
+  min-height: 900px;
   height: min(92vh, 950px);
   padding-bottom: 265px;
 }
