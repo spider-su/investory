@@ -904,3 +904,49 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
   .fl-scene .fl-income-vapor {z-index:4;}
   .fl-scene .fl-cloud {z-index:3;}
 }
+
+
+/*
+ * Photo-ready scene composition.
+ * Replace --fl-landscape-art with a clean, UI-free approved backdrop when available.
+ * The bundled scenery SVG remains the offline-safe fallback; never bake live values into art.
+ */
+@media (min-width: 981px) {
+  .fl-scene {
+    --fl-landscape-art: url('/images/financial-landscape-scenery.svg');
+    background-image: var(--fl-landscape-art);
+    background-position: center center;
+    background-size: cover;
+    background-repeat: no-repeat;
+  }
+  /* Photographic background owns sky, mountain and lake; avoid drawing two landscapes. */
+  .fl-scene .fl-stars,
+  .fl-scene .fl-atmosphere,
+  .fl-scene .fl-lake,
+  .fl-scene .fl-horizon,
+  .fl-scene .fl-mountain--far,
+  .fl-scene .fl-mountain--near,
+  .fl-scene .fl-dune,
+  .fl-scene .fl-dune-ridge {
+    display: none;
+  }
+  /* Live dynamic vapor/clouds, sand, labels, measuring ticks and spending remain. */
+  .fl-scene .fl-center {
+    position: absolute;
+    left: 2%;
+    right: auto;
+    top: 3%;
+    bottom: auto;
+    transform: none;
+    margin: 0;
+    width: clamp(255px, 21vw, 310px);
+    max-width: 31%;
+    z-index: 10;
+  }
+  .fl-scene .fl-top { right: 3%; top: 3%; z-index: 10; }
+  .fl-scene .fl-asset-guide { z-index: 9; }
+  .fl-scene .fl-hourglass { z-index: 7; }
+  .fl-scene .fl-spending-field { z-index: 8; }
+  .fl-scene .fl-income-vapor { opacity: .7; z-index: 5; }
+  .fl-scene .fl-cloud { opacity: .17; z-index: 4; }
+}
