@@ -732,8 +732,8 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
     opacity:.24;filter:blur(4px);
   }
   .fl-scene .fl-asset-guide { top:auto;bottom:var(--fl-zero);width:130px; }
-  .fl-scene .fl-asset-guide--dune { left:1%;height:calc(var(--fl-dune-relief) * var(--fl-dune-scale)); }
-  .fl-scene .fl-asset-guide--mountain { right:1%;height:calc(var(--fl-mountain-relief) * var(--fl-mountain-scale)); }
+  .fl-scene .fl-asset-guide--dune { left:1%;height:var(--fl-dune-guide-height,16%); }
+  .fl-scene .fl-asset-guide--mountain { right:1%;height:var(--fl-mountain-guide-height,34%); }
   .fl-scene .fl-spending-field {
     bottom:var(--fl-zero);height:135px;z-index:5;align-items:end;
   }
@@ -753,7 +753,7 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
     width:min(310px,27%);z-index:9;
   }
   .fl-scene .fl-top .fl-income-legend {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:9px;}
-  .fl-scene .fl-center {top:34%;left:65%;max-width:290px;}
+  .fl-scene .fl-center {top:auto;left:auto;max-width:290px;}
   .fl-scene .fl-peak-connectors {
     position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible;
   }
