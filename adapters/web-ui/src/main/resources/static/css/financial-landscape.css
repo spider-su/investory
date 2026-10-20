@@ -659,3 +659,48 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 @media (max-width: 540px) {
   .fl-scene .fl-asset-guide { display: none; }
 }
+
+/* Clearer landforms and non-overlapping asset measures. */
+.fl-scene .fl-asset-guide--mountain{top:auto;bottom:17%;right:8%;height:calc(35% * var(--fl-mountain-scale,.9))}
+.fl-scene .fl-asset-guide--dune{top:auto;left:4%;bottom:3%;height:calc(24% * var(--fl-dune-scale,.65))}
+.fl-scene .fl-asset-guide{width:135px}
+.fl-scene .fl-mountain--far{clip-path:polygon(0 100%,12% 88%,24% 78%,35% 66%,45% 49%,55% 60%,65% 21%,74% 43%,82% 54%,90% 72%,100% 100%);background:linear-gradient(142deg,#9aa1ad,#677589 29%,#475267 55%,#1b3042);filter:blur(3px);opacity:.78}
+.fl-scene .fl-mountain--near{clip-path:polygon(0 100%,12% 87%,26% 71%,39% 66%,53% 43%,64% 60%,74% 54%,88% 76%,100% 100%);background:linear-gradient(150deg,#a49a8a,#686b78 49%,#283d50);filter:blur(5px);opacity:.45}
+.fl-spending-field{bottom:54px}
+.fl-spending-field::before{inset:0 -2%;background:radial-gradient(ellipse at 50% 68%,#0914228c,transparent 74%);filter:blur(14px)}
+.fl-spend-content{background:radial-gradient(ellipse at 50% 77%,#08152480,transparent 73%)}
+.fl-scene{padding-bottom:180px}
+@media(max-width:980px){.fl-scene{padding-bottom:24px}.fl-spending-field{bottom:auto}.fl-scene .fl-asset-guide--mountain{top:42%;right:3%;bottom:auto;height:calc(94px * var(--fl-mountain-scale,.9))}.fl-scene .fl-asset-guide--dune{top:58%;left:2%;bottom:auto;height:calc(64px * var(--fl-dune-scale,.65))}}
+@media(max-width:540px){.fl-scene .fl-asset-guide{display:none}}
+
+
+/* Final landscape interaction: guide rails at the scenic outer edges. */
+.fl-scene .fl-asset-guide--mountain { right: 1.1%; }
+.fl-scene .fl-asset-guide--dune { left: 1.1%; }
+.fl-scene .fl-asset-guide { width: 120px; }
+/* Sand forms belong to each destination rather than a shared illuminated strip. */
+.fl-spending-field::before { display: none; }
+.fl-spend-content { background: none; }
+.fl-spend-node[open] .fl-spend-content { background: none; }
+.fl-spend-node { isolation: isolate; }
+.fl-spend-pile {
+  z-index: -1;
+  left: 10%;
+  right: 10%;
+  top: auto;
+  bottom: 4px;
+  height: 74px;
+  border-radius: 52% 61% 0 0 / 96% 100% 0 0;
+  transform: scaleY(var(--fl-pile-size, .75));
+  transform-origin: bottom center;
+  background: radial-gradient(ellipse at 48% 14%,
+    var(--fl-accent) 0%, #957a604f 52%, transparent 91%);
+  opacity: .58;
+  filter: blur(3px);
+}
+.fl-spend-content { padding-bottom: 11px; }
+.fl-spend-value { position: relative; }
+@media (max-width: 980px) {
+  .fl-scene .fl-asset-guide--mountain { right: 1%; }
+  .fl-scene .fl-asset-guide--dune { left: 1%; }
+}
