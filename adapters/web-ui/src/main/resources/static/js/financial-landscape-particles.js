@@ -48,10 +48,10 @@
           ctx.beginPath();
           ctx.moveTo(cx, bottom);
           ctx.quadraticCurveTo(controlX, controlY, x2, y2);
-          ctx.lineWidth = 1 + Math.sqrt(share) * 3.5;
-          ctx.strokeStyle = 'rgba(246, 191, 119, .20)';
+          ctx.lineWidth = .8 + Math.sqrt(share) * 2.7;
+          ctx.strokeStyle = 'rgba(246, 191, 119, .13)';
           ctx.shadowColor = accent;
-          ctx.shadowBlur = 12;
+          ctx.shadowBlur = 8;
           ctx.stroke();
           const count = 9 + Math.round(share * 22);
           for (let i = 0; i < count; i++) {
@@ -61,7 +61,7 @@
             const y = u * u * bottom + 2 * u * t * controlY + t * t * y2;
             ctx.beginPath();
             ctx.fillStyle = accent;
-            ctx.globalAlpha = .28 + .62 * Math.sin(Math.PI * t);
+            ctx.globalAlpha = .20 + .42 * Math.sin(Math.PI * t);
             ctx.arc(x, y, .65 + Math.sqrt(share) * 1.5, 0, Math.PI * 2);
             ctx.fill();
           }

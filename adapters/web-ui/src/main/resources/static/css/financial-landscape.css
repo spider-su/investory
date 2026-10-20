@@ -468,3 +468,73 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
   .fl-spend-value { font-size: 15px; }
   .fl-spend-label { font-size: 11px; }
 }
+
+
+/* Budget groups: four quiet scenic destinations, not a separate dashboard. */
+.fl-spending-field {
+  left: 7%;
+  right: 7%;
+  height: 170px;
+  bottom: 109px;
+  gap: clamp(10px, 2vw, 32px);
+}
+.fl-spending-field::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  inset: -16px -2% -12px;
+  background: linear-gradient(180deg, transparent 0%, #09152349 32%, #0914228c 74%, transparent 100%);
+  filter: blur(15px);
+}
+.fl-spend-node {
+  height: 164px;
+  overflow: visible;
+}
+.fl-spend-content {
+  gap: 5px;
+  padding: 10px 12px 7px;
+  background: radial-gradient(ellipse at 50% 76%, #081524ae 0%, #0a18286c 48%, transparent 79%);
+}
+.fl-spend-label {
+  color: #f9fbff;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: .01em;
+  min-height: 24px;
+}
+.fl-spend-icon { height: 36px; width: 38px; filter: drop-shadow(0 0 9px #06121d) drop-shadow(0 0 7px var(--fl-accent)); }
+.fl-spend-icon svg { width: 30px; height: 30px; stroke-width: 2; }
+.fl-spend-value {
+  color: #f9fbff;
+  font-size: clamp(17px, 1.8vw, 22px);
+  font-weight: 750;
+  text-shadow: 0 2px 10px #050e1d;
+}
+.fl-spend-period { color: #cbd5e1; font-size: 12px; }
+.fl-spend-percent { font-size: 13px; font-weight: 750; color: var(--fl-accent); }
+.fl-spend-pile { opacity: .37; top: 10px; filter: blur(8px); }
+.fl-spend-breakdown { bottom: calc(100% - 3px); border-color: #71899ca8; }
+.fl-spend-node[open] { z-index: 9; }
+.fl-spend-node[open] .fl-spend-content { background: radial-gradient(ellipse at 50% 76%, #091622df, #09162266 52%, transparent 82%); }
+.fl-scene .fl-dune { opacity: .70; box-shadow: 0 -9px 38px #eeb67425; }
+.fl-scene .fl-mountain--near { opacity: .51; }
+@media (max-width: 980px) {
+  .fl-spending-field {
+    left: auto;
+    right: auto;
+    bottom: auto;
+    height: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 10px;
+    padding: 18px 0 14px;
+  }
+  .fl-spend-node { height: 154px; }
+  .fl-spending-field::before { inset: -3px -2%; }
+}
+@media (max-width: 540px) {
+  .fl-spending-field { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 6px; }
+  .fl-spend-content { padding: 8px 4px; }
+  .fl-spend-label { font-size: 12px; }
+  .fl-spend-value { font-size: 16px; }
+  .fl-spend-breakdown { width: min(215px, 78vw); }
+}
