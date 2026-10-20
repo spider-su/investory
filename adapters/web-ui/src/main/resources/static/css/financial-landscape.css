@@ -877,3 +877,30 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
     opacity:.55;filter:blur(1px);
   }
 }
+
+
+/* Scenic backdrop proof of concept: static art, live financial overlays. */
+@media (min-width:981px) {
+  .fl-scene {
+    background:#101d2f url('/images/financial-landscape-scenery.svg') center center / cover no-repeat;
+    --fl-zero:7%;
+  }
+  .fl-scene .fl-atmosphere, .fl-scene .fl-lake,
+  .fl-scene .fl-stars {opacity:.12;}
+  /* The scenery owns the fixed distant geography, not the live asset amounts. */
+  .fl-scene .fl-mountain--near,
+  .fl-scene .fl-mountain--far,
+  .fl-scene .fl-dune {opacity:.10;mix-blend-mode:screen;}
+  .fl-scene .fl-center {
+    position:absolute;left:2%;top:3%;right:auto;bottom:auto;
+    transform:none;z-index:8;width:clamp(245px,20vw,290px);
+    max-width:none;padding:18px 20px;
+    align-items:flex-start;text-align:left;
+  }
+  .fl-scene .fl-top {right:3%;top:3%;z-index:9;}
+  .fl-scene .fl-spending-field {z-index:8;}
+  .fl-scene .fl-zero-line {z-index:5;}
+  .fl-scene .fl-hourglass {z-index:5;}
+  .fl-scene .fl-income-vapor {z-index:4;}
+  .fl-scene .fl-cloud {z-index:3;}
+}
