@@ -816,3 +816,64 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 @media (prefers-reduced-motion:reduce) {
   .fl-scene .fl-vapor-core,.fl-scene .fl-vapor-to-glass {animation:none;stroke-dasharray:none;opacity:.32;}
 }
+
+
+/* Sketch fidelity: small, sculpted sand deposits on the shared zero level.
+   Each destination uses its own value-weighted dune rather than a luminous pad. */
+@media (min-width:981px) {
+  .fl-scene .fl-spending-field { z-index:6; }
+  .fl-scene .fl-spend-node { --fl-crest: 44%; overflow:visible; }
+  .fl-scene .fl-spend-node:nth-child(2) { --fl-crest: 61%; }
+  .fl-scene .fl-spend-node:nth-child(3) { --fl-crest: 38%; }
+  .fl-scene .fl-spend-node:nth-child(4) { --fl-crest: 55%; }
+  .fl-scene .fl-spend-content {
+    background:none;
+    isolation:isolate;
+    padding-bottom:16px;
+  }
+  .fl-scene .fl-spend-pile {
+    display:block;
+    position:absolute;
+    z-index:-1;
+    top:auto;bottom:0;left:4%;right:4%;
+    height:108px;
+    border-radius:0;
+    transform:scaleY(var(--fl-pile-size,.75));
+    transform-origin:bottom center;
+    clip-path:polygon(0% 100%,0% 89%,12% 83%,24% 72%,var(--fl-crest) 48%,58% 59%,76% 78%,90% 87%,100% 93%,100% 100%);
+    background:
+      radial-gradient(ellipse at var(--fl-crest) 45%,#fff0cd7e 0%,transparent 24%),
+      linear-gradient(166deg,
+        color-mix(in srgb,var(--fl-accent) 55%,#d9bc87) 0%,
+        color-mix(in srgb,var(--fl-accent) 32%,#8c796b) 43%,
+        #293442 100%);
+    opacity:.88;
+    filter:drop-shadow(0 -3px 9px #ecd0a82b);
+    box-shadow:none;
+  }
+  .fl-scene .fl-spend-pile::before {
+    content:"";
+    position:absolute;
+    left:0;right:0;top:0;bottom:17%;
+    clip-path:polygon(0 100%,16% 74%,var(--fl-crest) 40%,64% 71%,100% 100%);
+    background:linear-gradient(152deg,#ffebc444,transparent 62%);
+  }
+  .fl-scene .fl-spend-node:nth-child(even) .fl-spend-pile {
+    clip-path:polygon(0 100%,0 95%,18% 80%,36% 69%,var(--fl-crest) 43%,73% 67%,87% 83%,100% 91%,100% 100%);
+  }
+  .fl-scene .fl-spend-icon { filter:drop-shadow(0 0 8px var(--fl-accent)); }
+  .fl-scene .fl-spend-label,.fl-scene .fl-spend-value,.fl-scene .fl-spend-percent {
+    text-shadow:0 2px 8px #08131e,0 0 12px #08131ec9;
+  }
+  /* Leave all four deposits legible against the dominant liquid dune. */
+  .fl-scene .fl-dune { opacity:.52; }
+}
+@media (max-width:980px) {
+  .fl-scene .fl-spend-pile {
+    top:auto;bottom:0;height:80px;border-radius:0;
+    transform:scaleY(var(--fl-pile-size,.75));transform-origin:bottom center;
+    clip-path:polygon(0 100%,8% 83%,31% 63%,51% 42%,77% 76%,100% 94%,100% 100%);
+    background:linear-gradient(155deg,var(--fl-accent),#334353 84%);
+    opacity:.55;filter:blur(1px);
+  }
+}
