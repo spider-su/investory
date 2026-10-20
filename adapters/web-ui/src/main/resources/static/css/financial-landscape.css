@@ -540,3 +540,80 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 }
 
 /* Asset geography: mountain HEIGHT encodes illiquid share; dune WIDTH and HEIGHT encode liquid share. */
+
+
+/* Measured asset relief: annotations float with the scenery, never as cards. */
+.fl-scene .fl-asset-guide {
+  position: absolute;
+  z-index: 3;
+  width: 165px;
+  height: 110px;
+  pointer-events: none;
+  color: #edf3f9;
+  text-shadow: 0 2px 9px #07131e, 0 0 5px #07131e;
+}
+.fl-scene .fl-asset-guide-line {
+  position: absolute;
+  bottom: 0;
+  left: 16px;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(to top, #bfd0d02a, #e6eff4b3);
+}
+.fl-scene .fl-asset-guide-line::before,
+.fl-scene .fl-asset-guide-line::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  width: 13px;
+  height: 1px;
+  background: #e6eff4a6;
+}
+.fl-scene .fl-asset-guide-line::before { top: 0; }
+.fl-scene .fl-asset-guide-line::after { bottom: 0; }
+.fl-scene .fl-asset-guide-label {
+  position: absolute;
+  left: 26px;
+  top: -5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.fl-scene .fl-asset-guide-label strong {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+}
+.fl-scene .fl-asset-guide--mountain {
+  right: 9%;
+  top: 21%;
+  height: calc(160px * var(--fl-mountain-scale, .9));
+}
+.fl-scene .fl-asset-guide--dune {
+  left: 9%;
+  bottom: 24%;
+  height: calc(95px * var(--fl-dune-scale, .65));
+}
+.fl-scene .fl-asset-guide--dune .fl-asset-guide-line {
+  background: linear-gradient(to top, #dfbd872a, #f7d69bb3);
+}
+.fl-scene .fl-asset-guide--dune .fl-asset-guide-label strong {
+  color: #ffdb9d;
+}
+@media (max-width: 980px) {
+  .fl-scene .fl-asset-guide {
+    width: 140px;
+    height: 65px;
+    opacity: .75;
+  }
+  .fl-scene .fl-asset-guide--mountain { right: 4%; top: 38%; }
+  .fl-scene .fl-asset-guide--dune { left: 5%; bottom: 23%; }
+  .fl-scene .fl-asset-guide-label strong { font-size: 14px; }
+}
+@media (max-width: 540px) {
+  .fl-scene .fl-asset-guide { display: none; }
+}
