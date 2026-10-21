@@ -1,0 +1,32 @@
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="financialLandscapeWidget(standalone)">
+  <section class="fl-compact" aria-label="Financial Landscape compact overview">
+    <header class="fl-compact-header">
+      <div><span class="fl-eyebrow">FINANCIAL LANDSCAPE</span><h1 th:if="${standalone}">Money in motion</h1><h2 th:unless="${standalone}">Money in motion</h2></div>
+      <a th:href="@{/portfolios/{id}/financial-landscape(id=${portfolioId})}" class="fl-button">Full view ↗</a>
+    </header>
+    <div class="fl-compact-landscape" aria-hidden="true"></div>
+    <div class="fl-compact-content">
+      <div class="fl-compact-clock">
+        <div class="fl-compact-hourglass" aria-hidden="true">
+          <svg viewBox="0 0 929 1693">
+            <image href="/images/financial-landscape-hourglass-v1.webp" width="929" height="1693"/>
+            <path class="fl-stream" d="M464.5 895V1310" stroke="#ffe1a0" stroke-width="12" stroke-dasharray="12 38" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="fl-center fl-compact-flow">
+        <span>MONTHLY BALANCE</span>
+      <div class="fl-monthly-totals">
+        <div><span>Income</span><strong id="fl-income">—</strong></div>
+        <div><span>Expenses</span><strong id="fl-expenses">—</strong></div>
+      </div>
+        <strong id="fl-net">—</strong>
+        <div class="fl-income-legend"><span class="fl-legend-cash">Base <b id="fl-cash-income">—</b></span><span class="fl-legend-market">Market <b id="fl-market-result">—</b></span></div>
+        <div class="fl-coverage-track" role="progressbar" aria-label="Income coverage of monthly expenses" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="fl-coverage-bar"><div id="fl-coverage-fill"><div id="fl-coverage-base"></div><div id="fl-coverage-market"></div></div></div>
+        <small id="fl-coverage">—</small>
+      </div>
+    </div>
+  </section>
+  <script th:inline="javascript">window.financialLandscape = /*[[${landscape}]]*/ {};</script>
+  <script src="/js/financial-landscape.js" defer></script>
+</th:block>

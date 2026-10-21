@@ -12,7 +12,33 @@ public record CashFlowView(
     double interest,
     double capitalGainsTax,
     double lossCarryForward,
-    List<DividendGainer> dividendGainers) {
+    List<DividendGainer> dividendGainers,
+    AccountFundingView accountFunding) {
+
+  public CashFlowView(
+      double deposits,
+      double withdrawals,
+      double cash,
+      double realizedProfit,
+      double dividends,
+      double dividendTax,
+      double interest,
+      double capitalGainsTax,
+      double lossCarryForward,
+      List<DividendGainer> dividendGainers) {
+    this(
+        deposits,
+        withdrawals,
+        cash,
+        realizedProfit,
+        dividends,
+        dividendTax,
+        interest,
+        capitalGainsTax,
+        lossCarryForward,
+        dividendGainers,
+        null);
+  }
 
   public CashFlowView {
     dividendGainers =

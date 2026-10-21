@@ -8,56 +8,96 @@
   scene.prepend(canvas);
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
-  let w = 0, h = 0, frame = 0;
-  const particles = Array.from({length: 115}, (_, i) => ({
-    t: (i * 0.61803398875) % 1,
-    lane: (i % 7) - 3,
-    size: 0.7 + (i % 4) * .4,
-    blue: i % 5 === 0
-  }));
-  const resize = () => {
-    const rect = scene.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    w = rect.width; h = rect.height;
-    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  let w = 0, h = 0, frame = 0, lastTime = null;
+  const FLOW_CYCLE_MS = 28000;
+  let phase = 0;
+  let flows = [];
+  // Both directions share one stroke, glow, particle size, and timing implementation.
+  const makeFlow = (points,share,accent,particleCount,opacity=1) => {
+    const path = new Path2D();
+    const [a,b,c,d] = points;
+    path.moveTo(a.x,a.y);
+    if (d) path.bezierCurveTo(b.x,b.y,c.x,c.y,d.x,d.y);
+    else path.quadraticCurveTo(b.x,b.y,c.x,c.y);
+    const pointAt = t => {
+      const u = 1-t;
+      return d ? {x:u*u*u*a.x+3*u*u*t*b.x+3*u*t*t*c.x+t*t*t*d.x,
+        y:u*u*u*a.y+3*u*u*t*b.y+3*u*t*t*c.y+t*t*t*d.y}
+        : {x:u*u*a.x+2*u*t*b.x+t*t*c.x,y:u*u*a.y+2*u*t*b.y+t*t*c.y};
+    };
+    return {path,pointAt,share:Math.max(0,Math.min(1,share)),accent,particleCount,opacity};
   };
-  const observer = new ResizeObserver(resize);
-  observer.observe(scene);
-  resize();
-  const draw = () => {
-    ctx.clearRect(0, 0, w, h);
-    const glass = scene.querySelector('.fl-hourglass');
-    const rect = glass?.getBoundingClientRect();
-    const parent = scene.getBoundingClientRect();
-    if (rect && rect.width > 0) {
-      const cx = rect.left - parent.left + rect.width * .5;
-      const cy = rect.top - parent.top;
-      const gh = rect.height;
-      const bottom = cy + gh * .9;
-      const speed = Math.max(.25, Math.min(1.7, Number.parseFloat(getComputedStyle(scene).getPropertyValue('--fl-stream-opacity')) || .7));
-      for (const p of particles) {
-        p.t = (p.t + .0028 * speed * (1 + p.size / 5)) % 1;
-        // Flow spreads from the hourglass base towards the foreground expense streams.
-        const t = p.t;
-        const spread = Math.min(w * .46, 60 + t * w * .42);
-        const x = cx + p.lane / 3 * spread * t;
-        const y = bottom + t * Math.max(24, h - bottom - 32);
-        if (y > h - 18) continue;
+  // Geometry is measured once by financial-landscape-scene.js, never inside the draw loop.
+  let layout = scene.financialLandscapeLayout;
+  const applyLayout = event => {
+    layout = event?.detail || scene.financialLandscapeLayout;
+    if (!layout?.desktop) {
+      ctx.clearRect(0,0,w,h);
+      syncAnimation();
+      return;
+    }
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = layout.width; h = layout.height;
+    canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    flows = layout.upstream.map(flow => makeFlow(flow.points,flow.share,flow.accent,flow.particleCount,flow.opacity));
+    for (const destination of layout.spending) {
+      const from = layout.foot;
+      if (destination.y<=from.y+12) continue;
+      const control = {x:from.x+(destination.x-from.x)*.62,y:from.y+(destination.y-from.y)*.3};
+      flows.push(makeFlow([from,control,destination],destination.share,destination.accent));
+    }
+    const internal = layout.internal;
+    flows.push(makeFlow(internal.points,internal.share,internal.accent,internal.particleCount));
+    // Keep the SVG as a static fallback for reduced motion or unavailable Canvas.
+    scene.classList.add('fl-canvas-flows');
+    syncAnimation();
+  };
+  scene.addEventListener('fl:layout',applyLayout);
+  const draw = time => {
+    frame = 0;
+    if (!layout?.desktop || document.hidden) return;
+    const elapsed = lastTime === null ? 0 : Math.min(50,time-lastTime);
+    lastTime = time;
+    ctx.clearRect(0,0,w,h);
+    phase = (phase+elapsed/FLOW_CYCLE_MS*layout.speed)%1;
+    for (const [index,flow] of flows.entries()) {
+      const {share,accent,path,pointAt,opacity} = flow;
+      const lineWidth = 1.5+Math.sqrt(share)*3.4;
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.lineWidth = lineWidth+2;
+      ctx.strokeStyle = 'rgba(8, 18, 28, .32)';
+      ctx.stroke(path);
+      ctx.lineWidth = lineWidth;
+      ctx.strokeStyle = accent;
+      ctx.globalAlpha = .34*opacity;
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 8;
+      ctx.stroke(path);
+      const count = flow.particleCount ?? 9+Math.round(share*22);
+      for (let i=0;i<count;i++) {
+        const t = (phase+i/count+index*.07)%1;
+        const point = pointAt(t);
         ctx.beginPath();
-        ctx.fillStyle = p.blue ? 'rgba(113,192,243,.55)' : 'rgba(255,192,97,.78)';
-        ctx.shadowColor = p.blue ? '#67b8ff' : '#ffbe63';
-        ctx.shadowBlur = 5;
-        ctx.arc(x, y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = accent;
+        ctx.globalAlpha = (.42+.48*Math.sin(Math.PI*t))*opacity;
+        ctx.arc(point.x,point.y,1.3+Math.sqrt(share)*2.4,0,Math.PI*2);
         ctx.fill();
       }
+      ctx.restore();
     }
     frame = requestAnimationFrame(draw);
   };
-  const onVisibility = () => {
-    if (document.hidden) cancelAnimationFrame(frame);
-    else { cancelAnimationFrame(frame); draw(); }
+  const syncAnimation = () => {
+    if (!layout?.desktop || document.hidden) {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      lastTime = null;
+    } else if (!frame) {
+      frame = requestAnimationFrame(draw);
+    }
   };
-  document.addEventListener('visibilitychange', onVisibility);
-  draw();
+  document.addEventListener('visibilitychange',syncAnimation);
+  applyLayout();
 })();

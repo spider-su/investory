@@ -42,8 +42,11 @@ public class PlanningCurrencyPresentationService {
 
   /** Canonical current-year planned cost, including current-year one-off expenses. */
   public BigDecimal currentYearAnnualCosts(SimulationAssumptions assumptions, int year) {
-    return annualCostsFor(
-        assumptions, year, eventAmount(assumptions, year, SimulationEventType.ONE_OFF_EXPENSE));
+    // Saved recurring spending is the Live-year outlook, not a historical price base.
+    // ForwardSimulationContextFactory applies growth once for the first projected year.
+    return assumptions
+        .annualSpending()
+        .add(eventAmount(assumptions, year, SimulationEventType.ONE_OFF_EXPENSE));
   }
 
   public PastPlanningYear display(PastPlanningYear past, CurrencyType display) {
@@ -451,8 +454,7 @@ public class PlanningCurrencyPresentationService {
         Map<PlanningMetric, PlanningMetricValue> currentValues = row.current().actualValues();
         Map<PlanningMetric, PlanningMetricValue> expectedValues = row.current().expectedValues();
         annualCosts = annualCosts(currentValues);
-        if (annualCosts == null && assumptions != null)
-          annualCosts = annualCostsFor(assumptions, row.year(), BigDecimal.ZERO);
+        if (annualCosts == null && assumptions != null) annualCosts = assumptions.annualSpending();
         rentalIncome =
             firstValue(currentValues, PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
         bondIncome = planningValue(currentValues, PlanningMetric.BOND_INCOME);
@@ -618,18 +620,6 @@ public class PlanningCurrencyPresentationService {
     BigDecimal core = planningValue(values, PlanningMetric.CORE_SPENDING);
     BigDecimal extras = planningValue(values, PlanningMetric.DISCRETIONARY_SPENDING);
     return core == null || extras == null ? null : core.add(extras);
-  }
-
-  private static BigDecimal annualCostsFor(
-      SimulationAssumptions assumptions, int year, BigDecimal eventExpenses) {
-    int elapsedYears = Math.max(0, year - assumptions.startYear());
-    BigDecimal growth =
-        BigDecimal.ONE.add(assumptions.effectiveSpendingGrowthRate()).pow(elapsedYears);
-    return assumptions
-        .annualLivingExpenses()
-        .add(assumptions.annualDiscretionaryExpenses())
-        .multiply(growth)
-        .add(eventExpenses == null ? BigDecimal.ZERO : eventExpenses);
   }
 
   private static BigDecimal eventAmount(

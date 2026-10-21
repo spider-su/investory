@@ -13,6 +13,7 @@ import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import com.smartbox.investory.ui.investment.InvestmentDashboardClient;
 import com.smartbox.investory.ui.investment.InvestmentPerformanceKpi;
 import com.smartbox.investory.ui.investment.InvestmentResult;
+import com.smartbox.investory.ui.retirement.simulation.FinancialLandscapePageAssembler;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -57,6 +58,7 @@ class InvestmentProfileControllerTest {
         .thenReturn(
             new com.smartbox.investory.retirement.api.model.AnnualCostView(
                 true, new BigDecimal("42000"), CurrencyType.PLN, 2026, 11L));
+    var landscape = mock(FinancialLandscapePageAssembler.class);
     var controller =
         new InvestmentProfileController(
             profiles,
@@ -64,7 +66,8 @@ class InvestmentProfileControllerTest {
             retirement,
             contexts,
             Runnable::run,
-            Clock.fixed(Instant.parse("2026-08-24T12:00:00Z"), ZoneOffset.UTC));
+            Clock.fixed(Instant.parse("2026-08-24T12:00:00Z"), ZoneOffset.UTC),
+            landscape);
     var model = new ConcurrentModel();
 
     String template = controller.profile(7L, model);
@@ -83,6 +86,10 @@ class InvestmentProfileControllerTest {
     assertThat(page.allocationApproximate()).isFalse();
     verify(investment).investmentResultYtd(7L);
     verify(retirement).currentYearAnnualCost(7L, CurrencyType.PLN);
+    verify(profiles).loadProfile(7L);
+    verify(landscape)
+        .assembleCompactAttributes(
+            org.mockito.ArgumentMatchers.same(profile), org.mockito.ArgumentMatchers.any());
   }
 
   @DisplayName("reuses investment results already present in profile")
@@ -105,7 +112,8 @@ class InvestmentProfileControllerTest {
             retirement,
             contexts,
             Runnable::run,
-            Clock.fixed(Instant.parse("2026-08-24T12:00:00Z"), ZoneOffset.UTC));
+            Clock.fixed(Instant.parse("2026-08-24T12:00:00Z"), ZoneOffset.UTC),
+            mock(FinancialLandscapePageAssembler.class));
 
     String template = controller.profile(7L, new ConcurrentModel());
 
@@ -146,7 +154,8 @@ class InvestmentProfileControllerTest {
               retirement,
               contexts,
               executor,
-              Clock.fixed(Instant.parse("2026-08-24T12:00:00Z"), ZoneOffset.UTC));
+              Clock.fixed(Instant.parse("2026-08-24T12:00:00Z"), ZoneOffset.UTC),
+              mock(FinancialLandscapePageAssembler.class));
 
       String template = controller.profile(7L, new ConcurrentModel());
 

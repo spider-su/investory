@@ -64,6 +64,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -546,6 +548,9 @@ class PortfolioMetricsServiceTest {
     assertEquals(90000005L, result.getAccountBalances().getFirst().getAccountId());
     assertEquals(13370.17, result.getAccountBalances().getFirst().getNetDepositLocal(), 0.01);
     assertEquals(0.0, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.01);
+    assertEquals(13370.17, result.getAccountFunding().netDeposits(), 0.01);
+    assertNull(result.getAccountFunding().deposits());
+    assertNull(result.getAccountFunding().withdrawals());
   }
 
   @DisplayName(
@@ -655,6 +660,79 @@ class PortfolioMetricsServiceTest {
 
     assertEquals(50_000.0, result.getNetDepositLocal(), 0.01);
     assertEquals(12_857.1428, result.getNetDepositBase(), 0.01);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"200, 1200, 0", "-200, 1000, 200"})
+  @DisplayName("Account popup totals reconcile visible base-currency funding, not portfolio flows")
+  void accountPopupTotalsSumVisibleFundingWhenPortfolioContributionsDiffer(
+      double boundaryTransfer, double expectedDeposits, double expectedWithdrawals) {
+    AccountEntity usd = account(1L, "Trading", CurrencyType.USD);
+    AccountEntity pln = account(2L, "IKE", CurrencyType.PLN);
+    AccountEntity cashOnly = account(3L, "Cash only", CurrencyType.USD);
+    cashOnly.setCashOnly(true);
+    when(accountRepository.findAllByPortfolioId(1L)).thenReturn(List.of(usd, pln, cashOnly));
+    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(1L, usd, 2L, pln, 3L, cashOnly));
+    AccountStatisticsEntity cashOnlyStats = visibleAccountStats(3L, 2_000.0, 2_000.0);
+    cashOnlyStats.setCashOnly(true);
+    when(accountStatisticsRepository.findAll())
+        .thenReturn(
+            List.of(
+                visibleAccountStats(1L, 800.0, 700.0),
+                visibleAccountStats(2L, 600.0, 300.0 + boundaryTransfer),
+                cashOnlyStats));
+    PortfolioKpiSummaryEntity kpi = new PortfolioKpiSummaryEntity();
+    kpi.setPortfolioId(1L);
+    kpi.setBaseCurrency(CurrencyType.USD);
+    kpi.setTotalEquity(BigDecimal.valueOf(1_400));
+    kpi.setTotalDeposits(BigDecimal.valueOf(1_000));
+    kpi.setNetDeposits(BigDecimal.valueOf(1_000));
+    when(portfolioKpiSummaryRepository.findAll()).thenReturn(List.of(kpi));
+    when(normalizedCashOperationRepository.findAllByAccountIdIn(any()))
+        .thenReturn(
+            List.of(
+                normalizedCashOperationRow(1L, "EXTERNAL_DEPOSIT", 1_000, 1_000, 1_000),
+                normalizedCashOperationRow(1L, "INTERNAL_TRANSFER_OUT", -300, -300, -300),
+                normalizedCashOperationRow(2L, "INTERNAL_TRANSFER_IN", 1_200, 1_200, 300),
+                normalizedCashOperationRow(
+                    2L,
+                    boundaryTransfer > 0 ? "INTERNAL_TRANSFER_IN" : "INTERNAL_TRANSFER_OUT",
+                    boundaryTransfer * 4,
+                    boundaryTransfer * 4,
+                    boundaryTransfer),
+                normalizedCashOperationRow(3L, "EXTERNAL_DEPOSIT", 2_000, 2_000, 2_000),
+                normalizedCashOperationRow(3L, "INTERNAL_TRANSFER_OUT", -200, -200, -200)));
+
+    Portfolio result = portfolioMetricsService.calculateTotalProfitLoss(1L);
+
+    assertEquals(2, result.getAccountBalances().size());
+    assertEquals(700.0, result.getAccountBalances().get(0).getNetDepositBase(), 0.0001);
+    assertEquals(
+        300.0 + boundaryTransfer, result.getAccountBalances().get(1).getNetDepositBase(), 0.0001);
+    assertEquals(
+        (300.0 + boundaryTransfer) * 4,
+        result.getAccountBalances().get(1).getNetDepositLocal(),
+        0.0001);
+    AccountBalance total = result.getAccountBalancesTotal();
+    assertEquals(1_000.0 + boundaryTransfer, total.getNetDepositBase(), 0.0001);
+    assertEquals(1_000.0 + boundaryTransfer, total.getNetDepositLocal(), 0.0001);
+    assertEquals(
+        result.getAccountBalances().stream()
+            .map(AccountBalance::getNetDepositBase)
+            .reduce(BigDecimal.ZERO, BigDecimal::add),
+        total.getNetDepositBase());
+    assertEquals(1_400.0, total.getBalanceBase(), 0.0001);
+    assertEquals(400.0 - boundaryTransfer, total.getProfitBase(), 0.0001);
+    assertEquals(CurrencyType.USD, total.getLocalCurrency());
+    assertEquals(1_000.0, result.getNetDeposits(), 0.0001);
+    assertEquals(expectedDeposits, result.getAccountFunding().deposits(), 0.0001);
+    assertEquals(expectedWithdrawals, result.getAccountFunding().withdrawals(), 0.0001);
+    assertEquals(total.getNetDepositBase(), result.getAccountFunding().netDeposits());
+    assertEquals(
+        result.getAccountFunding().netDeposits(),
+        result.getAccountFunding().deposits().subtract(result.getAccountFunding().withdrawals()));
+    verify(normalizedCashOperationRepository, org.mockito.Mockito.times(1))
+        .findAllByAccountIdIn(any());
   }
 
   @DisplayName(

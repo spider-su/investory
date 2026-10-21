@@ -1,0 +1,53 @@
+.fl-compact {
+  margin: 0 auto;
+}
+
+.iv-profile-landscape-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.iv-profile-landscape-details .iv-profile-sources__grid {
+  grid-template-columns: 1fr;
+}
+
+.iv-profile-landscape-details,
+.iv-profile-landscape-widget {
+  min-width: 0;
+}
+
+.iv-profile-landscape-widget .fl-compact {
+  width: 100%;
+}
+
+.iv-profile-landscape-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+
+.iv-profile-landscape-widget .fl-compact-hourglass {
+  width: 120px;
+}
+
+.fl-compact-header h1,
+.fl-compact-header h2 {
+  margin: 5px 0;
+  font-size: 24px;
+}
+
+@media (max-width: 420px) {
+  .fl-compact-header h1,
+  .fl-compact-header h2 {
+    font-size: 21px;
+  }
+}
+
+@media (max-width: 960px) {
+  .iv-profile-landscape-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

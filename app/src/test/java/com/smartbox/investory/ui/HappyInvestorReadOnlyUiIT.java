@@ -12,6 +12,7 @@ import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshSe
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorBrokerFacts;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorDashboardFacts;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorLongTermFacts;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorMarketDataFacts;
@@ -161,12 +162,16 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                     "Equity",
                     "USD",
                     "PLN");
+            // Invested uses included-account funding, independently of the selected return period.
+            var funding = HappyInvestorBrokerFacts.INCLUDED_ACCOUNT_CASH_TOTALS;
+            assertThat(page.locator("#cash-flows").textContent())
+                .contains(
+                    FinancialPresentation.compactMoney(funding.netDepositsPln()),
+                    FinancialPresentation.compactMoney(funding.depositsPln()),
+                    FinancialPresentation.compactMoney(funding.withdrawalsPln()));
             String positions = page.locator("body").textContent();
             assertThat(positions)
                 .contains(
-                    FinancialPresentation.compactMoney(HappyInvestorDashboardFacts.NET_DEPOSITS),
-                    FinancialPresentation.compactMoney(HappyInvestorDashboardFacts.DEPOSITS),
-                    FinancialPresentation.compactMoney(HappyInvestorDashboardFacts.WITHDRAWALS),
                     "AAPL.US",
                     "TSLA.US",
                     FinancialPresentation.compactMoney(

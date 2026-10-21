@@ -86,6 +86,12 @@ public record OverviewView(
     return decimal(cashFlow.deposits());
   }
 
+  public AccountFundingView accountFunding() {
+    return cashFlow.accountFunding() != null
+        ? cashFlow.accountFunding()
+        : new AccountFundingView(netDeposits, deposits(), withdrawals());
+  }
+
   public BigDecimal withdrawals() {
     return decimal(cashFlow.withdrawals());
   }

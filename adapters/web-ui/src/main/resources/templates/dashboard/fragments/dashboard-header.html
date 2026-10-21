@@ -30,25 +30,26 @@
             </div>
         </div>
         <div class="iv-topbar-summary iv-app-header-shell__summary">
-            <div id="cash-flows" class="iv-topbar-metric iv-metric-context" tabindex="0" aria-label="Invested: net external contributions">
+            <div id="cash-flows" class="iv-topbar-metric iv-metric-context" tabindex="0" aria-label="Invested: net funding of included accounts">
                 <div class="iv-topbar-metric__content">
                     <div class="iv-topbar-metric__value-row">
                         <span class="iv-topbar-metric__value iv-cash-flow-violet"
-                              th:text="${format.compactMoney(stats.netDeposits)}">0</span>
+                              th:text="${format.compactMoney(stats.accountFunding.netDeposits)}">0</span>
                     </div>
                     <span class="iv-topbar-metric__label">INVESTED</span>
                 </div>
                 <div class="iv-metric-context__panel" role="tooltip">
                     <strong>Invested</strong>
+                    <span>Funding of included accounts. Transfers within these accounts cancel.</span>
                     <div class="iv-brand__summary-row">
                         <span>Deposits</span>
                         <span class="iv-cash-flow-green"
-                              th:text="${stats.formatBase(stats.deposits)}">0</span>
+                              th:text="${stats.accountFunding.deposits == null ? 'Unavailable' : stats.formatBase(stats.accountFunding.deposits)}">0</span>
                     </div>
                     <div class="iv-brand__summary-row">
                         <span>Withdrawals</span>
                         <span class="iv-cash-flow-red"
-                              th:text="${stats.formatBase(stats.withdrawals)}">0</span>
+                              th:text="${stats.accountFunding.withdrawals == null ? 'Unavailable' : stats.formatBase(stats.accountFunding.withdrawals)}">0</span>
                     </div>
                 </div>
             </div>

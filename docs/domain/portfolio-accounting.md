@@ -9,7 +9,9 @@ contract-change decision.
 ## Portfolio value
 
 Current portfolio value is the latest account equity across included accounts, converted to the
-portfolio base currency.
+portfolio base currency. Accounts marked `cash_only` are excluded from portfolio totals, including
+cash, market value, equity, contributions, and profit. Their account-level records remain available
+for operational and account-specific views.
 
 Account equity is cash plus the market value of open positions under the position settlement model.
 Result-only instruments must not be valued as if full notional were owned.
@@ -38,6 +40,17 @@ Reporting keeps three flow concepts separate:
 - performance flow: only external funding and genuine tracked-account transfers that must be removed
   from account-level investment performance. `INTERNAL_BOOKKEEPING`, `FX_CONVERSION`, and ambiguous
   `CORRECTION` rows are not performance flow by default.
+
+The dashboard Accounts popup's Net deposit column shows account funding. Its total sums the
+displayed accounts' funding in portfolio base currency, including signed transfers. It does not
+substitute the portfolio-level net external contribution KPI for that column total.
+The dashboard header's Invested amount uses this same displayed-account funding total. Its
+Deposits/Withdrawals detail starts with external funding of those accounts and adds the net of
+their transfers to only one gross side. This makes deposits minus withdrawals equal Invested
+without counting both sides of transfers within the included set. If normalized funding flows
+are unavailable, the gross detail is unavailable rather than inferred from the net amount.
+These header funding amounts are since inception and do not replace canonical portfolio
+performance flows or change the selected-period investment result.
 
 At portfolio scope, tracked-account performance flows cancel when both sides are in the portfolio.
 Bookkeeping cash effects remain visible to cash reconstruction without becoming investment profit or

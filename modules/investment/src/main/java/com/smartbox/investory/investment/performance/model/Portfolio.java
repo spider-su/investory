@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.performance.model;
 
 import com.smartbox.investory.investment.api.reporting.model.AccountBalance;
+import com.smartbox.investory.investment.api.reporting.model.AccountFundingView;
 import com.smartbox.investory.investment.api.reporting.model.DividendGainer;
 import com.smartbox.investory.investment.api.reporting.model.InstrumentPerformance;
 import com.smartbox.investory.investment.api.reporting.model.OpenPositionValue;
@@ -69,6 +70,7 @@ public class Portfolio {
 
   List<AccountBalance> accountBalances;
   AccountBalance accountBalancesTotal;
+  AccountFundingView accountFunding;
   List<OpenPositionValue> openPositionValues;
   OpenPositionValue openPositionValuesTotal;
   List<DividendGainer> dividendGainers;

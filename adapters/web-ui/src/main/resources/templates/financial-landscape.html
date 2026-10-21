@@ -4,73 +4,79 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Financial Landscape · Investory</title>
-  <link href="/css/tabler.min.css" rel="stylesheet">
-  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+  <link href="/favicon.svg" rel="icon" type="image/svg+xml">
   <link href="/css/financial-landscape.css" rel="stylesheet">
 </head>
-<body class="fl-body">
+<body class="fl-body fl-landscape-page">
 <main class="fl-app">
   <header class="fl-header">
-    <div><div class="fl-eyebrow">INVESTORY · FINANCIAL LANDSCAPE</div><h1>Money in motion</h1></div>
+    <div><h1>INVESTORY LANDSCAPE</h1></div>
     <div class="fl-actions">
       <a th:href="@{/portfolios/{id}/investment-profile(id=${portfolioId})}" class="fl-button">← Profile</a>
       <a th:href="@{/portfolios/{id}/financial-landscape(id=${portfolioId},view=compact)}" class="fl-button">Compact</a>
       <button type="button" id="fl-fullscreen" class="fl-button">Fullscreen</button>
     </div>
   </header>
-  <section class="fl-scene" aria-label="Financial landscape">
+  <section class="fl-scene fl-clean-plate" aria-label="Financial landscape">
     <div class="fl-stars" aria-hidden="true"></div><div class="fl-atmosphere" aria-hidden="true"></div><div class="fl-lake" aria-hidden="true"></div>
     <div class="fl-horizon" aria-hidden="true"></div>
+    <div class="fl-zero-line" aria-hidden="true"></div>
+    <div class="fl-cloud fl-cloud--cash" aria-hidden="true"></div>
+    <div class="fl-cloud fl-cloud--market" aria-hidden="true"></div>
+    <svg class="fl-income-vapor" aria-hidden="true" viewBox="0 0 1000 600" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="fl-warm-vapor" x1="0" y1="1" x2="0" y2="0"><stop stop-color="#d6ad66" stop-opacity=".4"/><stop offset=".6" stop-color="#f4ce8b" stop-opacity=".95"/><stop offset="1" stop-color="#fff1c6" stop-opacity=".55"/></linearGradient>
+        <linearGradient id="fl-cool-vapor" x1="0" y1="1" x2="0" y2="0"><stop stop-color="#88b7db" stop-opacity=".38"/><stop offset=".6" stop-color="#a9d2f1" stop-opacity=".92"/><stop offset="1" stop-color="#e3f3ff" stop-opacity=".5"/></linearGradient>
+        <filter id="fl-vapor-glow"><feGaussianBlur stdDeviation="5"/></filter>
+      </defs>
+      <g class="fl-vapor fl-vapor--cash">
+        <path class="fl-vapor-haze" d="M 154 357 C 150 312 176 238 260 194 S 321 153 397 150" stroke="#e4bd75"/>
+        <path class="fl-vapor-core" d="M 154 357 C 150 312 176 238 260 194 S 321 153 397 150" stroke="url(#fl-warm-vapor)"/>
+      </g>
+      <g class="fl-vapor fl-vapor--market">
+        <path class="fl-vapor-haze" d="M 905 172 C 870 137 819 114 749 119 S 673 145 620 150" stroke="#98bfde"/>
+        <path class="fl-vapor-core" d="M 905 172 C 870 137 819 114 749 119 S 673 145 620 150" stroke="url(#fl-cool-vapor)"/>
+      </g>
+    </svg>
     <div class="fl-mountain fl-mountain--far" aria-hidden="true"></div>
     <div class="fl-mountain fl-mountain--near" aria-hidden="true"></div>
-    <div class="fl-dune" aria-hidden="true"><div class="fl-dune-ridge"></div></div><div class="fl-sand-trails" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="fl-top"><span>PROJECTED RESULT</span><strong id="fl-income">—</strong><small id="fl-income-rate">—</small><div class="fl-income-legend"><span class="fl-legend-cash">● Cash income <b id="fl-cash-income">—</b></span><span class="fl-legend-market">● Market result <b id="fl-market-result">—</b></span></div></div>
+    <div class="fl-dune" aria-hidden="true"><div class="fl-dune-ridge"></div></div>
+    <div class="fl-asset-guide fl-asset-guide--mountain" aria-label="Long term assets">
+      <span class="fl-asset-guide-label">Long term <strong id="fl-mountain-value">—</strong></span>
+    </div>
+    <div class="fl-asset-guide fl-asset-guide--dune" aria-label="Liquid assets">
+      <span class="fl-asset-guide-label">Liquid <strong id="fl-dune-value">—</strong></span>
+    </div>
+    <div id="fl-spending-field" class="fl-spending-field" aria-label="Monthly spending destinations">
+      <p class="fl-spending-empty">Spending categories are unavailable for this plan.</p>
+    </div>
     <div class="fl-hourglass" aria-hidden="true">
-      <svg viewBox="0 0 260 360" role="img">
-        <defs>
-          <linearGradient id="fl-glass" x1="0" x2="1"><stop stop-color="#79b4d5" stop-opacity=".23"/><stop offset=".5" stop-color="#fff" stop-opacity=".03"/><stop offset="1" stop-color="#79b4d5" stop-opacity=".25"/></linearGradient>
-          <linearGradient id="fl-sand" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe7a4"/><stop offset="1" stop-color="#bd7e37"/></linearGradient>
-          <clipPath id="fl-clip"><path d="M56 20H204Q204 94 139 169Q130 180 139 191Q204 265 204 340H56Q56 265 121 191Q130 180 121 169Q56 94 56 20Z"/></clipPath>
-        </defs>
-        <path d="M56 20H204Q204 94 139 169Q130 180 139 191Q204 265 204 340H56Q56 265 121 191Q130 180 121 169Q56 94 56 20Z" fill="url(#fl-glass)" stroke="#a4c3d1" stroke-width="2"/>
-        <g clip-path="url(#fl-clip)">
-          <path d="M50 84H210L130 177Z" fill="url(#fl-sand)"/>
-          <path class="fl-stream" d="M130 177V283" stroke="#ffe4a0" stroke-width="3" stroke-dasharray="3 7"/>
-          <path d="M50 292Q90 255 130 258Q170 255 210 292V355H50Z" fill="url(#fl-sand)"/>
-        </g>
-        <path d="M48 18H212M48 342H212" stroke="#d5bd91" stroke-width="8" stroke-linecap="round"/>
-        <path d="M68 29Q60 91 119 161M192 29Q200 91 141 161" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="3"/>
+      <svg viewBox="0 0 929 1693" role="img">
+        <image href="/images/financial-landscape-hourglass-v1.webp" width="929" height="1693"/>
+        <path class="fl-stream" d="M464.5 895V1310" stroke="#ffe1a0" stroke-width="12"/>
       </svg>
     </div>
     <div class="fl-center">
-      <span>NET CASH FLOW · MONTHLY</span>
+      <span>MONTHLY BALANCE</span>
+      <div class="fl-monthly-totals">
+        <div><span>Income</span><strong id="fl-income">—</strong></div>
+        <div><span>Expenses</span><strong id="fl-expenses">—</strong></div>
+      </div>
       <strong id="fl-net">—</strong>
+      
+      <div class="fl-income-legend"><span class="fl-legend-cash">Base <b id="fl-cash-income">—</b></span><span class="fl-legend-market">Market <b id="fl-market-result">—</b></span></div>
+      <div class="fl-coverage-track" role="progressbar" aria-label="Income coverage of monthly expenses" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="fl-coverage-bar"><div id="fl-coverage-fill"><div id="fl-coverage-base"></div><div id="fl-coverage-market"></div></div></div>
       <small id="fl-coverage">—</small>
-      <div class="fl-coverage-track" role="progressbar" aria-label="Income coverage of planned expenses" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="fl-coverage-bar"><div id="fl-coverage-fill"></div></div>
       <small id="fl-annual-gap">—</small>
-      <small id="fl-runway">—</small><div class="fl-flow-breakdown"><div><span class="fl-legend-cash">● Base · cash income</span><b id="fl-base">—</b></div><div><span class="fl-legend-market">● Spread · market result</span><b id="fl-spread">—</b></div></div>
-    </div>
-    <div class="fl-bottom"><span>EXPENSES</span><strong id="fl-expenses">—</strong><small id="fl-expense-rate">—</small></div>
-    <div class="fl-ground">
-      <div class="fl-reserve"><span>LIQUID ASSETS</span><strong id="fl-liquid">—</strong></div>
-      <div class="fl-reserve"><span>CASH RESERVE · INCLUDED IN LIQUID ASSETS</span><strong id="fl-cash-reserve">—</strong></div>
-      <div class="fl-reserve"><span>ILLIQUID LONG-TERM ASSETS</span><strong id="fl-illiquid">—</strong></div>
-      <div class="fl-reserve fl-reserve--networth"><span>NET WORTH</span><strong id="fl-worth">—</strong></div>
+
     </div>
   </section>
-  <section class="fl-consumption" aria-label="Monthly consumption distribution">
-    <div class="fl-consumption-heading"><h2>CONSUMPTION DISTRIBUTION · MONTHLY</h2><div>Total expenses <strong id="fl-consumption-total">—</strong></div></div>
-    <div id="fl-consumption-bar" class="fl-consumption-bar" aria-hidden="true"></div>
-    <div id="fl-consumption-legend" class="fl-consumption-legend"></div>
-  </section>
-  <footer class="fl-footer">
-    <span id="fl-period">Annual plan, displayed as monthly averages</span>
-    <span>Visual motion is illustrative · values are not live transactions</span>
-  </footer>
 </main>
 <script th:inline="javascript">
   window.financialLandscape = /*[[${landscape}]]*/ {};
 </script>
-<script src="/js/financial-landscape.js" defer></script><script src="/js/financial-landscape-particles.js" defer></script>
+<script src="/js/financial-landscape.js" defer></script>
+<script src="/js/financial-landscape-scene.js" defer></script>
+<script src="/js/financial-landscape-particles.js" defer></script>
 </body>
 </html>

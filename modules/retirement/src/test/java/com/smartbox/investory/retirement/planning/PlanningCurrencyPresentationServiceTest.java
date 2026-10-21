@@ -36,6 +36,66 @@ import org.mockito.Mockito;
 
 @DisplayName("Planning Currency Presentation Service")
 class PlanningCurrencyPresentationServiceTest {
+  @Test
+  void currentYearCostUsesLiveSpendingAndOnlyCurrentYearExpenseEvents() {
+    var service =
+        new PlanningCurrencyPresentationService(Mockito.mock(PlanningMoneyConversionService.class));
+    var assumptions =
+        SimulationAssumptions.defaults(40, 80, 2025).toBuilder()
+            .annualLivingExpenses(new BigDecimal("192000"))
+            .annualDiscretionaryExpenses(new BigDecimal("60000"))
+            .inflationRate(new BigDecimal("0.03"))
+            .spendingGrowthSpread(new BigDecimal("-0.015"))
+            .build();
+
+    assertEquals(
+        0, new BigDecimal("252000").compareTo(service.currentYearAnnualCosts(assumptions, 2026)));
+    var context =
+        new com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory(
+                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
+            .create(Mockito.mock(InvestmentProfile.class), assumptions);
+    assertEquals(
+        0,
+        new BigDecimal("255780")
+            .compareTo(context.forwardAssumptions().orElseThrow().annualSpending()));
+
+    var withEvents =
+        assumptions.toBuilder()
+            .futureEvents(
+                List.of(
+                    new SimulationEvent(
+                        1L,
+                        2025,
+                        "Past",
+                        new BigDecimal("1000"),
+                        SimulationEventType.ONE_OFF_EXPENSE,
+                        null),
+                    new SimulationEvent(
+                        2L,
+                        2026,
+                        "Current",
+                        new BigDecimal("2000"),
+                        SimulationEventType.ONE_OFF_EXPENSE,
+                        null),
+                    new SimulationEvent(
+                        3L,
+                        2027,
+                        "Future",
+                        new BigDecimal("3000"),
+                        SimulationEventType.ONE_OFF_EXPENSE,
+                        null),
+                    new SimulationEvent(
+                        4L,
+                        2026,
+                        "Income",
+                        new BigDecimal("4000"),
+                        SimulationEventType.ONE_OFF_INCOME,
+                        null)))
+            .build();
+    assertEquals(
+        0, new BigDecimal("254000").compareTo(service.currentYearAnnualCosts(withEvents, 2026)));
+  }
+
   @DisplayName("converts incoming Investment currency directly into local planning currency")
   @Test
   void convertsIncomingInvestmentCurrencyIntoLocalPlanningCurrency() {

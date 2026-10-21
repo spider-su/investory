@@ -45,6 +45,26 @@ Run the existing suite with:
 ./mvnw test
 ```
 
+## Integration-test registration in CI
+
+Every Java `*IT.java` under the source roots scanned by `.github/check_it_registration.py`
+must appear exactly once in the matching `backendIt` suite's `tests` list in
+`.github/workflows/tests.yml`. When adding, renaming, moving, or removing an integration
+test, update that workflow registration in the same change. Choose the suite by its Maven
+project and test responsibility; do not add the class name to unrelated documentation as a
+substitute for the workflow entry.
+
+Run the registration check before finishing:
+
+```bash
+python3 .github/check_it_registration.py
+```
+
+The checker fails on missing, duplicate, and stale registrations. Its source roots are
+`app/src/test`, `modules/investment/src/test`, and `modules/retirement/src/test`. The CI
+workflow's `backendIt` matrix is the execution registry; this section documents the rule,
+not a second list of test class names.
+
 JaCoCo instrumentation is configured in the root Maven build. `verify` writes an HTML report for
 each code-bearing module under `target/site/jacoco/index.html`; the app module also writes the
 cross-module report under `app/target/site/jacoco-aggregate/`. CI combines unit, app-hosted

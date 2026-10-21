@@ -30,14 +30,12 @@ class RetirementProfileApplicationServiceTest {
   @Test
   void reportsUnavailableWhenPortfolioHasNoSavedPlan() {
     RetirementPlanApi plans = mock(RetirementPlanApi.class);
-    RetirementProjectionService projections = mock(RetirementProjectionService.class);
     PlanningCurrencyPresentationService presentation =
         mock(PlanningCurrencyPresentationService.class);
     when(plans.resolvePlanId(3L, null)).thenReturn(Optional.empty());
     var service =
         new RetirementProfileApplicationService(
             plans,
-            projections,
             presentation,
             Clock.fixed(Instant.parse("2026-08-26T00:00:00Z"), ZoneOffset.UTC));
 
@@ -53,29 +51,30 @@ class RetirementProfileApplicationServiceTest {
   @Test
   void reportsFullCurrentYearPlanSpending() {
     RetirementPlanApi plans = mock(RetirementPlanApi.class);
-    RetirementProjectionService projections = mock(RetirementProjectionService.class);
+    PlanningMoneyConversionService money = mock(PlanningMoneyConversionService.class);
     PlanningCurrencyPresentationService presentation =
-        mock(PlanningCurrencyPresentationService.class);
-    SimulationAssumptions assumptions = mock(SimulationAssumptions.class);
-    RetirementProjection projection = mock(RetirementProjection.class);
+        new PlanningCurrencyPresentationService(money);
+    SimulationAssumptions assumptions =
+        SimulationAssumptions.defaults(40, 80, 2025).toBuilder()
+            .annualLivingExpenses(new BigDecimal("192000"))
+            .annualDiscretionaryExpenses(new BigDecimal("60000"))
+            .inflationRate(new BigDecimal("0.03"))
+            .spendingGrowthSpread(new BigDecimal("-0.015"))
+            .build();
     when(plans.resolvePlanId(3L, null)).thenReturn(Optional.of(9L));
-    when(projections.load(3L, 9L)).thenReturn(projection);
-    when(projection.assumptions()).thenReturn(assumptions);
-    when(presentation.currentYearAnnualCosts(assumptions, 2026))
-        .thenReturn(new BigDecimal("258300"));
-    when(presentation.toDisplay(new BigDecimal("258300"), CurrencyType.USD))
-        .thenReturn(new BigDecimal("258300"));
+    when(plans.details(3L, 9L)).thenReturn(new PlanDetails(9L, "Plan", assumptions, null));
+    when(money.toDisplay(new BigDecimal("252000"), CurrencyType.USD))
+        .thenReturn(new BigDecimal("63000"));
 
     var service =
         new RetirementProfileApplicationService(
             plans,
-            projections,
             presentation,
             Clock.fixed(Instant.parse("2026-08-26T00:00:00Z"), ZoneOffset.UTC));
 
     var result = service.currentYearAnnualCost(3L, CurrencyType.USD);
 
-    assertThat(result.amount()).isEqualByComparingTo("258300");
+    assertThat(result.amount()).isEqualByComparingTo("63000");
     assertThat(result.year()).isEqualTo(2026);
   }
 }

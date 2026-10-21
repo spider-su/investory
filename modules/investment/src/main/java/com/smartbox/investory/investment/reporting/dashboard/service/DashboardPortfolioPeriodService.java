@@ -72,6 +72,7 @@ public class DashboardPortfolioPeriodService {
     copy.setCash(source.getCash());
     copy.setAccountBalances(source.getAccountBalances());
     copy.setAccountBalancesTotal(source.getAccountBalancesTotal());
+    copy.setAccountFunding(source.getAccountFunding());
     copy.setOpenPositionValues(source.getOpenPositionValues());
     copy.setOpenPositionValuesTotal(source.getOpenPositionValuesTotal());
     copy.setDividendGainers(source.getDividendGainers());

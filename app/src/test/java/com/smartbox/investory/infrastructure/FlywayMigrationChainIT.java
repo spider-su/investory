@@ -57,6 +57,16 @@ class FlywayMigrationChainIT {
         assertTrue(performanceView.contains("initialization_adjustment"));
         assertTrue(performanceView.contains("performance_flow_amount_in_portfolio_base_currency"));
       }
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT pg_get_viewdef('investory.app_v_portfolio_daily'::regclass, true), "
+                  + "pg_get_viewdef('investory.app_v_portfolio_contribution_summary_mv'::regclass, true), "
+                  + "pg_get_viewdef('investory.app_v_portfolio_kpi_summary_mv'::regclass, true)")) {
+        assertTrue(result.next());
+        assertTrue(result.getString(1).contains("NOT a.cash_only"));
+        assertTrue(result.getString(2).contains("NOT account.cash_only"));
+        assertTrue(result.getString(3).contains("NOT a.cash_only"));
+      }
       var flyway = MigrationTestDatabase.flyway(DATABASE);
       flyway.validate();
       assertEquals(0, flyway.info().pending().length, "all discovered migrations applied");
