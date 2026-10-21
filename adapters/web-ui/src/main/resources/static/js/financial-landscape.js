@@ -232,6 +232,46 @@
       spendingField.append(empty);
     }
   }
+  // Align source vapor with the actually rendered glass, not separately guessed SVG
+  // coordinates. This remains accurate across fullscreen and desktop resize.
+  const scene = document.querySelector('.fl-scene.fl-clean-plate');
+  const glass = scene?.querySelector('.fl-hourglass');
+  const vapor = scene?.querySelector('.fl-income-vapor');
+  if (scene && glass && vapor && typeof ResizeObserver !== 'undefined') {
+    const put = (selector, path) => {
+      scene.querySelectorAll(selector).forEach(element => element.setAttribute('d', path));
+    };
+    const syncPaths = () => {
+      const sr = scene.getBoundingClientRect();
+      const gr = glass.getBoundingClientRect();
+      if (!sr.width || !sr.height || !gr.width || !gr.height) return;
+      const px = x => x / sr.width * 1000;
+      const py = y => y / sr.height * 600;
+      const gx = px(gr.left - sr.left + gr.width / 2);
+      // The SVG rim is 18px into a 360-unit glass, and the opening spans 48..212.
+      const rimY = py(gr.top - sr.top + gr.height * (18 / 360));
+      const leftRim = gx - px(gr.width * (70 / 260));
+      const rightRim = gx + px(gr.width * (70 / 260));
+      // Photographic features in percent of the 16:9 scenic plate.
+      const lx = 152, ly = 342; // warm highland ridge, left
+      const mx = 893, my = 207; // cool alpine summit, right
+      const lcX = 300, lcY = 140;
+      const mcX = 688, mcY = 139;
+      const cashRise = `M ${lx} ${ly} C 155 270 220 175 ${lcX} ${lcY}`;
+      const marketRise = `M ${mx} ${my} C 845 148 755 123 ${mcX} ${mcY}`;
+      const cashIn = `M ${lcX} ${lcY} C ${(lcX+leftRim)/2} 112 ${leftRim-24} ${rimY-15} ${leftRim} ${rimY}`;
+      const marketIn = `M ${mcX} ${mcY} C ${(mcX+rightRim)/2} 116 ${rightRim+24} ${rimY-15} ${rightRim} ${rimY}`;
+      put('.fl-vapor--cash .fl-vapor-haze, .fl-vapor--cash .fl-vapor-core', cashRise);
+      put('.fl-vapor--market .fl-vapor-haze, .fl-vapor--market .fl-vapor-core', marketRise);
+      put('.fl-vapor--cash .fl-vapor-to-glass', cashIn);
+      put('.fl-vapor--market .fl-vapor-to-glass', marketIn);
+    };
+    const observer = new ResizeObserver(syncPaths);
+    observer.observe(scene);
+    observer.observe(glass);
+    syncPaths();
+    document.addEventListener('fullscreenchange', syncPaths);
+  }
   const full = document.getElementById('fl-fullscreen');
   full?.addEventListener('click', () => {
     const app = document.querySelector('.fl-app');
