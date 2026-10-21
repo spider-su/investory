@@ -1012,3 +1012,43 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
 @media (prefers-reduced-motion:reduce) {
   .fl-scene.fl-clean-plate .fl-income-vapor path {animation:none;}
 }
+
+
+/* Current committed artwork is a scenery-only plate. Restore the live overlays
+   directly rather than relying on a second, nonexistent PNG request. */
+@media (min-width:981px) {
+  .fl-scene.fl-clean-plate {
+    --fl-landscape-art:url('/images/golden_hourglass_over_alpine_twilight.png');
+    background-image:var(--fl-landscape-art);
+    background-size:100% 100%;
+  }
+  .fl-scene.fl-clean-plate .fl-hourglass {
+    display:block;
+    position:absolute;
+    left:39%;
+    top:40%;
+    right:auto;bottom:auto;
+    width:clamp(180px,17vw,260px);
+    min-width:0;
+    transform:translate(-50%,-50%);
+    z-index:7;
+  }
+  .fl-scene.fl-clean-plate .fl-hourglass svg {max-height:none;width:100%;}
+  .fl-scene.fl-clean-plate .fl-income-vapor {display:block;opacity:.65;z-index:5;}
+  .fl-scene.fl-clean-plate .fl-cloud {display:block;z-index:4;}
+  .fl-scene.fl-clean-plate .fl-center {
+    position:absolute;
+    left:2%;
+    top:3%;
+    right:auto;bottom:auto;
+    grid-column:auto;grid-row:auto;
+    transform:none;
+    margin:0;
+    width:clamp(255px,21vw,310px);
+    max-width:31%;
+    justify-self:auto;
+    align-self:auto;
+    z-index:10;
+  }
+  .fl-scene.fl-clean-plate .fl-spend-pile {opacity:.24;}
+}
