@@ -1179,3 +1179,19 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
     height: auto;
   }
 }
+
+
+/* Red-annotation photo anchors: same ridge for the hourglass foot, same peak for
+   mountain value and upstream source. Previous CSS/JS geometry remains subordinate. */
+@media (min-width:981px) {
+  .fl-scene.fl-clean-plate {
+    --fl-glass-seat-x:44.5%;
+    --fl-glass-seat-bottom:37.5%;
+  }
+  .fl-scene.fl-clean-plate .fl-hourglass {
+    left:var(--fl-glass-seat-x);
+    top:auto;
+    bottom:var(--fl-glass-seat-bottom);
+    transform:translateX(-50%);
+  }
+}

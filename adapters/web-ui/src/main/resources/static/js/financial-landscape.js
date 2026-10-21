@@ -234,13 +234,13 @@
   }
   // The green annotated pins are scene-relative coordinates, shared by every overlay.
   const FL_SCENE_PINS = Object.freeze({
-    glassSeat: {x:.455,y:.645},
-    liquidSource: {x:.105,y:.595},
-    cashCloud: {x:.245,y:.105},
-    mountainSource: {x:.885,y:.315},
-    marketCloud: {x:.535,y:.325},
-    liquidGuideTop: {x:.024,y:.595},
-    mountainGuideTop: {x:.885,y:.315},
+    glassSeat: {x:.445,y:.625},
+    liquidSource: {x:.105,y:.575},
+    cashCloud: {x:.25,y:.17},
+    mountainSource: {x:.885,y:.275},
+    marketCloud: {x:.68,y:.285},
+    liquidGuideTop: {x:.024,y:.575},
+    mountainGuideTop: {x:.885,y:.275},
     zeroLineY:.935
   });
   const scene = document.querySelector('.fl-scene.fl-clean-plate');
@@ -268,8 +268,8 @@
       const summit=pin(FL_SCENE_PINS.mountainSource),cool=pin(FL_SCENE_PINS.marketCloud);
       const cashRise=curve(origin,{x:origin.x+90,y:origin.y-95},{x:warm.x-45,y:warm.y+70},warm);
       const marketRise=curve(summit,{x:summit.x-70,y:summit.y-80},{x:cool.x+90,y:cool.y-50},cool);
-      const cashIn=curve(warm,{x:warm.x+95,y:warm.y+10},{x:entryL.x-55,y:entryL.y-40},entryL);
-      const marketIn=curve(cool,{x:cool.x+30,y:cool.y-55},{x:entryR.x+65,y:entryR.y-30},entryR);
+      const cashIn=curve(warm,{x:warm.x+120,y:warm.y-12},{x:entryL.x-58,y:entryL.y-25},entryL);
+      const marketIn=curve(cool,{x:cool.x-35,y:cool.y-55},{x:entryR.x+42,y:entryR.y-28},entryR);
       put('.fl-vapor--cash .fl-vapor-haze, .fl-vapor--cash .fl-vapor-core',cashRise);
       put('.fl-vapor--market .fl-vapor-haze, .fl-vapor--market .fl-vapor-core',marketRise);
       put('.fl-vapor--cash .fl-vapor-to-glass',cashIn);
