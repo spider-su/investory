@@ -70,7 +70,10 @@ public final class HappyInvestorBrokerFacts {
     }
   }
 
-  public static final ExternalCashTotals EXTERNAL_CASH_TOTALS = externalCashTotals();
+  public static final ExternalCashTotals EXTERNAL_CASH_TOTALS = externalCashTotals(false);
+
+  /** Dashboard account funding excludes the cash-only EUR account's external operations. */
+  public static final ExternalCashTotals INCLUDED_ACCOUNT_CASH_TOTALS = externalCashTotals(true);
 
   /**
    * Fixed-fixture balance at the start of the canonical test year. The fixture has no source
@@ -104,10 +107,12 @@ public final class HappyInvestorBrokerFacts {
   public static final BigDecimal DIVIDEND_GROSS_USD = new BigDecimal("120.00");
   public static final BigDecimal DIVIDEND_WITHHOLDING_TAX_USD = new BigDecimal("-22.80");
 
-  private static ExternalCashTotals externalCashTotals() {
+  private static ExternalCashTotals externalCashTotals(boolean includedAccountsOnly) {
     BigDecimal deposits = BigDecimal.ZERO;
     BigDecimal withdrawals = BigDecimal.ZERO;
     for (CashOperationEntity operation : HappyInvestorScenario.externalCashOperations()) {
+      if (includedAccountsOnly
+          && operation.getAccount().equals(HappyInvestorTestData.XTB_EUR_ACCOUNT_ID)) continue;
       BigDecimal amountPln = operation.getAmount().abs().multiply(toPlnRate(operation));
       if (operation.getType() == CashOperationType.DEPOSIT) deposits = deposits.add(amountPln);
       else withdrawals = withdrawals.add(amountPln);

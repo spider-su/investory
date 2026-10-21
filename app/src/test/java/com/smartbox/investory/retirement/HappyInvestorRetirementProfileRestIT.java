@@ -61,16 +61,13 @@ class HappyInvestorRetirementProfileRestIT {
             .andReturn()
             .getResponse()
             .getContentAsString();
-    BigDecimal amount = com.jayway.jsonpath.JsonPath.read(response, "$.amount");
+    BigDecimal amount =
+        com.jayway.jsonpath.JsonPath.parse(response).read("$.amount", BigDecimal.class);
     BigDecimal baselineCosts =
         HappyInvestorPlanFacts.ANNUAL_LIVING_EXPENSES.add(
             HappyInvestorPlanFacts.ANNUAL_DISCRETIONARY_EXPENSES);
-    BigDecimal spendingGrowth =
-        HappyInvestorPlanFacts.INFLATION.add(HappyInvestorPlanFacts.SPENDING_GROWTH_SPREAD);
-    BigDecimal expectedAmount =
-        baselineCosts.multiply(
-            BigDecimal.ONE.add(spendingGrowth).pow(2026 - HappyInvestorPlanFacts.START_YEAR));
-    assertThat(amount).isEqualByComparingTo(expectedAmount);
+    // The saved recurring budget is the Live-year outlook. Growth begins next year.
+    assertThat(amount).isEqualByComparingTo(baselineCosts);
   }
 
   @Test
