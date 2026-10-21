@@ -1127,3 +1127,34 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
     opacity:.62;
   }
 }
+
+
+/* Actual live overlay alignment on the 16:9 clean photo.
+   Bottom of the glass sits on the foreground central ridge (~77% down). */
+@media (min-width:981px) {
+  .fl-scene.fl-clean-plate {
+    --fl-photo-glass-x:48%;
+    --fl-photo-glass-base:23%;
+  }
+  .fl-scene.fl-clean-plate .fl-hourglass {
+    position:absolute;
+    display:block;
+    left:var(--fl-photo-glass-x);
+    right:auto;
+    top:auto;
+    bottom:var(--fl-photo-glass-base);
+    width:clamp(190px,16vw,245px);
+    min-width:0;
+    height:auto;
+    transform:translateX(-50%);
+  }
+  .fl-scene.fl-clean-plate .fl-asset-guide--dune {
+    left:1%;right:auto;bottom:var(--fl-photo-zero,7%);
+    height:31%;
+  }
+  .fl-scene.fl-clean-plate .fl-asset-guide--mountain {
+    left:auto;right:9%;bottom:var(--fl-photo-zero,7%);
+    height:63%;
+  }
+  .fl-scene.fl-clean-plate .fl-spending-field {bottom:var(--fl-photo-zero,7%);}
+}
