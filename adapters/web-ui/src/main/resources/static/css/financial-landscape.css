@@ -1052,3 +1052,38 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
   }
   .fl-scene.fl-clean-plate .fl-spend-pile {opacity:.24;}
 }
+
+
+/* Photo-coordinate anchors: scene and photo share a fixed, full-frame mapping.
+   Hourglass opening (~53%, 24%), ridge landing (~53%, 62%),
+   left crest (~15%, 55%), right summit (~90%, 27%), shared zero (93%). */
+@media (min-width:981px) {
+  .fl-scene.fl-clean-plate {
+    --fl-photo-glass-x:53%;
+    --fl-photo-glass-y:43%;
+    --fl-photo-zero:7%;
+    --fl-photo-liquid-x:15%;
+    --fl-photo-mountain-x:90%;
+  }
+  .fl-scene.fl-clean-plate .fl-hourglass {
+    left:var(--fl-photo-glass-x);
+    top:var(--fl-photo-glass-y);
+    width:clamp(180px,17vw,260px);
+    transform:translate(-50%,-50%);
+  }
+  .fl-scene.fl-clean-plate .fl-asset-guide--dune {
+    left:1.5%;bottom:var(--fl-photo-zero);
+    height:var(--fl-photo-dune-guide-height,30%);
+  }
+  .fl-scene.fl-clean-plate .fl-asset-guide--mountain {
+    right:5%;bottom:var(--fl-photo-zero);
+    height:var(--fl-photo-mountain-guide-height,62%);
+  }
+  .fl-scene.fl-clean-plate .fl-spending-field {
+    bottom:var(--fl-photo-zero);
+  }
+  /* Flow SVG uses normalized 1000×600 coordinates, aligned with the
+     photo crest points and the top edge of the live hourglass. */
+  .fl-scene.fl-clean-plate .fl-income-vapor {inset:0;width:100%;height:100%;}
+  .fl-scene.fl-clean-plate .fl-center {left:2%;top:3%;max-width:310px;}
+}
