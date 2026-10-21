@@ -80,8 +80,8 @@
     root.style.setProperty('--fl-mountain-guide-height', (39 * mountainScale).toFixed(3) + '%');
     // Height guides use the same photo-relative crest reference as the live flow sources.
     // The percentage coordinates are authored against the full-scene 1600:900 plate.
-    root.style.setProperty('--fl-photo-dune-guide-height', (41 * duneScale).toFixed(3) + '%');
-    root.style.setProperty('--fl-photo-mountain-guide-height', (71 * mountainScale).toFixed(3) + '%');
+    root.style.setProperty('--fl-photo-dune-guide-height', (34 * duneScale).toFixed(3) + '%');
+    root.style.setProperty('--fl-photo-mountain-guide-height', (76 * mountainScale).toFixed(3) + '%');
     const ratio = income !== null && expenses !== null && Math.max(income, expenses) > 0
       ? Math.min(1, Math.max(0, income) / Math.max(Math.max(0, income), Math.max(0, expenses)))
       : 0.5;

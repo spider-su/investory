@@ -1087,3 +1087,43 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
   .fl-scene.fl-clean-plate .fl-income-vapor {inset:0;width:100%;height:100%;}
   .fl-scene.fl-clean-plate .fl-center {left:2%;top:3%;max-width:310px;}
 }
+
+
+/* Alpine photo geometry — base-edge anchoring avoids drift as glass size changes.
+   Coordinates are scene-relative and shared by guides, glass and vapor SVG. */
+@media (min-width:981px) {
+  .fl-scene.fl-clean-plate {
+    --fl-photo-glass-x:48%;
+    --fl-photo-glass-base:38%;
+    --fl-photo-zero:7%;
+  }
+  .fl-scene.fl-clean-plate .fl-hourglass {
+    position:absolute;
+    left:var(--fl-photo-glass-x);
+    top:auto;
+    bottom:var(--fl-photo-glass-base);
+    width:clamp(195px,17vw,255px);
+    min-width:0;
+    transform:translateX(-50%);
+  }
+  .fl-scene.fl-clean-plate .fl-asset-guide--dune {
+    left:1%;right:auto;
+    bottom:var(--fl-photo-zero);
+    height:var(--fl-photo-dune-guide-height,23%);
+  }
+  .fl-scene.fl-clean-plate .fl-asset-guide--mountain {
+    left:auto;right:9%;
+    bottom:var(--fl-photo-zero);
+    height:var(--fl-photo-mountain-guide-height,68%);
+  }
+  .fl-scene.fl-clean-plate .fl-spend-pile {
+    opacity:.43;
+    filter:blur(1px);
+    background:
+      radial-gradient(ellipse at var(--fl-crest,45%) 38%,#fff0c763,transparent 25%),
+      linear-gradient(155deg,color-mix(in srgb,var(--fl-accent) 47%,#d7ba89),#1d2938 85%);
+  }
+  .fl-scene.fl-clean-plate .fl-income-vapor {
+    opacity:.62;
+  }
+}
