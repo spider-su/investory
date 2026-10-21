@@ -971,3 +971,44 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
   .fl-scene .fl-center {left:2%;top:3%;width:clamp(255px,21vw,310px);}
   .fl-scene .fl-spending-field { bottom:var(--fl-zero,7%); }
 }
+
+
+/* Clean alpine plate integration. Automatically falls back to the existing mockup
+   until the clean no-hourglass/no-flow image is committed. Desktop Full view only. */
+@media (min-width: 981px) {
+  .fl-scene.fl-clean-plate {
+    --fl-landscape-art: url('/images/golden_twilight_over_alpine_lakes.png');
+    background-image:var(--fl-landscape-art);
+    background-size:100% 100%;
+  }
+  .fl-scene.fl-clean-plate .fl-hourglass {
+    display:block;
+    z-index:7;
+  }
+  .fl-scene.fl-clean-plate .fl-income-vapor {
+    display:block;
+    opacity:.72;
+    z-index:5;
+  }
+  .fl-scene.fl-clean-plate .fl-cloud {display:block;z-index:4;}
+  .fl-scene.fl-clean-plate .fl-center {
+    position:absolute;top:3%;left:2%;right:auto;bottom:auto;
+    transform:none;max-width:310px;width:clamp(255px,21vw,310px);z-index:10;
+  }
+  .fl-scene.fl-clean-plate .fl-top {top:3%;right:3%;z-index:10;}
+  .fl-scene.fl-clean-plate .fl-asset-guide--dune {
+    bottom:var(--fl-zero,7%);left:1%;
+    height:var(--fl-dune-guide-height,16%);
+  }
+  .fl-scene.fl-clean-plate .fl-asset-guide--mountain {
+    bottom:var(--fl-zero,7%);right:1%;
+    height:var(--fl-mountain-guide-height,34%);
+  }
+  /* The photographic foreground replaces synthetic terrain; keep live labels
+     and interactive breakdowns while softening duplicate mound geometry. */
+  .fl-scene.fl-clean-plate .fl-spend-pile {opacity:.25;filter:blur(2px);}
+  .fl-scene.fl-clean-plate .fl-zero-line {opacity:.28;}
+}
+@media (prefers-reduced-motion:reduce) {
+  .fl-scene.fl-clean-plate .fl-income-vapor path {animation:none;}
+}
