@@ -232,45 +232,72 @@
       spendingField.append(empty);
     }
   }
-  // Align source vapor with the actually rendered glass, not separately guessed SVG
-  // coordinates. This remains accurate across fullscreen and desktop resize.
+  // The green annotated pins are scene-relative coordinates, shared by every overlay.
+  const FL_SCENE_PINS = Object.freeze({
+    glassSeat: {x:.455,y:.645},
+    liquidSource: {x:.105,y:.595},
+    cashCloud: {x:.245,y:.105},
+    mountainSource: {x:.885,y:.315},
+    marketCloud: {x:.535,y:.325},
+    liquidGuideTop: {x:.024,y:.595},
+    mountainGuideTop: {x:.885,y:.315},
+    zeroLineY:.935
+  });
   const scene = document.querySelector('.fl-scene.fl-clean-plate');
   const glass = scene?.querySelector('.fl-hourglass');
   const vapor = scene?.querySelector('.fl-income-vapor');
   if (scene && glass && vapor && typeof ResizeObserver !== 'undefined') {
-    const put = (selector, path) => {
-      scene.querySelectorAll(selector).forEach(element => element.setAttribute('d', path));
-    };
-    const syncPaths = () => {
+    const put = (selector, d) => scene.querySelectorAll(selector).forEach(el => el.setAttribute('d',d));
+    const curve = (a,c1,c2,b) => 'M '+a.x+' '+a.y+' C '+c1.x+' '+c1.y+' '+c2.x+' '+c2.y+' '+b.x+' '+b.y;
+    const syncPins = () => {
+      if (window.innerWidth <= 980) {
+        ['left','top','bottom','transform'].forEach(k => glass.style.removeProperty(k));
+        scene.querySelectorAll('.fl-asset-guide').forEach(el => ['left','right','top','bottom','height'].forEach(k => el.style.removeProperty(k)));
+        return;
+      }
       const sr = scene.getBoundingClientRect();
+      if (!sr.width || !sr.height) return;
+      const glassHeight = glass.getBoundingClientRect().height;
+      if (!glassHeight) return;
+      glass.style.left = FL_SCENE_PINS.glassSeat.x*100+'%';
+      glass.style.top = (FL_SCENE_PINS.glassSeat.y*sr.height-glassHeight*342/360)+'px';
+      glass.style.bottom = 'auto';
+      glass.style.transform = 'translateX(-50%)';
       const gr = glass.getBoundingClientRect();
-      if (!sr.width || !sr.height || !gr.width || !gr.height) return;
-      const px = x => x / sr.width * 1000;
-      const py = y => y / sr.height * 600;
-      const gx = px(gr.left - sr.left + gr.width / 2);
-      // The SVG rim is 18px into a 360-unit glass, and the opening spans 48..212.
-      const rimY = py(gr.top - sr.top + gr.height * (18 / 360));
-      const leftRim = gx - px(gr.width * (70 / 260));
-      const rightRim = gx + px(gr.width * (70 / 260));
-      // Photographic features in percent of the 16:9 scenic plate.
-      const lx = 152, ly = 342; // warm highland ridge, left
-      const mx = 893, my = 207; // cool alpine summit, right
-      const lcX = 300, lcY = 140;
-      const mcX = 688, mcY = 139;
-      const cashRise = `M ${lx} ${ly} C 155 270 220 175 ${lcX} ${lcY}`;
-      const marketRise = `M ${mx} ${my} C 845 148 755 123 ${mcX} ${mcY}`;
-      const cashIn = `M ${lcX} ${lcY} C ${(lcX+leftRim)/2} 112 ${leftRim-24} ${rimY-15} ${leftRim} ${rimY}`;
-      const marketIn = `M ${mcX} ${mcY} C ${(mcX+rightRim)/2} 116 ${rightRim+24} ${rimY-15} ${rightRim} ${rimY}`;
-      put('.fl-vapor--cash .fl-vapor-haze, .fl-vapor--cash .fl-vapor-core', cashRise);
-      put('.fl-vapor--market .fl-vapor-haze, .fl-vapor--market .fl-vapor-core', marketRise);
-      put('.fl-vapor--cash .fl-vapor-to-glass', cashIn);
-      put('.fl-vapor--market .fl-vapor-to-glass', marketIn);
+      const pin = p => ({x:p.x*1000,y:p.y*600});
+      const scenePoint = (x,y) => ({x:x/sr.width*1000,y:y/sr.height*600});
+      const cx=gr.left-sr.left+gr.width/2;
+      const rimY=gr.top-sr.top+gr.height*18/360;
+      const entryL=scenePoint(cx-gr.width*70/260,rimY);
+      const entryR=scenePoint(cx+gr.width*70/260,rimY);
+      const origin=pin(FL_SCENE_PINS.liquidSource),warm=pin(FL_SCENE_PINS.cashCloud);
+      const summit=pin(FL_SCENE_PINS.mountainSource),cool=pin(FL_SCENE_PINS.marketCloud);
+      const cashRise=curve(origin,{x:origin.x+90,y:origin.y-95},{x:warm.x-45,y:warm.y+70},warm);
+      const marketRise=curve(summit,{x:summit.x-70,y:summit.y-80},{x:cool.x+90,y:cool.y-50},cool);
+      const cashIn=curve(warm,{x:warm.x+95,y:warm.y+10},{x:entryL.x-55,y:entryL.y-40},entryL);
+      const marketIn=curve(cool,{x:cool.x+30,y:cool.y-55},{x:entryR.x+65,y:entryR.y-30},entryR);
+      put('.fl-vapor--cash .fl-vapor-haze, .fl-vapor--cash .fl-vapor-core',cashRise);
+      put('.fl-vapor--market .fl-vapor-haze, .fl-vapor--market .fl-vapor-core',marketRise);
+      put('.fl-vapor--cash .fl-vapor-to-glass',cashIn);
+      put('.fl-vapor--market .fl-vapor-to-glass',marketIn);
+      const placeGuide=(selector,p,side)=>{
+        const el=scene.querySelector(selector);
+        if(!el)return;
+        el.style.top=p.y*100+'%';
+        el.style.bottom=(1-FL_SCENE_PINS.zeroLineY)*100+'%';
+        el.style.height='auto';
+        el.style[side]=side==='left'?'1%':'9%';
+        el.style[side==='left'?'right':'left']='auto';
+      };
+      placeGuide('.fl-asset-guide--dune',FL_SCENE_PINS.liquidGuideTop,'left');
+      placeGuide('.fl-asset-guide--mountain',FL_SCENE_PINS.mountainGuideTop,'right');
     };
-    const observer = new ResizeObserver(syncPaths);
+    const observer=new ResizeObserver(syncPins);
     observer.observe(scene);
     observer.observe(glass);
-    syncPaths();
-    document.addEventListener('fullscreenchange', syncPaths);
+    syncPins();
+    document.addEventListener('fullscreenchange',syncPins);
+    window.addEventListener('resize',syncPins);
   }
   const full = document.getElementById('fl-fullscreen');
   full?.addEventListener('click', () => {
