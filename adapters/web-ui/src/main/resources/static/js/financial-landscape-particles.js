@@ -70,15 +70,16 @@
       }
     }
     const direction = scene.dataset.reserveDirection;
-    const duneRect = scene.querySelector('.fl-dune')?.getBoundingClientRect();
     const glassRect = scene.querySelector('.fl-hourglass')?.getBoundingClientRect();
-    // The strand is illustrative, never a real transfer or account balance.
-    if ((direction === 'draw' || direction === 'save') && duneRect && glassRect && w > 980) {
+    // The photograph replaces the hidden CSS dune. Use the visible left highland
+    // as the reserve source; hidden elements have a zero rect and cause long,
+    // spurious diagonal streaks from the page origin.
+    if ((direction === 'draw' || direction === 'save') && glassRect && w > 980) {
       const parentRect = scene.getBoundingClientRect();
       const glassX = glassRect.left - parentRect.left + glassRect.width * .5;
       const glassY = glassRect.top - parentRect.top + glassRect.height * .95;
-      const duneX = duneRect.left - parentRect.left + duneRect.width * .53;
-      const duneY = duneRect.top - parentRect.top + duneRect.height * .12;
+      const duneX = w * .105;
+      const duneY = h * .595;
       // Positive saving moves outward to the dune; a funding deficit draws inward.
       const fromX = direction === 'draw' ? duneX : glassX;
       const fromY = direction === 'draw' ? duneY : glassY;

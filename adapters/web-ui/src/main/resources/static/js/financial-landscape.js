@@ -251,18 +251,12 @@
     const curve = (a,c1,c2,b) => 'M '+a.x+' '+a.y+' C '+c1.x+' '+c1.y+' '+c2.x+' '+c2.y+' '+b.x+' '+b.y;
     const syncPins = () => {
       if (window.innerWidth <= 980) {
-        ['left','top','bottom','transform'].forEach(k => glass.style.removeProperty(k));
         scene.querySelectorAll('.fl-asset-guide').forEach(el => ['left','right','top','bottom','height'].forEach(k => el.style.removeProperty(k)));
         return;
       }
       const sr = scene.getBoundingClientRect();
       if (!sr.width || !sr.height) return;
-      const glassHeight = glass.getBoundingClientRect().height;
-      if (!glassHeight) return;
-      glass.style.left = FL_SCENE_PINS.glassSeat.x*100+'%';
-      glass.style.top = (FL_SCENE_PINS.glassSeat.y*sr.height-glassHeight*342/360)+'px';
-      glass.style.bottom = 'auto';
-      glass.style.transform = 'translateX(-50%)';
+      // CSS owns the glass placement; never write top/left/transform here.
       const gr = glass.getBoundingClientRect();
       const pin = p => ({x:p.x*1000,y:p.y*600});
       const scenePoint = (x,y) => ({x:x/sr.width*1000,y:y/sr.height*600});
