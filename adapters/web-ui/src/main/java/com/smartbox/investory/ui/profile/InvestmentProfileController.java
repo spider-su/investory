@@ -49,10 +49,6 @@ public class InvestmentProfileController {
     var context = portfolioContexts.findById(portfolioId).orElse(null);
     var profileFuture =
         CompletableFuture.supplyAsync(() -> profile.loadProfile(portfolioId), profileReadExecutor);
-    var landscapeFuture =
-        CompletableFuture.supplyAsync(
-            () -> financialLandscapePageAssembler.assembleAttributes(portfolioId),
-            profileReadExecutor);
     var annualCostFuture =
         context != null && context.localCurrency() != null
             ? CompletableFuture.supplyAsync(
@@ -78,7 +74,9 @@ public class InvestmentProfileController {
             YearMonth.now(clock).getMonthValue());
     model.addAttribute("profile", page);
     model.addAttribute("portfolioId", portfolioId);
-    model.addAttribute("landscape", landscapeFuture.join());
+    model.addAttribute(
+        "landscape",
+        financialLandscapePageAssembler.assembleCompactAttributes(profile, annualCost));
     return "investment-profile";
   }
 }

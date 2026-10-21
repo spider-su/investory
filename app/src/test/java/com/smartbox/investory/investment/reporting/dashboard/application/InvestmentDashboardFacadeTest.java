@@ -16,6 +16,7 @@ import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardPageView;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardQuery;
 import com.smartbox.investory.investment.api.reporting.model.AccountBalance;
+import com.smartbox.investory.investment.api.reporting.model.AccountFundingView;
 import com.smartbox.investory.investment.api.reporting.model.AssetAllocationView;
 import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.api.reporting.model.DividendGainer;
@@ -207,6 +208,41 @@ class InvestmentDashboardFacadeTest {
     assertEquals("2026-01", result.performance().kpiStart());
     verify(periodFilterService).filter(portfolio, DashboardPeriod.ONE_YEAR);
     verify(periodFilterService).filter(benchmark, DashboardPeriod.ONE_YEAR);
+  }
+
+  @Test
+  void investedHeaderRetainsAccountFundingAcrossPeriodsWithoutChangingPerformance() {
+    Portfolio portfolio = new Portfolio();
+    addCanonicalMonth(portfolio);
+    portfolio.setNetDeposits(1_000);
+    portfolio.setDeposits(1_100);
+    portfolio.setWithdrawals(100);
+    AccountFundingView funding =
+        new AccountFundingView(
+            BigDecimal.valueOf(1_200), BigDecimal.valueOf(1_300), BigDecimal.valueOf(100));
+    portfolio.setAccountFunding(funding);
+    portfolio.setAccountBalancesTotal(
+        AccountBalance.builder()
+            .accountName("Total")
+            .netDepositBase(BigDecimal.valueOf(1_200))
+            .build());
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(new Benchmark());
+    InvestmentDashboardFacade facade =
+        newFacade(portfolioMetricsService, benchmarkService, new DashboardPeriodViewService());
+    for (DashboardPeriod period : List.of(DashboardPeriod.YEAR_TO_DATE, DashboardPeriod.MAX)) {
+      DashboardPageView page =
+          facade.loadDashboard(new DashboardQuery(List.of(), false, period, 1L));
+      assertEquals(funding, page.overview().accountFunding());
+      assertEquals(
+          page.overview().accountBalancesTotal().getNetDepositBase(),
+          page.overview().accountFunding().netDeposits());
+      assertEquals(1_300, page.overview().accountFunding().deposits());
+      assertEquals(100, page.overview().accountFunding().withdrawals());
+      assertEquals(1_000, page.overview().netDeposits());
+      assertEquals(0, page.overview().totalProfit());
+    }
+    assertEquals(1_000, portfolio.getNetDeposits());
   }
 
   @DisplayName("attribution Keeps Fourteen Named Rows And Aggregates The Rest Per Result Side")

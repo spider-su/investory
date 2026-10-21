@@ -20,11 +20,11 @@ public class FinancialLandscapeController {
       @PathVariable Long portfolioId,
       @RequestParam(name = "view", defaultValue = "full") String view,
       Model model) {
-    var page = pageAssembler.assemble(portfolioId);
+    boolean compact = COMPACT_VIEW.equalsIgnoreCase(view);
+    var page =
+        compact ? pageAssembler.assemble(portfolioId, false) : pageAssembler.assemble(portfolioId);
     model.addAttribute("portfolioId", portfolioId);
-    model.addAttribute("landscape", page.asAttributes());
-    return COMPACT_VIEW.equalsIgnoreCase(view)
-        ? "financial-landscape-compact"
-        : "financial-landscape";
+    model.addAttribute("landscape", page.asAttributes(compact));
+    return compact ? "financial-landscape-compact" : "financial-landscape";
   }
 }

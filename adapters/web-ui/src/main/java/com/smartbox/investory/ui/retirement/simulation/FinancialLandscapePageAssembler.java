@@ -1,12 +1,11 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.RetirementAnnualCostsApi;
-import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
-import com.smartbox.investory.retirement.api.model.RetirementProjection;
-import com.smartbox.investory.retirement.api.model.SimulationScenario;
+import com.smartbox.investory.retirement.api.model.AnnualCostView;
+import com.smartbox.investory.ui.profile.ProfileClient;
+import com.smartbox.investory.ui.profile.RetirementProfileClient;
 import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -15,43 +14,41 @@ import org.springframework.stereotype.Component;
 /** Loads and assembles the model for the financial landscape page. */
 @Component
 public final class FinancialLandscapePageAssembler {
-  private final RetirementPlanClient plans;
-  private final RetirementProjectionClient projections;
-  private final RetirementTimelineClient timeline;
+  private final ProfileClient profiles;
+  private final RetirementProfileClient retirementProfile;
   private final AnnualCostsClient annualCosts;
-  private final Clock clock;
 
   FinancialLandscapePageAssembler(
-      RetirementPlanClient plans,
-      RetirementProjectionClient projections,
-      RetirementTimelineClient timeline,
-      AnnualCostsClient annualCosts,
-      Clock clock) {
-    this.plans = plans;
-    this.projections = projections;
-    this.timeline = timeline;
+      ProfileClient profiles,
+      RetirementProfileClient retirementProfile,
+      AnnualCostsClient annualCosts) {
+    this.profiles = profiles;
+    this.retirementProfile = retirementProfile;
     this.annualCosts = annualCosts;
-    this.clock = clock;
   }
 
   FinancialLandscapePageView assemble(Long portfolioId) {
-    var planId = plans.resolvePlanId(portfolioId, null).orElse(null);
-    RetirementProjection projection = projections.load(portfolioId, planId);
-    var profile = projection.profile();
+    return assemble(portfolioId, true);
+  }
+
+  FinancialLandscapePageView assemble(Long portfolioId, boolean includeExpenseGroups) {
+    var profile = profiles.loadProfile(portfolioId);
+    var cost = retirementProfile.currentYearAnnualCost(portfolioId, profile.currency());
+    return assemble(profile, cost, includeExpenseGroups);
+  }
+
+  private FinancialLandscapePageView assemble(
+      InvestmentProfile profile, AnnualCostView cost, boolean includeExpenseGroups) {
+    var portfolioId = profile.portfolioId();
     var currency = profile.currency();
-    var response =
-        timeline.loadForwardTimeline(portfolioId, projection, SimulationScenario.BASE, currency);
-    int currentYear = Year.now(clock).getValue();
-    var liveYear =
-        response.timeline().years().stream()
-            .filter(row -> row.state() == PlanningTimelineState.LIVE)
-            .findFirst()
-            .orElse(null);
-    var money = liveYear == null ? null : response.money().get(liveYear.year());
+    var income = profile.incomeSummary();
+    BigDecimal expenses = cost.available() ? cost.amount() : null;
+    BigDecimal balance =
+        expenses == null ? null : income.combinedNetAnnualIncome().subtract(expenses);
     List<FinancialLandscapePageView.ExpenseGroupView> expenseGroups = new ArrayList<>();
-    if (planId != null && liveYear != null) {
+    if (includeExpenseGroups && cost.available() && cost.planId() != null) {
       RetirementAnnualCostsApi.AnnualCosts costs =
-          annualCosts.load(portfolioId, planId, liveYear.year());
+          annualCosts.load(portfolioId, cost.planId(), cost.year());
       for (var group : costs.groups()) {
         if (group.monthlyAmount() != null && group.monthlyAmount().signum() > 0) {
           expenseGroups.add(
@@ -74,22 +71,20 @@ public final class FinancialLandscapePageAssembler {
     return new FinancialLandscapePageView(
         portfolioId,
         currency.name(),
-        liveYear == null ? currentYear : liveYear.year(),
-        profile.incomeSummary().combinedNetAnnualIncome(),
-        money == null ? null : money.totalIncome(),
-        profile.incomeSummary().marketNetAnnualIncome(),
-        profile.incomeSummary().longTermAnnualIncome(),
-        money == null ? null : money.annualCosts(),
-        money == null ? null : money.fundingSurplus(),
-        money == null ? null : money.fundingGap(),
+        cost.year(),
+        income.combinedNetAnnualIncome(),
+        income.longTermAnnualIncome(),
+        income.marketNetAnnualIncome(),
+        expenses,
+        balance == null ? null : balance.negate().max(BigDecimal.ZERO),
         profile.liquidAssets(),
         profile.illiquidAssets(),
-        profile.totalNetWorth(),
-        profile.retirementReserve(),
         expenseGroups);
   }
 
-  public Map<String, Object> assembleAttributes(Long portfolioId) {
-    return assemble(portfolioId).asAttributes();
+  /** Reuses the Profile page's already-loaded facts; compact has no spending destinations. */
+  public Map<String, Object> assembleCompactAttributes(
+      InvestmentProfile profile, AnnualCostView cost) {
+    return assemble(profile, cost, false).asAttributes(true);
   }
 }

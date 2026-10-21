@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardQuery;
+import com.smartbox.investory.investment.api.reporting.model.AccountFundingView;
 import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.investment.performance.PortfolioMetricsService;
@@ -29,7 +30,8 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockServletContext;
@@ -44,10 +46,19 @@ import org.thymeleaf.web.servlet.JakartaServletWebApplication;
 class DashboardRenderSmokeTest {
 
   @DisplayName("dashboard Template Renders Through Thymeleaf")
-  @Test
-  void dashboardTemplateRendersThroughThymeleaf() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void dashboardTemplateRendersThroughThymeleaf(boolean grossFundingAvailable) {
     Portfolio portfolio = new Portfolio();
     portfolio.setBalance(100.0);
+    portfolio.setNetDeposits(92_801.696051);
+    portfolio.setDeposits(120_125.956051);
+    portfolio.setWithdrawals(27_324.26);
+    portfolio.setAccountFunding(
+        new AccountFundingView(
+            new BigDecimal("180340.576142351"),
+            grossFundingAvailable ? new BigDecimal("207664.836142351") : null,
+            grossFundingAvailable ? new BigDecimal("27324.26") : null));
     Performance performance = new Performance();
     performance.setCalculateMonthlyPerformance(
         new java.util.LinkedHashMap<>(Map.of("2026-01", 0.0)));
@@ -139,6 +150,15 @@ class DashboardRenderSmokeTest {
         .isGreaterThan(topbar.indexOf("id=\"cash-flows\""));
     assertThat(topbar.indexOf("id=\"balance-cash\""))
         .isGreaterThan(topbar.indexOf("id=\"investment-gain\""));
+    String investedPanel =
+        topbar.substring(
+            topbar.indexOf("id=\"cash-flows\""), topbar.indexOf("id=\"investment-gain\""));
+    assertThat(investedPanel).contains("180.3K").doesNotContain("92.8K", "120.1K");
+    if (grossFundingAvailable) {
+      assertThat(investedPanel).contains("207.7K", "27.3K");
+    } else {
+      assertThat(investedPanel).contains("Unavailable").doesNotContain("207.7K", "27.3K");
+    }
 
     int railLeftStart = html.indexOf("id=\"iv-header-rail-left\"", secondaryStart);
     int pageNavStart = html.indexOf("class=\"iv-page-nav-slot\"", secondaryStart);

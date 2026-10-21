@@ -6,6 +6,16 @@ let currentPerformanceBoardView = null;
 const performanceBoardState = { metric: 'return', style: 'line' };
 const performanceBoardAccountPalette = ['#5b4bff', '#38bdf8', '#f59e0b', '#f43f5e', '#a855f7', '#14b8a6', '#f97316', '#ec4899'];
 const performanceBoardBenchmarkColor = '#16a34a';
+const performanceBoardMoneyFormatter = new Intl.NumberFormat('en-US', {notation: 'compact', compactDisplay: 'short', minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+function performanceBoardTooltipLabel(context) {
+    const value = Number(context.parsed.y);
+    // The same chart survives metric switches, so read the current mode on every hover.
+    const formatted = performanceBoardState.metric === 'return'
+        ? percentValue(value)
+        : performanceBoardMoneyFormatter.format(value) + ' ' + baseCurrency;
+    return context.dataset.label + ': ' + (value >= 0 ? '+' : '') + formatted;
+}
 
 function performanceBoardSelectedIds() {
     return Array.from(document.querySelectorAll('.js-performance-board-account:checked')).map(input => Number(input.value));
@@ -113,7 +123,7 @@ async function renderPerformanceBoard(initialData = null) {
         document.getElementById('performance-scope-aggregation').textContent = (document.getElementById('performance-board-aggregation')?.value || 'monthly').replace(/^./, value => value.toUpperCase());
         const unit = performanceBoardState.metric === 'return' ? '%' : baseCurrency;
         if (!performanceBoardChart) {
-            performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), { type: bars ? 'bar' : 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { stacked: bars && performanceBoardState.metric === 'pl', grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl', grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? percentValue(value) : amountFormatter.format(Math.round(value)) } } }, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: chartTheme().legend, font: {size: 12} } }, tooltip: { callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? percentValue(context.parsed.y) : amountFormatter.format(Math.round(context.parsed.y)) + ' ' + unit) } } } } });
+            performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), { type: bars ? 'bar' : 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { stacked: bars && performanceBoardState.metric === 'pl', grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl', grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? percentValue(value) : amountFormatter.format(Math.round(value)) } } }, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: chartTheme().legend, font: {size: 12} } }, tooltip: { callbacks: { label: performanceBoardTooltipLabel } } } } });
             enableKeyboardChart(performanceBoardChart, 'performance-board-chart', () => {});
         } else if (performanceBoardChart.config.type !== (bars ? 'bar' : 'line')) { performanceBoardChart.destroy(); performanceBoardChart = null; return renderPerformanceBoard(); } else { performanceBoardChart.data.labels = labels; performanceBoardChart.data.datasets = datasets; performanceBoardChart.update(); }
         renderTable('performance-board-table', ['Period', ...datasets.map(dataset => dataset.label)], labels.map((label, index) => [label, ...datasets.map(dataset => { const value = dataset.data[index]; return value == null ? '—' : (Number(value) >= 0 ? '+' : '') + (unit === '%' ? percentValue(value) : amountFormatter.format(Math.round(value)) + ' ' + unit); })]));

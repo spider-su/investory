@@ -609,7 +609,8 @@ public class InvestmentDashboardFacade {
         portfolio.getLossCarryForward(),
         // Payer ranking is an all-time portfolio snapshot. Keep it available while the
         // surrounding income totals follow the selected dashboard period.
-        portfolio.getDividendGainers());
+        portfolio.getDividendGainers(),
+        portfolio.getAccountFunding());
   }
 
   private PositionsView positions(Portfolio portfolio) {

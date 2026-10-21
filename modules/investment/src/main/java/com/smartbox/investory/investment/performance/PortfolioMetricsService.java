@@ -128,12 +128,9 @@ public class PortfolioMetricsService {
         // reconstruct a second version of portfolio accounting in the dashboard service.
         portfolio.setValuationComplete(false);
       }
-      portfolio.setAccountBalances(calculateAccountBalances(portfolio.getBaseCurrency()));
+      portfolio.setAccountBalances(calculateAccountBalances(portfolio));
       portfolio.setAccountBalancesTotal(
-          accountBalancesTotal(
-              portfolio.getAccountBalances(),
-              portfolio.getBaseCurrency(),
-              portfolio.getNetDeposits()));
+          accountBalancesTotal(portfolio.getAccountBalances(), portfolio.getBaseCurrency()));
       List<OpenPositionValue> openPositionValues = calculateOpenPositionValues();
       portfolio.setOpenPositionValues(openPositionValues);
       portfolio.setOpenPositionValuesTotal(
@@ -333,7 +330,8 @@ public class PortfolioMetricsService {
             : 0.0);
   }
 
-  private List<AccountBalance> calculateAccountBalances(CurrencyType baseCurrency) {
+  private List<AccountBalance> calculateAccountBalances(Portfolio portfolio) {
+    CurrencyType baseCurrency = portfolio.getBaseCurrency();
     List<AccountStatisticsEntity> stats = accountStatistics();
     if (!CollectionUtils.isEmpty(stats)) {
       Map<Long, AccountEntity> accountsById =
@@ -342,73 +340,140 @@ public class PortfolioMetricsService {
                   .map(AccountStatisticsEntity::getAccountId)
                   .filter(Objects::nonNull)
                   .collect(Collectors.toSet()));
+      List<NormalizedCashOperationRepository.NormalizedCashOperationRow> flowRows =
+          normalizedCashOperationRepository.findAllByAccountIdIn(accountsById.keySet());
       Map<Long, AccountNetDeposit> netDepositsByAccount =
-          accountNetDeposits(accountsById.keySet(), accountsById, baseCurrency);
-      return stats.stream()
-          .filter(stat -> !stat.isCashOnly())
-          .filter(this::isDashboardVisible)
-          .sorted(
-              Comparator.comparing(
-                      (AccountStatisticsEntity stat) ->
-                          accountsById.get(stat.getAccountId()).getCreatedAt(),
-                      Comparator.nullsLast(Comparator.naturalOrder()))
-                  .thenComparing(AccountStatisticsEntity::getAccountId))
-          .map(
-              stat -> {
-                BigDecimal balance = bd(stat.getCashBalance()).add(bd(stat.getMarketValue()));
-                AccountEntity account = accountsById.get(stat.getAccountId());
-                AccountNetDeposit netDeposit =
-                    netDepositsByAccount.getOrDefault(
-                        stat.getAccountId(),
-                        new AccountNetDeposit(
-                            bd(stat.getAccountNetDeposit())
-                                        .abs()
-                                        .compareTo(BigDecimal.valueOf(0.005))
-                                    > 0
-                                ? bd(stat.getAccountNetDeposit())
-                                : bd(stat.getNetDeposit()),
-                            bd(stat.getNetDeposit())));
-                CurrencyType localCurrency = account.getCurrency();
-                BigDecimal localBalance =
-                    localBalance(balance, baseCurrency, localCurrency, applicationTime.today());
-                BigDecimal localCash =
-                    localBalance(
-                        bd(stat.getCashBalance()),
-                        baseCurrency,
-                        localCurrency,
-                        applicationTime.today());
-                BigDecimal localNetDeposit = netDeposit.localAmount();
-                BigDecimal baseNetDeposit = netDeposit.baseAmount();
-                BigDecimal profit = balance.subtract(baseNetDeposit);
-                BigDecimal localProfit = localBalance.subtract(localNetDeposit);
-                return AccountBalance.builder()
-                    .accountId(stat.getAccountId())
-                    .accountName(account.getName())
-                    .netDepositLocal(decimal(display(localNetDeposit)))
-                    .netDepositBase(decimal(display(baseNetDeposit)))
-                    .balanceLocal(decimal(display(localBalance)))
-                    .balanceBase(decimal(display(balance)))
-                    .profitLocal(decimal(display(localProfit)))
-                    .profitBase(decimal(display(profit)))
-                    .cashLocal(decimal(display(localCash)))
-                    .cashBase(decimal(nz(stat.getCashBalance())))
-                    .localCurrency(localCurrency)
-                    .profitLossPercent(decimal(profitLossPercent(balance, baseNetDeposit)))
-                    .build();
-              })
-          .toList();
+          accountNetDeposits(accountsById.keySet(), accountsById, flowRows);
+      List<AccountBalance> balances =
+          stats.stream()
+              .filter(stat -> !stat.isCashOnly())
+              .filter(this::isDashboardVisible)
+              .sorted(
+                  Comparator.comparing(
+                          (AccountStatisticsEntity stat) ->
+                              accountsById.get(stat.getAccountId()).getCreatedAt(),
+                          Comparator.nullsLast(Comparator.naturalOrder()))
+                      .thenComparing(AccountStatisticsEntity::getAccountId))
+              .map(
+                  stat -> {
+                    BigDecimal balance = bd(stat.getCashBalance()).add(bd(stat.getMarketValue()));
+                    AccountEntity account = accountsById.get(stat.getAccountId());
+                    AccountNetDeposit netDeposit =
+                        netDepositsByAccount.getOrDefault(
+                            stat.getAccountId(),
+                            new AccountNetDeposit(
+                                bd(stat.getAccountNetDeposit())
+                                            .abs()
+                                            .compareTo(BigDecimal.valueOf(0.005))
+                                        > 0
+                                    ? bd(stat.getAccountNetDeposit())
+                                    : bd(stat.getNetDeposit()),
+                                bd(stat.getNetDeposit())));
+                    CurrencyType localCurrency = account.getCurrency();
+                    BigDecimal localBalance =
+                        localBalance(balance, baseCurrency, localCurrency, applicationTime.today());
+                    BigDecimal localCash =
+                        localBalance(
+                            bd(stat.getCashBalance()),
+                            baseCurrency,
+                            localCurrency,
+                            applicationTime.today());
+                    BigDecimal localNetDeposit = netDeposit.localAmount();
+                    BigDecimal baseNetDeposit = netDeposit.baseAmount();
+                    BigDecimal profit = balance.subtract(baseNetDeposit);
+                    BigDecimal localProfit = localBalance.subtract(localNetDeposit);
+                    return AccountBalance.builder()
+                        .accountId(stat.getAccountId())
+                        .accountName(account.getName())
+                        .netDepositLocal(decimal(display(localNetDeposit)))
+                        .netDepositBase(decimal(display(baseNetDeposit)))
+                        .balanceLocal(decimal(display(localBalance)))
+                        .balanceBase(decimal(display(balance)))
+                        .profitLocal(decimal(display(localProfit)))
+                        .profitBase(decimal(display(profit)))
+                        .cashLocal(decimal(display(localCash)))
+                        .cashBase(decimal(nz(stat.getCashBalance())))
+                        .localCurrency(localCurrency)
+                        .profitLossPercent(decimal(profitLossPercent(balance, baseNetDeposit)))
+                        .build();
+                  })
+              .toList();
+      portfolio.setAccountFunding(accountFunding(balances, flowRows));
+      return balances;
     }
 
     return List.of();
   }
 
+  private AccountFundingView accountFunding(
+      List<AccountBalance> accounts,
+      List<NormalizedCashOperationRepository.NormalizedCashOperationRow> flowRows) {
+    Set<Long> includedIds =
+        accounts.stream().map(AccountBalance::getAccountId).collect(Collectors.toSet());
+    var includedFlows =
+        flowRows.stream()
+            .filter(row -> includedIds.contains(row.getAccountId()))
+            .filter(PortfolioMetricsService::isAccountFundingFlow)
+            .toList();
+    BigDecimal net =
+        accounts.stream()
+            .map(AccountBalance::getNetDepositBase)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    Set<Long> fundedIds =
+        includedFlows.stream()
+            .map(NormalizedCashOperationRepository.NormalizedCashOperationRow::getAccountId)
+            .collect(Collectors.toSet());
+    boolean complete =
+        accounts.stream()
+                .allMatch(
+                    account ->
+                        account.getNetDepositBase().signum() == 0
+                            || fundedIds.contains(account.getAccountId()))
+            && includedFlows.stream()
+                .allMatch(
+                    row ->
+                        row.getAccountFlowAmountInPortfolioBaseCurrency() != null
+                            || row.getAmountInBaseCurrency() != null);
+    if (!complete) return new AccountFundingView(net, null, null);
+    BigDecimal deposits =
+        includedFlows.stream()
+            .filter(row -> isCategory(row, "EXTERNAL_DEPOSIT"))
+            .map(PortfolioMetricsService::accountFlowBaseAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal withdrawals =
+        includedFlows.stream()
+            .filter(row -> isCategory(row, "EXTERNAL_WITHDRAWAL"))
+            .map(PortfolioMetricsService::accountFlowBaseAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .negate();
+    // Both sides of transfers within the displayed set cancel. Gross only the remaining net.
+    BigDecimal transferNet = net.subtract(deposits).add(withdrawals);
+    return new AccountFundingView(
+        net,
+        deposits.add(transferNet.max(BigDecimal.ZERO)),
+        withdrawals.add(transferNet.negate().max(BigDecimal.ZERO)));
+  }
+
+  private static BigDecimal accountFlowBaseAmount(
+      NormalizedCashOperationRepository.NormalizedCashOperationRow row) {
+    return bd(
+        row.getAccountFlowAmountInPortfolioBaseCurrency() != null
+            ? row.getAccountFlowAmountInPortfolioBaseCurrency()
+            : row.getAmountInBaseCurrency());
+  }
+
   private AccountBalance accountBalancesTotal(
-      List<AccountBalance> accounts, CurrencyType baseCurrency, double canonicalNetDeposit) {
+      List<AccountBalance> accounts, CurrencyType baseCurrency) {
     BigDecimal balance =
         accounts.stream().map(a -> bd(a.getBalanceBase())).reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal cash =
         accounts.stream().map(a -> bd(a.getCashBase())).reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal netDeposit = bd(canonicalNetDeposit);
+    // Account funding includes transfers; the portfolio KPI measures external contributions.
+    // A table total must aggregate the same visible rows and currency as its column.
+    BigDecimal netDeposit =
+        accounts.stream()
+            .map(a -> bd(a.getNetDepositBase()))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal profit = balance.subtract(netDeposit);
     Double roi =
         netDeposit.abs().compareTo(ACCOUNT_VISIBILITY_MIN_VALUE) >= 0
@@ -433,12 +498,10 @@ public class PortfolioMetricsService {
   private Map<Long, AccountNetDeposit> accountNetDeposits(
       Collection<Long> accountIds,
       Map<Long, AccountEntity> accountsById,
-      CurrencyType baseCurrency) {
+      List<NormalizedCashOperationRepository.NormalizedCashOperationRow> flowRows) {
     if (CollectionUtils.isEmpty(accountIds)) {
       return Map.of();
     }
-    List<NormalizedCashOperationRepository.NormalizedCashOperationRow> flowRows =
-        normalizedCashOperationRepository.findAllByAccountIdIn(accountIds);
     Map<Long, AccountNetDeposit> deposits =
         flowRows.stream()
             .filter(row -> row.getAccountId() != null)
@@ -454,14 +517,7 @@ public class PortfolioMetricsService {
                                     .map(PortfolioMetricsService::accountFlowLocalAmount)
                                     .reduce(BigDecimal.ZERO, BigDecimal::add),
                                 rows.stream()
-                                    .map(
-                                        row ->
-                                            bd(
-                                                row.getAccountFlowAmountInPortfolioBaseCurrency()
-                                                        != null
-                                                    ? row
-                                                        .getAccountFlowAmountInPortfolioBaseCurrency()
-                                                    : row.getAmountInBaseCurrency()))
+                                    .map(PortfolioMetricsService::accountFlowBaseAmount)
                                     .reduce(BigDecimal.ZERO, BigDecimal::add)))));
     boolean canonicalFlowsPresent =
         flowRows.stream()

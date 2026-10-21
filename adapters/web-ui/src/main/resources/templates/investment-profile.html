@@ -15,7 +15,10 @@
   <div th:replace="~{fragments/app-header :: planningHeader('profile', ${profile.portfolioId}, 'Profile summary', 'Net worth', ${profile.totalNetWorthCompactDisplay}, 'whole portfolio', 'Annual Income / year planned · 2026', ${profile.incomeSummary.combinedAnnualIncomeCompactDisplay}, null, 'Annual cost / year', ${profile.annualCostDisplay}, ${profile.annualCostMeta}, ${profile.currency}, 'profile', null, null, null)}"></div>
 
   <div class="iv-profile-landscape-layout">
-    <div class="iv-profile-landscape-sidebar">
+    <section class="iv-profile-landscape-widget" aria-label="Financial Landscape">
+      <div th:replace="~{fragments/financial-landscape-widget :: financialLandscapeWidget(false)}"></div>
+    </section>
+    <div class="iv-profile-landscape-details">
   <section class="card iv-profile-section iv-profile-sources" aria-labelledby="sources-title">
     <div class="iv-card-section-header"><span id="sources-title" class="iv-card-section-header__title">Income sources</span></div>
     <div class="iv-profile-sources__grid">
@@ -56,9 +59,6 @@
   </section>
 
     </div>
-    <section class="iv-profile-landscape-widget" aria-label="Financial Landscape">
-      <div th:replace="~{fragments/financial-landscape-widget :: financialLandscapeWidget(false)}"></div>
-    </section>
   </div>
 
 </main>
