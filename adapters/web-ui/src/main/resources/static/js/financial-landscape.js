@@ -10,7 +10,6 @@
   const expenses = numeric(data.annualExpenses);
   const cashIncome = numeric(data.annualCashIncome);
   const marketResult = numeric(data.annualMarketResult);
-  const currency = data.currency || 'PLN';
   // Mirrors FinancialPresentation.compactMoneyTrimmed(): up to 3 display digits,
   // K/M suffixes, HALF_UP rounding and a rounded 1000K -> 1.00M rollover.
   const compactNumber = value => {
@@ -29,11 +28,11 @@
   const format = value => {
     if (value === null || !Number.isFinite(value)) return 'Unavailable';
     const sign = value < 0 ? '−' : '';
-    return sign + compactNumber(value) + ' ' + currency;
+    return sign + compactNumber(value);
   };
   const compact = !!document.querySelector('.fl-compact');
   const compactValue = value => value === null || !Number.isFinite(value) ? '—' : (value < 0 ? '−' : '') + compactNumber(value);
-  const rate = value => value === null ? 'Unavailable' : new Intl.NumberFormat('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 3}).format(value) + ' ' + currency;
+  const rate = value => value === null ? 'Unavailable' : new Intl.NumberFormat('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 3}).format(value);
   const set = (id, value) => {const el = document.getElementById(id); if (el) el.textContent = value;};
   set('fl-income', compact ? compactValue(income === null ? null : income / 12) : format(income === null ? null : income / 12));
   set('fl-cash-income', cashIncome === null ? 'Unavailable' : format(cashIncome / 12));
@@ -61,7 +60,7 @@
   const liquid = numeric(data.liquidAssets);
   const reserve = numeric(data.reserve);
   // Scenic measurement guides reuse the same source amounts as the asset footer.
-  const terrainValue = value => value === null ? '—' : compactNumber(value) + ' ' + currency;
+  const terrainValue = value => value === null ? '—' : compactNumber(value);
   set('fl-mountain-value', terrainValue(numeric(data.illiquidAssets)));
   set('fl-dune-value', terrainValue(liquid));
   // Visual encoding is normalized to the portfolio's own total assets, not screen pixels.

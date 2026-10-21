@@ -1,0 +1,48 @@
+.fl-compact {
+  margin: 0 auto;
+}
+
+.fl-app {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+}
+
+.iv-profile-landscape-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, .85fr) minmax(0, 1.65fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.iv-profile-landscape-sidebar .iv-profile-sources__grid {
+  grid-template-columns: 1fr;
+}
+
+.iv-profile-landscape-sidebar,
+.iv-profile-landscape-widget {
+  min-width: 0;
+}
+
+.iv-profile-landscape-widget .fl-compact {
+  width: 100%;
+}
+
+.fl-compact-header h1,
+.fl-compact-header h2 {
+  margin: 5px 0;
+  font-size: 24px;
+}
+
+@media (max-width: 420px) {
+  .fl-compact-header h1,
+  .fl-compact-header h2 {
+    font-size: 21px;
+  }
+}
+
+@media (max-width: 960px) {
+  .iv-profile-landscape-layout {
+    grid-template-columns: 1fr;
+  }
+}

@@ -9,7 +9,9 @@ contract-change decision.
 ## Portfolio value
 
 Current portfolio value is the latest account equity across included accounts, converted to the
-portfolio base currency.
+portfolio base currency. Accounts marked `cash_only` are excluded from portfolio totals, including
+cash, market value, equity, contributions, and profit. Their account-level records remain available
+for operational and account-specific views.
 
 Account equity is cash plus the market value of open positions under the position settlement model.
 Result-only instruments must not be valued as if full notional were owned.

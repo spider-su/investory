@@ -2,6 +2,7 @@ package com.smartbox.investory.ui.profile;
 
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import com.smartbox.investory.ui.investment.InvestmentDashboardClient;
+import com.smartbox.investory.ui.retirement.simulation.FinancialLandscapePageAssembler;
 import jakarta.validation.constraints.Positive;
 import java.time.Clock;
 import java.time.YearMonth;
@@ -22,6 +23,7 @@ public class InvestmentProfileController {
   private final PortfolioContextReader portfolioContexts;
   private final Executor profileReadExecutor;
   private final Clock clock;
+  private final FinancialLandscapePageAssembler financialLandscapePageAssembler;
 
   public InvestmentProfileController(
       ProfileClient profile,
@@ -29,13 +31,15 @@ public class InvestmentProfileController {
       RetirementProfileClient retirementProfile,
       PortfolioContextReader portfolioContexts,
       @Qualifier("investmentProfileReadExecutor") Executor profileReadExecutor,
-      Clock clock) {
+      Clock clock,
+      FinancialLandscapePageAssembler financialLandscapePageAssembler) {
     this.profile = profile;
     this.investmentDashboard = investmentDashboard;
     this.retirementProfile = retirementProfile;
     this.portfolioContexts = portfolioContexts;
     this.profileReadExecutor = profileReadExecutor;
     this.clock = clock;
+    this.financialLandscapePageAssembler = financialLandscapePageAssembler;
   }
 
   @GetMapping("/portfolios/{portfolioId}/investment-profile")
@@ -45,6 +49,10 @@ public class InvestmentProfileController {
     var context = portfolioContexts.findById(portfolioId).orElse(null);
     var profileFuture =
         CompletableFuture.supplyAsync(() -> profile.loadProfile(portfolioId), profileReadExecutor);
+    var landscapeFuture =
+        CompletableFuture.supplyAsync(
+            () -> financialLandscapePageAssembler.assembleAttributes(portfolioId),
+            profileReadExecutor);
     var annualCostFuture =
         context != null && context.localCurrency() != null
             ? CompletableFuture.supplyAsync(
@@ -69,6 +77,8 @@ public class InvestmentProfileController {
             annualCost,
             YearMonth.now(clock).getMonthValue());
     model.addAttribute("profile", page);
+    model.addAttribute("portfolioId", portfolioId);
+    model.addAttribute("landscape", landscapeFuture.join());
     return "investment-profile";
   }
 }

@@ -17,6 +17,7 @@ Do not duplicate project documentation here.
 - For local runs, use the datasource settings from the current configuration/environment; do not assume a Spring profile changes them.
 - For live database debugging, always use the JDBC driver and connection settings from the local profile; do not use `psql` or guessed database credentials.
 - Run targeted tests first. Use broader verification for cross-cutting changes or before merge.
+- When adding, renaming, moving, or removing a Java `*IT.java`, update its CI suite registration in `.github/workflows/tests.yml` and run the registration checker documented in `docs/development/testing.md`.
 - Keep the final handoff concise; for material changes, include changed files and verification results.
 - If implementation conflicts with a documented domain contract, report the mismatch. Do not silently rewrite the contract to match the code.
 

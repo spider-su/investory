@@ -9,11 +9,12 @@ import java.time.Clock;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /** Loads and assembles the model for the financial landscape page. */
 @Component
-final class FinancialLandscapePageAssembler {
+public final class FinancialLandscapePageAssembler {
   private final RetirementPlanClient plans;
   private final RetirementProjectionClient projections;
   private final RetirementTimelineClient timeline;
@@ -86,5 +87,9 @@ final class FinancialLandscapePageAssembler {
         profile.totalNetWorth(),
         profile.retirementReserve(),
         expenseGroups);
+  }
+
+  public Map<String, Object> assembleAttributes(Long portfolioId) {
+    return assemble(portfolioId).asAttributes();
   }
 }
