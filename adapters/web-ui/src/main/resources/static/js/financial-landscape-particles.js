@@ -79,7 +79,7 @@
       const glassX = glassRect.left - parentRect.left + glassRect.width * .5;
       const glassY = glassRect.top - parentRect.top + glassRect.height * .95;
       const duneX = w * .105;
-      const duneY = h * .595;
+      const duneY = h * .575;
       // Positive saving moves outward to the dune; a funding deficit draws inward.
       const fromX = direction === 'draw' ? duneX : glassX;
       const fromY = direction === 'draw' ? duneY : glassY;
