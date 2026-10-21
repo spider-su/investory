@@ -950,3 +950,24 @@ html,body{min-height:100%;margin:0}.fl-body{background:#0a1520;color:#e9f1f5;fon
   .fl-scene .fl-income-vapor { opacity: .7; z-index: 5; }
   .fl-scene .fl-cloud { opacity: .17; z-index: 4; }
 }
+
+
+/* Approved photorealistic alpine plate (committed separately).
+   Only scenery is sampled: static image's hourglass/streams remain underneath live overlays. */
+@media (min-width:981px) {
+  .fl-scene {
+    --fl-landscape-art: url('/images/golden_hourglass_over_alpine_twilight.png');
+    background-color: #081626;
+    background-image: var(--fl-landscape-art);
+    background-size: 100% 100%;
+    background-position: center;
+  }
+  /* The artwork already depicts the hourglass and overhead sand paths.
+     Hide duplicated CSS hourglass and source paths while retaining live spending motion. */
+  .fl-scene .fl-hourglass,
+  .fl-scene .fl-income-vapor,
+  .fl-scene .fl-cloud { display:none; }
+  .fl-scene .fl-top { right:3%; top:3%; }
+  .fl-scene .fl-center {left:2%;top:3%;width:clamp(255px,21vw,310px);}
+  .fl-scene .fl-spending-field { bottom:var(--fl-zero,7%); }
+}
