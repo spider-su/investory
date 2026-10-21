@@ -70,6 +70,13 @@
   const liquidShare = assetsTotal > 0 ? Math.max(0, liquid ?? 0) / assetsTotal : 0;
   const illiquidShare = assetsTotal > 0 ? Math.max(0, illiquid ?? 0) / assetsTotal : 0;
   const root = document.querySelector('.fl-scene, .fl-compact');
+  // Switch to the clean photograph only when the actual asset is available.
+  // Keep the currently deployed background with its painted hourglass otherwise.
+  if (root && root.classList.contains('fl-scene')) {
+    const cleanPlate = new Image();
+    cleanPlate.onload = () => root.classList.add('fl-clean-plate');
+    cleanPlate.src = '/images/golden_twilight_over_alpine_lakes.png';
+  }
   if (root) {
     const duneScale = 0.45 + 0.55 * Math.sqrt(liquidShare);
     const mountainScale = 0.55 + 0.45 * Math.sqrt(illiquidShare);
