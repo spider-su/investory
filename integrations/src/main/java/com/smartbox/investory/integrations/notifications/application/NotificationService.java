@@ -10,6 +10,7 @@ import com.smartbox.investory.shared.notifications.NotificationEventType;
 import com.smartbox.investory.shared.notifications.NotificationSeverity;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,12 +47,15 @@ public class NotificationService {
       boolean weekly = day.getDayOfWeek() == java.time.DayOfWeek.MONDAY;
       LocalDate end = weekly ? day.minusDays(3) : day.minusDays(1);
       LocalDate start = weekly ? end.with(java.time.DayOfWeek.MONDAY) : end;
+      List<String> missingDates = new ArrayList<>();
       double profit = 0;
       double dividends = 0;
       for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
         DailyPerformanceDetail detail =
             dailyPerformance.load(properties.getPortfolioId(), date, Set.of());
-        if (detail != null) {
+        if (detail == null || detail.accounts() == null || detail.accounts().isEmpty()) {
+          missingDates.add(date.toString());
+        } else {
           profit += detail.dailyProfit();
           dividends += detail.dividends();
         }
@@ -72,13 +76,22 @@ public class NotificationService {
               (weekly ? "WEEKLY_DIGEST:" : "DAILY_DIGEST:") + end,
               weekly ? "Weekly portfolio recap" : "Daily portfolio recap",
               Map.of(
-                  "balance", fmt(p.balance().doubleValue()),
-                  "profit", signed(profit),
-                  "dividends", signed(dividends),
-                  "period", weekly ? "week" : "day",
-                  "date", (weekly ? day : end).toString(),
-                  "movers", movers,
-                  "currency", p.baseCurrency()),
+                  "balance",
+                  fmt(p.balance().doubleValue()),
+                  "profit",
+                  missingDates.isEmpty() ? signed(profit) : "",
+                  "dividends",
+                  missingDates.isEmpty() ? signed(dividends) : "",
+                  "missingDates",
+                  String.join(", ", missingDates),
+                  "period",
+                  weekly ? "week" : "day",
+                  "date",
+                  (weekly ? day : end).toString(),
+                  "movers",
+                  movers,
+                  "currency",
+                  p.baseCurrency()),
               clock.instant()));
     } catch (Exception e) {
       log.warn("Failed to build/send daily digest", e);

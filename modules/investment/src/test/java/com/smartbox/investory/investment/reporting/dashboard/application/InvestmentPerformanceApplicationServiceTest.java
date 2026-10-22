@@ -411,6 +411,65 @@ class InvestmentPerformanceApplicationServiceTest {
     assertEquals(bd(19.75), view.excessValues().getLast());
   }
 
+  @Test
+  @DisplayName("period profit keeps January contribution and rebases only at the prior boundary")
+  void periodProfitKeepsJanuaryContribution() {
+    Benchmark benchmark = benchmark();
+    List<Double> lifetimeProfit = List.of(3000.0, 9481.0, 17297.0);
+    benchmark.setPortfolioCurve(lifetimeProfit);
+    Benchmark.AccountSeries row = benchmark.getAccountSeries().getFirst();
+    benchmark.setAccountOptions(
+        List.of(
+            new Benchmark.AccountOption(1L, "Broker", true),
+            new Benchmark.AccountOption(2L, "Other", false)));
+    benchmark.setAccountSeries(
+        List.of(
+            new Benchmark.AccountSeries(
+                row.id(),
+                row.investedCapital(),
+                17297.0,
+                row.benchmarkPl(),
+                lifetimeProfit,
+                row.benchmarkCurve(),
+                row.returnCapitalCurve(),
+                row.returnContributionCurve(),
+                row.returnPctCurve())));
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, List.of(1L))).thenReturn(benchmark);
+    for (List<Long> ids : java.util.Arrays.asList(null, List.of(1L))) {
+      for (PerformanceStyle style : PerformanceStyle.values()) {
+        PerformanceBoardView profit =
+            service("2026-01")
+                .load(
+                    new PerformanceBoardQuery(
+                        ids,
+                        PerformanceAggregation.MONTHLY,
+                        PerformanceMetric.PROFIT,
+                        style,
+                        com.smartbox.investory.investment.api.reporting.DashboardPeriod
+                            .YEAR_TO_DATE,
+                        1L));
+        assertEquals(List.of("2026-01", "2026-02"), profit.labels());
+        assertEquals(List.of(bd(6481), bd(14297)), profit.series().getFirst().values());
+        assertEquals(bd(14297), profit.kpis().portfolioProfitLoss());
+        assertEquals(ids == null ? "Portfolio" : "Broker", profit.series().getFirst().label());
+        PerformanceBoardView yearly =
+            service("2026-01")
+                .load(
+                    new PerformanceBoardQuery(
+                        ids,
+                        PerformanceAggregation.MONTHLY,
+                        PerformanceMetric.PROFIT,
+                        style,
+                        com.smartbox.investory.investment.api.reporting.DashboardPeriod.ONE_YEAR,
+                        1L));
+        assertEquals(List.of("2025-12", "2026-01", "2026-02"), yearly.labels());
+        assertEquals(List.of(bd(3000), bd(9481), bd(17297)), yearly.series().getFirst().values());
+        assertEquals(bd(17297), yearly.kpis().portfolioProfitLoss());
+      }
+    }
+  }
+
   private static BigDecimal bd(double value) {
     return BigDecimal.valueOf(value);
   }
