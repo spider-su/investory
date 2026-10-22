@@ -60,9 +60,9 @@ record InvestmentProfilePageView(
         UiPresentation.compactMoney(profile.totalNetWorth()),
         UiPresentation.percentage(profile.marketPortfolioPercentage()) + " of net worth",
         UiPresentation.compactMoney(profile.marketPortfolioValue()),
-        UiPresentation.percentage(ratio(profile.longTermAssetValue(), profile.totalNetWorth()))
+        UiPresentation.percentage(ratio(profile.longTermInvestmentValue(), profile.totalNetWorth()))
             + " of net worth",
-        UiPresentation.compactMoney(profile.longTermAssetValue()),
+        UiPresentation.compactMoney(profile.longTermInvestmentValue()),
         UiPresentation.compactMoney(income.marketNetAnnualIncome()),
         UiPresentation.percentage(profile.marketPortfolioPercentage()),
         UiPresentation.percentage(profile.longTermAssetPercentage()),
