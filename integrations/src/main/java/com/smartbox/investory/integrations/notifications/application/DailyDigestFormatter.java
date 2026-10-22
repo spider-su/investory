@@ -36,6 +36,15 @@ public class DailyDigestFormatter implements NotificationMessageFormatter {
             : "Portfolio "
                 + date.format(DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH));
     String result = TelegramText.heading("📊", heading);
+    String missingDates = p.getOrDefault("missingDates", "");
+    if (!missingDates.isBlank()) {
+      String message =
+          result
+              + "\nResult unavailable: missing daily valuations for "
+              + TelegramText.escape(missingDates);
+      String movers = p.getOrDefault("movers", "");
+      return movers.isBlank() ? message : message + "\n" + TelegramText.escape(movers);
+    }
     if (p.get("period").equals("week")) {
       return result
           + "\n💰  Total: <b>"
@@ -45,8 +54,7 @@ public class DailyDigestFormatter implements NotificationMessageFormatter {
           + "</b>\n💵  Dividends "
           + TelegramText.escape(money(p.get("dividends"), currency));
     }
-    String message =
-        result + "\n" + TelegramText.escape(money(p.get("profit"), currency)) + " today";
+    String message = result + "\nResult: " + TelegramText.escape(money(p.get("profit"), currency));
     if (!isZero(p.get("dividends"))) {
       message +=
           " (" + TelegramText.escape(money(p.get("dividends"), currency)) + " are dividends)";

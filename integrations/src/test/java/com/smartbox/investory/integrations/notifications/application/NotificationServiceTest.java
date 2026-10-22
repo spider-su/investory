@@ -7,16 +7,19 @@ import com.smartbox.investory.integrations.notifications.persistence.AlertRuleSt
 import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader;
 import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader.PortfolioOperationsSnapshot;
 import com.smartbox.investory.investment.api.reporting.InvestmentDailyPerformanceApi;
+import com.smartbox.investory.investment.api.reporting.model.DailyPerformanceDetail;
 import com.smartbox.investory.shared.notifications.NotificationCandidate;
 import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,6 +64,8 @@ class NotificationServiceTest {
   @Test
   void dailyDigestUsesStablePeriodFingerprintAndOutbox() {
     when(investment.portfolio(1L)).thenReturn(portfolio(12345, 678, 100, 578, 50, 12.5));
+    when(dailyPerformance.load(1L, LocalDate.parse("2026-08-24"), Set.of()))
+        .thenReturn(dailyDetail("2026-08-24", 0, true));
     service.sendDailyDigest();
     ArgumentCaptor<NotificationCandidate> candidate =
         ArgumentCaptor.forClass(NotificationCandidate.class);
@@ -69,7 +74,82 @@ class NotificationServiceTest {
         .isEqualTo("DAILY_DIGEST:2026-08-24");
     org.assertj.core.api.Assertions.assertThat(candidate.getValue().payload())
         .containsEntry("balance", "12,345")
-        .containsEntry("currency", "USD");
+        .containsEntry("currency", "USD")
+        .containsEntry("profit", "+0")
+        .containsEntry("missingDates", "");
+  }
+
+  @Test
+  void missingDailySnapshotIsNotReportedAsZero() {
+    when(investment.portfolio(1L)).thenReturn(portfolio(12345, 678, 100, 578, 50, 12.5));
+    service.sendDailyDigest();
+    verify(publisher)
+        .publish(
+            argThat(
+                candidate ->
+                    candidate.payload().get("missingDates").equals("2026-08-24")
+                        && candidate.payload().get("profit").isEmpty()
+                        && candidate.payload().get("dividends").isEmpty()));
+  }
+
+  @Test
+  void emptyDailySnapshotIsNotReportedAsZero() {
+    when(investment.portfolio(1L)).thenReturn(portfolio(12345, 678, 100, 578, 50, 12.5));
+    when(dailyPerformance.load(1L, LocalDate.parse("2026-08-24"), Set.of()))
+        .thenReturn(dailyDetail("2026-08-24", 0, false));
+    service.sendDailyDigest();
+    verify(publisher)
+        .publish(
+            argThat(
+                candidate ->
+                    candidate.payload().get("missingDates").equals("2026-08-24")
+                        && candidate.payload().get("profit").isEmpty()));
+  }
+
+  @Test
+  void weeklyDigestDoesNotPublishPartialProfitWhenSomeDaysAreMissing() {
+    Clock monday = Clock.fixed(Instant.parse("2026-08-31T07:00:00Z"), ZoneOffset.UTC);
+    service =
+        new NotificationService(
+            investment,
+            dailyPerformance,
+            List.of(),
+            properties,
+            publisher,
+            new AlertRuleTransactionRunner(publisher, alertStates, monday),
+            monday);
+    when(investment.portfolio(1L)).thenReturn(portfolio(12345, 678, 100, 578, 50, 12.5));
+    when(dailyPerformance.load(eq(1L), any(LocalDate.class), eq(Set.of())))
+        .thenAnswer(call -> dailyDetail(call.<LocalDate>getArgument(1).toString(), 100, true));
+    when(dailyPerformance.load(1L, LocalDate.parse("2026-08-26"), Set.of())).thenReturn(null);
+    service.sendDailyDigest();
+    verify(publisher)
+        .publish(
+            argThat(
+                candidate ->
+                    candidate.fingerprint().equals("WEEKLY_DIGEST:2026-08-28")
+                        && candidate.payload().get("missingDates").equals("2026-08-26")
+                        && candidate.payload().get("profit").isEmpty()));
+  }
+
+  private static DailyPerformanceDetail dailyDetail(String date, double profit, boolean available) {
+    return new DailyPerformanceDetail(
+        LocalDate.parse(date),
+        profit,
+        0,
+        1000,
+        1000 + profit,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        profit,
+        available
+            ? List.of(new DailyPerformanceDetail.AccountRow(1L, 1000, 1000 + profit, profit, 0, 0))
+            : List.of(),
+        "");
   }
 
   @Test
