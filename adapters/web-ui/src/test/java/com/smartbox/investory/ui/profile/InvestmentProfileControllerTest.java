@@ -76,13 +76,13 @@ class InvestmentProfileControllerTest {
     var page = (InvestmentProfilePageView) model.getAttribute("profile");
     assertThat(page).isNotNull();
     assertThat(page.portfolioId()).isEqualTo(7L);
-    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("20.5K");
+    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("2.67K");
     assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("8.00K");
     assertThat(page.annualCostDisplay()).isEqualTo("42.0K");
     assertThat(page.annualCostMeta()).isEqualTo("planned · 2026");
     assertThat(page.expectedAnnualInvestmentResultDisplay()).isEqualTo("2.67K");
     assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("1.6%");
-    assertThat(page.marketYtdReturnDisplay()).isEqualTo("43.4% of forecast annual result");
+    assertThat(page.marketYtdReturnDisplay()).isEqualTo("100.0% of forecast annual result");
     assertThat(page.allocationApproximate()).isFalse();
     verify(investment).investmentResultYtd(7L);
     verify(retirement).currentYearAnnualCost(7L, CurrencyType.PLN);

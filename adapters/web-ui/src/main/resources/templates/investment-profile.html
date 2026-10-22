@@ -12,7 +12,7 @@
 </head>
 <body>
 <main class="iv-app iv-planning-page iv-profile-page">
-  <div th:replace="~{fragments/app-header :: planningHeader('profile', ${profile.portfolioId}, 'Profile summary', 'Net worth', ${profile.totalNetWorthCompactDisplay}, 'whole portfolio', 'Annual Income / year planned · 2026', ${profile.incomeSummary.combinedAnnualIncomeCompactDisplay}, null, 'Annual cost / year', ${profile.annualCostDisplay}, ${profile.annualCostMeta}, ${profile.currency}, 'profile', null, null, null)}"></div>
+  <div th:replace="~{fragments/app-header :: planningHeader('profile', ${profile.portfolioId}, 'Profile summary', 'Net worth', ${profile.totalNetWorthCompactDisplay}, 'whole portfolio', ${'Annual Income / year planned · ' + profile.reportingYear}, ${profile.incomeSummary.combinedAnnualIncomeCompactDisplay}, null, 'Annual cost / year', ${profile.annualCostDisplay}, ${profile.annualCostMeta}, ${profile.currency}, 'profile', null, null, null)}"></div>
 
   <div class="iv-profile-landscape-layout">
     <section class="iv-profile-landscape-widget" aria-label="Financial Landscape">

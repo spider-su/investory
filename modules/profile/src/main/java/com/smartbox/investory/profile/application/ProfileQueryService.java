@@ -163,7 +163,11 @@ public class ProfileQueryService implements ProfileSnapshotReader {
                 summary.expectationProgress());
         income =
             incomeCalculator.calculate(
-                displaySummary, longTermIncome, longTermInvestmentValue, totalInvestmentValue);
+                displaySummary,
+                income,
+                longTermIncome,
+                longTermInvestmentValue,
+                totalInvestmentValue);
       }
     }
     var liquidity =

@@ -139,7 +139,7 @@ Recorded dividend withholding and interest tax follow the imported ledger semant
 current calculation. The capital-gains tax estimate is displayed separately and is not deducted from
 headline earnings or ROI.
 
-The Profile page consumes Investment-owned return values. Its expected annual investment result is
+The Profile API preserves Investment-owned return values. Its expected annual investment result is
 the investment income base multiplied by expected annual total return, including market appreciation;
 it is not distributable income. Dividend, interest, and other distribution forecasts remain income
 measures and are not implemented by this total-return projection.
@@ -162,6 +162,13 @@ income when the canonical Investment income summary is unavailable. The fallback
 observed current-calendar-year period; YTD values remain separately identified. The canonical
 Investment summary provides annual expected investment result and YTD investment result as separate
 fields.
+
+Profile cash-income totals and Financial Landscape expense coverage use dividends plus interest
+less recorded withholding and interest taxes from the current-year Brokerage income snapshot.
+Those net cash amounts are annualized over the observed period and combined with Long-Term annual
+net income. Projected market appreciation and YTD investment profit do not fund expense coverage;
+they remain separate Investment result fields. Do not apply another flat profit-tax deduction to
+cash income already net of recorded tax.
 
 ## Headline ROI
 

@@ -44,15 +44,37 @@ class ProfileIncomeCalculatorTest {
 
     var result =
         new ProfileIncomeCalculator(new ProfileCurrencyNormalizer(mock()))
-            .calculate(market, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("143900"));
+            .calculate(
+                market,
+                new ProfileIncomeSummary(
+                    new BigDecimal("110"),
+                    new BigDecimal("220"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    new BigDecimal("220"),
+                    BigDecimal.ZERO,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    false,
+                    new BigDecimal("110"),
+                    new BigDecimal("220"),
+                    new BigDecimal("220")),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                new BigDecimal("143900"));
 
     assertThat(result.investmentIncomeBase()).isEqualByComparingTo("143900");
     assertThat(result.expectedAnnualInvestmentResult()).isEqualByComparingTo("10073");
     assertThat(result.expectedAnnualReturn()).isEqualByComparingTo("0.07");
     assertThat(result.investmentResultYtd()).isEqualByComparingTo("1200");
-    assertThat(result.marketNetIncomeYtd()).isEqualByComparingTo("972");
-    assertThat(result.marketNetAnnualIncome()).isEqualByComparingTo("8159.13");
-    assertThat(result.combinedNetAnnualIncome()).isEqualByComparingTo("8159.13");
+    assertThat(result.marketNetIncomeYtd()).isEqualByComparingTo("110");
+    assertThat(result.marketNetAnnualIncome()).isEqualByComparingTo("220");
+    assertThat(result.combinedNetAnnualIncome()).isEqualByComparingTo("220");
   }
 
   @Test
@@ -82,9 +104,9 @@ class ProfileIncomeCalculatorTest {
                 AS_OF);
 
     assertThat(result.marketAnnualIncome()).isEqualByComparingTo("264.14473684");
-    assertThat(result.marketNetIncomeYtd()).isEqualByComparingTo("89.1");
-    assertThat(result.marketNetAnnualIncome()).isEqualByComparingTo("213.9572368404");
-    assertThat(result.combinedNetAnnualIncome()).isEqualByComparingTo("473.9572368404");
+    assertThat(result.marketNetIncomeYtd()).isEqualByComparingTo("110");
+    assertThat(result.marketNetAnnualIncome()).isEqualByComparingTo("264.14473684");
+    assertThat(result.combinedNetAnnualIncome()).isEqualByComparingTo("524.14473684");
     assertThat(result.combinedAnnualIncome()).isEqualByComparingTo("524.14473684");
     assertThat(result.marketNetYield()).isEqualByComparingTo("0.13207237");
     assertThat(result.combinedNetYield()).isEqualByComparingTo("0.10482895");
