@@ -127,15 +127,15 @@ class InvestmentProfilePageViewTest {
                 CurrencyType.USD, 2026),
             8);
 
-    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("—");
+    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("0");
     assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("0");
     assertThat(page.annualCostDisplay()).isEqualTo("—");
     assertThat(page.annualCostMeta()).isEqualTo("No retirement plan");
   }
 
-  @DisplayName("uses Investment Result As Market Received Ytd")
+  @DisplayName("keeps investment appreciation outside cash income")
   @Test
-  void usesCurrentYearInvestmentResultWithAnAccurateLabel() {
+  void keepsInvestmentAppreciationOutsideCashIncome() {
     InvestmentProfilePageView page =
         InvestmentProfilePageView.from(
             emptyProfile(),
@@ -155,7 +155,7 @@ class InvestmentProfilePageViewTest {
                 CurrencyType.USD, 2026),
             8);
 
-    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("20.5K");
+    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("0");
   }
 
   @DisplayName("shows annualized current result and separate planned-income progress")
@@ -211,15 +211,16 @@ class InvestmentProfilePageViewTest {
     assertThat(page.expectedAnnualReturnDisplay()).isEqualTo("6.7%");
     assertThat(page.incomeSummary().marketAnnualIncomeCompactDisplay()).isEqualTo("6.72K");
     assertThat(page.incomeSummary().combinedAnnualIncomeCompactDisplay()).isEqualTo("18.7K");
-    assertThat(page.marketYtdReturnDisplay()).isEqualTo("144.6% of forecast annual result");
+    assertThat(page.marketInvestmentResultYtdDisplay()).isEqualTo("6.72K");
+    assertThat(page.marketYtdReturnDisplay()).isEqualTo("100.0% of forecast annual result");
     assertThat(page.longTermPlannedIncomeYtdDisplay()).isEqualTo("6.00K");
     assertThat(page.longTermYtdProgressDisplay()).isEqualTo("50.0%");
     assertThat(page.longTermYtdProgressClass()).isEqualTo("iv-ytd-progress--positive");
   }
 
-  @DisplayName("source Cards And Allocation Use The Same Horizon Percentages")
+  @DisplayName("keeps investment base separate from whole-wealth allocation")
   @Test
-  void sourceCardsAndAllocationUseTheSameHorizonPercentages() {
+  void keepsInvestmentBaseSeparateFromWholeWealthAllocation() {
     InvestmentProfile profile =
         new InvestmentProfile(
             1L,
@@ -238,8 +239,14 @@ class InvestmentProfilePageViewTest {
                     AssetHorizon.SHORT_TERM),
                 new ProfileAllocation(
                     EconomicBucket.REAL_ESTATE,
-                    new BigDecimal("1260000"),
-                    new BigDecimal("0.88235294"),
+                    new BigDecimal("1000000"),
+                    new BigDecimal("0.70028011"),
+                    Liquidity.ILLIQUID,
+                    AssetHorizon.LONG_TERM),
+                new ProfileAllocation(
+                    EconomicBucket.OTHER,
+                    new BigDecimal("260000"),
+                    new BigDecimal("0.18207283"),
                     Liquidity.ILLIQUID,
                     AssetHorizon.LONG_TERM)),
             null,
@@ -275,7 +282,7 @@ class InvestmentProfilePageViewTest {
 
     assertThat(page.marketPortfolioMeta()).isEqualTo("11.8% of net worth");
     assertThat(page.shortTermAssetsPercentageDisplay()).isEqualTo("11.8%");
-    assertThat(page.longTermAssetMeta()).isEqualTo("88.2% of net worth");
+    assertThat(page.longTermAssetMeta()).isEqualTo("70.0% of net worth");
     assertThat(page.longTermAssetsPercentageDisplay()).isEqualTo("88.2%");
     assertThat(page.allocationApproximate()).isTrue();
     assertThat(page.allocationReconciliationMessage())

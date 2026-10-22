@@ -17,6 +17,7 @@ import java.util.List;
 record InvestmentProfilePageView(
     Long portfolioId,
     CurrencyType currency,
+    int reportingYear,
     String totalNetWorthCompactDisplay,
     String marketPortfolioMeta,
     String marketPortfolioValueCompactDisplay,
@@ -46,65 +47,34 @@ record InvestmentProfilePageView(
       com.smartbox.investory.retirement.api.model.AnnualCostView annualCost,
       int currentMonth) {
     var income = profile.incomeSummary();
-    boolean hasInvestmentIncome = income.investmentIncomeAvailable();
-    BigDecimal investmentResultYtd =
-        hasInvestmentIncome && income.investmentResultYtd() != null
-            ? income.investmentResultYtd()
-            : investmentResult.available() ? investmentResult.amount() : null;
     BigDecimal investmentBase =
         income.investmentIncomeBase() != null
             ? income.investmentIncomeBase()
             : profile.marketPortfolioValue();
-    BigDecimal forecastAnnualReturn =
-        income.expectedAnnualReturn() != null
-            ? income.expectedAnnualReturn()
-            : performance == null ? null : performance.expectedAnnualReturn();
-    BigDecimal forecastAnnualInvestmentResult =
-        income.expectedAnnualInvestmentResult() != null
-            ? income.expectedAnnualInvestmentResult()
-            : forecastAnnualReturn == null || investmentBase == null
-                ? null
-                : investmentBase
-                    .multiply(forecastAnnualReturn)
-                    .setScale(8, java.math.RoundingMode.HALF_UP);
-    BigDecimal annualizedInvestmentResult =
-        forecastAnnualInvestmentResult != null
-            ? forecastAnnualInvestmentResult
-            : annualize(investmentResultYtd, currentMonth);
-    boolean hasAnnualizedInvestmentResult = annualizedInvestmentResult != null;
+    BigDecimal annualMarketResult = income.marketNetAnnualIncome();
+    BigDecimal marketResultYtd = income.marketNetIncomeYtd();
     return new InvestmentProfilePageView(
         profile.portfolioId(),
         profile.currency(),
+        annualCost.year(),
         UiPresentation.compactMoney(profile.totalNetWorth()),
         UiPresentation.percentage(profile.marketPortfolioPercentage()) + " of net worth",
         UiPresentation.compactMoney(profile.marketPortfolioValue()),
-        UiPresentation.percentage(profile.longTermAssetPercentage()) + " of net worth",
-        UiPresentation.compactMoney(profile.longTermAssetValue()),
+        UiPresentation.percentage(ratio(profile.longTermInvestmentValue(), profile.totalNetWorth()))
+            + " of net worth",
+        UiPresentation.compactMoney(profile.longTermInvestmentValue()),
         UiPresentation.compactMoney(income.marketNetAnnualIncome()),
         UiPresentation.percentage(profile.marketPortfolioPercentage()),
         UiPresentation.percentage(profile.longTermAssetPercentage()),
         investmentBase != null && investmentBase.signum() != 0
-            ? UiPresentation.percentage(ratio(income.marketNetAnnualIncome(), investmentBase))
+            ? UiPresentation.percentage(ratio(annualMarketResult, investmentBase))
             : "Unavailable",
-        forecastAnnualInvestmentResult != null
-            ? "Forecast annual return"
-            : hasAnnualizedInvestmentResult
-                ? "Annualized current result"
-                : performance == null || performance.kpiStartDate() == null
-                    ? "Total return"
-                    : "Since " + performance.kpiStartDate(),
-        money(
-            hasInvestmentIncome
-                ? income.investmentResultYtd()
-                : investmentResult.available() ? investmentResult.amount() : null),
-        hasAnnualizedInvestmentResult
-            ? UiPresentation.percentage(ratio(investmentResultYtd, annualizedInvestmentResult))
-                + (forecastAnnualInvestmentResult != null
-                    ? " of forecast annual result"
-                    : " of annualized current result")
-            : performance == null || performance.totalReturn() == null
-                ? ""
-                : UiPresentation.percentage(performance.totalReturn()),
+        "Forecast annual return",
+        money(marketResultYtd),
+        annualMarketResult.signum() == 0
+            ? ""
+            : UiPresentation.percentage(ratio(marketResultYtd, annualMarketResult))
+                + " of forecast annual result",
         money(profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth)),
         ytdProgress(
             profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth),
@@ -115,7 +85,7 @@ record InvestmentProfilePageView(
             currentMonth),
         availableMoney(annualCost.available(), annualCost.amount()),
         annualCost.available() ? "planned · " + annualCost.year() : "No retirement plan",
-        IncomeView.from(income),
+        IncomeView.from(income, investmentBase),
         profile.allocations().stream()
             .map(AllocationView::from)
             .sorted(Comparator.comparing(AllocationView::percentage).reversed())
@@ -128,13 +98,6 @@ record InvestmentProfilePageView(
 
   private static String money(BigDecimal amount) {
     return amount == null ? "—" : UiPresentation.compactMoney(amount);
-  }
-
-  private static BigDecimal annualize(BigDecimal amount, int currentMonth) {
-    if (amount == null || currentMonth < 1 || currentMonth > 12) return null;
-    return amount
-        .multiply(BigDecimal.valueOf(12))
-        .divide(BigDecimal.valueOf(currentMonth), 8, java.math.RoundingMode.HALF_UP);
   }
 
   private static BigDecimal ratio(BigDecimal amount, BigDecimal denominator) {
@@ -176,11 +139,9 @@ record InvestmentProfilePageView(
       String combinedAnnualIncomeCompactDisplay,
       String combinedNetYieldDisplay) {
 
-    static IncomeView from(ProfileIncomeSummary income) {
+    static IncomeView from(ProfileIncomeSummary income, BigDecimal investmentBase) {
       return new IncomeView(
-          income.investmentIncomeBase() == null
-              ? "—"
-              : UiPresentation.compactMoney(income.investmentIncomeBase()),
+          money(investmentBase),
           UiPresentation.compactMoney(income.marketNetIncomeYtd()),
           UiPresentation.compactMoney(income.marketNetAnnualIncome()),
           UiPresentation.percentage(income.marketNetYield()),

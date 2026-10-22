@@ -79,6 +79,7 @@ public final class FinancialLandscapePageAssembler {
         balance == null ? null : balance.negate().max(BigDecimal.ZERO),
         profile.liquidAssets(),
         profile.illiquidAssets(),
+        profile.longTermInvestmentValue(),
         expenseGroups);
   }
 

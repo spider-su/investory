@@ -49,6 +49,15 @@ public record InvestmentProfile(
     return percentageOfTotal(longTermAssetValue);
   }
 
+  /** Long-Term investment base, excluding personal assets classified in the Other bucket. */
+  public BigDecimal longTermInvestmentValue() {
+    return allocations.stream()
+        .filter(allocation -> allocation.assetHorizon() == AssetHorizon.LONG_TERM)
+        .filter(allocation -> allocation.bucket() != EconomicBucket.OTHER)
+        .map(ProfileAllocation::value)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
   public BigDecimal liquidAssetsPercentage() {
     return percentageOfTotal(liquidAssets);
   }

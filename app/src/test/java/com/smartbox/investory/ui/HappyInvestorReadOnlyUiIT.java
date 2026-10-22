@@ -193,7 +193,8 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
               .contains(
                   "Net worth",
                   compact(HappyInvestorProfileFacts.TOTAL_NET_WORTH),
-                  "Annual Income / year planned · 2026",
+                  "Annual Income / year planned · "
+                      + HappyInvestorTestData.REFERENCE_DATE.getYear(),
                   "86.7K");
           assertThat(page.locator(".iv-profile-source-card").nth(0).textContent())
               .contains(
@@ -205,7 +206,9 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
           assertThat(page.locator(".iv-profile-source-card").nth(1).textContent())
               .contains(
                   "Long-term assets",
-                  compact(HappyInvestorProfileFacts.LONG_TERM_ASSET_VALUE),
+                  compact(
+                      HappyInvestorProfileFacts.LONG_TERM_ASSET_VALUE.subtract(
+                          HappyInvestorProfileFacts.OTHER_ALLOCATION)),
                   compact(HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL),
                   FinancialPresentation.percentage(
                       HappyInvestorLongTermFacts.AGGREGATE_NET_ANNUAL.divide(

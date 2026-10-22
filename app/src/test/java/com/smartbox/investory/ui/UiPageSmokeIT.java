@@ -304,7 +304,8 @@ class UiPageSmokeIT extends FastDatabaseTest {
 
       String sourceLongTermPercentage = percentageIn(longTermCard);
       String allocationLongTermPercentage = percentageAfter(allocation, "Long-term assets ");
-      assertThat(sourceLongTermPercentage).isEqualTo(allocationLongTermPercentage);
+      // The source card uses the investment base; allocation also includes personal assets.
+      assertThat(sourceLongTermPercentage).isNotEqualTo(allocationLongTermPercentage);
     }
   }
 

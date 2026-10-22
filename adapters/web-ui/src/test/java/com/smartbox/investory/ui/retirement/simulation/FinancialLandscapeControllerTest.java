@@ -31,6 +31,7 @@ class FinancialLandscapeControllerTest {
                 BigDecimal.ZERO,
                 new BigDecimal("120000"),
                 new BigDecimal("850000"),
+                new BigDecimal("4360000"),
                 List.of(
                     new FinancialLandscapePageView.ExpenseGroupView(
                         "Housing", new BigDecimal("6000")))));
@@ -50,6 +51,7 @@ class FinancialLandscapeControllerTest {
         .containsEntry("annualGap", BigDecimal.ZERO)
         .containsEntry("liquidAssets", new BigDecimal("120000"))
         .containsEntry("illiquidAssets", new BigDecimal("850000"))
+        .containsEntry("longTermInvestmentValue", new BigDecimal("4360000"))
         .containsKey("expenseGroups");
     assertThat(result)
         .hasEntrySatisfying(
@@ -66,7 +68,7 @@ class FinancialLandscapeControllerTest {
     when(pageAssembler.assemble(7L, false))
         .thenReturn(
             new FinancialLandscapePageView(
-                7L, "PLN", 2026, null, null, null, null, null, null, null, List.of()));
+                7L, "PLN", 2026, null, null, null, null, null, null, null, null, List.of()));
     var model = new ConcurrentModel();
     assertThat(controller.landscape(7L, "compact", model)).isEqualTo("financial-landscape-compact");
     @SuppressWarnings("unchecked")

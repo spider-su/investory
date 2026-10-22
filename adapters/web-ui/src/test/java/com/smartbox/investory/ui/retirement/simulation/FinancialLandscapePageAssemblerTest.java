@@ -34,7 +34,8 @@ class FinancialLandscapePageAssemblerTest {
     when(summary.longTermAnnualIncome()).thenReturn(new BigDecimal("190000"));
     when(profile.incomeSummary()).thenReturn(summary);
     when(profile.liquidAssets()).thenReturn(new BigDecimal("120000"));
-    when(profile.illiquidAssets()).thenReturn(new BigDecimal("850000"));
+    when(profile.illiquidAssets()).thenReturn(new BigDecimal("6250000"));
+    when(profile.longTermInvestmentValue()).thenReturn(new BigDecimal("4360000"));
     when(profiles.loadProfile(7L)).thenReturn(profile);
     when(retirementProfile.currentYearAnnualCost(7L, CurrencyType.PLN))
         .thenReturn(
@@ -69,7 +70,10 @@ class FinancialLandscapePageAssemblerTest {
     assertThat(page.annualExpenses()).isEqualByComparingTo("255800");
     assertThat(page.annualGap()).isEqualByComparingTo("3500");
     assertThat(page.liquidAssets()).isEqualByComparingTo("120000");
-    assertThat(page.illiquidAssets()).isEqualByComparingTo("850000");
+    assertThat(page.illiquidAssets()).isEqualByComparingTo("6250000");
+    assertThat(page.longTermInvestmentValue()).isEqualByComparingTo("4360000");
+    assertThat(page.asAttributes(false))
+        .containsEntry("longTermInvestmentValue", new BigDecimal("4360000"));
     assertThat(page.expenseGroups()).hasSize(1);
     assertThat(page.annualCashIncome().add(page.annualMarketResult()))
         .isEqualByComparingTo(page.annualIncome());

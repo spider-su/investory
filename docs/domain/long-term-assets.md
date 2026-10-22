@@ -17,7 +17,9 @@ reporting, but not to investment income, the investment-yield denominator, or re
 These semantics follow from the type rather than configurable per-row inclusion flags.
 
 Profile yield uses Long-Term investment value as its denominator and therefore excludes personal
-assets. A cash reserve enters current retirement reserve only when it has no future maturity lock.
+assets. Profile's `longTermInvestmentValue()` reports this investment base for the income-source
+card. Its `longTermAssetValue` and whole-wealth allocation also include personal assets.
+A cash reserve enters current retirement reserve only when it has no future maturity lock.
 Locked cash, bonds, real estate, and personal assets remain in net worth while staying outside the
 current cash reserve. Their availability is a source-domain fact published to Profile.
 

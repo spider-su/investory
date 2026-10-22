@@ -28,8 +28,9 @@ final class ProfileIncomeCalculator {
       CurrencyType base,
       LocalDate date) {
     BigDecimal projectedMarketIncome = annualize(marketIncome, snapshot, date);
-    BigDecimal marketNetIncomeYtd = netOfProfitTax(marketIncome);
-    BigDecimal marketNetAnnualIncome = netOfProfitTax(projectedMarketIncome);
+    // Brokerage period income already deducts recorded dividend and interest taxes.
+    BigDecimal marketNetIncomeYtd = marketIncome;
+    BigDecimal marketNetAnnualIncome = projectedMarketIncome;
     BigDecimal basis = marketIncomeBasis(snapshot, incomeCurrency, marketValue, base, date);
     BigDecimal combined = projectedMarketIncome.add(longTermIncome);
     return new ProfileIncomeSummary(
@@ -80,8 +81,8 @@ final class ProfileIncomeCalculator {
         marketNetAnnualIncome.add(longTermIncome));
   }
 
-  private BigDecimal netOfProfitTax(BigDecimal gross) {
-    return (gross == null ? BigDecimal.ZERO : gross)
+  private BigDecimal netOfProfitTax(BigDecimal result) {
+    return (result == null ? BigDecimal.ZERO : result)
         .multiply(BigDecimal.ONE.subtract(FinancialPolicyDefaults.GLOBAL_PROFIT_TAX_RATE));
   }
 

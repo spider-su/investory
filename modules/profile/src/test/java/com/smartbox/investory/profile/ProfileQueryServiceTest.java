@@ -181,6 +181,8 @@ class ProfileQueryServiceTest {
     longTermSummary =
         new LongTermAssetProfileSummaryModel(
             CurrencyType.PLN, new BigDecimal("400"), new BigDecimal("40"));
+    longTermAssetRows =
+        List.of(summary(LongTermAssetType.REAL_ESTATE, "400", "40", CurrencyType.PLN));
     longTermAnnualSnapshot =
         new LongTermAssetAnnualSnapshotModel(
             null, new BigDecimal("40"), null, new BigDecimal("20"), null, null, CurrencyType.PLN);
@@ -553,25 +555,32 @@ class ProfileQueryServiceTest {
   @Test
   void excludesPersonalAssetsFromLongTermAndCombinedInvestmentYield() {
     when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO))
-        .thenReturn(snapshot(CurrencyType.USD, 0, 0, 0, 0, List.of()));
+        .thenReturn(snapshot(CurrencyType.USD, 1000, 1000, 0, 0, List.of()));
     when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
     longTermSummary =
         new LongTermAssetProfileSummaryModel(
-            CurrencyType.USD, new BigDecimal("2000"), new BigDecimal("100"));
+            CurrencyType.USD, new BigDecimal("3000"), new BigDecimal("100"));
     longTermAssetRows =
         List.of(
             summary(LongTermAssetType.REAL_ESTATE, "1000", "100"),
+            summary(LongTermAssetType.BOND, "500", "0"),
+            summary(LongTermAssetType.CASH_RESERVE, "500", "0"),
             summary(LongTermAssetType.PERSONAL_ASSET, "1000", "0"));
 
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
 
-    assertEquals(0, new BigDecimal("0.1").compareTo(profile.incomeSummary().longTermNetYield()));
-    assertEquals(0, new BigDecimal("0.1").compareTo(profile.incomeSummary().combinedNetYield()));
-    assertEquals(0, new BigDecimal("2000").compareTo(profile.totalNetWorth()));
+    assertEquals(0, new BigDecimal("0.05").compareTo(profile.incomeSummary().longTermNetYield()));
+    assertEquals(
+        0, new BigDecimal("0.03333333").compareTo(profile.incomeSummary().combinedNetYield()));
+    assertEquals(0, new BigDecimal("2000").compareTo(profile.longTermInvestmentValue()));
+    assertEquals(0, new BigDecimal("4000").compareTo(profile.totalNetWorth()));
+    assertEquals(0, new BigDecimal("3000").compareTo(profile.longTermAssetValue()));
+    assertEquals(0, new BigDecimal("0.75").compareTo(profile.longTermAssetPercentage()));
+    assertEquals(true, profile.allocationReconciliation().balanced());
   }
 
   @Test
-  void usesPortfolioScopedCurrentYearIncomeSnapshot() {
+  void usesProjectedInvestmentResultForProfileTotalsWhenAvailable() {
     when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO))
         .thenReturn(snapshot(CurrencyType.USD, 2000, 200, 0, 0, List.of(position("ETF", 1800))));
     when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
@@ -587,12 +596,27 @@ class ProfileQueryServiceTest {
                 new BigDecimal("100"),
                 new BigDecimal("20"),
                 new BigDecimal("10")));
+    when(investmentIncome.load(PORTFOLIO))
+        .thenReturn(
+            new InvestmentIncomeSummaryReader.InvestmentIncomeSummary(
+                true,
+                CurrencyType.USD,
+                new BigDecimal("1800"),
+                new BigDecimal("180"),
+                new BigDecimal("0.1"),
+                new BigDecimal("500"),
+                new BigDecimal("90"),
+                new BigDecimal("5.55555556")));
 
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
 
-    assertEquals(0, new BigDecimal("110").compareTo(profile.incomeSummary().marketIncomeYtd()));
+    assertEquals(0, new BigDecimal("405").compareTo(profile.incomeSummary().marketNetIncomeYtd()));
     assertEquals(
-        0, new BigDecimal("264.14473684").compareTo(profile.incomeSummary().marketAnnualIncome()));
+        0, new BigDecimal("145.8").compareTo(profile.incomeSummary().marketNetAnnualIncome()));
+    assertEquals(0, new BigDecimal("500").compareTo(profile.incomeSummary().investmentResultYtd()));
+    assertEquals(
+        0,
+        new BigDecimal("180").compareTo(profile.incomeSummary().expectedAnnualInvestmentResult()));
   }
 
   @Test
