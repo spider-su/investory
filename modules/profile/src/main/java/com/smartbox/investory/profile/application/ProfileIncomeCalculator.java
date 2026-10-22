@@ -4,6 +4,7 @@ import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
 import com.smartbox.investory.investment.api.reporting.InvestmentIncomeSummaryReader.InvestmentIncomeSummary;
 import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -54,11 +55,12 @@ final class ProfileIncomeCalculator {
 
   ProfileIncomeSummary calculate(
       InvestmentIncomeSummary market,
-      ProfileIncomeSummary cashIncome,
       BigDecimal longTermIncome,
       BigDecimal longTermInvestmentValue,
       BigDecimal totalInvestmentValue) {
     BigDecimal combined = market.expectedAnnualInvestmentResult().add(longTermIncome);
+    BigDecimal marketNetIncomeYtd = netOfProfitTax(market.investmentResultYtd());
+    BigDecimal marketNetAnnualIncome = netOfProfitTax(market.expectedAnnualInvestmentResult());
     return new ProfileIncomeSummary(
         market.investmentResultYtd(),
         market.expectedAnnualInvestmentResult(),
@@ -74,9 +76,14 @@ final class ProfileIncomeCalculator {
         market.expectedInvestmentResultYtd(),
         market.expectationProgress(),
         market.available(),
-        cashIncome.marketNetIncomeYtd(),
-        cashIncome.marketNetAnnualIncome(),
-        cashIncome.marketNetAnnualIncome().add(longTermIncome));
+        marketNetIncomeYtd,
+        marketNetAnnualIncome,
+        marketNetAnnualIncome.add(longTermIncome));
+  }
+
+  private BigDecimal netOfProfitTax(BigDecimal result) {
+    return (result == null ? BigDecimal.ZERO : result)
+        .multiply(BigDecimal.ONE.subtract(FinancialPolicyDefaults.GLOBAL_PROFIT_TAX_RATE));
   }
 
   private BigDecimal annualize(

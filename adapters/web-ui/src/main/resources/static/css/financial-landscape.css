@@ -83,8 +83,8 @@ body { min-height: 100%; margin: 0px; }
 .fl-coverage-track { width: 100%; height: 12px; box-sizing: border-box; overflow: hidden; border-radius: 99px; background: rgb(48, 70, 84); border: 1px solid rgb(82, 106, 120); }
 .fl-coverage-track > div { display: flex; height: 100%; width: 0px; overflow: hidden; transition: width 0.25s; }
 .fl-coverage-track > div > div { height: 100%; flex-shrink: 0; }
-#fl-coverage-base { background: #E8BE67; }
-#fl-coverage-market { background: #98BFDE; }
+#fl-coverage-base { background: #98BFDE; }
+#fl-coverage-market { background: #E8BE67; }
 
 
 @media (prefers-reduced-motion: reduce) {
@@ -117,8 +117,8 @@ body { min-height: 100%; margin: 0px; }
 .fl-income-legend { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 12px; width: 100%; font-size: 12px; }
 .fl-income-legend span { font-size: 12px; letter-spacing: 0px; color: rgb(194, 208, 217); }
 .fl-income-legend b { font-weight: 600; }
-.fl-legend-cash { color: rgb(226, 191, 124) !important; }
-.fl-legend-market { color: rgb(130, 187, 223) !important; }
+.fl-legend-cash { color: rgb(130, 187, 223) !important; }
+.fl-legend-market { color: rgb(226, 191, 124) !important; }
 
 
 .fl-center[data-flow="neutral"] strong { color: rgb(217, 231, 239); }

@@ -67,7 +67,7 @@
   const liquid = numeric(data.liquidAssets);
   // Asset labels reuse Profile amounts in the shared display currency.
   const terrainValue = value => value === null ? '—' : compactNumber(value);
-  set('fl-mountain-value', terrainValue(numeric(data.illiquidAssets)));
+  set('fl-mountain-value', terrainValue(numeric(data.longTermInvestmentValue)));
   set('fl-dune-value', terrainValue(liquid));
   // Visual encoding is normalized to the portfolio's own total assets, not screen pixels.
   // It is illustrative: no displayed or persisted monetary value is changed.

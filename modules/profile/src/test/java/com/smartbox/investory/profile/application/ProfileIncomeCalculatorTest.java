@@ -44,37 +44,46 @@ class ProfileIncomeCalculatorTest {
 
     var result =
         new ProfileIncomeCalculator(new ProfileCurrencyNormalizer(mock()))
-            .calculate(
-                market,
-                new ProfileIncomeSummary(
-                    new BigDecimal("110"),
-                    new BigDecimal("220"),
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    new BigDecimal("220"),
-                    BigDecimal.ZERO,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    false,
-                    new BigDecimal("110"),
-                    new BigDecimal("220"),
-                    new BigDecimal("220")),
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                new BigDecimal("143900"));
+            .calculate(market, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("143900"));
 
     assertThat(result.investmentIncomeBase()).isEqualByComparingTo("143900");
     assertThat(result.expectedAnnualInvestmentResult()).isEqualByComparingTo("10073");
     assertThat(result.expectedAnnualReturn()).isEqualByComparingTo("0.07");
     assertThat(result.investmentResultYtd()).isEqualByComparingTo("1200");
-    assertThat(result.marketNetIncomeYtd()).isEqualByComparingTo("110");
-    assertThat(result.marketNetAnnualIncome()).isEqualByComparingTo("220");
-    assertThat(result.combinedNetAnnualIncome()).isEqualByComparingTo("220");
+    assertThat(result.marketNetIncomeYtd()).isEqualByComparingTo("972");
+    assertThat(result.marketNetAnnualIncome()).isEqualByComparingTo("8159.13");
+    assertThat(result.combinedNetAnnualIncome()).isEqualByComparingTo("8159.13");
+  }
+
+  @Test
+  void includesPriceGrowthInProjectedMonthlyBalance() {
+    var market =
+        new InvestmentIncomeSummary(
+            true,
+            CurrencyType.PLN,
+            new BigDecimal("640000"),
+            new BigDecimal("76800"),
+            new BigDecimal("0.12"),
+            new BigDecimal("50000"),
+            new BigDecimal("64000"),
+            new BigDecimal("0.78125"));
+
+    var result =
+        new ProfileIncomeCalculator(new ProfileCurrencyNormalizer(mock()))
+            .calculate(
+                market,
+                new BigDecimal("190000"),
+                new BigDecimal("4360000"),
+                new BigDecimal("5000000"));
+
+    assertThat(result.marketNetAnnualIncome()).isEqualByComparingTo("62208");
+    assertThat(result.combinedNetAnnualIncome()).isEqualByComparingTo("252208");
+    assertThat(
+            result
+                .combinedNetAnnualIncome()
+                .divide(new BigDecimal("12"), 2, java.math.RoundingMode.HALF_UP))
+        .isEqualByComparingTo("21017.33");
+    assertThat(result.combinedNetAnnualIncome().subtract(new BigDecimal("252000"))).isPositive();
   }
 
   @Test

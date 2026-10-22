@@ -163,12 +163,13 @@ observed current-calendar-year period; YTD values remain separately identified. 
 Investment summary provides annual expected investment result and YTD investment result as separate
 fields.
 
-Profile cash-income totals and Financial Landscape expense coverage use dividends plus interest
-less recorded withholding and interest taxes from the current-year Brokerage income snapshot.
-Those net cash amounts are annualized over the observed period and combined with Long-Term annual
-net income. Projected market appreciation and YTD investment profit do not fund expense coverage;
-they remain separate Investment result fields. Do not apply another flat profit-tax deduction to
-cash income already net of recorded tax.
+Profile and Financial Landscape planned income and expense coverage use the expected annual
+investment result, including market price growth, after the global profit-tax estimate, plus
+Long-Term annual net income. Monthly values divide those annual projections by twelve. The
+projected market result is not limited to dividends and interest and does not imply distributable
+cash. YTD market progress compares the net investment result with the same net annual projection.
+When the canonical Investment summary is unavailable, the fallback annualizes current-year
+Brokerage cash income already net of recorded tax; no additional flat tax is deducted from it.
 
 ## Headline ROI
 

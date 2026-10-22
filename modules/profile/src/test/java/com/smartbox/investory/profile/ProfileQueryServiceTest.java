@@ -580,7 +580,7 @@ class ProfileQueryServiceTest {
   }
 
   @Test
-  void usesPortfolioScopedCurrentYearIncomeSnapshot() {
+  void usesProjectedInvestmentResultForProfileTotalsWhenAvailable() {
     when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO))
         .thenReturn(snapshot(CurrencyType.USD, 2000, 200, 0, 0, List.of(position("ETF", 1800))));
     when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
@@ -610,10 +610,9 @@ class ProfileQueryServiceTest {
 
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
 
-    assertEquals(0, new BigDecimal("110").compareTo(profile.incomeSummary().marketNetIncomeYtd()));
+    assertEquals(0, new BigDecimal("405").compareTo(profile.incomeSummary().marketNetIncomeYtd()));
     assertEquals(
-        0,
-        new BigDecimal("264.14473684").compareTo(profile.incomeSummary().marketNetAnnualIncome()));
+        0, new BigDecimal("145.8").compareTo(profile.incomeSummary().marketNetAnnualIncome()));
     assertEquals(0, new BigDecimal("500").compareTo(profile.incomeSummary().investmentResultYtd()));
     assertEquals(
         0,

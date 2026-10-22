@@ -51,8 +51,8 @@ record InvestmentProfilePageView(
         income.investmentIncomeBase() != null
             ? income.investmentIncomeBase()
             : profile.marketPortfolioValue();
-    BigDecimal annualCashIncome = income.marketNetAnnualIncome();
-    BigDecimal cashIncomeYtd = income.marketNetIncomeYtd();
+    BigDecimal annualMarketResult = income.marketNetAnnualIncome();
+    BigDecimal marketResultYtd = income.marketNetIncomeYtd();
     return new InvestmentProfilePageView(
         profile.portfolioId(),
         profile.currency(),
@@ -67,13 +67,13 @@ record InvestmentProfilePageView(
         UiPresentation.percentage(profile.marketPortfolioPercentage()),
         UiPresentation.percentage(profile.longTermAssetPercentage()),
         investmentBase != null && investmentBase.signum() != 0
-            ? UiPresentation.percentage(ratio(annualCashIncome, investmentBase))
+            ? UiPresentation.percentage(ratio(annualMarketResult, investmentBase))
             : "Unavailable",
         "Forecast annual return",
-        money(cashIncomeYtd),
-        annualCashIncome.signum() == 0
+        money(marketResultYtd),
+        annualMarketResult.signum() == 0
             ? ""
-            : UiPresentation.percentage(ratio(cashIncomeYtd, annualCashIncome))
+            : UiPresentation.percentage(ratio(marketResultYtd, annualMarketResult))
                 + " of forecast annual result",
         money(profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth)),
         ytdProgress(
