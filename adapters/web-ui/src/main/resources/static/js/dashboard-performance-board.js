@@ -109,7 +109,7 @@ async function renderPerformanceBoard(initialData = null) {
         const visibleSeries = performanceBoardVisibleSeries(view, selectedIds);
         const datasets = visibleSeries.map((series, index) => performanceBoardDataset(series.label, series.values || [], performanceBoardAccountColor(series, index, view.accounts), bars ? 'bar' : 'line', bars && performanceBoardState.metric === 'pl' && visibleSeries.length > 1));
         if (performanceBoardState.metric === 'return' && document.getElementById('performance-board-show-spy')?.checked && (view.benchmarkValues || []).some(value => value != null)) datasets.push(performanceBoardDataset('S&P 500', view.benchmarkValues, performanceBoardBenchmarkColor, bars ? 'bar' : 'line', false));
-        if (performanceBoardState.metric === 'return' && !bars && labels.length && datasets.length) {
+        if (!bars && labels.length && datasets.length) {
             const aggregation = document.getElementById('performance-board-aggregation')?.value || 'monthly';
             const baseline = performanceBoardBaselineLabel(labels[0], aggregation);
             if (baseline) {

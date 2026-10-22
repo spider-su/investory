@@ -111,6 +111,107 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
     }
   }
 
+  @Test
+  @DisplayName("line modes share opening boundary without changing financial values or bars")
+  void lineModesShareOpeningBoundary() {
+    try (BrowserContext context =
+        browser.newContext(
+            new Browser.NewContextOptions().setHttpCredentials("admin", "change-me-admin"))) {
+      context.setDefaultTimeout(Duration.ofSeconds(20).toMillis());
+      Page page = context.newPage();
+      List<String> errors = new ArrayList<>();
+      page.onPageError(errors::add);
+      // Isolate rendering from accounting: the API already supplies period-cumulative values.
+      page.route(
+          "**/investment/performance/board?*",
+          route -> {
+            String url = route.request().url();
+            boolean profit = url.contains("metric=profit");
+            String labels =
+                url.contains("aggregation=quarterly")
+                    ? "\"2026-Q1\""
+                    : url.contains("aggregation=annual") ? "\"2026\"" : "\"2026-01\",\"2026-02\"";
+            String values = profit ? "6481,14297" : "7.6,16.8";
+            String benchmark = "1.5,11.8";
+            if (!url.contains("aggregation=monthly")) {
+              values = profit ? "14297" : "16.8";
+              benchmark = "11.8";
+            }
+            route.fulfill(
+                new com.microsoft.playwright.Route.FulfillOptions()
+                    .setContentType("application/json")
+                    .setBody(
+                        "{\"available\":true,\"labels\":["
+                            + labels
+                            + "],\"series\":[{\"label\":\"Portfolio\",\"values\":["
+                            + values
+                            + "]}],\"benchmarkValues\":["
+                            + benchmark
+                            + "],\"accounts\":[],\"kpis\":{}}"));
+          });
+      for (String period : List.of("YTD", "1Y")) {
+        page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/dashboard?period=" + period);
+        for (String aggregation : List.of("monthly", "quarterly", "annual")) {
+          page.locator("#performance-board-aggregation").selectOption(aggregation);
+          String first =
+              aggregation.equals("monthly")
+                  ? "2026-01"
+                  : aggregation.equals("quarterly") ? "2026-Q1" : "2026";
+          String opening =
+              aggregation.equals("monthly")
+                  ? "2025-12"
+                  : aggregation.equals("quarterly") ? "2025-Q4" : "2025";
+          for (String metric : List.of("return", "pl")) {
+            var response =
+                page.waitForResponse(
+                    candidate -> candidate.url().contains("/investment/performance/board"),
+                    () ->
+                        page.locator(".js-performance-board-metric[data-metric='" + metric + "']")
+                            .click());
+            assertThat(response.url()).contains("period=" + period, "aggregation=" + aggregation);
+            page.waitForFunction(
+                "() => Chart.getChart('performance-board-chart').data.datasets[0].data.at(-1) === "
+                    + (metric.equals("pl") ? "14297" : "16.8")
+                    + " && Chart.getChart('performance-board-chart').data.labels[0] === '"
+                    + opening
+                    + "'");
+            if (!Boolean.TRUE.equals(
+                page.locator("#performance-board-content details").evaluate("el => el.open"))) {
+              page.locator("#performance-board-content details summary").click();
+            }
+            assertThat(
+                    page.evaluate("() => Chart.getChart('performance-board-chart').data.labels[0]"))
+                .isEqualTo(opening);
+            assertThat(
+                    page.evaluate(
+                        "() => Chart.getChart('performance-board-chart').data.datasets[0].data[0]"))
+                .isEqualTo(0);
+            assertThat(page.locator("#performance-board-table tbody tr").first().innerText())
+                .contains(opening, metric.equals("pl") ? "+0 PLN" : "+0.0%");
+            assertThat(page.locator("#performance-board-table tbody tr").last().innerText())
+                .contains(metric.equals("pl") ? "+14,297 PLN" : "+16.8%");
+            if (aggregation.equals("monthly") && metric.equals("pl")) {
+              assertThat(page.locator("#performance-board-table tbody tr").nth(1).innerText())
+                  .contains("2026-01", "+6,481 PLN");
+            }
+            page.locator(".js-performance-board-style[data-style='bars']").click();
+            page.waitForFunction(
+                "() => Chart.getChart('performance-board-chart')?.config.type === 'bar'");
+            assertThat(
+                    page.evaluate("() => Chart.getChart('performance-board-chart').data.labels[0]"))
+                .isEqualTo(first);
+            assertThat(page.locator("#performance-board-table tbody tr").first().innerText())
+                .contains(first);
+            page.locator(".js-performance-board-style[data-style='line']").click();
+            page.waitForFunction(
+                "() => Chart.getChart('performance-board-chart')?.config.type === 'line'");
+          }
+        }
+      }
+      assertThat(errors).isEmpty();
+    }
+  }
+
   private String baseUrl() {
     return "http://127.0.0.1:" + port;
   }
