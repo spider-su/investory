@@ -33,7 +33,7 @@
   const compact = !!document.querySelector('.fl-compact');
   const compactValue = value => value === null || !Number.isFinite(value) ? '—' : (value < 0 ? '−' : '') + compactNumber(value);
   const set = (id, value) => {const el = document.getElementById(id); if (el) el.textContent = value;};
-  set('fl-income', compact ? compactValue(income === null ? null : income / 12) : format(income === null ? null : income / 12));
+  set('fl-income', compact ? compactValue(income === null ? null : income / 12) : format(income === null ? null : income / 12, 1));
   set('fl-cash-income', cashIncome === null ? 'Unavailable' : format(cashIncome / 12, 1));
   set('fl-market-result', marketResult === null ? 'Unavailable' : format(marketResult / 12, 1));
   set('fl-expenses', compact ? compactValue(expenses === null ? null : expenses / 12) : format(expenses === null ? null : expenses / 12));
@@ -66,7 +66,7 @@
   if (annualGapRow) annualGapRow.hidden = annualGap !== null && annualGap <= 0;
   const liquid = numeric(data.liquidAssets);
   // Asset labels reuse Profile amounts in the shared display currency.
-  const terrainValue = value => value === null ? '—' : compactNumber(value);
+  const terrainValue = value => value === null ? '—' : compactNumber(value, 1);
   set('fl-mountain-value', terrainValue(numeric(data.longTermInvestmentValue)));
   set('fl-dune-value', terrainValue(liquid));
   // Visual encoding is normalized to the portfolio's own total assets, not screen pixels.
@@ -91,7 +91,7 @@
     root.style.setProperty('--fl-cash-share', (cashRatio * 100).toFixed(2) + '%');
     root.dataset.reserveDirection = net === null || net === 0 ? 'still' : net < 0 ? 'draw' : 'save';
   }
-  // The Full scene has four stable budget destinations. Category names come
+  // Both layouts share four stable budget destinations. Category names come
   // from the existing simulation CRUD; no totals or domain categories are changed.
   // Unknown future names stay visible in a separate catch-all destination.
   const spendingField = document.getElementById('fl-spending-field');
@@ -176,6 +176,22 @@
       const pile = document.createElement('span');
       pile.className = 'fl-spend-pile';
       pile.setAttribute('aria-hidden', 'true');
+      const pileGlints = document.createElement('span');
+      pileGlints.className = 'fl-spend-pile fl-spend-glints';
+      pileGlints.setAttribute('aria-hidden', 'true');
+      // The same pile geometry clips this sharp overlay without blurring its glints.
+      if (!compact) {
+        for (let i = 0; i < 12; i++) {
+          const grain = document.createElement('span');
+          grain.className = 'fl-pile-glint';
+          grain.style.left = (10 + Math.random() * 80).toFixed(2) + '%';
+          grain.style.top = (64 + Math.random() * 30).toFixed(2) + '%';
+          grain.style.color = i % 2 === 0 ? '#ffe5a6' : group.color;
+          grain.style.setProperty('--fl-grain-duration', (12 + Math.random() * 14).toFixed(2) + 's');
+          grain.style.setProperty('--fl-grain-delay', (-Math.random() * 26).toFixed(2) + 's');
+          pileGlints.append(grain);
+        }
+      }
       const icon = document.createElement('span');
       icon.className = 'fl-spend-icon';
       icon.append(makeIcon(group.icon));
@@ -188,9 +204,14 @@
       const percent = document.createElement('span');
       percent.className = 'fl-spend-percent';
       percent.textContent = percentage;
-      content.append(pile, icon, label, amount, percent);
+      content.append(pile);
+      if (!compact) content.append(pileGlints);
+      content.append(icon, label, amount, percent);
       node.append(content);
       if (hasDetails) {
+        content.addEventListener('click', event => {
+          if (root?.dataset.display === 'percentages') event.preventDefault();
+        });
         const breakdown = document.createElement('ul');
         breakdown.className = 'fl-spend-breakdown';
         breakdown.setAttribute('aria-label', group.name + ' budget categories');
@@ -207,7 +228,7 @@
         // Mouse hover previews the breakdown; touch and keyboard retain
         // native <details>/<summary> click, Space and Enter behavior.
         node.addEventListener('pointerenter', event => {
-          if (event.pointerType === 'mouse') node.open = true;
+          if (event.pointerType === 'mouse' && root?.dataset.display !== 'percentages') node.open = true;
         });
         node.addEventListener('pointerleave', event => {
           if (event.pointerType === 'mouse' && !node.matches(':focus-within')) node.open = false;
@@ -224,5 +245,105 @@
       empty.textContent = 'Spending categories are unavailable for this plan.';
       spendingField.append(empty);
     }
+  }
+  const marketWind = document.getElementById('fl-market-wind');
+  const marketWindLabel = document.getElementById('fl-market-wind-label');
+  const marketBase = numeric(data.marketIncomeBase);
+  if (marketWind) marketWind.hidden = true;
+  if (marketWindLabel) marketWindLabel.hidden = true;
+  if (marketWind && marketBase !== null && marketBase !== 0 && marketResult !== null) {
+    // Same numerator and investment-base fallback as Profile's annualized net return.
+    const rate = marketResult / marketBase;
+    set('fl-market-wind-label', 'Market ' + new Intl.NumberFormat('en-US', {
+      style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1
+    }).format(rate));
+    marketWind.hidden = false;
+    if (marketWindLabel) marketWindLabel.hidden = false;
+    marketWind.dataset.direction = rate < 0 ? 'negative' : rate > 0 ? 'positive' : 'still';
+  }
+  // Native artwork coordinates keep the small glints inside either size of glass.
+  // CSS handles their independent slow pulses; no additional animation loop is needed.
+  document.querySelectorAll('.fl-hourglass svg, .fl-compact-hourglass svg').forEach((svg, index) => {
+    if (svg.querySelector('.fl-sand-sparkles')) return;
+    const ns = 'http://www.w3.org/2000/svg';
+    const clipId = 'fl-sand-interior-' + index;
+    const defs = document.createElementNS(ns, 'defs');
+    const clip = document.createElementNS(ns, 'clipPath');
+    clip.id = clipId;
+    const shape = document.createElementNS(ns, 'path');
+    shape.setAttribute('d', 'M120 140Q125 580 435 860Q465 895 435 930Q125 1280 115 1590H815Q805 1280 494 930Q465 895 494 860Q805 580 810 140Z');
+    clip.append(shape);
+    defs.append(clip);
+    const layer = document.createElementNS(ns, 'g');
+    layer.classList.add('fl-sand-sparkles');
+    layer.setAttribute('clip-path', 'url(#' + clipId + ')');
+    for (let i = 0; i < 24; i++) {
+      const dust = i >= 16;
+      const y = i < 8 ? 430 + Math.random() * 330 : dust ? 1040 + Math.random() * 280 : 1390 + Math.random() * 170;
+      const spread = i < 8 ? (790 - y) * .4 : dust ? (y - 930) * .32 : 220;
+      const grain = document.createElementNS(ns, 'circle');
+      grain.setAttribute('cx', String(464.5 + (Math.random() * 2 - 1) * spread));
+      grain.setAttribute('cy', String(y));
+      grain.setAttribute('r', String(dust ? 2 + Math.random() * 2 : 3 + Math.random() * 3));
+      grain.setAttribute('class', dust ? 'fl-sand-dust' : 'fl-sand-glint');
+      // A few cool grains echo the long-term source alongside the warm market sand.
+      if (i % 3 === 0) grain.classList.add('fl-sand-grain--base');
+      grain.style.setProperty('--fl-grain-duration', (10 + Math.random() * 14).toFixed(2) + 's');
+      grain.style.setProperty('--fl-grain-delay', (-Math.random() * 24).toFixed(2) + 's');
+      grain.style.setProperty('--fl-grain-drift', (Math.random() * 24 - 12).toFixed(2) + 'px');
+      layer.append(grain);
+    }
+    // Both chambers use the same slow settling effect, clipped to the artwork.
+    const chambers = [
+      {name: 'upper', startY: 140, jitterY: 35, startSpread: 55, landingY: 430, slope: .18},
+      {name: 'lower', startY: 900, jitterY: 20, startSpread: 8, landingY: 1310, slope: .4}
+    ];
+    for (const chamber of chambers) {
+      for (let i = 0; i < 18; i++) {
+        const x = 464.5 + (Math.random() * 2 - 1) * chamber.startSpread;
+        const y = chamber.startY + Math.random() * chamber.jitterY;
+        const landingX = 464.5 + (Math.random() * 2 - 1) * 180;
+        const grain = document.createElementNS(ns, 'circle');
+        grain.setAttribute('cx', String(x));
+        grain.setAttribute('cy', String(y));
+        grain.setAttribute('r', String(i % 4 === 0 ? 11 : 3 + Math.random() * 4));
+        grain.setAttribute('class', 'fl-sand-glint fl-sand-inflow fl-sand-inflow--' + chamber.name);
+        if (i % 2 === 0) grain.classList.add('fl-sand-grain--base');
+        grain.style.setProperty('--fl-grain-duration', (12 + Math.random() * 10).toFixed(2) + 's');
+        grain.style.setProperty('--fl-grain-delay', (-Math.random() * 22).toFixed(2) + 's');
+        grain.style.setProperty('--fl-grain-drift', (landingX - x).toFixed(2) + 'px');
+        grain.style.setProperty('--fl-grain-fall', (chamber.landingY + Math.abs(landingX - 464.5) * chamber.slope - y).toFixed(2) + 'px');
+        grain.style.setProperty('--fl-grain-peak', i % 4 === 0 ? '.16' : '.85');
+        layer.append(grain);
+      }
+    }
+    svg.append(defs, layer);
+  });
+  // Full mode starts with percentages; compact retains its amount summary.
+  if (root) {
+    const buttons = [...document.querySelectorAll('[data-fl-display]')];
+    const nodes = [...root.querySelectorAll('.fl-spend-node')];
+    const titles = new Map(nodes.map(node => [node, node.title]));
+    const expensePercentage = value => value === null || expenses === null ? 'Unavailable'
+      : expenses <= 0 ? '—' : Math.round(value / expenses * 100) + '%';
+    const selectDisplay = mode => {
+      const percentages = mode === 'percentages';
+      root.dataset.display = mode;
+      set('fl-balance-title', percentages ? 'MONTHLY COVERAGE' : 'MONTHLY BALANCE');
+      set('fl-coverage-summary', expenses === 0 ? 'No planned spending' : expensePercentage(income));
+      set('fl-cash-income', percentages ? expensePercentage(cashIncome) : cashIncome === null ? 'Unavailable' : format(cashIncome / 12, 1));
+      set('fl-market-result', percentages ? expensePercentage(marketResult) : marketResult === null ? 'Unavailable' : format(marketResult / 12, 1));
+      buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.flDisplay === mode)));
+      nodes.forEach(node => {
+        node.title = percentages ? '' : titles.get(node);
+        const summary = node.querySelector('summary');
+        if (summary) {
+          summary.setAttribute('aria-disabled', String(percentages));
+          if (percentages) node.open = false;
+        }
+      });
+    };
+    buttons.forEach(button => button.addEventListener('click', () => selectDisplay(button.dataset.flDisplay)));
+    selectDisplay(root.dataset.display || 'percentages');
   }
 })();

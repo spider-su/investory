@@ -28,17 +28,12 @@ public final class FinancialLandscapePageAssembler {
   }
 
   FinancialLandscapePageView assemble(Long portfolioId) {
-    return assemble(portfolioId, true);
-  }
-
-  FinancialLandscapePageView assemble(Long portfolioId, boolean includeExpenseGroups) {
     var profile = profiles.loadProfile(portfolioId);
     var cost = retirementProfile.currentYearAnnualCost(portfolioId, profile.currency());
-    return assemble(profile, cost, includeExpenseGroups);
+    return assemble(profile, cost);
   }
 
-  private FinancialLandscapePageView assemble(
-      InvestmentProfile profile, AnnualCostView cost, boolean includeExpenseGroups) {
+  private FinancialLandscapePageView assemble(InvestmentProfile profile, AnnualCostView cost) {
     var portfolioId = profile.portfolioId();
     var currency = profile.currency();
     var income = profile.incomeSummary();
@@ -46,7 +41,7 @@ public final class FinancialLandscapePageAssembler {
     BigDecimal balance =
         expenses == null ? null : income.combinedNetAnnualIncome().subtract(expenses);
     List<FinancialLandscapePageView.ExpenseGroupView> expenseGroups = new ArrayList<>();
-    if (includeExpenseGroups && cost.available() && cost.planId() != null) {
+    if (cost.available() && cost.planId() != null) {
       RetirementAnnualCostsApi.AnnualCosts costs =
           annualCosts.load(portfolioId, cost.planId(), cost.year());
       for (var group : costs.groups()) {
@@ -80,12 +75,15 @@ public final class FinancialLandscapePageAssembler {
         profile.liquidAssets(),
         profile.illiquidAssets(),
         profile.longTermInvestmentValue(),
+        income.investmentIncomeBase() != null
+            ? income.investmentIncomeBase()
+            : profile.marketPortfolioValue(),
         expenseGroups);
   }
 
-  /** Reuses the Profile page's already-loaded facts; compact has no spending destinations. */
+  /** Reuses the Profile page's already-loaded income and annual-cost facts. */
   public Map<String, Object> assembleCompactAttributes(
       InvestmentProfile profile, AnnualCostView cost) {
-    return assemble(profile, cost, false).asAttributes(true);
+    return assemble(profile, cost).asAttributes(true);
   }
 }
