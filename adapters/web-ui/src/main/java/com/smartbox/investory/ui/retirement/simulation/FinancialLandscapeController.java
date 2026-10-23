@@ -21,8 +21,7 @@ public class FinancialLandscapeController {
       @RequestParam(name = "view", defaultValue = "full") String view,
       Model model) {
     boolean compact = COMPACT_VIEW.equalsIgnoreCase(view);
-    var page =
-        compact ? pageAssembler.assemble(portfolioId, false) : pageAssembler.assemble(portfolioId);
+    var page = pageAssembler.assemble(portfolioId);
     model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("landscape", page.asAttributes(compact));
     return compact ? "financial-landscape-compact" : "financial-landscape";

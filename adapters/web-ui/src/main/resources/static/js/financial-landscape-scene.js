@@ -3,14 +3,14 @@
   // Photo coordinates belong to the artwork; all rendered geometry uses scene pixels.
   const ART = {
     normal: {width:1672,height:941,glassSeat:{x:.445,y:.625},
-      liquidSource:{x:.105,y:.575},mountainSource:{x:.9,y:.27}},
+      sun:{x:.05,y:.40},liquidSource:{x:.105,y:.575},mountainSource:{x:.9,y:.27}},
     wide: {width:1916,height:821,glassSeat:{x:.46,y:.665},
-      liquidSource:{x:.20,y:.60},mountainSource:{x:.80,y:.315}}
+      sun:{x:.14,y:.405},liquidSource:{x:.20,y:.60},mountainSource:{x:.80,y:.315}}
   };
   const GEOMETRY = {desktopWidth:980,wideAspect:2.05,labelWidth:160,labelGap:18,
-    hoverMin:18,hoverMax:36,hoverRatio:.025,
+    hoverMin:32,hoverMax:54,hoverRatio:.045,
     // Native image coordinates: rim, visible base, waist and lower sand crest.
-    assetHeight:1693,entryY:36,foot:1626,neckY:895,sandSurfaceY:1310,
+    assetHeight:1693,entryY:36,entryGap:7,foot:1626,neckY:895,sandSurfaceY:1310,
     destinationInset:9};
   const scene = document.querySelector('.fl-scene.fl-clean-plate');
   const glass = scene?.querySelector('.fl-hourglass');
@@ -48,6 +48,26 @@
       const seat = photoPoint(art.glassSeat);
       const source = photoPoint(art.liquidSource);
       const summit = photoPoint(art.mountainSource);
+      // A small refracted crop aligns exactly with the same cover-scaled photograph.
+      const sun = photoPoint(art.sun);
+      const heatWidth = Math.min(340,Math.max(240,width*.19));
+      const heatHeight = heatWidth*.65;
+      const heatX = sun.x-heatWidth/2;
+      const heatY = sun.y-heatHeight/2;
+      const heat = scene.querySelector('.fl-market-heat');
+      const heatImage = heat?.querySelector('image');
+      if (heatImage) {
+        heat.setAttribute('viewBox',`0 0 ${heatWidth} ${heatHeight}`);
+        const refraction = heat.querySelector('filter');
+        refraction.setAttribute('width',String(heatWidth+32));
+        refraction.setAttribute('height',String(heatHeight+32));
+        Object.assign(heat.style,{left:heatX+'px',top:heatY+'px',width:heatWidth+'px',height:heatHeight+'px'});
+        heatImage.setAttribute('href','/images/financial-landscape-'+(artKey === 'wide' ? 'ultrawide' : 'normal')+'-v2.webp');
+        heatImage.setAttribute('x',String(-heatX));
+        heatImage.setAttribute('y',String(-heatY));
+        heatImage.setAttribute('width',String(width));
+        heatImage.setAttribute('height',String(height));
+      }
       scene.style.setProperty('--fl-glass-seat-x',seat.x+'px');
       const hoverGap = Math.max(GEOMETRY.hoverMin,Math.min(GEOMETRY.hoverMax,height*GEOMETRY.hoverRatio));
       scene.style.setProperty('--fl-glass-seat-y',(seat.y-hoverGap)+'px');
@@ -55,18 +75,18 @@
       scene.style.setProperty('--fl-panel-top',(header.getBoundingClientRect().bottom-sr.top+4)+'px');
       const gr = glass.getBoundingClientRect();
       const centerX = gr.left-sr.left+gr.width/2;
-      const entry = {x:centerX,y:gr.top-sr.top+gr.height*GEOMETRY.entryY/GEOMETRY.assetHeight};
+      const entry = {x:centerX,y:gr.top-sr.top+gr.height*GEOMETRY.entryY/GEOMETRY.assetHeight-GEOMETRY.entryGap};
       const foot = {x:centerX,y:gr.top-sr.top+gr.height*GEOMETRY.foot/GEOMETRY.assetHeight};
       const neck = {x:centerX,y:gr.top-sr.top+gr.height*GEOMETRY.neckY/GEOMETRY.assetHeight};
       const sandSurface = {x:centerX,y:gr.top-sr.top+gr.height*GEOMETRY.sandSurfaceY/GEOMETRY.assetHeight};
       const internal = {points:[neck,{x:centerX,y:(neck.y+sandSurface.y)/2},sandSurface],
         share:.25,accent:'#D9B982',particleCount:4};
-      // One gentle arc per source; cloud artwork does not dictate the route.
+      // Approach the shared opening from above so the glass cannot hide the final segment.
       const sourceArc = from => {
         const dx = entry.x-from.x, dy = entry.y-from.y;
         const rise = Math.min(height*.14,Math.abs(dx)*.12);
         return [from,{x:from.x+dx/3,y:from.y+dy/3-rise},
-          {x:from.x+dx*2/3,y:from.y+dy*2/3-rise},entry];
+          {x:entry.x,y:entry.y-Math.min(60,height*.07)},entry];
       };
       vapor.setAttribute('viewBox',`0 0 ${width} ${height}`);
       const curves = {cash:sourceArc(source),market:sourceArc(summit)};
@@ -86,7 +106,7 @@
       const cashShare = Math.max(0,Math.min(1,parseFloat(scene.style.getPropertyValue('--fl-cash-share'))/100||0));
       const upstream = Object.entries(curves).map(([key,points]) => ({points,
         share:key.startsWith('cash')?cashShare:1-cashShare,
-        accent:key.startsWith('cash')?'#E8BE67':'#98BFDE',opacity:.65}));
+        accent:key.startsWith('cash')?'#E8BE67':'#98BFDE',opacity:.65,trailScale:.45,trailOpacity:.45}));
       publish({desktop:true,width,height,foot,spending,upstream,internal,
         speed:Math.max(.25,Math.min(1.7,parseFloat(getComputedStyle(scene).getPropertyValue('--fl-stream-opacity'))||.7))});
     };

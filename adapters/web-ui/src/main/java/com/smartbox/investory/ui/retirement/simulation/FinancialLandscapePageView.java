@@ -18,6 +18,7 @@ public record FinancialLandscapePageView(
     BigDecimal liquidAssets,
     BigDecimal illiquidAssets,
     BigDecimal longTermInvestmentValue,
+    BigDecimal marketIncomeBase,
     List<ExpenseGroupView> expenseGroups) {
   Map<String, Object> asAttributes(boolean compact) {
     Map<String, Object> values = new LinkedHashMap<>();
@@ -26,11 +27,12 @@ public record FinancialLandscapePageView(
     values.put("annualMarketResult", annualMarketResult);
     values.put("annualExpenses", annualExpenses);
     values.put("annualGap", annualGap);
+    values.put("expenseGroups", expenseGroups);
     if (!compact) {
+      values.put("marketIncomeBase", marketIncomeBase);
       values.put("liquidAssets", liquidAssets);
       values.put("illiquidAssets", illiquidAssets);
       values.put("longTermInvestmentValue", longTermInvestmentValue);
-      values.put("expenseGroups", expenseGroups);
     }
     return values;
   }

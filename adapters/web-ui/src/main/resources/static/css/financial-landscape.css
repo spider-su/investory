@@ -379,7 +379,7 @@ body { min-height: 100%; margin: 0px; }
   .fl-landscape-page .fl-app,
   .fl-landscape-page .fl-app:fullscreen { position: relative; width: 100%; max-width: none; margin: 0px; padding: 0px; }
   .fl-landscape-page .fl-header { position: absolute; inset: 0px 0px auto; z-index: 20; box-sizing: border-box; padding: 18px clamp(24px, 1.5vw, 48px) 26px; background: linear-gradient(rgba(7, 19, 34, 0.85), rgba(7, 19, 34, 0.44) 65%, transparent); }
-  .fl-landscape-page .fl-header h1 { margin: 4px 0px 0px; }
+  .fl-landscape-page .fl-header h1 { margin: 4px 0px 0px; font-size: clamp(24px, 2.4vw, 29px); }
   .fl-landscape-page .fl-scene.fl-clean-plate { --fl-landscape-art: url('/images/financial-landscape-normal-v2.webp'); height: 100vh; height: 100dvh; min-height: 0px; padding: 0px; border: 0px; border-radius: 0px; box-shadow: none; background-color: rgb(8, 22, 38); background-image: var(--fl-landscape-art); background-size: cover; background-position: center center; }
 
   .fl-landscape-page .fl-scene.fl-clean-plate .fl-center { inset:var(--fl-panel-top,100px) auto auto 2%; position: absolute; grid-area: auto; place-self: auto; transform: none; margin: 0px; width: clamp(255px, 21vw, 310px); max-width: 31%; z-index: 10; }
@@ -389,8 +389,8 @@ body { min-height: 100%; margin: 0px; }
   .fl-landscape-page .fl-scene.fl-clean-plate .fl-stream { animation:none; stroke-dasharray:none; opacity:.5; filter:drop-shadow(0 0 4px #d9b982); }
   .fl-landscape-page .fl-scene.fl-clean-plate .fl-asset-guide { width: 160px; transform: translate(-50%, -100%); }
   .fl-landscape-page .fl-scene.fl-clean-plate .fl-asset-guide-label { position: static; align-items: center; text-align: center; }
-  .fl-landscape-page .fl-scene.fl-clean-plate .fl-vapor-haze { stroke-width: 15; opacity: 0.2; }
-  .fl-landscape-page .fl-scene.fl-clean-plate .fl-vapor-core { stroke-width: 3.5; stroke-linecap: butt; stroke-dasharray: none; opacity: .34; }
+  .fl-landscape-page .fl-scene.fl-clean-plate .fl-vapor-haze { stroke-width: 7; opacity: 0.09; }
+  .fl-landscape-page .fl-scene.fl-clean-plate .fl-vapor-core { stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: none; opacity: .15; }
   .fl-landscape-page .fl-scene.fl-clean-plate .fl-income-vapor { display: block; inset: 0px; width: 100%; height: 100%; opacity: .6; z-index: 5; }
   .fl-landscape-page .fl-scene.fl-clean-plate .fl-cloud { display: block; z-index: 4; }
   .fl-landscape-page .fl-scene.fl-clean-plate .fl-spend-pile { background:radial-gradient(ellipse at var(--fl-crest,45%) 38%,#fff0c763,transparent 25%),linear-gradient(155deg,color-mix(in srgb,var(--fl-accent) 47%,#d7ba89),#1d2938 85%); inset: auto 22% 0; height: 88px; opacity: .38; filter: blur(1px); }
@@ -425,3 +425,119 @@ body { min-height: 100%; margin: 0px; }
 @media (min-width: 981px) and (min-aspect-ratio: 205/100) {
   .fl-landscape-page .fl-scene.fl-clean-plate { --fl-landscape-art: url('/images/financial-landscape-ultrawide-v2.webp'); }
 }
+
+/* Transparent valley mist drifts over the terrain; labels and controls stay above it. */
+.fl-foreground-clouds { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.fl-scene > .fl-foreground-clouds { z-index: 8; }
+.fl-foreground-clouds::before,
+.fl-foreground-clouds::after { content: ""; position: absolute; width: 90%; background: url('/images/financial-landscape-foreground-clouds-v1.webp') center / contain no-repeat; filter: blur(3px); mask-image: radial-gradient(ellipse, #000 52%, transparent 82%); }
+.fl-foreground-clouds::before { left: -12%; bottom: 0; height: 40%; opacity: .30; animation: fl-mist-drift 220s ease-in-out -75s infinite alternate; }
+.fl-foreground-clouds::after { left: 32%; bottom: 24%; height: 32%; opacity: .22; animation: fl-mist-drift 310s ease-in-out -190s infinite alternate-reverse; }
+/* Smaller banks follow the cloud-covered right mountain slopes. Reuse the cached mist texture. */
+.fl-mountain-clouds::before { left: 58%; bottom: 27%; width: 58%; height: 30%; opacity: .40; animation-duration: 260s; animation-delay: -95s; }
+.fl-mountain-clouds::after { left: 70%; bottom: 40%; width: 42%; height: 24%; opacity: .29; animation-duration: 340s; animation-delay: -210s; }
+@keyframes fl-mist-drift {
+  from { transform: translate3d(-10%, 2%, 0); }
+  to { transform: translate3d(12%, -3%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-foreground-clouds::before,
+  .fl-foreground-clouds::after { animation: none; }
+}
+
+/* Keep the full scene title secondary to the landscape and financial values. */
+.fl-landscape-page .fl-header h1 { font-weight: 400; color: #b4c3d0; }
+
+.fl-display-selector { display: flex; gap: 2px; }
+.fl-display-selector .fl-button { padding-inline: 12px; }
+.fl-display-selector .fl-button[aria-pressed="true"] { background: #395466; border-color: #8aa7b9; }
+.fl-landscape-page .fl-scene[data-display="percentages"] .fl-asset-guide,
+.fl-landscape-page .fl-scene[data-display="percentages"] .fl-spend-value,
+.fl-landscape-page .fl-scene[data-display="percentages"] .fl-spend-breakdown { display: none; }
+.fl-landscape-page .fl-scene[data-display="percentages"] .fl-spend-node summary { cursor: default; }
+
+/* Soften the photo highlights without dimming the animated sand or surrounding scene. */
+.fl-hourglass image,
+.fl-compact-hourglass image { filter: brightness(.90) saturate(.88); }
+
+
+.fl-market-wind { display: none; color: #fff0d1; font-size: 14px; text-shadow: 0 2px 4px #30251c, 0 0 8px #30251c; }
+.fl-scene[data-display="details"] .fl-market-wind:not([hidden]) { display: block; }
+.fl-market-heat { display: none; pointer-events: none; }
+@media (min-width: 981px) {
+  .fl-market-wind { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+  .fl-market-heat { display: block; position: absolute; opacity: 1; }
+  .fl-market-wind[data-direction="still"] .fl-market-heat { display: none; }
+}
+@media (max-width: 980px) {
+  .fl-market-wind { grid-area: 3 / 1; justify-self: center; text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-market-wind .fl-market-heat { display: none; }
+}
+
+.fl-sand-sparkles { pointer-events: none; }
+.fl-sand-glint,
+.fl-sand-dust { fill: #ffe5a6; opacity: 0; animation: fl-sand-glimmer var(--fl-grain-duration) ease-in-out var(--fl-grain-delay) infinite; }
+.fl-sand-glint { filter: drop-shadow(0 0 9px #ffc96b); }
+.fl-sand-dust { animation-name: fl-sand-dust-rise; fill: #f3d79e; }
+.fl-sand-grain--base { fill: #98bfde; }
+.fl-sand-glint.fl-sand-grain--base { filter: drop-shadow(0 0 9px #98bfde); }
+@keyframes fl-sand-glimmer {
+  0%, 32%, 76%, 100% { opacity: 0; }
+  48% { opacity: .8; }
+  62% { opacity: .18; }
+}
+@keyframes fl-sand-dust-rise {
+  0% { opacity: 0; transform: translate(0, 12px); }
+  35% { opacity: .45; }
+  70% { opacity: .2; }
+  100% { opacity: 0; transform: translate(var(--fl-grain-drift), -55px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-sand-sparkles { display: none; }
+  .fl-sand-glint,
+  .fl-sand-dust { animation: none; }
+}
+
+.fl-scene .fl-spend-glints,
+.fl-landscape-page .fl-scene.fl-clean-plate .fl-spend-glints { background: none; filter: none; opacity: 1; }
+.fl-scene .fl-spend-glints::before { display: none; }
+.fl-pile-glint { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: currentColor; box-shadow: 0 0 5px 1px currentColor; opacity: 0; animation: fl-sand-glimmer var(--fl-grain-duration) ease-in-out var(--fl-grain-delay) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .fl-scene .fl-spend-glints { display: none; }
+  .fl-pile-glint { animation: none; }
+}
+
+
+.fl-coverage-summary { display: none; }
+.fl-landscape-page .fl-scene[data-display="percentages"] .fl-coverage-summary { display: block; font-size: 32px; color: #e9eff3; }
+.fl-landscape-page .fl-scene[data-display="percentages"] .fl-monthly-totals,
+.fl-landscape-page .fl-scene[data-display="percentages"] #fl-net,
+.fl-landscape-page .fl-scene[data-display="percentages"] #fl-annual-gap,
+.fl-landscape-page .fl-scene[data-display="percentages"] .fl-balance-footer { display: none; }
+
+/* A sparse dusk constellation, away from the title and controls. */
+.fl-landscape-page .fl-scene .fl-stars { display: block; inset: 12% 3% auto auto; width: 34%; height: 13%; background: none; opacity: 1; z-index: 1; pointer-events: none; }
+.fl-stars > span { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #d9e9f3; box-shadow: 0 0 4px #c5ddeb; opacity: .3; animation: fl-star-twinkle var(--fl-star-duration) ease-in-out var(--fl-star-delay) infinite; }
+.fl-stars > span:nth-child(3n) { width: 1px; height: 1px; }
+@keyframes fl-star-twinkle {
+  0%, 100% { opacity: .18; }
+  50% { opacity: .65; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-stars > span { animation: none; opacity: .3; }
+}
+
+.fl-sand-inflow { animation-name: fl-sand-settle; animation-timing-function: linear; }
+@keyframes fl-sand-settle {
+  0% { opacity: 0; transform: translate(0, 0); }
+  18%, 65% { opacity: var(--fl-grain-peak, .85); }
+  100% { opacity: 0; transform: translate(var(--fl-grain-drift), var(--fl-grain-fall)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-sand-inflow { animation: none; }
+}
+
+.fl-balance-footer { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; }
+.fl-balance-footer #fl-market-wind-label { margin-left: auto; text-align: right; color: #e8be67; white-space: nowrap; }

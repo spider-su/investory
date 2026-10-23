@@ -32,6 +32,8 @@ class FinancialLandscapePageAssemblerTest {
     when(summary.combinedNetAnnualIncome()).thenReturn(new BigDecimal("252300"));
     when(summary.marketNetAnnualIncome()).thenReturn(new BigDecimal("62300"));
     when(summary.longTermAnnualIncome()).thenReturn(new BigDecimal("190000"));
+    when(summary.investmentIncomeBase()).thenReturn(new BigDecimal("583000"));
+    when(profile.marketPortfolioValue()).thenReturn(new BigDecimal("794120"));
     when(profile.incomeSummary()).thenReturn(summary);
     when(profile.liquidAssets()).thenReturn(new BigDecimal("120000"));
     when(profile.illiquidAssets()).thenReturn(new BigDecimal("6250000"));
@@ -74,6 +76,7 @@ class FinancialLandscapePageAssemblerTest {
     assertThat(page.longTermInvestmentValue()).isEqualByComparingTo("4360000");
     assertThat(page.asAttributes(false))
         .containsEntry("longTermInvestmentValue", new BigDecimal("4360000"));
+    assertThat(page.marketIncomeBase()).isEqualByComparingTo("583000");
     assertThat(page.expenseGroups()).hasSize(1);
     assertThat(page.annualCashIncome().add(page.annualMarketResult()))
         .isEqualByComparingTo(page.annualIncome());
@@ -83,20 +86,54 @@ class FinancialLandscapePageAssemblerTest {
   }
 
   @Test
-  void compactDoesNotLoadUnusedExpenseGroups() {
-    var page = assembler.assemble(7L, false);
+  void marketWindUsesProfileFallbackBaseWhenIncomeBaseUnavailable() {
+    var profile = profiles.loadProfile(7L);
+    when(profile.incomeSummary().investmentIncomeBase()).thenReturn(null);
+    var cost = new AnnualCostView(true, new BigDecimal("252000"), CurrencyType.PLN, 2026, null);
+    when(retirementProfile.currentYearAnnualCost(7L, CurrencyType.PLN)).thenReturn(cost);
 
-    assertThat(page.annualIncome()).isEqualByComparingTo("252300");
-    assertThat(page.annualExpenses()).isEqualByComparingTo("255800");
-    assertThat(page.expenseGroups()).isEmpty();
-    assertThat(page.asAttributes(true))
-        .containsOnlyKeys(
-            "annualIncome",
-            "annualCashIncome",
-            "annualMarketResult",
-            "annualExpenses",
-            "annualGap");
-    verifyNoInteractions(annualCosts);
+    assertThat(assembler.assemble(7L).marketIncomeBase()).isEqualByComparingTo("794120");
+    assertThat(assembler.assembleCompactAttributes(profile, cost))
+        .doesNotContainKey("marketIncomeBase");
+  }
+
+  @Test
+  void compactReusesProfileFactsAndLoadsSharedSpendingGroups() {
+    when(annualCosts.load(7L, 11L, 2026))
+        .thenReturn(
+            new RetirementAnnualCostsApi.AnnualCosts(
+                11L,
+                2026,
+                "Plan",
+                List.of(
+                    new RetirementAnnualCostsApi.Group(1L, "School", new BigDecimal("4750"), 0)),
+                new BigDecimal("4750"),
+                new BigDecimal("57000"),
+                new BigDecimal("60000"),
+                null,
+                null,
+                BigDecimal.ZERO));
+    var profile = profiles.loadProfile(7L);
+    clearInvocations(profiles, retirementProfile);
+
+    var attributes =
+        assembler.assembleCompactAttributes(
+            profile,
+            new AnnualCostView(true, new BigDecimal("255800"), CurrencyType.PLN, 2026, 11L));
+
+    assertThat(attributes).containsEntry("annualIncome", new BigDecimal("252300"));
+    assertThat(attributes).containsEntry("annualExpenses", new BigDecimal("255800"));
+    assertThat(attributes)
+        .containsEntry(
+            "expenseGroups",
+            List.of(
+                new FinancialLandscapePageView.ExpenseGroupView("School", new BigDecimal("4750")),
+                new FinancialLandscapePageView.ExpenseGroupView(
+                    "Annual extras", new BigDecimal("5000.00000000"))));
+    assertThat(attributes)
+        .doesNotContainKeys("liquidAssets", "illiquidAssets", "longTermInvestmentValue");
+    verify(annualCosts).load(7L, 11L, 2026);
+    verifyNoInteractions(profiles, retirementProfile);
   }
 
   @Test

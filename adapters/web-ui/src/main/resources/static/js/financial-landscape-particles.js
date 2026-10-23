@@ -12,8 +12,8 @@
   const FLOW_CYCLE_MS = 28000;
   let phase = 0;
   let flows = [];
-  // Both directions share one stroke, glow, particle size, and timing implementation.
-  const makeFlow = (points,share,accent,particleCount,opacity=1) => {
+  // Shared rendering keeps particle timing independent of each trail's visual weight.
+  const makeFlow = (points,share,accent,particleCount,opacity=1,trailScale=1,trailOpacity=1) => {
     const path = new Path2D();
     const [a,b,c,d] = points;
     path.moveTo(a.x,a.y);
@@ -25,7 +25,7 @@
         y:u*u*u*a.y+3*u*u*t*b.y+3*u*t*t*c.y+t*t*t*d.y}
         : {x:u*u*a.x+2*u*t*b.x+t*t*c.x,y:u*u*a.y+2*u*t*b.y+t*t*c.y};
     };
-    return {path,pointAt,share:Math.max(0,Math.min(1,share)),accent,particleCount,opacity};
+    return {path,pointAt,share:Math.max(0,Math.min(1,share)),accent,particleCount,opacity,trailScale,trailOpacity};
   };
   // Geometry is measured once by financial-landscape-scene.js, never inside the draw loop.
   let layout = scene.financialLandscapeLayout;
@@ -40,7 +40,7 @@
     w = layout.width; h = layout.height;
     canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
     ctx.setTransform(dpr,0,0,dpr,0,0);
-    flows = layout.upstream.map(flow => makeFlow(flow.points,flow.share,flow.accent,flow.particleCount,flow.opacity));
+    flows = layout.upstream.map(flow => makeFlow(flow.points,flow.share,flow.accent,flow.particleCount,flow.opacity,flow.trailScale,flow.trailOpacity));
     for (const destination of layout.spending) {
       const from = layout.foot;
       if (destination.y<=from.y+12) continue;
@@ -62,16 +62,16 @@
     ctx.clearRect(0,0,w,h);
     phase = (phase+elapsed/FLOW_CYCLE_MS*layout.speed)%1;
     for (const [index,flow] of flows.entries()) {
-      const {share,accent,path,pointAt,opacity} = flow;
-      const lineWidth = 1.5+Math.sqrt(share)*3.4;
+      const {share,accent,path,pointAt,opacity,trailScale,trailOpacity} = flow;
+      const lineWidth = (1.5+Math.sqrt(share)*3.4)*trailScale;
       ctx.save();
-      ctx.globalAlpha = opacity;
-      ctx.lineWidth = lineWidth+2;
+      ctx.globalAlpha = opacity*trailOpacity;
+      ctx.lineWidth = lineWidth+2*trailScale;
       ctx.strokeStyle = 'rgba(8, 18, 28, .32)';
       ctx.stroke(path);
       ctx.lineWidth = lineWidth;
       ctx.strokeStyle = accent;
-      ctx.globalAlpha = .34*opacity;
+      ctx.globalAlpha = .34*opacity*trailOpacity;
       ctx.shadowColor = accent;
       ctx.shadowBlur = 8;
       ctx.stroke(path);
