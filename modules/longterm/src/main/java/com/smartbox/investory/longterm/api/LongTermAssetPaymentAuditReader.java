@@ -10,5 +10,9 @@ public interface LongTermAssetPaymentAuditReader {
   List<PaymentAuditRow> paymentAudit(Long portfolioId, LocalDate date);
 
   record PaymentAuditRow(
-      String assetName, String tenantName, BigDecimal totalMonthlyPayment, CurrencyType currency) {}
+      String assetName,
+      String tenantName,
+      BigDecimal totalMonthlyPayment,
+      BigDecimal monthlyRentalIncome,
+      CurrencyType currency) {}
 }

@@ -24,6 +24,8 @@ Telegram delivery failure is an adapter failure, not a financial-state failure. 
 
 The scheduled rental payment audit uses the same Telegram bot credentials as other notifications. Its destination can be overridden with `app.telegram.rental-payment-audit-chat-id` (`TELEGRAM_RENTAL_PAYMENT_AUDIT_CHAT_ID`); when unset, it falls back to the effective runtime Telegram integration `chatId`. This makes the shipped default resolve to the same destination as common notifications, including when that destination is managed through integration settings.
 
+The rental review follows the [Long-Term rental-income contract](../domain/long-term-assets.md). Messages use property/amount and tenant blocks without a currency suffix.
+
 ## OpenAI
 
 OpenAI-backed analysis/reporting is optional and downstream. It may receive explicitly prepared portfolio context for analysis but is not an accounting, pricing, planning, or reconciliation authority. Generated text must not write or silently change canonical financial facts.
