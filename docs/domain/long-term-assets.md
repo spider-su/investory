@@ -90,6 +90,8 @@ and Profile snapshot path remains in `LongTermAssetReadService`.
 rental-income terms only; tenant-paid expenses are not property income. Payment Audit separately
 includes all rental-income terms plus tenant-paid expenses in the tenant's monthly payment, while
 landlord-paid expenses are excluded from that payment and reduce property economics instead.
+The audit read model also exposes the overview's rental-income-only amount. The Telegram monthly
+rental review displays this rental income, not the total tenant payment.
 
 The checked-in bootstrap document may accept `cashFlows` only for `REAL_ESTATE` import input.
 Bootstrap rejects cash-flow rows for every other asset type and converts accepted rows into rental

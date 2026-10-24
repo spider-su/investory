@@ -1,6 +1,7 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.LongTermAssetPaymentAuditReader;
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
@@ -67,6 +68,16 @@ public class LongTermAssetPaymentAuditService implements LongTermAssetPaymentAud
             ? "(unnamed tenant)"
             : contract.getTenantName(),
         total,
+        LongTermAssetEconomics.monthlyRentalIncome(
+            contract.getTerms().stream()
+                .map(
+                    term ->
+                        new RentalContractModel.Term(
+                            term.getType(),
+                            term.getAmount(),
+                            term.getFrequency(),
+                            term.isPaidByTenant()))
+                .toList()),
         currencies.get(contract.getAssetId()));
   }
 }

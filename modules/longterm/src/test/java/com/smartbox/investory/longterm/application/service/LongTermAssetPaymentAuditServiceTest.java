@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 
 class LongTermAssetPaymentAuditServiceTest {
   @Test
-  void monthlyTenantPaymentIncludesTenantPaidExpenses() {
+  void separatesTenantPaymentFromOverviewRentalIncome() {
     var realEstates = mock(RealEstateRepository.class);
     var contracts = mock(LongTermAssetRentalContractRepository.class);
     var estate = new RealEstateEntity();
@@ -35,6 +35,7 @@ class LongTermAssetPaymentAuditServiceTest {
     contract.setTerms(
         List.of(
             term(CashFlowType.RENT, "1000", Frequency.MONTHLY, false),
+            term(CashFlowType.PARKING_RENT, "150", Frequency.MONTHLY, false),
             term(CashFlowType.OTHER_INCOME, "1200", Frequency.ANNUAL, false),
             term(CashFlowType.UTILITIES, "200", Frequency.MONTHLY, true),
             term(CashFlowType.ADMIN_FEE, "300", Frequency.MONTHLY, false)));
@@ -51,7 +52,8 @@ class LongTermAssetPaymentAuditServiceTest {
             row -> {
               assertThat(row.assetName()).isEqualTo("Rental home");
               assertThat(row.tenantName()).isEqualTo("Tenant");
-              assertThat(row.totalMonthlyPayment()).isEqualByComparingTo("1300");
+              assertThat(row.totalMonthlyPayment()).isEqualByComparingTo("1450");
+              assertThat(row.monthlyRentalIncome()).isEqualByComparingTo("1250");
             });
   }
 
