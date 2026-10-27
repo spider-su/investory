@@ -351,6 +351,14 @@ unavailable balance, incomplete calculations are not cached, and operational not
 are deferred without changing drawdown state. Full projection refresh invalidates calculation
 caches after the reporting bundle completes (also on failure to remove stale entries).
 
+The scheduled `refresh-prices` maintenance action refreshes market prices and benchmark closes,
+then runs `StatisticsRefreshService.refreshAll()` before returning success. This rebuilds
+`account_daily` through the business date, publishes the full application reporting bundle and
+invalidates calculation caches. A projection or reporting refresh failure fails the job and must
+not be reported as a successful price refresh. The current-price MV refresh alone does not advance
+daily snapshots. Existing gaps can be repaired through the `rebuild-monthly` maintenance action,
+which rebuilds daily facts as well as their monthly reporting views.
+
 Persisted Telegram daily notifications default to 09:00 Europe/Warsaw on weekdays. Automatic
 execution is limited to fifteen minutes following the scheduled time; missed runs do not catch
 up overnight on startup. Explicit manual execution remains available.

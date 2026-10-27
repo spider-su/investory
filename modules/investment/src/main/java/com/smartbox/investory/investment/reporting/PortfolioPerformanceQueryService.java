@@ -142,6 +142,9 @@ public class PortfolioPerformanceQueryService {
         portfolioId == null
             ? Set.of()
             : accountRepository.findAllByPortfolioId(portfolioId).stream()
+                .filter(
+                    account ->
+                        !account.isCashOnly() || (accountIds != null && !accountIds.isEmpty()))
                 .map(AccountEntity::getId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
+import com.smartbox.investory.investment.projection.StatisticsRefreshService;
 import com.smartbox.investory.investment.reporting.BenchmarkMarketDataService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService;
@@ -30,6 +31,7 @@ class InvestmentMaintenanceApplicationServiceTest {
   private final PriceHistoryCoverageService coverage = mock();
   private final ApplicationTime applicationTime = mock();
   private final BenchmarkMarketDataService benchmarkMarketData = mock();
+  private final StatisticsRefreshService statisticsRefresh = mock();
   private InvestmentMaintenanceApplicationService service;
 
   @BeforeEach
@@ -43,16 +45,19 @@ class InvestmentMaintenanceApplicationServiceTest {
             currencyRates,
             coverage,
             applicationTime,
-            benchmarkMarketData);
+            benchmarkMarketData,
+            statisticsRefresh);
   }
 
   @Test
-  void refreshPricesOnlyUpdatesMarketPrices() {
+  void refreshPricesRebuildsDailyProjectionsAfterPricesBeforeReportingSuccess() {
     var result = service.refreshPrices();
 
     assertEquals("OK", result.status());
-    verify(market).fullPortfolioUpdate();
-    verify(benchmarkMarketData).refreshMonthlyCloses();
+    InOrder order = inOrder(market, benchmarkMarketData, statisticsRefresh);
+    order.verify(market).fullPortfolioUpdate();
+    order.verify(benchmarkMarketData).refreshMonthlyCloses();
+    order.verify(statisticsRefresh).refreshAll();
     verifyNoMoreInteractions(
         market,
         manualPrices,
@@ -60,7 +65,29 @@ class InvestmentMaintenanceApplicationServiceTest {
         projectionRefresh,
         currencyRates,
         coverage,
-        benchmarkMarketData);
+        benchmarkMarketData,
+        statisticsRefresh);
+  }
+
+  @Test
+  void failedDailyProjectionRebuildFailsPriceRefreshAndCanRetry() {
+    doThrow(new IllegalStateException("daily rebuild failed"))
+        .doNothing()
+        .when(statisticsRefresh)
+        .refreshAll();
+
+    assertThrows(IllegalStateException.class, () -> service.refreshPrices());
+    assertEquals("OK", service.refreshPrices().status());
+    verify(market, times(2)).fullPortfolioUpdate();
+    verify(statisticsRefresh, times(2)).refreshAll();
+  }
+
+  @Test
+  void failedPriceRefreshDoesNotRebuildDailySnapshotsFromAnIncompleteUpdate() {
+    doThrow(new IllegalStateException("price refresh failed")).when(market).fullPortfolioUpdate();
+
+    assertThrows(IllegalStateException.class, () -> service.refreshPrices());
+    verifyNoInteractions(benchmarkMarketData, statisticsRefresh);
   }
 
   @Test
