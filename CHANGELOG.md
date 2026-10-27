@@ -4,6 +4,9 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 
 ## 2026-10-27
 
+- Added a separate rental-bot reminder to review stored monthly utilities and admin fees before
+  payment, with a default schedule of the 16th at 11:00 Europe/Warsaw and an explicit missing-fee state.
+
 - Route monthly rental summaries and rental-contract alerts through a dedicated send-only Telegram
   bot. Keep portfolio notifications on the existing bot; missing rental credentials fail delivery
   without falling back to the portfolio chat.

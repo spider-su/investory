@@ -271,7 +271,7 @@ final class LongTermAssetEconomics {
         : contract.terminatedDate();
   }
 
-  private static BigDecimal monthlyAmount(BigDecimal amount, Frequency frequency) {
+  static BigDecimal monthlyAmount(BigDecimal amount, Frequency frequency) {
     return switch (frequency) {
       case MONTHLY -> amount;
       case ANNUAL -> amount.divide(MONTHS_PER_YEAR, 12, RoundingMode.HALF_UP);
