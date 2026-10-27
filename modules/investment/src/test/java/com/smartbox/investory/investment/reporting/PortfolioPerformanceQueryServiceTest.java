@@ -98,6 +98,45 @@ class PortfolioPerformanceQueryServiceTest {
   }
 
   @Test
+  void defaultDailyPortfolioDetailExcludesCashOnlyAccounts() {
+    LocalDate date = LocalDate.of(2026, 10, 19);
+    var cashOnly = account(8L);
+    cashOnly.setCashOnly(true);
+    var row = new AccountDailyEntity();
+    row.setAccountId(7L);
+    row.setEquity(bd(120));
+    row.setDailyProfitAmount(bd(10));
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(account(7L), cashOnly));
+    when(daily.findByDateAndAccountIdInOrderByAccountIdAsc(date, Set.of(7L)))
+        .thenReturn(List.of(row));
+
+    var result = service.dailyPerformanceDetail(1L, date, Set.of());
+
+    assertThat(result.dailyProfit()).isEqualTo(10);
+    assertThat(result.closingEquity()).isEqualTo(120);
+    assertThat(result.accounts()).extracting(a -> a.accountId()).containsExactly(7L);
+  }
+
+  @Test
+  void explicitlySelectedCashOnlyAccountRemainsAvailableForAccountDiagnostics() {
+    LocalDate date = LocalDate.of(2026, 10, 19);
+    var cashOnly = account(8L);
+    cashOnly.setCashOnly(true);
+    var row = new AccountDailyEntity();
+    row.setAccountId(8L);
+    row.setEquity(bd(30));
+    row.setDailyProfitAmount(bd(2));
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(account(7L), cashOnly));
+    when(daily.findByDateAndAccountIdInOrderByAccountIdAsc(date, Set.of(8L)))
+        .thenReturn(List.of(row));
+
+    var result = service.dailyPerformanceDetail(1L, date, Set.of(8L));
+
+    assertThat(result.dailyProfit()).isEqualTo(2);
+    assertThat(result.accounts()).extracting(a -> a.accountId()).containsExactly(8L);
+  }
+
+  @Test
   void monthlyPerformanceCombinesPortfolioAttributionAndVisibleAccountContribution() {
     LocalDate month = LocalDate.of(2026, 5, 1);
     ZonedDateTime updated = ZonedDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC);
