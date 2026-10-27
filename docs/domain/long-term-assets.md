@@ -93,6 +93,12 @@ landlord-paid expenses are excluded from that payment and reduce property econom
 The audit read model also exposes the overview's rental-income-only amount. The Telegram monthly
 rental review displays this rental income, not the total tenant payment.
 
+The separate payment-due fee-review reminder exposes stored `UTILITIES` and `ADMIN_FEE` terms
+for active contracts in each property's native currency, including both tenant- and landlord-paid
+fees. Annual terms are divided by 12 using the canonical monthly conversion. An absent term is
+unavailable, rather than an assumed zero. These are monthly reference amounts for manual bill
+review; they are not evidence of a bill, a payment, arrears, or a contractual due date.
+
 The checked-in bootstrap document may accept `cashFlows` only for `REAL_ESTATE` import input.
 Bootstrap rejects cash-flow rows for every other asset type and converts accepted rows into rental
 contracts before runtime use. This is import compatibility, not a second runtime model.

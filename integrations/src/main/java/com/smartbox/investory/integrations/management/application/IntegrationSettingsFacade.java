@@ -149,7 +149,8 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
             : command.timezone();
     if (!handlerRegistry.supports(command.type(), command.jobType()))
       throw new IllegalArgumentException("Job is not enabled by the current scheduler");
-    if ("audit-long-term-payments".equals(command.jobType())) validateMonthlySchedule(cron);
+    if ("audit-long-term-payments".equals(command.jobType())
+        || "review-rental-fees".equals(command.jobType())) validateMonthlySchedule(cron);
     validateSchedule(cron, timezone);
     if (command.parameters().keySet().stream().anyMatch(key -> !key.equals("portfolioId")))
       throw new IllegalArgumentException("Unsupported job parameter");
@@ -180,6 +181,11 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
     job.setCron(cron);
     job.setTimezone(timezone);
     job.setParametersJson(toJson(command.parameters()));
+    if (job.getId() == null && "review-rental-fees".equals(command.jobType())) {
+      // New monthly reminders start at their next scheduled time, not on initial enablement.
+      job.setLastCompletedAt(applicationTime.now(applicationTime.businessZone()));
+      job.setLastStatus("SKIPPED");
+    }
     return job(jobRepository.save(job));
   }
 

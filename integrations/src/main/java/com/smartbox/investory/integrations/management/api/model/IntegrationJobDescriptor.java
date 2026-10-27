@@ -16,6 +16,9 @@ public record IntegrationJobDescriptor(
       case "daily-notifications" ->
           new IntegrationJobDescriptor(
               jobType, "Daily portfolio notifications", "0 0 9 * * 1-5", "Europe/Warsaw");
+      case "review-rental-fees" ->
+          new IntegrationJobDescriptor(
+              jobType, "Review rental utilities and admin fees", "0 0 11 16 * *", "Europe/Warsaw");
       case "export-portfolio" ->
           new IntegrationJobDescriptor(
               jobType, "Export portfolio", "0 0 22 * * *", "Europe/Warsaw");
