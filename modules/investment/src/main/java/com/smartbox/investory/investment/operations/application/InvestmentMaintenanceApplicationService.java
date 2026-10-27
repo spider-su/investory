@@ -4,6 +4,7 @@ import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi
 import com.smartbox.investory.investment.api.operations.ManualAssetPriceView;
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
+import com.smartbox.investory.investment.projection.StatisticsRefreshService;
 import com.smartbox.investory.investment.reporting.BenchmarkMarketDataService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService;
@@ -28,6 +29,7 @@ public class InvestmentMaintenanceApplicationService implements InvestmentMainte
   private final PriceHistoryCoverageService coverage;
   private final ApplicationTime applicationTime;
   private final BenchmarkMarketDataService benchmarkMarketData;
+  private final StatisticsRefreshService statisticsRefresh;
 
   @Override
   public MaintenanceResult refreshPrices() {
@@ -36,7 +38,8 @@ public class InvestmentMaintenanceApplicationService implements InvestmentMainte
         () -> {
           market.fullPortfolioUpdate();
           benchmarkMarketData.refreshMonthlyCloses();
-          return result("Open position prices refreshed");
+          statisticsRefresh.refreshAll();
+          return result("Open position prices and daily portfolio projections refreshed");
         });
   }
 
