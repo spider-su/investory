@@ -1,70 +1,125 @@
 package com.smartbox.investory.integrations.telegram;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.application.IntegrationConfigurationService;
 import com.smartbox.investory.integrations.management.model.PluginConfig;
+import com.smartbox.investory.integrations.notifications.persistence.NotificationEventEntity;
+import com.smartbox.investory.shared.notifications.NotificationEventType;
 import java.util.Map;
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
-@DisplayName("Telegram Notification Delivery Channel")
 class TelegramNotificationDeliveryChannelTest {
-  @DisplayName("successful Telegram Adapter Waits For Confirmed Send")
-  @Test
-  void successfulTelegramAdapterWaitsForConfirmedSend() {
-    IntegrationConfigurationService configuration =
-        Mockito.mock(IntegrationConfigurationService.class);
-    TelegramApiClient telegram = Mockito.mock(TelegramApiClient.class);
-    when(configuration.resolveForRuntime(
-            IntegrationType.NOTIFICATION, TelegramIntegrationPlugin.ID, PluginConfig.empty()))
-        .thenReturn(new PluginConfig(Map.of("botToken", "token", "chatId", "chat")));
+  private final IntegrationConfigurationService configuration = mock();
+  private final TelegramApiClient telegram = mock();
+  private final TelegramNotificationDeliveryChannel channel =
+      new TelegramNotificationDeliveryChannel(configuration, telegram);
 
-    new TelegramNotificationDeliveryChannel(configuration, telegram).send("message");
-
-    verify(telegram).send("token", "chat", "message");
-  }
-
-  @Test
-  void rentalAuditFallsBackToRuntimeChatAndOverrideDoesNotAffectOtherMessages() {
-    IntegrationConfigurationService configuration =
-        Mockito.mock(IntegrationConfigurationService.class);
-    TelegramApiClient telegram = Mockito.mock(TelegramApiClient.class);
+  @BeforeEach
+  void configureInvestory() {
     when(configuration.resolveForRuntime(
             IntegrationType.NOTIFICATION, TelegramIntegrationPlugin.ID, PluginConfig.empty()))
         .thenReturn(
-            new PluginConfig(Map.of("botToken", "runtime-token", "chatId", "runtime-chat")));
-    TelegramNotificationDeliveryChannel channel =
-        new TelegramNotificationDeliveryChannel(configuration, telegram);
-
-    channel.sendRentalPaymentAudit("audit");
-    channel.send("ordinary");
-
-    verify(telegram).send("runtime-token", "runtime-chat", "audit");
-    verify(telegram).send("runtime-token", "runtime-chat", "ordinary");
-    Mockito.verifyNoMoreInteractions(telegram);
+            new PluginConfig(Map.of("botToken", "investory-token", "chatId", "investory-chat")));
   }
 
   @Test
-  void rentalAuditOverrideSendsOnlyToDedicatedChat() {
-    IntegrationConfigurationService configuration =
-        Mockito.mock(IntegrationConfigurationService.class);
-    TelegramApiClient telegram = Mockito.mock(TelegramApiClient.class);
+  void portfolioMessagesKeepInvestoryCredentials() {
+    configureRental();
+    var event = event(NotificationEventType.DAILY_DIGEST, "");
+    channel.send(event, "portfolio");
+    verify(telegram).send("investory-token", "investory-chat", "portfolio");
+    verifyNoMoreInteractions(telegram);
+  }
+
+  @Test
+  void monthlyRentalAuditUsesOnlyRentalBotAndChat() {
+    configureRental();
+    channel.sendRentalPaymentAudit("audit");
+    verify(telegram).send("rental-token", "rental-chat", "audit");
+    verifyNoMoreInteractions(telegram);
+  }
+
+  @Test
+  void rentalContractAlertUsesOnlyRentalBotAndChat() {
+    configureRental();
+    channel.send(
+        event(NotificationEventType.THRESHOLD_ALERT, "RENTAL_CONTRACT_EXPIRING"), "rental alert");
+    verify(telegram).send("rental-token", "rental-chat", "rental alert");
+    verifyNoMoreInteractions(telegram);
+  }
+
+  @Test
+  void legacyRentalAlertSourceAlsoRoutesToRentalBot() {
+    configureRental();
+    var event = event(NotificationEventType.THRESHOLD_ALERT, "");
+    event.setSourceEntityId("RENTAL_CONTRACT_EXPIRING:42");
+    channel.send(event, "legacy rental");
+    verify(telegram).send("rental-token", "rental-chat", "legacy rental");
+  }
+
+  @Test
+  void investmentAlertKeepsInvestoryBot() {
+    configureRental();
+    channel.send(event(NotificationEventType.THRESHOLD_ALERT, "DRAWDOWN"), "drawdown");
+    verify(telegram).send("investory-token", "investory-chat", "drawdown");
+    verifyNoMoreInteractions(telegram);
+  }
+
+  @Test
+  void missingRentalTokenFailsWithoutSendingToInvestory() {
+    ReflectionTestUtils.setField(channel, "rentalPaymentAuditChatId", "rental-chat");
+    assertThatThrownBy(() -> channel.sendRentalPaymentAudit("audit"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Rental Telegram");
+    verifyNoInteractions(telegram);
+  }
+
+  @Test
+  void missingRentalChatFailsWithoutUsingInvestoryChat() {
+    ReflectionTestUtils.setField(channel, "rentalBotToken", "rental-token");
+    assertThatThrownBy(() -> channel.sendRentalPaymentAudit("audit"))
+        .isInstanceOf(IllegalStateException.class);
+    verifyNoInteractions(telegram);
+  }
+
+  @Test
+  void rentalFailurePropagatesWithoutFallback() {
+    configureRental();
+    doThrow(new IllegalStateException("rejected"))
+        .when(telegram)
+        .send("rental-token", "rental-chat", "audit");
+    assertThatThrownBy(() -> channel.sendRentalPaymentAudit("audit"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("rejected");
+    verify(telegram).send("rental-token", "rental-chat", "audit");
+    verifyNoMoreInteractions(telegram);
+  }
+
+  @Test
+  void disabledIntegrationDoesNotSendThroughEitherBot() {
+    configureRental();
     when(configuration.resolveForRuntime(
             IntegrationType.NOTIFICATION, TelegramIntegrationPlugin.ID, PluginConfig.empty()))
-        .thenReturn(
-            new PluginConfig(Map.of("botToken", "runtime-token", "chatId", "runtime-chat")));
-    TelegramNotificationDeliveryChannel channel =
-        new TelegramNotificationDeliveryChannel(configuration, telegram);
-    ReflectionTestUtils.setField(channel, "rentalPaymentAuditChatId", "dedicated-chat");
-
+        .thenReturn(PluginConfig.empty());
+    channel.send("portfolio");
     channel.sendRentalPaymentAudit("audit");
+    verifyNoInteractions(telegram);
+  }
 
-    verify(telegram).send("runtime-token", "dedicated-chat", "audit");
-    Mockito.verifyNoMoreInteractions(telegram);
+  private void configureRental() {
+    ReflectionTestUtils.setField(channel, "rentalBotToken", "rental-token");
+    ReflectionTestUtils.setField(channel, "rentalPaymentAuditChatId", "rental-chat");
+  }
+
+  private NotificationEventEntity event(NotificationEventType type, String rule) {
+    var event = new NotificationEventEntity();
+    event.setEventType(type);
+    event.setPayload(Map.of("rule", rule));
+    return event;
   }
 }

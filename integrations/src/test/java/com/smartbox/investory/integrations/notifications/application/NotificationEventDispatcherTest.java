@@ -33,7 +33,7 @@ class NotificationEventDispatcherTest {
     when(formatters.format(event)).thenReturn("message");
     assertThat(dispatcher(channel).dispatchPending()).isEqualTo(1);
     assertThat(dispatcher(channel).dispatchPending()).isZero();
-    verify(channel, times(1)).send("message");
+    verify(channel, times(1)).send(event, "message");
   }
 
   @Test
@@ -45,7 +45,7 @@ class NotificationEventDispatcherTest {
     when(events.claim(eq(1L), anyString(), eq(NOW), any(), eq(3))).thenReturn(1);
     when(events.findById(1L)).thenReturn(java.util.Optional.of(event));
     when(formatters.format(event)).thenReturn("message");
-    doThrow(new IllegalStateException("temporary")).when(channel).send("message");
+    doThrow(new IllegalStateException("temporary")).when(channel).send(event, "message");
 
     assertThat(dispatcher(channel).dispatchPending()).isZero();
     verify(events)
@@ -62,7 +62,7 @@ class NotificationEventDispatcherTest {
     when(events.claim(eq(1L), anyString(), eq(NOW), any(), eq(2))).thenReturn(1);
     when(events.findById(1L)).thenReturn(java.util.Optional.of(event));
     when(formatters.format(event)).thenReturn("message");
-    doThrow(new IllegalStateException("down")).when(channel).send("message");
+    doThrow(new IllegalStateException("down")).when(channel).send(event, "message");
     assertThat(dispatcher(channel, 2).dispatchPending()).isZero();
     verify(events)
         .markFailed(eq(1L), anyString(), eq("EXHAUSTED"), eq(NOW.plusSeconds(600)), eq("down"));

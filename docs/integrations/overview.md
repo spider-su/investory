@@ -22,7 +22,16 @@ Telegram is an optional notification/command transport. When disabled or unavail
 
 Telegram delivery failure is an adapter failure, not a financial-state failure. Notification persistence/deduplication semantics must remain separate from accounting facts.
 
-The scheduled rental payment audit uses the same Telegram bot credentials as other notifications. Its destination can be overridden with `app.telegram.rental-payment-audit-chat-id` (`TELEGRAM_RENTAL_PAYMENT_AUDIT_CHAT_ID`); when unset, it falls back to the effective runtime Telegram integration `chatId`. This makes the shipped default resolve to the same destination as common notifications, including when that destination is managed through integration settings.
+Monthly rental payment audits and `RENTAL_CONTRACT_EXPIRING` alerts use a dedicated send-only
+Telegram bot. Configure its token with `app.telegram.rental-bot-token`
+(`TELEGRAM_RENTAL_BOT_TOKEN`) and its destination with
+`app.telegram.rental-payment-audit-chat-id` (`TELEGRAM_RENTAL_PAYMENT_AUDIT_CHAT_ID`).
+Both are required for rental delivery; missing configuration fails delivery instead of falling
+back to the Investory bot. Portfolio digests, investment alerts, and commands keep the existing
+Telegram integration credentials. The persisted Telegram integration enablement controls both
+senders. Rental contract alerts retain the existing durable outbox/retry path; monthly audits
+retain their integration job execution/retry semantics. Store bot tokens only as encrypted
+integration secrets or deployment secrets, never in Git plaintext.
 
 The rental review follows the [Long-Term rental-income contract](../domain/long-term-assets.md). Messages use property/amount and tenant blocks without a currency suffix.
 

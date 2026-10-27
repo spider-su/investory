@@ -2,6 +2,12 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-10-27
+
+- Route monthly rental summaries and rental-contract alerts through a dedicated send-only Telegram
+  bot. Keep portfolio notifications on the existing bot; missing rental credentials fail delivery
+  without falling back to the portfolio chat.
+
 ## 2026-10-13
 
 - Folded 01.010–01.014 final definitions into the core schema, FX functions and portfolio
