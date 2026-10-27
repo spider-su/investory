@@ -59,7 +59,7 @@ public class NotificationEventDispatcher {
           if (!channel.supports(event)) continue;
           if (channel.bestEffort()) {
             try {
-              channel.send(message);
+              channel.send(event, message);
             } catch (Exception channelFailure) {
               log.warn(
                   "Best-effort notification channel failed eventId={} channel={}: {}",
@@ -68,7 +68,7 @@ public class NotificationEventDispatcher {
                   safeError(channelFailure));
             }
           } else {
-            channel.send(message);
+            channel.send(event, message);
           }
         }
         if (events.markDelivered(id, token, now) == 1) delivered++;

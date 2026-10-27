@@ -57,12 +57,14 @@ class NotificationDeliveryHappyInvestorIT extends FastDatabaseTest {
     assertThat(event.getDeliveredAt()).isNotNull();
     verify(delivery)
         .send(
-            "<b>🚨 Happy Investor import failed</b>\n\n"
-                + "<b>Import:</b> 7001 · IBKR · FAILED\n"
-                + "<b>Source:</b> canonical HappyInvestor\n"
-                + "<b>Rows total/imported/skipped/errors:</b> 21/20/0/1\n"
-                + "<b>Cause:</b> canonical provider failure\n\n"
-                + "<a href=\"http://localhost:8080/dashboard/reconciliation\">Open reconciliation</a>");
+            any(NotificationEventEntity.class),
+            org.mockito.ArgumentMatchers.eq(
+                "<b>🚨 Happy Investor import failed</b>\n\n"
+                    + "<b>Import:</b> 7001 · IBKR · FAILED\n"
+                    + "<b>Source:</b> canonical HappyInvestor\n"
+                    + "<b>Rows total/imported/skipped/errors:</b> 21/20/0/1\n"
+                    + "<b>Cause:</b> canonical provider failure\n\n"
+                    + "<a href=\"http://localhost:8080/dashboard/reconciliation\">Open reconciliation</a>"));
 
     assertThat(dispatcher.dispatchPending()).isZero();
   }
@@ -70,7 +72,9 @@ class NotificationDeliveryHappyInvestorIT extends FastDatabaseTest {
   @Test
   void failedDeliveryIsRetryableAndDoesNotClaimSuccess() {
     eventId = saveEvent();
-    doThrow(new IllegalStateException("delivery unavailable")).when(delivery).send(anyString());
+    doThrow(new IllegalStateException("delivery unavailable"))
+        .when(delivery)
+        .send(any(NotificationEventEntity.class), anyString());
 
     assertThat(dispatcher.dispatchPending()).isZero();
     var event = events.findById(eventId).orElseThrow();
