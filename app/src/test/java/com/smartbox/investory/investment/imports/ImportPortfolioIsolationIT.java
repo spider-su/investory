@@ -26,11 +26,18 @@ class ImportPortfolioIsolationIT extends FastDatabaseTest {
 
   @Autowired private InvestmentImportApi investmentImport;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private ImportRefreshService refreshJobs;
 
   @AfterEach
   void cleanIsolationPortfolio() {
     jdbc.execute("SET session_replication_role = replica");
     try {
+      jdbc.update(
+          "DELETE FROM investory.notification_event WHERE event_type='IMPORT_REFRESH_FINISHED' AND source_entity_id IN (SELECT id::text FROM investory.import_history WHERE file_name=?)",
+          FILE_NAME);
+      jdbc.update(
+          "DELETE FROM investory.import_refresh_job WHERE batch_id IN (SELECT id FROM investory.import_history WHERE file_name=?)",
+          FILE_NAME);
       jdbc.update("DELETE FROM investory.positions WHERE account_id = ?", SECOND_ACCOUNT_ID);
       jdbc.update("DELETE FROM investory.cash_operations WHERE account_id = ?", SECOND_ACCOUNT_ID);
       jdbc.update(
@@ -98,12 +105,17 @@ class ImportPortfolioIsolationIT extends FastDatabaseTest {
   }
 
   private InvestmentImportApi.ImportResult importFile(long portfolioId, String sourceRef) {
-    return investmentImport.importAuto(
-        portfolioId,
-        FILE_NAME,
-        depositStatement().getBytes(StandardCharsets.UTF_8),
-        ImportSource.MANUAL,
-        sourceRef);
+    var result =
+        investmentImport.importAuto(
+            portfolioId,
+            FILE_NAME,
+            depositStatement().getBytes(StandardCharsets.UTF_8),
+            ImportSource.MANUAL,
+            sourceRef);
+    assertThat(refreshJobs.status(portfolioId, result.batchId()).status()).isEqualTo("PENDING");
+    refreshJobs.processNext();
+    assertThat(refreshJobs.status(portfolioId, result.batchId()).status()).isEqualTo("COMPLETED");
+    return result;
   }
 
   private void createSecondPortfolioAndAccount() {

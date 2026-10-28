@@ -22,6 +22,10 @@ public class AsyncConfig {
 
   /** Manual import jobs progress even when automatic integration scheduling is disabled. */
   @Bean
+  @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+      name = "app.import.refresh-worker-enabled",
+      havingValue = "true",
+      matchIfMissing = true)
   org.springframework.beans.factory.InitializingBean importRefreshPolling(
       @org.springframework.beans.factory.annotation.Qualifier("importRefreshScheduler")
           org.springframework.scheduling.TaskScheduler scheduler,
