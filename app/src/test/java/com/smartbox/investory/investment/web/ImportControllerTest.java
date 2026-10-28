@@ -37,7 +37,6 @@ import org.springframework.test.web.servlet.MockMvc;
 class ImportControllerTest {
 
   @Autowired private MockMvc mockMvc;
-  @MockitoBean private com.smartbox.investory.investment.imports.ImportRefreshService refreshJobs;
   @MockitoBean private InvestmentImportApi importApi;
   @MockitoBean private com.smartbox.investory.config.AuthorizationService authorizationService;
 
@@ -50,13 +49,13 @@ class ImportControllerTest {
   @WithMockUser(roles = "PROFILE_OWNER")
   void refreshStatusUsesPortfolioAndBatchScope() throws Exception {
     when(authorizationService.canRead(eq(1L), any())).thenReturn(true);
-    when(refreshJobs.status(1L, 42L))
-        .thenReturn(java.util.Map.of("batch_id", 42L, "status", "RUNNING"));
+    when(importApi.refreshStatus(1L, 42L))
+        .thenReturn(new InvestmentImportApi.RefreshStatus(42L, "RUNNING", null, null));
     mockMvc
         .perform(get("/api/v1/portfolios/1/investment/imports/42/refresh"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("RUNNING"));
-    verify(refreshJobs).status(1L, 42L);
+    verify(importApi).refreshStatus(1L, 42L);
   }
 
   @Test
@@ -66,7 +65,7 @@ class ImportControllerTest {
     mockMvc
         .perform(get("/api/v1/portfolios/2/investment/imports/42/refresh"))
         .andExpect(status().isForbidden());
-    org.mockito.Mockito.verifyNoInteractions(refreshJobs);
+    org.mockito.Mockito.verifyNoInteractions(importApi);
   }
 
   @DisplayName("import By Broker uploads File And Returns Response")

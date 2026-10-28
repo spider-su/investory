@@ -69,9 +69,9 @@ class ImportRefreshJobIT {
   void enqueueIsIdempotentAndSuccessIsDurable() {
     jobs.enqueue(portfolioId, batchId, Set.of());
     jobs.enqueue(portfolioId, batchId, Set.of());
-    assertEquals("PENDING", jobs.status(portfolioId, batchId).get("status"));
+    assertEquals("PENDING", jobs.status(portfolioId, batchId).status());
     jobs.processNext();
-    assertEquals("COMPLETED", jobs.status(portfolioId, batchId).get("status"));
+    assertEquals("COMPLETED", jobs.status(portfolioId, batchId).status());
     assertEquals(
         1,
         jdbc.queryForObject(
@@ -89,7 +89,7 @@ class ImportRefreshJobIT {
         .when(runner)
         .refreshImportedBatch(any(), any());
     jobs.processNext();
-    assertEquals("FAILED", jobs.status(portfolioId, batchId).get("status"));
+    assertEquals("FAILED", jobs.status(portfolioId, batchId).status());
     assertEquals(
         "COMPLETED",
         jdbc.queryForObject(
@@ -108,7 +108,7 @@ class ImportRefreshJobIT {
     jdbc.update(
         "UPDATE investory.import_refresh_job SET status='RUNNING' WHERE batch_id=?", batchId);
     jobs.processNext();
-    assertEquals("COMPLETED", jobs.status(portfolioId, batchId).get("status"));
+    assertEquals("COMPLETED", jobs.status(portfolioId, batchId).status());
   }
 
   @Test
@@ -147,7 +147,7 @@ class ImportRefreshJobIT {
         "UPDATE investory.import_refresh_job SET affected_account_ids='[9223372036854775807]'::jsonb WHERE batch_id=?",
         batchId);
     jobs.processNext();
-    assertEquals("FAILED", jobs.status(portfolioId, batchId).get("status"));
+    assertEquals("FAILED", jobs.status(portfolioId, batchId).status());
     verifyNoInteractions(runner);
   }
 
@@ -159,7 +159,7 @@ class ImportRefreshJobIT {
       st.execute("SELECT pg_advisory_lock(728410613)");
       try {
         jobs.processNext();
-        assertEquals("PENDING", jobs.status(portfolioId, batchId).get("status"));
+        assertEquals("PENDING", jobs.status(portfolioId, batchId).status());
         verifyNoInteractions(runner);
       } finally {
         st.execute("SELECT pg_advisory_unlock(728410613)");
@@ -182,8 +182,8 @@ class ImportRefreshJobIT {
             new DataSourceTransactionManager(source),
             time);
     broken.processNext();
-    assertEquals("RUNNING", jobs.status(portfolioId, batchId).get("status"));
+    assertEquals("RUNNING", jobs.status(portfolioId, batchId).status());
     jobs.processNext();
-    assertEquals("COMPLETED", jobs.status(portfolioId, batchId).get("status"));
+    assertEquals("COMPLETED", jobs.status(portfolioId, batchId).status());
   }
 }

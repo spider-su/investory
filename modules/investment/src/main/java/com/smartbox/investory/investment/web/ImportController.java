@@ -23,12 +23,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class ImportController {
 
   private final InvestmentImportApi importApi;
-  private final com.smartbox.investory.investment.imports.ImportRefreshService refreshJobs;
 
   @org.springframework.web.bind.annotation.GetMapping("/{batchId}/refresh")
-  public java.util.Map<String, Object> refreshStatus(
+  public InvestmentImportApi.RefreshStatus refreshStatus(
       @PathVariable @Positive Long portfolioId, @PathVariable @Positive Long batchId) {
-    return refreshJobs.status(portfolioId, batchId);
+    return importApi.refreshStatus(portfolioId, batchId);
   }
 
   @PostMapping

@@ -23,6 +23,11 @@ public class InvestmentImportApplicationService implements InvestmentImportApi {
   private final com.smartbox.investory.investment.imports.ImportRefreshService refreshJobs;
 
   @Override
+  public RefreshStatus refreshStatus(Long portfolioId, Long batchId) {
+    return refreshJobs.status(portfolioId, batchId);
+  }
+
+  @Override
   public ImportResult importAuto(
       Long portfolioId, String fileName, byte[] content, ImportSource source, String sourceRef) {
     return importAuto(portfolioId, fileName, content, source, sourceRef, false);

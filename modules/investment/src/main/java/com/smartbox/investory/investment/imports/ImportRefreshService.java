@@ -62,10 +62,21 @@ public class ImportRefreshService {
     return scope;
   }
 
-  public Map<String, Object> status(Long portfolioId, Long batchId) {
+  public com.smartbox.investory.investment.api.importing.InvestmentImportApi.RefreshStatus status(
+      Long portfolioId, Long batchId) {
     var rows =
-        jdbc.queryForList(
+        jdbc.query(
             "SELECT batch_id,status,started_at,finished_at FROM investory.import_refresh_job WHERE batch_id=? AND portfolio_id=?",
+            (rs, row) -> {
+              var started = rs.getTimestamp("started_at");
+              var finished = rs.getTimestamp("finished_at");
+              return new com.smartbox.investory.investment.api.importing.InvestmentImportApi
+                  .RefreshStatus(
+                  rs.getLong("batch_id"),
+                  rs.getString("status"),
+                  started == null ? null : started.toInstant(),
+                  finished == null ? null : finished.toInstant());
+            },
             batchId,
             portfolioId);
     if (rows.isEmpty())
