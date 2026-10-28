@@ -1,6 +1,22 @@
 # Changelog
 
+## 2026-10-28
+
+- Investment statement imports return after ledger persistence and queue a durable background
+  projection refresh. Dashboard shows refresh progress separately; completion/failure creates
+  a portfolio-scoped Telegram outbox notification. Interrupted jobs recover after pod restart.
+
+
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
+
+## 2026-10-27
+
+- Added a separate rental-bot reminder to review stored monthly utilities and admin fees before
+  payment, with a default schedule of the 16th at 11:00 Europe/Warsaw and an explicit missing-fee state.
+
+- Route monthly rental summaries and rental-contract alerts through a dedicated send-only Telegram
+  bot. Keep portfolio notifications on the existing bot; missing rental credentials fail delivery
+  without falling back to the portfolio chat.
 
 ## 2026-10-13
 

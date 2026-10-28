@@ -158,7 +158,10 @@ class HappyInvestorReadOnlyUiIT extends FastDatabaseTest {
                     "AAPL.US",
                     FinancialPresentation.compactMoney(HappyInvestorDashboardFacts.APPLE_VALUE),
                     "Top 5",
-                    "100.0%",
+                    String.format(
+                        java.util.Locale.ROOT,
+                        "%.1f%%",
+                        HappyInvestorDashboardFacts.TOP_FIVE_PORTFOLIO_SHARE_PERCENT),
                     "Equity",
                     "USD",
                     "PLN");

@@ -101,7 +101,7 @@ class HappyInvestorFactsTest {
         .isEqualByComparingTo(
             HappyInvestorBrokerFacts.OPEN_POSITIONS_VALUE.add(
                 HappyInvestorBrokerFacts.BROKERAGE_CASH))
-        .isEqualByComparingTo("174831.6796640");
+        .isEqualByComparingTo("183285.0796640");
     assertThat(HappyInvestorBrokerFacts.OPEN_POSITIONS_UNREALIZED)
         .isEqualByComparingTo("14036.479664");
     assertThat(HappyInvestorBrokerFacts.AAPL_VALUE).isEqualByComparingTo("134551.634160");
@@ -127,9 +127,13 @@ class HappyInvestorFactsTest {
                 .filter(operation -> operation.getType() == CashOperationType.WITHDRAWAL)
                 .count())
         .isEqualTo(6);
-    assertThat(HappyInvestorDashboardFacts.DEPOSITS).isEqualByComparingTo("451127.98693680");
-    assertThat(HappyInvestorDashboardFacts.WITHDRAWALS).isEqualByComparingTo("412597.53729850");
-    assertThat(HappyInvestorDashboardFacts.NET_DEPOSITS).isEqualByComparingTo("38530.44963830");
+    assertThat(HappyInvestorBrokerFacts.EXTERNAL_CASH_TOTALS.depositsPln())
+        .isEqualByComparingTo("451127.98693680");
+    assertThat(HappyInvestorBrokerFacts.EXTERNAL_CASH_TOTALS.withdrawalsPln())
+        .isEqualByComparingTo("412597.53729850");
+    assertThat(HappyInvestorDashboardFacts.DEPOSITS).isEqualByComparingTo("416765.60000000");
+    assertThat(HappyInvestorDashboardFacts.WITHDRAWALS).isEqualByComparingTo("404144.13550010");
+    assertThat(HappyInvestorDashboardFacts.NET_DEPOSITS).isEqualByComparingTo("12621.46449990");
     assertThat(
             HappyInvestorDashboardFacts.DEPOSITS.subtract(HappyInvestorDashboardFacts.WITHDRAWALS))
         .isEqualByComparingTo(HappyInvestorDashboardFacts.NET_DEPOSITS);

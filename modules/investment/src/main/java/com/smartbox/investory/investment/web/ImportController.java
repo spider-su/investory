@@ -24,6 +24,12 @@ public class ImportController {
 
   private final InvestmentImportApi importApi;
 
+  @org.springframework.web.bind.annotation.GetMapping("/{batchId}/refresh")
+  public InvestmentImportApi.RefreshStatus refreshStatus(
+      @PathVariable @Positive Long portfolioId, @PathVariable @Positive Long batchId) {
+    return importApi.refreshStatus(portfolioId, batchId);
+  }
+
   @PostMapping
   public InvestmentImportApi.ImportResult importAuto(
       @PathVariable @Positive Long portfolioId,

@@ -15,5 +15,9 @@ public interface NotificationDeliveryChannel {
     return false;
   }
 
+  default void send(NotificationEventEntity event, String message) {
+    send(message);
+  }
+
   void send(String message);
 }

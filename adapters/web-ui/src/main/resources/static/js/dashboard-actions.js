@@ -1,3 +1,22 @@
+export async function waitForImportRefresh(urls, options = {}) {
+    const fetchStatus = options.fetchStatus || (url => fetch(url, { credentials: 'same-origin' }));
+    const wait = options.wait || (() => new Promise(resolve => window.setTimeout(resolve, 5000)));
+    const now = options.now || Date.now;
+    const deadline = now() + (options.timeoutMs ?? 30 * 60 * 1000);
+    const pending = new Set(urls);
+    while (pending.size && now() < deadline) {
+        await wait();
+        for (const url of pending) {
+            const response = await fetchStatus(url);
+            if (!response.ok) throw new Error('Import saved; refresh status unavailable. Check import history or Telegram.');
+            const job = await response.json();
+            if (job.status === 'FAILED') throw new Error('Import saved, but background refresh failed. Check Telegram and import history.');
+            if (job.status === 'COMPLETED') pending.delete(url);
+        }
+    }
+    if (pending.size) throw new Error('Import saved; refresh is still running. Telegram will report the result.');
+}
+
 export function initDashboardActions() {
 /* Dashboard companion script. Only progressive-enhancement code that does not need Thymeleaf
    inlining belongs here (chart blocks stay in dashboard.html so they can read `${stats}`). */
@@ -42,8 +61,9 @@ if (fileInput) {
             fileNameBadge.innerText = "Uploading " + files.length + " file" + (files.length === 1 ? '' : 's') + "…";
             fileNameBadge.style.display = 'inline-block';
 
-            // Import files in order. Defer the expensive derived-data rebuild until the last file.
+            // Each committed import queues a durable background refresh.
             let data;
+            const refreshJobs = [];
             Promise.resolve().then(async function () {
                 for (let index = 0; index < files.length; index++) {
                     const file = files[index];
@@ -51,11 +71,12 @@ if (fileInput) {
                     const formData = new FormData(uploadForm);
                     formData.set('file', file);
                     const url = new URL(uploadForm.action, window.location.origin);
-                    url.searchParams.set('deferRefresh', String(index < files.length - 1));
+                    url.searchParams.set('deferRefresh', 'false');
                     const response = await fetch(url.toString(), { method: 'POST', body: formData });
                     const body = await response.json().catch(function () { return {}; });
                     if (!response.ok) throw new Error(body.message || ('HTTP ' + response.status));
                     data = body;
+                    refreshJobs.push(url.pathname + '/' + body.batchId + '/refresh');
                 }
                 return data;
             }).then(data => {
@@ -81,7 +102,7 @@ if (fileInput) {
                         statusBadge.className = "iv-badge iv-badge--neg";
                     }
                     if (modalTitle) {
-                        modalTitle.innerText = rowsSkipped === 0 ? 'Import complete' : 'Import completed with issues';
+                        modalTitle.innerText = rowsSkipped === 0 ? 'Import saved; refreshing portfolio…' : 'Import saved with issues; refreshing portfolio…';
                     }
                     if (reconciliationLink) {
                         reconciliationLink.style.display = rowsSkipped === 0 ? 'none' : 'inline-flex';
@@ -89,6 +110,20 @@ if (fileInput) {
 
                     // Reveal Modal overlay
                     setModalState(document.getElementById('status-modal'), true);
+                    statusBadge.innerText = 'REFRESH QUEUED';
+                    statusBadge.className = 'iv-badge iv-badge--warn';
+                    waitForImportRefresh(refreshJobs).then(() => {
+                        statusBadge.innerText = 'REFRESH COMPLETE';
+                        statusBadge.className = rowsSkipped === 0 ? 'iv-badge iv-badge--pos' : 'iv-badge iv-badge--warn';
+                        if (modalTitle) modalTitle.innerText = rowsSkipped === 0 ? 'Import and refresh complete' : 'Import completed with issues; refresh complete';
+                        document.getElementById('modal-message').innerText = data.message + ' Portfolio refresh completed.';
+
+                    }).catch(error => {
+                        statusBadge.innerText = 'REFRESH NEEDS ATTENTION';
+                        statusBadge.className = 'iv-badge iv-badge--warn';
+                        if (modalTitle) modalTitle.innerText = 'Import saved';
+                        document.getElementById('modal-message').innerText = error.message;
+                    });
                 })
                 .catch(error => {
                     console.error('Error:', error);

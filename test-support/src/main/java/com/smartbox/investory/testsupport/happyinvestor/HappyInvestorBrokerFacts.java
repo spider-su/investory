@@ -56,12 +56,12 @@ public final class HappyInvestorBrokerFacts {
       OPEN_POSITIONS.stream().map(Position::unrealizedPln).reduce(BigDecimal.ZERO, BigDecimal::add);
 
   /**
-   * Portfolio-level brokerage cash after the explicit boundary withdrawals. Internal FX-transfer
-   * legs are netted and do not change portfolio wealth.
+   * Included-account brokerage cash after the boundary withdrawals. The excluded cash-only EUR
+   * account holds -2,000 EUR at the fixture's 4.2267 PLN rate; remove that balance from the
+   * all-account -16.24 PLN cash checkpoint, consistently with V01.012.
    */
-  // Canonical brokerage cash boundary from the persisted ledger. Keep this separate from the
-  // position total.
-  public static final BigDecimal BROKERAGE_CASH = new BigDecimal("-16.24");
+  public static final BigDecimal BROKERAGE_CASH =
+      new BigDecimal("-16.24").subtract(new BigDecimal("-2000").multiply(new BigDecimal("4.2267")));
 
   /** External flow totals derived from the canonical HappyInvestor scenario ledger. */
   public record ExternalCashTotals(BigDecimal depositsPln, BigDecimal withdrawalsPln) {
