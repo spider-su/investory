@@ -12,7 +12,7 @@ public final class HappyInvestorRetirementFacts {
   public static final int LAST_PROJECTED_AGE = 85;
 
   // Independent calculations from persisted plan and source-domain boundary facts.
-  public static final BigDecimal BRIDGE_CASH_END = new BigDecimal("25000");
+  public static final BigDecimal BRIDGE_CASH_END = HappyInvestorProfileFacts.RETIREMENT_RESERVE;
 
   /** Current bond principal 10,000 after the plan's full 3.5% current-year return. */
   public static final BigDecimal BRIDGE_BONDS_END = new BigDecimal("10350");
@@ -36,7 +36,7 @@ public final class HappyInvestorRetirementFacts {
           .add(FIRST_PROJECTED_EQUITY_RETURN)
           .add(HappyInvestorPlanFacts.ANNUAL_PRE_RETIREMENT_CONTRIBUTION);
   public static final BigDecimal FIRST_PROJECTED_END_NET_WORTH =
-      new BigDecimal("1425645.419855828854");
+      new BigDecimal("1425645.419855828854").add(HappyInvestorProfileFacts.BROKERAGE_CASH);
   public static final BigDecimal RETIREMENT_BOUNDARY_CORE_EXPENSES =
       HappyInvestorPlanFacts.ANNUAL_LIVING_EXPENSES
           .add(HappyInvestorPlanFacts.ANNUAL_DISCRETIONARY_EXPENSES)
@@ -46,7 +46,8 @@ public final class HappyInvestorRetirementFacts {
                   .add(HappyInvestorPlanFacts.SPENDING_GROWTH_SPREAD));
 
   /** Full-horizon result with the Investment API opening base and planned bond/equity returns. */
-  public static final BigDecimal FINAL_END_NET_WORTH = new BigDecimal("12108731.77");
+  public static final BigDecimal FINAL_END_NET_WORTH =
+      new BigDecimal("12108731.77").add(HappyInvestorProfileFacts.BROKERAGE_CASH);
 
   public static final int RETIREMENT_BOUNDARY_YEAR = 2044;
   public static final int PENSION_BOUNDARY_YEAR = 2051;

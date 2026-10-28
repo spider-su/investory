@@ -15,10 +15,12 @@ public final class HappyInvestorProfileFacts {
   public static final BigDecimal LONG_TERM_ASSET_VALUE = HappyInvestorLongTermFacts.LONG_TERM_TOTAL;
   public static final BigDecimal TOTAL_NET_WORTH =
       MARKET_PORTFOLIO_VALUE.add(LONG_TERM_ASSET_VALUE);
-  public static final BigDecimal RETIREMENT_RESERVE = new BigDecimal("25000");
+  public static final BigDecimal MANUAL_RETIREMENT_RESERVE = new BigDecimal("25000");
+  public static final BigDecimal RETIREMENT_RESERVE = MANUAL_RETIREMENT_RESERVE.add(BROKERAGE_CASH);
 
   /** Only cash available at the valuation boundary is liquid; the 10K treasury matures later. */
-  public static final BigDecimal LIQUID_ASSETS = MARKET_PORTFOLIO_VALUE.add(RETIREMENT_RESERVE);
+  public static final BigDecimal LIQUID_ASSETS =
+      MARKET_PORTFOLIO_VALUE.add(MANUAL_RETIREMENT_RESERVE);
 
   public static final BigDecimal ILLIQUID_ASSETS = new BigDecimal("945000");
 
