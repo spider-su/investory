@@ -32,11 +32,11 @@ public final class HappyInvestorDashboardFacts {
   public static final String REPORTING_CURRENCY = HappyInvestorTestData.REPORTING_CURRENCY.name();
   public static final BigDecimal BALANCE = HappyInvestorBrokerFacts.MARKET_PORTFOLIO_VALUE;
   public static final BigDecimal NET_DEPOSITS =
-      HappyInvestorBrokerFacts.EXTERNAL_CASH_TOTALS.netDepositsPln();
+      HappyInvestorBrokerFacts.INCLUDED_ACCOUNT_CASH_TOTALS.netDepositsPln();
   public static final BigDecimal DEPOSITS =
-      HappyInvestorBrokerFacts.EXTERNAL_CASH_TOTALS.depositsPln();
+      HappyInvestorBrokerFacts.INCLUDED_ACCOUNT_CASH_TOTALS.depositsPln();
   public static final BigDecimal WITHDRAWALS =
-      HappyInvestorBrokerFacts.EXTERNAL_CASH_TOTALS.withdrawalsPln();
+      HappyInvestorBrokerFacts.INCLUDED_ACCOUNT_CASH_TOTALS.withdrawalsPln();
   public static final BigDecimal OPEN_POSITIONS_VALUE =
       HappyInvestorBrokerFacts.OPEN_POSITIONS_VALUE;
   public static final BigDecimal OPEN_POSITIONS_UNREALIZED =
@@ -44,6 +44,14 @@ public final class HappyInvestorDashboardFacts {
   public static final BigDecimal OPEN_POSITIONS_RETURN_PERCENT =
       OPEN_POSITIONS_UNREALIZED
           .divide(OPEN_POSITIONS_VALUE, 16, RoundingMode.HALF_UP)
+          .movePointRight(2);
+  public static final BigDecimal TOP_FIVE_PORTFOLIO_SHARE_PERCENT =
+      HappyInvestorBrokerFacts.OPEN_POSITIONS.stream()
+          .map(HappyInvestorBrokerFacts.Position::marketValuePln)
+          .sorted(java.util.Comparator.reverseOrder())
+          .limit(5)
+          .reduce(BigDecimal.ZERO, BigDecimal::add)
+          .divide(BALANCE, 16, RoundingMode.HALF_UP)
           .movePointRight(2);
   public static final BigDecimal APPLE_VALUE = HappyInvestorBrokerFacts.AAPL_VALUE;
   public static final BigDecimal APPLE_UNREALIZED = HappyInvestorBrokerFacts.AAPL_UNREALIZED;

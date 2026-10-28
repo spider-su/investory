@@ -10,6 +10,33 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @EnableAsync
 public class AsyncConfig {
 
+  @Bean(name = "importRefreshScheduler", defaultCandidate = false)
+  org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler importRefreshScheduler() {
+    var scheduler = new org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler();
+    scheduler.setPoolSize(1);
+    scheduler.setThreadNamePrefix("import-refresh-");
+    scheduler.setWaitForTasksToCompleteOnShutdown(true);
+    scheduler.setAwaitTerminationSeconds(30);
+    return scheduler;
+  }
+
+  /** Manual import jobs progress even when automatic integration scheduling is disabled. */
+  @Bean
+  @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+      name = "app.import.refresh-worker-enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  org.springframework.beans.factory.InitializingBean importRefreshPolling(
+      @org.springframework.beans.factory.annotation.Qualifier("importRefreshScheduler")
+          org.springframework.scheduling.TaskScheduler scheduler,
+      com.smartbox.investory.investment.imports.ImportRefreshService worker,
+      @org.springframework.beans.factory.annotation.Value("${app.import.refresh-poll-ms:2000}")
+          long delayMillis) {
+    return () ->
+        scheduler.scheduleWithFixedDelay(
+            worker::processNext, java.time.Duration.ofMillis(Math.max(1000, delayMillis)));
+  }
+
   @Bean(name = "reconciliationRefreshExecutor")
   ThreadPoolTaskExecutor reconciliationRefreshExecutor() {
     ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

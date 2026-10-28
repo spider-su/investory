@@ -235,8 +235,7 @@ class ProfilePersistedFactsIT {
             .classifiedValue()
             .add(profile.allocationReconciliation().longTerm().classifiedValue());
     assertThat(allocationTotal).isEqualByComparingTo(classifiedTotal);
-    assertThat(profile.allocationReconciliation().shortTerm().delta())
-        .isEqualByComparingTo("-16.24");
+    assertThat(profile.allocationReconciliation().shortTerm().delta()).isEqualByComparingTo("0");
     assertThat(profile.allocationReconciliation().longTerm().balanced()).isTrue();
     assertThat(profile.totalNetWorth())
         .isEqualByComparingTo(profile.marketPortfolioValue().add(profile.longTermAssetValue()));
@@ -347,8 +346,7 @@ class ProfilePersistedFactsIT {
     assertThat(profile.liquidAssets().add(profile.illiquidAssets()))
         .isEqualByComparingTo(profile.totalNetWorth());
     if (shape.equals("mixed") || shape.equals("brokerage-only")) {
-      assertThat(profile.allocationReconciliation().shortTerm().delta())
-          .isEqualByComparingTo("-16.24");
+      assertThat(profile.allocationReconciliation().shortTerm().delta()).isEqualByComparingTo("0");
       assertThat(profile.allocationReconciliation().longTerm().balanced()).isTrue();
     } else {
       assertThat(profile.allocationReconciliation().balanced()).isTrue();

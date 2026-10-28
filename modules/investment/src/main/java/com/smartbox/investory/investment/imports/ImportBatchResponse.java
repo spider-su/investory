@@ -8,4 +8,9 @@ public record ImportBatchResponse(
     int rowsApplied,
     int rowsFailed,
     String message,
-    boolean duplicate) {}
+    boolean duplicate,
+    java.util.Set<Long> affectedAccountIds) {
+  public ImportBatchResponse {
+    affectedAccountIds = java.util.Set.copyOf(affectedAccountIds);
+  }
+}

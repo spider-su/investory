@@ -45,6 +45,29 @@ class ImportControllerTest {
     when(authorizationService.canWrite(any(Long.class), any())).thenReturn(true);
   }
 
+  @Test
+  @WithMockUser(roles = "PROFILE_OWNER")
+  void refreshStatusUsesPortfolioAndBatchScope() throws Exception {
+    when(authorizationService.canRead(eq(1L), any())).thenReturn(true);
+    when(importApi.refreshStatus(1L, 42L))
+        .thenReturn(new InvestmentImportApi.RefreshStatus(42L, "RUNNING", null, null));
+    mockMvc
+        .perform(get("/api/v1/portfolios/1/investment/imports/42/refresh"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("RUNNING"));
+    verify(importApi).refreshStatus(1L, 42L);
+  }
+
+  @Test
+  @WithMockUser(roles = "PROFILE_OWNER")
+  void cannotReadAnotherPortfolioRefresh() throws Exception {
+    when(authorizationService.canRead(eq(2L), any())).thenReturn(false);
+    mockMvc
+        .perform(get("/api/v1/portfolios/2/investment/imports/42/refresh"))
+        .andExpect(status().isForbidden());
+    org.mockito.Mockito.verifyNoInteractions(importApi);
+  }
+
   @DisplayName("import By Broker uploads File And Returns Response")
   @Test
   @WithMockUser(roles = "ADMIN")

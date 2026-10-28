@@ -167,7 +167,8 @@ public class ImportOrchestratorService {
               combineMessage(
                   "Duplicate " + broker + " file reprocessed as audit attempt " + batch.getId(),
                   reloaded.getErrorMessage()),
-              false);
+              false,
+              result.affectedAccountIds());
         } catch (Exception e) {
           if (e instanceof ImportFailedException importFailedException) {
             throw importFailedException;
@@ -191,7 +192,8 @@ public class ImportOrchestratorService {
       // batch's row in the database (used to overwrite errorMessage and poison the
       // details endpoint forever after).
       ImportHistoryEntity batch = existing.get();
-      return toBatchResponse(batch, "File already imported, returning existing batch", true);
+      return toBatchResponse(
+          batch, "File already imported, returning existing batch", true, Set.of());
     }
 
     ImportHistoryEntity batch =
@@ -266,7 +268,8 @@ public class ImportOrchestratorService {
         refreshAfterImport
             ? finalized.getErrorMessage()
             : combineMessage("Imported; final refresh pending", finalized.getErrorMessage()),
-        false);
+        false,
+        result.affectedAccountIds());
   }
 
   private boolean shouldReprocessDuplicate(BrokerType broker) {
@@ -332,6 +335,23 @@ public class ImportOrchestratorService {
       return e.getMessage();
     }
     return e.getClass().getSimpleName();
+  }
+
+  /** Runs only from the background refresh worker, after ledger/audit commit. */
+  public void refreshImportedBatch(ImportHistoryEntity batch, Set<Long> affectedAccounts) {
+    try (ImportPortfolioContext.Scope ignored =
+        ImportPortfolioContext.open(batch.getPortfolioId())) {
+      var result =
+          new ImportExecutionResult(
+              batch.getRowsTotal(),
+              batch.getRowsApplied(),
+              batch.getRowsFailed(),
+              batch.getErrorMessage(),
+              affectedAccounts);
+      String failure = refreshDerivedData(batch, result);
+      if (failure != null) throw new IllegalStateException(failure);
+      priceHistoryCoverageService.ensurePortfolioCoverage(batch.getPortfolioId());
+    }
   }
 
   private String refreshDerivedData(ImportHistoryEntity batch, ImportExecutionResult result) {
@@ -490,7 +510,7 @@ public class ImportOrchestratorService {
   }
 
   private ImportBatchResponse toBatchResponse(
-      ImportHistoryEntity batch, String message, boolean duplicate) {
+      ImportHistoryEntity batch, String message, boolean duplicate, Set<Long> affectedAccounts) {
     return new ImportBatchResponse(
         batch.getId(),
         batch.getBroker(),
@@ -499,7 +519,8 @@ public class ImportOrchestratorService {
         nz(batch.getRowsApplied()),
         nz(batch.getRowsFailed()),
         message,
-        duplicate);
+        duplicate,
+        affectedAccounts);
   }
 
   private static int nz(Integer value) {

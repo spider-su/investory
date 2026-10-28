@@ -34,6 +34,11 @@ public interface InvestmentImportApi {
     return importForBroker(portfolioId, broker, fileName, content, source, sourceRef);
   }
 
+  RefreshStatus refreshStatus(Long portfolioId, Long batchId);
+
+  record RefreshStatus(
+      long batchId, String status, java.time.Instant startedAt, java.time.Instant finishedAt) {}
+
   record ImportResult(
       long batchId,
       String broker,
