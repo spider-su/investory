@@ -25,6 +25,7 @@ public class ImportRefreshService {
   private final ImportOrchestratorService orchestrator;
   private final NotificationEventPublisher notifications;
   private final PlatformTransactionManager transactions;
+  private final com.smartbox.investory.shared.time.ApplicationTime time;
   private static final long LOCK_KEY = 728410613L;
 
   public void enqueue(Long portfolioId, Long batchId, Set<Long> affectedAccounts) {
@@ -159,7 +160,7 @@ public class ImportRefreshService {
                           state,
                           "failure",
                           failure == null ? "" : failure),
-                      java.time.Instant.now()));
+                      time.now()));
             });
   }
 }

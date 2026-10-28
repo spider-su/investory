@@ -21,6 +21,9 @@ class ImportRefreshJobIT {
   private ImportOrchestratorService runner;
   private ImportRefreshService jobs;
   private long batchId;
+  private final com.smartbox.investory.shared.time.ApplicationTime time =
+      com.smartbox.investory.testsupport.time.MutableApplicationTime.fixed(
+          java.time.Instant.parse("2026-10-28T10:00:00Z"), java.time.ZoneId.of("Europe/Warsaw"));
   private long portfolioId;
 
   @BeforeEach
@@ -50,7 +53,7 @@ class ImportRefreshJobIT {
     var tx = new DataSourceTransactionManager(source);
     // Publish inside the same physical transaction as the final job-state update.
     var publisher = new PersistentNotificationEventPublisher(jdbc, new ObjectMapper());
-    jobs = new ImportRefreshService(jdbc, source, imports, runner, publisher, tx);
+    jobs = new ImportRefreshService(jdbc, source, imports, runner, publisher, tx, time);
   }
 
   @AfterEach
@@ -176,7 +179,8 @@ class ImportRefreshJobIT {
             c -> {
               throw new IllegalStateException("synthetic outbox failure");
             },
-            new DataSourceTransactionManager(source));
+            new DataSourceTransactionManager(source),
+            time);
     broken.processNext();
     assertEquals("RUNNING", jobs.status(portfolioId, batchId).get("status"));
     jobs.processNext();
