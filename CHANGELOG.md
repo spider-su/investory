@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-28
+
+- Investment statement imports return after ledger persistence and queue a durable background
+  projection refresh. Dashboard shows refresh progress separately; completion/failure creates
+  a portfolio-scoped Telegram outbox notification. Interrupted jobs recover after pod restart.
+
+
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
 ## 2026-10-13

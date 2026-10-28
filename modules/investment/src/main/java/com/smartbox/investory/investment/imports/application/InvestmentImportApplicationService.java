@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class InvestmentImportApplicationService implements InvestmentImportApi {
   private final ImportOrchestratorService importOrchestrator;
+  private final com.smartbox.investory.investment.imports.ImportRefreshService refreshJobs;
 
   @Override
   public ImportResult importAuto(
@@ -84,7 +85,9 @@ public class InvestmentImportApplicationService implements InvestmentImportApi {
               fileName,
               ImportSourceType.fromApi(source),
               sourceRef,
-              !deferRefresh);
+              false);
+      if (!deferRefresh)
+        refreshJobs.enqueue(portfolioId, result.batchId(), result.affectedAccountIds());
       ImportResult importResult =
           new ImportResult(
               result.batchId(),
@@ -93,7 +96,9 @@ public class InvestmentImportApplicationService implements InvestmentImportApi {
               result.rowsTotal(),
               result.rowsApplied(),
               result.rowsFailed(),
-              result.message(),
+              deferRefresh
+                  ? result.message()
+                  : "Import saved; background refresh queued. " + result.message(),
               result.duplicate());
       log.info(
           "Investment import succeeded: file={} broker={} batchId={}",

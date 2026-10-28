@@ -99,6 +99,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Test import refresh browser logic
+        run: node --test adapters/web-ui/src/test/js/import-refresh.test.cjs
+
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
 
@@ -163,7 +166,7 @@ jobs:
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,ImportOriginLookupServiceIT,IntegrationJobExecutionIT
           - name: reconciliation-notifications-longterm
             project: app
-            tests: JdbcStrategistForecastStoreIT,DatabaseEvidenceReconciliationCheckIT,NotificationEventContractIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT,LongTermAssetLifecyclePostgresIT
+            tests: JdbcStrategistForecastStoreIT,DatabaseEvidenceReconciliationCheckIT,NotificationEventContractIT,ImportRefreshJobIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT,LongTermAssetLifecyclePostgresIT
           - name: exports-and-market-data
             project: app
             tests: ExportHappyInvestorIT,MarketDataRefreshPostgresIT,AssetPriceHistoryBatchPostgresIT
