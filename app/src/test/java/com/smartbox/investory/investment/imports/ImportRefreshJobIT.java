@@ -138,6 +138,17 @@ class ImportRefreshJobIT {
   }
 
   @Test
+  void workerRechecksAccountOwnershipBeforeRefresh() {
+    jobs.enqueue(portfolioId, batchId, Set.of());
+    jdbc.update(
+        "UPDATE investory.import_refresh_job SET affected_account_ids='[9223372036854775807]'::jsonb WHERE batch_id=?",
+        batchId);
+    jobs.processNext();
+    assertEquals("FAILED", jobs.status(portfolioId, batchId).get("status"));
+    verifyNoInteractions(runner);
+  }
+
+  @Test
   void heldSessionLockPreventsDoubleProcessing() throws Exception {
     jobs.enqueue(portfolioId, batchId, Set.of());
     try (var lock = source.getConnection();

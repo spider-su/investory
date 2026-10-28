@@ -28,14 +28,7 @@ public class ImportRefreshService {
   private static final long LOCK_KEY = 728410613L;
 
   public void enqueue(Long portfolioId, Long batchId, Set<Long> affectedAccounts) {
-    String scope = Set.copyOf(affectedAccounts).toString();
-    if (jdbc.queryForObject(
-            "SELECT count(*) FROM investory.accounts WHERE portfolio_id=? AND id IN (SELECT value::bigint FROM jsonb_array_elements_text(?::jsonb))",
-            Integer.class,
-            portfolioId,
-            scope)
-        != affectedAccounts.size())
-      throw new IllegalArgumentException("Refresh account does not belong to portfolio");
+    String scope = validateScope(portfolioId, affectedAccounts);
     int inserted =
         jdbc.update(
             """
@@ -54,6 +47,18 @@ public class ImportRefreshService {
                 batchId,
                 portfolioId)
             == 0) throw new IllegalArgumentException("Applied import batch not found in portfolio");
+  }
+
+  private String validateScope(Long portfolioId, Set<Long> affectedAccounts) {
+    String scope = Set.copyOf(affectedAccounts).toString();
+    if (jdbc.queryForObject(
+            "SELECT count(*) FROM investory.accounts WHERE portfolio_id=? AND id IN (SELECT value::bigint FROM jsonb_array_elements_text(?::jsonb))",
+            Integer.class,
+            portfolioId,
+            scope)
+        != affectedAccounts.size())
+      throw new IllegalArgumentException("Refresh account does not belong to portfolio");
+    return scope;
   }
 
   public Map<String, Object> status(Long portfolioId, Long batchId) {
@@ -100,6 +105,7 @@ public class ImportRefreshService {
                       Long.class,
                       batchId,
                       portfolioId));
+          validateScope(portfolioId, accounts);
           orchestrator.refreshImportedBatch(batch, accounts);
         } catch (Exception exception) {
           failure = exception.getClass().getSimpleName();
