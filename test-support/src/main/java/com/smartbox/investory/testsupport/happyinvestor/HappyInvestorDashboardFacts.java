@@ -45,6 +45,14 @@ public final class HappyInvestorDashboardFacts {
       OPEN_POSITIONS_UNREALIZED
           .divide(OPEN_POSITIONS_VALUE, 16, RoundingMode.HALF_UP)
           .movePointRight(2);
+  public static final BigDecimal TOP_FIVE_PORTFOLIO_SHARE_PERCENT =
+      HappyInvestorBrokerFacts.OPEN_POSITIONS.stream()
+          .map(HappyInvestorBrokerFacts.Position::marketValuePln)
+          .sorted(java.util.Comparator.reverseOrder())
+          .limit(5)
+          .reduce(BigDecimal.ZERO, BigDecimal::add)
+          .divide(BALANCE, 16, RoundingMode.HALF_UP)
+          .movePointRight(2);
   public static final BigDecimal APPLE_VALUE = HappyInvestorBrokerFacts.AAPL_VALUE;
   public static final BigDecimal APPLE_UNREALIZED = HappyInvestorBrokerFacts.AAPL_UNREALIZED;
   public static final BigDecimal TESLA_VALUE = HappyInvestorBrokerFacts.TESLA_VALUE;
