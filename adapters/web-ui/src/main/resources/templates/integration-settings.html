@@ -131,15 +131,16 @@
                 th:action="@{'/settings/integrations/' + ${integration.type} + '/' + ${integration.pluginId} + '/jobs/' + ${jobDescriptor.jobType}}">
             <h4 th:text="${jobDescriptor.label}">Scheduled job</h4>
             <p class="iv-settings-job-state" th:text="${'Automatic refresh: ' + (integration.jobEnabled(jobDescriptor.jobType) ? 'On' : 'Off')}">Automatic refresh: Off</p>
-            <label th:if="${jobDescriptor.jobType != 'audit-long-term-payments'}"><span th:text="${jobDescriptor.label}">Refresh</span>
+            <label th:if="${jobDescriptor.jobType != 'audit-long-term-payments' and jobDescriptor.jobType != 'review-rental-fees'}"><span th:text="${jobDescriptor.label}">Refresh</span>
               <select name="frequency" data-schedule-frequency aria-label="Refresh frequency">
                 <option value="1">Once per day</option>
                 <option value="2">Twice per day</option>
                 <option value="4">Four times per day</option>
               </select>
             </label>
-            <label th:if="${jobDescriptor.jobType == 'audit-long-term-payments'}"><span>Day of month</span>
-              <input type="number" name="dayOfMonth" data-schedule-day min="1" max="31" value="5" required>
+            <label th:if="${jobDescriptor.jobType == 'audit-long-term-payments' or jobDescriptor.jobType == 'review-rental-fees'}"><span>Day of month</span>
+              <input type="number" name="dayOfMonth" data-schedule-day min="1" max="31" value="5"
+                     th:value="${jobDescriptor.jobType == 'review-rental-fees' ? 16 : 5}" required>
             </label>
             <label><span>First execution</span>
               <input type="time" name="firstExecution" data-schedule-first-execution required>
@@ -152,7 +153,7 @@
             <label><input type="checkbox" name="enabled" value="true"
                           th:checked="${integration.jobEnabled(jobDescriptor.jobType)}"> Enabled</label>
             <button class="btn btn-sm btn-outline-secondary" type="submit">Save schedule</button>
-            <button th:if="${jobDescriptor.jobType == 'audit-long-term-payments'}"
+            <button th:if="${jobDescriptor.jobType == 'audit-long-term-payments' or jobDescriptor.jobType == 'review-rental-fees'}"
                     class="btn btn-sm btn-outline-primary" type="submit" name="action" value="test">
               Send test notification
             </button>
@@ -177,7 +178,7 @@
         const frequency = form.querySelector('[data-schedule-frequency]');
         const firstExecution = form.querySelector('[data-schedule-first-execution]');
         const cron = form.querySelector('[data-schedule-cron]');
-        const fixedSchedule = form.dataset.jobType === 'audit-long-term-payments';
+        const fixedSchedule = ['audit-long-term-payments', 'review-rental-fees'].includes(form.dataset.jobType);
         const dayOfMonth = form.querySelector('[data-schedule-day]');
         if ((!frequency && !fixedSchedule) || !firstExecution || !cron) return;
 

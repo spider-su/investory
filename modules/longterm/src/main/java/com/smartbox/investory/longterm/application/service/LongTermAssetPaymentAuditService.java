@@ -1,6 +1,7 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.LongTermAssetPaymentAuditReader;
+import com.smartbox.investory.longterm.api.model.CashFlowType;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
@@ -79,5 +80,33 @@ public class LongTermAssetPaymentAuditService implements LongTermAssetPaymentAud
                             term.isPaidByTenant()))
                 .toList()),
         currencies.get(contract.getAssetId()));
+  }
+
+  @Override
+  public List<FeeReviewRow> feeReview(Long portfolioId, LocalDate date) {
+    var assets = realEstates.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(portfolioId);
+    if (assets.isEmpty()) return List.of();
+    var byId =
+        assets.stream()
+            .collect(java.util.stream.Collectors.toMap(asset -> asset.getId(), asset -> asset));
+    return contracts.findAllWithTermsByAssetIdIn(byId.keySet()).stream()
+        .filter(contract -> RentalContractService.applies(contract, date))
+        .map(
+            contract ->
+                new FeeReviewRow(
+                    byId.get(contract.getAssetId()).getName(),
+                    monthlyFee(contract, CashFlowType.UTILITIES),
+                    monthlyFee(contract, CashFlowType.ADMIN_FEE),
+                    byId.get(contract.getAssetId()).getCurrency()))
+        .toList();
+  }
+
+  private static BigDecimal monthlyFee(
+      LongTermAssetRentalContractEntity contract, CashFlowType type) {
+    return contract.getTerms().stream()
+        .filter(term -> term.getType() == type)
+        .findFirst()
+        .map(term -> LongTermAssetEconomics.monthlyAmount(term.getAmount(), term.getFrequency()))
+        .orElse(null);
   }
 }
