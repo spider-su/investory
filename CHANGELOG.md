@@ -9,6 +9,11 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-11-01
+
+- Fix Yahoo portfolio export to use canonical current prices and bond valuations, avoid a second
+  bond-price division by 100, and exclude cash-only accounts consistently with dashboard totals.
+
 ## 2026-10-27
 
 - Added a separate rental-bot reminder to review stored monthly utilities and admin fees before

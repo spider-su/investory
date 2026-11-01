@@ -7,6 +7,8 @@ import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotRe
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.position.CurrentOpenPositionValueEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.position.CurrentOpenPositionValueRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
@@ -28,6 +30,7 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
   private final AccountStatisticsRepository statistics;
   private final AccountRepository accounts;
   private final AssetRepository assets;
+  private final CurrentOpenPositionValueRepository valuations;
 
   @Override
   public PortfolioExportSnapshot currentSnapshot(Long portfolioId) {
@@ -36,10 +39,19 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
     }
     var accountIds =
         accounts.findAllByPortfolioId(portfolioId).stream()
+            .filter(account -> !account.isCashOnly())
             .map(AccountEntity::getId)
             .filter(java.util.Objects::nonNull)
             .collect(java.util.stream.Collectors.toSet());
+    if (accountIds.isEmpty()) {
+      return new PortfolioExportSnapshot(List.of(), List.of());
+    }
     var openPositions = positions.findOpenByAccountIn(accountIds);
+    Map<Long, CurrentOpenPositionValueEntity> valuesByPosition =
+        valuations.findAllByPortfolioId(portfolioId).stream()
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    CurrentOpenPositionValueEntity::getPositionId, value -> value));
     Map<Long, AssetEntity> assetsById =
         assets
             .findAllById(
@@ -53,32 +65,55 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
     List<ExportPosition> exportPositions = new ArrayList<>();
     for (var position : openPositions) {
       AssetEntity asset = assetsById.get(position.getAssetId());
+      if (asset == null) {
+        throw new IllegalStateException("Missing export asset for position " + position.getId());
+      }
+      var value = valuesByPosition.get(position.getId());
+      if (value == null) {
+        throw new IllegalStateException(
+            "Missing canonical export valuation for position " + position.getId());
+      }
       if (isBond(asset)) {
-        BigDecimal price = exportMarketPrice(position, assetsById);
-        if (price == null) {
-          price = position.getOpenPrice();
+        if (value.getMarketValueInBaseCurrency() == null) {
+          throw new IllegalStateException(
+              "Incomplete export bond valuation for position " + position.getId());
         }
-        if (price != null && position.getVolume() != null) {
-          bondCashByAccount.merge(
-              position.getAccount(), position.getVolume().abs().multiply(price), BigDecimal::add);
-        }
+        bondCashByAccount.merge(
+            position.getAccount(), value.getMarketValueInBaseCurrency(), BigDecimal::add);
       } else {
+        if (value.getMarketPrice() == null
+            || asset.getCurrency() == null
+            || !asset.getCurrency().name().equals(value.getMarketPriceCurrency())) {
+          throw new IllegalStateException(
+              "Missing or incompatible canonical export price for position " + position.getId());
+        }
         exportPositions.add(
             new ExportPosition(
                 position.getAccount(),
                 position.getSymbol(),
                 position.getVolume(),
                 position.getOpenPrice(),
-                exportMarketPrice(position, assetsById)));
+                value.getMarketPrice()));
       }
     }
 
     List<ExportCashBalance> exportCashBalances = new ArrayList<>();
-    for (var statistic : statistics.findAllByAccountIdIn(accountIds)) {
-      if (statistic.getCashBalance() != null) {
-        exportCashBalances.add(
-            new ExportCashBalance(statistic.getAccountId(), statistic.getCashBalance()));
+    var accountStatistics = statistics.findAllByAccountIdIn(accountIds);
+    var reportedAccounts =
+        accountStatistics.stream()
+            .map(statistic -> statistic.getAccountId())
+            .collect(java.util.stream.Collectors.toSet());
+    if (!reportedAccounts.equals(accountIds)) {
+      throw new IllegalStateException(
+          "Missing export cash statistics for portfolio " + portfolioId);
+    }
+    for (var statistic : accountStatistics) {
+      if (statistic.getCashBalance() == null) {
+        throw new IllegalStateException(
+            "Incomplete export cash balance for account " + statistic.getAccountId());
       }
+      exportCashBalances.add(
+          new ExportCashBalance(statistic.getAccountId(), statistic.getCashBalance()));
     }
     bondCashByAccount.forEach(
         (accountId, amount) -> exportCashBalances.add(new ExportCashBalance(accountId, amount)));
@@ -87,19 +122,5 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
 
   private static boolean isBond(AssetEntity asset) {
     return asset != null && "BOND".equalsIgnoreCase(asset.getAssetType());
-  }
-
-  private static BigDecimal exportMarketPrice(
-      com.smartbox.investory.investment.ledger.position.persistence.PositionEntity position,
-      Map<Long, AssetEntity> assetsById) {
-    AssetEntity asset = assetsById.get(position.getAssetId());
-    BigDecimal price = position.getMarketPrice();
-    if (price == null && asset != null) {
-      price = asset.getMarketPrice();
-    }
-    if (price != null && asset != null && "BOND".equalsIgnoreCase(asset.getAssetType())) {
-      return price.movePointLeft(2);
-    }
-    return price;
   }
 }
