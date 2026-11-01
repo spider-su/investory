@@ -59,7 +59,9 @@ class PortfolioExportSnapshotReadServiceTest {
     asset.setMarketPrice(new BigDecimal("0.9881"));
     CurrentOpenPositionValueEntity value = mock(CurrentOpenPositionValueEntity.class);
     when(value.getPositionId()).thenReturn(11L);
-    when(value.getMarketValueInBaseCurrency()).thenReturn(new BigDecimal("49405"));
+    when(value.getMarketValueInBaseCurrency()).thenReturn(new BigDecimal("197620"));
+    when(value.getMarketPriceToBaseRate()).thenReturn(new BigDecimal("4"));
+    when(value.getMarketPriceCurrency()).thenReturn("USD");
     when(valuations.findAllByPortfolioId(3L)).thenReturn(List.of(value));
     AccountStatisticsEntity statistic = new AccountStatisticsEntity();
     statistic.setAccountId(7L);
@@ -79,10 +81,10 @@ class PortfolioExportSnapshotReadServiceTest {
     assertThat(snapshot.cashBalances()).hasSize(1);
     assertThat(snapshot.cashBalances())
         .extracting(PortfolioExportSnapshotReader.ExportCashBalance::amount)
-        .anySatisfy(amount -> assertThat(amount).isEqualByComparingTo("12353.75"));
+        .anySatisfy(amount -> assertThat(amount).isEqualByComparingTo("49407.50"));
     verify(conversion)
         .convertToBaseCurrency(
-            argThat(amount -> amount.compareTo(new BigDecimal("49415")) == 0),
+            argThat(amount -> amount.compareTo(new BigDecimal("10")) == 0),
             eq(CurrencyType.USD),
             eq(CurrencyType.PLN),
             eq(LocalDate.of(2026, 11, 1)));

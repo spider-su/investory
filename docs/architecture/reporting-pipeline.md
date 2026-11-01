@@ -48,10 +48,11 @@ Yahoo exports use the same current valuation selection as dashboard reporting th
 `cash_only` accounts. Non-bond quantities and acquisition prices come from open ledger positions;
 current quotes come from the canonical view in the instrument listing currency. Missing valuations,
 incompatible quote currencies, or null cash balances fail export rather than substituting zero.
-Bonds join account cash using their canonical portfolio-base-currency market values.
-The combined amount is converted to USD at the valuation date before writing the existing
-`USDT-USD` surrogate; PLN/EUR base amounts must not be exported as USD. Bond prices are
-normalized by canonical market-value selection, not divided by 100 again during export.
+Bonds use the canonical portfolio-base market value, reversed through the exact FX rate
+that produced it to recover their quote-currency value (preserving USD Treasury principal).
+Non-USD bond amounts and portfolio-base cash are converted to USD before being added to the
+`USDT-USD` surrogate. Bond percent-of-par normalization is applied only by canonical
+market-value selection; export must not divide the market price by 100 again.
 The surrogate follows USDT quotes after import and therefore can differ slightly from cash.
 
 ## Daily projection boundary

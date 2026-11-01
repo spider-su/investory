@@ -27,6 +27,9 @@ public class CurrentOpenPositionValueEntity {
   @Column(name = "market_price_currency")
   private String marketPriceCurrency;
 
+  @Column(name = "market_price_to_base_rate")
+  private BigDecimal marketPriceToBaseRate;
+
   @Column(name = "market_value_in_base_currency")
   private BigDecimal marketValueInBaseCurrency;
 }

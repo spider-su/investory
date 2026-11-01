@@ -17,6 +17,7 @@ import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -79,12 +80,28 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
             "Missing canonical export valuation for position " + position.getId());
       }
       if (isBond(asset)) {
-        if (value.getMarketValueInBaseCurrency() == null) {
+        BigDecimal rateToBase = value.getMarketPriceToBaseRate();
+        if (value.getMarketValueInBaseCurrency() == null
+            || value.getMarketPriceCurrency() == null
+            || rateToBase == null
+            || rateToBase.signum() <= 0) {
           throw new IllegalStateException(
               "Incomplete export bond valuation for position " + position.getId());
         }
-        bondCashByAccount.merge(
-            position.getAccount(), value.getMarketValueInBaseCurrency(), BigDecimal::add);
+        // Reverse the exact FX rate used by the canonical valuation rather than applying
+        // an independently resolved reverse rate (which could distort the USD principal).
+        BigDecimal bondInQuoteCurrency =
+            value.getMarketValueInBaseCurrency().divide(rateToBase, MathContext.DECIMAL128);
+        CurrencyType quoteCurrency = CurrencyType.valueOf(value.getMarketPriceCurrency());
+        BigDecimal bondInUsd =
+            quoteCurrency == CurrencyType.USD
+                ? bondInQuoteCurrency
+                : currencyConversion.convertToBaseCurrency(
+                    bondInQuoteCurrency,
+                    CurrencyType.USD,
+                    quoteCurrency,
+                    applicationTime.today());
+        bondCashByAccount.merge(position.getAccount(), bondInUsd, BigDecimal::add);
       } else {
         if (value.getMarketPrice() == null
             || asset.getCurrency() == null
@@ -117,18 +134,16 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
         throw new IllegalStateException(
             "Incomplete export cash valuation for account " + statistic.getAccountId());
       }
-      // Account statistics and bond values are in portfolio base currency, not necessarily USD.
-      // Yahoo's USDT-USD surrogate must receive USD rather than a raw PLN/EUR amount.
-      BigDecimal totalInBase =
-          statistic
-              .getCashBalance()
-              .add(bondCashByAccount.getOrDefault(statistic.getAccountId(), BigDecimal.ZERO));
-      BigDecimal totalInUsd =
+      // Cash statistics are in portfolio base currency. Bond value has already been restored
+      // to its USD amount using the canonical valuation's original FX rate.
+      BigDecimal cashInUsd =
           currencyConversion.convertToBaseCurrency(
-              totalInBase,
+              statistic.getCashBalance(),
               CurrencyType.USD,
               CurrencyType.valueOf(statistic.getValuationCurrency()),
               applicationTime.today());
+      BigDecimal totalInUsd =
+          cashInUsd.add(bondCashByAccount.getOrDefault(statistic.getAccountId(), BigDecimal.ZERO));
       exportCashBalances.add(new ExportCashBalance(statistic.getAccountId(), totalInUsd));
     }
     return new PortfolioExportSnapshot(exportPositions, exportCashBalances);
