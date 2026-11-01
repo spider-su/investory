@@ -97,10 +97,7 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
             quoteCurrency == CurrencyType.USD
                 ? bondInQuoteCurrency
                 : currencyConversion.convertToBaseCurrency(
-                    bondInQuoteCurrency,
-                    CurrencyType.USD,
-                    quoteCurrency,
-                    applicationTime.today());
+                    bondInQuoteCurrency, CurrencyType.USD, quoteCurrency, applicationTime.today());
         bondCashByAccount.merge(position.getAccount(), bondInUsd, BigDecimal::add);
       } else {
         if (value.getMarketPrice() == null
