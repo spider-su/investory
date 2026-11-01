@@ -40,8 +40,7 @@ class PortfolioExportSnapshotReadServiceTest {
     CurrencyConversion conversion = mock(CurrencyConversion.class);
     ApplicationTime time = mock(ApplicationTime.class);
     when(time.today()).thenReturn(LocalDate.of(2026, 11, 1));
-    when(conversion.convertToBaseCurrency(
-            any(), eq(CurrencyType.USD), eq(CurrencyType.PLN), any()))
+    when(conversion.convertToBaseCurrency(any(), eq(CurrencyType.USD), eq(CurrencyType.PLN), any()))
         .thenAnswer(call -> ((BigDecimal) call.getArgument(0)).divide(new BigDecimal("4")));
     PortfolioExportSnapshotReadService service =
         new PortfolioExportSnapshotReadService(
