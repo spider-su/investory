@@ -13,6 +13,9 @@ import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +34,8 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
   private final AccountRepository accounts;
   private final AssetRepository assets;
   private final CurrentOpenPositionValueRepository valuations;
+  private final CurrencyConversion currencyConversion;
+  private final ApplicationTime applicationTime;
 
   @Override
   public PortfolioExportSnapshot currentSnapshot(Long portfolioId) {
@@ -108,15 +113,24 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
           "Missing export cash statistics for portfolio " + portfolioId);
     }
     for (var statistic : accountStatistics) {
-      if (statistic.getCashBalance() == null) {
+      if (statistic.getCashBalance() == null || statistic.getValuationCurrency() == null) {
         throw new IllegalStateException(
-            "Incomplete export cash balance for account " + statistic.getAccountId());
+            "Incomplete export cash valuation for account " + statistic.getAccountId());
       }
-      exportCashBalances.add(
-          new ExportCashBalance(statistic.getAccountId(), statistic.getCashBalance()));
+      // Account statistics and bond values are in portfolio base currency, not necessarily USD.
+      // Yahoo's USDT-USD surrogate must receive USD rather than a raw PLN/EUR amount.
+      BigDecimal totalInBase =
+          statistic
+              .getCashBalance()
+              .add(bondCashByAccount.getOrDefault(statistic.getAccountId(), BigDecimal.ZERO));
+      BigDecimal totalInUsd =
+          currencyConversion.convertToBaseCurrency(
+              totalInBase,
+              CurrencyType.USD,
+              CurrencyType.valueOf(statistic.getValuationCurrency()),
+              applicationTime.today());
+      exportCashBalances.add(new ExportCashBalance(statistic.getAccountId(), totalInUsd));
     }
-    bondCashByAccount.forEach(
-        (accountId, amount) -> exportCashBalances.add(new ExportCashBalance(accountId, amount)));
     return new PortfolioExportSnapshot(exportPositions, exportCashBalances);
   }
 

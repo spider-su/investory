@@ -2,6 +2,8 @@ package com.smartbox.investory.investment.infrastructure.read;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,7 +19,11 @@ import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -31,8 +37,15 @@ class PortfolioExportSnapshotReadServiceTest {
     AccountRepository accounts = mock(AccountRepository.class);
     AssetRepository assets = mock(AssetRepository.class);
     CurrentOpenPositionValueRepository valuations = mock(CurrentOpenPositionValueRepository.class);
+    CurrencyConversion conversion = mock(CurrencyConversion.class);
+    ApplicationTime time = mock(ApplicationTime.class);
+    when(time.today()).thenReturn(LocalDate.of(2026, 11, 1));
+    when(conversion.convertToBaseCurrency(
+            any(), eq(CurrencyType.USD), eq(CurrencyType.PLN), any()))
+        .thenAnswer(call -> ((BigDecimal) call.getArgument(0)).divide(new BigDecimal("4")));
     PortfolioExportSnapshotReadService service =
-        new PortfolioExportSnapshotReadService(positions, statistics, accounts, assets, valuations);
+        new PortfolioExportSnapshotReadService(
+            positions, statistics, accounts, assets, valuations, conversion, time);
     AccountEntity account = new AccountEntity();
     account.setId(7L);
     PositionEntity position = new PositionEntity();
@@ -51,6 +64,7 @@ class PortfolioExportSnapshotReadServiceTest {
     when(valuations.findAllByPortfolioId(3L)).thenReturn(List.of(value));
     AccountStatisticsEntity statistic = new AccountStatisticsEntity();
     statistic.setAccountId(7L);
+    statistic.setValuationCurrency("PLN");
     statistic.setCashBalance(BigDecimal.TEN);
     AccountEntity cashOnly = new AccountEntity();
     cashOnly.setId(8L);
@@ -63,13 +77,16 @@ class PortfolioExportSnapshotReadServiceTest {
     var snapshot = service.currentSnapshot(3L);
 
     assertThat(snapshot.positions()).isEmpty();
-    assertThat(snapshot.cashBalances()).hasSize(2);
+    assertThat(snapshot.cashBalances()).hasSize(1);
     assertThat(snapshot.cashBalances())
         .extracting(PortfolioExportSnapshotReader.ExportCashBalance::amount)
-        .anySatisfy(amount -> assertThat(amount).isEqualByComparingTo("10"));
-    assertThat(snapshot.cashBalances())
-        .extracting(PortfolioExportSnapshotReader.ExportCashBalance::amount)
-        .anySatisfy(amount -> assertThat(amount).isEqualByComparingTo("49405"));
+        .anySatisfy(amount -> assertThat(amount).isEqualByComparingTo("12353.75"));
+    verify(conversion)
+        .convertToBaseCurrency(
+            argThat(amount -> amount.compareTo(new BigDecimal("49415")) == 0),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            eq(LocalDate.of(2026, 11, 1)));
     verify(positions).findOpenByAccountIn(Set.of(7L));
     verify(statistics).findAllByAccountIdIn(Set.of(7L));
   }
