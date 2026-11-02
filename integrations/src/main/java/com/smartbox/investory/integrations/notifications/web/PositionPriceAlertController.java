@@ -19,6 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class PositionPriceAlertController {
   private final PositionPriceAlertService alerts;
 
+  @GetMapping("/eligible")
+  public List<String> eligible(@PathVariable Long portfolioId) {
+    return alerts.eligibleSymbols(portfolioId);
+  }
+
   @GetMapping("/{symbol}")
   public PositionView get(@PathVariable Long portfolioId, @PathVariable String symbol) {
     return alerts.get(portfolioId, symbol);

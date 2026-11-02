@@ -173,6 +173,11 @@ public class PositionPriceAlertService {
   }
 
   @Transactional(readOnly = true)
+  public List<String> eligibleSymbols(long portfolioId) {
+    return positions(portfolioId).stream().map(Position::symbol).distinct().toList();
+  }
+
+  @Transactional(readOnly = true)
   public PositionView get(long portfolioId, String symbol) {
     Position position = position(portfolioId, symbol);
     Map<String, RuleView> values = new java.util.HashMap<>();

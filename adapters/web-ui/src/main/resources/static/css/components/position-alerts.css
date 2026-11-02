@@ -1,4 +1,4 @@
-.iv-position-alert-bell { display: inline-flex; align-items: center; justify-content: center; margin-left: 4px; vertical-align: middle; color: var(--iv-text-secondary, #64748b); }
+.iv-position-alert-bell { display: none; align-items: center; justify-content: center; margin-left: 4px; vertical-align: middle; color: var(--iv-text-secondary, #64748b); }
 .iv-position-alert-bell:hover { color: var(--iv-accent, #2563eb); }
 .iv-position-alert-dialog { max-width: 540px; max-height: 92vh; overflow: auto; }
 .iv-position-alert-form { padding: 0 16px 12px; }

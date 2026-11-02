@@ -74,7 +74,16 @@ export function initDashboardPositionAlerts() {
             historyList.append(li);
         });
     }
-    document.querySelectorAll('.iv-position-alert-bell').forEach(button => {
+    const bells = Array.from(document.querySelectorAll('.iv-position-alert-bell'));
+    request('/api/v1/portfolios/' + encodeURIComponent(portfolioId) + '/position-alerts/eligible')
+        .then(symbols => {
+            const eligible = new Set(symbols);
+            bells.forEach(button => {
+                if (eligible.has(button.dataset.symbol)) button.style.display = 'inline-flex';
+            });
+        })
+        .catch(() => { /* Fail closed: do not show unsupported asset editors. */ });
+    bells.forEach(button => {
         button.addEventListener('click', async event => {
             event.preventDefault();
             event.stopPropagation();
