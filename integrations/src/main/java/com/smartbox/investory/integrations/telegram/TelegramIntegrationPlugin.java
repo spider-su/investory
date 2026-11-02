@@ -16,6 +16,7 @@ public class TelegramIntegrationPlugin implements TestableIntegrationPlugin {
   public static final String LONG_TERM_PAYMENT_AUDIT_JOB = "audit-long-term-payments";
   public static final String RENTAL_FEE_REVIEW_JOB = "review-rental-fees";
   public static final String DAILY_NOTIFICATIONS_JOB = "daily-notifications";
+  public static final String POSITION_PRICE_ALERTS_JOB = "position-price-alerts";
   private static final Duration TEST_TIMEOUT = Duration.ofSeconds(5);
 
   public String id() {
@@ -66,7 +67,11 @@ public class TelegramIntegrationPlugin implements TestableIntegrationPlugin {
                 1,
                 null,
                 null)),
-        List.of(LONG_TERM_PAYMENT_AUDIT_JOB, RENTAL_FEE_REVIEW_JOB, DAILY_NOTIFICATIONS_JOB));
+        List.of(
+            LONG_TERM_PAYMENT_AUDIT_JOB,
+            RENTAL_FEE_REVIEW_JOB,
+            DAILY_NOTIFICATIONS_JOB,
+            POSITION_PRICE_ALERTS_JOB));
   }
 
   public ValidationResult validate(PluginConfig config) {

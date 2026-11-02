@@ -61,4 +61,57 @@
             </form>
         </div>
     </div>
+    <div id="position-alert-modal" class="iv-modal" style="display:none" aria-hidden="true">
+        <div class="iv-modal__content iv-modal__content--compact iv-position-alert-dialog" role="dialog"
+             aria-modal="true" aria-labelledby="position-alert-title">
+            <div class="iv-modal__header">
+                <h3 id="position-alert-title" class="iv-card__title">Position alerts</h3>
+                <button type="button" class="iv-modal__close" id="position-alert-close"
+                        aria-label="Close position alerts">&times;</button>
+            </div>
+            <form id="position-alert-form" class="iv-position-alert-form">
+                <p id="position-alert-context" class="iv-position-alert-note"></p>
+                <p class="iv-position-alert-note">Notifications only · evaluated 15:00 Warsaw (latest available close) · no automatic trades</p>
+                <div class="iv-position-alert-rule" data-side="LOSS">
+                    <h4>Downside / stop-loss reminder</h4>
+                    <div class="iv-position-alert-fields">
+                        <label>Trigger
+                            <select name="mode"><option value="PERCENT">% below average</option><option value="PRICE">Fixed price or below</option></select>
+                        </label>
+                        <label>Level
+                            <input name="threshold" type="number" min="0.000001" step="any" value="10" required>
+                        </label>
+                    </div>
+                    <label>Suggested action
+                        <input name="action" type="text" maxlength="240" value="Review downside risk" required>
+                    </label>
+                    <label class="iv-position-alert-toggle"><input name="enabled" type="checkbox" checked> Enabled</label>
+                </div>
+                <div class="iv-position-alert-rule" data-side="PROFIT">
+                    <h4>Take-profit reminder</h4>
+                    <div class="iv-position-alert-fields">
+                        <label>Trigger
+                            <select name="mode"><option value="PERCENT">% above average</option><option value="PRICE">Fixed price or above</option></select>
+                        </label>
+                        <label>Level
+                            <input name="threshold" type="number" min="0.000001" step="any" value="10" required>
+                        </label>
+                    </div>
+                    <label>Suggested action
+                        <input name="action" type="text" maxlength="240" value="Review taking profits" required>
+                    </label>
+                    <label class="iv-position-alert-toggle"><input name="enabled" type="checkbox" checked> Enabled</label>
+                </div>
+                <p id="position-alert-status" role="status" class="iv-form-status"></p>
+                <div class="iv-modal__footer">
+                    <button class="iv-badge iv-badge--muted" type="button" id="position-alert-cancel">Cancel</button>
+                    <button class="iv-badge iv-badge--pos" type="submit" id="position-alert-save">Save alerts</button>
+                </div>
+            </form>
+            <details class="iv-position-alert-history">
+                <summary>Alert history</summary>
+                <ul id="position-alert-history-list"><li>No previous alerts</li></ul>
+            </details>
+        </div>
+    </div>
 </th:block>

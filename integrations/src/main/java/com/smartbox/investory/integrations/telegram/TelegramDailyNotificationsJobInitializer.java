@@ -33,24 +33,27 @@ public class TelegramDailyNotificationsJobInitializer {
     if (instance.isEmpty() || !instance.get().isEnabled()) return;
 
     IntegrationInstanceEntity telegram = instance.get();
-    String jobType = TelegramIntegrationPlugin.DAILY_NOTIFICATIONS_JOB;
-    if (!handlerRegistry.supports(IntegrationType.NOTIFICATION, jobType)) return;
-    boolean exists =
-        jobRepository.findByIntegrationInstanceId(telegram.getId()).stream()
-            .anyMatch(job -> jobType.equals(job.getJobType()));
-    if (exists) return;
-
-    IntegrationJobDescriptor descriptor = IntegrationJobDescriptor.forType(jobType);
-    IntegrationJobEntity job = new IntegrationJobEntity();
-    job.setIntegrationInstanceId(telegram.getId());
-    job.setJobType(jobType);
-    job.setEnabled(true);
-    job.setCron(descriptor.defaultCron());
-    job.setTimezone(descriptor.defaultTimezone());
-    job.setParametersJson("{}");
-    // Avoid running immediately on startup; the first run should follow the persisted cron.
-    job.setLastCompletedAt(applicationTime.now(applicationTime.businessZone()));
-    job.setLastStatus("SKIPPED");
-    jobRepository.save(job);
+    for (String jobType :
+        java.util.List.of(
+            TelegramIntegrationPlugin.DAILY_NOTIFICATIONS_JOB,
+            TelegramIntegrationPlugin.POSITION_PRICE_ALERTS_JOB)) {
+      if (!handlerRegistry.supports(IntegrationType.NOTIFICATION, jobType)) continue;
+      boolean exists =
+          jobRepository.findByIntegrationInstanceId(telegram.getId()).stream()
+              .anyMatch(job -> jobType.equals(job.getJobType()));
+      if (exists) continue;
+      IntegrationJobDescriptor descriptor = IntegrationJobDescriptor.forType(jobType);
+      IntegrationJobEntity job = new IntegrationJobEntity();
+      job.setIntegrationInstanceId(telegram.getId());
+      job.setJobType(jobType);
+      job.setEnabled(true);
+      job.setCron(descriptor.defaultCron());
+      job.setTimezone(descriptor.defaultTimezone());
+      job.setParametersJson("{}");
+      // No startup catch-up: a newly configured rule must sample the scheduled daily close.
+      job.setLastCompletedAt(applicationTime.now(applicationTime.businessZone()));
+      job.setLastStatus("SKIPPED");
+      jobRepository.save(job);
+    }
   }
 }
