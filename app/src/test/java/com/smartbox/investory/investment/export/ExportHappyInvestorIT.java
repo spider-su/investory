@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.export;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.Offset.offset;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -10,6 +11,7 @@ import com.opencsv.CSVReader;
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.io.StringReader;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -74,6 +76,16 @@ class ExportHappyInvestorIT {
 
     try (CSVReader reader = new CSVReader(new StringReader(csv))) {
       List<String[]> rows = reader.readAll();
+      String usdCashQuantity =
+          rows.stream()
+              .filter(values -> "USDT-USD".equals(values[0]))
+              .map(values -> values[11])
+              .findFirst()
+              .orElseThrow();
+      // 10,000 Treasury units at 95.375% of par = USD 9,537.50.
+      // The canonical PLN valuation must be converted back to USD for Yahoo.
+      assertThat(new BigDecimal(usdCashQuantity))
+          .isCloseTo(new BigDecimal("9537.50"), offset(new BigDecimal("0.01")));
       assertThat(rows)
           .containsExactly(
               row(
@@ -196,7 +208,7 @@ class ExportHappyInvestorIT {
                   "",
                   TRADE_DATE,
                   "1.0",
-                  "95.375",
+                  usdCashQuantity,
                   "",
                   "",
                   "",

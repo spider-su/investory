@@ -7,11 +7,17 @@ import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotRe
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.position.CurrentOpenPositionValueEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.position.CurrentOpenPositionValueRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +34,9 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
   private final AccountStatisticsRepository statistics;
   private final AccountRepository accounts;
   private final AssetRepository assets;
+  private final CurrentOpenPositionValueRepository valuations;
+  private final CurrencyConversion currencyConversion;
+  private final ApplicationTime applicationTime;
 
   @Override
   public PortfolioExportSnapshot currentSnapshot(Long portfolioId) {
@@ -36,10 +45,19 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
     }
     var accountIds =
         accounts.findAllByPortfolioId(portfolioId).stream()
+            .filter(account -> !account.isCashOnly())
             .map(AccountEntity::getId)
             .filter(java.util.Objects::nonNull)
             .collect(java.util.stream.Collectors.toSet());
+    if (accountIds.isEmpty()) {
+      return new PortfolioExportSnapshot(List.of(), List.of());
+    }
     var openPositions = positions.findOpenByAccountIn(accountIds);
+    Map<Long, CurrentOpenPositionValueEntity> valuesByPosition =
+        valuations.findAllByPortfolioId(portfolioId).stream()
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    CurrentOpenPositionValueEntity::getPositionId, value -> value));
     Map<Long, AssetEntity> assetsById =
         assets
             .findAllById(
@@ -53,53 +71,82 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
     List<ExportPosition> exportPositions = new ArrayList<>();
     for (var position : openPositions) {
       AssetEntity asset = assetsById.get(position.getAssetId());
+      if (asset == null) {
+        throw new IllegalStateException("Missing export asset for position " + position.getId());
+      }
+      var value = valuesByPosition.get(position.getId());
+      if (value == null) {
+        throw new IllegalStateException(
+            "Missing canonical export valuation for position " + position.getId());
+      }
       if (isBond(asset)) {
-        BigDecimal price = exportMarketPrice(position, assetsById);
-        if (price == null) {
-          price = position.getOpenPrice();
+        BigDecimal rateToBase = value.getMarketPriceToBaseRate();
+        if (value.getMarketValueInBaseCurrency() == null
+            || value.getMarketPriceCurrency() == null
+            || rateToBase == null
+            || rateToBase.signum() <= 0) {
+          throw new IllegalStateException(
+              "Incomplete export bond valuation for position " + position.getId());
         }
-        if (price != null && position.getVolume() != null) {
-          bondCashByAccount.merge(
-              position.getAccount(), position.getVolume().abs().multiply(price), BigDecimal::add);
-        }
+        // Reverse the exact FX rate used by the canonical valuation rather than applying
+        // an independently resolved reverse rate (which could distort the USD principal).
+        BigDecimal bondInQuoteCurrency =
+            value.getMarketValueInBaseCurrency().divide(rateToBase, MathContext.DECIMAL128);
+        CurrencyType quoteCurrency = CurrencyType.valueOf(value.getMarketPriceCurrency());
+        BigDecimal bondInUsd =
+            quoteCurrency == CurrencyType.USD
+                ? bondInQuoteCurrency
+                : currencyConversion.convertToBaseCurrency(
+                    bondInQuoteCurrency, CurrencyType.USD, quoteCurrency, applicationTime.today());
+        bondCashByAccount.merge(position.getAccount(), bondInUsd, BigDecimal::add);
       } else {
+        if (value.getMarketPrice() == null
+            || asset.getCurrency() == null
+            || !asset.getCurrency().name().equals(value.getMarketPriceCurrency())) {
+          throw new IllegalStateException(
+              "Missing or incompatible canonical export price for position " + position.getId());
+        }
         exportPositions.add(
             new ExportPosition(
                 position.getAccount(),
                 position.getSymbol(),
                 position.getVolume(),
                 position.getOpenPrice(),
-                exportMarketPrice(position, assetsById)));
+                value.getMarketPrice()));
       }
     }
 
     List<ExportCashBalance> exportCashBalances = new ArrayList<>();
-    for (var statistic : statistics.findAllByAccountIdIn(accountIds)) {
-      if (statistic.getCashBalance() != null) {
-        exportCashBalances.add(
-            new ExportCashBalance(statistic.getAccountId(), statistic.getCashBalance()));
-      }
+    var accountStatistics = statistics.findAllByAccountIdIn(accountIds);
+    var reportedAccounts =
+        accountStatistics.stream()
+            .map(statistic -> statistic.getAccountId())
+            .collect(java.util.stream.Collectors.toSet());
+    if (!reportedAccounts.equals(accountIds)) {
+      throw new IllegalStateException(
+          "Missing export cash statistics for portfolio " + portfolioId);
     }
-    bondCashByAccount.forEach(
-        (accountId, amount) -> exportCashBalances.add(new ExportCashBalance(accountId, amount)));
+    for (var statistic : accountStatistics) {
+      if (statistic.getCashBalance() == null || statistic.getValuationCurrency() == null) {
+        throw new IllegalStateException(
+            "Incomplete export cash valuation for account " + statistic.getAccountId());
+      }
+      // Cash statistics are in portfolio base currency. Bond value has already been restored
+      // to its USD amount using the canonical valuation's original FX rate.
+      BigDecimal cashInUsd =
+          currencyConversion.convertToBaseCurrency(
+              statistic.getCashBalance(),
+              CurrencyType.USD,
+              CurrencyType.valueOf(statistic.getValuationCurrency()),
+              applicationTime.today());
+      BigDecimal totalInUsd =
+          cashInUsd.add(bondCashByAccount.getOrDefault(statistic.getAccountId(), BigDecimal.ZERO));
+      exportCashBalances.add(new ExportCashBalance(statistic.getAccountId(), totalInUsd));
+    }
     return new PortfolioExportSnapshot(exportPositions, exportCashBalances);
   }
 
   private static boolean isBond(AssetEntity asset) {
     return asset != null && "BOND".equalsIgnoreCase(asset.getAssetType());
-  }
-
-  private static BigDecimal exportMarketPrice(
-      com.smartbox.investory.investment.ledger.position.persistence.PositionEntity position,
-      Map<Long, AssetEntity> assetsById) {
-    AssetEntity asset = assetsById.get(position.getAssetId());
-    BigDecimal price = position.getMarketPrice();
-    if (price == null && asset != null) {
-      price = asset.getMarketPrice();
-    }
-    if (price != null && asset != null && "BOND".equalsIgnoreCase(asset.getAssetType())) {
-      return price.movePointLeft(2);
-    }
-    return price;
   }
 }

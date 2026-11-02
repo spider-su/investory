@@ -41,6 +41,20 @@ Asset and currency semantics are defined by:
 - `docs/domain/asset-identity-and-money.md`
 - `docs/domain/fx-normalization.md`
 
+## Yahoo portfolio export
+
+Yahoo exports use the same current valuation selection as dashboard reporting through
+`app_v_current_open_position_rows`, mapped by a read-only JPA entity. Export account scope excludes
+`cash_only` accounts. Non-bond quantities and acquisition prices come from open ledger positions;
+current quotes come from the canonical view in the instrument listing currency. Missing valuations,
+incompatible quote currencies, or null cash balances fail export rather than substituting zero.
+Bonds use the canonical portfolio-base market value, reversed through the exact FX rate
+that produced it to recover their quote-currency value (preserving USD Treasury principal).
+Non-USD bond amounts and portfolio-base cash are converted to USD before being added to the
+`USDT-USD` surrogate. Bond percent-of-par normalization is applied only by canonical
+market-value selection; export must not divide the market price by 100 again.
+The surrogate follows USDT quotes after import and therefore can differ slightly from cash.
+
 ## Daily projection boundary
 
 `account_daily` is the persisted daily read-model boundary. Each row represents one account and one
