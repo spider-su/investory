@@ -91,3 +91,21 @@ identify the intended local calendar day. Threshold alert output is deterministi
 fingerprint includes a SHA-256 of the normalized message, so an unchanged condition is suppressed by
 the unique outbox fingerprint while a changed condition creates a new event. All delivery is performed
 by the dispatcher.
+
+## Position price alerts (notification only)
+
+- Two default rules for every open non-cash equity and ETF: 10% below and 10% above
+  canonical weighted average cost, shared across broker accounts by asset ID.
+- Bell editor allows percentage or absolute target, action text, and enabled status
+  independently for the downside and take-profit rules.
+- Dedicated Telegram integration job: `position-price-alerts` at **15:00 Europe/Warsaw,
+  Monday–Friday**. It samples the latest canonical *available* quote, typically the prior
+  US session close; it never suggests an intraday stop fill or places broker orders.
+- New rules and changed thresholds establish a first-price baseline without a notification.
+  Subsequent crossings notify once, and re-arm only after returning 2 percentage points
+  inside the configured threshold. Changing weighted-average cost also resets the baseline.
+- Skip missing or quotes older than five calendar days, without altering alert state.
+  Delivery uses the existing `THRESHOLD_ALERT` outbox and Telegram formatter; history
+  reads outbox events by portfolio and rule ID.
+- The job targets `app.notifications.portfolio-id` (as does the existing digest).
+  Configuring a Telegram account and its portfolio scope is required for delivery.
