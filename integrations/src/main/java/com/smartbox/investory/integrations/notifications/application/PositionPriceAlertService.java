@@ -390,18 +390,14 @@ public class PositionPriceAlertService {
     }
   }
 
-  static BigDecimal target(
-      BigDecimal cost, String side, String mode, BigDecimal threshold) {
+  static BigDecimal target(BigDecimal cost, String side, String mode, BigDecimal threshold) {
     if ("PRICE".equals(mode)) return threshold;
     BigDecimal factor =
-        "PROFIT".equals(side)
-            ? HUNDRED.add(threshold)
-            : HUNDRED.subtract(threshold);
+        "PROFIT".equals(side) ? HUNDRED.add(threshold) : HUNDRED.subtract(threshold);
     return cost.multiply(factor).divide(HUNDRED, MathContext.DECIMAL64);
   }
 
-  static boolean isRearmed(
-      BigDecimal price, BigDecimal target, BigDecimal cost, String side) {
+  static boolean isRearmed(BigDecimal price, BigDecimal target, BigDecimal cost, String side) {
     BigDecimal margin = cost.multiply(REARM_PERCENT).divide(HUNDRED, MathContext.DECIMAL64);
     return "PROFIT".equals(side)
         ? price.compareTo(target.subtract(margin)) <= 0

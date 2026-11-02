@@ -39,13 +39,9 @@ class PositionPriceAlertServiceTest {
             PositionPriceAlertService.isRearmed(
                 new BigDecimal("108"), profitTarget, cost, "PROFIT"))
         .isTrue();
-    assertThat(
-            PositionPriceAlertService.isRearmed(
-                new BigDecimal("91"), lossTarget, cost, "LOSS"))
+    assertThat(PositionPriceAlertService.isRearmed(new BigDecimal("91"), lossTarget, cost, "LOSS"))
         .isFalse();
-    assertThat(
-            PositionPriceAlertService.isRearmed(
-                new BigDecimal("92"), lossTarget, cost, "LOSS"))
+    assertThat(PositionPriceAlertService.isRearmed(new BigDecimal("92"), lossTarget, cost, "LOSS"))
         .isTrue();
   }
 }
