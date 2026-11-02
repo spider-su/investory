@@ -10,7 +10,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -23,8 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * User-editable, notification-only price thresholds for open equity/ETF positions.
- * One pair per canonical asset across accounts. Never sends orders to a broker.
+ * User-editable, notification-only price thresholds for open equity/ETF positions. One pair per
+ * canonical asset across accounts. Never sends orders to a broker.
  */
 @Service
 @RequiredArgsConstructor
@@ -60,46 +59,85 @@ public class PositionPriceAlertService {
   @Value("${app.notifications.base-url:http://localhost:8080}")
   private String baseUrl;
 
-  public record RuleView(long id, String side, String mode, BigDecimal threshold,
-                         String actionText, boolean enabled, boolean active) {}
+  public record RuleView(
+      long id,
+      String side,
+      String mode,
+      BigDecimal threshold,
+      String actionText,
+      boolean enabled,
+      boolean active) {}
 
-  public record PositionView(String symbol, BigDecimal quantity, BigDecimal averageCost,
-                             BigDecimal price, String currency, LocalDate quoteDate,
-                             List<RuleView> rules) {}
+  public record PositionView(
+      String symbol,
+      BigDecimal quantity,
+      BigDecimal averageCost,
+      BigDecimal price,
+      String currency,
+      LocalDate quoteDate,
+      List<RuleView> rules) {}
 
-  public record UpdateRule(String side, String mode, BigDecimal threshold,
-                           String actionText, boolean enabled) {}
+  public record UpdateRule(
+      String side, String mode, BigDecimal threshold, String actionText, boolean enabled) {}
 
   public record UpdateRequest(List<UpdateRule> rules) {}
 
-  public record HistoryItem(long eventId, String side, String message,
-                            String deliveryState, Instant createdAt, Instant deliveredAt) {}
+  public record HistoryItem(
+      long eventId,
+      String side,
+      String message,
+      String deliveryState,
+      Instant createdAt,
+      Instant deliveredAt) {}
 
-  private record Position(long portfolioId, long assetId, String symbol,
-                          BigDecimal quantity, BigDecimal averageCost, BigDecimal price,
-                          String currency, LocalDate quoteDate) {}
+  private record Position(
+      long portfolioId,
+      long assetId,
+      String symbol,
+      BigDecimal quantity,
+      BigDecimal averageCost,
+      BigDecimal price,
+      String currency,
+      LocalDate quoteDate) {}
 
-  private record Rule(long id, String side, String mode, BigDecimal threshold,
-                      String action, boolean enabled, boolean initialized, boolean active,
-                      long sequence, BigDecimal lastReference) {
+  private record Rule(
+      long id,
+      String side,
+      String mode,
+      BigDecimal threshold,
+      String action,
+      boolean enabled,
+      boolean initialized,
+      boolean active,
+      long sequence,
+      BigDecimal lastReference) {
     RuleView view() {
       return new RuleView(id, side, mode, threshold, action, enabled, active);
     }
   }
 
   private List<Position> positions(long portfolioId) {
-    return jdbc.query(POSITIONS, (rs, row) ->
-        new Position(rs.getLong("portfolio_id"), rs.getLong("asset_id"),
-            rs.getString("symbol"), rs.getBigDecimal("quantity"),
-            rs.getBigDecimal("average_cost"), rs.getBigDecimal("price"),
-            rs.getString("currency"),
-            rs.getDate("quote_date") == null ? null : rs.getDate("quote_date").toLocalDate()),
+    return jdbc.query(
+        POSITIONS,
+        (rs, row) ->
+            new Position(
+                rs.getLong("portfolio_id"),
+                rs.getLong("asset_id"),
+                rs.getString("symbol"),
+                rs.getBigDecimal("quantity"),
+                rs.getBigDecimal("average_cost"),
+                rs.getBigDecimal("price"),
+                rs.getString("currency"),
+                rs.getDate("quote_date") == null ? null : rs.getDate("quote_date").toLocalDate()),
         portfolioId);
   }
 
   private Position position(long portfolioId, String symbol) {
-    return positions(portfolioId).stream().filter(p -> p.symbol().equals(symbol)).findFirst()
-        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No open equity/ETF position"));
+    return positions(portfolioId).stream()
+        .filter(p -> p.symbol().equals(symbol))
+        .findFirst()
+        .orElseThrow(
+            () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No open equity/ETF position"));
   }
 
   private List<Rule> rules(long portfolioId, long assetId) {
@@ -110,12 +148,20 @@ public class PositionPriceAlertService {
         FROM investory.position_price_alert
         WHERE portfolio_id = ? AND asset_id = ? ORDER BY side
         """,
-        (rs, row) -> new Rule(rs.getLong("id"), rs.getString("side"),
-            rs.getString("mode"), rs.getBigDecimal("threshold"),
-            rs.getString("action_text"), rs.getBoolean("enabled"),
-            rs.getBoolean("initialized"), rs.getBoolean("active"),
-            rs.getLong("incident_sequence"), rs.getBigDecimal("last_reference_price")),
-        portfolioId, assetId);
+        (rs, row) ->
+            new Rule(
+                rs.getLong("id"),
+                rs.getString("side"),
+                rs.getString("mode"),
+                rs.getBigDecimal("threshold"),
+                rs.getString("action_text"),
+                rs.getBoolean("enabled"),
+                rs.getBoolean("initialized"),
+                rs.getBoolean("active"),
+                rs.getLong("incident_sequence"),
+                rs.getBigDecimal("last_reference_price")),
+        portfolioId,
+        assetId);
   }
 
   private static String defaultAction(String side) {
@@ -133,9 +179,15 @@ public class PositionPriceAlertService {
     for (Rule rule : rules(portfolioId, position.assetId())) {
       values.put(rule.side(), rule.view());
     }
-    return new PositionView(position.symbol(), position.quantity(), position.averageCost(),
-        position.price(), position.currency(), position.quoteDate(),
-        List.of(values.getOrDefault("LOSS", fallbackRule("LOSS")),
+    return new PositionView(
+        position.symbol(),
+        position.quantity(),
+        position.averageCost(),
+        position.price(),
+        position.currency(),
+        position.quoteDate(),
+        List.of(
+            values.getOrDefault("LOSS", fallbackRule("LOSS")),
             values.getOrDefault("PROFIT", fallbackRule("PROFIT"))));
   }
 
@@ -147,12 +199,16 @@ public class PositionPriceAlertService {
     }
     java.util.Set<String> seen = new java.util.HashSet<>();
     for (UpdateRule rule : request.rules()) {
-      if (rule == null || !List.of("LOSS", "PROFIT").contains(rule.side())
-          || !seen.add(rule.side()) || !List.of("PERCENT", "PRICE").contains(rule.mode())
-          || rule.threshold() == null || rule.threshold().signum() <= 0
+      if (rule == null
+          || !List.of("LOSS", "PROFIT").contains(rule.side())
+          || !seen.add(rule.side())
+          || !List.of("PERCENT", "PRICE").contains(rule.mode())
+          || rule.threshold() == null
+          || rule.threshold().signum() <= 0
           || ("PERCENT".equals(rule.mode()) && rule.threshold().compareTo(HUNDRED) > 0)
           || rule.threshold().compareTo(new BigDecimal("100000000")) > 0
-          || rule.actionText() == null || rule.actionText().isBlank()
+          || rule.actionText() == null
+          || rule.actionText().isBlank()
           || rule.actionText().length() > 240) {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid alert configuration");
       }
@@ -176,8 +232,13 @@ public class PositionPriceAlertService {
                 THEN false ELSE position_price_alert.active END,
               updated_at = now()
           """,
-          portfolioId, position.assetId(), rule.side(), rule.mode(),
-          rule.threshold(), rule.actionText().trim(), rule.enabled());
+          portfolioId,
+          position.assetId(),
+          rule.side(),
+          rule.mode(),
+          rule.threshold(),
+          rule.actionText().trim(),
+          rule.enabled());
     }
     return get(portfolioId, symbol);
   }
@@ -196,12 +257,18 @@ public class PositionPriceAlertService {
         WHERE p.portfolio_id = ? AND p.asset_id = ?
         ORDER BY e.created_at DESC, e.id DESC LIMIT 30
         """,
-        (rs, row) -> new HistoryItem(rs.getLong("id"), rs.getString("side"),
-            rs.getString("message"), rs.getString("delivery_state"),
-            rs.getTimestamp("created_at").toInstant(),
-            rs.getTimestamp("delivered_at") == null
-                ? null : rs.getTimestamp("delivered_at").toInstant()),
-        portfolioId, position.assetId());
+        (rs, row) ->
+            new HistoryItem(
+                rs.getLong("id"),
+                rs.getString("side"),
+                rs.getString("message"),
+                rs.getString("delivery_state"),
+                rs.getTimestamp("created_at").toInstant(),
+                rs.getTimestamp("delivered_at") == null
+                    ? null
+                    : rs.getTimestamp("delivered_at").toInstant()),
+        portfolioId,
+        position.assetId());
   }
 
   /** Runs at 15:00 Warsaw on weekdays. Uses the last selected close, not an intraday quote. */
@@ -218,10 +285,15 @@ public class PositionPriceAlertService {
             VALUES (?, ?, ?, ?)
             ON CONFLICT (portfolio_id, asset_id, side) DO NOTHING
             """,
-            portfolioId, position.assetId(), side, defaultAction(side));
+            portfolioId,
+            position.assetId(),
+            side,
+            defaultAction(side));
       }
-      if (position.price() == null || position.price().signum() <= 0
-          || position.averageCost() == null || position.averageCost().signum() <= 0
+      if (position.price() == null
+          || position.price().signum() <= 0
+          || position.averageCost() == null
+          || position.averageCost().signum() <= 0
           || position.quoteDate() == null
           || position.quoteDate().isAfter(LocalDate.now(clock.withZone(WARSAW)))
           || position.quoteDate().isBefore(LocalDate.now(clock.withZone(WARSAW)).minusDays(5))) {
@@ -237,10 +309,10 @@ public class PositionPriceAlertService {
     BigDecimal reference = position.averageCost();
     BigDecimal target = target(reference, rule);
     BigDecimal price = position.price();
-    boolean breached = "PROFIT".equals(rule.side())
-        ? price.compareTo(target) >= 0 : price.compareTo(target) <= 0;
-    boolean referenceChanged = rule.lastReference() == null
-        || rule.lastReference().compareTo(reference) != 0;
+    boolean breached =
+        "PROFIT".equals(rule.side()) ? price.compareTo(target) >= 0 : price.compareTo(target) <= 0;
+    boolean referenceChanged =
+        rule.lastReference() == null || rule.lastReference().compareTo(reference) != 0;
     boolean active = rule.active();
     long sequence = rule.sequence();
     boolean fire = false;
@@ -262,41 +334,69 @@ public class PositionPriceAlertService {
             last_observed_at = ?, last_alert_at = CASE WHEN ? THEN ? ELSE last_alert_at END
         WHERE id = ?
         """,
-        active, sequence, reference, price, clock.instant(), fire, clock.instant(), rule.id());
+        active,
+        sequence,
+        reference,
+        price,
+        clock.instant(),
+        fire,
+        clock.instant(),
+        rule.id());
     if (fire) {
       String move = "PROFIT".equals(rule.side()) ? "take-profit" : "downside";
-      BigDecimal percent = price.subtract(reference).multiply(HUNDRED)
-          .divide(reference, MathContext.DECIMAL64);
-      String message = String.format(Locale.US,
-          "%s %s alert (%s %s)\nAverage cost: %s %s\nLatest price: %s %s (%+.1f%%)\nAction: %s\nQuote date: %s\nNo orders placed.\n%s/portfolios/%d/dashboard",
-          position.symbol(), move, rule.mode(), rule.threshold().stripTrailingZeros().toPlainString(),
-          reference.stripTrailingZeros().toPlainString(), position.currency(),
-          price.stripTrailingZeros().toPlainString(), position.currency(),
-          percent.doubleValue(), rule.action(), position.quoteDate(),
-          baseUrl.replaceAll("/+$", ""), position.portfolioId());
-      publisher.publish(new NotificationCandidate(
-          NotificationEventType.THRESHOLD_ALERT,
-          "LOSS".equals(rule.side()) ? NotificationSeverity.WARNING : NotificationSeverity.INFO,
-          position.portfolioId(), "POSITION_PRICE_ALERT", Long.toString(rule.id()),
-          "POSITION_PRICE_ALERT:" + rule.id() + ":" + sequence,
-          position.symbol() + " price alert",
-          Map.of("message", message, "rule", "POSITION_PRICE_ALERT",
-              "symbol", position.symbol(), "side", rule.side()),
-          clock.instant()));
+      BigDecimal percent =
+          price.subtract(reference).multiply(HUNDRED).divide(reference, MathContext.DECIMAL64);
+      String message =
+          String.format(
+              Locale.US,
+              "%s %s alert (%s %s)\nAverage cost: %s %s\nLatest price: %s %s (%+.1f%%)\nAction: %s\nQuote date: %s\nNo orders placed.\n%s/portfolios/%d/dashboard",
+              position.symbol(),
+              move,
+              rule.mode(),
+              rule.threshold().stripTrailingZeros().toPlainString(),
+              reference.stripTrailingZeros().toPlainString(),
+              position.currency(),
+              price.stripTrailingZeros().toPlainString(),
+              position.currency(),
+              percent.doubleValue(),
+              rule.action(),
+              position.quoteDate(),
+              baseUrl.replaceAll("/+$", ""),
+              position.portfolioId());
+      publisher.publish(
+          new NotificationCandidate(
+              NotificationEventType.THRESHOLD_ALERT,
+              "LOSS".equals(rule.side()) ? NotificationSeverity.WARNING : NotificationSeverity.INFO,
+              position.portfolioId(),
+              "POSITION_PRICE_ALERT",
+              Long.toString(rule.id()),
+              "POSITION_PRICE_ALERT:" + rule.id() + ":" + sequence,
+              position.symbol() + " price alert",
+              Map.of(
+                  "message",
+                  message,
+                  "rule",
+                  "POSITION_PRICE_ALERT",
+                  "symbol",
+                  position.symbol(),
+                  "side",
+                  rule.side()),
+              clock.instant()));
     }
   }
 
   private static BigDecimal target(BigDecimal cost, Rule rule) {
     if ("PRICE".equals(rule.mode())) return rule.threshold();
-    BigDecimal factor = "PROFIT".equals(rule.side())
-        ? HUNDRED.add(rule.threshold()) : HUNDRED.subtract(rule.threshold());
+    BigDecimal factor =
+        "PROFIT".equals(rule.side())
+            ? HUNDRED.add(rule.threshold())
+            : HUNDRED.subtract(rule.threshold());
     return cost.multiply(factor).divide(HUNDRED, MathContext.DECIMAL64);
   }
 
   private static boolean isRearmed(
       BigDecimal price, BigDecimal target, BigDecimal cost, String side) {
-    BigDecimal margin = cost.multiply(REARM_PERCENT)
-        .divide(HUNDRED, MathContext.DECIMAL64);
+    BigDecimal margin = cost.multiply(REARM_PERCENT).divide(HUNDRED, MathContext.DECIMAL64);
     return "PROFIT".equals(side)
         ? price.compareTo(target.subtract(margin)) <= 0
         : price.compareTo(target.add(margin)) >= 0;

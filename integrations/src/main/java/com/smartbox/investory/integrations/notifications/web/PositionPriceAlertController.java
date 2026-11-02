@@ -25,14 +25,15 @@ public class PositionPriceAlertController {
   }
 
   @PutMapping("/{symbol}")
-  public PositionView update(@PathVariable Long portfolioId, @PathVariable String symbol,
-                             @RequestBody UpdateRequest request) {
+  public PositionView update(
+      @PathVariable Long portfolioId,
+      @PathVariable String symbol,
+      @RequestBody UpdateRequest request) {
     return alerts.update(portfolioId, symbol, request);
   }
 
   @GetMapping("/{symbol}/history")
-  public List<HistoryItem> history(@PathVariable Long portfolioId,
-                                   @PathVariable String symbol) {
+  public List<HistoryItem> history(@PathVariable Long portfolioId, @PathVariable String symbol) {
     return alerts.history(portfolioId, symbol);
   }
 }
