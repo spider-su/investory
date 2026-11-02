@@ -312,7 +312,7 @@ public class PositionPriceAlertService {
 
   private void evaluateRule(Position position, Rule rule) {
     BigDecimal reference = position.averageCost();
-    BigDecimal target = target(reference, rule);
+    BigDecimal target = target(reference, rule.side(), rule.mode(), rule.threshold());
     BigDecimal price = position.price();
     boolean breached =
         "PROFIT".equals(rule.side()) ? price.compareTo(target) >= 0 : price.compareTo(target) <= 0;
@@ -390,16 +390,17 @@ public class PositionPriceAlertService {
     }
   }
 
-  private static BigDecimal target(BigDecimal cost, Rule rule) {
-    if ("PRICE".equals(rule.mode())) return rule.threshold();
+  static BigDecimal target(
+      BigDecimal cost, String side, String mode, BigDecimal threshold) {
+    if ("PRICE".equals(mode)) return threshold;
     BigDecimal factor =
-        "PROFIT".equals(rule.side())
-            ? HUNDRED.add(rule.threshold())
-            : HUNDRED.subtract(rule.threshold());
+        "PROFIT".equals(side)
+            ? HUNDRED.add(threshold)
+            : HUNDRED.subtract(threshold);
     return cost.multiply(factor).divide(HUNDRED, MathContext.DECIMAL64);
   }
 
-  private static boolean isRearmed(
+  static boolean isRearmed(
       BigDecimal price, BigDecimal target, BigDecimal cost, String side) {
     BigDecimal margin = cost.multiply(REARM_PERCENT).divide(HUNDRED, MathContext.DECIMAL64);
     return "PROFIT".equals(side)
