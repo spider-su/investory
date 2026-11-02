@@ -39,6 +39,17 @@
                                        th:classappend="${position.unrealized > -0.01 and position.unrealized < 0.01} ? 'iv-position-popover__symbol--stale'"
                                        th:text="${position.symbol}"
                                        title="Open asset details">AAPL.US</a>
+                                    <button type="button" class="iv-icon-button iv-position-alert-bell"
+                                            th:attr="data-symbol=${position.symbol}"
+                                            title="Configure price alerts" aria-label="Configure price alerts"
+                                            th:if="${position.volume != null and position.volume > 0}">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                                             stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/>
+                                            <path d="M10 21h4"/>
+                                        </svg>
+                                    </button>
                                     <button type="button"
                                             class="iv-icon-button iv-manual-price-button"
                                             title="Set manual price"
