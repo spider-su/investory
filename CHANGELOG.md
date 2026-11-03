@@ -9,6 +9,11 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-11-03
+
+- Fix position-price alert state persistence by binding observation and alert instants as JDBC
+  timestamps, avoiding PostgreSQL's unsupported raw `Instant` parameter binding.
+
 ## 2026-11-01
 
 - Fix Yahoo portfolio export to use canonical current prices and bond valuations, avoid a second

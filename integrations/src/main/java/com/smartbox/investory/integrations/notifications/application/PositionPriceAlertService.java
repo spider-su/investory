@@ -6,6 +6,7 @@ import com.smartbox.investory.shared.notifications.NotificationEventType;
 import com.smartbox.investory.shared.notifications.NotificationSeverity;
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -331,6 +332,7 @@ public class PositionPriceAlertService {
     } else if (active && isRearmed(price, target, reference, rule.side())) {
       active = false;
     }
+    Timestamp observedAt = Timestamp.from(clock.instant());
     jdbc.update(
         """
         UPDATE investory.position_price_alert
@@ -343,9 +345,9 @@ public class PositionPriceAlertService {
         sequence,
         reference,
         price,
-        clock.instant(),
+        observedAt,
         fire,
-        clock.instant(),
+        observedAt,
         rule.id());
     if (fire) {
       String move = "PROFIT".equals(rule.side()) ? "take-profit" : "downside";
