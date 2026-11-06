@@ -53,6 +53,8 @@ The unique `fingerprint` is producer-owned and must identify one economic event 
 | Plan became unsustainable | `PLAN_BECAME_UNSUSTAINABLE:{planId}` |
 | Daily digest | `DAILY_DIGEST:{Europe/Warsaw local date}` |
 | Threshold alert | `ALERT:{ruleCode}:{SHA-256 of normalized message}` |
+| Position crossing | `POSITION_PRICE_ALERT:{ruleId}:{incidentSequence}` |
+| Initial position summary | `POSITION_PRICE_ALERT_INITIAL_SUMMARY:{portfolioId}` (additional parts append `:2`, `:3`, etc.) |
 
 `PENDING` has not been attempted. `PROCESSING` is held by one worker token until its short lease
 expires. `RETRYABLE` failed below the configured attempt limit and has a future `next_attempt_at`.
@@ -101,9 +103,21 @@ by the dispatcher.
 - Dedicated Telegram integration job: `position-price-alerts` at **15:00 Europe/Warsaw,
   Monday–Friday**. It samples the latest canonical *available* quote, typically the prior
   US session close; it never suggests an intraday stop fill or places broker orders.
-- New rules and changed thresholds establish a first-price baseline without a notification.
-  Subsequent crossings notify once, and re-arm only after returning 2 percentage points
-  inside the configured threshold. Changing weighted-average cost also resets the baseline.
+- The first evaluation with at least one enabled rule and usable quote sends one portfolio-wide
+  initial summary. It includes every enabled rule currently breaching its configured target, with
+  price, move versus weighted cost, target and quote date. It also reports skipped positions; when
+  no thresholds are breached it says so. If no rules can be evaluated, summary creation is deferred.
+  Existing installations receive the summary on their first evaluation after this feature is deployed.
+- That initial run consolidates all breaches, including crossings, into the summary. Later runs
+  keep individual crossing alerts and re-arm only after returning 2 percentage points inside the
+  configured threshold. New rules, changed thresholds and changed weighted-average cost still
+  establish a silent per-rule baseline; they do not resend the initial portfolio summary.
+- Summary and rule-state updates commit together. The existing unique outbox fingerprint is the
+  durable once-per-portfolio marker; retries and pod restarts reuse it. Preserve summary event rows
+  when performing outbox maintenance. Oversized summaries split into numbered parts rather than
+  omitting positions. Delivery retains the outbox's documented at-least-once limitation.
+  Summary events use source `POSITION_PRICE_ALERT_SUMMARY`; per-rule history continues to show
+  individual crossing events.
 - Skip missing or quotes older than five calendar days, without altering alert state.
   Delivery uses the existing `THRESHOLD_ALERT` outbox and Telegram formatter; history
   reads outbox events by portfolio and rule ID.
