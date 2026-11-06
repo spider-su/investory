@@ -9,6 +9,11 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-11-07
+
+- Send a durable one-time portfolio summary of existing position-price breaches, including quote
+  dates and configured targets, then retain individual crossing alerts and their re-arm behavior.
+
 ## 2026-11-03
 
 - Fix position-price alert state persistence by binding observation and alert instants as JDBC

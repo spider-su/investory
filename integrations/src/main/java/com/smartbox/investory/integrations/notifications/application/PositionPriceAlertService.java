@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -281,6 +282,17 @@ public class PositionPriceAlertService {
   @Transactional
   public void evaluate(long portfolioId) {
     List<Position> positions = positions(portfolioId);
+    if (positions.isEmpty()) return;
+    String summaryKey = "POSITION_PRICE_ALERT_INITIAL_SUMMARY:" + portfolioId;
+    boolean initialSummary =
+        !Boolean.TRUE.equals(
+            jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM investory.notification_event WHERE fingerprint = ?)",
+                Boolean.class,
+                summaryKey));
+    List<String> breaches = new ArrayList<>();
+    int evaluatedRules = 0;
+    int skippedPositions = 0;
     for (Position position : positions) {
       // Initialize only open equities and ETFs. Existing user overrides are never overwritten.
       for (String side : List.of("LOSS", "PROFIT")) {
@@ -303,15 +315,100 @@ public class PositionPriceAlertService {
           || position.quoteDate() == null
           || position.quoteDate().isAfter(LocalDate.now(clock.withZone(WARSAW)))
           || position.quoteDate().isBefore(LocalDate.now(clock.withZone(WARSAW)).minusDays(5))) {
+        skippedPositions++;
         continue; // Missing/stale source data never triggers or re-arms a rule.
       }
       for (Rule rule : rules(portfolioId, position.assetId())) {
-        if (rule.enabled()) evaluateRule(position, rule);
+        if (rule.enabled()) {
+          evaluatedRules++;
+          if (initialSummary) {
+            BigDecimal trigger =
+                target(position.averageCost(), rule.side(), rule.mode(), rule.threshold());
+            boolean breached =
+                "PROFIT".equals(rule.side())
+                    ? position.price().compareTo(trigger) >= 0
+                    : position.price().compareTo(trigger) <= 0;
+            if (breached) {
+              BigDecimal percent =
+                  position
+                      .price()
+                      .subtract(position.averageCost())
+                      .multiply(HUNDRED)
+                      .divide(position.averageCost(), MathContext.DECIMAL64);
+              breaches.add(
+                  String.format(
+                      Locale.US,
+                      "%s %s: %+.1f%% vs cost\nPrice %s %s; trigger %s %s; quote %s",
+                      position.symbol(),
+                      "LOSS".equals(rule.side()) ? "downside" : "take-profit",
+                      percent.doubleValue(),
+                      position.price().stripTrailingZeros().toPlainString(),
+                      position.currency(),
+                      trigger.stripTrailingZeros().toPlainString(),
+                      position.currency(),
+                      position.quoteDate()));
+            }
+          }
+          evaluateRule(position, rule, !initialSummary);
+        }
       }
+    }
+    if (initialSummary && evaluatedRules > 0) {
+      publishInitialSummary(portfolioId, summaryKey, breaches, skippedPositions);
     }
   }
 
-  private void evaluateRule(Position position, Rule rule) {
+  private void publishInitialSummary(
+      long portfolioId, String key, List<String> breaches, int skipped) {
+    // Keep a logical summary within Telegram's message limit without dropping any breach.
+    List<String> parts = new ArrayList<>();
+    StringBuilder part = new StringBuilder();
+    for (String breach : breaches) {
+      if (part.length() + breach.length() > 3000) {
+        parts.add(part.toString());
+        part.setLength(0);
+      }
+      if (!part.isEmpty()) part.append("\n\n");
+      part.append(breach);
+    }
+    if (!part.isEmpty() || parts.isEmpty()) parts.add(part.toString());
+    String header =
+        breaches.isEmpty()
+            ? "No evaluated threshold is currently breached."
+            : breaches.size() + " existing threshold breaches";
+    String footer =
+        (skipped > 0
+                ? "\nSkipped " + skipped + " positions with missing/stale prices or invalid cost."
+                : "")
+            + "\nSubsequent notifications follow new crossings after re-arm.\n"
+            + baseUrl.replaceAll("/+$", "")
+            + "/portfolios/"
+            + portfolioId
+            + "/dashboard";
+    Instant createdAt = clock.instant();
+    for (int i = 0; i < parts.size(); i++) {
+      String title =
+          "Initial position-price summary"
+              + (parts.size() > 1 ? " (" + (i + 1) + "/" + parts.size() + ")" : "");
+      publisher.publish(
+          new NotificationCandidate(
+              NotificationEventType.THRESHOLD_ALERT,
+              breaches.isEmpty() ? NotificationSeverity.INFO : NotificationSeverity.WARNING,
+              portfolioId,
+              "POSITION_PRICE_ALERT_SUMMARY",
+              Long.toString(portfolioId),
+              i == 0 ? key : key + ":" + (i + 1),
+              title,
+              Map.of(
+                  "message",
+                  header + "\nLatest available closing prices.\n\n" + parts.get(i) + footer,
+                  "rule",
+                  "POSITION_PRICE_ALERT_INITIAL_SUMMARY"),
+              createdAt));
+    }
+  }
+
+  private void evaluateRule(Position position, Rule rule, boolean publishCrossings) {
     BigDecimal reference = position.averageCost();
     BigDecimal target = target(reference, rule.side(), rule.mode(), rule.threshold());
     BigDecimal price = position.price();
@@ -323,7 +420,7 @@ public class PositionPriceAlertService {
     long sequence = rule.sequence();
     boolean fire = false;
     if (!rule.initialized() || referenceChanged) {
-      // Baseline existing positions on the first evaluation; never send initial spam.
+      // Baseline each rule silently; the one-time portfolio summary reports existing breaches.
       active = breached;
     } else if (!active && breached) {
       active = true;
@@ -349,7 +446,8 @@ public class PositionPriceAlertService {
         fire,
         observedAt,
         rule.id());
-    if (fire) {
+    // On the first run the summary covers all breaches, including any new crossings.
+    if (fire && publishCrossings) {
       String move = "PROFIT".equals(rule.side()) ? "take-profit" : "downside";
       BigDecimal percent =
           price.subtract(reference).multiply(HUNDRED).divide(reference, MathContext.DECIMAL64);
