@@ -18,10 +18,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -56,6 +58,15 @@ class ExportHappyInvestorIT {
   private static final String TRADE_TIME = "00:00 Europe/Warsaw";
 
   @Autowired private MockMvc mockMvc;
+  @Autowired private JdbcTemplate jdbc;
+
+  @BeforeEach
+  void alignCurrentFxViewWithApplicationDate() {
+    // Snapshot restoration uses the container's UTC session; application connections use Warsaw.
+    // Around midnight they have different CURRENT_DATE values. Refresh in the application session
+    // so current-position valuation can find its current-date FX rows without changing any rates.
+    jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_portfolio_daily_fx_rate_mv");
+  }
 
   @Test
   void downloadsExactHappyInvestorYahooCsv() throws Exception {
