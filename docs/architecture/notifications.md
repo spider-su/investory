@@ -123,3 +123,17 @@ by the dispatcher.
   reads outbox events by portfolio and rule ID.
 - The job targets `app.notifications.portfolio-id` (as does the existing digest).
   Configuring a Telegram account and its portfolio scope is required for delivery.
+
+## Monthly broker-import freshness
+
+Broker statements are normally uploaded monthly. `app.notifications.stale-import-days` defaults
+to 35 calendar days (`ALERT_STALE_IMPORT_DAYS` overrides it). The stale-import rule and import
+freshness health indicator inspect the latest attempt separately for each broker with import
+history in the configured portfolio. A broker never imported is not assumed to be in use; no
+history at all retains the existing missing-import warning.
+
+The alert fires at age >= 35 days by default, or immediately when that broker's latest attempt
+failed. Price/FX refreshes do not reset statement age. Independent `STALE_IMPORT:IBKR` and
+`STALE_IMPORT:XTB` incident keys prevent one broker upload from hiding another's stale state.
+The next rule evaluation clears the previous aggregate incident automatically when absent;
+no recovery notification is sent. The weekday notification schedule is unchanged.

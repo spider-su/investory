@@ -25,7 +25,7 @@ public class NotificationProperties {
   @Value("${app.notifications.concentration-threshold-pct:25}")
   private double concentrationThresholdPct;
 
-  @Value("${app.notifications.stale-import-days:7}")
+  @Value("${app.notifications.stale-import-days:35}")
   private int staleImportDays;
 
   @Value("${app.notifications.rental-contract-expiration-enabled:true}")

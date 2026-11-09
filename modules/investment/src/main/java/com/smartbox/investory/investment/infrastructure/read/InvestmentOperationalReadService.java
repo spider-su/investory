@@ -59,6 +59,22 @@ public class InvestmentOperationalReadService
   }
 
   @Override
+  public List<ImportOperationsSnapshot> latestImportsByBroker(Long portfolioId) {
+    return java.util.Arrays.stream(com.smartbox.investory.investment.imports.BrokerType.values())
+        .map(broker -> imports.findFirstByPortfolioIdAndBrokerOrderByIdDesc(portfolioId, broker))
+        .flatMap(java.util.Optional::stream)
+        .map(
+            batch ->
+                new ImportOperationsSnapshot(
+                    batch.getId(),
+                    toApiBroker(batch.getBroker()),
+                    batch.getStatus().name(),
+                    batch.getStartedAt(),
+                    batch.getFinishedAt()))
+        .toList();
+  }
+
+  @Override
   public List<SymbolExposure> symbolExposures(Long portfolioId) {
     Map<String, Double> values = new HashMap<>();
     CurrencyType baseCurrency = portfolios.calculateTotalProfitLoss(portfolioId).getBaseCurrency();
