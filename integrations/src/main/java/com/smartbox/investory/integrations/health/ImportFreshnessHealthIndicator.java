@@ -6,6 +6,9 @@ import com.smartbox.investory.investment.api.operations.ImportOperationsReader.I
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -26,11 +29,16 @@ public class ImportFreshnessHealthIndicator implements HealthIndicator {
 
   @Override
   public Health health() {
-    return investment
-        .latestImport(properties.getPortfolioId())
-        .map(this::healthFor)
-        .orElseGet(
-            () -> Health.down().withDetail("reason", "No broker imports recorded yet.").build());
+    List<ImportOperationsSnapshot> batches =
+        investment.latestImportsByBroker(properties.getPortfolioId());
+    if (batches.isEmpty()) {
+      return Health.down().withDetail("reason", "No broker imports recorded yet.").build();
+    }
+    Map<String, Health> brokers = new LinkedHashMap<>();
+    batches.forEach(batch -> brokers.put(batch.broker().name(), healthFor(batch)));
+    boolean healthy =
+        brokers.values().stream().allMatch(health -> "UP".equals(health.getStatus().getCode()));
+    return (healthy ? Health.up() : Health.down()).withDetail("brokers", brokers).build();
   }
 
   private Health healthFor(ImportOperationsSnapshot batch) {
@@ -39,7 +47,9 @@ public class ImportFreshnessHealthIndicator implements HealthIndicator {
       return Health.down().withDetail("reason", "Latest import has no timestamp.").build();
     }
     long ageDays =
-        ChronoUnit.DAYS.between(importedAt.toLocalDate(), ZonedDateTime.now(clock).toLocalDate());
+        ChronoUnit.DAYS.between(
+            importedAt.withZoneSameInstant(clock.getZone()).toLocalDate(),
+            ZonedDateTime.now(clock).toLocalDate());
     Health.Builder builder =
         "COMPLETED".equals(batch.status()) && ageDays < properties.getStaleImportDays()
             ? Health.up()

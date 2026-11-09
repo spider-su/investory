@@ -5,13 +5,12 @@ import com.smartbox.investory.investment.api.operations.ImportOperationsReader.I
 import com.smartbox.investory.shared.time.ApplicationTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-/**
- * Fires when no successful import batch has been recorded for longer than the configured threshold.
- */
+/** Checks the latest attempt independently for each previously imported broker. */
 @Component
 @RequiredArgsConstructor
 public class StaleImportAlertRule implements AlertRule {
@@ -27,12 +26,27 @@ public class StaleImportAlertRule implements AlertRule {
 
   @Override
   public Optional<String> evaluate() {
-    Optional<ImportOperationsSnapshot> latest =
-        investment.latestImport(properties.getPortfolioId());
-    if (latest.isEmpty()) {
-      return Optional.of("No broker imports recorded yet.");
+    return evaluateObservations().stream()
+        .map(AlertObservation::message)
+        .reduce((a, b) -> a + "\n" + b);
+  }
+
+  @Override
+  public List<AlertObservation> evaluateObservations() {
+    List<ImportOperationsSnapshot> batches =
+        investment.latestImportsByBroker(properties.getPortfolioId());
+    if (batches.isEmpty()) {
+      return List.of(new AlertObservation("", "No broker imports recorded yet."));
     }
-    ImportOperationsSnapshot batch = latest.get();
+    return batches.stream()
+        .flatMap(
+            batch ->
+                staleMessage(batch).stream()
+                    .map(message -> new AlertObservation(batch.broker().name(), message)))
+        .toList();
+  }
+
+  private Optional<String> staleMessage(ImportOperationsSnapshot batch) {
     ZonedDateTime ts = batch.finishedAt() != null ? batch.finishedAt() : batch.startedAt();
     if (ts == null) {
       return Optional.empty();

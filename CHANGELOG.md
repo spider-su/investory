@@ -9,6 +9,11 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-11-09
+
+- Allow 35 calendar days for monthly broker uploads and evaluate import freshness independently
+  per broker in alerts and operational health.
+
 ## 2026-11-07
 
 - Send a durable one-time portfolio summary of existing position-price breaches, including quote

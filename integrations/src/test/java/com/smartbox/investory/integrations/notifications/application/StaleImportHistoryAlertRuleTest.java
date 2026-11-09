@@ -9,6 +9,7 @@ import com.smartbox.investory.investment.api.importing.ImportBroker;
 import com.smartbox.investory.investment.api.operations.ImportOperationsReader;
 import com.smartbox.investory.investment.api.operations.ImportOperationsReader.ImportOperationsSnapshot;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +38,7 @@ class StaleImportHistoryAlertRuleTest {
   @DisplayName("evaluate fires When No Batches Exist")
   @Test
   void evaluate_firesWhenNoBatchesExist() {
-    when(investment.latestImport(1L)).thenReturn(Optional.empty());
+    when(investment.latestImportsByBroker(1L)).thenReturn(List.of());
 
     Optional<String> result = rule.evaluate();
 
@@ -48,8 +49,8 @@ class StaleImportHistoryAlertRuleTest {
   @DisplayName("evaluate fires When Last Batch Is Older Than Threshold")
   @Test
   void evaluate_firesWhenLastBatchIsOlderThanThreshold() {
-    when(investment.latestImport(1L))
-        .thenReturn(Optional.of(batch("COMPLETED", TIME.now(TIME.businessZone()).minusDays(30))));
+    when(investment.latestImportsByBroker(1L))
+        .thenReturn(List.of(batch("COMPLETED", TIME.now(TIME.businessZone()).minusDays(30))));
 
     Optional<String> result = rule.evaluate();
 
@@ -60,8 +61,8 @@ class StaleImportHistoryAlertRuleTest {
   @DisplayName("evaluate fires When Last Batch Failed")
   @Test
   void evaluate_firesWhenLastBatchFailed() {
-    when(investment.latestImport(1L))
-        .thenReturn(Optional.of(batch("FAILED", TIME.now(TIME.businessZone()))));
+    when(investment.latestImportsByBroker(1L))
+        .thenReturn(List.of(batch("FAILED", TIME.now(TIME.businessZone()))));
 
     assertTrue(rule.evaluate().isPresent());
   }
@@ -69,8 +70,8 @@ class StaleImportHistoryAlertRuleTest {
   @DisplayName("evaluate is Quiet For Fresh Applied Batch")
   @Test
   void evaluate_isQuietForFreshAppliedBatch() {
-    when(investment.latestImport(1L))
-        .thenReturn(Optional.of(batch("COMPLETED", TIME.now(TIME.businessZone()))));
+    when(investment.latestImportsByBroker(1L))
+        .thenReturn(List.of(batch("COMPLETED", TIME.now(TIME.businessZone()))));
 
     assertFalse(rule.evaluate().isPresent());
   }
