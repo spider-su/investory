@@ -1,0 +1,14 @@
+[
+  {
+    "question": "What is the fixed withdrawal order in Reserve + Harvest?",
+    "expected_sources": ["domain/retirement-simulation.md"]
+  },
+  {
+    "question": "What is the difference between investment earnings and external contributions?",
+    "expected_sources": ["domain/portfolio-accounting.md"]
+  },
+  {
+    "question": "How are the Past, Current and Future years handled in planning?",
+    "expected_sources": ["domain/planning-timeline.md"]
+  }
+]
