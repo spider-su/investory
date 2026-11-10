@@ -1,4 +1,4 @@
-"""Local documentation ingestion; no broker data or arbitrary web URLs."""
+"""Load local Markdown documentation without following symlinks."""
 import hashlib
 from pathlib import Path
 
@@ -35,9 +35,20 @@ def chunk_documents(documents: list[Document], size: int, overlap: int) -> list[
         chunk_overlap=overlap,
         separators=["\n## ", "\n### ", "\n\n", "\n", " ", ""],
     )
-    return splitter.split_documents(documents)
+    result = []
+    for source_document in documents:
+        parts = splitter.split_documents([source_document])
+        for index, document in enumerate(parts):
+            document.metadata["chunk_index"] = index
+            result.append(document)
+    return result
 
 
 def stable_id(document: Document) -> str:
-    raw = (document.metadata["source"] + "\0" + document.page_content).encode("utf-8")
+    # Chunk index matters: equal chunks at distinct positions are separate evidence.
+    raw = (
+        document.metadata["source"] + "\0"
+        + str(document.metadata["chunk_index"]) + "\0"
+        + document.page_content
+    ).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
