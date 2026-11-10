@@ -88,6 +88,8 @@ management:
         enabled: true
 
 app:
+  mcp:
+    enabled: ${INVESTORY_MCP_ENABLED:false}
   scheduling:
     enabled: ${SCHEDULING_ENABLED:true}
   ui:
