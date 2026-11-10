@@ -92,7 +92,9 @@ public class SecurityConfig {
                             "/api/v1/auth/login", "/api/v1/auth/invitations/*/accept")
                         .ignoringRequestMatchers(request ->
                             "/mcp".equals(request.getRequestURI())
-                                && request.getHeader("Authorization") != null);
+                                && (request.getHeader("Authorization") != null
+                                    && (request.getHeader("Authorization").startsWith("Basic ")
+                                        || request.getHeader("Authorization").startsWith("Bearer "))));
                   } else {
                     csrf.disable();
                   }
