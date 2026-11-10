@@ -5,7 +5,9 @@ Optional, embedded, read-only MCP JSON-RPC adapter. Disabled by default with
 
 POST `/mcp` with an authenticated **ADMIN** account. The draft deliberately restricts
 access to ADMIN until profile-membership authorization is wired into the MCP
-boundary. Do not expose this endpoint publicly without reviewing transport
+boundary. HTTP Basic or bearer Authorization headers are supported; MCP POST
+requests with an Authorization header bypass browser CSRF checks. Requests
+using browser cookies alone retain normal CSRF protection. Do not expose this endpoint publicly without reviewing transport
 authentication and deployment policy.
 
 Supported MCP methods: `initialize`, `ping`, `tools/list`, `tools/call`,
