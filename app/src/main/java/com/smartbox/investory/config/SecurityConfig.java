@@ -119,7 +119,7 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/v1/auth/invitations/*/accept")
                         .permitAll()
-                        .requestMatchers("/settings/**", "/api/v1/admin/**")
+                        .requestMatchers("/mcp", "/mcp/**", "/settings/**", "/api/v1/admin/**")
                         .hasRole("ADMIN")
                         .requestMatchers("/api/v1/investment/maintenance/**")
                         .hasRole("ADMIN")
