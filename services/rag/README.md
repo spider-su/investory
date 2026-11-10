@@ -20,7 +20,7 @@ uvicorn investory_rag.main:app --host 127.0.0.1 --port 8090
 
 The default `RAG_DOCS_ROOT=../../docs` indexes Investory's checked-in Markdown
 contracts, including retirement and portfolio-accounting documentation.
-Run indexing explicitly after changes; it replaces the previous snapshot.
+Run indexing explicitly after changes; it reuses unchanged chunks, embeds new or modified chunks, and removes obsolete chunks. Run only one indexing process at a time.
 Do not point this at confidential statements or exported brokerage data.
 
 ```sh
@@ -42,13 +42,14 @@ If the collection is empty, it returns a useful message without calling the LLM.
   call the OpenAI chat and embeddings APIs; selected excerpts leave the host.
 - Chroma persists locally under `data/chroma`; keep the volume persistent
   during deployments. Back it up or re-index from source documentation.
-- The index command replaces the collection content rather than incrementally
-  updating changed documents. Do not run concurrent indexers.
+- Indexing uses stable per-chunk identifiers. An unchanged document reuses existing embeddings, while edited and deleted chunks are reconciled. Do not run concurrent indexers.\n- Changing the embedding model requires rebuilding its collection; do not reuse vectors from a different embedding model.\n- Retrieval uses a configurable minimum relevance threshold, not a calibrated confidence measure. Evaluate and tune it against representative questions before relying on automated answers.
 - Retrieved text is untrusted. The service prompts the model to use sources
   only, but source citations and answers must still be reviewed.
-- Follow-up work: source-aware eval tests, ranking/abstention thresholds,
-  selective re-indexing, auth, request budgets, telemetry, Java read-only
-  fact tools and MCP integration.
+- Follow-up work: source-aware retrieval evaluation, auth, request budgets, telemetry, Java read-only fact tools and MCP integration.
+
+## Retrieval configuration
+
+The default `RAG_TOP_K=4` limits retrieved chunks. `RAG_MIN_RELEVANCE_SCORE=0.3` filters low-scoring results; Chroma/LangChain relevance scores are **not calibrated probabilities**. Tune the cutoff after running evaluation questions against your own documentation. `RAG_INDEX_BATCH_SIZE=64` controls embedding batch size. If no chunks pass the threshold, `/ask` returns an explicit insufficient-evidence answer without calling the chat model.
 
 ## Container build
 
