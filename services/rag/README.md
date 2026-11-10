@@ -64,3 +64,11 @@ docker build -f services/rag/Dockerfile -t investory-rag .
 Mount documentation and a persisted data directory and explicitly run the
 `investory-rag-index` command before starting the API.
 Use environment variables for API credentials.
+
+## Retrieval benchmark
+
+After running `investory-rag-index`, execute `investory-rag-eval --cases eval/cases.json` to measure source-hit rate against expected Investory documentation. This makes real embedding API calls but never calls the chat model. Use `--min-hit-rate 0.8` to fail a manually triggered run below an explicitly chosen target; the default simply reports. The bundled examples verify the withdrawal strategy, portfolio accounting and planning timeline. They are a *starting benchmark*, not a claim that current retrieval accuracy meets a target. Add more positive, negative and ambiguous questions before deploying to real users. CI only runs deterministic tests with fakes, not paid embedding requests.
+
+## Java integration boundary
+
+The Spring Boot `GET /api/v1/portfolios/{portfolioId}/profile` endpoint returns private, portfolio-scoped financial data. Do not have this standalone Python service fetch it with user-provided IDs or a service-wide token: authorization needs to happen in Java for the current authenticated user first. A later integration can have Java retrieve a minimally scoped, read-only financial facts snapshot using its domain services, then pass that snapshot to an internal authenticated RAG orchestration endpoint. Never embed those snapshots in ChromaDB, persist them in prompts/logs, or treat documentation retrieval as a source of live financial balances. The initial `/ask` remains strictly documentation-only and must stay on loopback/private networking until authentication is implemented.
