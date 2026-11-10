@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.ObjectMapper;
 
 /** Small stateless MCP JSON-RPC draft; use the official SDK before public deployment. */
 @RestController
@@ -20,9 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class InvestmentMcpController {
   private static final String PROTOCOL_VERSION = "2025-03-26";
   private final InvestmentMcpClient investment;
+  private final ObjectMapper mapper;
 
-  public InvestmentMcpController(InvestmentMcpClient investment) {
+  public InvestmentMcpController(InvestmentMcpClient investment, ObjectMapper mapper) {
     this.investment = investment;
+    this.mapper = mapper;
   }
 
   @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -82,8 +85,9 @@ public class InvestmentMcpController {
           case "get_investment_ytd" -> investment.yearToDate(portfolioId);
           default -> throw new IllegalArgumentException("Unknown tool");
         };
-    return Map.of("structuredContent", Map.of("data", value), "content",
-        List.of(Map.of("type", "text", "text", "See structuredContent.data")));
+    return Map.of(
+        "structuredContent", Map.of("data", value),
+        "content", List.of(Map.of("type", "text", "text", mapper.writeValueAsString(value))));
   }
 
   private static List<Map<String, Object>> tools() {
