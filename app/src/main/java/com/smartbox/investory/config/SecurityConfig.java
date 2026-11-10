@@ -89,7 +89,10 @@ public class SecurityConfig {
                     csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                         .ignoringRequestMatchers(
-                            "/api/v1/auth/login", "/api/v1/auth/invitations/*/accept");
+                            "/api/v1/auth/login", "/api/v1/auth/invitations/*/accept")
+                        .ignoringRequestMatchers(request ->
+                            "/mcp".equals(request.getRequestURI())
+                                && request.getHeader("Authorization") != null);
                   } else {
                     csrf.disable();
                   }
