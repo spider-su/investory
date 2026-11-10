@@ -105,7 +105,9 @@ public class InvestmentMcpController {
     return List.of(
         tool("get_portfolio_dashboard", "Read canonical investment dashboard for a portfolio"),
         tool("get_portfolio_performance", "Read canonical portfolio performance KPI"),
-        tool("get_investment_ytd", "Read current-year investment result in portfolio base currency"));
+        tool(
+            "get_investment_ytd",
+            "Read current-year investment result in portfolio base currency"));
   }
 
   private static Map<String, Object> tool(String name, String description) {
