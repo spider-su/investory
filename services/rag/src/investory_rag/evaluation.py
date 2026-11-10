@@ -28,7 +28,7 @@ class EvaluationCase:
 
 def load_cases(path: Path) -> list[EvaluationCase]:
     raw = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, list) or not raw):
+    if not isinstance(raw, list) or not raw:
         raise ValueError("Evaluation dataset must be a non-empty JSON array")
     return [EvaluationCase.from_dict(item) for item in raw]
 
