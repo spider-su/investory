@@ -25,6 +25,13 @@ public class AuthorizationService {
         || hasMembership(profileId, authentication, null);
   }
 
+  /**
+   * Reads scoped external-adapter requests without honoring the trusted-network ownership bypass.
+   */
+  public boolean canReadScoped(Long profileId, Authentication authentication) {
+    return isAdmin(authentication) || hasMembership(profileId, authentication, null);
+  }
+
   public boolean canWrite(Long profileId, Authentication authentication) {
     return isAdmin(authentication)
         || (!profileOwnershipRequired && authenticated(authentication))

@@ -44,6 +44,20 @@ spring:
     create-schemas: true
     locations: classpath:sql/migration
     out-of-order: false
+  ai:
+    mcp:
+      server:
+        enabled: ${app.mcp.enabled:false}
+        protocol: STREAMABLE
+        name: investory
+        version: 1.0.0
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+        annotation-scanner:
+          enabled: false
   thymeleaf:
     prefix: classpath:/templates/
     suffix: .html
