@@ -12,7 +12,7 @@ import org.springframework.http.ResponseEntity;
 
 class InvestmentMcpControllerTest {
   private final InvestmentMcpClient client = org.mockito.Mockito.mock(InvestmentMcpClient.class);
-  private final InvestmentMcpController controller = new InvestmentMcpController(client);
+  private final InvestmentMcpController controller = new InvestmentMcpController(client, new tools.jackson.databind.ObjectMapper());
 
   @Test
   void advertisesOnlyReadOnlyTools() {
