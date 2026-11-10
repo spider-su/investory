@@ -42,7 +42,9 @@ If the collection is empty, it returns a useful message without calling the LLM.
   call the OpenAI chat and embeddings APIs; selected excerpts leave the host.
 - Chroma persists locally under `data/chroma`; keep the volume persistent
   during deployments. Back it up or re-index from source documentation.
-- Indexing uses stable per-chunk identifiers. An unchanged document reuses existing embeddings, while edited and deleted chunks are reconciled. Do not run concurrent indexers.\n- Changing the embedding model requires rebuilding its collection; do not reuse vectors from a different embedding model.\n- Retrieval uses a configurable minimum relevance threshold, not a calibrated confidence measure. Evaluate and tune it against representative questions before relying on automated answers.
+- Indexing uses stable per-chunk identifiers. An unchanged document reuses existing embeddings, while edited and deleted chunks are reconciled. Do not run concurrent indexers.
+- Changing the embedding model requires rebuilding its collection; do not reuse vectors from a different embedding model.
+- Retrieval uses a configurable minimum relevance threshold, not a calibrated confidence measure. Evaluate and tune it against representative questions before relying on automated answers.
 - Retrieved text is untrusted. The service prompts the model to use sources
   only, but source citations and answers must still be reviewed.
 - Follow-up work: source-aware retrieval evaluation, auth, request budgets, telemetry, Java read-only fact tools and MCP integration.
