@@ -28,14 +28,17 @@ public class InvestmentMcpController {
     this.mapper = mapper;
   }
 
-  @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+  @PostMapping(
+      consumes = MediaType.APPLICATION_JSON_VALUE,
+      produces = MediaType.APPLICATION_JSON_VALUE)
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<?> handle(@RequestBody Map<String, Object> request) {
     Object id = request.get("id");
     if ("notifications/initialized".equals(request.get("method")) && id == null) {
       return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
-    if (!"2.0".equals(request.get("jsonrpc")) || id == null
+    if (!"2.0".equals(request.get("jsonrpc"))
+        || id == null
         || !(request.get("method") instanceof String method)) {
       return ResponseEntity.ok(error(id, -32600, "Invalid Request"));
     }
@@ -44,15 +47,20 @@ public class InvestmentMcpController {
           switch (method) {
             case "initialize" ->
                 Map.of(
-                    "protocolVersion", PROTOCOL_VERSION,
-                    "capabilities", Map.of("tools", Map.of()),
-                    "serverInfo", Map.of("name", "investory", "version", "0.1.0"));
+                    "protocolVersion",
+                    PROTOCOL_VERSION,
+                    "capabilities",
+                    Map.of("tools", Map.of()),
+                    "serverInfo",
+                    Map.of("name", "investory", "version", "0.1.0"));
             case "ping" -> Map.of();
             case "tools/list" -> Map.of("tools", tools());
             case "tools/call" -> call(request.get("params"));
             default -> null;
           };
-      if (result == null) return ResponseEntity.ok(error(id, -32601, "Method not found"));
+      if (result == null) {
+        return ResponseEntity.ok(error(id, -32601, "Method not found"));
+      }
       return ResponseEntity.ok(Map.of("jsonrpc", "2.0", "id", id, "result", result));
     } catch (IllegalArgumentException ex) {
       return ResponseEntity.ok(error(id, -32602, ex.getMessage()));
@@ -73,7 +81,8 @@ public class InvestmentMcpController {
       throw new IllegalArgumentException("arguments must be an object");
     }
     Object rawId = arguments.get("portfolioId");
-    if (!(rawId instanceof Number number) || number.longValue() <= 0
+    if (!(rawId instanceof Number number)
+        || number.longValue() <= 0
         || number.doubleValue() != number.longValue()) {
       throw new IllegalArgumentException("portfolioId must be a positive integer");
     }
@@ -86,8 +95,10 @@ public class InvestmentMcpController {
           default -> throw new IllegalArgumentException("Unknown tool");
         };
     return Map.of(
-        "structuredContent", Map.of("data", value),
-        "content", List.of(Map.of("type", "text", "text", mapper.writeValueAsString(value))));
+        "structuredContent",
+        Map.of("data", value),
+        "content",
+        List.of(Map.of("type", "text", "text", mapper.writeValueAsString(value))));
   }
 
   private static List<Map<String, Object>> tools() {
@@ -99,13 +110,20 @@ public class InvestmentMcpController {
 
   private static Map<String, Object> tool(String name, String description) {
     return Map.of(
-        "name", name,
-        "description", description,
-        "inputSchema", Map.of(
-            "type", "object",
-            "properties", Map.of("portfolioId", Map.of("type", "integer", "minimum", 1)),
-            "required", List.of("portfolioId"),
-            "additionalProperties", false));
+        "name",
+        name,
+        "description",
+        description,
+        "inputSchema",
+        Map.of(
+            "type",
+            "object",
+            "properties",
+            Map.of("portfolioId", Map.of("type", "integer", "minimum", 1)),
+            "required",
+            List.of("portfolioId"),
+            "additionalProperties",
+            false));
   }
 
   private static Map<String, Object> error(Object id, int code, String message) {
