@@ -36,8 +36,7 @@ class PortfolioOwnershipInterceptorTest {
 
   @Test
   void readOnlyRagPostUsesStrictScopedReadInsteadOfWrite() {
-    var request = new MockHttpServletRequest(
-        "POST", "/api/v1/portfolios/17/rag/ask");
+    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/17/rag/ask");
     var response = new MockHttpServletResponse();
     when(authorization.canReadScoped(17L, authentication)).thenReturn(true);
     assertTrue(interceptor.preHandle(request, response, new Object()));
@@ -47,8 +46,7 @@ class PortfolioOwnershipInterceptorTest {
 
   @Test
   void readOnlyRagPostRejectsUnrelatedPortfolio() {
-    var request = new MockHttpServletRequest(
-        "POST", "/api/v1/portfolios/99/rag/ask");
+    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/99/rag/ask");
     var response = new MockHttpServletResponse();
     assertFalse(interceptor.preHandle(request, response, new Object()));
     verify(authorization).canReadScoped(99L, authentication);
