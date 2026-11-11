@@ -26,6 +26,7 @@ Do not point this at confidential statements or exported brokerage data.
 ```sh
 curl -s http://127.0.0.1:8090/health
 curl -s http://127.0.0.1:8090/ask \
+  -H 'Authorization: Bearer YOUR_RAG_API_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"question":"What is the Reserve + Harvest strategy?"}'
 pytest -q
@@ -36,8 +37,7 @@ If the collection is empty, it returns a useful message without calling the LLM.
 
 ## Boundaries and next steps
 
-- Do not expose port 8090 publicly: this MVP has no authentication. Use loopback
-  only; authenticate/authorize before integration with Java or MCP.
+- Do not expose port 8090 publicly. The service requires a shared internal bearer token for /ask, but has no end-user/portfolio authorization. Restrict networking and authorize users in Java before financial integration.
 - Indexing calls the OpenAI embeddings API and incurs usage charges. Questions
   call the OpenAI chat and embeddings APIs; selected excerpts leave the host.
 - Chroma persists locally under `data/chroma`; keep the volume persistent
@@ -72,3 +72,15 @@ After running `investory-rag-index`, execute `investory-rag-eval --cases eval/ca
 ## Java integration boundary
 
 The Spring Boot `GET /api/v1/portfolios/{portfolioId}/profile` endpoint returns private, portfolio-scoped financial data. Do not have this standalone Python service fetch it with user-provided IDs or a service-wide token: authorization needs to happen in Java for the current authenticated user first. A later integration can have Java retrieve a minimally scoped, read-only financial facts snapshot using its domain services, then pass that snapshot to an internal authenticated RAG orchestration endpoint. Never embed those snapshots in ChromaDB, persist them in prompts/logs, or treat documentation retrieval as a source of live financial balances. The initial `/ask` remains strictly documentation-only and must stay on loopback/private networking until authentication is implemented.
+
+## Internal API security and limits
+
+`POST /ask` now **fails closed** (503) when `RAG_API_TOKEN` is missing and returns 401 for missing/incorrect `Authorization: Bearer ...`. `GET /health` remains unauthenticated and contains no financial information. Generate a high-entropy token using a secret manager, never commit it or reuse a user login token. The token identifies an internal caller only; **it does not authorize end users or portfolio access**. Do not expose the service to the public Internet. Requests are limited to `RAG_MAX_CONCURRENT_REQUESTS` (default 1) per process, returning 429 when busy. Use a single worker, private network, and ingress-level rate limits for production. OpenAI operations use a configured 20-second per-request timeout and one retry; this is not a strict overall request deadline. Do not log questions, response bodies, financial statements, tokens, or OpenAI payloads.
+
+## Index safety
+
+Index operations take an advisory non-blocking POSIX lock in the Chroma data directory; concurrent writers on the same shared filesystem fail rather than race. Changed chunks are added before obsolete chunks are deleted, so if embedding fails, existing chunks are retained; indexing is **not fully transactional** and failed runs may leave extra chunks until the next successful run. Avoid simultaneous indexing and serving during reindex, or provide separate generation-based collections before promoting a revision. Persist the directory and mount it writable only to the indexer. The default Docker container runs as an unprivileged user; the image excludes docs, which must be mounted separately (`RAG_DOCS_ROOT=/app/docs`).
+
+## Validation gates
+
+The expanded `eval/cases.json` contains twelve positive domain questions. `eval/exploratory-cases.json` adds six negative/ambiguous questions and can be run separately with `investory-rag-eval --cases eval/exploratory-cases.json`. Its abstention score is exploratory, not a release gate, until the relevance threshold is calibrated. Unit tests and a deterministic Chroma vector-store smoke test run in CI without OpenAI credentials, alongside a Docker image build/HTTP smoke check. For **real** acceptance, set a private `OPENAI_API_KEY`, index checked-in docs, then run `investory-rag-eval --min-hit-rate 0.8`; report actual hit rate and investigate misses. Real evaluation is intentionally not executed on public PR CI and is not claimed to have passed. Add negative, adversarial and answer-grounding cases after calibrating the similarity threshold; source-hit rate does not guarantee answer correctness.
