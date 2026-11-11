@@ -1,4 +1,5 @@
-"""End-to-end local Chroma smoke using deterministic embeddings (no API key)."""
+"""End-to-end local Chroma smoke using normalized embeddings (no API key)."""
+from math import sqrt
 from langchain_chroma import Chroma
 from langchain_core.embeddings import Embeddings
 
@@ -14,7 +15,9 @@ class KeywordEmbeddings(Embeddings):
 
     def embed_query(self, text):
         text = text.lower()
-        return [float(text.count(word)) for word in self.words] + [0.01]
+        values = [float(text.count(word)) for word in self.words] + [0.01]
+        norm = sqrt(sum(value * value for value in values))
+        return [value / norm for value in values]
 
 
 def test_chroma_index_retrieval_and_reindex(tmp_path):
