@@ -21,6 +21,7 @@
         <module>integrations</module>
         <module>test-support</module>
         <module>adapters/web-ui</module>
+        <module>adapters/mcp</module>
         <module>app</module>
     </modules>
     <properties>

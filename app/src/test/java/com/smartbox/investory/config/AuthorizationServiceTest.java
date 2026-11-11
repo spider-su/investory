@@ -31,6 +31,7 @@ class AuthorizationServiceTest {
     Authentication admin = authentication("admin", "ROLE_ADMIN");
 
     assertTrue(authorization.canRead(1L, admin));
+    assertTrue(authorization.canReadScoped(1L, admin));
     assertTrue(authorization.canWrite(2L, admin));
     assertTrue(authorization.canManageIntegrations(admin));
     assertTrue(authorization.canAdminister(admin));
@@ -73,6 +74,7 @@ class AuthorizationServiceTest {
 
     assertTrue(authorization.canRead(1L, user));
     assertTrue(authorization.canWrite(1L, user));
+    assertFalse(authorization.canReadScoped(1L, user));
   }
 
   private static Authentication authentication(String name, String role) {

@@ -18,6 +18,14 @@ Backend authorization is authoritative: profile reads require membership or `ADM
 
 The global investment maintenance endpoints (`/api/v1/investment/maintenance/**`) are `ADMIN`-only because they do not carry a profile ID and can rebuild shared reporting state. Profile-scoped REST operations carry the profile ID in `/api/v1/portfolios/{portfolioId}/...`; it is not accepted as a query parameter. The dashboard query keeps its internal dashboard query model, but the HTTP path is the authority for the portfolio scope.
 
+The optional MCP endpoint is `/mcp` and is disabled by default with `INVESTORY_MCP_ENABLED=false`.
+When enabled, it accepts authenticated `ADMIN`, `PROFILE_OWNER`, and `PROFILE_USER` requests, then
+checks profile membership for every tool invocation through `AuthorizationService`. `ADMIN` retains
+global read access; profile roles are limited to their memberships. MCP clients use HTTP Basic or
+the application's bearer token. Browser session cookies are not a supported MCP credential flow.
+Only MCP requests carrying Basic or bearer Authorization headers are exempt from CSRF; cookie-only
+requests keep the normal CSRF check.
+
 The landing/error/static assets and `/actuator/health` are public. Exact matcher behavior should be read from `SecurityConfig` when changing routes.
 
 ## Session and CSRF model

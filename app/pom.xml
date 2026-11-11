@@ -16,6 +16,11 @@
     </dependency>
     <dependency>
       <groupId>com.smartbox</groupId>
+      <artifactId>mcp</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.smartbox</groupId>
       <artifactId>web-ui</artifactId>
       <version>${project.version}</version>
     </dependency>

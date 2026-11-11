@@ -25,8 +25,9 @@ market-radar -> shared
 retirement -> shared + investment/longterm/profile public APIs
 integrations -> investment/longterm public and integration contracts
 adapters/web-ui -> investment/longterm/profile/retirement/integrations public APIs
+adapters/mcp -> investment public API
 test-support -> shared + investment + profile (fixtures and PostgreSQL test infrastructure only)
-app -> all production modules plus adapters/web-ui; owns executable composition
+app -> all production modules plus adapters/web-ui and adapters/mcp; owns executable composition
 
 Market Radar is an experimental research module. It owns market-intelligence vocabulary and ports, does not depend on Investment persistence or web adapters, and must remain extractable into a separate application.
 ```
@@ -36,6 +37,11 @@ Retirement and does not use Investment persistence. Retirement does not use Inve
 infrastructure/persistence.
 Application composition is the only executable packaging layer. `test-support` is consumed with
 Maven test scope by feature modules and `app`; it is not packaged as production behavior.
+
+The optional MCP adapter is an external read-only adapter. Its tools call Investment through
+`InvestmentMcpClient` and the public `InvestmentDashboardApi`; they do not call REST controllers or
+Investment infrastructure. The adapter defines a profile authorization port, and `app` supplies its
+implementation using the established profile membership authorization service.
 
 Feature controllers and tests live with their owning module. External adapters, notifications, and
 optional integrations live in `integrations`; tightly coupled market/FX/export adapters remain inside
