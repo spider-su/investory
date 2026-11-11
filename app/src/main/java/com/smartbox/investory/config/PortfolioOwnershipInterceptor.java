@@ -33,9 +33,11 @@ public class PortfolioOwnershipInterceptor implements HandlerInterceptor {
     Long portfolioId = portfolioId(request);
     if (portfolioId == null) return true;
     boolean allowed =
-        isRead(request)
-            ? authorization.canRead(portfolioId, authentication)
-            : authorization.canWrite(portfolioId, authentication);
+        isRagRead(request)
+            ? authorization.canReadScoped(portfolioId, authentication)
+            : isRead(request)
+                ? authorization.canRead(portfolioId, authentication)
+                : authorization.canWrite(portfolioId, authentication);
     return rejectUnless(response, allowed);
   }
 
@@ -65,6 +67,11 @@ public class PortfolioOwnershipInterceptor implements HandlerInterceptor {
     if (allowed) return true;
     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
     return false;
+  }
+
+  private static boolean isRagRead(HttpServletRequest request) {
+    return "POST".equalsIgnoreCase(request.getMethod())
+        && request.getRequestURI().matches("/api/v1/portfolios/[0-9]+/rag/ask");
   }
 
   private static boolean isRead(HttpServletRequest request) {
