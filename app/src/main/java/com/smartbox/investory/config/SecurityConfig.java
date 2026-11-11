@@ -89,7 +89,15 @@ public class SecurityConfig {
                     csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                         .ignoringRequestMatchers(
-                            "/api/v1/auth/login", "/api/v1/auth/invitations/*/accept");
+                            "/api/v1/auth/login", "/api/v1/auth/invitations/*/accept")
+                        .ignoringRequestMatchers(
+                            request ->
+                                "/mcp".equals(request.getRequestURI())
+                                    && (request.getHeader("Authorization") != null
+                                        && (request.getHeader("Authorization").startsWith("Basic ")
+                                            || request
+                                                .getHeader("Authorization")
+                                                .startsWith("Bearer "))));
                   } else {
                     csrf.disable();
                   }
@@ -119,6 +127,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/v1/auth/invitations/*/accept")
                         .permitAll()
+                        .requestMatchers("/mcp", "/mcp/**")
+                        .hasAnyRole("ADMIN", "PROFILE_OWNER", "PROFILE_USER")
                         .requestMatchers("/settings/**", "/api/v1/admin/**")
                         .hasRole("ADMIN")
                         .requestMatchers("/api/v1/investment/maintenance/**")
