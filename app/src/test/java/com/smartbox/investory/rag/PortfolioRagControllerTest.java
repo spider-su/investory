@@ -33,15 +33,20 @@ class PortfolioRagControllerTest {
   @BeforeEach
   void setUp() {
     controller = new PortfolioRagController(authorization, profiles, mapper, client);
-    user = new UsernamePasswordAuthenticationToken(
-        "user-a", "n/a", List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
+    user =
+        new UsernamePasswordAuthenticationToken(
+            "user-a", "n/a", List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
   }
 
   @Test
   void deniesCrossPortfolioBeforeReadingOrCallingPython() {
     when(authorization.canReadScoped(22L, user)).thenReturn(false);
-    var exception = assertThrows(ResponseStatusException.class,
-        () -> controller.ask(22L, new PortfolioRagController.Question("What is my balance?"), user));
+    var exception =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.ask(
+                    22L, new PortfolioRagController.Question("What is my balance?"), user));
     assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
     verifyNoInteractions(profiles, mapper, client);
   }
@@ -56,8 +61,8 @@ class PortfolioRagControllerTest {
     var expected = new InvestoryRagClient.RagAnswer("The total is ...", List.of("live:profile"));
     when(client.ask("What is my balance?", response)).thenReturn(expected);
 
-    var actual = controller.ask(
-        21L, new PortfolioRagController.Question("What is my balance?"), user);
+    var actual =
+        controller.ask(21L, new PortfolioRagController.Question("What is my balance?"), user);
     assertEquals(expected, actual);
     verify(authorization).canReadScoped(21L, user);
     verify(client).ask("What is my balance?", response);
@@ -65,10 +70,18 @@ class PortfolioRagControllerTest {
 
   @Test
   void invalidInputNeverCallsDependencies() {
-    assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ResponseStatusException.class,
-        () -> controller.ask(0L, new PortfolioRagController.Question("Hi"), user)).getStatusCode());
-    assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ResponseStatusException.class,
-        () -> controller.ask(1L, new PortfolioRagController.Question("  "), user)).getStatusCode());
+    assertEquals(
+        HttpStatus.BAD_REQUEST,
+        assertThrows(
+                ResponseStatusException.class,
+                () -> controller.ask(0L, new PortfolioRagController.Question("Hi"), user))
+            .getStatusCode());
+    assertEquals(
+        HttpStatus.BAD_REQUEST,
+        assertThrows(
+                ResponseStatusException.class,
+                () -> controller.ask(1L, new PortfolioRagController.Question("  "), user))
+            .getStatusCode());
     verifyNoInteractions(authorization, profiles, mapper, client);
   }
 
@@ -80,8 +93,10 @@ class PortfolioRagControllerTest {
     when(profiles.loadProfile(21L)).thenReturn(model);
     when(mapper.map(model)).thenReturn(response);
     when(client.ask("Question", response)).thenThrow(new PythonRagClient.RagUnavailableException());
-    var exception = assertThrows(ResponseStatusException.class,
-        () -> controller.ask(21L, new PortfolioRagController.Question("Question"), user));
+    var exception =
+        assertThrows(
+            ResponseStatusException.class,
+            () -> controller.ask(21L, new PortfolioRagController.Question("Question"), user));
     assertEquals(HttpStatus.BAD_GATEWAY, exception.getStatusCode());
   }
 }
