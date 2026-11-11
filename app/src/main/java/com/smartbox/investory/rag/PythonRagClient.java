@@ -1,8 +1,8 @@
 package com.smartbox.investory.rag;
 
 import com.smartbox.investory.profile.api.contract.ProfileResponse;
-import java.time.Duration;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,26 +29,36 @@ public class PythonRagClient implements InvestoryRagClient {
     var factory = new SimpleClientHttpRequestFactory();
     factory.setConnectTimeout(Duration.ofSeconds(3));
     factory.setReadTimeout(Duration.ofSeconds(35));
-    this.client = builder.clone().baseUrl(url).requestFactory(factory)
-        .defaultHeader("Authorization", "Bearer " + token).build();
+    this.client =
+        builder
+            .clone()
+            .baseUrl(url)
+            .requestFactory(factory)
+            .defaultHeader("Authorization", "Bearer " + token)
+            .build();
   }
 
   @Override
   public RagAnswer ask(String question, ProfileResponse snapshot) {
     // Explicit allowlist of top-level calculated facts; do not export
     // allocations, accounts, transactions, users, or personal asset details.
-    ProfileFacts facts = new ProfileFacts(
-        snapshot.currency().name(),
-        snapshot.marketPortfolioValue(),
-        snapshot.longTermAssetValue(),
-        snapshot.totalNetWorth(),
-        snapshot.liquidAssets(),
-        snapshot.illiquidAssets());
+    ProfileFacts facts =
+        new ProfileFacts(
+            snapshot.currency().name(),
+            snapshot.marketPortfolioValue(),
+            snapshot.longTermAssetValue(),
+            snapshot.totalNetWorth(),
+            snapshot.liquidAssets(),
+            snapshot.illiquidAssets());
     try {
-      RagAnswer result = client.post().uri("/ask-with-facts")
-          .contentType(MediaType.APPLICATION_JSON)
-          .body(Map.of("question", question, "facts", facts))
-          .retrieve().body(RagAnswer.class);
+      RagAnswer result =
+          client
+              .post()
+              .uri("/ask-with-facts")
+              .contentType(MediaType.APPLICATION_JSON)
+              .body(Map.of("question", question, "facts", facts))
+              .retrieve()
+              .body(RagAnswer.class);
       if (result == null) throw new IllegalStateException("Empty RAG response");
       return result;
     } catch (RestClientException e) {
