@@ -2,6 +2,7 @@ package com.smartbox.investory.rag;
 
 import com.smartbox.investory.profile.api.contract.ProfileResponse;
 import java.time.Duration;
+import java.math.BigDecimal;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -36,13 +37,13 @@ public class PythonRagClient implements InvestoryRagClient {
   public RagAnswer ask(String question, ProfileResponse snapshot) {
     // Explicit allowlist of top-level calculated facts; do not export
     // allocations, accounts, transactions, users, or personal asset details.
-    Map<String, Object> facts = Map.of(
-        "currency", snapshot.currency().name(),
-        "marketPortfolioValue", snapshot.marketPortfolioValue(),
-        "longTermAssetValue", snapshot.longTermAssetValue(),
-        "totalNetWorth", snapshot.totalNetWorth(),
-        "liquidAssets", snapshot.liquidAssets(),
-        "illiquidAssets", snapshot.illiquidAssets());
+    ProfileFacts facts = new ProfileFacts(
+        snapshot.currency().name(),
+        snapshot.marketPortfolioValue(),
+        snapshot.longTermAssetValue(),
+        snapshot.totalNetWorth(),
+        snapshot.liquidAssets(),
+        snapshot.illiquidAssets());
     try {
       RagAnswer result = client.post().uri("/ask-with-facts")
           .contentType(MediaType.APPLICATION_JSON)
@@ -55,6 +56,14 @@ public class PythonRagClient implements InvestoryRagClient {
       throw new RagUnavailableException();
     }
   }
+
+  record ProfileFacts(
+      String currency,
+      BigDecimal marketPortfolioValue,
+      BigDecimal longTermAssetValue,
+      BigDecimal totalNetWorth,
+      BigDecimal liquidAssets,
+      BigDecimal illiquidAssets) {}
 
   public static final class RagUnavailableException extends RuntimeException {}
 }
