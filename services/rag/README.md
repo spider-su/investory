@@ -37,8 +37,7 @@ If the collection is empty, it returns a useful message without calling the LLM.
 
 ## Boundaries and next steps
 
-- Do not expose port 8090 publicly: this MVP has no authentication. Use loopback
-  only; authenticate/authorize before integration with Java or MCP.
+- Do not expose port 8090 publicly. The service requires a shared internal bearer token for /ask, but has no end-user/portfolio authorization. Restrict networking and authorize users in Java before financial integration.
 - Indexing calls the OpenAI embeddings API and incurs usage charges. Questions
   call the OpenAI chat and embeddings APIs; selected excerpts leave the host.
 - Chroma persists locally under `data/chroma`; keep the volume persistent
