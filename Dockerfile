@@ -17,6 +17,7 @@ COPY modules/retirement/pom.xml modules/retirement/pom.xml
 COPY integrations/pom.xml integrations/pom.xml
 COPY test-support/pom.xml test-support/pom.xml
 COPY adapters/web-ui/pom.xml adapters/web-ui/pom.xml
+COPY adapters/mcp/pom.xml adapters/mcp/pom.xml
 COPY app/pom.xml app/pom.xml
 RUN sed -i 's/\r$//' mvnw \
     && ./mvnw -B -DskipTests dependency:go-offline
