@@ -1,0 +1,27 @@
+name: RAG formatting preview
+on:
+  pull_request:
+    paths:
+      - 'app/src/main/java/com/smartbox/investory/config/PortfolioOwnershipInterceptor.java'
+      - 'app/src/test/java/com/smartbox/investory/config/PortfolioOwnershipInterceptorTest.java'
+      - '.github/workflows/rag-format-preview.yml'
+jobs:
+  formatter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Format and print source
+        run: |
+          ./mvnw -q -pl app -am spotless:apply
+          for f in \
+            app/src/main/java/com/smartbox/investory/config/PortfolioOwnershipInterceptor.java \
+            app/src/test/java/com/smartbox/investory/config/PortfolioOwnershipInterceptorTest.java; do
+            echo "FORMAT_START:$f"
+            base64 -w0 "$f"
+            echo
+            echo "FORMAT_END:$f"
+          done
