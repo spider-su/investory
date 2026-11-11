@@ -1,13 +1,20 @@
 package com.smartbox.investory.config;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -25,6 +32,24 @@ class PortfolioOwnershipInterceptorTest {
     when(authorizations.getIfAvailable()).thenReturn(authorization);
     when(authentication.isAuthenticated()).thenReturn(true);
     SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  @Test
+  void readOnlyRagPostUsesStrictScopedReadInsteadOfWrite() {
+    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/17/rag/ask");
+    var response = new MockHttpServletResponse();
+    when(authorization.canReadScoped(17L, authentication)).thenReturn(true);
+    assertTrue(interceptor.preHandle(request, response, new Object()));
+    verify(authorization).canReadScoped(17L, authentication);
+    verify(authorization, never()).canWrite(17L, authentication);
+  }
+
+  @Test
+  void readOnlyRagPostRejectsUnrelatedPortfolio() {
+    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/99/rag/ask");
+    var response = new MockHttpServletResponse();
+    assertFalse(interceptor.preHandle(request, response, new Object()));
+    verify(authorization).canReadScoped(99L, authentication);
   }
 
   @AfterEach

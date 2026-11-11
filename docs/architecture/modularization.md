@@ -43,6 +43,15 @@ The optional MCP adapter is an external read-only adapter. Its tools call Invest
 Investment infrastructure. The adapter defines a profile authorization port, and `app` supplies its
 implementation using the established profile membership authorization service.
 
+The optional portfolio RAG endpoint is composed in `app`: it checks strict profile
+membership before loading the public Profile snapshot, then sends an allowlist of
+aggregate facts through `InvestoryRagClient` to the internal Python service.
+Python retrieves documentation and generates explanations; financial calculations
+and user authorization remain in Java. Facts are transient and are never indexed.
+See [`services/rag/README.md`](../../services/rag/README.md) for the internal
+authentication and external inference boundary. This endpoint is separate from
+the three Investment MCP tools.
+
 Feature controllers and tests live with their owning module. External adapters, notifications, and
 optional integrations live in `integrations`; tightly coupled market/FX/export adapters remain inside
 Investment behind its infrastructure boundary.

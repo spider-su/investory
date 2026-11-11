@@ -1,9 +1,10 @@
-"""Authenticated internal HTTP API. No financial data is served here."""
+"""Internal HTTP API; aggregate facts remain transient and Java-authorized."""
 from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
+from decimal import Decimal
 
 from .config import get_settings
 from .security import AccessGate
@@ -54,6 +55,44 @@ def ask(
     gate.acquire()
     try:
         return service.ask(request.question)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        gate.release()
+
+
+class ProfileFacts(BaseModel):
+    """Only allowlisted aggregate fields sent from the authorized Java adapter."""
+    currency: str = Field(pattern="^(USD|EUR|PLN)$")
+    marketPortfolioValue: Decimal | None
+    longTermAssetValue: Decimal | None
+    totalNetWorth: Decimal | None
+    liquidAssets: Decimal | None
+    illiquidAssets: Decimal | None
+
+    model_config = {"extra": "forbid"}
+
+
+class AskWithFactsRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    facts: ProfileFacts
+    model_config = {"extra": "forbid"}
+
+
+@app.post("/ask-with-facts", response_model=AskResponse)
+def ask_with_facts(
+    request: AskWithFactsRequest,
+    gate: AccessGate = Depends(require_gate),
+    service: RagService = Depends(get_service),
+) -> dict:
+    gate.acquire()
+    try:
+        # Explicit allowlist; do not log, persist, or embed aggregate financial facts.
+        facts = {
+            key: "unavailable" if value is None else str(value)
+            for key, value in request.facts.model_dump().items()
+        }
+        return service.ask_with_facts(request.question, facts)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     finally:
