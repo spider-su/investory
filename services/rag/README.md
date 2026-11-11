@@ -1,8 +1,8 @@
-# Investory document RAG (initial milestone)
+# Investory document RAG and authorized portfolio explanations
 
 Separate, read-only Python service for question answering over Investory Markdown documentation.
 Uses LangChain, OpenAI embeddings, ChromaDB, FastAPI, and OpenAI chat generation.
-It does **not** query portfolios, perform financial calculations, or expose private financial data.
+It does not query portfolios or calculate financial values. The optional Java bridge supplies authorized aggregate facts transiently for explanations.
 
 ## Local setup
 
@@ -61,7 +61,7 @@ From repository root:
 docker build -f services/rag/Dockerfile -t investory-rag .
 ```
 
-Mount documentation and a persisted data directory and explicitly run the
+The image bundles documentation; mount a writable data directory and explicitly run the
 `investory-rag-index` command before starting the API.
 Use environment variables for API credentials.
 
@@ -71,7 +71,7 @@ After running `investory-rag-index`, execute `investory-rag-eval --cases eval/ca
 
 ## Java integration boundary
 
-The Spring Boot `GET /api/v1/portfolios/{portfolioId}/profile` endpoint returns private, portfolio-scoped financial data. Do not have this standalone Python service fetch it with user-provided IDs or a service-wide token: authorization needs to happen in Java for the current authenticated user first. A later integration can have Java retrieve a minimally scoped, read-only financial facts snapshot using its domain services, then pass that snapshot to an internal authenticated RAG orchestration endpoint. Never embed those snapshots in ChromaDB, persist them in prompts/logs, or treat documentation retrieval as a source of live financial balances. The initial `/ask` remains strictly documentation-only and must stay on loopback/private networking until authentication is implemented.
+The Spring Boot `GET /api/v1/portfolios/{portfolioId}/profile` endpoint returns private, portfolio-scoped financial data. Do not have this standalone Python service fetch it with user-provided IDs or a service-wide token: authorization needs to happen in Java for the current authenticated user first. The optional integration has Java retrieve a minimally scoped, read-only financial facts snapshot using its domain services, then pass that snapshot to an internal authenticated RAG orchestration endpoint. Never embed those snapshots in ChromaDB, persist them in prompts/logs, or treat documentation retrieval as a source of live financial balances. The initial `/ask` remains strictly documentation-only and must stay on loopback/private networking behind internal bearer authentication.
 
 ## Internal API security and limits
 
@@ -79,7 +79,7 @@ The Spring Boot `GET /api/v1/portfolios/{portfolioId}/profile` endpoint returns 
 
 ## Index safety
 
-Index operations take an advisory non-blocking POSIX lock in the Chroma data directory; concurrent writers on the same shared filesystem fail rather than race. Changed chunks are added before obsolete chunks are deleted, so if embedding fails, existing chunks are retained; indexing is **not fully transactional** and failed runs may leave extra chunks until the next successful run. Avoid simultaneous indexing and serving during reindex, or provide separate generation-based collections before promoting a revision. Persist the directory and mount it writable only to the indexer. The default Docker container runs as an unprivileged user; the image excludes docs, which must be mounted separately (`RAG_DOCS_ROOT=/app/docs`).
+Index operations take an advisory non-blocking POSIX lock in the Chroma data directory; concurrent writers on the same shared filesystem fail rather than race. Changed chunks are added before obsolete chunks are deleted, so if embedding fails, existing chunks are retained; indexing is **not fully transactional** and failed runs may leave extra chunks until the next successful run. Avoid simultaneous indexing and serving during reindex, or provide separate generation-based collections before promoting a revision. Persist the directory and mount it writable only to the indexer. The default Docker container runs as an unprivileged user; the image bundles its versioned docs at `/app/docs` and evaluation inputs at `/app/eval`.
 
 ## Validation gates
 
@@ -136,3 +136,25 @@ documents and verify that facts do not modify the vector store. Run these with
 the normal Maven unit suite and `pytest -q` from this service. These deterministic
 checks do not establish real OpenAI answer quality; the retrieval evaluation
 and private inference acceptance gates above still apply.
+
+
+## Release acceptance and deployment
+
+Follow the [staged release plan](../../docs/development/ai-integration-release.md).
+Main publication builds and scans both images, runs Python checks before RAG
+publication, and records separate receipts. The opt-in GitOps companion binds
+only to loopback and indexes the image corpus before serving. Activation requires
+a private OpenAI key and successful real retrieval/inference acceptance.
+
+Install `pip install -e ".[acceptance]"` and export `INVESTORY_TOKEN` for a
+non-admin profile member. Then run:
+
+```sh
+investory-ai-smoke --base-url http://localhost:8080 --portfolio 1 --denied-portfolio 2
+```
+
+Use real authorized/unauthorized portfolio IDs. The smoke check uses the official
+MCP SDK and calls Java's RAG endpoint. It verifies tool discovery, invocation,
+portfolio isolation, anonymous rejection, and live-fact provenance. It prints
+statuses only, never answers or credentials. It does not grade answer semantics;
+review generated explanations privately and run retrieval benchmarking separately.
