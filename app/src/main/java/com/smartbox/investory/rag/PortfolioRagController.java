@@ -36,10 +36,14 @@ public class PortfolioRagController {
 
   @PostMapping("/ask")
   public InvestoryRagClient.RagAnswer ask(
-      @PathVariable long portfolioId, @RequestBody Question request,
+      @PathVariable long portfolioId,
+      @RequestBody Question request,
       Authentication authentication) {
-    if (portfolioId <= 0 || request == null || request.question() == null
-        || request.question().isBlank() || request.question().length() > 2000) {
+    if (portfolioId <= 0
+        || request == null
+        || request.question() == null
+        || request.question().isBlank()
+        || request.question().length() > 2000) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid question or portfolio");
     }
     if (!authorization.canReadScoped(portfolioId, authentication)) {
