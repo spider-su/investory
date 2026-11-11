@@ -64,11 +64,11 @@ def ask(
 class ProfileFacts(BaseModel):
     """Only allowlisted aggregate fields sent from the authorized Java adapter."""
     currency: str = Field(pattern="^(USD|EUR|PLN)$")
-    marketPortfolioValue: Decimal
-    longTermAssetValue: Decimal
-    totalNetWorth: Decimal
-    liquidAssets: Decimal
-    illiquidAssets: Decimal
+    marketPortfolioValue: Decimal | None
+    longTermAssetValue: Decimal | None
+    totalNetWorth: Decimal | None
+    liquidAssets: Decimal | None
+    illiquidAssets: Decimal | None
 
     model_config = {"extra": "forbid"}
 
