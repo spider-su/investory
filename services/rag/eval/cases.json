@@ -1,14 +1,74 @@
 [
   {
     "question": "What is the fixed withdrawal order in Reserve + Harvest?",
-    "expected_sources": ["domain/retirement-simulation.md"]
+    "expected_sources": [
+      "domain/retirement-simulation.md"
+    ]
+  },
+  {
+    "question": "What is the reserve target default in the retirement simulation?",
+    "expected_sources": [
+      "domain/retirement-simulation.md"
+    ]
+  },
+  {
+    "question": "When are positive equity gains harvested into bonds?",
+    "expected_sources": [
+      "domain/retirement-simulation.md"
+    ]
+  },
+  {
+    "question": "How are spending growth and inflation treated separately?",
+    "expected_sources": [
+      "domain/retirement-simulation.md"
+    ]
   },
   {
     "question": "What is the difference between investment earnings and external contributions?",
-    "expected_sources": ["domain/portfolio-accounting.md"]
+    "expected_sources": [
+      "domain/portfolio-accounting.md"
+    ]
+  },
+  {
+    "question": "How are internal transfers treated in portfolio accounting?",
+    "expected_sources": [
+      "domain/portfolio-accounting.md"
+    ]
+  },
+  {
+    "question": "How should currency conversions affect contributions?",
+    "expected_sources": [
+      "domain/portfolio-accounting.md"
+    ]
+  },
+  {
+    "question": "How are realized and unrealized investment returns distinguished?",
+    "expected_sources": [
+      "domain/portfolio-accounting.md"
+    ]
   },
   {
     "question": "How are the Past, Current and Future years handled in planning?",
-    "expected_sources": ["domain/planning-timeline.md"]
+    "expected_sources": [
+      "domain/planning-timeline.md"
+    ]
+  },
+  {
+    "question": "What does approval of a historical planning year mean?",
+    "expected_sources": [
+      "domain/planning-timeline.md"
+    ]
+  },
+  {
+    "question": "Which planning values are live versus projected?",
+    "expected_sources": [
+      "domain/planning-timeline.md"
+    ]
+  },
+  {
+    "question": "How do I reopen a previously approved planning snapshot?",
+    "expected_sources": [
+      "domain/planning-timeline.md"
+    ]
   }
 ]
