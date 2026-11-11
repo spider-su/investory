@@ -92,6 +92,14 @@ public class SecurityConfig {
                             "/api/v1/auth/login", "/api/v1/auth/invitations/*/accept")
                         .ignoringRequestMatchers(
                             request ->
+                                "POST".equalsIgnoreCase(request.getMethod())
+                                    && request.getRequestURI().matches(
+                                        "/api/v1/portfolios/[0-9]+/rag/ask")
+                                    && request.getHeader("Authorization") != null
+                                    && (request.getHeader("Authorization").startsWith("Basic ")
+                                        || request.getHeader("Authorization").startsWith("Bearer ")))
+                        .ignoringRequestMatchers(
+                            request ->
                                 "/mcp".equals(request.getRequestURI())
                                     && (request.getHeader("Authorization") != null
                                         && (request.getHeader("Authorization").startsWith("Basic ")
@@ -128,6 +136,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/invitations/*/accept")
                         .permitAll()
                         .requestMatchers("/mcp", "/mcp/**")
+                        .hasAnyRole("ADMIN", "PROFILE_OWNER", "PROFILE_USER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/portfolios/*/rag/ask")
                         .hasAnyRole("ADMIN", "PROFILE_OWNER", "PROFILE_USER")
                         .requestMatchers("/settings/**", "/api/v1/admin/**")
                         .hasRole("ADMIN")
