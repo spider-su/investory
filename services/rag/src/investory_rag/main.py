@@ -31,6 +31,15 @@ def get_access_gate() -> AccessGate:
     return AccessGate(get_settings())
 
 
+def require_gate(
+    authorization: Annotated[str | None, Header()] = None,
+    gate: AccessGate = Depends(get_access_gate),
+) -> AccessGate:
+    # Authenticate before resolving the OpenAI-backed service dependency.
+    gate.authenticate(authorization)
+    return gate
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -39,11 +48,9 @@ def health() -> dict[str, str]:
 @app.post("/ask", response_model=AskResponse)
 def ask(
     request: AskRequest,
-    authorization: Annotated[str | None, Header()] = None,
+    gate: AccessGate = Depends(require_gate),
     service: RagService = Depends(get_service),
-    gate: AccessGate = Depends(get_access_gate),
 ) -> dict:
-    gate.authenticate(authorization)
     gate.acquire()
     try:
         return service.ask(request.question)
