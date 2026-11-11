@@ -15,7 +15,7 @@ def receipt(environment):
         raise ValueError('Full release commit SHA required')
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', value['digest']):
         raise ValueError('Published image digest required')
-    if value['image'] != 'aserobaba/investory':
+    if value['image'] not in {'aserobaba/investory', 'aserobaba/investory-rag'}:
         raise ValueError('Unexpected release image repository')
     if not all(value[key].isdigit() for key in ('run_id', 'run_attempt')):
         raise ValueError('Actions run and attempt identity required')

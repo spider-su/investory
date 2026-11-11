@@ -18,3 +18,7 @@ class ImageReceiptTests(unittest.TestCase):
                             ('RELEASE_IMAGE', 'other/image'), ('GITHUB_RUN_ATTEMPT', 'unknown')]:
             with self.subTest(name=name), self.assertRaises(ValueError):
                 receipt(dict(self.environment(), **{name: value}))
+
+    def test_rag_receipt_preserves_separate_image_identity(self):
+        result = receipt(dict(self.environment(), RELEASE_IMAGE='aserobaba/investory-rag'))
+        self.assertEqual(result['image'], 'aserobaba/investory-rag')

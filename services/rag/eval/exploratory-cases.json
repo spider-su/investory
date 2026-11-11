@@ -1,0 +1,32 @@
+[
+  {
+    "question": "What is the current value of my brokerage account?",
+    "expected_sources": [],
+    "should_retrieve": false
+  },
+  {
+    "question": "How much did my portfolio gain today?",
+    "expected_sources": [],
+    "should_retrieve": false
+  },
+  {
+    "question": "What is the live price of NVIDIA right now?",
+    "expected_sources": [],
+    "should_retrieve": false
+  },
+  {
+    "question": "What is my current bank account balance?",
+    "expected_sources": [],
+    "should_retrieve": false
+  },
+  {
+    "question": "What is it?",
+    "expected_sources": [],
+    "should_retrieve": false
+  },
+  {
+    "question": "Which option is the best one for me today?",
+    "expected_sources": [],
+    "should_retrieve": false
+  }
+]

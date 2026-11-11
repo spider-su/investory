@@ -2,6 +2,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from langchain_core.documents import Document
+from langchain_core.runnables import RunnableLambda
+import pytest
 
 from investory_rag.config import Settings
 from investory_rag.service import NO_EVIDENCE, RagService
@@ -97,3 +99,31 @@ def test_retrieve_preserves_source_and_score(tmp_path):
     assert service.retrieve("reserve") == [
         {"source": "retirement.md", "text": "Five years.", "score": 0.9}
     ]
+
+
+@pytest.mark.parametrize("indexed", [False, True])
+def test_live_facts_are_prompted_without_being_indexed(tmp_path, indexed):
+    service, docs = create_service(tmp_path)
+    if indexed:
+        (docs / "accounting.md").write_text("Net worth is a profile aggregate.")
+        service.index()
+        service.store.search_results = [
+            (Document(page_content="Net worth is a profile aggregate.",
+                      metadata={"source": "accounting.md"}), 0.9)
+        ]
+    before = dict(service.store.documents)
+    prompts = []
+
+    def answer(prompt):
+        prompts.append(prompt.to_messages())
+        return SimpleNamespace(content="123.45 PLN [live:profile]")
+
+    service.llm = RunnableLambda(answer)
+    result = service.ask_with_facts("What is my net worth?", {
+        "currency": "PLN", "totalNetWorth": "123.45", "illiquidAssets": "unavailable"
+    })
+    assert result["sources"] == ["live:profile", *(["accounting.md"] if indexed else [])]
+    assert "totalNetWorth: 123.45" in prompts[0][1].content
+    assert "illiquidAssets: unavailable" in prompts[0][1].content
+    assert "must not override current values" in prompts[0][0].content
+    assert service.store.documents == before
