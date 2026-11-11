@@ -44,6 +44,7 @@ def test_facts_requires_internal_auth_and_accepts_allowlist_only():
         assert response.status_code == 200
         assert response.json()["sources"] == ["live:profile"]
         assert service.calls[0][1]["totalNetWorth"] == "300.25"
+        assert service.calls[0][1]["illiquidAssets"] == "unavailable"
 
         bad = {"question": "What is my balance?", "facts": {**FACTS, "userId": 99}}
         assert client.post("/ask-with-facts", json=bad, headers=headers).status_code == 422

@@ -123,3 +123,16 @@ For bearer or Basic clients the Spring endpoint has a narrowly scoped CSRF
 exception. Browser-cookie clients must continue supplying the normal CSRF
 token. Java performs role and portfolio checks even when the development
 ownership relaxation flag is enabled.
+
+Unavailable aggregate values remain JSON null on the Java-to-Python wire and
+are marked `unavailable` in the transient model context; they must not be
+interpreted as zero. Java rejects empty, malformed, or incomplete Python
+responses through the same sanitized 502 path as upstream HTTP failures.
+
+The Java HTTP adapter test runs a real local HTTP server to check the internal
+credential, exact aggregate allowlist, decimal/null serialization, and failure
+handling. Python tests exercise fact prompting both with and without indexed
+documents and verify that facts do not modify the vector store. Run these with
+the normal Maven unit suite and `pytest -q` from this service. These deterministic
+checks do not establish real OpenAI answer quality; the retrieval evaluation
+and private inference acceptance gates above still apply.

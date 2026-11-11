@@ -1,4 +1,4 @@
-"""Authenticated internal HTTP API. No financial data is served here."""
+"""Internal HTTP API; aggregate facts remain transient and Java-authorized."""
 from functools import lru_cache
 from typing import Annotated
 
@@ -88,7 +88,10 @@ def ask_with_facts(
     gate.acquire()
     try:
         # Explicit allowlist; do not log, persist, or embed aggregate financial facts.
-        facts = {key: str(value) for key, value in request.facts.model_dump().items()}
+        facts = {
+            key: "unavailable" if value is None else str(value)
+            for key, value in request.facts.model_dump().items()
+        }
         return service.ask_with_facts(request.question, facts)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

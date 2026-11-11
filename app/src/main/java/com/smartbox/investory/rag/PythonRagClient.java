@@ -59,7 +59,13 @@ public class PythonRagClient implements InvestoryRagClient {
               .body(Map.of("question", question, "facts", facts))
               .retrieve()
               .body(RagAnswer.class);
-      if (result == null) throw new IllegalStateException("Empty RAG response");
+      if (result == null
+          || result.answer() == null
+          || result.answer().isBlank()
+          || result.sources() == null
+          || result.sources().stream().anyMatch(source -> source == null || source.isBlank())) {
+        throw new RagUnavailableException();
+      }
       return result;
     } catch (RestClientException e) {
       // Deliberately do not expose upstream error body/URL or token.
