@@ -84,3 +84,42 @@ Index operations take an advisory non-blocking POSIX lock in the Chroma data dir
 ## Validation gates
 
 The expanded `eval/cases.json` contains twelve positive domain questions. `eval/exploratory-cases.json` adds six negative/ambiguous questions and can be run separately with `investory-rag-eval --cases eval/exploratory-cases.json`. Its abstention score is exploratory, not a release gate, until the relevance threshold is calibrated. Unit tests and a deterministic Chroma vector-store smoke test run in CI without OpenAI credentials, alongside a Docker image build/HTTP smoke check. For **real** acceptance, set a private `OPENAI_API_KEY`, index checked-in docs, then run `investory-rag-eval --min-hit-rate 0.8`; report actual hit rate and investigate misses. Real evaluation is intentionally not executed on public PR CI and is not claimed to have passed. Add negative, adversarial and answer-grounding cases after calibrating the similarity threshold; source-hit rate does not guarantee answer correctness.
+
+## Authenticated Java portfolio integration
+
+The Spring Boot adapter is **opt-in** with `INVESTORY_RAG_ENABLED=true`; it is disabled
+by default. Configure `INVESTORY_RAG_URL=http://127.0.0.1:8090` (replace with the
+private service DNS when deployed) and `INVESTORY_RAG_SERVICE_TOKEN` with the
+same secret as Python's `RAG_API_TOKEN`. Do not expose Python to the Internet or
+store these credentials in Git.
+
+Use the authenticated Investory endpoint:
+
+```bash
+curl --fail-with-body -X POST 'http://localhost:8080/api/v1/portfolios/1/rag/ask' \
+  -H "Authorization: Bearer $INVESTORY_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What is my current net worth?"}'
+```
+
+Java checks `AuthorizationService.canReadScoped` for the requested portfolio
+**before** loading its profile. It reuses `ProfileSnapshotReader` and
+`ProfileResponseMapper` and sends only currency, market portfolio value,
+long-term assets, net worth, liquid assets and illiquid assets to Python.
+Neither broker transactions nor personal identifiers are transmitted. The Python
+`/ask-with-facts` endpoint accepts only this allowlist, rejects unrecognized
+fields, and generates an answer from transient facts and optional documentation.
+Facts are never inserted into ChromaDB. Sources containing live facts use
+`live:profile`; documentation sources keep their relative paths.
+
+These aggregates **are transmitted to OpenAI at inference time**, so enable
+this integration only after confirming appropriate consent and provider/data
+handling policy. Python's service token authenticates Java, **not individual
+Investory users**. Do not allow direct client access to `/ask-with-facts`.
+Current answers are explanatory and must not be treated as tax or investment
+advice. This PR intentionally does not add a browser chat UI or MCP tool.
+
+For bearer or Basic clients the Spring endpoint has a narrowly scoped CSRF
+exception. Browser-cookie clients must continue supplying the normal CSRF
+token. Java performs role and portfolio checks even when the development
+ownership relaxation flag is enabled.
