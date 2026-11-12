@@ -33,3 +33,14 @@ its disposable index on pod recreation from the immutable image corpus.
 MCP retains its three Investment read tools. RAG uses the authenticated Java
 portfolio endpoint; a new MCP RAG tool and browser chat interface are outside
 this release plan.
+
+
+## Local-embedding activation (2026-11-12)
+
+The operator selected local embeddings because the existing provider key grants
+chat access but rejects embedding models. Use the bundled CPU model and the
+existing `gpt-5-mini` chat access. The key must be copied from the approved local
+configuration into the encrypted RAG Secret without printing or committing its
+plaintext. Release the local-model image first, then activate the GitOps companion
+and run retrieval evaluation plus scoped Java/MCP/RAG smoke checks. Preserve the
+already-working Java deployment if companion startup fails.
