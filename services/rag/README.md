@@ -1,7 +1,7 @@
 # Investory document RAG and authorized portfolio explanations
 
 Separate, read-only Python service for question answering over Investory Markdown documentation.
-Uses LangChain, OpenAI embeddings, ChromaDB, FastAPI, and OpenAI chat generation.
+Uses LangChain, configurable local/OpenAI embeddings, ChromaDB, FastAPI, and OpenAI chat generation.
 It does not query portfolios or calculate financial values. The optional Java bridge supplies authorized aggregate facts transiently for explanations.
 
 ## Local setup
@@ -38,8 +38,9 @@ If the collection is empty, it returns a useful message without calling the LLM.
 ## Boundaries and next steps
 
 - Do not expose port 8090 publicly. The service requires a shared internal bearer token for /ask, but has no end-user/portfolio authorization. Restrict networking and authorize users in Java before financial integration.
-- Indexing calls the OpenAI embeddings API and incurs usage charges. Questions
-  call the OpenAI chat and embeddings APIs; selected excerpts leave the host.
+- With the OpenAI embedding provider, indexing and retrieval call its embeddings API.
+  With the local provider, vectors are generated on CPU without an embedding API key.
+  Answer generation still calls OpenAI chat; selected excerpts and authorized facts leave the host.
 - Chroma persists locally under `data/chroma`; keep the volume persistent
   during deployments. Back it up or re-index from source documentation.
 - Indexing uses stable per-chunk identifiers. An unchanged document reuses existing embeddings, while edited and deleted chunks are reconciled. Do not run concurrent indexers.
@@ -158,3 +159,28 @@ MCP SDK and calls Java's RAG endpoint. It verifies tool discovery, invocation,
 portfolio isolation, anonymous rejection, and live-fact provenance. It prints
 statuses only, never answers or credentials. It does not grade answer semantics;
 review generated explanations privately and run retrieval benchmarking separately.
+
+
+## Local embeddings and existing chat credentials
+
+For a chat-only provider key, set `RAG_EMBEDDING_PROVIDER=local`,
+`RAG_CHAT_MODEL=gpt-5-mini`, and `RAG_CHAT_REASONING_EFFORT=minimal`.
+The CPU model is `BAAI/bge-small-en-v1.5` (384 dimensions), running with one
+ONNX thread and document batches of 16. The image bundles its model cache at
+`/app/models`; `RAG_LOCAL_FILES_ONLY=true` prevents model downloads at runtime.
+Local development can download/cache the same model in `RAG_LOCAL_MODEL_CACHE`.
+CI verifies the bundled model as the unprivileged user with networking disabled.
+
+Collections are namespaced by embedding provider, model and cosine metric.
+Changing providers/models creates a distinct collection and requires reindexing;
+old persistent collections are retained for operator-managed rollback/cleanup.
+Local indexing and retrieval do not initialize the chat client or need an OpenAI
+key. Chat uses the Responses API with `store=false`, no conversation memory,
+and text-block normalization. This setting does not replace the provider's
+contractual data-retention policy.
+
+A local verification on 2026-11-12 indexed the checked-in corpus (54 documents,
+674 chunks) and achieved 12/12 positive source hits using the bundled benchmark.
+Real chat tests also verified document explanations and exact transient synthetic
+facts without modifying the index. This is a scoped snapshot, not a guarantee
+for arbitrary or ambiguous questions; the exploratory evaluation remains separate.

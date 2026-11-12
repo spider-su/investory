@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,7 +13,13 @@ class Settings(BaseSettings):
     db_path: Path = Path("./data/chroma")
     collection: str = "investory_docs"
     embedding_model: str = "text-embedding-3-small"
+    embedding_provider: Literal["openai", "local"] = "openai"
+    local_embedding_model: str = "BAAI/bge-small-en-v1.5"
+    local_model_cache: Path = Path("./data/models")
+    local_files_only: bool = False
     chat_model: str = "gpt-4.1-mini"
+    chat_reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
+    chat_max_output_tokens: int = Field(default=1200, ge=64, le=4096)
     chunk_size: int = Field(default=900, gt=0)
     chunk_overlap: int = Field(default=150, ge=0)
     index_batch_size: int = Field(default=64, ge=1, le=1000)

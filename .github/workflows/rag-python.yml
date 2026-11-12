@@ -34,6 +34,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build RAG image
         run: docker build -f services/rag/Dockerfile -t investory-rag:ci .
+      - name: Verify bundled local model without network or provider key
+        run: |
+          docker run --rm --network none --entrypoint python investory-rag:ci -c \
+            "from investory_rag.config import Settings; from investory_rag.embeddings import build_embeddings; v=build_embeddings(Settings(embedding_provider='local')).embed_query('offline model verification'); assert len(v)==384"
       - name: Verify health and fail-closed API
         run: |
           docker run -d --name rag-ci -p 127.0.0.1:18090:8090 investory-rag:ci
