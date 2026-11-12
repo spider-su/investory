@@ -16,6 +16,7 @@ dependencies = [
   "langchain-chroma>=0.2,<2",
   "langchain-text-splitters>=0.3,<2",
   "chromadb>=0.6,<2",
+  "fastembed==0.9.1",
 ]
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "httpx>=0.27,<1"]
