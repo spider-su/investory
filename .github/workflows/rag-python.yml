@@ -46,3 +46,12 @@ jobs:
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18090/ask \
             -H 'Content-Type: application/json' -d '{"question":"hello"}')
           test "$code" = "503"
+      - name: Scan RAG runtime image before merge
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: investory-rag:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
