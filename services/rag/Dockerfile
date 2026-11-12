@@ -16,6 +16,10 @@ RUN pip install --no-cache-dir . \
     && useradd --system --uid 10001 --create-home rag \
     && mkdir -p /app/data/chroma \
     && chown -R rag:rag /app/data
+RUN RAG_EMBEDDING_PROVIDER=local RAG_DB_PATH=/app/index-seed investory-rag-index \
+    && python -c "from pathlib import Path; from investory_rag.config import Settings; from investory_rag.seed import write_manifest; write_manifest(Path('/app/index-seed'), Settings(embedding_provider='local'))" \
+    && chmod -R a+rX /app/index-seed
+ENV RAG_INDEX_SEED=/app/index-seed
 USER rag
 EXPOSE 8090
 # Versioned docs and evaluation inputs are bundled; index at deployment startup.

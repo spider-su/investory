@@ -1,4 +1,4 @@
-"""Run evaluation against an indexed collection. Requires OpenAI embedding access."""
+"""Run evaluation against an indexed collection. Uses the configured local or provider embeddings."""
 import argparse
 import json
 from pathlib import Path

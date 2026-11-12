@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     docs_root: Path = Path("../../docs")
     db_path: Path = Path("./data/chroma")
+    index_seed: Path | None = None
     collection: str = "investory_docs"
     embedding_model: str = "text-embedding-3-small"
     embedding_provider: Literal["openai", "local"] = "openai"
