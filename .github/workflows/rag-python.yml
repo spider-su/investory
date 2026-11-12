@@ -38,6 +38,10 @@ jobs:
         run: |
           docker run --rm --network none --entrypoint python investory-rag:ci -c \
             "from investory_rag.config import Settings; from investory_rag.embeddings import build_embeddings; v=build_embeddings(Settings(embedding_provider='local')).embed_query('offline model verification'); assert len(v)==384"
+      - name: Verify seeded index offline as the runtime user
+        run: |
+          docker run --rm --network none -e RAG_EMBEDDING_PROVIDER=local --entrypoint sh investory-rag:ci -c \
+            'python -c "from unittest.mock import patch; from investory_rag.cli import main; patch(\"investory_rag.embeddings.LocalEmbeddings.embed_documents\", side_effect=AssertionError(\"seed must avoid reembedding\")).start(); main()" && investory-rag-eval --cases /app/eval/cases.json --min-hit-rate 0.8'
       - name: Verify health and fail-closed API
         run: |
           docker run -d --name rag-ci -p 127.0.0.1:18090:8090 investory-rag:ci

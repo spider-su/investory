@@ -84,7 +84,7 @@ Index operations take an advisory non-blocking POSIX lock in the Chroma data dir
 
 ## Validation gates
 
-The expanded `eval/cases.json` contains twelve positive domain questions. `eval/exploratory-cases.json` adds six negative/ambiguous questions and can be run separately with `investory-rag-eval --cases eval/exploratory-cases.json`. Its abstention score is exploratory, not a release gate, until the relevance threshold is calibrated. Unit tests and a deterministic Chroma vector-store smoke test run in CI without OpenAI credentials, alongside a Docker image build/HTTP smoke check. For **real** acceptance, set a private `OPENAI_API_KEY`, index checked-in docs, then run `investory-rag-eval --min-hit-rate 0.8`; report actual hit rate and investigate misses. Real evaluation is intentionally not executed on public PR CI and is not claimed to have passed. Add negative, adversarial and answer-grounding cases after calibrating the similarity threshold; source-hit rate does not guarantee answer correctness.
+The expanded `eval/cases.json` contains twelve positive domain questions. `eval/exploratory-cases.json` adds six negative/ambiguous questions and can be run separately with `investory-rag-eval --cases eval/exploratory-cases.json`. Its abstention score is exploratory, not a release gate, until the relevance threshold is calibrated. Unit tests and a deterministic Chroma vector-store smoke test run in CI without OpenAI credentials, alongside a Docker image build/HTTP smoke check. For **real** acceptance, set a private `OPENAI_API_KEY`, index checked-in docs, then run `investory-rag-eval --min-hit-rate 0.8`; report actual hit rate and investigate misses. Provider chat evaluation is not executed on public PR CI. The local seeded index is evaluated offline in CI. Add negative, adversarial and answer-grounding cases after calibrating the similarity threshold; source-hit rate does not guarantee answer correctness.
 
 ## Authenticated Java portfolio integration
 
@@ -184,3 +184,15 @@ A local verification on 2026-11-12 indexed the checked-in corpus (54 documents,
 Real chat tests also verified document explanations and exact transient synthetic
 facts without modifying the index. This is a scoped snapshot, not a guarantee
 for arbitrary or ambiguous questions; the exploratory evaluation remains separate.
+
+### Seeded cold startup
+
+Production measurement on the AVX-only VM found several minutes per 64 chunks
+during a full cold rebuild. The image therefore builds a documentation-only
+Chroma seed alongside its bundled model. `RAG_INDEX_SEED=/app/index-seed` lets the
+index command atomically copy the compatible seed into a new writable volume,
+then run its normal incremental check. Existing indexes are preserved. A
+provider/model/metric mismatch skips the seed. No live facts or API key are used
+to build it. Rebuild the image for documentation/model changes; do not edit its
+corpus at runtime. CI verifies offline seed restoration with embedding writes
+forbidden, then runs the real source retrieval benchmark as UID 10001.
