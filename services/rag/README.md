@@ -323,3 +323,33 @@ attempts consume their user's request budget.
 This is a single-replica guard matching the current single Python worker; raise
 capacity only after verifying database and inference capacity. No connection
 pool size, financial calculation or portfolio authorization rule was changed.
+
+## Adversarial financial grounding and metrics isolation (PR #257)
+
+The deterministic regression matrix checks invented amounts (including scientific
+notation and grouping), mixed currency symbols/codes, missing requested facts,
+misassigned field values across net worth/liquid/illiquid/market portfolio,
+unsupported source citations, and prompt-injection instructions embedded in
+documentation. After generation, each labelled aggregate amount must match the
+**specific** Java field rather than merely some value within the supplied facts.
+Ambiguous combined claims intentionally abstain. These checks do not replace
+semantic evaluation of narrative statements; all real financial computation and
+portfolio authorization remain in Java.
+
+For cluster-local Prometheus scraping, set `RAG_METRICS_LISTENER_ENABLED=true`
+only when the companion GitOps chart is configured and the separate
+`RAG_METRICS_TOKEN` exists. The Python process then starts a second, lightweight,
+authenticated HTTP listener on port `RAG_METRICS_LISTENER_PORT=8091` with
+**only** `GET /metrics`. It shares the same process counters. The inference
+API continues to listen exclusively on `127.0.0.1:8090` inside the pod. The
+metrics port fails startup closed if its distinct token is absent and must have
+a NetworkPolicy permitting access only from monitoring and same-namespace
+pods. It has no inference endpoint, no public Ingress, and no finance/user
+labels.
+
+The companion GitOps PR creates an internal ServiceMonitor and rules for
+Python timeouts, provider failures, saturated Python admissions, and aggregate
+token usage. Java 429 responses rejected *before* Python cannot be counted
+by Python metrics; add Java-specific instrumentation if that gap becomes
+operationally significant. Token counters rely on provider-reported usage;
+requests rejected without model execution have no token usage.
