@@ -54,11 +54,12 @@ def test_authenticated_metrics_expose_only_fixed_labels():
 def test_timeout_keeps_concurrency_slot_until_background_worker_completes():
     started, release = Event(), Event()
     app.dependency_overrides[get_service] = lambda: SlowStub(started, release)
-    app.dependency_overrides[get_access_gate] = lambda: AccessGate(
+    shared_gate = AccessGate(
         Settings(api_token=SecretStr("timeout-secret"),
                  request_deadline_seconds=0.05, max_concurrent_requests=1,
                  _env_file=None)
     )
+    app.dependency_overrides[get_access_gate] = lambda: shared_gate
     try:
         with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
             headers = {"Authorization": "Bearer timeout-secret"}
