@@ -8,9 +8,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * In-process fixed-window budget per authenticated principal, across all portfolios.
- * This is a single-replica v1 guard. Use a shared store before scaling Java replicas.
- * Usernames are used only as in-memory keys, never metrics labels or log fields.
+ * In-process fixed-window budget per authenticated principal, across all portfolios. This is a
+ * single-replica v1 guard. Use a shared store before scaling Java replicas. Usernames are used only
+ * as in-memory keys, never metrics labels or log fields.
  */
 @Component
 @ConditionalOnProperty(prefix = "investory.rag", name = "enabled", havingValue = "true")
@@ -21,8 +21,7 @@ public final class RagUserRateLimiter {
   private final LongSupplier millis;
   private final ConcurrentHashMap<String, Window> windows = new ConcurrentHashMap<>();
 
-  public RagUserRateLimiter(
-      @Value("${investory.rag.max-requests-per-minute:10}") int limit) {
+  public RagUserRateLimiter(@Value("${investory.rag.max-requests-per-minute:10}") int limit) {
     this(limit, System::currentTimeMillis);
   }
 
@@ -40,17 +39,19 @@ public final class RagUserRateLimiter {
       if (windows.size() >= MAX_PRINCIPALS) return false;
     }
     AtomicBoolean allowed = new AtomicBoolean(false);
-    windows.compute(principal, (key, old) -> {
-      if (old == null || now < old.startedAt() || now - old.startedAt() >= WINDOW_MILLIS) {
-        allowed.set(true);
-        return new Window(now, 1);
-      }
-      if (old.count() < limit) {
-        allowed.set(true);
-        return new Window(old.startedAt(), old.count() + 1);
-      }
-      return old;
-    });
+    windows.compute(
+        principal,
+        (key, old) -> {
+          if (old == null || now < old.startedAt() || now - old.startedAt() >= WINDOW_MILLIS) {
+            allowed.set(true);
+            return new Window(now, 1);
+          }
+          if (old.count() < limit) {
+            allowed.set(true);
+            return new Window(old.startedAt(), old.count() + 1);
+          }
+          return old;
+        });
     return allowed.get();
   }
 
