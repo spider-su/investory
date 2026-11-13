@@ -23,6 +23,7 @@ def test_metrics_only_port_and_token_isolation():
             return result
         assert request("/metrics")[0] == 401
         assert request("/metrics", "inference-only")[0] == 401
+        assert request("/metrics", "invalid-\u00e9")[0] == 401
         status, body = request("/metrics", "scrape-only")
         assert status == 200
         assert "investory_rag_requests_total" in body
@@ -43,3 +44,12 @@ def test_listener_fails_closed_without_scrape_token():
 def test_listener_is_off_by_default():
     with private_metrics_listener(Settings(_env_file=None)) as server:
         assert server is None
+
+
+def test_listener_rejects_reused_inference_token():
+    settings = Settings(metrics_listener_enabled=True, metrics_listener_port=0,
+                        api_token=SecretStr("same-secret"),
+                        metrics_token=SecretStr("same-secret"), _env_file=None)
+    with pytest.raises(RuntimeError, match="distinct"):
+        with private_metrics_listener(settings):
+            pytest.fail("A scrape credential must not grant inference access")

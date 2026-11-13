@@ -9,9 +9,8 @@ import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
 from .config import Settings
+from .metrics import CONTENT_TYPE_LATEST, generate_latest
 
 
 @contextmanager
@@ -23,6 +22,10 @@ def private_metrics_listener(settings: Settings):
     if credential is None or not credential.get_secret_value():
         raise RuntimeError("RAG metrics listener requires a dedicated metrics token")
     token = credential.get_secret_value()
+    if settings.api_token is not None and hmac.compare_digest(
+        token.encode(), settings.api_token.get_secret_value().encode()
+    ):
+        raise RuntimeError("RAG metrics listener requires a distinct metrics token")
 
     class MetricsHandler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -30,7 +33,7 @@ def private_metrics_listener(settings: Settings):
                 self.send_error(404)
                 return
             scheme, _, supplied = (self.headers.get("Authorization") or "").partition(" ")
-            if scheme.lower() != "bearer" or not hmac.compare_digest(supplied, token):
+            if scheme.lower() != "bearer" or not hmac.compare_digest(supplied.encode(), token.encode()):
                 self.send_response(401)
                 self.send_header("WWW-Authenticate", "Bearer")
                 self.send_header("Cache-Control", "no-store")

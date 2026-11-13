@@ -36,3 +36,11 @@ def test_concurrency_limit():
     access.release()
     access.acquire()
     access.release()
+
+
+def test_metrics_route_fails_closed_if_credentials_are_reused():
+    access = AccessGate(Settings(api_token=SecretStr("same-secret"),
+                                 metrics_token=SecretStr("same-secret"), _env_file=None))
+    with pytest.raises(HTTPException) as error:
+        access.authenticate_metrics("Bearer same-secret")
+    assert error.value.status_code == 503

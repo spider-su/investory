@@ -345,7 +345,8 @@ only when the companion GitOps chart is configured and the separate
 authenticated HTTP listener on port `RAG_METRICS_LISTENER_PORT=8091` with
 **only** `GET /metrics`. It shares the same process counters. The inference
 API continues to listen exclusively on `127.0.0.1:8090` inside the pod. The
-metrics port fails startup closed if its distinct token is absent and must have
+metrics port fails startup closed if its token is absent or equals the inference
+token. The loopback metrics route also rejects reused credentials. The port must have
 a NetworkPolicy permitting access only from monitoring and same-namespace
 pods. It has no inference endpoint, no public Ingress, and no finance/user
 labels.
