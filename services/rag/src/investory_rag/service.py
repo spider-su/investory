@@ -152,7 +152,7 @@ class RagService:
         )
         answer = (PROMPT | self.chat()).invoke({"context": context, "question": question})
         content = self.answer_text(answer)
-        if not validate_answer(content, sources):
+        if not validate_answer(content, sources, supporting_texts=[item['text'] for item in results]):
             return {"answer": NO_EVIDENCE, "sources": []}
         return {"answer": content, "sources": sources}
 
