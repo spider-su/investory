@@ -29,14 +29,16 @@ class SlowStub:
 def test_authenticated_metrics_expose_only_fixed_labels():
     app.dependency_overrides[get_service] = lambda: Stub()
     app.dependency_overrides[get_access_gate] = lambda: AccessGate(
-        Settings(api_token=SecretStr("metrics-secret"), _env_file=None)
+        Settings(api_token=SecretStr("inference-secret"),
+                 metrics_token=SecretStr("metrics-secret"), _env_file=None)
     )
     try:
         client = TestClient(app)
         assert client.get("/metrics").status_code == 401
+        assert client.get("/metrics", headers={"Authorization": "Bearer inference-secret"}).status_code == 401
         headers = {"Authorization": "Bearer metrics-secret"}
         assert client.post("/ask", json={"question": "SECRET_BALANCE_999"},
-                           headers=headers).status_code == 200
+                           headers={"Authorization": "Bearer inference-secret"}).status_code == 200
         response = client.get("/metrics", headers=headers)
         assert response.status_code == 200
         text = response.text
@@ -44,6 +46,7 @@ def test_authenticated_metrics_expose_only_fixed_labels():
         assert "investory_rag_request_seconds" in text
         assert "SECRET_BALANCE_999" not in text
         assert "metrics-secret" not in text
+        assert "inference-secret" not in text
     finally:
         app.dependency_overrides.clear()
 
