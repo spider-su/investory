@@ -27,12 +27,13 @@ class PortfolioRagControllerTest {
   @Mock ProfileSnapshotReader profiles;
   @Mock ProfileResponseMapper mapper;
   @Mock InvestoryRagClient client;
+  @Mock RagUserRateLimiter rateLimiter;
   private PortfolioRagController controller;
   private Authentication user;
 
   @BeforeEach
   void setUp() {
-    controller = new PortfolioRagController(authorization, profiles, mapper, client);
+    controller = new PortfolioRagController(authorization, profiles, mapper, client, rateLimiter);
     user =
         new UsernamePasswordAuthenticationToken(
             "user-a", "n/a", List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
@@ -48,7 +49,7 @@ class PortfolioRagControllerTest {
                 controller.ask(
                     22L, new PortfolioRagController.Question("What is my balance?"), user));
     assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
-    verifyNoInteractions(profiles, mapper, client);
+    verifyNoInteractions(rateLimiter, profiles, mapper, client);
   }
 
   @Test
@@ -56,6 +57,7 @@ class PortfolioRagControllerTest {
     InvestmentProfile model = mock(InvestmentProfile.class);
     ProfileResponse response = mock(ProfileResponse.class);
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(profiles.loadProfile(21L)).thenReturn(model);
     when(mapper.map(model)).thenReturn(response);
     var expected = new InvestoryRagClient.RagAnswer("The total is ...", List.of("live:profile"));
@@ -66,6 +68,18 @@ class PortfolioRagControllerTest {
     assertEquals(expected, actual);
     verify(authorization).canReadScoped(21L, user);
     verify(client).ask("What is my balance?", response);
+  }
+
+  @Test
+  void rateLimitRejectsBeforeAccessingSnapshotOrCallingPython() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(false);
+    var exception =
+        assertThrows(
+            ResponseStatusException.class,
+            () -> controller.ask(21L, new PortfolioRagController.Question("Net worth?"), user));
+    assertEquals(HttpStatus.TOO_MANY_REQUESTS, exception.getStatusCode());
+    verifyNoInteractions(profiles, mapper, client);
   }
 
   @Test
@@ -82,7 +96,7 @@ class PortfolioRagControllerTest {
                 ResponseStatusException.class,
                 () -> controller.ask(1L, new PortfolioRagController.Question("  "), user))
             .getStatusCode());
-    verifyNoInteractions(authorization, profiles, mapper, client);
+    verifyNoInteractions(authorization, rateLimiter, profiles, mapper, client);
   }
 
   @Test
