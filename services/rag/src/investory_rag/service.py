@@ -123,6 +123,18 @@ class RagService:
             })
         return results
 
+    def retrieve_evidence(self, question: str) -> list[dict[str, Any]]:
+        """Policy-aware retrieval: shared by live API and acceptance evaluation."""
+        if unsupported_document_question(question) or INJECTION.search(question):
+            return []
+        if not self.store.get(include=[], limit=1)["ids"]:
+            return []
+        matches = filter_untrusted_chunks(self.retrieve(question))
+        if (not has_textual_support(question, matches)
+                or conflicting_claims(matches)):
+            return []
+        return matches
+
     def ask(self, question: str) -> dict:
         if not question.strip() or len(question) > self.settings.max_question_chars:
             raise ValueError("question must be non-empty and within configured length")
@@ -131,9 +143,8 @@ class RagService:
         if not self.store.get(include=[], limit=1)["ids"]:
             return {"answer": NOT_INDEXED, "sources": []}
 
-        results = filter_untrusted_chunks(self.retrieve(question))
-        if (not results or not has_textual_support(question, results)
-                or conflicting_claims(results)):
+        results = self.retrieve_evidence(question)
+        if not results:
             return {"answer": NO_EVIDENCE, "sources": []}
         sources = list(dict.fromkeys(item["source"] for item in results))
         context = "\n\n".join(
@@ -153,13 +164,7 @@ class RagService:
                 or missing_requested_fact(question, facts)):
             return {"answer": NO_EVIDENCE, "sources": []}
         # Documents are optional here; authoritative financial values come from Java.
-        matches = filter_untrusted_chunks(
-            self.retrieve(question) if self.store.get(include=[], limit=1)["ids"] else []
-        )
-        if conflicting_claims(matches):
-            return {"answer": NO_EVIDENCE, "sources": []}
-        if not has_textual_support(question, matches):
-            matches = []
+        matches = self.retrieve_evidence(question)
         sources = list(dict.fromkeys(item["source"] for item in matches))
         excerpts = "\n\n".join(
             f"[{item['source']}]\n{item['text']}" for item in matches
