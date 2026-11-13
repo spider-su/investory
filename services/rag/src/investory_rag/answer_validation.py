@@ -67,6 +67,7 @@ def validate_answer(
     answer: str,
     allowed_sources: list[str],
     facts: dict[str, str] | None = None,
+    supporting_texts: list[str] | None = None,
 ) -> bool:
     """Reject missing/unknown citations and invented numeric outputs.
 
@@ -77,6 +78,11 @@ def validate_answer(
     if not answer.strip() or not cited or not cited.issubset(set(allowed_sources)):
         return False
     if facts is None:
+        # A cited source is not sufficient to justify invented numeric claims.
+        # This catches literal amount/year hallucinations, not semantic distortions.
+        if supporting_texts is not None:
+            supported = _amounts(" ".join(supporting_texts))
+            return _amounts(CITATION.sub("", answer)).issubset(supported)
         return True
     if "live:profile" not in cited:
         return False
