@@ -293,3 +293,18 @@ scientific notation and rejects malformed grouping/decimal-comma ambiguity;
 mixed supported currency codes are rejected. Provider token metrics cover both
 document and fact calls, including answers later rejected by validation. These
 checks remain conservative guards, not semantic entailment proof.
+
+### Verified citation formatting
+
+Live answer evaluation found safe but incorrect abstentions for grouped source
+labels, retrieved section tags such as `RET-07`, and literal year notation.
+Documentation prompts now use short source IDs, mapped back to the actual
+retrieved paths before validation. Grouped citations are canonicalized only if
+every component is allowed. A section tag must occur in the excerpt from that
+exact source; unknown sources and tags still fail closed. Literal `[n]`/`[n+1]`
+notation is preserved verbatim when present in retrieved text, and never counts
+as a source citation by itself. Numeric guards remain enforced.
+
+The runtime image retains Bash for the lightweight private HTTP probes used by
+GitOps; Docker CI checks its availability. Probes still require `/health` HTTP
+200 rather than merely checking that a process exists.

@@ -97,3 +97,31 @@ def test_facts_answers_record_provider_usage(tmp_path):
     before = TOKENS.labels(direction="output")._value.get()
     service.ask_with_facts("What is my net worth?", {"currency": "PLN", "totalNetWorth": "123.45"})
     assert TOKENS.labels(direction="output")._value.get() == before + 8
+
+
+def test_verified_document_section_citations_survive_service_validation(tmp_path):
+    service = make_service(tmp_path, "Reserve withdrawal RET-07: explicitly reopen the approved year.",
+                           "Use the explicit reopen action [retirement.md RET-07].")
+    result = service.ask("Explain reserve withdrawal")
+    assert result['sources'] == ['retirement.md']
+    assert result['answer'] == 'Use the explicit reopen action [retirement.md].'
+
+
+def test_unknown_grouped_source_still_fails_closed(tmp_path):
+    service = make_service(tmp_path, "Reserve withdrawal policy is documented.",
+                           "Policy [retirement.md; invented.md].")
+    assert service.ask("Explain reserve withdrawal") == {'answer': NO_EVIDENCE, 'sources': []}
+
+
+def test_internal_source_alias_maps_back_to_retrieved_document(tmp_path):
+    service = make_service(tmp_path, "Reserve withdrawal policy is documented.",
+                           "Reserve withdrawal policy [S1].")
+    result = service.ask("Explain reserve withdrawal")
+    assert result['answer'] == 'Reserve withdrawal policy [retirement.md].'
+    assert result['sources'] == ['retirement.md']
+
+
+def test_unknown_source_alias_still_fails_closed(tmp_path):
+    service = make_service(tmp_path, "Reserve withdrawal policy is documented.",
+                           "Reserve policy [S1; S99].")
+    assert service.ask("Explain reserve withdrawal") == {'answer': NO_EVIDENCE, 'sources': []}

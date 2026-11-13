@@ -72,6 +72,43 @@ def _amounts(text: str, strict: bool = True) -> set[Decimal] | None:
     return values
 
 
+def normalize_citations(answer: str, allowed_sources: list[str], evidence: list[dict]) -> str:
+    """Canonicalize verified references without dropping unknown citations.
+
+    Grouped source labels may use comma/semicolon separators. A section tag must
+    occur in the excerpt from that exact source. Anything else remains unchanged
+    for fail-closed validation.
+    """
+    contexts = defaultdict(list)
+    for chunk in evidence:
+        contexts[chunk["source"]].append(chunk["text"])
+    allowed = set(allowed_sources)
+
+    def canonical(part: str) -> str | None:
+        if part in allowed:
+            return part
+        for source in allowed:
+            prefix = source + " "
+            if part.startswith(prefix):
+                tag = part[len(prefix):]
+                if (re.fullmatch(r"[A-Z]{2,10}-\d{1,4}", tag)
+                        and any(re.search(r"\b" + re.escape(tag) + r"\b", text)
+                                for text in contexts[source])):
+                    return source
+        return None
+
+    def replace(match):
+        label = match.group(1).strip()
+        if label in allowed:
+            return "[" + label + "]"
+        parts = [canonical(part.strip()) for part in re.split(r"[;,]", label)]
+        if all(part is not None for part in parts):
+            return "".join("[" + part + "]" for part in dict.fromkeys(parts))
+        return match.group(0)
+
+    return CITATION.sub(replace, answer)
+
+
 def validate_answer(
     answer: str,
     allowed_sources: list[str],
@@ -84,6 +121,12 @@ def validate_answer(
     We cannot prove all prose is entailed: this is a guard plus test harness.
     """
     cited = set(CITATION.findall(answer))
+    # Preserve documented array/year notation verbatim instead of interpreting
+    # it as provenance. It never substitutes for an actual source citation.
+    if supporting_texts is not None:
+        cited -= {label for label in cited
+                  if re.fullmatch(r"n(?:[+-]\d+)?", label)
+                  and any("[" + label + "]" in text for text in supporting_texts)}
     if (not answer.strip() or INJECTION.search(answer) or not cited
             or not cited.issubset(set(allowed_sources))):
         return False

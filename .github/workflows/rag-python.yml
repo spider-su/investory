@@ -62,6 +62,7 @@ jobs:
             sleep 2
           done
           curl -fsS http://127.0.0.1:18090/health
+          docker exec rag-ci bash -ec 'test -n "$BASH_VERSION"'
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18090/ask \
             -H 'Content-Type: application/json' -d '{"question":"hello"}')
           test "$code" = "503"
