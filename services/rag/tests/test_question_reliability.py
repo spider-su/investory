@@ -10,6 +10,8 @@ from investory_rag.reliability import (
     "How much did my portfolio gain today?",
     "What is the live price of NVIDIA right now?",
     "What is my current bank account balance?",
+    "What is my current net worth?",
+    "What is my current portfolio value?",
     "What is it?",
     "Which option is best?",
     "Should I buy NVDA?",
@@ -30,6 +32,7 @@ def test_positive_document_questions(question):
 
 def test_facts_are_limited_to_authoritative_java_aggregates():
     assert not unsupported_facts_question("What is my current net worth?")
+    assert not unsupported_facts_question("What is my current portfolio value?")
     assert not unsupported_facts_question("Explain my liquid assets")
     assert unsupported_facts_question("How much did my portfolio gain today?")
     assert unsupported_facts_question("What was my trading profit?")
