@@ -1,14 +1,17 @@
 """Internal HTTP API; aggregate facts remain transient and Java-authorized."""
+import asyncio
+from time import perf_counter
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from pydantic import BaseModel, Field
 from decimal import Decimal
 
 from .config import get_settings
 from .security import AccessGate
 from .service import RagService
+from .metrics import REQUESTS, LATENCY, generate_latest, CONTENT_TYPE_LATEST
 
 app = FastAPI(title="Investory Document RAG", version="0.2.0")
 
@@ -46,19 +49,62 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+async def run_bounded(endpoint: str, gate: AccessGate, operation):
+    """Timeout HTTP waiting without freeing capacity while the model is still running.
+
+    asyncio cancellation cannot stop an in-progress provider call in a thread.
+    The worker owns the semaphore until it *actually finishes*, preventing
+    timeouts from multiplying unbounded background inference work.
+    """
+    started = perf_counter()
+    outcome = "success"
+    try:
+        gate.acquire()
+    except HTTPException:
+        REQUESTS.labels(endpoint=endpoint, outcome="rejected").inc()
+        raise
+
+    def worker():
+        try:
+            return operation()
+        finally:
+            gate.release()
+
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(worker), timeout=gate.settings.request_deadline_seconds
+        )
+    except TimeoutError as exc:
+        outcome = "timeout"
+        raise HTTPException(status_code=504, detail="RAG request deadline exceeded") from exc
+    except ValueError as exc:
+        outcome = "invalid"
+        raise HTTPException(status_code=422, detail="Invalid RAG question") from exc
+    except Exception as exc:
+        outcome = "upstream_error"
+        raise HTTPException(status_code=502, detail="RAG service unavailable") from None
+    finally:
+        REQUESTS.labels(endpoint=endpoint, outcome=outcome).inc()
+        LATENCY.labels(endpoint=endpoint).observe(perf_counter() - started)
+
+
+@app.get("/metrics")
+def metrics(
+    authorization: Annotated[str | None, Header()] = None,
+    gate: AccessGate = Depends(get_access_gate),
+) -> Response:
+    # Distinct read-only metrics token, never the inference service credential.
+    gate.authenticate_metrics(authorization)
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.post("/ask", response_model=AskResponse)
-def ask(
+async def ask(
     request: AskRequest,
     gate: AccessGate = Depends(require_gate),
     service: RagService = Depends(get_service),
 ) -> dict:
-    gate.acquire()
-    try:
-        return service.ask(request.question)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    finally:
-        gate.release()
+    return await run_bounded("documents", gate, lambda: service.ask(request.question))
 
 
 class ProfileFacts(BaseModel):
@@ -80,20 +126,15 @@ class AskWithFactsRequest(BaseModel):
 
 
 @app.post("/ask-with-facts", response_model=AskResponse)
-def ask_with_facts(
+async def ask_with_facts(
     request: AskWithFactsRequest,
     gate: AccessGate = Depends(require_gate),
     service: RagService = Depends(get_service),
 ) -> dict:
-    gate.acquire()
-    try:
-        # Explicit allowlist; do not log, persist, or embed aggregate financial facts.
-        facts = {
-            key: "unavailable" if value is None else str(value)
-            for key, value in request.facts.model_dump().items()
-        }
-        return service.ask_with_facts(request.question, facts)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    finally:
-        gate.release()
+    facts = {
+        key: "unavailable" if value is None else str(value)
+        for key, value in request.facts.model_dump().items()
+    }
+    return await run_bounded(
+        "facts", gate, lambda: service.ask_with_facts(request.question, facts)
+    )
