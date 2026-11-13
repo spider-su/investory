@@ -35,7 +35,7 @@ Before each change record the source SHA, **scanned** image digest and the
 GitOps commit. Verify both workloads and exact image IDs:
 
 ```sh
-kubectl -n argocd get application investory -o wide
+kubectl -n argocd get applications -o wide
 kubectl -n investory-prod get deployment,pods -o wide
 kubectl -n investory-prod get pods -o jsonpath='{range .items[*]}{.metadata.name}{" "}{range .status.containerStatuses[*]}{.name}{" "}{.imageID}{" "}{.ready}{"\n"}{end}{end}'
 kubectl -n investory-prod get events --sort-by=.lastTimestamp
