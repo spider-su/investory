@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     min_relevance_score: float = Field(default=0.3, ge=0, le=1)
     max_question_chars: int = Field(default=2000, ge=1, le=2000)
     api_token: SecretStr | None = None
+    metrics_token: SecretStr | None = None
     max_concurrent_requests: int = Field(default=1, ge=1, le=16)
     openai_timeout_seconds: float = Field(default=20, gt=0, le=120)
     request_deadline_seconds: float = Field(default=25, gt=0, le=180)
