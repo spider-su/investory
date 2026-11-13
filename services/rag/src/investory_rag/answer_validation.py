@@ -75,7 +75,8 @@ def validate_answer(
     We cannot prove all prose is entailed: this is a guard plus test harness.
     """
     cited = set(CITATION.findall(answer))
-    if not answer.strip() or not cited or not cited.issubset(set(allowed_sources)):
+    if (not answer.strip() or INJECTION.search(answer) or not cited
+            or not cited.issubset(set(allowed_sources))):
         return False
     if facts is None:
         # A cited source is not sufficient to justify invented numeric claims.
