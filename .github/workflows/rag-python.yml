@@ -50,7 +50,7 @@ jobs:
           docker run --rm --network none -v rag-recovery-ci:/app/data -e RAG_EMBEDDING_PROVIDER=local --entrypoint sh investory-rag:ci -c \
             'investory-rag-index && investory-rag-eval --cases /app/eval/cases.json --min-hit-rate 0.8'
           docker run --rm --network none -v rag-recovery-ci:/app/data -e RAG_EMBEDDING_PROVIDER=local --entrypoint sh investory-rag:ci -c \
-            'python -c "from unittest.mock import patch; from investory_rag.cli import main; patch(\\"investory_rag.embeddings.LocalEmbeddings.embed_documents\\", side_effect=AssertionError(\\"no reembedding on restart\\")).start(); main()"'
+            'python -c "from unittest.mock import patch; from investory_rag.cli import main; patch(\"investory_rag.embeddings.LocalEmbeddings.embed_documents\", side_effect=AssertionError(\"no reembedding on restart\")).start(); main()"'
           docker run --rm --network none -e RAG_EMBEDDING_PROVIDER=local --entrypoint sh investory-rag:ci -c \
             'investory-rag-index && investory-rag-eval --cases /app/eval/cases.json --min-hit-rate 0.8'
       - name: Verify health and fail-closed API
