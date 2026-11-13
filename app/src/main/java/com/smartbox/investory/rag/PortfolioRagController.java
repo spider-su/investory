@@ -22,16 +22,19 @@ public class PortfolioRagController {
   private final ProfileSnapshotReader profiles;
   private final ProfileResponseMapper mapper;
   private final InvestoryRagClient rag;
+  private final RagUserRateLimiter rateLimiter;
 
   public PortfolioRagController(
       AuthorizationService authorization,
       ProfileSnapshotReader profiles,
       ProfileResponseMapper mapper,
-      InvestoryRagClient rag) {
+      InvestoryRagClient rag,
+      RagUserRateLimiter rateLimiter) {
     this.authorization = authorization;
     this.profiles = profiles;
     this.mapper = mapper;
     this.rag = rag;
+    this.rateLimiter = rateLimiter;
   }
 
   @PostMapping("/ask")
@@ -48,6 +51,9 @@ public class PortfolioRagController {
     }
     if (!authorization.canReadScoped(portfolioId, authentication)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
+    if (!rateLimiter.tryAcquire(authentication == null ? null : authentication.getName())) {
+      throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "RAG request limit exceeded");
     }
     var snapshot = mapper.map(profiles.loadProfile(portfolioId));
     try {

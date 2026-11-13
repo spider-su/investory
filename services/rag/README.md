@@ -196,3 +196,83 @@ provider/model/metric mismatch skips the seed. No live facts or API key are used
 to build it. Rebuild the image for documentation/model changes; do not edit its
 corpus at runtime. CI verifies offline seed restoration with embedding writes
 forbidden, then runs the real source retrieval benchmark as UID 10001.
+
+## v1 reliability gates
+
+The document API now uses **policy-aware evidence retrieval**. A high Chroma
+score alone is insufficient: unsupported live-data requests, ambiguous
+follow-ups without context, personalized trading recommendations and excerpts
+without matching subject matter return the stable insufficient-evidence response.
+The same policy is exercised by `investory-rag-eval`, not bypassed by evaluation.
+
+The response validator requires citations to actually retrieved sources. For
+document answers, literal numeric claims must appear in the source excerpts.
+For Java-authorized financial answers, every numeric claim must equal a
+provided aggregate and use the correct currency. Requests for unavailable
+aggregate values abstain instead of substituting zero. Explicit, same-key
+conflicting document assertions abstain and obvious prompt injection in
+retrieved excerpts is excluded before generation. No financial facts are
+persisted in Chroma.
+
+**Limits:** This is not a semantic entailment proof. It does not catch every
+contradiction, spelled-out number, indirect reference, complex derived value,
+or malicious instruction. The conservative v1 classifier intentionally rejects
+some legitimate requests that need broader data or conversation context.
+Keep human-reviewed answer evaluation as a release gate.
+
+Run both benchmark sets against the *same* immutable index:
+
+```sh
+investory-rag-eval --cases eval/cases.json --min-hit-rate 0.8
+investory-rag-eval --cases eval/exploratory-cases.json --min-abstention-accuracy 1.0
+```
+
+The operational startup and recovery checklist is
+[docs/operations/rag-v1-recovery.md](../../docs/operations/rag-v1-recovery.md).
+CI exercises deterministic local seed/restart scenarios; real pod replacement,
+cold image pulls, PostgreSQL incident diagnosis and Argo-managed rollback
+require operator-observed evidence and are **not** validated by source CI.
+
+## v1 operational limits and metrics (PR #253)
+
+The Java portfolio RAG route enforces a per-authenticated-principal fixed-window
+limit before reading a profile snapshot. It defaults to 10 requests per minute
+(`INVESTORY_RAG_MAX_REQUESTS_PER_MINUTE=10`), shared across that user's
+portfolios. It returns HTTP 429 when exhausted. This counter is **in-process**
+and only suitable for the existing single Java replica; moving to multiple
+replicas requires a common store or gateway rate limit. It does not store user
+identities in metrics or logs.
+
+The Python service has `RAG_REQUEST_DEADLINE_SECONDS=25`. A request that
+exceeds this response deadline receives HTTP 504. Running provider work is
+**not forcibly canceled** by the deadline; it keeps its concurrency slot until
+it actually finishes. The existing provider call timeout and concurrency limit
+remain necessary. Java's outbound read timeout is 35 seconds by default and
+must exceed the Python deadline plus local overhead.
+
+`GET /metrics` exposes only fixed-label request counts, outcomes, duration
+histograms, and aggregate provider-reported input/output tokens. The endpoint
+requires a **separate** `RAG_METRICS_TOKEN` (not `RAG_API_TOKEN`), fails
+closed when absent, and is only reachable on the private RAG listener. Neither
+request content nor financial amounts, portfolio IDs, usernames, raw source
+paths, or authentication credentials appear in metric labels.
+
+For local inspection only, from the trusted pod/network:
+
+```sh
+curl -fsS -H "Authorization: Bearer ${RAG_METRICS_TOKEN}" http://127.0.0.1:8090/metrics
+```
+
+The companion listens only on pod loopback in GitOps. Prometheus **cannot
+directly scrape it from the monitoring namespace**. Do not widen the public
+listener or give the monitoring stack the inference bearer token just to
+enable scraping. A metrics-only listener/proxy plus dedicated read-only token,
+a tightly scoped NetworkPolicy, and a Secret-backed scrape configuration are
+required before enabling latency/error/token alert rules. The GitOps
+availability alerts (RAG readiness/restarts, Java availability) can use
+existing kube-state-metrics immediately without changing that boundary.
+
+Run the Python operational tests with `pytest -q`, the Java rate-limit
+tests with the normal Maven unit suite, and verify 429/504/metrics behavior
+in a private deployment. Do not mark production latency/error alerts active
+until their scrape targets are configured and verified.
