@@ -41,7 +41,18 @@ jobs:
       - name: Verify seeded index offline as the runtime user
         run: |
           docker run --rm --network none -e RAG_EMBEDDING_PROVIDER=local --entrypoint sh investory-rag:ci -c \
-            'python -c "from unittest.mock import patch; from investory_rag.cli import main; patch(\"investory_rag.embeddings.LocalEmbeddings.embed_documents\", side_effect=AssertionError(\"seed must avoid reembedding\")).start(); main()" && investory-rag-eval --cases /app/eval/cases.json --min-hit-rate 0.8'
+            'python -c "from unittest.mock import patch; from investory_rag.cli import main; patch(\"investory_rag.embeddings.LocalEmbeddings.embed_documents\", side_effect=AssertionError(\"seed must avoid reembedding\")).start(); main()" && investory-rag-eval --cases /app/eval/cases.json --min-hit-rate 0.8 && investory-rag-eval --cases /app/eval/exploratory-cases.json --min-abstention-accuracy 1.0'
+      - name: Verify restart with persistent volume and a fresh replacement volume
+        run: |
+          docker volume create rag-recovery-ci
+          trap 'docker volume rm -f rag-recovery-ci' EXIT
+          docker run --rm --user root -v rag-recovery-ci:/app/data --entrypoint sh investory-rag:ci -c 'chown -R 10001:10001 /app/data'
+          docker run --rm --network none -v rag-recovery-ci:/app/data -e RAG_EMBEDDING_PROVIDER=local --entrypoint sh investory-rag:ci -c \
+            'investory-rag-index && investory-rag-eval --cases /app/eval/cases.json --min-hit-rate 0.8'
+          docker run --rm --network none -v rag-recovery-ci:/app/data -e RAG_EMBEDDING_PROVIDER=local --entrypoint sh investory-rag:ci -c \
+            'python -c "from unittest.mock import patch; from investory_rag.cli import main; patch(\\"investory_rag.embeddings.LocalEmbeddings.embed_documents\\", side_effect=AssertionError(\\"no reembedding on restart\\")).start(); main()"'
+          docker run --rm --network none -e RAG_EMBEDDING_PROVIDER=local --entrypoint sh investory-rag:ci -c \
+            'investory-rag-index && investory-rag-eval --cases /app/eval/cases.json --min-hit-rate 0.8'
       - name: Verify health and fail-closed API
         run: |
           docker run -d --name rag-ci -p 127.0.0.1:18090:8090 investory-rag:ci
