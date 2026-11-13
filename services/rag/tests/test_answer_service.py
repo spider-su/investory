@@ -79,3 +79,21 @@ def test_conflicting_document_claims_abstain(tmp_path):
     ]
     service.llm = RunnableLambda(lambda _: pytest.fail("Must not invoke model"))
     assert service.ask("Explain reserve target")["answer"] == NO_EVIDENCE
+
+
+def test_wrong_field_amount_is_rejected_even_if_another_fact_has_that_amount(tmp_path):
+    service = make_service(tmp_path, "Net worth is a portfolio aggregate.",
+                           "Your net worth is 50 PLN [live:profile]")
+    facts = {"currency": "PLN", "totalNetWorth": "123.45", "liquidAssets": "50"}
+    assert service.ask_with_facts("What is my net worth?", facts)["answer"] == NO_EVIDENCE
+
+
+def test_facts_answers_record_provider_usage(tmp_path):
+    service = make_service(tmp_path, "Net worth is an aggregate.", "unused")
+    service.llm = RunnableLambda(lambda _: SimpleNamespace(
+        content="123.45 PLN [live:profile]",
+        usage_metadata={"input_tokens": 20, "output_tokens": 8}))
+    from investory_rag.metrics import TOKENS
+    before = TOKENS.labels(direction="output")._value.get()
+    service.ask_with_facts("What is my net worth?", {"currency": "PLN", "totalNetWorth": "123.45"})
+    assert TOKENS.labels(direction="output")._value.get() == before + 8
