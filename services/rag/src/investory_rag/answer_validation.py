@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 import re
 
-from .reliability import requested_fact_fields
+from .reliability import FIELD_TERMS, requested_fact_fields
 
 CITATION = re.compile(r"\[([^\[\]]+)\]")
 NUMBER = re.compile(r"[-+]?(?:\d[\d,]*(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
@@ -15,13 +15,18 @@ GROUPED_NUMBER = re.compile(r"[-+]?\d{1,3}(?:,\d{3})+(?:\.\d*)?(?:[eE][-+]?\d+)?
 CURRENCY = re.compile(r"(?<![A-Za-z])(?:USD|EUR|PLN|GBP|CHF|JPY|CAD|AUD|CNY)(?![A-Za-z])|[$€£]", re.I)
 ASSERTION = re.compile(r"^\s*([A-Za-z][\w -]{3,60}):\s*(\d[\d.,]*(?:\s*[A-Za-z%]+)?)\s*$", re.M)
 INJECTION = re.compile(
-    r"(?:ignore (?:all |any )?(?:previous|prior|system) instructions|"
+    r"(?:ignore (?:all |any )?(?:previous|prior|system|developer) instructions|"
+    r"(?:disregard|forget) (?:all |the |your )?(?:previous |prior )?(?:instructions|rules|policy)|"
     r"override (?:the )?(?:system|developer) (?:instructions|message)|"
-    r"you are now (?:the|a) system|"
-    r"reveal (?:your|the) (?:secret|api key|system prompt)|"
-    r"send (?:the|your) (?:token|secret|password) to)",
+    r"(?:you are now|new role is) (?:the|a)?\s*system|"
+    r"(?:<|\\[|\\b)(?:system|developer)(?:>|:|\\])|"
+    r"\\[INST\\]|\\[/INST\\]|"
+    r"reveal (?:your|the) (?:secret|api key|system prompt|prompt)|"
+    r"send (?:the|your) (?:token|secret|password) to|"
+    r"do not cite (?:any )?sources)",
     re.I,
 )
+
 NO_VALUE = {"unavailable", "none", "null", ""}
 
 
@@ -109,6 +114,50 @@ def normalize_citations(answer: str, allowed_sources: list[str], evidence: list[
     return CITATION.sub(replace, answer)
 
 
+
+def _field_amounts_match(answer: str, facts: dict[str, str]) -> bool:
+    """Bind each numeric field claim to that field, not just a pool of valid values.
+
+    A combined answer must label its amounts. For multiple claims, disallow
+    unlabeled numeric prefixes; ambiguous labelling fails closed. This does
+    not attempt full natural-language entailment.
+    """
+    text = CITATION.sub("", answer)
+    labels = []
+    for field, names in FIELD_TERMS.items():
+        for phrase in (*names, field):
+            pattern = r"\b" + re.escape(phrase) + r"s?\b"
+            for match in re.finditer(pattern, text, re.I):
+                labels.append((match.start(), match.end(), field))
+    # Collapse aliases that overlap, keeping the most explicit/longest match.
+    labels.sort(key=lambda item: (item[0], -(item[1] - item[0])))
+    nonoverlap = []
+    for item in labels:
+        if not nonoverlap or item[0] >= nonoverlap[-1][1]:
+            nonoverlap.append(item)
+
+    requested = set(facts) - {"currency"}
+    if not nonoverlap:
+        # One requested field is unambiguous even when the label is omitted.
+        return len(requested) <= 1
+    if len(requested) > 1 and _amounts(text[:nonoverlap[0][0]]):
+        return False
+    for index, (start, end, field) in enumerate(nonoverlap):
+        following = text[end:nonoverlap[index + 1][0] if index + 1 < len(nonoverlap) else len(text)]
+        amounts = _amounts(following)
+        if amounts is None:
+            return False
+        if not amounts:
+            continue
+        supplied = facts.get(field)
+        if supplied is None or str(supplied).lower() in NO_VALUE:
+            return False
+        expected = _amounts(str(supplied))
+        if expected is None or not amounts.issubset(expected):
+            return False
+    return True
+
+
 def validate_answer(
     answer: str,
     allowed_sources: list[str],
@@ -159,5 +208,7 @@ def validate_answer(
     if currencies and currencies != {currency}:
         return False
     if actual and currencies != {currency}:
+        return False
+    if not _field_amounts_match(answer, facts):
         return False
     return True
