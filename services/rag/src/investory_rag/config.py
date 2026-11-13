@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     api_token: SecretStr | None = None
     max_concurrent_requests: int = Field(default=1, ge=1, le=16)
     openai_timeout_seconds: float = Field(default=20, gt=0, le=120)
+    request_deadline_seconds: float = Field(default=25, gt=0, le=180)
 
 
 @lru_cache
