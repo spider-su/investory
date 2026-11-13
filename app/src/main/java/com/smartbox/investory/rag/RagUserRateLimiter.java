@@ -3,6 +3,7 @@ package com.smartbox.investory.rag;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,7 @@ public final class RagUserRateLimiter {
   private final LongSupplier millis;
   private final ConcurrentHashMap<String, Window> windows = new ConcurrentHashMap<>();
 
+  @Autowired
   public RagUserRateLimiter(@Value("${investory.rag.max-requests-per-minute:10}") int limit) {
     this(limit, System::currentTimeMillis);
   }
