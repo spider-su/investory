@@ -16,6 +16,11 @@ LIVE_EXTERNAL = re.compile(
     r"brokerage account|bank account|market quote|real.time quote)\b",
     re.I,
 )
+LIVE_AGGREGATE = re.compile(
+    r"\\b(?:current|right now|today(?:'s)?)\\s+(?:net worth|total wealth|"
+    r"portfolio value|market portfolio value|liquid assets?|illiquid assets?)\\b",
+    re.I,
+)
 ADVICE = re.compile(r"\b(?:should i (?:buy|sell)|what (?:stock|etf) (?:should|to) buy|best (?:stock|investment) for me)\b", re.I)
 AMBIGUOUS = re.compile(
     r"^(?:what (?:is|about) (?:it|that|this)|which (?:one|option) is (?:best|better)|"
@@ -39,6 +44,7 @@ def unsupported_document_question(question: str) -> bool:
     question = question.strip()
     return (
         bool(LIVE_EXTERNAL.search(question))
+        or bool(LIVE_AGGREGATE.search(question))
         or bool(ADVICE.search(question))
         or bool(AMBIGUOUS.fullmatch(question))
         or len(terms(question)) < 2
