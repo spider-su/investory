@@ -232,3 +232,47 @@ The operational startup and recovery checklist is
 CI exercises deterministic local seed/restart scenarios; real pod replacement,
 cold image pulls, PostgreSQL incident diagnosis and Argo-managed rollback
 require operator-observed evidence and are **not** validated by source CI.
+
+## v1 operational limits and metrics (PR #253)
+
+The Java portfolio RAG route enforces a per-authenticated-principal fixed-window
+limit before reading a profile snapshot. It defaults to 10 requests per minute
+(`INVESTORY_RAG_MAX_REQUESTS_PER_MINUTE=10`), shared across that user's
+portfolios. It returns HTTP 429 when exhausted. This counter is **in-process**
+and only suitable for the existing single Java replica; moving to multiple
+replicas requires a common store or gateway rate limit. It does not store user
+identities in metrics or logs.
+
+The Python service has `RAG_REQUEST_DEADLINE_SECONDS=25`. A request that
+exceeds this response deadline receives HTTP 504. Running provider work is
+**not forcibly canceled** by the deadline; it keeps its concurrency slot until
+it actually finishes. The existing provider call timeout and concurrency limit
+remain necessary. Java's outbound read timeout is 35 seconds by default and
+must exceed the Python deadline plus local overhead.
+
+`GET /metrics` exposes only fixed-label request counts, outcomes, duration
+histograms, and aggregate provider-reported input/output tokens. The endpoint
+requires a **separate** `RAG_METRICS_TOKEN` (not `RAG_API_TOKEN`), fails
+closed when absent, and is only reachable on the private RAG listener. Neither
+request content nor financial amounts, portfolio IDs, usernames, raw source
+paths, or authentication credentials appear in metric labels.
+
+For local inspection only, from the trusted pod/network:
+
+```sh
+curl -fsS -H "Authorization: Bearer ${RAG_METRICS_TOKEN}" http://127.0.0.1:8090/metrics
+```
+
+The companion listens only on pod loopback in GitOps. Prometheus **cannot
+directly scrape it from the monitoring namespace**. Do not widen the public
+listener or give the monitoring stack the inference bearer token just to
+enable scraping. A metrics-only listener/proxy plus dedicated read-only token,
+a tightly scoped NetworkPolicy, and a Secret-backed scrape configuration are
+required before enabling latency/error/token alert rules. The GitOps
+availability alerts (RAG readiness/restarts, Java availability) can use
+existing kube-state-metrics immediately without changing that boundary.
+
+Run the Python operational tests with `pytest -q`, the Java rate-limit
+tests with the normal Maven unit suite, and verify 429/504/metrics behavior
+in a private deployment. Do not mark production latency/error alerts active
+until their scrape targets are configured and verified.
