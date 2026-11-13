@@ -75,3 +75,34 @@ def test_punctuation_is_not_a_decimal_comma_or_percentage():
     facts = {"currency": "PLN", "totalNetWorth": "5"}
     assert validate_answer("5, in PLN [live:profile]", ["live:profile"], facts)
     assert not validate_answer("5% PLN [live:profile]", ["live:profile"], facts)
+
+
+def test_verified_grouped_citations_are_canonicalized_without_accepting_unknown_sources():
+    from investory_rag.answer_validation import normalize_citations
+    sources = ["a.md", "b.md"]
+    answer = normalize_citations("Policy [a.md; b.md]", sources, [])
+    assert answer == "Policy [a.md][b.md]"
+    assert validate_answer(answer, sources)
+    unknown = normalize_citations("Policy [a.md; invented.md]", sources, [])
+    assert not validate_answer(unknown, sources)
+
+
+def test_section_tags_must_exist_in_the_exact_retrieved_source():
+    from investory_rag.answer_validation import normalize_citations
+    sources = ["a.md", "b.md"]
+    evidence = [{"source": "a.md", "text": "RET-07: explicitly reopen the approved year."},
+                {"source": "b.md", "text": "Unrelated policy."}]
+    assert normalize_citations("Reopen [a.md RET-07]", sources, evidence) == "Reopen [a.md]"
+    for citation in ("b.md RET-07", "a.md RET-99", "a.md.evil"):
+        assert not validate_answer(normalize_citations("Reopen [" + citation + "]", sources, evidence), sources)
+
+
+def test_documented_math_notation_is_not_mistaken_for_a_source():
+    from investory_rag.answer_validation import normalize_citations
+    evidence = [{"source": "a.md", "text": "projected[n].end becomes projected[n+1].start"}]
+    answer = normalize_citations("Year [n] precedes [n+1] [a.md]", ["a.md"], evidence)
+    assert answer == "Year [n] precedes [n+1] [a.md]"
+    assert validate_answer(answer, ["a.md"], supporting_texts=[evidence[0]["text"]])
+    assert not validate_answer(normalize_citations("Year [n+99] [a.md]", ["a.md"], evidence), ["a.md"])
+    assert not validate_answer(normalize_citations("Year [n]", ["a.md"], evidence), ["a.md"], supporting_texts=[evidence[0]["text"]])
+    assert validate_answer("projected[n].end carries forward [a.md]", ["a.md"], supporting_texts=[evidence[0]["text"]])

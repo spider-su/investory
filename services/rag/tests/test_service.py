@@ -126,4 +126,5 @@ def test_live_facts_are_prompted_without_being_indexed(tmp_path, indexed):
     assert "totalNetWorth: 123.45" in prompts[0][1].content
     assert "illiquidAssets" not in prompts[0][1].content
     assert "must not override current values" in prompts[0][0].content
+    assert "preserving every decimal digit" in prompts[0][0].content
     assert service.store.documents == before
