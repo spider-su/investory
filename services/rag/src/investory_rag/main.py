@@ -1,5 +1,6 @@
 """Internal HTTP API; aggregate facts remain transient and Java-authorized."""
 import asyncio
+from contextlib import asynccontextmanager
 from time import perf_counter
 from functools import lru_cache
 from typing import Annotated
@@ -14,8 +15,15 @@ from .config import get_settings
 from .security import AccessGate
 from .service import RagService
 from .metrics import REQUESTS, LATENCY, generate_latest, CONTENT_TYPE_LATEST
+from .metrics_listener import private_metrics_listener
 
-app = FastAPI(title="Investory Document RAG", version="0.2.0")
+@asynccontextmanager
+async def lifespan(app):
+    with private_metrics_listener(get_settings()):
+        yield
+
+
+app = FastAPI(title="Investory Document RAG", version="0.2.0", lifespan=lifespan)
 
 
 class AskRequest(BaseModel):
