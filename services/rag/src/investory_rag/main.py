@@ -89,8 +89,12 @@ async def run_bounded(endpoint: str, gate: AccessGate, operation):
 
 
 @app.get("/metrics")
-def metrics(gate: AccessGate = Depends(require_gate)) -> Response:
-    # Protected by the same internal token; no identity, questions or amounts.
+def metrics(
+    authorization: Annotated[str | None, Header()] = None,
+    gate: AccessGate = Depends(get_access_gate),
+) -> Response:
+    # Distinct read-only metrics token, never the inference service credential.
+    gate.authenticate_metrics(authorization)
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
