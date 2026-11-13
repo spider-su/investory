@@ -88,6 +88,43 @@ def test_wrong_field_amount_is_rejected_even_if_another_fact_has_that_amount(tmp
     assert service.ask_with_facts("What is my net worth?", facts)["answer"] == NO_EVIDENCE
 
 
+@pytest.mark.parametrize("output", [
+    "123.45 PLN is your liquid assets [live:profile]",
+    "Net worth: 123.45 PLN, which is your liquid assets [live:profile]",
+    "123.45 PLN is your net worth and liquid assets [live:profile]",
+])
+def test_value_before_wrong_or_unavailable_field_label_abstains(tmp_path, output):
+    service = make_service(tmp_path, "Net worth is a portfolio aggregate.", output)
+    facts = {"currency": "PLN", "totalNetWorth": "123.45", "liquidAssets": "unavailable"}
+    assert service.ask_with_facts("What is my net worth?", facts) == {
+        "answer": NO_EVIDENCE, "sources": []
+    }
+
+
+@pytest.mark.parametrize("output", [
+    "123.45 PLN is your net worth [live:profile]",
+    "Net worth: **123.45 PLN** [live:profile]",
+])
+def test_exact_requested_field_survives_prefix_and_markdown(tmp_path, output):
+    service = make_service(tmp_path, "Net worth is a portfolio aggregate.", output)
+    assert service.ask_with_facts("What is my net worth?", {
+        "currency": "PLN", "totalNetWorth": "123.45"
+    })["answer"] == output
+
+
+@pytest.mark.parametrize("amount, accepted", [("10", False), ("5", True)])
+def test_document_numbers_must_appear_in_cited_excerpts(tmp_path, amount, accepted):
+    service = make_service(tmp_path, "Reserve target: 5 years",
+                           f"Reserve target: {amount} years [retirement.md]")
+    service.store.matches.append((Document(
+        page_content="Bond harvest threshold: 10 percent", metadata={"source": "bonds.md"}
+    ), 0.93))
+    result = service.ask("Explain reserve target and bond harvest")
+    assert (result["answer"] != NO_EVIDENCE) is accepted
+    if not accepted:
+        assert result["sources"] == []
+
+
 def test_facts_answers_record_provider_usage(tmp_path):
     service = make_service(tmp_path, "Net worth is an aggregate.", "unused")
     service.llm = RunnableLambda(lambda _: SimpleNamespace(

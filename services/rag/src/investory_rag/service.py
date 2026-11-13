@@ -165,7 +165,10 @@ class RagService:
         content = normalize_citations(self.answer_text(answer),
                                       [*sources, *reverse_aliases], [*results, *alias_evidence])
         content = CITATION.sub(lambda match: "[" + reverse_aliases.get(match.group(1), match.group(1)) + "]", content)
-        if not validate_answer(content, sources, supporting_texts=[item['text'] for item in results]):
+        cited = set(CITATION.findall(content))
+        if not validate_answer(content, sources, supporting_texts=[
+            item["text"] for item in results if item["source"] in cited
+        ]):
             return {"answer": NO_EVIDENCE, "sources": []}
         return {"answer": content, "sources": sources}
 

@@ -206,10 +206,13 @@ without matching subject matter return the stable insufficient-evidence response
 The same policy is exercised by `investory-rag-eval`, not bypassed by evaluation.
 
 The response validator requires citations to actually retrieved sources. For
-document answers, literal numeric claims must appear in the source excerpts.
+document answers, literal numeric claims must appear in excerpts from sources
+actually cited by the answer. Uncited retrieved excerpts cannot justify a value.
 For Java-authorized financial answers, every numeric claim must equal a
-provided aggregate and use the correct currency. Requests for unavailable
-aggregate values abstain instead of substituting zero. Explicit, same-key
+provided aggregate and use the correct currency. Each recognized aggregate label
+must belong to the requested, available facts, even when the amount precedes it. This
+can reject explanatory prose that names an aggregate outside the requested facts.
+Requests for unavailable aggregate values abstain instead of substituting zero. Explicit, same-key
 conflicting document assertions abstain and obvious prompt injection in
 retrieved excerpts is excluded before generation. No financial facts are
 persisted in Chroma.
@@ -342,7 +345,8 @@ only when the companion GitOps chart is configured and the separate
 authenticated HTTP listener on port `RAG_METRICS_LISTENER_PORT=8091` with
 **only** `GET /metrics`. It shares the same process counters. The inference
 API continues to listen exclusively on `127.0.0.1:8090` inside the pod. The
-metrics port fails startup closed if its distinct token is absent and must have
+metrics port fails startup closed if its token is absent or equals the inference
+token. The loopback metrics route also rejects reused credentials. The port must have
 a NetworkPolicy permitting access only from monitoring and same-namespace
 pods. It has no inference endpoint, no public Ingress, and no finance/user
 labels.

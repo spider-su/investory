@@ -147,11 +147,13 @@ def _field_amounts_match(answer: str, facts: dict[str, str]) -> bool:
         amounts = _amounts(following)
         if amounts is None:
             return False
-        if not amounts:
-            continue
         supplied = facts.get(field)
         if supplied is None or str(supplied).lower() in NO_VALUE:
+            # Labels still assert a field when the amount precedes them, or
+            # when the model appends another aggregate to a numeric statement.
             return False
+        if not amounts:
+            continue
         expected = _amounts(str(supplied))
         if expected is None or not amounts.issubset(expected):
             return False
