@@ -80,3 +80,14 @@ remain required operator evidence prior to calling this release recovery-ready.
 PostgreSQL is a singleton. Confirm independently tested off-cluster backup
 restoration before any invasive database change. A Ceph-backed PVC alone is
 not independent disaster recovery.
+
+## Concurrent snapshot reads
+
+A bounded live burst returned HTTP 500 with Hikari acquisition timeouts while
+all four observed connections were active. This is a separate incident from
+the cold-start PostgreSQL connection refusal above. The
+[Java snapshot admission guard](../../services/rag/README.md#java-snapshot-admission)
+rejects overlapping RAG work before reading private facts. Do not increase the
+JDBC pool to hide this saturation. Acceptance must confirm busy requests receive
+429, unauthorized portfolios remain 403, and permits recover after backend
+failure. Keep connection strings and response bodies out of public evidence.

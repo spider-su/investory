@@ -308,3 +308,18 @@ as a source citation by itself. Numeric guards remain enforced.
 The runtime image retains Bash for the lightweight private HTTP probes used by
 GitOps; Docker CI checks its availability. Probes still require `/health` HTTP
 200 rather than merely checking that a process exists.
+
+### Java snapshot admission
+
+Live burst acceptance exposed JDBC-pool exhaustion before the per-user budget
+could reject incoming requests. Java now admits at most
+`INVESTORY_RAG_MAX_CONCURRENT_REQUESTS=1` portfolio RAG operation at a time.
+The permit covers both the private snapshot read and the Python call, and is
+released on success or any failure. Excess work receives HTTP 429 before any
+private snapshot is read. Portfolio authorization remains first, followed by
+the per-user request budget and then concurrent admission. Busy authorized
+attempts consume their user's request budget.
+
+This is a single-replica guard matching the current single Python worker; raise
+capacity only after verifying database and inference capacity. No connection
+pool size, financial calculation or portfolio authorization rule was changed.

@@ -23,18 +23,21 @@ public class PortfolioRagController {
   private final ProfileResponseMapper mapper;
   private final InvestoryRagClient rag;
   private final RagUserRateLimiter rateLimiter;
+  private final RagConcurrencyLimiter concurrencyLimiter;
 
   public PortfolioRagController(
       AuthorizationService authorization,
       ProfileSnapshotReader profiles,
       ProfileResponseMapper mapper,
       InvestoryRagClient rag,
-      RagUserRateLimiter rateLimiter) {
+      RagUserRateLimiter rateLimiter,
+      RagConcurrencyLimiter concurrencyLimiter) {
     this.authorization = authorization;
     this.profiles = profiles;
     this.mapper = mapper;
     this.rag = rag;
     this.rateLimiter = rateLimiter;
+    this.concurrencyLimiter = concurrencyLimiter;
   }
 
   @PostMapping("/ask")
@@ -55,11 +58,16 @@ public class PortfolioRagController {
     if (!rateLimiter.tryAcquire(authentication == null ? null : authentication.getName())) {
       throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "RAG request limit exceeded");
     }
-    var snapshot = mapper.map(profiles.loadProfile(portfolioId));
+    if (!concurrencyLimiter.tryAcquire()) {
+      throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "RAG service is busy");
+    }
     try {
+      var snapshot = mapper.map(profiles.loadProfile(portfolioId));
       return rag.ask(request.question(), snapshot);
     } catch (PythonRagClient.RagUnavailableException e) {
       throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "RAG service unavailable");
+    } finally {
+      concurrencyLimiter.release();
     }
   }
 
