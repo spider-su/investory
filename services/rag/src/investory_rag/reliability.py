@@ -52,13 +52,16 @@ def unsupported_document_question(question: str) -> bool:
 
 
 def unsupported_facts_question(question: str) -> bool:
-    if unsupported_document_question(question):
-        # A current net-worth question is allowed because Java supplied that value.
-        if re.search(r"\bcurrent\s+(?:net worth|total wealth)\b", question, re.I):
-            return False
+    lowered = question.strip().lower()
+    supported = any(topic in lowered for topic in SUPPORTED_FACT_TOPICS)
+    if not supported or ADVICE.search(question) or AMBIGUOUS.fullmatch(question.strip()):
         return True
-    lowered = question.lower()
-    return not any(term in lowered for term in SUPPORTED_FACT_TOPICS)
+    # Only the explicitly allowed Java-supplied current aggregates are live.
+    if LIVE_EXTERNAL.search(question) and not LIVE_AGGREGATE.search(question):
+        return True
+    if len(terms(question)) < 2:
+        return True
+    return False
 
 
 def has_textual_support(question: str, chunks: list[dict]) -> bool:
