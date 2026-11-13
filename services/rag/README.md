@@ -276,3 +276,20 @@ Run the Python operational tests with `pytest -q`, the Java rate-limit
 tests with the normal Maven unit suite, and verify 429/504/metrics behavior
 in a private deployment. Do not mark production latency/error alerts active
 until their scrape targets are configured and verified.
+
+### Review hardening after #252/#253
+
+Cold model initialization runs inside the request deadline and admission gate.
+Concurrent first requests share one initialized model. Expired or disconnected
+requests retain their worker until it actually completes, including work queued
+in the thread executor; late provider exceptions are consumed without logging
+response bodies.
+
+Fact questions send only the specifically requested aggregates and currency to
+the chat model. This prevents another known aggregate from justifying a wrong
+answer amount. Field matching uses word boundaries (liquid and illiquid differ)
+and recognizes the allowlisted Java field names. Numeric validation recognizes
+scientific notation and rejects malformed grouping/decimal-comma ambiguity;
+mixed supported currency codes are rejected. Provider token metrics cover both
+document and fact calls, including answers later rejected by validation. These
+checks remain conservative guards, not semantic entailment proof.

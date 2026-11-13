@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from investory_rag.config import Settings
-from investory_rag.main import app, get_access_gate, get_service
+from investory_rag.main import app, get_access_gate, get_service_provider
 from investory_rag.security import AccessGate
 
 
@@ -16,7 +16,7 @@ def test_health_without_api_key():
 
 
 def test_ask_requires_service_token():
-    app.dependency_overrides[get_service] = lambda: StubService()
+    app.dependency_overrides[get_service_provider] = lambda: lambda: StubService()
     app.dependency_overrides[get_access_gate] = lambda: AccessGate(
         Settings(api_token=SecretStr("test-secret"), _env_file=None)
     )
@@ -36,7 +36,7 @@ def test_ask_requires_service_token():
 
 
 def test_unconfigured_api_rejects_every_request():
-    app.dependency_overrides[get_service] = lambda: StubService()
+    app.dependency_overrides[get_service_provider] = lambda: lambda: StubService()
     app.dependency_overrides[get_access_gate] = lambda: AccessGate(
         Settings(api_token=None, _env_file=None)
     )

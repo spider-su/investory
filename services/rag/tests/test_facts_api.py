@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from investory_rag.config import Settings
-from investory_rag.main import app, get_access_gate, get_service
+from investory_rag.main import app, get_access_gate, get_service_provider
 from investory_rag.security import AccessGate
 
 
@@ -27,7 +27,7 @@ class Stub:
 
 def test_facts_requires_internal_auth_and_accepts_allowlist_only():
     service = Stub()
-    app.dependency_overrides[get_service] = lambda: service
+    app.dependency_overrides[get_service_provider] = lambda: lambda: service
     app.dependency_overrides[get_access_gate] = lambda: AccessGate(
         Settings(api_token=SecretStr("internal-key"), _env_file=None)
     )
