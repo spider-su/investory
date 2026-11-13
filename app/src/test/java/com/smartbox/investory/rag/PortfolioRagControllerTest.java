@@ -104,6 +104,7 @@ class PortfolioRagControllerTest {
     InvestmentProfile model = mock(InvestmentProfile.class);
     ProfileResponse response = mock(ProfileResponse.class);
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(profiles.loadProfile(21L)).thenReturn(model);
     when(mapper.map(model)).thenReturn(response);
     when(client.ask("Question", response)).thenThrow(new PythonRagClient.RagUnavailableException());
