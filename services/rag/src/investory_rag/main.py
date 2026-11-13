@@ -3,6 +3,8 @@ import asyncio
 from time import perf_counter
 from functools import lru_cache
 from typing import Annotated
+from collections.abc import Callable
+from threading import Lock
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -25,14 +27,33 @@ class AskResponse(BaseModel):
     sources: list[str]
 
 
+_service_lock = Lock()
+_gate_lock = Lock()
+
+
 @lru_cache
-def get_service() -> RagService:
+def _build_service() -> RagService:
     return RagService.build(get_settings())
 
 
+def get_service() -> RagService:
+    with _service_lock:
+        return _build_service()
+
+
+def get_service_provider() -> Callable[[], RagService]:
+    # Resolve the heavyweight singleton only inside the bounded worker.
+    return get_service
+
+
 @lru_cache
-def get_access_gate() -> AccessGate:
+def _build_access_gate() -> AccessGate:
     return AccessGate(get_settings())
+
+
+def get_access_gate() -> AccessGate:
+    with _gate_lock:
+        return _build_access_gate()
 
 
 def require_gate(
@@ -71,9 +92,16 @@ async def run_bounded(endpoint: str, gate: AccessGate, operation):
             gate.release()
 
     try:
+        task = asyncio.create_task(asyncio.to_thread(worker))
+        # Preserve even queued workers on timeout/disconnect so their finally releases
+        # capacity. Consume late exceptions without logging provider bodies.
+        task.add_done_callback(lambda done: None if done.cancelled() else done.exception())
         return await asyncio.wait_for(
-            asyncio.to_thread(worker), timeout=gate.settings.request_deadline_seconds
+            asyncio.shield(task), timeout=gate.settings.request_deadline_seconds
         )
+    except asyncio.CancelledError:
+        outcome = "cancelled"
+        raise
     except TimeoutError as exc:
         outcome = "timeout"
         raise HTTPException(status_code=504, detail="RAG request deadline exceeded") from exc
@@ -102,9 +130,9 @@ def metrics(
 async def ask(
     request: AskRequest,
     gate: AccessGate = Depends(require_gate),
-    service: RagService = Depends(get_service),
+    service_provider: Callable[[], RagService] = Depends(get_service_provider),
 ) -> dict:
-    return await run_bounded("documents", gate, lambda: service.ask(request.question))
+    return await run_bounded("documents", gate, lambda: service_provider().ask(request.question))
 
 
 class ProfileFacts(BaseModel):
@@ -129,12 +157,12 @@ class AskWithFactsRequest(BaseModel):
 async def ask_with_facts(
     request: AskWithFactsRequest,
     gate: AccessGate = Depends(require_gate),
-    service: RagService = Depends(get_service),
+    service_provider: Callable[[], RagService] = Depends(get_service_provider),
 ) -> dict:
     facts = {
         key: "unavailable" if value is None else str(value)
         for key, value in request.facts.model_dump().items()
     }
     return await run_bounded(
-        "facts", gate, lambda: service.ask_with_facts(request.question, facts)
+        "facts", gate, lambda: service_provider().ask_with_facts(request.question, facts)
     )

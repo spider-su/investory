@@ -46,3 +46,7 @@ def test_high_vector_score_without_relevant_text_is_not_evidence():
     assert has_textual_support("reserve withdrawal strategy", [
         {"text": "The reserve is funded before withdrawal"}
     ])
+
+
+def test_mixed_supported_aggregate_and_external_live_question_abstains():
+    assert unsupported_facts_question("What is my current net worth and the live price of NVIDIA right now?")

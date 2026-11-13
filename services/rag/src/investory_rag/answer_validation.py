@@ -7,8 +7,12 @@ from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 import re
 
+from .reliability import requested_fact_fields
+
 CITATION = re.compile(r"\[([^\[\]]+)\]")
-NUMBER = re.compile(r"(?<![\w])[-+]?\d[\d,]*(?:\.\d+)?(?![\w])")
+NUMBER = re.compile(r"[-+]?(?:\d[\d,]*(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
+GROUPED_NUMBER = re.compile(r"[-+]?\d{1,3}(?:,\d{3})+(?:\.\d*)?(?:[eE][-+]?\d+)?")
+CURRENCY = re.compile(r"(?<![A-Za-z])(?:USD|EUR|PLN|GBP|CHF|JPY|CAD|AUD|CNY)(?![A-Za-z])|[$€£]", re.I)
 ASSERTION = re.compile(r"^\s*([A-Za-z][\w -]{3,60}):\s*(\d[\d.,]*(?:\s*[A-Za-z%]+)?)\s*$", re.M)
 INJECTION = re.compile(
     r"(?:ignore (?:all |any )?(?:previous|prior|system) instructions|"
@@ -18,13 +22,6 @@ INJECTION = re.compile(
     r"send (?:the|your) (?:token|secret|password) to)",
     re.I,
 )
-FIELD_TERMS = {
-    "marketPortfolioValue": ("market portfolio", "portfolio value"),
-    "longTermAssetValue": ("long-term asset", "long term asset"),
-    "totalNetWorth": ("net worth", "total wealth", "am i worth"),
-    "liquidAssets": ("liquid asset",),
-    "illiquidAssets": ("illiquid asset",),
-}
 NO_VALUE = {"unavailable", "none", "null", ""}
 
 
@@ -45,21 +42,33 @@ def conflicting_claims(chunks: list[dict]) -> bool:
 
 
 def missing_requested_fact(question: str, facts: dict[str, str]) -> bool:
-    normalized = question.lower()
-    for field, names in FIELD_TERMS.items():
-        if any(name in normalized for name in names):
-            if str(facts.get(field, "unavailable")).lower() in NO_VALUE:
-                return True
-    return False
+    return any(str(facts.get(field, "unavailable")).lower() in NO_VALUE
+               for field in requested_fact_fields(question))
 
 
-def _amounts(text: str) -> set[Decimal]:
+def facts_for_question(question: str, facts: dict[str, str]) -> dict[str, str]:
+    # A known value for another aggregate must never justify the requested amount.
+    return {key: value for key, value in facts.items()
+            if key == "currency" or key in requested_fact_fields(question)}
+
+
+def _amounts(text: str, strict: bool = True) -> set[Decimal] | None:
     values = set()
-    for token in NUMBER.findall(text):
-        try:
-            values.add(Decimal(token.replace(",", "")))
-        except InvalidOperation:
+    for match in NUMBER.finditer(text):
+        token = match.group().rstrip(",")
+        if "," in token and not GROUPED_NUMBER.fullmatch(token):
+            if strict:
+                return None
             continue
+        if token.startswith(("-", "+")) and match.start() and text[match.start() - 1].isdigit():
+            token = token[1:]  # a year/range separator, not a negative amount
+        try:
+            value = Decimal(token.replace(",", ""))
+            if not value.is_finite():
+                return None
+            values.add(value)
+        except InvalidOperation:
+            return None
     return values
 
 
@@ -82,19 +91,30 @@ def validate_answer(
         # A cited source is not sufficient to justify invented numeric claims.
         # This catches literal amount/year hallucinations, not semantic distortions.
         if supporting_texts is not None:
-            supported = _amounts(" ".join(supporting_texts))
-            return _amounts(CITATION.sub("", answer)).issubset(supported)
+            supported = _amounts(" ".join(supporting_texts), strict=False)
+            actual = _amounts(CITATION.sub("", answer))
+            return actual is not None and actual.issubset(supported)
         return True
     if "live:profile" not in cited:
+        return False
+    if re.search(r"%|\bpercent(?:age)?\b", answer, re.I):
         return False
     currency = facts.get("currency", "")
     values = set()
     for key, value in facts.items():
         if key == "currency" or str(value).lower() in NO_VALUE:
             continue
-        values.update(_amounts(str(value)))
-    if not _amounts(CITATION.sub("", answer)).issubset(values):
+        parsed = _amounts(str(value))
+        if parsed is None:
+            return False
+        values.update(parsed)
+    actual = _amounts(CITATION.sub("", answer))
+    if actual is None or not actual.issubset(values):
         return False
-    if _amounts(CITATION.sub("", answer)) and currency not in answer:
+    symbols = {"$": "USD", "€": "EUR", "£": "GBP"}
+    currencies = {symbols.get(code, code.upper()) for code in CURRENCY.findall(answer)}
+    if currencies and currencies != {currency}:
+        return False
+    if actual and currencies != {currency}:
         return False
     return True

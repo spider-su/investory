@@ -28,11 +28,20 @@ AMBIGUOUS = re.compile(
     re.I,
 )
 # These are the only authoritative facts available through Java's v1 adapter.
-SUPPORTED_FACT_TOPICS = (
-    "net worth", "market portfolio", "portfolio value", "long term asset",
-    "long-term asset", "liquid asset", "illiquid asset", "asset value",
-    "currency", "how much am i worth", "total wealth"
-)
+FIELD_TERMS = {
+    "marketPortfolioValue": ("market portfolio", "portfolio value"),
+    "longTermAssetValue": ("long-term asset", "long term asset"),
+    "totalNetWorth": ("net worth", "total wealth", "am i worth"),
+    "liquidAssets": ("liquid asset",),
+    "illiquidAssets": ("illiquid asset",),
+}
+
+
+def requested_fact_fields(question: str) -> set[str]:
+    return {field for field, names in FIELD_TERMS.items()
+            if any(re.search(r"\b" + re.escape(name) + r"s?\b", question, re.I)
+                   for name in (*names, field))}
+
 
 
 def terms(text: str) -> set[str]:
@@ -53,11 +62,11 @@ def unsupported_document_question(question: str) -> bool:
 
 def unsupported_facts_question(question: str) -> bool:
     lowered = question.strip().lower()
-    supported = any(topic in lowered for topic in SUPPORTED_FACT_TOPICS)
+    supported = bool(requested_fact_fields(question)) or bool(re.search(r"\bcurrency\b", lowered))
     if not supported or ADVICE.search(question) or AMBIGUOUS.fullmatch(question.strip()):
         return True
     # Only the explicitly allowed Java-supplied current aggregates are live.
-    if LIVE_EXTERNAL.search(question) and not LIVE_AGGREGATE.search(question):
+    if LIVE_EXTERNAL.search(LIVE_AGGREGATE.sub("", question)):
         return True
     if len(terms(question)) < 2:
         return True
