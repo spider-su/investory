@@ -19,8 +19,8 @@ INJECTION = re.compile(
     r"(?:disregard|forget) (?:all |the |your )?(?:previous |prior )?(?:instructions|rules|policy)|"
     r"override (?:the )?(?:system|developer) (?:instructions|message)|"
     r"(?:you are now|new role is) (?:the|a)?\s*system|"
-    r"(?:<|\\[|\\b)(?:system|developer)(?:>|:|\\])|"
-    r"\\[INST\\]|\\[/INST\\]|"
+    r"(?:<|\[|\b)(?:system|developer)(?:>|:|\])|"
+    r"\[INST\]|\[/INST\]|"
     r"reveal (?:your|the) (?:secret|api key|system prompt|prompt)|"
     r"send (?:the|your) (?:token|secret|password) to|"
     r"do not cite (?:any )?sources)",
