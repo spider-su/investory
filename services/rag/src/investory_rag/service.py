@@ -12,6 +12,7 @@ from .index_lock import exclusive_index_lock
 from .embeddings import build_embeddings, collection_name
 from .reliability import (unsupported_document_question, unsupported_facts_question,
                           has_textual_support)
+from .metrics import record_usage
 from .answer_validation import (INJECTION, filter_untrusted_chunks,
                                 conflicting_claims, missing_requested_fact,
                                 validate_answer)
@@ -151,6 +152,7 @@ class RagService:
             f"[{item['source']}]\n{item['text']}" for item in results
         )
         answer = (PROMPT | self.chat()).invoke({"context": context, "question": question})
+        record_usage(answer)
         content = self.answer_text(answer)
         if not validate_answer(content, sources, supporting_texts=[item['text'] for item in results]):
             return {"answer": NO_EVIDENCE, "sources": []}
