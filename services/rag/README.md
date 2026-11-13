@@ -196,3 +196,39 @@ provider/model/metric mismatch skips the seed. No live facts or API key are used
 to build it. Rebuild the image for documentation/model changes; do not edit its
 corpus at runtime. CI verifies offline seed restoration with embedding writes
 forbidden, then runs the real source retrieval benchmark as UID 10001.
+
+## v1 reliability gates
+
+The document API now uses **policy-aware evidence retrieval**. A high Chroma
+score alone is insufficient: unsupported live-data requests, ambiguous
+follow-ups without context, personalized trading recommendations and excerpts
+without matching subject matter return the stable insufficient-evidence response.
+The same policy is exercised by `investory-rag-eval`, not bypassed by evaluation.
+
+The response validator requires citations to actually retrieved sources. For
+document answers, literal numeric claims must appear in the source excerpts.
+For Java-authorized financial answers, every numeric claim must equal a
+provided aggregate and use the correct currency. Requests for unavailable
+aggregate values abstain instead of substituting zero. Explicit, same-key
+conflicting document assertions abstain and obvious prompt injection in
+retrieved excerpts is excluded before generation. No financial facts are
+persisted in Chroma.
+
+**Limits:** This is not a semantic entailment proof. It does not catch every
+contradiction, spelled-out number, indirect reference, complex derived value,
+or malicious instruction. The conservative v1 classifier intentionally rejects
+some legitimate requests that need broader data or conversation context.
+Keep human-reviewed answer evaluation as a release gate.
+
+Run both benchmark sets against the *same* immutable index:
+
+```sh
+investory-rag-eval --cases eval/cases.json --min-hit-rate 0.8
+investory-rag-eval --cases eval/exploratory-cases.json --min-abstention-accuracy 1.0
+```
+
+The operational startup and recovery checklist is
+[docs/operations/rag-v1-recovery.md](../../docs/operations/rag-v1-recovery.md).
+CI exercises deterministic local seed/restart scenarios; real pod replacement,
+cold image pulls, PostgreSQL incident diagnosis and Argo-managed rollback
+require operator-observed evidence and are **not** validated by source CI.
