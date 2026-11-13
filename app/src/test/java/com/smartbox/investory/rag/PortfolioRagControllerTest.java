@@ -1,7 +1,9 @@
 package com.smartbox.investory.rag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.config.AuthorizationService;
@@ -10,6 +12,9 @@ import com.smartbox.investory.profile.api.contract.ProfileResponse;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.web.ProfileResponseMapper;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,10 +35,14 @@ class PortfolioRagControllerTest {
   @Mock RagUserRateLimiter rateLimiter;
   private PortfolioRagController controller;
   private Authentication user;
+  private RagConcurrencyLimiter concurrencyLimiter;
 
   @BeforeEach
   void setUp() {
-    controller = new PortfolioRagController(authorization, profiles, mapper, client, rateLimiter);
+    concurrencyLimiter = new RagConcurrencyLimiter(1);
+    controller =
+        new PortfolioRagController(
+            authorization, profiles, mapper, client, rateLimiter, concurrencyLimiter);
     user =
         new UsernamePasswordAuthenticationToken(
             "user-a", "n/a", List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
@@ -113,5 +122,62 @@ class PortfolioRagControllerTest {
             ResponseStatusException.class,
             () -> controller.ask(21L, new PortfolioRagController.Question("Question"), user));
     assertEquals(HttpStatus.BAD_GATEWAY, exception.getStatusCode());
+  }
+
+  @Test
+  void concurrentRequestIsRejectedBeforeReadingAnotherSnapshot() throws Exception {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    var entered = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    var model = mock(InvestmentProfile.class);
+    var response = mock(ProfileResponse.class);
+    var expected = new InvestoryRagClient.RagAnswer("Current facts", List.of("live:profile"));
+    when(profiles.loadProfile(21L))
+        .thenAnswer(
+            invocation -> {
+              entered.countDown();
+              if (!release.await(5, TimeUnit.SECONDS))
+                throw new IllegalStateException("Test latch timed out");
+              return model;
+            });
+    when(mapper.map(model)).thenReturn(response);
+    when(client.ask("Question", response)).thenReturn(expected);
+    try (var executor = Executors.newSingleThreadExecutor()) {
+      var first =
+          executor.submit(
+              () -> controller.ask(21L, new PortfolioRagController.Question("Question"), user));
+      try {
+        assertTrue(entered.await(2, TimeUnit.SECONDS));
+        var busy =
+            assertThrows(
+                ResponseStatusException.class,
+                () -> controller.ask(21L, new PortfolioRagController.Question("Question"), user));
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, busy.getStatusCode());
+        verify(profiles, times(1)).loadProfile(21L);
+      } finally {
+        release.countDown();
+      }
+      assertEquals(expected, first.get(5, TimeUnit.SECONDS));
+      assertEquals(
+          expected, controller.ask(21L, new PortfolioRagController.Question("Question"), user));
+    }
+  }
+
+  @Test
+  void snapshotFailureReleasesAdmissionForTheNextRequest() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    var failure = new IllegalStateException("Synthetic snapshot failure");
+    when(profiles.loadProfile(21L)).thenThrow(failure);
+    for (int attempt = 0; attempt < 2; attempt++) {
+      assertSame(
+          failure,
+          assertThrows(
+              IllegalStateException.class,
+              () -> controller.ask(21L, new PortfolioRagController.Question("Question"), user)));
+    }
+    verify(profiles, times(2)).loadProfile(21L);
+    verifyNoInteractions(mapper, client);
   }
 }
