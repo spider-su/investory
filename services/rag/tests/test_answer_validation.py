@@ -23,6 +23,10 @@ def test_document_citations_must_match_actual_retrieval():
     assert validate_answer("See [retirement.md].", ["retirement.md"])
     assert not validate_answer("See [invented.md].", ["retirement.md"])
     assert not validate_answer("No citations", ["retirement.md"])
+    assert validate_answer("Reserve is 5 years [retirement.md]", ["retirement.md"],
+                           supporting_texts=["Reserve target: 5 years"])
+    assert not validate_answer("Reserve is 7 years [retirement.md]", ["retirement.md"],
+                               supporting_texts=["Reserve target: 5 years"])
 
 
 def test_conflicting_explicit_claims_fail_closed():
