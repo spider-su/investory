@@ -35,7 +35,8 @@ class SmartAssistantTemplateContractTest {
     String script = read("static/js/smart-assistant.js");
     assertThat(script)
         .contains("/api/v1/portfolios/")
-        .contains("/rag/ask")
+        .contains("/rag/")
+        .contains("questionMode === 'docs' ? 'ask-docs' : 'ask'")
         .contains("credentials: 'same-origin'")
         .contains("X-XSRF-TOKEN")
         .contains("textContent = text")
