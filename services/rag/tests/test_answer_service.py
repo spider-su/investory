@@ -64,6 +64,17 @@ def test_financial_answers_reject_wrong_amount_currency_or_citation(tmp_path, ou
     assert service.ask_with_facts("What is my net worth?", facts)["answer"] == NO_EVIDENCE
 
 
+def test_financial_answer_does_not_expose_retrieved_but_uncited_docs(tmp_path):
+    service = make_service(
+        tmp_path, "Net worth is an aggregate in Investory.",
+        "Your net worth is 123.45 PLN [live:profile]",
+    )
+    result = service.ask_with_facts(
+        "What is my net worth?", {"currency": "PLN", "totalNetWorth": "123.45"}
+    )
+    assert result["sources"] == ["live:profile"]
+
+
 def test_missing_requested_fact_short_circuits_model(tmp_path):
     service = make_service(tmp_path, "Liquid assets are a reported aggregate.", "unreachable")
     service.llm = RunnableLambda(lambda _: pytest.fail("Must not invoke model"))

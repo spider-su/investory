@@ -122,7 +122,7 @@ def test_live_facts_are_prompted_without_being_indexed(tmp_path, indexed):
     result = service.ask_with_facts("What is my net worth?", {
         "currency": "PLN", "totalNetWorth": "123.45", "illiquidAssets": "unavailable"
     })
-    assert result["sources"] == ["live:profile", *(["accounting.md"] if indexed else [])]
+    assert result["sources"] == ["live:profile"]  # uncited retrieval is not evidence
     assert "totalNetWorth: 123.45" in prompts[0][1].content
     assert "illiquidAssets" not in prompts[0][1].content
     assert "must not override current values" in prompts[0][0].content

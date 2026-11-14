@@ -211,4 +211,8 @@ the corresponding [source] for statements grounded in documentation.
         content = normalize_citations(content, available, matches)
         if not validate_answer(content, available, facts):
             return {"answer": NO_EVIDENCE, "sources": []}
-        return {"answer": content, "sources": available}
+        # Only advertise evidence actually cited by the validated answer.
+        # Retrieval candidates are not citations, and must not appear as
+        # supporting sources when the model only used Java financial facts.
+        cited = set(CITATION.findall(content))
+        return {"answer": content, "sources": [source for source in available if source in cited]}

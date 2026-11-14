@@ -84,7 +84,8 @@ export function initSmartAssistant() {
                 sources.className = 'iv-assistant__sources';
                 // The backend returns source labels, not trusted navigable URLs.
                 sources.textContent = 'Sources: ' + data.sources.filter(s => typeof s === 'string')
-                    .map(s => s === 'live:profile' ? 'Portfolio data' : s).join(', ');
+                    .map(s => s === 'live:profile' ? 'Portfolio data' :
+                        s === 'live:investment-performance' ? 'Investment performance (MAX)' : s).join(', ');
                 messages.appendChild(sources);
             }
             status.textContent = '';
