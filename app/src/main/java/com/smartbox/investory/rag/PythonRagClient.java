@@ -50,13 +50,22 @@ public class PythonRagClient implements InvestoryRagClient {
             snapshot.totalNetWorth(),
             snapshot.liquidAssets(),
             snapshot.illiquidAssets());
+    return post("/ask-with-facts", Map.of("question", question, "facts", facts));
+  }
+
+  @Override
+  public RagAnswer askDocumentation(String question) {
+    return post("/ask", Map.of("question", question));
+  }
+
+  private RagAnswer post(String path, Map<String, ?> payload) {
     try {
       RagAnswer result =
           client
               .post()
-              .uri("/ask-with-facts")
+              .uri(path)
               .contentType(MediaType.APPLICATION_JSON)
-              .body(Map.of("question", question, "facts", facts))
+              .body(payload)
               .retrieve()
               .body(RagAnswer.class);
       if (result == null
