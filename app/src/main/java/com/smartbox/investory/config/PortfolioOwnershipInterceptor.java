@@ -71,7 +71,7 @@ public class PortfolioOwnershipInterceptor implements HandlerInterceptor {
 
   private static boolean isRagRead(HttpServletRequest request) {
     return "POST".equalsIgnoreCase(request.getMethod())
-        && request.getRequestURI().matches("/api/v1/portfolios/[0-9]+/rag/ask");
+        && request.getRequestURI().matches("/api/v1/portfolios/[0-9]+/rag/ask(?:-docs)?");
   }
 
   private static boolean isRead(HttpServletRequest request) {
