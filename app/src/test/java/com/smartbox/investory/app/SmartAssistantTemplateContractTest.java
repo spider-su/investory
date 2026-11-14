@@ -8,8 +8,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 class SmartAssistantTemplateContractTest {
-  private static final Path RESOURCES =
-      Path.of("../adapters/web-ui/src/main/resources");
+  private static final Path RESOURCES = Path.of("../adapters/web-ui/src/main/resources");
 
   @Test
   void dashboardExposesPortfolioScopedAssistantWithoutDuplicatingFinanceLogic() throws Exception {
