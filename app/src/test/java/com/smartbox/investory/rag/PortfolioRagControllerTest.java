@@ -86,8 +86,7 @@ class PortfolioRagControllerTest {
     var expected =
         new InvestoryRagClient.RagAnswer(
             "Documented investment methodology [methodology.md]", List.of("methodology.md"));
-    when(client.askDocumentation("How does Investory calculate returns?"))
-        .thenReturn(expected);
+    when(client.askDocumentation("How does Investory calculate returns?")).thenReturn(expected);
     var answer =
         controller.askDocumentation(
             21L,
