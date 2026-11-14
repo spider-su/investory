@@ -17,6 +17,8 @@
 .iv-assistant__sources{font-size:.78rem;overflow-wrap:anywhere;color:var(--iv-muted,#687789);margin:.15rem 0 0}
 .iv-assistant__form{padding:.85rem 1rem 1rem;border-top:1px solid var(--iv-border,#64748b)}
 .iv-assistant__label{display:block;font-weight:600;margin-bottom:.4rem;font-size:.82rem}
+.iv-assistant__mode{width:100%;margin-bottom:.65rem;padding:.55rem;border:1px solid var(--iv-border,#64748b);border-radius:8px;background:var(--iv-surface,#fff);color:inherit;font:inherit}
+.iv-assistant__mode:disabled{opacity:.6}
 .iv-assistant__input-row{display:flex;align-items:end;gap:.5rem}
 .iv-assistant__input-row textarea{flex:1;min-width:0;resize:vertical;max-height:140px;border:1px solid var(--iv-border,#64748b);background:var(--iv-surface,#fff);color:inherit;border-radius:8px;padding:.6rem;font:inherit}
 .iv-assistant__input-row button{border:0;border-radius:8px;padding:.7rem;background:var(--iv-accent,#354f91);color:var(--iv-on-accent,#fff);cursor:pointer}

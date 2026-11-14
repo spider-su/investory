@@ -9,6 +9,7 @@ export function initSmartAssistant() {
     const close = root.querySelector('#iv-assistant-close');
     const form = root.querySelector('#iv-assistant-form');
     const input = root.querySelector('#iv-assistant-question');
+    const mode = root.querySelector('#iv-assistant-mode');
     const send = root.querySelector('#iv-assistant-send');
     const messages = root.querySelector('#iv-assistant-messages');
     const status = root.querySelector('#iv-assistant-status');
@@ -44,9 +45,11 @@ export function initSmartAssistant() {
     form.addEventListener('submit', async event => {
         event.preventDefault();
         const question = input.value.trim();
+        const questionMode = mode.value === 'docs' ? 'docs' : 'portfolio';
         if (busy || !question || question.length > 2000) return;
         busy = true;
         input.disabled = true;
+        mode.disabled = true;
         send.disabled = true;
         status.textContent = 'Thinking…';
         appendMessage(question, 'user');
@@ -57,7 +60,8 @@ export function initSmartAssistant() {
             const csrf = document.querySelector('meta[name="_csrf"]')?.content;
             const headers = {'Content-Type': 'application/json'};
             if (csrf) headers['X-XSRF-TOKEN'] = csrf;
-            const response = await fetch('/api/v1/portfolios/' + portfolioId + '/rag/ask', {
+            const response = await fetch('/api/v1/portfolios/' + portfolioId + '/rag/' +
+                (questionMode === 'docs' ? 'ask-docs' : 'ask'), {
                 method: 'POST', credentials: 'same-origin', headers,
                 body: JSON.stringify({question}), signal: controller.signal
             });
@@ -86,6 +90,7 @@ export function initSmartAssistant() {
             if (abortController === controller) abortController = null;
             busy = false;
             input.disabled = false;
+            mode.disabled = false;
             send.disabled = false;
             if (!panel.hidden) input.focus();
         }

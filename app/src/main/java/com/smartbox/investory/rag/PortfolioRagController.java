@@ -71,5 +71,36 @@ public class PortfolioRagController {
     }
   }
 
+  /** Authorization and concurrency guards are identical, but no financial snapshot is loaded. */
+  @PostMapping("/ask-docs")
+  public InvestoryRagClient.RagAnswer askDocumentation(
+      @PathVariable long portfolioId,
+      @RequestBody Question request,
+      Authentication authentication) {
+    if (portfolioId <= 0
+        || request == null
+        || request.question() == null
+        || request.question().isBlank()
+        || request.question().length() > 2000) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid question or portfolio");
+    }
+    if (!authorization.canReadScoped(portfolioId, authentication)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
+    if (!rateLimiter.tryAcquire(authentication == null ? null : authentication.getName())) {
+      throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "RAG request limit exceeded");
+    }
+    if (!concurrencyLimiter.tryAcquire()) {
+      throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "RAG service is busy");
+    }
+    try {
+      return rag.askDocumentation(request.question());
+    } catch (PythonRagClient.RagUnavailableException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "RAG service unavailable");
+    } finally {
+      concurrencyLimiter.release();
+    }
+  }
+
   public record Question(String question) {}
 }
