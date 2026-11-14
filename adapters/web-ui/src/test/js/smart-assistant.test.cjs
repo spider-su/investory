@@ -25,9 +25,10 @@ class Element {
 }
 
 function setup(portfolioId = '21') {
-    const names = ['trigger', 'panel', 'close', 'form', 'question', 'send', 'messages', 'status'];
+    const names = ['trigger', 'panel', 'close', 'form', 'question', 'mode', 'send', 'messages', 'status'];
     const nodes = Object.fromEntries(names.map(name => [name, new Element()]));
     nodes.panel.hidden = true;
+    nodes.mode.value = 'portfolio';
     const root = new Element();
     root.dataset.portfolioId = portfolioId;
     root.querySelector = selector => {
@@ -105,6 +106,31 @@ test('one in-flight request; 429 shows a human-readable failure', async () => {
         await first;
         assert.match(harness.nodes.messages.children[1].textContent, /request limit/);
         assert.equal(harness.nodes.send.disabled, false);
+    } finally { harness.restore(); }
+});
+
+test('documentation questions use the separate read-only endpoint', async () => {
+    const harness = setup();
+    try {
+        const {initSmartAssistant} = await modulePromise;
+        const calls = [];
+        global.fetch = async (url, options) => {
+            calls.push({url, options});
+            return {ok: true, json: async () => ({
+                answer: 'Investory calculates returns using documented cash-flow rules [method.md]',
+                sources: ['method.md']
+            })};
+        };
+        initSmartAssistant();
+        harness.nodes.mode.value = 'docs';
+        harness.nodes.question.value = 'How does Investory calculate returns?';
+        await harness.nodes.form.listeners.submit({preventDefault() {}});
+        assert.equal(calls[0].url, '/api/v1/portfolios/21/rag/ask-docs');
+        assert.deepEqual(JSON.parse(calls[0].options.body),
+            {question: 'How does Investory calculate returns?'});
+        assert.equal(calls[0].options.headers['X-XSRF-TOKEN'], 'csrf-test');
+        assert.equal(harness.nodes.mode.disabled, false);
+        assert.equal(harness.nodes.messages.children[2].textContent, 'Sources: method.md');
     } finally { harness.restore(); }
 });
 
