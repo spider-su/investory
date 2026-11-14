@@ -44,7 +44,8 @@ controls are still required outside local development. Never log or commit crede
 
 ## Tools
 
-All tools take one required positive integer argument, `portfolioId`. Results are JSON-serialized
+All tools take one required positive integer argument, `portfolioId`, within the signed
+64-bit ID range. Overflowing values are rejected before portfolio authorization or data reads. Results are JSON-serialized
 Investment API read models, in portfolio base currency where the API defines monetary values.
 
 | Tool | Description |
