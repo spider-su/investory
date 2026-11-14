@@ -43,6 +43,17 @@ class PythonRagClientTest {
           if (bytes.length > 0) exchange.getResponseBody().write(bytes);
           exchange.close();
         });
+    server.createContext(
+        "/ask",
+        exchange -> {
+          authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+          request.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+          byte[] bytes = response.get().getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().set("Content-Type", "application/json");
+          exchange.sendResponseHeaders(status.get(), bytes.length == 0 ? -1 : bytes.length);
+          if (bytes.length > 0) exchange.getResponseBody().write(bytes);
+          exchange.close();
+        });
     server.start();
     client =
         new PythonRagClient(
@@ -79,6 +90,17 @@ class PythonRagClientTest {
     assertEquals("PLN", facts.get("currency").asText());
     assertEquals(new BigDecimal("123.45"), facts.get("totalNetWorth").decimalValue());
     assertTrue(facts.get("illiquidAssets").isNull());
+  }
+
+  @Test
+  void documentationRequestDoesNotForwardFinancialSnapshotOrPortfolioId() {
+    response.set("{\"answer\":\"Transfer accounting is documented [transfers.md]\",\"sources\":[\"transfers.md\"]}");
+    var answer = client.askDocumentation("How are transfers handled?");
+    assertEquals("Transfer accounting is documented [transfers.md]", answer.answer());
+    assertEquals("Bearer internal-test-token", authorization.get());
+    var payload = new ObjectMapper().readTree(request.get());
+    assertEquals(Set.of("question"), Set.copyOf(payload.propertyNames()));
+    assertEquals("How are transfers handled?", payload.get("question").asText());
   }
 
   @Test
