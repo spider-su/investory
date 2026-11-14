@@ -80,6 +80,52 @@ class PortfolioRagControllerTest {
   }
 
   @Test
+  void documentationQuestionChecksMembershipWithoutReadingAnyFinancialSnapshot() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    var expected =
+        new InvestoryRagClient.RagAnswer(
+            "Documented investment methodology [methodology.md]", List.of("methodology.md"));
+    when(client.askDocumentation("How does Investory calculate returns?"))
+        .thenReturn(expected);
+    var answer =
+        controller.askDocumentation(
+            21L,
+            new PortfolioRagController.Question("How does Investory calculate returns?"),
+            user);
+    assertEquals(expected, answer);
+    verify(client).askDocumentation("How does Investory calculate returns?");
+    verifyNoInteractions(profiles, mapper);
+  }
+
+  @Test
+  void documentationQuestionDeniesOtherPortfolioBeforeAnyDataIsRead() {
+    when(authorization.canReadScoped(22L, user)).thenReturn(false);
+    var denied =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.askDocumentation(
+                    22L, new PortfolioRagController.Question("Explain returns"), user));
+    assertEquals(HttpStatus.FORBIDDEN, denied.getStatusCode());
+    verifyNoInteractions(profiles, mapper, client, rateLimiter);
+  }
+
+  @Test
+  void documentationQuestionSharesTheSameUserRateBudget() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(false);
+    var denied =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.askDocumentation(
+                    21L, new PortfolioRagController.Question("Explain returns"), user));
+    assertEquals(HttpStatus.TOO_MANY_REQUESTS, denied.getStatusCode());
+    verifyNoInteractions(profiles, mapper, client);
+  }
+
+  @Test
   void rateLimitRejectsBeforeAccessingSnapshotOrCallingPython() {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(false);
