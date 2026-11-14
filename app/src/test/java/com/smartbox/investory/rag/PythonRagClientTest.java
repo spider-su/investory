@@ -94,7 +94,8 @@ class PythonRagClientTest {
 
   @Test
   void documentationRequestDoesNotForwardFinancialSnapshotOrPortfolioId() {
-    response.set("{\"answer\":\"Transfer accounting is documented [transfers.md]\",\"sources\":[\"transfers.md\"]}");
+    response.set(
+        "{\"answer\":\"Transfer accounting is documented [transfers.md]\",\"sources\":[\"transfers.md\"]}");
     var answer = client.askDocumentation("How are transfers handled?");
     assertEquals("Transfer accounting is documented [transfers.md]", answer.answer());
     assertEquals("Bearer internal-test-token", authorization.get());
