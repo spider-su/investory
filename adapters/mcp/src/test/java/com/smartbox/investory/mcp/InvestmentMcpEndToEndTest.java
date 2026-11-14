@@ -111,6 +111,22 @@ class InvestmentMcpEndToEndTest {
               new McpSchema.CallToolRequest("get_investment_ytd", Map.of("portfolioId", 0)));
       assertTrue(Boolean.TRUE.equals(invalid.isError()));
 
+      for (Number malformed :
+          List.<Number>of(
+              new java.math.BigInteger("9223372036854775808"),
+              new java.math.BigDecimal("7.5"),
+              new java.math.BigInteger("18446744073709551623"))) {
+        var rejected =
+            client.callTool(
+                new McpSchema.CallToolRequest(
+                    "get_portfolio_performance", Map.of("portfolioId", malformed)));
+        assertTrue(Boolean.TRUE.equals(rejected.isError()));
+        if (malformed instanceof java.math.BigInteger) {
+          assertTrue(
+              rejected.content().toString().contains("portfolioId must be a positive integer"));
+        }
+      }
+
       assertThrows(
           McpError.class,
           () ->

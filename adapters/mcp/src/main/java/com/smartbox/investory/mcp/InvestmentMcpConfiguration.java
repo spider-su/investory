@@ -3,6 +3,7 @@ package com.smartbox.investory.mcp;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongFunction;
@@ -70,13 +71,18 @@ public class InvestmentMcpConfiguration {
         specification,
         (exchange, request) -> {
           Object argument = request.arguments().get("portfolioId");
-          if (!(argument instanceof Number number)
-              || number.longValue() <= 0
-              || number.doubleValue() != number.longValue()) {
+          long portfolioId;
+          try {
+            if (!(argument instanceof Number)) {
+              return error("portfolioId must be a positive integer");
+            }
+            portfolioId = new BigDecimal(argument.toString()).longValueExact();
+            if (portfolioId <= 0) return error("portfolioId must be a positive integer");
+          } catch (NumberFormatException | ArithmeticException exception) {
             return error("portfolioId must be a positive integer");
           }
           try {
-            Object value = query.apply(number.longValue());
+            Object value = query.apply(portfolioId);
             String json = mapper.writeValueAsString(value);
             Map<String, Object> structured = mapper.readValue(json, new TypeReference<>() {});
             return McpSchema.CallToolResult.builder()
