@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="/css/tabler.min.css" rel="stylesheet">
     <link href="/css/components/position-alerts.css" rel="stylesheet">
+    <link href="/css/components/smart-assistant.css" rel="stylesheet">
     <script src="/webjars/chart.js/4.4.1/dist/chart.umd.js"></script>
     <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
 </head>
@@ -24,6 +25,7 @@
   <div th:replace="~{dashboard/fragments/portfolio-structure :: portfolioStructure}"></div>
 
     <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
+    <th:block th:replace="~{fragments/smart-assistant :: assistant}"></th:block>
 </div> <!-- .iv-app -->
 
 <!-- Scripts -->

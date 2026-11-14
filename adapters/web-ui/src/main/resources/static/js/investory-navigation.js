@@ -8,6 +8,7 @@ import {initRetirementAnalysis} from './retirement-analysis.js';
 import {initSimulationPlanEdit} from './simulation-plan-edit-lifecycle.js';
 import {initRetirementSandbox} from './retirement-sandbox.js';
 import {initTheme} from './theme.js';
+import {initSmartAssistant} from './smart-assistant.js';
 import {applyAuthorizationCapabilities} from './investory-authorization.js';
 
 function addCsrfInputs() {
@@ -28,6 +29,7 @@ function initializePage() {
     initTheme();
     applyAuthorizationCapabilities();
     initDashboard();
+    initSmartAssistant();
     initSimulationPage();
     initSimulationCharts();
     initLongTermAssets();

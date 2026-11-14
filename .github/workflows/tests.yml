@@ -102,6 +102,9 @@ jobs:
       - name: Test import refresh browser logic
         run: node --test adapters/web-ui/src/test/js/import-refresh.test.cjs
 
+      - name: Test portfolio Smart Assistant browser behavior
+        run: node --test adapters/web-ui/src/test/js/smart-assistant.test.cjs
+
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
 
