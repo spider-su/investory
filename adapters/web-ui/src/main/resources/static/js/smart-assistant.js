@@ -67,14 +67,15 @@ export function initSmartAssistant() {
                 if (response.status === 502 || response.status === 503 || response.status === 504) throw new Error('Assistant is temporarily unavailable. Please try again later.');
                 throw new Error('Unable to answer this question right now.');
             }
-            const data = await response.json();
+            const data = await response.json().catch(() => { throw new Error("Assistant response unavailable. Please try again."); });
             if (typeof data.answer !== 'string' || !Array.isArray(data.sources)) throw new Error('Invalid assistant response.');
             appendMessage(data.answer, 'answer');
             if (data.sources.length) {
                 const sources = document.createElement('p');
                 sources.className = 'iv-assistant__sources';
                 // The backend returns source labels, not trusted navigable URLs.
-                sources.textContent = 'Sources: ' + data.sources.filter(s => typeof s === 'string').join(', ');
+                sources.textContent = 'Sources: ' + data.sources.filter(s => typeof s === 'string')
+                    .map(s => s === 'live:profile' ? 'Portfolio data' : s).join(', ');
                 messages.appendChild(sources);
             }
             status.textContent = '';
