@@ -53,15 +53,14 @@ public final class PortfolioProfitabilityAnswer {
         investment.loadDashboard(
             new InvestmentDashboardApi.DashboardQuery(
                 List.of(), false, DashboardPeriod.MAX, portfolioId));
-    if (dashboard == null
-        || dashboard.overview() == null
-        || dashboard.overview().totalProfit() == null
-        || dashboard.overview().baseCurrency() == null) {
+    var overview = dashboard == null ? null : dashboard.overview();
+    BigDecimal profit = overview == null ? null : overview.totalProfit();
+    var currency = overview == null ? null : overview.baseCurrency();
+    if (profit == null || currency == null) {
       return new InvestoryRagClient.RagAnswer(
           "The all-time portfolio profit or loss is unavailable from current reporting data.",
           List.of());
     }
-    BigDecimal profit = dashboard.overview().totalProfit();
     String state =
         profit.signum() > 0 ? "profitable" : profit.signum() < 0 ? "at a loss" : "break-even";
     String sign = profit.signum() > 0 ? "+" : "";
@@ -70,7 +69,7 @@ public final class PortfolioProfitabilityAnswer {
             + sign
             + profit.toPlainString()
             + " "
-            + dashboard.overview().baseCurrency().name()
+            + currency.name()
             + ". The portfolio is "
             + state
             + " over that period. This is investment profit/loss, not the current portfolio value. "
