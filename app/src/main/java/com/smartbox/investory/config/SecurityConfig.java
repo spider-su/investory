@@ -140,7 +140,10 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/mcp", "/mcp/**")
                         .hasAnyRole("ADMIN", "PROFILE_OWNER", "PROFILE_USER")
-                        .requestMatchers(HttpMethod.POST, "/api/v1/portfolios/*/rag/ask")
+                        .requestMatchers(
+                            HttpMethod.POST,
+                            "/api/v1/portfolios/*/rag/ask",
+                            "/api/v1/portfolios/*/rag/ask-docs")
                         .hasAnyRole("ADMIN", "PROFILE_OWNER", "PROFILE_USER")
                         .requestMatchers("/settings/**", "/api/v1/admin/**")
                         .hasRole("ADMIN")

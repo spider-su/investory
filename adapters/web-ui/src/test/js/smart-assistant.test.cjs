@@ -142,3 +142,78 @@ test('invalid portfolio IDs cannot create a request handler', async () => {
         assert.equal(harness.nodes.form.listeners.submit, undefined);
     } finally { harness.restore(); }
 });
+
+test('malformed responses show a friendly error and permit another request', async () => {
+    const {initSmartAssistant} = await modulePromise;
+    for (const body of [null, {}, {answer: ' ', sources: []},
+        {answer: 'Reply', sources: null}, {answer: 'Reply', sources: [42]},
+        {answer: 'Reply', sources: ['']}]) {
+        const harness = setup();
+        try {
+            global.fetch = async () => ({ok: true, json: async () => body});
+            initSmartAssistant();
+            harness.nodes.question.value = 'What is my net worth?';
+            await harness.nodes.form.listeners.submit({preventDefault() {}});
+            assert.equal(harness.nodes.messages.children[1].textContent,
+                'Assistant response unavailable. Please try again.');
+            assert.equal(harness.nodes.send.disabled, false);
+            assert.equal(harness.nodes.mode.disabled, false);
+            global.fetch = async () => ({ok: true, json: async () => ({
+                answer: 'Recovered [method.md]', sources: ['method.md']
+            })});
+            harness.nodes.question.value = 'Explain the methodology';
+            await harness.nodes.form.listeners.submit({preventDefault() {}});
+            assert.equal(harness.nodes.messages.children[3].textContent, 'Recovered [method.md]');
+        } finally { harness.restore(); }
+    }
+});
+
+test('closing during response parsing discards the cancelled answer silently', async () => {
+    const harness = setup();
+    try {
+        const {initSmartAssistant} = await modulePromise;
+        let rejectBody;
+        let reading;
+        const bodyStarted = new Promise(resolve => { reading = resolve; });
+        global.fetch = async () => ({ok: true, json: () => {
+            reading();
+            return new Promise((_, reject) => { rejectBody = reject; });
+        }});
+        initSmartAssistant();
+        harness.nodes.trigger.listeners.click();
+        harness.nodes.question.value = 'What is my net worth?';
+        const request = harness.nodes.form.listeners.submit({preventDefault() {}});
+        await bodyStarted;
+        harness.nodes.close.listeners.click();
+        rejectBody(Object.assign(new Error('Body aborted'), {name: 'AbortError'}));
+        await request;
+        assert.equal(harness.nodes.messages.children.length, 1);
+        assert.equal(harness.nodes.status.textContent, '');
+        assert.equal(harness.nodes.send.disabled, false);
+        assert.equal(harness.nodes.mode.disabled, false);
+    } finally { harness.restore(); }
+});
+
+test('closing discards a late successful body even if the transport ignores cancellation', async () => {
+    const harness = setup();
+    try {
+        const {initSmartAssistant} = await modulePromise;
+        let resolveBody;
+        let reading;
+        const bodyStarted = new Promise(resolve => { reading = resolve; });
+        global.fetch = async () => ({ok: true, json: () => {
+            reading();
+            return new Promise(resolve => { resolveBody = resolve; });
+        }});
+        initSmartAssistant();
+        harness.nodes.trigger.listeners.click();
+        harness.nodes.question.value = 'What is my net worth?';
+        const request = harness.nodes.form.listeners.submit({preventDefault() {}});
+        await bodyStarted;
+        harness.nodes.close.listeners.click();
+        resolveBody({answer: 'Discarded', sources: []});
+        await request;
+        assert.equal(harness.nodes.messages.children.length, 1);
+        assert.equal(harness.nodes.send.disabled, false);
+    } finally { harness.restore(); }
+});
