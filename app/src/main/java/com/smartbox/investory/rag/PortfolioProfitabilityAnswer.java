@@ -12,8 +12,8 @@ import org.springframework.stereotype.Component;
 /**
  * Deterministic read-only answers for the selected portfolio's lifetime result.
  *
- * Do not infer profitability from market value, net worth or model-generated facts.
- * MAX is the Investment dashboard's uncapped (all-history) reporting period.
+ * <p>Do not infer profitability from market value, net worth or model-generated facts. MAX is the
+ * Investment dashboard's uncapped (all-history) reporting period.
  */
 @Component
 @ConditionalOnProperty(prefix = "investory.rag", name = "enabled", havingValue = "true")
@@ -36,8 +36,8 @@ public final class PortfolioProfitabilityAnswer {
   }
 
   /**
-   * A yes/no profitability question is implicitly about the currently authorized
-   * portfolio. More general profit questions must explicitly specify all time.
+   * A yes/no profitability question is implicitly about the currently authorized portfolio. More
+   * general profit questions must explicitly specify all time.
    */
   public boolean supports(String question) {
     if (question == null || !INTENT.matcher(question).find()) return false;
