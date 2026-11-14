@@ -65,6 +65,7 @@ export function initSmartAssistant() {
                 method: 'POST', credentials: 'same-origin', headers,
                 body: JSON.stringify({question}), signal: controller.signal
             });
+            if (controller.signal.aborted) return;
             if (!response.ok) {
                 if (response.status === 401 || response.status === 403) throw new Error('You do not have access to this portfolio. Sign in again if needed.');
                 if (response.status === 429) throw new Error('Assistant is busy or your request limit was reached. Please try again later.');
@@ -72,7 +73,11 @@ export function initSmartAssistant() {
                 throw new Error('Unable to answer this question right now.');
             }
             const data = await response.json().catch(() => { throw new Error("Assistant response unavailable. Please try again."); });
-            if (typeof data.answer !== 'string' || !Array.isArray(data.sources)) throw new Error('Invalid assistant response.');
+            if (controller.signal.aborted) return;
+            if (!data || typeof data.answer !== 'string' || !data.answer.trim() ||
+                !Array.isArray(data.sources) || data.sources.some(s => typeof s !== 'string' || !s.trim())) {
+                throw new Error('Assistant response unavailable. Please try again.');
+            }
             appendMessage(data.answer, 'answer');
             if (data.sources.length) {
                 const sources = document.createElement('p');
@@ -84,7 +89,7 @@ export function initSmartAssistant() {
             }
             status.textContent = '';
         } catch (error) {
-            if (error.name !== 'AbortError') appendMessage(error.message || 'Assistant unavailable.', 'error');
+            if (!controller.signal.aborted && error.name !== 'AbortError') appendMessage(error.message || 'Assistant unavailable.', 'error');
             status.textContent = '';
         } finally {
             if (abortController === controller) abortController = null;
