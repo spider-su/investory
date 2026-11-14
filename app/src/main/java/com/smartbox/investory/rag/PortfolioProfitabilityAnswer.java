@@ -29,6 +29,12 @@ public final class PortfolioProfitabilityAnswer {
               + "entire (?:time|period)|from (?:the )?beginning|lifetime|historically)\\b",
           Pattern.CASE_INSENSITIVE);
 
+  // A narrower requested period must never silently become an all-history result.
+  private static final Pattern OTHER_PERIOD =
+      Pattern.compile(
+          "\\b(?:ytd|mtd|qtd|today|yesterday|(?:this|last|previous|current|past)\\s+(?:\\d+\\s+)?(?:days?|weeks?|months?|quarters?|years?)|(?:19|20)\\d{2})\\b",
+          Pattern.CASE_INSENSITIVE);
+
   private final InvestmentDashboardApi investment;
 
   public PortfolioProfitabilityAnswer(InvestmentDashboardApi investment) {
@@ -40,7 +46,9 @@ public final class PortfolioProfitabilityAnswer {
    * general profit questions must explicitly specify all time.
    */
   public boolean supports(String question) {
-    if (question == null || !INTENT.matcher(question).find()) return false;
+    if (question == null
+        || !INTENT.matcher(question).find()
+        || OTHER_PERIOD.matcher(question).find()) return false;
     String normalized = question.toLowerCase(Locale.ROOT);
     return HISTORY.matcher(question).find()
         || normalized.matches(

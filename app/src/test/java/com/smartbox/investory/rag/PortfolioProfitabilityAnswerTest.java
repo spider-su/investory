@@ -24,6 +24,22 @@ class PortfolioProfitabilityAnswerTest {
   }
 
   @Test
+  void doesNotReplaceAnExplicitReportingPeriodWithLifetimeProfit() {
+    var api = mock(InvestmentDashboardApi.class);
+    var reader = new PortfolioProfitabilityAnswer(api);
+    for (String question :
+        java.util.List.of(
+            "Is my portfolio profitable this year?",
+            "Was it profitable last month?",
+            "Is it profitable YTD?",
+            "What is my overall gain in 2025?",
+            "Is my portfolio profitable over the past 3 years?")) {
+      assertFalse(reader.supports(question), question);
+    }
+    verifyNoInteractions(api);
+  }
+
+  @Test
   void takesAllTimeProfitFromPortfolioScopedMaxDashboard() {
     var api = mock(InvestmentDashboardApi.class);
     var page = mock(InvestmentDashboardApi.DashboardPageView.class);

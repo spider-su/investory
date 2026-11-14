@@ -357,3 +357,11 @@ token usage. Java 429 responses rejected *before* Python cannot be counted
 by Python metrics; add Java-specific instrumentation if that gap becomes
 operationally significant. Token counters rely on provider-reported usage;
 requests rejected without model execution have no token usage.
+
+## Lifetime profitability shortcut
+
+The Java portfolio question route can answer clear lifetime-profit questions directly
+from Investment MAX reporting, with `live:investment-performance` provenance. Explicit
+narrower periods (such as YTD, last month, or a calendar year) bypass this shortcut;
+they must not be silently answered using all-history profit. This does not add general
+conversation memory or support arbitrary historical-period answers.
