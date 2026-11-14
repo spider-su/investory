@@ -33,6 +33,7 @@ class PortfolioRagControllerTest {
   @Mock ProfileResponseMapper mapper;
   @Mock InvestoryRagClient client;
   @Mock RagUserRateLimiter rateLimiter;
+  @Mock PortfolioProfitabilityAnswer profitability;
   private PortfolioRagController controller;
   private Authentication user;
   private RagConcurrencyLimiter concurrencyLimiter;
@@ -42,7 +43,13 @@ class PortfolioRagControllerTest {
     concurrencyLimiter = new RagConcurrencyLimiter(1);
     controller =
         new PortfolioRagController(
-            authorization, profiles, mapper, client, rateLimiter, concurrencyLimiter);
+            authorization,
+            profiles,
+            mapper,
+            client,
+            rateLimiter,
+            concurrencyLimiter,
+            profitability);
     user =
         new UsernamePasswordAuthenticationToken(
             "user-a", "n/a", List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
@@ -122,6 +129,51 @@ class PortfolioRagControllerTest {
                     21L, new PortfolioRagController.Question("Explain returns"), user));
     assertEquals(HttpStatus.TOO_MANY_REQUESTS, denied.getStatusCode());
     verifyNoInteractions(profiles, mapper, client);
+  }
+
+  @Test
+  void profitabilityFollowUpUsesAuthoritativeReportingNotModelOrProfileSnapshot() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    String question = "is it profitable for all time I have it";
+    when(profitability.supports(question)).thenReturn(true);
+    var expected =
+        new InvestoryRagClient.RagAnswer(
+            "All-time investment profit +120 PLN [live:investment-performance]",
+            List.of("live:investment-performance"));
+    when(profitability.answer(21L)).thenReturn(expected);
+
+    assertEquals(
+        expected, controller.ask(21L, new PortfolioRagController.Question(question), user));
+    verify(profitability).answer(21L);
+    verifyNoInteractions(profiles, mapper, client);
+  }
+
+  @Test
+  void unauthorizedProfitabilityFollowUpCannotReadReportingData() {
+    when(authorization.canReadScoped(22L, user)).thenReturn(false);
+    var error =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.ask(
+                    22L, new PortfolioRagController.Question("Was it profitable all time?"), user));
+    assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
+    verifyNoInteractions(profitability, profiles, mapper, client);
+  }
+
+  @Test
+  void busyProfitabilityFollowUpNeverQueriesReportingData() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(false);
+    var error =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.ask(
+                    21L, new PortfolioRagController.Question("Was it profitable all time?"), user));
+    assertEquals(HttpStatus.TOO_MANY_REQUESTS, error.getStatusCode());
+    verifyNoInteractions(profitability, profiles, mapper, client);
   }
 
   @Test
