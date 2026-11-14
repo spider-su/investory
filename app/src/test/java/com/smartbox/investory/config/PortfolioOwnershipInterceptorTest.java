@@ -1,5 +1,6 @@
 package com.smartbox.investory.config;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
@@ -10,6 +11,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
@@ -34,9 +37,10 @@ class PortfolioOwnershipInterceptorTest {
     SecurityContextHolder.getContext().setAuthentication(authentication);
   }
 
-  @Test
-  void readOnlyRagPostUsesStrictScopedReadInsteadOfWrite() {
-    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/17/rag/ask");
+  @ParameterizedTest
+  @ValueSource(strings = {"ask", "ask-docs"})
+  void readOnlyRagPostUsesStrictScopedReadInsteadOfWrite(String route) {
+    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/17/rag/" + route);
     var response = new MockHttpServletResponse();
     when(authorization.canReadScoped(17L, authentication)).thenReturn(true);
     assertTrue(interceptor.preHandle(request, response, new Object()));
@@ -44,12 +48,25 @@ class PortfolioOwnershipInterceptorTest {
     verify(authorization, never()).canWrite(17L, authentication);
   }
 
-  @Test
-  void readOnlyRagPostRejectsUnrelatedPortfolio() {
-    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/99/rag/ask");
+  @ParameterizedTest
+  @ValueSource(strings = {"ask", "ask-docs"})
+  void readOnlyRagPostRejectsUnrelatedPortfolio(String route) {
+    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/99/rag/" + route);
     var response = new MockHttpServletResponse();
     assertFalse(interceptor.preHandle(request, response, new Object()));
+    assertEquals(403, response.getStatus());
     verify(authorization).canReadScoped(99L, authentication);
+    verify(authorization, never()).canWrite(99L, authentication);
+  }
+
+  @Test
+  void otherRagPostStillRequiresWriteAccess() {
+    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/17/rag/ask-docs/reset");
+    var response = new MockHttpServletResponse();
+    assertFalse(interceptor.preHandle(request, response, new Object()));
+    assertEquals(403, response.getStatus());
+    verify(authorization).canWrite(17L, authentication);
+    verify(authorization, never()).canReadScoped(17L, authentication);
   }
 
   @AfterEach
