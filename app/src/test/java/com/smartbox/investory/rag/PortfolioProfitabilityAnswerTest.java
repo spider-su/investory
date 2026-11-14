@@ -38,7 +38,9 @@ class PortfolioProfitabilityAnswerTest {
     verify(api).loadDashboard(query.capture());
     assertEquals(21L, query.getValue().portfolioId());
     assertEquals(DashboardPeriod.MAX, query.getValue().period());
-    assertEquals("For the selected portfolio, the all-time investment result (MAX reporting period) is +123.45 PLN. The portfolio is profitable over that period. This is investment profit/loss, not the current portfolio value. [live:investment-performance]", answer.answer());
+    assertEquals(
+        "For the selected portfolio, the all-time investment result (MAX reporting period) is +123.45 PLN. The portfolio is profitable over that period. This is investment profit/loss, not the current portfolio value. [live:investment-performance]",
+        answer.answer());
     assertEquals(java.util.List.of("live:investment-performance"), answer.sources());
   }
 
