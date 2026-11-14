@@ -76,7 +76,7 @@ test('opens, sends same-origin CSRF request, renders answer and sources safely',
         assert.equal(calls[0].options.headers['X-XSRF-TOKEN'], 'csrf-test');
         assert.deepEqual(JSON.parse(calls[0].options.body), {question: 'What is my net worth?'});
         assert.match(harness.nodes.messages.children[1].textContent, /<script>/);
-        assert.equal(harness.nodes.messages.children[2].textContent, 'Sources: live:profile');
+        assert.equal(harness.nodes.messages.children[2].textContent, 'Sources: Portfolio data');
         assert.equal(harness.nodes.send.disabled, false);
         harness.nodes.close.listeners.click();
         assert.equal(harness.nodes.panel.hidden, true);
