@@ -43,7 +43,8 @@ public final class PortfolioProfitabilityAnswer {
     if (question == null || !INTENT.matcher(question).find()) return false;
     String normalized = question.toLowerCase(Locale.ROOT);
     return HISTORY.matcher(question).find()
-        || normalized.matches("(?s).*\\b(?:is|was|am|are)\\s+(?:it|my portfolio|the portfolio)\\s+profitable\\b.*")
+        || normalized.matches(
+            "(?s).*\\b(?:is|was|am|are)\\s+(?:it|my portfolio|the portfolio)\\s+profitable\\b.*")
         || normalized.matches("(?s).*\\b(?:have i|did i)\\s+made?\\s+money\\b.*");
   }
 
@@ -61,7 +62,8 @@ public final class PortfolioProfitabilityAnswer {
           List.of());
     }
     BigDecimal profit = dashboard.overview().totalProfit();
-    String state = profit.signum() > 0 ? "profitable" : profit.signum() < 0 ? "at a loss" : "break-even";
+    String state =
+        profit.signum() > 0 ? "profitable" : profit.signum() < 0 ? "at a loss" : "break-even";
     String sign = profit.signum() > 0 ? "+" : "";
     String answer =
         "For the selected portfolio, the all-time investment result (MAX reporting period) is "
