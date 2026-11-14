@@ -43,7 +43,13 @@ class PortfolioRagControllerTest {
     concurrencyLimiter = new RagConcurrencyLimiter(1);
     controller =
         new PortfolioRagController(
-            authorization, profiles, mapper, client, rateLimiter, concurrencyLimiter, profitability);
+            authorization,
+            profiles,
+            mapper,
+            client,
+            rateLimiter,
+            concurrencyLimiter,
+            profitability);
     user =
         new UsernamePasswordAuthenticationToken(
             "user-a", "n/a", List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
@@ -138,8 +144,7 @@ class PortfolioRagControllerTest {
     when(profitability.answer(21L)).thenReturn(expected);
 
     assertEquals(
-        expected,
-        controller.ask(21L, new PortfolioRagController.Question(question), user));
+        expected, controller.ask(21L, new PortfolioRagController.Question(question), user));
     verify(profitability).answer(21L);
     verifyNoInteractions(profiles, mapper, client);
   }
@@ -152,9 +157,7 @@ class PortfolioRagControllerTest {
             ResponseStatusException.class,
             () ->
                 controller.ask(
-                    22L,
-                    new PortfolioRagController.Question("Was it profitable all time?"),
-                    user));
+                    22L, new PortfolioRagController.Question("Was it profitable all time?"), user));
     assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
     verifyNoInteractions(profitability, profiles, mapper, client);
   }
@@ -168,9 +171,7 @@ class PortfolioRagControllerTest {
             ResponseStatusException.class,
             () ->
                 controller.ask(
-                    21L,
-                    new PortfolioRagController.Question("Was it profitable all time?"),
-                    user));
+                    21L, new PortfolioRagController.Question("Was it profitable all time?"), user));
     assertEquals(HttpStatus.TOO_MANY_REQUESTS, error.getStatusCode());
     verifyNoInteractions(profitability, profiles, mapper, client);
   }
