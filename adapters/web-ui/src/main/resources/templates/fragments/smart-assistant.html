@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="assistant">
+    <!-- One authorized portfolio at a time; no conversation or financial data persistence. -->
+    <div id="iv-smart-assistant" class="iv-assistant" th:attr="data-portfolio-id=${portfolioId}" data-portfolio-id="1">
+        <button id="iv-assistant-trigger" class="iv-assistant__trigger" type="button"
+                aria-controls="iv-assistant-panel" aria-expanded="false">
+            <span aria-hidden="true">✦</span> Smart Assistant
+        </button>
+        <section id="iv-assistant-panel" class="iv-assistant__panel" role="dialog"
+                 aria-modal="false" aria-labelledby="iv-assistant-heading" hidden>
+            <div class="iv-assistant__header">
+                <div>
+                    <h2 id="iv-assistant-heading">Smart Assistant</h2>
+                    <small>Answers from this portfolio and Investory's documentation</small>
+                </div>
+                <button id="iv-assistant-close" class="iv-assistant__close" type="button"
+                        aria-label="Close Smart Assistant">×</button>
+            </div>
+            <div id="iv-assistant-messages" class="iv-assistant__messages" role="log"
+                 aria-label="Assistant messages" aria-live="polite" aria-relevant="additions">
+                <p class="iv-assistant__intro">Ask about your net worth, liquid assets, or how Investory calculates them. Answers are limited to available evidence.</p>
+            </div>
+            <form id="iv-assistant-form" class="iv-assistant__form">
+                <label for="iv-assistant-question" class="iv-assistant__label">Your question</label>
+                <div class="iv-assistant__input-row">
+                    <textarea id="iv-assistant-question" name="question" rows="2"
+                              maxlength="2000" required placeholder="What is my net worth?"></textarea>
+                    <button id="iv-assistant-send" type="submit">Send</button>
+                </div>
+                <small id="iv-assistant-status" class="iv-assistant__status" role="status" aria-live="polite"></small>
+            </form>
+        </section>
+    </div>
+</th:block>
+</body>
+</html>
