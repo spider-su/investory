@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     max_concurrent_requests: int = Field(default=1, ge=1, le=16)
     openai_timeout_seconds: float = Field(default=20, gt=0, le=120)
     request_deadline_seconds: float = Field(default=25, gt=0, le=180)
+    financial_mcp_enabled: bool = False
+    financial_mcp_access_token: SecretStr | None = None
+    financial_mcp_timeout_seconds: float = Field(default=12, gt=0, le=60)
 
 
 @lru_cache
