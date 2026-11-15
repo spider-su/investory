@@ -42,6 +42,15 @@ export function initSmartAssistant() {
         return item;
     }
 
+    // Enter sends; Shift+Enter preserves a newline. Ignore IME composition
+    // and modifier shortcuts so typing in other languages stays predictable.
+    input.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' || event.shiftKey || event.isComposing ||
+            event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
+        event.preventDefault();
+        if (!busy && !input.disabled && input.value.trim()) form.requestSubmit();
+    });
+
     form.addEventListener('submit', async event => {
         event.preventDefault();
         const question = input.value.trim();
