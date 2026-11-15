@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.web.server.ResponseStatusException;
 
 /** Authenticated portfolio question endpoint. Scope is checked before reading ANY facts. */
@@ -128,6 +130,70 @@ public class PortfolioRagController {
       concurrencyLimiter.release();
     }
   }
+
+  /** Allowlisted public ticker research. Deliberately separate from model answer generation. */
+  @PostMapping("/research/market-data")
+  public InvestoryRagClient.MarketData researchMarketData(
+      @PathVariable long portfolioId,
+      @RequestBody MarketResearchRequest request,
+      Authentication authentication) {
+    if (portfolioId <= 0 || request == null || !validMarketRequest(request)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid market research request");
+    }
+    checkMarketAccess(portfolioId, authentication);
+    try {
+      return rag.marketData(request.tool(), request.symbol());
+    } catch (PythonRagClient.RagUnavailableException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Market research unavailable");
+    } finally {
+      concurrencyLimiter.release();
+    }
+  }
+
+  /** Only the public ticker of the largest scoped holding leaves Java. */
+  @PostMapping("/research/largest-holding")
+  public InvestoryRagClient.MarketData researchLargestHolding(
+      @PathVariable long portfolioId, Authentication authentication) {
+    if (portfolioId <= 0) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid portfolio");
+    }
+    checkMarketAccess(portfolioId, authentication);
+    try {
+      String symbol = readModels.largestHoldingSymbol(portfolioId);
+      if (symbol == null || !VALID_SYMBOL.matcher(symbol).matches()) {
+        throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+            "No supported public ticker for the largest holding");
+      }
+      return rag.marketData("COMPANY_OVERVIEW", symbol);
+    } catch (PythonRagClient.RagUnavailableException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Market research unavailable");
+    } finally {
+      concurrencyLimiter.release();
+    }
+  }
+
+  private static final Set<String> MARKET_TOOLS =
+      Set.of("GLOBAL_QUOTE", "COMPANY_OVERVIEW", "INCOME_STATEMENT", "EARNINGS", "EARNINGS_CALENDAR");
+  private static final Pattern VALID_SYMBOL = Pattern.compile("[A-Z0-9][A-Z0-9.^-]{0,19}");
+
+  private static boolean validMarketRequest(MarketResearchRequest request) {
+    return request.tool() != null && MARKET_TOOLS.contains(request.tool())
+        && request.symbol() != null && VALID_SYMBOL.matcher(request.symbol()).matches();
+  }
+
+  private void checkMarketAccess(long portfolioId, Authentication authentication) {
+    if (!authorization.canReadScoped(portfolioId, authentication)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
+    if (!rateLimiter.tryAcquire(authentication == null ? null : authentication.getName())) {
+      throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "RAG request limit exceeded");
+    }
+    if (!concurrencyLimiter.tryAcquire()) {
+      throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "RAG service is busy");
+    }
+  }
+
+  public record MarketResearchRequest(String tool, String symbol) {}
 
   public record Question(String question) {}
 }
