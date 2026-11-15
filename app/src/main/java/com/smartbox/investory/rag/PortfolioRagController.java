@@ -143,6 +143,9 @@ public class PortfolioRagController {
     checkMarketAccess(portfolioId, authentication);
     try {
       return rag.marketData(request.tool(), request.symbol());
+    } catch (PythonRagClient.MarketResearchUnavailableException e) {
+      throw new ResponseStatusException(
+          HttpStatus.SERVICE_UNAVAILABLE, "Market research unavailable");
     } catch (PythonRagClient.RagUnavailableException e) {
       throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Market research unavailable");
     } finally {
@@ -165,6 +168,9 @@ public class PortfolioRagController {
             HttpStatus.UNPROCESSABLE_ENTITY, "No supported public ticker for the largest holding");
       }
       return rag.marketData("COMPANY_OVERVIEW", symbol);
+    } catch (PythonRagClient.MarketResearchUnavailableException e) {
+      throw new ResponseStatusException(
+          HttpStatus.SERVICE_UNAVAILABLE, "Market research unavailable");
     } catch (PythonRagClient.RagUnavailableException e) {
       throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Market research unavailable");
     } finally {

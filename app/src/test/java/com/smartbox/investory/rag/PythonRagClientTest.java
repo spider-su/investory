@@ -54,6 +54,15 @@ class PythonRagClientTest {
           if (bytes.length > 0) exchange.getResponseBody().write(bytes);
           exchange.close();
         });
+    server.createContext(
+        "/market-data",
+        exchange -> {
+          byte[] bytes = response.get().getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().set("Content-Type", "application/json");
+          exchange.sendResponseHeaders(status.get(), bytes.length);
+          exchange.getResponseBody().write(bytes);
+          exchange.close();
+        });
     server.start();
     client =
         new PythonRagClient(
@@ -68,6 +77,22 @@ class PythonRagClientTest {
   @AfterEach
   void tearDown() {
     server.stop(0);
+  }
+
+  @Test
+  void unavailableMarketConfigurationIsDistinctFromUpstreamFailure() {
+    response.set("sensitive provider diagnostic must not escape");
+    status.set(503);
+    var unavailable =
+        assertThrows(
+            PythonRagClient.MarketResearchUnavailableException.class,
+            () -> client.marketData("GLOBAL_QUOTE", "MSFT"));
+    assertNull(unavailable.getMessage());
+    assertNull(unavailable.getCause());
+    status.set(502);
+    assertThrows(
+        PythonRagClient.RagUnavailableException.class,
+        () -> client.marketData("GLOBAL_QUOTE", "MSFT"));
   }
 
   @Test
