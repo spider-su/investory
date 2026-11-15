@@ -25,6 +25,7 @@ public class PortfolioRagController {
   private final RagUserRateLimiter rateLimiter;
   private final RagConcurrencyLimiter concurrencyLimiter;
   private final PortfolioProfitabilityAnswer profitability;
+  private final PortfolioAssistantReadModels readModels;
 
   public PortfolioRagController(
       AuthorizationService authorization,
@@ -33,7 +34,8 @@ public class PortfolioRagController {
       InvestoryRagClient rag,
       RagUserRateLimiter rateLimiter,
       RagConcurrencyLimiter concurrencyLimiter,
-      PortfolioProfitabilityAnswer profitability) {
+      PortfolioProfitabilityAnswer profitability,
+      PortfolioAssistantReadModels readModels) {
     this.authorization = authorization;
     this.profiles = profiles;
     this.mapper = mapper;
@@ -41,6 +43,7 @@ public class PortfolioRagController {
     this.rateLimiter = rateLimiter;
     this.concurrencyLimiter = concurrencyLimiter;
     this.profitability = profitability;
+    this.readModels = readModels;
   }
 
   @PostMapping("/ask")
@@ -65,6 +68,19 @@ public class PortfolioRagController {
       throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "RAG service is busy");
     }
     try {
+      var intent = readModels.classify(request.question());
+      if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH) {
+        return readModels.netWorth(mapper.map(profiles.loadProfile(portfolioId)));
+      }
+      if (intent == PortfolioAssistantReadModels.Intent.MAIN_ASSETS) {
+        return readModels.mainAssets(portfolioId);
+      }
+      if (intent == PortfolioAssistantReadModels.Intent.SPY_COMPARISON) {
+        return readModels.spyComparison(portfolioId);
+      }
+      if (intent == PortfolioAssistantReadModels.Intent.RETIREMENT_PLAN) {
+        return readModels.retirementPlan(portfolioId);
+      }
       if (profitability.supports(request.question())) {
         return profitability.answer(portfolioId);
       }
