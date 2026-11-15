@@ -3,6 +3,8 @@ package com.smartbox.investory.rag;
 import com.smartbox.investory.config.AuthorizationService;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
 import com.smartbox.investory.profile.web.ProfileResponseMapper;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -11,8 +13,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import java.util.Set;
-import java.util.regex.Pattern;
 import org.springframework.web.server.ResponseStatusException;
 
 /** Authenticated portfolio question endpoint. Scope is checked before reading ANY facts. */
@@ -161,8 +161,8 @@ public class PortfolioRagController {
     try {
       String symbol = readModels.largestHoldingSymbol(portfolioId);
       if (symbol == null || !VALID_SYMBOL.matcher(symbol).matches()) {
-        throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-            "No supported public ticker for the largest holding");
+        throw new ResponseStatusException(
+            HttpStatus.UNPROCESSABLE_ENTITY, "No supported public ticker for the largest holding");
       }
       return rag.marketData("COMPANY_OVERVIEW", symbol);
     } catch (PythonRagClient.RagUnavailableException e) {
@@ -173,12 +173,19 @@ public class PortfolioRagController {
   }
 
   private static final Set<String> MARKET_TOOLS =
-      Set.of("GLOBAL_QUOTE", "COMPANY_OVERVIEW", "INCOME_STATEMENT", "EARNINGS", "EARNINGS_CALENDAR");
+      Set.of(
+          "GLOBAL_QUOTE",
+          "COMPANY_OVERVIEW",
+          "INCOME_STATEMENT",
+          "EARNINGS",
+          "EARNINGS_CALENDAR");
   private static final Pattern VALID_SYMBOL = Pattern.compile("[A-Z0-9][A-Z0-9.^-]{0,19}");
 
   private static boolean validMarketRequest(MarketResearchRequest request) {
-    return request.tool() != null && MARKET_TOOLS.contains(request.tool())
-        && request.symbol() != null && VALID_SYMBOL.matcher(request.symbol()).matches();
+    return request.tool() != null
+        && MARKET_TOOLS.contains(request.tool())
+        && request.symbol() != null
+        && VALID_SYMBOL.matcher(request.symbol()).matches();
   }
 
   private void checkMarketAccess(long portfolioId, Authentication authentication) {
