@@ -95,7 +95,8 @@ public class SecurityConfig {
                                 "POST".equalsIgnoreCase(request.getMethod())
                                     && request
                                         .getRequestURI()
-                                        .matches("/api/v1/portfolios/[0-9]+/rag/(?:ask(?:-docs)?|research/(?:market-data|largest-holding))")
+                                        .matches(
+                                            "/api/v1/portfolios/[0-9]+/rag/(?:ask(?:-docs)?|research/(?:market-data|largest-holding))")
                                     && request.getHeader("Authorization") != null
                                     && (request.getHeader("Authorization").startsWith("Basic ")
                                         || request
