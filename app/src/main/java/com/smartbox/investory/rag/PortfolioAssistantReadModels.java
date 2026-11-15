@@ -143,8 +143,7 @@ public class PortfolioAssistantReadModels {
             + BigDecimal.valueOf(benchmark.benchmarkReturnPct()).toPlainString()
             + "%. This uses Investory's existing benchmark methodology, not a hypothetical"
             + " lump-sum purchase on your first investment date. [live:investment-benchmark]";
-    return new InvestoryRagClient.RagAnswer(
-        result, List.of("live:investment-benchmark"));
+    return new InvestoryRagClient.RagAnswer(result, List.of("live:investment-benchmark"));
   }
 
   public InvestoryRagClient.RagAnswer retirementPlan(long portfolioId) {
@@ -154,8 +153,7 @@ public class PortfolioAssistantReadModels {
       return new InvestoryRagClient.RagAnswer(
           "No saved retirement plan is available for this portfolio.", List.of());
     }
-    var names =
-        plans.stream().limit(5).map(plan -> plan.name()).collect(Collectors.joining(", "));
+    var names = plans.stream().limit(5).map(plan -> plan.name()).collect(Collectors.joining(", "));
     if (selected.isEmpty()) {
       return new InvestoryRagClient.RagAnswer(
           "Saved retirement plans: "
