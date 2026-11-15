@@ -379,3 +379,50 @@ must abstain rather than substitute today's snapshot or MAX for those requests.
 Documentation mode rejects direct requests for personal aggregate values before
 retrieval/model invocation, while calculation definitions remain supported.
 Documentation responses list only their actually cited evidence sources.
+
+
+## Experimental financial MCP (opt-in, read-only)
+
+The Python companion now includes an **internal** `POST /market-data` endpoint for
+public ticker research via the official Alpha Vantage hosted MCP server,
+`https://mcp.alphavantage.co/mcp`. This is a bounded building block, **not**
+an LLM agent, an automatic trading system, or a browser chat integration.
+
+This feature defaults **off**. To enable it on a private service, provision
+`RAG_FINANCIAL_MCP_ENABLED=true` and an OAuth bearer access token through
+`RAG_FINANCIAL_MCP_ACCESS_TOKEN` in a secret manager. See Alpha Vantage's
+[official MCP connection instructions](https://github.com/alphavantage/alpha_vantage_mcp)
+for the OAuth connection flow; this implementation does not yet automate OAuth
+refresh or credential acquisition. Expired tokens yield sanitized upstream errors.
+Set `RAG_FINANCIAL_MCP_TIMEOUT_SECONDS=12` (default). This is an independent
+provider timeout within the existing `RAG_REQUEST_DEADLINE_SECONDS` response
+budget. Alpha Vantage access and per-function subscription entitlements vary.
+
+From an authorized internal network, with the existing RAG service bearer token:
+
+```sh
+curl -fsS http://127.0.0.1:8090/market-data \\
+  -H "Authorization: Bearer ${RAG_API_TOKEN}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"tool":"GLOBAL_QUOTE","symbol":"MSFT"}'
+```
+
+Only `GLOBAL_QUOTE`, `COMPANY_OVERVIEW`, `INCOME_STATEMENT`,
+`EARNINGS`, and `EARNINGS_CALENDAR` are allowed. The request schema accepts
+just a tool name and uppercase ticker; no user-entered MCP endpoints, raw tool
+arguments, private portfolio identifiers, questions, or transaction records.
+The output is untrusted provider text and includes an attribution URL, **not**
+a verified document citation or a checked/normalized financial statement.
+The endpoint intentionally does not feed retrieved provider text directly into
+an LLM. A later PR should add typed data normalization, freshness timestamps,
+a cache, source-aware answer validation, and a Java-authorized orchestration
+route before integrating it into portfolio chat.
+
+The companion uses the same fail-closed internal bearer authentication,
+per-process concurrency admission, 25s response deadline, and fixed-label
+request telemetry as document RAG. It stays restricted to pod loopback; no
+public ingress, trade execution, database writes, or direct browser access.
+Never place an API key in the MCP URL (the provider documents that legacy
+form as deprecated). Do not enable this until an operator has validated the
+OAuth token, provider access, GitOps secret wiring, and real integration
+smoke test in the intended environment.
