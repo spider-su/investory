@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from decimal import Decimal
 
 from .config import get_settings
+from .financial_mcp import FinancialMcp, MarketLookup
 from .security import AccessGate
 from .service import RagService
 from .metrics import REQUESTS, LATENCY, generate_latest, CONTENT_TYPE_LATEST
@@ -122,6 +123,22 @@ async def run_bounded(endpoint: str, gate: AccessGate, operation):
     finally:
         REQUESTS.labels(endpoint=endpoint, outcome=outcome).inc()
         LATENCY.labels(endpoint=endpoint).observe(perf_counter() - started)
+
+
+def get_financial_mcp() -> FinancialMcp:
+    return FinancialMcp(get_settings())
+
+
+@app.post("/market-data")
+async def market_data(
+    request: MarketLookup,
+    gate: AccessGate = Depends(require_gate),
+    client: FinancialMcp = Depends(get_financial_mcp),
+) -> dict:
+    # Admission and deadline apply to MCP work as for existing inference calls.
+    # Validate before starting work, including configuration and tool allowlist.
+    client.validate(request)
+    return await run_bounded("market", gate, lambda: client.lookup(request))
 
 
 @app.get("/metrics")
