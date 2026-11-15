@@ -42,6 +42,15 @@ export function initSmartAssistant() {
         return item;
     }
 
+    // Enter sends; Shift+Enter preserves a newline. Ignore IME composition
+    // and modifier shortcuts so typing in other languages stays predictable.
+    input.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' || event.shiftKey || event.isComposing ||
+            event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
+        event.preventDefault();
+        if (!busy && !input.disabled && input.value.trim()) form.requestSubmit();
+    });
+
     form.addEventListener('submit', async event => {
         event.preventDefault();
         const question = input.value.trim();
@@ -85,7 +94,10 @@ export function initSmartAssistant() {
                 // The backend returns source labels, not trusted navigable URLs.
                 sources.textContent = 'Sources: ' + data.sources.filter(s => typeof s === 'string')
                     .map(s => s === 'live:profile' ? 'Portfolio data' :
-                        s === 'live:investment-performance' ? 'Investment performance (MAX)' : s).join(', ');
+                        s === 'live:investment-performance' ? 'Investment performance (MAX)' :
+                        s === 'live:investment-structure' ? 'Investment holdings (MAX)' :
+                        s === 'live:investment-benchmark' ? 'SPY benchmark (MAX)' :
+                        s === 'live:retirement-plan' ? 'Saved retirement plan' : s).join(', ');
                 messages.appendChild(sources);
             }
             status.textContent = '';

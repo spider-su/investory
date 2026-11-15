@@ -11,6 +11,9 @@ from investory_rag.reliability import (
     "What is the live price of NVIDIA right now?",
     "What is my current bank account balance?",
     "What is my current net worth?",
+    "What is my exact net worth?",
+    "What is my worth?",
+    "Show me my liquid assets",
     "What is my current portfolio value?",
     "What is it?",
     "Which option is best?",
@@ -22,6 +25,8 @@ def test_unsupported_document_questions(question):
 
 
 @pytest.mark.parametrize("question", [
+    "How does Investory calculate net worth?",
+    "What is the definition of net worth?",
     "What is the fixed withdrawal order in Reserve + Harvest?",
     "How are internal transfers treated in portfolio accounting?",
     "How are the Past, Current and Future years handled in planning?",

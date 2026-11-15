@@ -29,6 +29,10 @@ function setup(portfolioId = '21') {
     const nodes = Object.fromEntries(names.map(name => [name, new Element()]));
     nodes.panel.hidden = true;
     nodes.mode.value = 'portfolio';
+    nodes.form.requestSubmit = () => {
+        nodes.form.lastSubmission = nodes.form.listeners.submit({preventDefault() {}});
+        return nodes.form.lastSubmission;
+    };
     const root = new Element();
     root.dataset.portfolioId = portfolioId;
     root.querySelector = selector => {
@@ -131,6 +135,71 @@ test('documentation questions use the separate read-only endpoint', async () => 
         assert.equal(calls[0].options.headers['X-XSRF-TOKEN'], 'csrf-test');
         assert.equal(harness.nodes.mode.disabled, false);
         assert.equal(harness.nodes.messages.children[2].textContent, 'Sources: method.md');
+    } finally { harness.restore(); }
+});
+
+test('Enter submits from the question field; Shift+Enter inserts a newline', async () => {
+    const harness = setup();
+    try {
+        const {initSmartAssistant} = await modulePromise;
+        const calls = [];
+        global.fetch = async (url, options) => {
+            calls.push({url, options});
+            return {ok: true, json: async () => ({
+                answer: 'Portfolio data [live:profile]', sources: ['live:profile']
+            })};
+        };
+        initSmartAssistant();
+        harness.nodes.question.value = 'How much is my net worth?';
+        let prevented = false;
+        harness.nodes.question.listeners.keydown({
+            key: 'Enter', shiftKey: true,
+            preventDefault() { prevented = true; }
+        });
+        assert.equal(prevented, false);
+        assert.equal(calls.length, 0);
+        harness.nodes.question.listeners.keydown({
+            key: 'Enter', isComposing: true,
+            preventDefault() { prevented = true; }
+        });
+        assert.equal(prevented, false);
+        assert.equal(calls.length, 0);
+        harness.nodes.question.listeners.keydown({
+            key: 'Enter',
+            preventDefault() { prevented = true; }
+        });
+        assert.equal(prevented, true);
+        assert.equal(calls.length, 1);
+        assert.deepEqual(JSON.parse(calls[0].options.body),
+            {question: 'How much is my net worth?'});
+        await harness.nodes.form.lastSubmission;
+    } finally { harness.restore(); }
+});
+
+test('Enter with empty or in-flight input never sends duplicate messages', async () => {
+    const harness = setup();
+    try {
+        const {initSmartAssistant} = await modulePromise;
+        let respond;
+        let count = 0;
+        global.fetch = () => {
+            count++;
+            return new Promise(resolve => { respond = resolve; });
+        };
+        initSmartAssistant();
+        const pressEnter = () => harness.nodes.question.listeners.keydown({
+            key: 'Enter', preventDefault() {}
+        });
+        harness.nodes.question.value = '  ';
+        pressEnter();
+        assert.equal(count, 0);
+        harness.nodes.question.value = 'What is my portfolio value?';
+        pressEnter();
+        pressEnter();
+        assert.equal(count, 1);
+        respond({ok: true, json: async () => ({answer: 'Result', sources: []})});
+        await harness.nodes.form.lastSubmission;
+        assert.equal(harness.nodes.send.disabled, false);
     } finally { harness.restore(); }
 });
 

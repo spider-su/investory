@@ -365,3 +365,17 @@ from Investment MAX reporting, with `live:investment-performance` provenance. Ex
 narrower periods (such as YTD, last month, or a calendar year) bypass this shortcut;
 they must not be silently answered using all-history profit. This does not add general
 conversation memory or support arbitrary historical-period answers.
+
+## Scoped deterministic assistant reads
+
+The portfolio question route can answer current net worth from Profile, largest
+Investment holdings and SPY comparisons from Investment MAX reporting, and saved
+retirement-plan assumptions from RetirementPlanApi. All reads follow scoped
+membership and admission checks. Investment holdings exclude separate long-term
+assets; the existing SPY benchmark is not a first-date lump-sum backtest. These
+shortcuts do not support forecasts, advice, or arbitrary historical windows and
+must abstain rather than substitute today's snapshot or MAX for those requests.
+
+Documentation mode rejects direct requests for personal aggregate values before
+retrieval/model invocation, while calculation definitions remain supported.
+Documentation responses list only their actually cited evidence sources.

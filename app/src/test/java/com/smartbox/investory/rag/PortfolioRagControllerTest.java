@@ -34,6 +34,7 @@ class PortfolioRagControllerTest {
   @Mock InvestoryRagClient client;
   @Mock RagUserRateLimiter rateLimiter;
   @Mock PortfolioProfitabilityAnswer profitability;
+  @Mock PortfolioAssistantReadModels readModels;
   private PortfolioRagController controller;
   private Authentication user;
   private RagConcurrencyLimiter concurrencyLimiter;
@@ -49,7 +50,8 @@ class PortfolioRagControllerTest {
             client,
             rateLimiter,
             concurrencyLimiter,
-            profitability);
+            profitability,
+            readModels);
     user =
         new UsernamePasswordAuthenticationToken(
             "user-a", "n/a", List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
@@ -177,6 +179,55 @@ class PortfolioRagControllerTest {
   }
 
   @Test
+  void mainAssetsUseReadOnlyAuthorizedModelWithoutCallingTheLlm() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    when(readModels.classify("what are main assets?"))
+        .thenReturn(PortfolioAssistantReadModels.Intent.MAIN_ASSETS);
+    var result =
+        new InvestoryRagClient.RagAnswer(
+            "Top holdings [live:investment-structure]", List.of("live:investment-structure"));
+    when(readModels.mainAssets(21L)).thenReturn(result);
+    assertEquals(
+        result,
+        controller.ask(21L, new PortfolioRagController.Question("what are main assets?"), user));
+    verifyNoInteractions(client, profiles, mapper);
+  }
+
+  @Test
+  void retirementQuestionCannotReadAnUnauthorizedPortfolio() {
+    when(authorization.canReadScoped(22L, user)).thenReturn(false);
+    assertEquals(
+        HttpStatus.FORBIDDEN,
+        assertThrows(
+                ResponseStatusException.class,
+                () ->
+                    controller.ask(
+                        22L,
+                        new PortfolioRagController.Question("what is my retirement plan"),
+                        user))
+            .getStatusCode());
+    verifyNoInteractions(readModels, client, profiles, mapper);
+  }
+
+  @Test
+  void spyBenchmarkAnswerSharesRateAndConcurrencyAdmission() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(false);
+    assertEquals(
+        HttpStatus.TOO_MANY_REQUESTS,
+        assertThrows(
+                ResponseStatusException.class,
+                () ->
+                    controller.ask(
+                        21L,
+                        new PortfolioRagController.Question("What if I bought SPY instead?"),
+                        user))
+            .getStatusCode());
+    verifyNoInteractions(readModels, client, profiles, mapper);
+  }
+
+  @Test
   void rateLimitRejectsBeforeAccessingSnapshotOrCallingPython() {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(false);
@@ -259,6 +310,20 @@ class PortfolioRagControllerTest {
       assertEquals(
           expected, controller.ask(21L, new PortfolioRagController.Question("Question"), user));
     }
+  }
+
+  @Test
+  void unsupportedScopeDoesNotReadFactsOrInvokeProvider() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    when(readModels.classify("Future scope"))
+        .thenReturn(PortfolioAssistantReadModels.Intent.UNSUPPORTED);
+    assertTrue(
+        controller
+            .ask(21L, new PortfolioRagController.Question("Future scope"), user)
+            .sources()
+            .isEmpty());
+    verifyNoInteractions(profiles, mapper, client, profitability);
   }
 
   @Test
