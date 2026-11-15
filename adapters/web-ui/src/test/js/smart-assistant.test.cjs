@@ -29,7 +29,10 @@ function setup(portfolioId = '21') {
     const nodes = Object.fromEntries(names.map(name => [name, new Element()]));
     nodes.panel.hidden = true;
     nodes.mode.value = 'portfolio';
-    nodes.form.requestSubmit = () => nodes.form.listeners.submit({preventDefault() {}});
+    nodes.form.requestSubmit = () => {
+        nodes.form.lastSubmission = nodes.form.listeners.submit({preventDefault() {}});
+        return nodes.form.lastSubmission;
+    };
     const root = new Element();
     root.dataset.portfolioId = portfolioId;
     root.querySelector = selector => {
@@ -169,6 +172,7 @@ test('Enter submits from the question field; Shift+Enter inserts a newline', asy
         assert.equal(calls.length, 1);
         assert.deepEqual(JSON.parse(calls[0].options.body),
             {question: 'How much is my net worth?'});
+        await harness.nodes.form.lastSubmission;
     } finally { harness.restore(); }
 });
 
@@ -194,7 +198,7 @@ test('Enter with empty or in-flight input never sends duplicate messages', async
         pressEnter();
         assert.equal(count, 1);
         respond({ok: true, json: async () => ({answer: 'Result', sources: []})});
-        await new Promise(resolve => setImmediate(resolve));
+        await harness.nodes.form.lastSubmission;
         assert.equal(harness.nodes.send.disabled, false);
     } finally { harness.restore(); }
 });
