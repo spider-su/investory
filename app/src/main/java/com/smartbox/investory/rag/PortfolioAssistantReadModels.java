@@ -110,9 +110,10 @@ public class PortfolioAssistantReadModels {
   }
 
   public InvestoryRagClient.RagAnswer spyComparison(long portfolioId) {
-    var view = dashboard.loadDashboard(
-        new InvestmentDashboardApi.DashboardQuery(
-            List.of(), false, DashboardPeriod.MAX, portfolioId));
+    var view =
+        dashboard.loadDashboard(
+            new InvestmentDashboardApi.DashboardQuery(
+                List.of(), false, DashboardPeriod.MAX, portfolioId));
     var benchmark =
         view == null || view.performance() == null ? null : view.performance().benchmark();
     var overview = view == null ? null : view.overview();
