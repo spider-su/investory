@@ -54,6 +54,35 @@ public class PythonRagClient implements InvestoryRagClient {
   }
 
   @Override
+  public MarketData marketData(String tool, String symbol) {
+    try {
+      MarketData result =
+          client
+              .post()
+              .uri("/market-data")
+              .contentType(MediaType.APPLICATION_JSON)
+              // Explicit allowlist: only public ticker symbols reach the external provider.
+              .body(Map.of("tool", tool, "symbol", symbol))
+              .retrieve()
+              .body(MarketData.class);
+      if (result == null
+          || !"Alpha Vantage".equals(result.provider())
+          || !tool.equals(result.tool())
+          || !symbol.equals(result.symbol())
+          || !"https://www.alphavantage.co/".equals(result.source())
+          || result.data() == null
+          || result.data().isBlank()
+          || result.data().length() > 16384) {
+        throw new RagUnavailableException();
+      }
+      return result;
+    } catch (RestClientException e) {
+      // Provider errors may contain sensitive headers; do not forward them.
+      throw new RagUnavailableException();
+    }
+  }
+
+  @Override
   public RagAnswer askDocumentation(String question) {
     return post("/ask", Map.of("question", question));
   }

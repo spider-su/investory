@@ -10,5 +10,10 @@ public interface InvestoryRagClient {
   /** Documentation-only question; no portfolio snapshot is forwarded. */
   RagAnswer askDocumentation(String question);
 
+  /** Public ticker research only; portfolio or user details must never cross this boundary. */
+  MarketData marketData(String tool, String symbol);
+
+  record MarketData(String provider, String tool, String symbol, String source, String data) {}
+
   record RagAnswer(String answer, List<String> sources) {}
 }

@@ -95,7 +95,8 @@ public class SecurityConfig {
                                 "POST".equalsIgnoreCase(request.getMethod())
                                     && request
                                         .getRequestURI()
-                                        .matches("/api/v1/portfolios/[0-9]+/rag/ask(?:-docs)?")
+                                        .matches(
+                                            "/api/v1/portfolios/[0-9]+/rag/(?:ask(?:-docs)?|research/(?:market-data|largest-holding))")
                                     && request.getHeader("Authorization") != null
                                     && (request.getHeader("Authorization").startsWith("Basic ")
                                         || request
@@ -143,7 +144,9 @@ public class SecurityConfig {
                         .requestMatchers(
                             HttpMethod.POST,
                             "/api/v1/portfolios/*/rag/ask",
-                            "/api/v1/portfolios/*/rag/ask-docs")
+                            "/api/v1/portfolios/*/rag/ask-docs",
+                            "/api/v1/portfolios/*/rag/research/market-data",
+                            "/api/v1/portfolios/*/rag/research/largest-holding")
                         .hasAnyRole("ADMIN", "PROFILE_OWNER", "PROFILE_USER")
                         .requestMatchers("/settings/**", "/api/v1/admin/**")
                         .hasRole("ADMIN")

@@ -92,6 +92,18 @@ public class PortfolioAssistantReadModels {
         List.of("live:profile"));
   }
 
+  /** Returns only a public symbol from scoped holdings, never values or account data. */
+  public String largestHoldingSymbol(long portfolioId) {
+    var view =
+        dashboard.loadDashboard(
+            new InvestmentDashboardApi.DashboardQuery(
+                List.of(), false, DashboardPeriod.MAX, portfolioId));
+    var overview = view == null ? null : view.overview();
+    var structure = overview == null ? null : overview.portfolioStructure();
+    if (structure == null || structure.topHoldings().isEmpty()) return null;
+    return structure.topHoldings().get(0).symbol();
+  }
+
   public InvestoryRagClient.RagAnswer mainAssets(long portfolioId) {
     var view =
         dashboard.loadDashboard(
