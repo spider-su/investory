@@ -174,11 +174,7 @@ public class PortfolioRagController {
 
   private static final Set<String> MARKET_TOOLS =
       Set.of(
-          "GLOBAL_QUOTE",
-          "COMPANY_OVERVIEW",
-          "INCOME_STATEMENT",
-          "EARNINGS",
-          "EARNINGS_CALENDAR");
+          "GLOBAL_QUOTE", "COMPANY_OVERVIEW", "INCOME_STATEMENT", "EARNINGS", "EARNINGS_CALENDAR");
   private static final Pattern VALID_SYMBOL = Pattern.compile("[A-Z0-9][A-Z0-9.^-]{0,19}");
 
   private static boolean validMarketRequest(MarketResearchRequest request) {
