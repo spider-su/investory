@@ -50,12 +50,44 @@ class PortfolioAssistantReadModelsTest {
   }
 
   @Test
+  void doesNotConfuseInvestmentWorthWithWholeWealth() {
+    assertEquals(
+        PortfolioAssistantReadModels.Intent.NONE,
+        assistant.classify("What is my portfolio worth?"));
+    assertEquals(
+        PortfolioAssistantReadModels.Intent.NONE, assistant.classify("What are my shares worth?"));
+    assertEquals(
+        PortfolioAssistantReadModels.Intent.NONE, assistant.classify("How does net worth work?"));
+    assertEquals(
+        PortfolioAssistantReadModels.Intent.NET_WORTH, assistant.classify("How much am I worth?"));
+    verifyNoInteractions(investment, retirement);
+  }
+
+  @Test
+  void doesNotSubstituteCurrentOrMaxDataForOtherScopes() {
+    for (String question :
+        List.of(
+            "What will my net worth be next Friday?",
+            "What was my net worth last year?",
+            "What is my worth in 10 years?",
+            "What is the difference if I invest in S&P 500 this year?",
+            "Compare my investments versus SPY this year",
+            "Compare my holdings versus SPY in 2025",
+            "What were my largest assets last month?",
+            "Should I buy SPY instead of my investments?")) {
+      assertEquals(
+          PortfolioAssistantReadModels.Intent.UNSUPPORTED, assistant.classify(question), question);
+    }
+    verifyNoInteractions(investment, retirement);
+  }
+
+  @Test
   void worthComesFromProfileAndSeparatesDashboardValue() {
     var profile = mock(ProfileResponse.class);
-    when(profile.totalNetWorth()).thenReturn(new BigDecimal("833436.37499086"));
+    when(profile.totalNetWorth()).thenReturn(new BigDecimal("12345.6789"));
     when(profile.currency()).thenReturn(CurrencyType.PLN);
     var answer = assistant.netWorth(profile);
-    assertTrue(answer.answer().contains("833436.37499086 PLN"));
+    assertTrue(answer.answer().contains("12345.6789 PLN"));
     assertTrue(answer.answer().contains("not the Investment dashboard balance"));
     assertEquals(List.of("live:profile"), answer.sources());
     verifyNoInteractions(investment, retirement);

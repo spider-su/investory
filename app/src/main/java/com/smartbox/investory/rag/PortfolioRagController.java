@@ -69,6 +69,11 @@ public class PortfolioRagController {
     }
     try {
       var intent = readModels.classify(request.question());
+      if (intent == PortfolioAssistantReadModels.Intent.UNSUPPORTED) {
+        return new InvestoryRagClient.RagAnswer(
+            "The selected reporting data cannot answer that requested period or forecast.",
+            java.util.List.of());
+      }
       if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH) {
         return readModels.netWorth(mapper.map(profiles.loadProfile(portfolioId)));
       }

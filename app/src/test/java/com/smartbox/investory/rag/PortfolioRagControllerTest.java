@@ -313,6 +313,20 @@ class PortfolioRagControllerTest {
   }
 
   @Test
+  void unsupportedScopeDoesNotReadFactsOrInvokeProvider() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    when(readModels.classify("Future scope"))
+        .thenReturn(PortfolioAssistantReadModels.Intent.UNSUPPORTED);
+    assertTrue(
+        controller
+            .ask(21L, new PortfolioRagController.Question("Future scope"), user)
+            .sources()
+            .isEmpty());
+    verifyNoInteractions(profiles, mapper, client, profitability);
+  }
+
+  @Test
   void snapshotFailureReleasesAdmissionForTheNextRequest() {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);

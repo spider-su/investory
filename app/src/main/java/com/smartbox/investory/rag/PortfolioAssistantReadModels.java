@@ -34,6 +34,7 @@ public class PortfolioAssistantReadModels {
 
   public enum Intent {
     NONE,
+    UNSUPPORTED,
     NET_WORTH,
     MAIN_ASSETS,
     SPY_COMPARISON,
@@ -43,6 +44,18 @@ public class PortfolioAssistantReadModels {
   public Intent classify(String question) {
     if (question == null) return Intent.NONE;
     String q = question.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
+    // Do not replace a requested forecast or historical window with today's snapshot or MAX.
+    if (q.matches(
+            ".*\\b(?:worth|wealth|assets?|holdings?|positions?|investments?|portfolio|spy|s&p ?500|retire|retirement|pension|financial independence)\\b.*")
+        && (q.matches(
+                ".*\\b(?:will|forecast|predict|tomorrow|yesterday|ytd|mtd|qtd|(?:19|20)\\d{2})\\b.*")
+            || q.matches(
+                ".*\\b(?:last|previous|past|next)\\s+(?:\\d+\\s+)?(?:days?|weeks?|months?|quarters?|years?|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\\b.*")
+            || q.matches(".*\\bin\\s+\\d+\\s+(?:days?|weeks?|months?|years?)\\b.*")
+            || q.matches(".*\\b(?:this|current)\\s+(?:month|quarter|year)\\b.*")
+            || q.matches(".*\\bshould i\\b.*\\b(?:buy|sell|invest)\\b.*"))) {
+      return Intent.UNSUPPORTED;
+    }
     if (q.matches(".*\\b(?:spy|s&p ?500|s&p 500)\\b.*")
         && q.matches(
             ".*\\b(?:compar|versus|vs\\.?|instead|difference|what if|outperform|underperform|from the beginning|since inception)\\w*.*")) {
@@ -56,8 +69,11 @@ public class PortfolioAssistantReadModels {
         && q.matches(".*\\b(?:assets?|holdings?|positions?|investments?)\\b.*")) {
       return Intent.MAIN_ASSETS;
     }
-    if (q.matches(".*\\b(?:worth|wealth|net worth)\\b.*")
-        && !q.matches(".*\\b(?:how|method|formula|calculate|definition)\\b.*")) {
+    if ((q.matches(".*\\b(?:net worth|total wealth)\\b.*")
+            || q.matches(".*\\bmy\\s+(?:(?:exact|current|total)\\s+)?(?:worth|wealth)\\b.*")
+            || q.matches(".*\\bhow much am i worth\\b.*"))
+        && !q.matches(
+            ".*\\b(?:how (?:does|is|do)|method|formula|calculat\\w*|definition|mean)\\b.*")) {
       return Intent.NET_WORTH;
     }
     return Intent.NONE;
