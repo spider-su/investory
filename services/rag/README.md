@@ -426,3 +426,33 @@ Never place an API key in the MCP URL (the provider documents that legacy
 form as deprecated). Do not enable this until an operator has validated the
 OAuth token, provider access, GitOps secret wiring, and real integration
 smoke test in the intended environment.
+
+
+## Portfolio-scoped Java market research (stacked implementation)
+
+The authenticated Java route `POST /api/v1/portfolios/{portfolioId}/rag/research/market-data`
+takes an allowlisted market tool and uppercase public ticker symbol. The companion
+remains private; user authorization, rate limits, and concurrency checks happen in
+Java before any external call. Example (feature flag and OAuth token required):
+
+```sh
+curl -fsS -X POST 'http://localhost:8080/api/v1/portfolios/1/rag/research/market-data' \\
+  -H "Authorization: Bearer ${INVESTORY_TOKEN}" \\
+  -H 'Content-Type: application/json' \\
+  -d '{"tool":"GLOBAL_QUOTE","symbol":"MSFT"}'
+```
+
+`POST /api/v1/portfolios/{portfolioId}/rag/research/largest-holding` reads the
+scoped investment dashboard's largest position, extracts **only its public
+ticker symbol**, and requests `COMPANY_OVERVIEW`. No positions, quantities,
+cost bases, transactions, portfolio IDs, authentication or user data are sent
+to Alpha Vantage. If the ticker is unsupported (or no holding is available),
+the route fails without querying MCP.
+
+These market endpoints return **untrusted raw external data** with declared
+provider/source provenance; they do not create a financial recommendation
+or claim verified per-field citations. Cross-provider comparisons, normalized
+fundamentals with point-in-time provenance, an agent to combine portfolio
+facts with market context, and the chat UI are follow-up milestones. Access
+must remain opt-in and read-only until independently smoke tested with valid
+Alpha Vantage credentials. No GitOps production activation is part of this PR.
