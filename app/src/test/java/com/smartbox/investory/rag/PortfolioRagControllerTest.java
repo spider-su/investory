@@ -190,8 +190,7 @@ class PortfolioRagControllerTest {
     when(readModels.mainAssets(21L)).thenReturn(result);
     assertEquals(
         result,
-        controller.ask(
-            21L, new PortfolioRagController.Question("what are main assets?"), user));
+        controller.ask(21L, new PortfolioRagController.Question("what are main assets?"), user));
     verifyNoInteractions(client, profiles, mapper);
   }
 
@@ -204,7 +203,9 @@ class PortfolioRagControllerTest {
                 ResponseStatusException.class,
                 () ->
                     controller.ask(
-                        22L, new PortfolioRagController.Question("what is my retirement plan"), user))
+                        22L,
+                        new PortfolioRagController.Question("what is my retirement plan"),
+                        user))
             .getStatusCode());
     verifyNoInteractions(readModels, client, profiles, mapper);
   }
@@ -219,7 +220,9 @@ class PortfolioRagControllerTest {
                 ResponseStatusException.class,
                 () ->
                     controller.ask(
-                        21L, new PortfolioRagController.Question("What if I bought SPY instead?"), user))
+                        21L,
+                        new PortfolioRagController.Question("What if I bought SPY instead?"),
+                        user))
             .getStatusCode());
     verifyNoInteractions(readModels, client, profiles, mapper);
   }
