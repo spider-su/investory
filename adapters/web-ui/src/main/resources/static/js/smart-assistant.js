@@ -85,7 +85,10 @@ export function initSmartAssistant() {
                 // The backend returns source labels, not trusted navigable URLs.
                 sources.textContent = 'Sources: ' + data.sources.filter(s => typeof s === 'string')
                     .map(s => s === 'live:profile' ? 'Portfolio data' :
-                        s === 'live:investment-performance' ? 'Investment performance (MAX)' : s).join(', ');
+                        s === 'live:investment-performance' ? 'Investment performance (MAX)' :
+                        s === 'live:investment-structure' ? 'Investment holdings (MAX)' :
+                        s === 'live:investment-benchmark' ? 'SPY benchmark (MAX)' :
+                        s === 'live:retirement-plan' ? 'Saved retirement plan' : s).join(', ');
                 messages.appendChild(sources);
             }
             status.textContent = '';
