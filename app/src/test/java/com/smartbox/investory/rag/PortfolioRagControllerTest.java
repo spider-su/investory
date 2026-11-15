@@ -389,9 +389,7 @@ class PortfolioRagControllerTest {
     assertEquals(
         result,
         controller.researchMarketData(
-            21L,
-            new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT"),
-            user));
+            21L, new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT"), user));
     verifyNoInteractions(readModels, profiles, mapper);
   }
 
@@ -435,5 +433,4 @@ class PortfolioRagControllerTest {
     assertEquals(HttpStatus.TOO_MANY_REQUESTS, denied.getStatusCode());
     verifyNoInteractions(client, readModels, profiles, mapper);
   }
-
 }
