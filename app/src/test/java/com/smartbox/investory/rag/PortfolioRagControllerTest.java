@@ -351,7 +351,8 @@ class PortfolioRagControllerTest {
             ResponseStatusException.class,
             () ->
                 controller.researchMarketData(
-                    22L, new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT"),
+                    22L,
+                    new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT"),
                     user));
     assertEquals(HttpStatus.FORBIDDEN, denied.getStatusCode());
     verifyNoInteractions(client, readModels, profiles, mapper, rateLimiter);
@@ -359,12 +360,15 @@ class PortfolioRagControllerTest {
 
   @Test
   void marketResearchRejectsInvalidToolAndSymbolBeforeAuthorization() {
-    for (var request : List.of(
-        new PortfolioRagController.MarketResearchRequest("SELL", "MSFT"),
-        new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT;DROP"),
-        new PortfolioRagController.MarketResearchRequest("COMPANY_OVERVIEW", "msft"))) {
-      var error = assertThrows(ResponseStatusException.class,
-          () -> controller.researchMarketData(21L, request, user));
+    for (var request :
+        List.of(
+            new PortfolioRagController.MarketResearchRequest("SELL", "MSFT"),
+            new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT;DROP"),
+            new PortfolioRagController.MarketResearchRequest("COMPANY_OVERVIEW", "msft"))) {
+      var error =
+          assertThrows(
+              ResponseStatusException.class,
+              () -> controller.researchMarketData(21L, request, user));
       assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
     }
     verifyNoInteractions(authorization, client, readModels, profiles, mapper);
@@ -374,13 +378,19 @@ class PortfolioRagControllerTest {
   void authorizedMarketResearchOnlySendsTickerAndTool() {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
-    var result = new InvestoryRagClient.MarketData(
-        "Alpha Vantage", "GLOBAL_QUOTE", "MSFT", "https://www.alphavantage.co/",
-        "{\"price\": \"123.45\"}");
+    var result =
+        new InvestoryRagClient.MarketData(
+            "Alpha Vantage",
+            "GLOBAL_QUOTE",
+            "MSFT",
+            "https://www.alphavantage.co/",
+            "{\"price\": \"123.45\"}");
     when(client.marketData("GLOBAL_QUOTE", "MSFT")).thenReturn(result);
-    assertEquals(result,
+    assertEquals(
+        result,
         controller.researchMarketData(
-            21L, new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT"),
+            21L,
+            new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT"),
             user));
     verifyNoInteractions(readModels, profiles, mapper);
   }
@@ -390,9 +400,13 @@ class PortfolioRagControllerTest {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(readModels.largestHoldingSymbol(21L)).thenReturn("NVDA");
-    var result = new InvestoryRagClient.MarketData(
-        "Alpha Vantage", "COMPANY_OVERVIEW", "NVDA",
-        "https://www.alphavantage.co/", "{\"symbol\": \"NVDA\"}");
+    var result =
+        new InvestoryRagClient.MarketData(
+            "Alpha Vantage",
+            "COMPANY_OVERVIEW",
+            "NVDA",
+            "https://www.alphavantage.co/",
+            "{\"symbol\": \"NVDA\"}");
     when(client.marketData("COMPANY_OVERVIEW", "NVDA")).thenReturn(result);
     assertEquals(result, controller.researchLargestHolding(21L, user));
     verify(client).marketData("COMPANY_OVERVIEW", "NVDA");
@@ -404,8 +418,9 @@ class PortfolioRagControllerTest {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(readModels.largestHoldingSymbol(21L)).thenReturn("INVALID SYMBOL");
-    var error = assertThrows(ResponseStatusException.class,
-        () -> controller.researchLargestHolding(21L, user));
+    var error =
+        assertThrows(
+            ResponseStatusException.class, () -> controller.researchLargestHolding(21L, user));
     assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, error.getStatusCode());
     verifyNoInteractions(client, profiles, mapper);
   }
@@ -414,11 +429,11 @@ class PortfolioRagControllerTest {
   void marketResearchSharesTheExistingRateLimit() {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(false);
-    var denied = assertThrows(ResponseStatusException.class,
-        () -> controller.researchLargestHolding(21L, user));
+    var denied =
+        assertThrows(
+            ResponseStatusException.class, () -> controller.researchLargestHolding(21L, user));
     assertEquals(HttpStatus.TOO_MANY_REQUESTS, denied.getStatusCode());
     verifyNoInteractions(client, readModels, profiles, mapper);
   }
-
 
 }
