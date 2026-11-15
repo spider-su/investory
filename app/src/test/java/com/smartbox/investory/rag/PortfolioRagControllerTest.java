@@ -344,6 +344,31 @@ class PortfolioRagControllerTest {
   }
 
   @Test
+  void unavailableMarketResearchReturns503AndReleasesAdmission() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    when(readModels.largestHoldingSymbol(21L)).thenReturn("MSFT");
+    when(client.marketData("GLOBAL_QUOTE", "MSFT"))
+        .thenThrow(new PythonRagClient.MarketResearchUnavailableException());
+    when(client.marketData("COMPANY_OVERVIEW", "MSFT"))
+        .thenThrow(new PythonRagClient.MarketResearchUnavailableException());
+    var direct =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.researchMarketData(
+                    21L,
+                    new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT"),
+                    user));
+    assertEquals(HttpStatus.SERVICE_UNAVAILABLE, direct.getStatusCode());
+    var holding =
+        assertThrows(
+            ResponseStatusException.class, () -> controller.researchLargestHolding(21L, user));
+    assertEquals(HttpStatus.SERVICE_UNAVAILABLE, holding.getStatusCode());
+    verifyNoInteractions(profiles, mapper);
+  }
+
+  @Test
   void marketResearchRejectsOtherPortfolioBeforeExternalCall() {
     when(authorization.canReadScoped(22L, user)).thenReturn(false);
     var denied =

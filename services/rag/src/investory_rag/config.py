@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     request_deadline_seconds: float = Field(default=25, gt=0, le=180)
     financial_mcp_enabled: bool = False
     financial_mcp_access_token: SecretStr | None = None
+    financial_mcp_api_key: SecretStr | None = None
     financial_mcp_timeout_seconds: float = Field(default=12, gt=0, le=60)
 
 

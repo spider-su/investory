@@ -69,3 +69,39 @@ def test_market_api_authorization_and_allowlist(monkeypatch):
             assert len(calls) == 1
     finally:
         app.dependency_overrides.clear()
+
+
+def test_api_key_is_an_alternative_to_oauth():
+    config = Settings(_env_file=None, financial_mcp_enabled=True,
+                      financial_mcp_api_key=SecretStr("provider-key"))
+    assert FinancialMcp(config).validate(MarketLookup(tool="GLOBAL_QUOTE", symbol="MSFT")) == {"symbol": "MSFT"}
+
+
+@pytest.mark.parametrize("mode", ["key", "oauth"])
+def test_api_key_uses_header_and_never_url(monkeypatch, mode):
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    observed = {}
+    @asynccontextmanager
+    async def transport(url, headers):
+        observed.update(url=url, headers=headers)
+        yield (object(), object(), None)
+    class Session:
+        def __init__(self, *args): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        initialize = AsyncMock()
+        async def call_tool(self, tool, arguments):
+            observed.update(tool=tool, arguments=arguments)
+            return SimpleNamespace(isError=False, content=[SimpleNamespace(type="text", text='{"symbol":"MSFT"}')])
+    import mcp
+    import mcp.client.streamable_http
+    monkeypatch.setattr(mcp, "ClientSession", Session)
+    monkeypatch.setattr(mcp.client.streamable_http, "streamablehttp_client", transport)
+    config = Settings(_env_file=None, financial_mcp_enabled=True,
+                      financial_mcp_api_key=SecretStr("provider-key") if mode == "key" else None,
+                      financial_mcp_access_token=SecretStr("oauth-token"))
+    result = FinancialMcp(config).lookup(MarketLookup(tool="GLOBAL_QUOTE", symbol="MSFT"))
+    assert observed == {"url": ENDPOINT, "headers": {"X-API-Key": "provider-key"} if mode == "key" else {"Authorization": "Bearer oauth-token"}, "tool": "GLOBAL_QUOTE", "arguments": {"symbol": "MSFT"}}
+    assert result["provider"] == "Alpha Vantage"

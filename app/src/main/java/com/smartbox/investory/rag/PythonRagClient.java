@@ -11,6 +11,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 /** Narrow internal HTTP adapter. Never forwards browser credentials or user IDs. */
 @Component
@@ -76,6 +77,9 @@ public class PythonRagClient implements InvestoryRagClient {
         throw new RagUnavailableException();
       }
       return result;
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 503) throw new MarketResearchUnavailableException();
+      throw new RagUnavailableException();
     } catch (RestClientException e) {
       // Provider errors may contain sensitive headers; do not forward them.
       throw new RagUnavailableException();
@@ -118,6 +122,8 @@ public class PythonRagClient implements InvestoryRagClient {
       BigDecimal totalNetWorth,
       BigDecimal liquidAssets,
       BigDecimal illiquidAssets) {}
+
+  public static final class MarketResearchUnavailableException extends RuntimeException {}
 
   public static final class RagUnavailableException extends RuntimeException {}
 }

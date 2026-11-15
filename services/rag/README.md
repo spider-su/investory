@@ -389,11 +389,14 @@ public ticker research via the official Alpha Vantage hosted MCP server,
 an LLM agent, an automatic trading system, or a browser chat integration.
 
 This feature defaults **off**. To enable it on a private service, provision
-`RAG_FINANCIAL_MCP_ENABLED=true` and an OAuth bearer access token through
-`RAG_FINANCIAL_MCP_ACCESS_TOKEN` in a secret manager. See Alpha Vantage's
-[official MCP connection instructions](https://github.com/alphavantage/alpha_vantage_mcp)
-for the OAuth connection flow; this implementation does not yet automate OAuth
-refresh or credential acquisition. Expired tokens yield sanitized upstream errors.
+`RAG_FINANCIAL_MCP_ENABLED=true` and a provider credential through a secret manager.
+Use `RAG_FINANCIAL_MCP_API_KEY` for the provider-supported `X-API-Key` header
+at the fixed HTTPS endpoint. The key is never added to a URL or sent as an OAuth
+token. The provider's [credential resolver](https://github.com/alphavantage/alpha_vantage_mcp/blob/main/mcp/lambda_function.py)
+supports this header. Existing OAuth bearer tokens remain supported through
+`RAG_FINANCIAL_MCP_ACCESS_TOKEN`; when both are configured, the API key takes
+precedence. OAuth refresh/acquisition is not automated; operators must manage
+access-token expiry when using that mode.
 Set `RAG_FINANCIAL_MCP_TIMEOUT_SECONDS=12` (default). This is an independent
 provider timeout within the existing `RAG_REQUEST_DEADLINE_SECONDS` response
 budget. Alpha Vantage access and per-function subscription entitlements vary.
@@ -424,7 +427,7 @@ request telemetry as document RAG. It stays restricted to pod loopback; no
 public ingress, trade execution, database writes, or direct browser access.
 Never place an API key in the MCP URL (the provider documents that legacy
 form as deprecated). Do not enable this until an operator has validated the
-OAuth token, provider access, GitOps secret wiring, and real integration
+provider credential, provider access, GitOps secret wiring, and real integration
 smoke test in the intended environment.
 
 
@@ -433,7 +436,7 @@ smoke test in the intended environment.
 The authenticated Java route `POST /api/v1/portfolios/{portfolioId}/rag/research/market-data`
 takes an allowlisted market tool and uppercase public ticker symbol. The companion
 remains private; user authorization, rate limits, and concurrency checks happen in
-Java before any external call. Example (feature flag and OAuth token required):
+Java before any external call. Example (feature flag and provider credential required):
 
 ```sh
 curl -fsS -X POST 'http://localhost:8080/api/v1/portfolios/1/rag/research/market-data' \\
@@ -456,3 +459,7 @@ fundamentals with point-in-time provenance, an agent to combine portfolio
 facts with market context, and the chat UI are follow-up milestones. Access
 must remain opt-in and read-only until independently smoke tested with valid
 Alpha Vantage credentials. No GitOps production activation is part of this PR.
+
+When the companion returns 503 for disabled/unconfigured market research, Java
+also returns a sanitized 503. Provider/transport failures remain sanitized 502s;
+neither response exposes provider credentials or upstream error bodies.

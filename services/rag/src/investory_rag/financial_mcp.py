@@ -45,9 +45,9 @@ class FinancialMcp:
         # A symbol is public market information, not an account or portfolio id.
         if not SYMBOL.fullmatch(request.symbol):
             raise HTTPException(status_code=422, detail="Invalid public ticker symbol")
-        if self.settings.financial_mcp_access_token is None or not (
-            self.settings.financial_mcp_access_token.get_secret_value()
-        ):
+        if not any(value and value.get_secret_value() for value in (
+            self.settings.financial_mcp_api_key, self.settings.financial_mcp_access_token
+        )):
             raise HTTPException(status_code=503, detail="Financial MCP credential unavailable")
         return {"symbol": request.symbol}
 
@@ -60,10 +60,14 @@ class FinancialMcp:
         from mcp import ClientSession
         from mcp.client.streamable_http import streamablehttp_client
 
+        # The provider supports X-API-Key; raw keys never go in a URL or OAuth Bearer header.
+        key = self.settings.financial_mcp_api_key
         token = self.settings.financial_mcp_access_token
-        assert token is not None  # validated before calling
-        # Fixed HTTPS URL prevents SSRF; never place bearer credentials in the URL.
-        headers = {"Authorization": f"Bearer {token.get_secret_value()}"}
+        if key and key.get_secret_value():
+            headers = {"X-API-Key": key.get_secret_value()}
+        else:
+            assert token is not None  # validated before calling
+            headers = {"Authorization": f"Bearer {token.get_secret_value()}"}
         try:
             async with asyncio.timeout(self.settings.financial_mcp_timeout_seconds):
                 async with streamablehttp_client(ENDPOINT, headers=headers) as streams:
