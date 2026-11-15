@@ -173,3 +173,17 @@ def test_unknown_source_alias_still_fails_closed(tmp_path):
     service = make_service(tmp_path, "Reserve withdrawal policy is documented.",
                            "Reserve policy [S1; S99].")
     assert service.ask("Explain reserve withdrawal") == {'answer': NO_EVIDENCE, 'sources': []}
+
+
+def test_document_sources_only_include_cited_evidence(tmp_path):
+    service = make_service(tmp_path, "Reserve withdrawal policy is documented.",
+                           "See reserve withdrawal policy [retirement.md].")
+    service.store.matches.append((Document(page_content="Reserve withdrawal policy has details.",
+                                          metadata={"source": "extra.md"}), 0.93))
+    assert service.ask("Explain reserve withdrawal policy")["sources"] == ["retirement.md"]
+
+
+def test_personal_exact_value_never_reaches_document_model(tmp_path):
+    service = make_service(tmp_path, "Net worth is documented.", "Unused")
+    service.llm = RunnableLambda(lambda _: pytest.fail("Personal value must abstain before model"))
+    assert service.ask("What is my exact net worth?") == {"answer": NO_EVIDENCE, "sources": []}

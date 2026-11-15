@@ -170,7 +170,7 @@ class RagService:
             item["text"] for item in results if item["source"] in cited
         ]):
             return {"answer": NO_EVIDENCE, "sources": []}
-        return {"answer": content, "sources": sources}
+        return {"answer": content, "sources": [source for source in sources if source in cited]}
 
     def ask_with_facts(self, question: str, facts: dict[str, str]) -> dict:
         """Use transient Java-authorized aggregate facts; never index them."""
