@@ -46,6 +46,9 @@ def test_endpoint_is_fixed_https_not_user_defined():
 def test_market_api_authorization_and_allowlist(monkeypatch):
     calls = []
     class Fake:
+        def validate(self, request):
+            return FinancialMcp(settings()).validate(request)
+
         def lookup(self, request):
             calls.append(request)
             return {"provider": "Alpha Vantage", "symbol": request.symbol,
