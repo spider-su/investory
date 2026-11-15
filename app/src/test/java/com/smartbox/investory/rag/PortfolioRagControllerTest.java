@@ -342,4 +342,83 @@ class PortfolioRagControllerTest {
     verify(profiles, times(2)).loadProfile(21L);
     verifyNoInteractions(mapper, client);
   }
+
+  @Test
+  void marketResearchRejectsOtherPortfolioBeforeExternalCall() {
+    when(authorization.canReadScoped(22L, user)).thenReturn(false);
+    var denied =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.researchMarketData(
+                    22L, new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT"),
+                    user));
+    assertEquals(HttpStatus.FORBIDDEN, denied.getStatusCode());
+    verifyNoInteractions(client, readModels, profiles, mapper, rateLimiter);
+  }
+
+  @Test
+  void marketResearchRejectsInvalidToolAndSymbolBeforeAuthorization() {
+    for (var request : List.of(
+        new PortfolioRagController.MarketResearchRequest("SELL", "MSFT"),
+        new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT;DROP"),
+        new PortfolioRagController.MarketResearchRequest("COMPANY_OVERVIEW", "msft"))) {
+      var error = assertThrows(ResponseStatusException.class,
+          () -> controller.researchMarketData(21L, request, user));
+      assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+    }
+    verifyNoInteractions(authorization, client, readModels, profiles, mapper);
+  }
+
+  @Test
+  void authorizedMarketResearchOnlySendsTickerAndTool() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    var result = new InvestoryRagClient.MarketData(
+        "Alpha Vantage", "GLOBAL_QUOTE", "MSFT", "https://www.alphavantage.co/",
+        "{\"price\": \"123.45\"}");
+    when(client.marketData("GLOBAL_QUOTE", "MSFT")).thenReturn(result);
+    assertEquals(result,
+        controller.researchMarketData(
+            21L, new PortfolioRagController.MarketResearchRequest("GLOBAL_QUOTE", "MSFT"),
+            user));
+    verifyNoInteractions(readModels, profiles, mapper);
+  }
+
+  @Test
+  void largestHoldingResearchUsesOnlyScopedPublicTicker() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    when(readModels.largestHoldingSymbol(21L)).thenReturn("NVDA");
+    var result = new InvestoryRagClient.MarketData(
+        "Alpha Vantage", "COMPANY_OVERVIEW", "NVDA",
+        "https://www.alphavantage.co/", "{\"symbol\": \"NVDA\"}");
+    when(client.marketData("COMPANY_OVERVIEW", "NVDA")).thenReturn(result);
+    assertEquals(result, controller.researchLargestHolding(21L, user));
+    verify(client).marketData("COMPANY_OVERVIEW", "NVDA");
+    verifyNoInteractions(profiles, mapper);
+  }
+
+  @Test
+  void largestHoldingWithoutPublicTickerCannotCallProvider() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    when(readModels.largestHoldingSymbol(21L)).thenReturn("INVALID SYMBOL");
+    var error = assertThrows(ResponseStatusException.class,
+        () -> controller.researchLargestHolding(21L, user));
+    assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, error.getStatusCode());
+    verifyNoInteractions(client, profiles, mapper);
+  }
+
+  @Test
+  void marketResearchSharesTheExistingRateLimit() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(false);
+    var denied = assertThrows(ResponseStatusException.class,
+        () -> controller.researchLargestHolding(21L, user));
+    assertEquals(HttpStatus.TOO_MANY_REQUESTS, denied.getStatusCode());
+    verifyNoInteractions(client, readModels, profiles, mapper);
+  }
+
+
 }
