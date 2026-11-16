@@ -20,7 +20,25 @@ public interface InvestoryRagClient {
 
   record Documentation(List<Snippet> matches) {}
 
-  record MarketData(String provider, String tool, String symbol, String source, String data) {}
+  record CacheMetadata(
+      String status,
+      java.time.Instant fetchedAt,
+      java.time.Instant expiresAt,
+      java.time.LocalDate asOf,
+      int remainingBudget,
+      List<String> warnings) {}
+
+  record MarketData(
+      String provider,
+      String tool,
+      String symbol,
+      String source,
+      String data,
+      CacheMetadata cache) {
+    public MarketData(String provider, String tool, String symbol, String source, String data) {
+      this(provider, tool, symbol, source, data, null);
+    }
+  }
 
   record RagAnswer(String answer, List<String> sources) {}
 }

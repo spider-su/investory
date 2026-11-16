@@ -24,6 +24,7 @@ public class PortfolioRagController {
   private final ProfileSnapshotReader profiles;
   private final ProfileResponseMapper mapper;
   private final InvestoryRagClient rag;
+  private final ExternalMarketDataService market;
   private final RagUserRateLimiter rateLimiter;
   private final RagConcurrencyLimiter concurrencyLimiter;
   private final PortfolioProfitabilityAnswer profitability;
@@ -37,11 +38,13 @@ public class PortfolioRagController {
       RagUserRateLimiter rateLimiter,
       RagConcurrencyLimiter concurrencyLimiter,
       PortfolioProfitabilityAnswer profitability,
-      PortfolioAssistantReadModels readModels) {
+      PortfolioAssistantReadModels readModels,
+      ExternalMarketDataService market) {
     this.authorization = authorization;
     this.profiles = profiles;
     this.mapper = mapper;
     this.rag = rag;
+    this.market = market;
     this.rateLimiter = rateLimiter;
     this.concurrencyLimiter = concurrencyLimiter;
     this.profitability = profitability;
@@ -142,7 +145,11 @@ public class PortfolioRagController {
     }
     checkMarketAccess(portfolioId, authentication);
     try {
-      return rag.marketData(request.tool(), request.symbol());
+      return market.lookup(request.tool(), request.symbol());
+    } catch (ExternalMarketDataService.BudgetExceededException
+        | ExternalMarketDataService.BusyException e) {
+      throw new ResponseStatusException(
+          HttpStatus.TOO_MANY_REQUESTS, "External market budget exhausted or service busy");
     } catch (PythonRagClient.MarketDataNotEntitledException e) {
       throw new ResponseStatusException(
           HttpStatus.FAILED_DEPENDENCY, "Requested market data is not available from the provider");
@@ -171,11 +178,15 @@ public class PortfolioRagController {
             HttpStatus.UNPROCESSABLE_ENTITY, "No supported public ticker for the largest holding");
       }
       try {
-        return rag.marketData("COMPANY_OVERVIEW", symbol);
+        return market.lookup("COMPANY_OVERVIEW", symbol);
       } catch (PythonRagClient.MarketDataNotEntitledException e) {
         // The returned tool is explicit: a quote is not company fundamentals.
-        return rag.marketData("GLOBAL_QUOTE", symbol);
+        return market.lookup("GLOBAL_QUOTE", symbol);
       }
+    } catch (ExternalMarketDataService.BudgetExceededException
+        | ExternalMarketDataService.BusyException e) {
+      throw new ResponseStatusException(
+          HttpStatus.TOO_MANY_REQUESTS, "External market budget exhausted or service busy");
     } catch (PythonRagClient.MarketDataNotEntitledException e) {
       throw new ResponseStatusException(
           HttpStatus.FAILED_DEPENDENCY, "Requested market data is not available from the provider");

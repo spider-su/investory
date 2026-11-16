@@ -24,7 +24,8 @@ class PortfolioResearchMcpAdapterTest {
   private final RetirementPlanApi plans = mock(RetirementPlanApi.class);
   private final ObjectProvider<InvestoryRagClient> provider = mock(ObjectProvider.class);
   private final PortfolioResearchMcpAdapter adapter =
-      new PortfolioResearchMcpAdapter(investment, profiles, mapper, plans, provider);
+      new PortfolioResearchMcpAdapter(
+          investment, profiles, mapper, plans, provider, mock(ObjectProvider.class));
 
   @Test
   void periodAndPortfolioArePreservedWithoutModelArithmetic() {
@@ -42,7 +43,7 @@ class PortfolioResearchMcpAdapterTest {
     verify(investment).loadDashboard(query.capture());
     assertEquals(21L, query.getValue().portfolioId());
     assertEquals(DashboardPeriod.MAX, query.getValue().period());
-    verifyNoInteractions(profiles, mapper, plans, provider);
+    verifyNoInteractions(profiles, mapper, plans, provider, mock(ObjectProvider.class));
   }
 
   @Test

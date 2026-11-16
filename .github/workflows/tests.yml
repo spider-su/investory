@@ -450,7 +450,7 @@ jobs:
         if: steps.schema-cache.outputs.cache-hit != 'true'
         run: |
           sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am initialize test-compile failsafe:integration-test failsafe:verify \
-            "-Dit.test=FlywayMigrationChainIT,MarketRadarSchemaMigrationIT,BenchmarkSequenceMigrationIT,SchemaStructureContractIT,MigrationDataRepairIT,LongTermExplicitMigrationIT,LongTermHardeningMigrationIT,SameCurrencyFxMigrationIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+            "-Dit.test=FlywayMigrationChainIT,MarketRadarSchemaMigrationIT,ExternalMarketCacheIT,BenchmarkSequenceMigrationIT,SchemaStructureContractIT,MigrationDataRepairIT,LongTermExplicitMigrationIT,LongTermHardeningMigrationIT,SameCurrencyFxMigrationIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
 
       - name: Record green schema result
         if: success() && steps.schema-cache.outputs.cache-hit != 'true'

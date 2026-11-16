@@ -81,7 +81,7 @@ def test_api_key_is_an_alternative_to_oauth():
 @pytest.mark.parametrize("payload,expected_status", [
     ('{"symbol":"MSFT"}', None),
     ('{"error":{"type":"rate_limit","message":"premium endpoint"}}', 424),
-    ('{"Information":"provider quota exceeded"}', 502),
+    ('{"Information":"provider quota exceeded"}', 429),
     ('{}', 502),
 ])
 def test_api_key_uses_header_and_never_url(monkeypatch, mode, payload, expected_status):

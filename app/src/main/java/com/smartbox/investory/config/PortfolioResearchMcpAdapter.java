@@ -24,18 +24,21 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
   private final ProfileResponseMapper mapper;
   private final RetirementPlanApi plans;
   private final ObjectProvider<InvestoryRagClient> rag;
+  private final ObjectProvider<com.smartbox.investory.rag.ExternalMarketDataService> market;
 
   public PortfolioResearchMcpAdapter(
       InvestmentDashboardApi investment,
       ProfileSnapshotReader profiles,
       ProfileResponseMapper mapper,
       RetirementPlanApi plans,
-      ObjectProvider<InvestoryRagClient> rag) {
+      ObjectProvider<InvestoryRagClient> rag,
+      ObjectProvider<com.smartbox.investory.rag.ExternalMarketDataService> market) {
     this.investment = investment;
     this.profiles = profiles;
     this.mapper = mapper;
     this.plans = plans;
     this.rag = rag;
+    this.market = market;
   }
 
   private static String decimal(BigDecimal value) {
@@ -94,7 +97,7 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
         period.wireValue(),
         overview.baseCurrency() == null ? null : overview.baseCurrency().name(),
         decimal(overview.totalProfit()),
-        overview.totalProfit() != null,
+        decimal(overview.totalProfit()) != null,
         Instant.now(),
         "live:investment-performance");
   }
@@ -107,7 +110,11 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
         b != null
             && b.portfolioPerformanceAvailable()
             && b.benchmarkAvailable()
-            && "SPY".equals(b.symbol());
+            && "SPY".equals(b.symbol())
+            && decimal(b.portfolioPl()) != null
+            && decimal(b.benchmarkPl()) != null
+            && decimal(b.portfolioReturnPct()) != null
+            && decimal(b.benchmarkReturnPct()) != null;
     return new BenchmarkResult(
         period.wireValue(),
         p.overview().baseCurrency() == null ? null : p.overview().baseCurrency().name(),
@@ -152,18 +159,33 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
 
   @Override
   public MarketQuote quote(long id, String symbol) {
-    // Connected to the durable shared market gateway in the cache/limits stage.
-    throw new IllegalStateException("External cache gateway unavailable");
+    var gateway = market.getIfAvailable();
+    if (gateway == null) throw new IllegalStateException();
+    var value = gateway.lookup("GLOBAL_QUOTE", symbol);
+    var c = value.cache();
+    return new MarketQuote(
+        value.provider(),
+        value.tool(),
+        value.symbol(),
+        value.source(),
+        value.data(),
+        c.status(),
+        c.fetchedAt(),
+        c.asOf(),
+        c.expiresAt(),
+        c.remainingBudget(),
+        c.warnings());
   }
 
   @Override
   public Capabilities capabilities(long id) {
+    var gateway = market.getIfAvailable();
     return new Capabilities(
         Arrays.stream(DashboardPeriod.values()).map(DashboardPeriod::wireValue).toList(),
-        false,
-        null,
-        null,
-        "not configured",
+        gateway != null && gateway.enabled(),
+        gateway == null ? null : gateway.budget(),
+        gateway == null || !gateway.enabled() ? null : gateway.remaining(),
+        "rolling 24 hours; attempted lookups, including failures",
         "Computed timestamps do not imply uniform underlying price freshness.");
   }
 }

@@ -32,6 +32,7 @@ class PortfolioRagControllerTest {
   @Mock ProfileSnapshotReader profiles;
   @Mock ProfileResponseMapper mapper;
   @Mock InvestoryRagClient client;
+  @Mock ExternalMarketDataService market;
   @Mock RagUserRateLimiter rateLimiter;
   @Mock PortfolioProfitabilityAnswer profitability;
   @Mock PortfolioAssistantReadModels readModels;
@@ -51,7 +52,8 @@ class PortfolioRagControllerTest {
             rateLimiter,
             concurrencyLimiter,
             profitability,
-            readModels);
+            readModels,
+            market);
     user =
         new UsernamePasswordAuthenticationToken(
             "user-a", "n/a", List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
@@ -348,9 +350,9 @@ class PortfolioRagControllerTest {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(readModels.largestHoldingSymbol(21L)).thenReturn("MSFT");
-    when(client.marketData("GLOBAL_QUOTE", "MSFT"))
+    when(market.lookup("GLOBAL_QUOTE", "MSFT"))
         .thenThrow(new PythonRagClient.MarketResearchUnavailableException());
-    when(client.marketData("COMPANY_OVERVIEW", "MSFT"))
+    when(market.lookup("COMPANY_OVERVIEW", "MSFT"))
         .thenThrow(new PythonRagClient.MarketResearchUnavailableException());
     var direct =
         assertThrows(
@@ -410,7 +412,7 @@ class PortfolioRagControllerTest {
             "MSFT",
             "https://www.alphavantage.co/",
             "{\"price\": \"123.45\"}");
-    when(client.marketData("GLOBAL_QUOTE", "MSFT")).thenReturn(result);
+    when(market.lookup("GLOBAL_QUOTE", "MSFT")).thenReturn(result);
     assertEquals(
         result,
         controller.researchMarketData(
@@ -430,9 +432,9 @@ class PortfolioRagControllerTest {
             "NVDA",
             "https://www.alphavantage.co/",
             "{\"symbol\": \"NVDA\"}");
-    when(client.marketData("COMPANY_OVERVIEW", "NVDA")).thenReturn(result);
+    when(market.lookup("COMPANY_OVERVIEW", "NVDA")).thenReturn(result);
     assertEquals(result, controller.researchLargestHolding(21L, user));
-    verify(client).marketData("COMPANY_OVERVIEW", "NVDA");
+    verify(market).lookup("COMPANY_OVERVIEW", "NVDA");
     verifyNoInteractions(profiles, mapper);
   }
 
@@ -441,12 +443,12 @@ class PortfolioRagControllerTest {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(readModels.largestHoldingSymbol(21L)).thenReturn("MSFT");
-    when(client.marketData("COMPANY_OVERVIEW", "MSFT"))
+    when(market.lookup("COMPANY_OVERVIEW", "MSFT"))
         .thenThrow(new PythonRagClient.MarketDataNotEntitledException());
     var quote =
         new InvestoryRagClient.MarketData(
             "Alpha Vantage", "GLOBAL_QUOTE", "MSFT", "https://www.alphavantage.co/", "quote data");
-    when(client.marketData("GLOBAL_QUOTE", "MSFT")).thenReturn(quote);
+    when(market.lookup("GLOBAL_QUOTE", "MSFT")).thenReturn(quote);
     assertEquals(quote, controller.researchLargestHolding(21L, user));
     verifyNoInteractions(profiles, mapper);
   }
@@ -456,13 +458,13 @@ class PortfolioRagControllerTest {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(readModels.largestHoldingSymbol(21L)).thenReturn("MSFT");
-    when(client.marketData("COMPANY_OVERVIEW", "MSFT"))
+    when(market.lookup("COMPANY_OVERVIEW", "MSFT"))
         .thenThrow(new PythonRagClient.RagUnavailableException());
     var error =
         assertThrows(
             ResponseStatusException.class, () -> controller.researchLargestHolding(21L, user));
     assertEquals(HttpStatus.BAD_GATEWAY, error.getStatusCode());
-    verify(client, never()).marketData("GLOBAL_QUOTE", "MSFT");
+    verify(market, never()).lookup("GLOBAL_QUOTE", "MSFT");
   }
 
   @Test
