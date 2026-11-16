@@ -103,8 +103,10 @@ class FinancialMcp:
             raise HTTPException(status_code=502, detail="Financial provider returned an error")
         if response.isError:
             raise HTTPException(status_code=502, detail="Financial provider rejected lookup")
-        if decoded == {} or decoded == []:
-            raise HTTPException(status_code=502, detail="Financial provider returned no data")
+        if (decoded == {} or decoded == []
+                or (tool == "GLOBAL_QUOTE" and isinstance(decoded, dict)
+                    and decoded.get("Global Quote") == {})):
+            raise HTTPException(status_code=422, detail="Financial provider has no data for symbol")
         # Never accept provider-supplied source identifiers as verified citations.
         return {
             "provider": "Alpha Vantage",

@@ -503,7 +503,9 @@ time, duplicate concurrent keys share the same in-flight result, and different
 keys fail busy. The durable budget is atomic across replicas; in-flight
 coalescing is process-local. Revisit distributed admission before scaling out.
 
-Success is cached for 24 hours. Missing entitlement is cached for the same
+Success and explicit missing provider coverage are cached for 24 hours. Empty
+provider results return 422; Investory does not guess another ticker/listing or
+invent a quote for an unsupported holding. Missing entitlement is cached for the same
 key for 24 hours; largest-holding research explicitly falls back to a quote
 only for that error. Provider quota errors pause all lookups for this profile
 for 24 hours. Transport errors pause that key for five minutes. There are no
@@ -517,5 +519,6 @@ Responses include `cache.status` (`FRESH`, `CACHED`, or opt-in `STALE`),
 quote format supplies its trading date. Fetch/expiry times are not valuation
 dates. Unknown dates remain null. Free quotes must not be represented as live
 prices. Provider/source fields identify provenance, not audited per-field facts.
-Quota exhaustion/busy returns sanitized 429, entitlement 424, disabled service
+Quota exhaustion/busy returns sanitized 429, entitlement 424, missing provider
+coverage 422, disabled service
 503, and transport failure 502. These failures do not disable core own MCP.

@@ -120,6 +120,8 @@ async def run_bounded(endpoint: str, gate: AccessGate, operation):
         raise HTTPException(status_code=504, detail="RAG request deadline exceeded") from exc
     except HTTPException as exc:
         outcome = "upstream_error"
+        if endpoint == "market" and exc.status_code == 422:
+            raise HTTPException(status_code=422, detail="Financial provider has no data for symbol") from None
         if endpoint == "market" and exc.status_code == 429:
             raise HTTPException(status_code=429, detail="Financial provider quota unavailable") from None
         if endpoint == "market" and exc.status_code == 424:

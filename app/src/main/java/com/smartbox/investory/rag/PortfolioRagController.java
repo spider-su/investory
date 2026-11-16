@@ -150,6 +150,10 @@ public class PortfolioRagController {
         | ExternalMarketDataService.BusyException e) {
       throw new ResponseStatusException(
           HttpStatus.TOO_MANY_REQUESTS, "External market budget exhausted or service busy");
+    } catch (PythonRagClient.MarketDataUnavailableException e) {
+      throw new ResponseStatusException(
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          "Provider has no market data for this ticker; Investory holdings remain authoritative");
     } catch (PythonRagClient.MarketDataNotEntitledException e) {
       throw new ResponseStatusException(
           HttpStatus.FAILED_DEPENDENCY, "Requested market data is not available from the provider");
@@ -187,6 +191,10 @@ public class PortfolioRagController {
         | ExternalMarketDataService.BusyException e) {
       throw new ResponseStatusException(
           HttpStatus.TOO_MANY_REQUESTS, "External market budget exhausted or service busy");
+    } catch (PythonRagClient.MarketDataUnavailableException e) {
+      throw new ResponseStatusException(
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          "Provider has no market data for this ticker; Investory holdings remain authoritative");
     } catch (PythonRagClient.MarketDataNotEntitledException e) {
       throw new ResponseStatusException(
           HttpStatus.FAILED_DEPENDENCY, "Requested market data is not available from the provider");

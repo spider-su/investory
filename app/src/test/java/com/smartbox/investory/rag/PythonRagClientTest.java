@@ -199,4 +199,13 @@ class PythonRagClientTest {
         IllegalStateException.class,
         () -> new PythonRagClient(RestClient.builder(), "http://127.0.0.1", ""));
   }
+
+  @Test
+  void absentProviderCoverageHasTypedSanitizedFailure() {
+    status.set(422);
+    response.set("sensitive diagnostic");
+    assertThrows(
+        PythonRagClient.MarketDataUnavailableException.class,
+        () -> client.marketData("GLOBAL_QUOTE", "UNLISTED"));
+  }
 }
