@@ -90,10 +90,16 @@ class FinancialMcp:
         if isinstance(decoded, dict) and any(
             key.lower() in {"error", "error message", "information", "note"} for key in decoded
         ):
-            if "premium" in json.dumps(decoded).lower():
+            message = json.dumps(decoded).lower()
+            # Some entitlement envelopes misleadingly use type=rate_limit; match
+            # their explicit endpoint restriction first. A generic upgrade advert
+            # in a daily-quota message is not proof of missing entitlement.
+            if any(phrase in message for phrase in ("premium endpoint", "premium-only")):
                 raise HTTPException(status_code=424, detail="Financial provider entitlement unavailable")
-            if any(word in json.dumps(decoded).lower() for word in ("rate", "quota", "limit")):
+            if any(word in message for word in ("rate", "quota", "limit")):
                 raise HTTPException(status_code=429, detail="Financial provider quota unavailable")
+            if "premium" in message:
+                raise HTTPException(status_code=424, detail="Financial provider entitlement unavailable")
             raise HTTPException(status_code=502, detail="Financial provider returned an error")
         if response.isError:
             raise HTTPException(status_code=502, detail="Financial provider rejected lookup")
