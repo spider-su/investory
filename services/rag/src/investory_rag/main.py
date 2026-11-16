@@ -31,6 +31,10 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
 
 
+class SearchRequest(AskRequest):
+    limit: int = Field(default=4, ge=1, le=8, strict=True)
+
+
 class AskResponse(BaseModel):
     answer: str
     sources: list[str]
@@ -154,6 +158,16 @@ def metrics(
     # Distinct read-only metrics token, never the inference service credential.
     gate.authenticate_metrics(authorization)
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.post("/search")
+async def search_docs(
+    request: SearchRequest,
+    gate: AccessGate = Depends(require_gate),
+    provider: Callable[[], RagService] = Depends(get_service_provider),
+) -> dict:
+    return await run_bounded("documents", gate,
+                             lambda: {"matches": provider().search(request.question, request.limit)})
 
 
 @app.post("/ask", response_model=AskResponse)

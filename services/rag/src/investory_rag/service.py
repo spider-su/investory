@@ -141,6 +141,12 @@ class RagService:
             return []
         return matches
 
+    def search(self, question: str, limit: int = 4) -> list[dict]:
+        """Public policy-filtered evidence only; does not invoke the chat model."""
+        if not question.strip() or len(question) > self.settings.max_question_chars or not 1 <= limit <= 8:
+            raise ValueError("Invalid documentation search")
+        return self.retrieve_evidence(question)[:limit]
+
     def ask(self, question: str) -> dict:
         if not question.strip() or len(question) > self.settings.max_question_chars:
             raise ValueError("question must be non-empty and within configured length")

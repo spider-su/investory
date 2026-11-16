@@ -89,7 +89,18 @@ class InvestmentMcpEndToEndTest {
       assertTrue(client.isInitialized());
       List<String> names = client.listTools().tools().stream().map(McpSchema.Tool::name).toList();
       assertEquals(
-          List.of("get_investment_ytd", "get_portfolio_dashboard", "get_portfolio_performance"),
+          List.of(
+              "get_benchmark_comparison",
+              "get_investment_period_result",
+              "get_investment_ytd",
+              "get_investory_capabilities",
+              "get_market_quote",
+              "get_portfolio_dashboard",
+              "get_portfolio_holdings",
+              "get_portfolio_performance",
+              "get_profile_summary",
+              "get_retirement_plan",
+              "search_investory_docs"),
           names.stream().sorted().toList());
 
       var result =
@@ -127,6 +138,45 @@ class InvestmentMcpEndToEndTest {
         }
       }
 
+      for (String name :
+          List.of(
+              "get_profile_summary",
+              "get_portfolio_holdings",
+              "get_investment_period_result",
+              "get_benchmark_comparison",
+              "get_retirement_plan",
+              "search_investory_docs",
+              "get_market_quote",
+              "get_investory_capabilities")) {
+        var arguments = new java.util.HashMap<String, Object>();
+        arguments.put("portfolioId", 7);
+        if (name.equals("search_investory_docs")) arguments.put("query", "How do transfers work?");
+        if (name.equals("get_market_quote")) arguments.put("symbol", "MSFT");
+        var success = client.callTool(new McpSchema.CallToolRequest(name, arguments));
+        assertFalse(Boolean.TRUE.equals(success.isError()), name);
+        assertNotNull(success.structuredContent());
+        arguments.put("portfolioId", 8);
+        var forbidden = client.callTool(new McpSchema.CallToolRequest(name, arguments));
+        assertTrue(Boolean.TRUE.equals(forbidden.isError()), name);
+        assertTrue(forbidden.content().toString().contains("Portfolio access denied"));
+      }
+      var max =
+          client.callTool(
+              new McpSchema.CallToolRequest(
+                  "get_investment_period_result", Map.of("portfolioId", 7, "period", "MAX")));
+      assertFalse(Boolean.TRUE.equals(max.isError()));
+      assertTrue(max.content().toString().contains("MAX"));
+      var unsupportedPeriod =
+          client.callTool(
+              new McpSchema.CallToolRequest(
+                  "get_investment_period_result", Map.of("portfolioId", 7, "period", "2025")));
+      assertTrue(Boolean.TRUE.equals(unsupportedPeriod.isError()));
+      var oversizedHoldings =
+          client.callTool(
+              new McpSchema.CallToolRequest(
+                  "get_portfolio_holdings", Map.of("portfolioId", 7, "limit", 21)));
+      assertTrue(Boolean.TRUE.equals(oversizedHoldings.isError()));
+
       assertThrows(
           McpError.class,
           () ->
@@ -162,6 +212,74 @@ class InvestmentMcpEndToEndTest {
           throw new UnsupportedOperationException();
         }
       };
+    }
+
+    @Bean
+    PortfolioResearchClient portfolioResearchClient() {
+      var client = org.mockito.Mockito.mock(PortfolioResearchClient.class);
+      var now = java.time.Instant.parse("2026-11-16T00:00:00Z");
+      org.mockito.Mockito.when(client.profile(7L))
+          .thenReturn(
+              new PortfolioResearchClient.ProfileSummary(
+                  "PLN", "123.45", "100", "23.45", "100", "23.45", now, "live:profile"));
+      org.mockito.Mockito.when(client.holdings(7L, 5))
+          .thenReturn(
+              new PortfolioResearchClient.HoldingsSummary(
+                  "PLN",
+                  List.of(new PortfolioResearchClient.Holding("MSFT", "100", "10")),
+                  now,
+                  "live:investment-structure",
+                  "current"));
+      for (var period : com.smartbox.investory.investment.api.reporting.DashboardPeriod.values()) {
+        org.mockito.Mockito.when(client.performance(7L, period))
+            .thenReturn(
+                new PortfolioResearchClient.PeriodResult(
+                    period.wireValue(), "PLN", "5.00", true, now, "live:investment-performance"));
+        org.mockito.Mockito.when(client.benchmark(7L, period))
+            .thenReturn(
+                new PortfolioResearchClient.BenchmarkResult(
+                    period.wireValue(),
+                    "PLN",
+                    "SPY",
+                    true,
+                    "5",
+                    "4",
+                    "5",
+                    "4",
+                    now,
+                    "live:investment-benchmark",
+                    "existing scenario"));
+      }
+      org.mockito.Mockito.when(client.retirement(7L))
+          .thenReturn(
+              new PortfolioResearchClient.RetirementSummary(
+                  false, null, null, null, null, List.of(), now, "live:retirement-plan"));
+      org.mockito.Mockito.when(client.search(7L, "How do transfers work?", 4))
+          .thenReturn(
+              new PortfolioResearchClient.Documentation(
+                  List.of(
+                      new PortfolioResearchClient.Snippet(
+                          "accounting.md", "Internal transfers conserve capital.", 0.9)),
+                  now));
+      org.mockito.Mockito.when(client.quote(7L, "MSFT"))
+          .thenReturn(
+              new PortfolioResearchClient.MarketQuote(
+                  "Alpha Vantage",
+                  "GLOBAL_QUOTE",
+                  "MSFT",
+                  "https://www.alphavantage.co/",
+                  "public data",
+                  "CACHED",
+                  now,
+                  java.time.LocalDate.of(2026, 11, 13),
+                  now.plusSeconds(3600),
+                  19,
+                  List.of("EOD")));
+      org.mockito.Mockito.when(client.capabilities(7L))
+          .thenReturn(
+              new PortfolioResearchClient.Capabilities(
+                  List.of("YTD", "MAX"), true, 20, 19, "rolling 24 hours", "EOD"));
+      return client;
     }
 
     @Bean

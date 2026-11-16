@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongFunction;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -26,23 +27,38 @@ public class InvestmentMcpConfiguration {
 
   @Bean
   List<McpServerFeatures.SyncToolSpecification> investmentMcpToolSpecifications(
-      InvestmentMcpTools tools, ObjectMapper mapper) {
-    return List.of(
-        tool(
-            "get_portfolio_dashboard",
-            "Read the current investment dashboard, including positions and summaries.",
-            tools::getPortfolioDashboard,
-            mapper),
-        tool(
-            "get_portfolio_performance",
-            "Read the portfolio's historical performance KPI and return context.",
-            tools::getPortfolioPerformance,
-            mapper),
-        tool(
-            "get_investment_ytd",
-            "Read the current calendar year's investment result in base currency.",
-            tools::getInvestmentYtd,
+      InvestmentMcpTools tools,
+      ObjectMapper mapper,
+      ObjectProvider<PortfolioResearchClient> research,
+      InvestmentMcpAuthorization authorization) {
+    var specifications =
+        new java.util.ArrayList<>(
+            List.of(
+                tool(
+                    "get_portfolio_dashboard",
+                    "Read the current investment dashboard, including positions and summaries.",
+                    tools::getPortfolioDashboard,
+                    mapper),
+                tool(
+                    "get_portfolio_performance",
+                    "Read the portfolio's historical performance KPI and return context.",
+                    tools::getPortfolioPerformance,
+                    mapper),
+                tool(
+                    "get_investment_ytd",
+                    "Read the current calendar year's investment result in base currency.",
+                    tools::getInvestmentYtd,
+                    mapper)));
+    specifications.addAll(
+        PortfolioResearchSpecifications.create(
+            () -> {
+              var client = research.getIfAvailable();
+              if (client == null) throw new IllegalStateException();
+              return client;
+            },
+            authorization,
             mapper));
+    return List.copyOf(specifications);
   }
 
   private static McpServerFeatures.SyncToolSpecification tool(

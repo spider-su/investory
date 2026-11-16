@@ -44,7 +44,7 @@ controls are still required outside local development. Never log or commit crede
 
 ## Tools
 
-All tools take one required positive integer argument, `portfolioId`, within the signed
+All tools require a positive integer `portfolioId` within the signed
 64-bit ID range. Overflowing values are rejected before portfolio authorization or data reads. Results are JSON-serialized
 Investment API read models, in portfolio base currency where the API defines monetary values.
 
@@ -53,6 +53,14 @@ Investment API read models, in portfolio base currency where the API defines mon
 | `get_portfolio_dashboard` | Current dashboard summary, performance, positions, cash flow, risk, and data quality |
 | `get_portfolio_performance` | Historical performance KPI and return context |
 | `get_investment_ytd` | Current calendar-year investment result |
+| `get_profile_summary` | Whole-wealth totals, currency and decimal strings |
+| `get_portfolio_holdings` | Current Investment holdings; optional `limit` 1–20, default 5 |
+| `get_investment_period_result` | Profit/loss for a supported `period`, default YTD |
+| `get_benchmark_comparison` | Existing SPY benchmark for `period`, default YTD |
+| `get_retirement_plan` | Selected saved plan and assumptions |
+| `search_investory_docs` | Public `query` excerpts, optional `limit` 1–8, default 4; no chat call |
+| `get_market_quote` | Optional public `symbol` lookup through the application gateway |
+| `get_investory_capabilities` | Supported periods and external-provider policy/availability |
 
 Example `tools/call` request:
 
@@ -89,7 +97,7 @@ npx -y @modelcontextprotocol/inspector --cli http://localhost:8080/mcp \
   --header "Authorization: Bearer $INVESTORY_TOKEN"
 ```
 
-After connecting, initialize the session, list tools, then call one of the three tool names above
+After connecting, initialize the session, list tools, then call one of the tool names above
 with an authorized `portfolioId`. The automated module test also uses the official MCP Java client
 against a real Streamable HTTP server and verifies initialization, discovery, invocation,
 serialization, unauthenticated rejection, and cross-profile denial.
@@ -117,3 +125,22 @@ The app composition layer implements `InvestmentMcpAuthorization` with the estab
 - Tool reports portfolio data unavailable: check Investory's application/database health and logs;
   internal details are intentionally omitted from MCP responses.
 - Browser-cookie clients can receive CSRF rejection. Use Basic or bearer Authorization headers.
+
+## Structured query boundaries
+
+The additional tools use the `PortfolioResearchClient` application port. The app
+implements it with the same public Profile, Investment and Retirement APIs used
+by chat. No REST-controller or persistence dependency enters the MCP adapter.
+Every tool call, including cache hits, requires active portfolio authorization.
+
+`period` accepts the wire values published by `DashboardPeriod` in tool schemas;
+rolling periods and YTD/MAX are distinct from arbitrary calendar dates. Holdings
+are current positions, not historical positions. Money is represented as decimal
+strings copied from domain results; no LLM arithmetic is used. `computedAt` is a
+response computation timestamp, not a uniform valuation date for all assets.
+Missing values remain null/unavailable, not invented zeros.
+
+Documentation search returns bounded public excerpts and retrieval scores, not
+calibrated confidence. Provider data is untrusted data, never executable model
+instructions. Unsupported optional services fail closed without disabling core
+portfolio tools.

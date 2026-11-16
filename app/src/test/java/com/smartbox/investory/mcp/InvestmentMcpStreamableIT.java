@@ -151,7 +151,17 @@ class InvestmentMcpStreamableIT {
       assertThat(client.listTools().tools())
           .extracting(McpSchema.Tool::name)
           .containsExactlyInAnyOrder(
-              "get_portfolio_dashboard", "get_portfolio_performance", "get_investment_ytd");
+              "get_portfolio_dashboard",
+              "get_portfolio_performance",
+              "get_investment_ytd",
+              "get_profile_summary",
+              "get_portfolio_holdings",
+              "get_investment_period_result",
+              "get_benchmark_comparison",
+              "get_retirement_plan",
+              "search_investory_docs",
+              "get_market_quote",
+              "get_investory_capabilities");
 
       var result =
           client.callTool(
@@ -161,6 +171,32 @@ class InvestmentMcpStreamableIT {
       assertFalse(Boolean.TRUE.equals(result.isError()));
       assertThat(result.structuredContent()).isInstanceOf(Map.class);
       assertThat(result.content().toString()).contains("NVDA.US", "TSLA.US");
+
+      for (String name :
+          java.util.List.of(
+              "get_profile_summary",
+              "get_portfolio_holdings",
+              "get_investment_period_result",
+              "get_benchmark_comparison",
+              "get_retirement_plan",
+              "get_investory_capabilities")) {
+        var read =
+            client.callTool(
+                new McpSchema.CallToolRequest(
+                    name, Map.of("portfolioId", HappyInvestorTestData.PORTFOLIO_ID)));
+        assertFalse(Boolean.TRUE.equals(read.isError()), name);
+        assertThat(read.structuredContent()).isInstanceOf(Map.class);
+        var deniedRead =
+            client.callTool(new McpSchema.CallToolRequest(name, Map.of("portfolioId", 999)));
+        assertTrue(Boolean.TRUE.equals(deniedRead.isError()), name);
+        assertThat(deniedRead.content().toString()).contains("Portfolio access denied");
+      }
+      var missingProvider =
+          client.callTool(
+              new McpSchema.CallToolRequest(
+                  "get_market_quote",
+                  Map.of("portfolioId", HappyInvestorTestData.PORTFOLIO_ID, "symbol", "MSFT")));
+      assertTrue(Boolean.TRUE.equals(missingProvider.isError()));
 
       var crossProfile =
           client.callTool(

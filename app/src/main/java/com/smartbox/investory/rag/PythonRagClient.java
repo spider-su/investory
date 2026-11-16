@@ -88,6 +88,44 @@ public class PythonRagClient implements InvestoryRagClient {
   }
 
   @Override
+  public Documentation searchDocumentation(String question, int limit) {
+    if (question == null
+        || question.isBlank()
+        || question.length() > 2000
+        || limit < 1
+        || limit > 8) {
+      throw new IllegalArgumentException("Invalid documentation search");
+    }
+    try {
+      var result =
+          client
+              .post()
+              .uri("/search")
+              .contentType(MediaType.APPLICATION_JSON)
+              .body(Map.of("question", question, "limit", limit))
+              .retrieve()
+              .body(Documentation.class);
+      if (result == null
+          || result.matches() == null
+          || result.matches().size() > limit
+          || result.matches().stream()
+              .anyMatch(
+                  m ->
+                      m == null
+                          || m.source() == null
+                          || m.source().isBlank()
+                          || m.text() == null
+                          || m.text().length() > 20000
+                          || !Double.isFinite(m.score()))) {
+        throw new RagUnavailableException();
+      }
+      return result;
+    } catch (RestClientException e) {
+      throw new RagUnavailableException();
+    }
+  }
+
+  @Override
   public RagAnswer askDocumentation(String question) {
     return post("/ask", Map.of("question", question));
   }
