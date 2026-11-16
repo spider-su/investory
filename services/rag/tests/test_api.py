@@ -46,3 +46,27 @@ def test_unconfigured_api_rejects_every_request():
         ).status_code == 503
     finally:
         app.dependency_overrides.clear()
+
+
+def test_document_search_is_private_bounded_and_retrieval_only():
+    class SearchService:
+        def search(self, question, limit):
+            assert question == "Explain contributions"
+            assert limit == 2
+            return [{"source": "accounting.md", "text": "External flow", "score": 0.8}]
+    app.dependency_overrides[get_service_provider] = lambda: lambda: SearchService()
+    app.dependency_overrides[get_access_gate] = lambda: AccessGate(
+        Settings(api_token=SecretStr("test-secret"), _env_file=None)
+    )
+    try:
+        client = TestClient(app)
+        body = {"question": "Explain contributions", "limit": 2}
+        assert client.post("/search", json=body).status_code == 401
+        headers = {"Authorization": "Bearer test-secret"}
+        response = client.post("/search", headers=headers, json=body)
+        assert response.status_code == 200
+        assert response.json()["matches"][0]["source"] == "accounting.md"
+        assert client.post("/search", headers=headers,
+                           json={**body, "limit": 9}).status_code == 422
+    finally:
+        app.dependency_overrides.clear()

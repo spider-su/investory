@@ -417,9 +417,9 @@ arguments, private portfolio identifiers, questions, or transaction records.
 The output is untrusted provider text and includes an attribution URL, **not**
 a verified document citation or a checked/normalized financial statement.
 The endpoint intentionally does not feed retrieved provider text directly into
-an LLM. A later PR should add typed data normalization, freshness timestamps,
-a cache, source-aware answer validation, and a Java-authorized orchestration
-route before integrating it into portfolio chat.
+an LLM. Typed per-field normalization and source-aware market answer validation remain
+future work. Java provides authorized orchestration, durable caching and freshness
+metadata as described below. Raw market data is not inserted into portfolio chat.
 
 The companion uses the same fail-closed internal bearer authentication,
 per-process concurrency admission, 25s response deadline, and fixed-label
@@ -460,7 +460,7 @@ or claim verified per-field citations. Cross-provider comparisons, normalized
 fundamentals with point-in-time provenance, an agent to combine portfolio
 facts with market context, and the chat UI are follow-up milestones. Access
 must remain opt-in and read-only until independently smoke tested with valid
-Alpha Vantage credentials. No GitOps production activation is part of this PR.
+Alpha Vantage credentials. Production activation uses explicit GitOps feature flags and a provider Secret.
 
 When the companion returns 503 for disabled/unconfigured market research, Java
 also returns a sanitized 503. Provider/transport failures remain sanitized 502s;
@@ -468,5 +468,54 @@ neither response exposes provider credentials or upstream error bodies.
 
 Provider JSON error envelopes are rejected even if MCP marks the tool call as
 successful. Missing premium entitlement is a sanitized 424; it is distinct from
-configuration unavailability (503), transport/quota errors (502), and actual
+configuration unavailability (503), provider quota exhaustion (429), transport errors (502), and actual
 market data. Arbitrary transport failures do not trigger a second paid lookup.
+
+
+## Durable market policy (Java gateway)
+
+Both Java research routes and own MCP `get_market_quote` use
+`ExternalMarketDataService`. Portfolio authorization runs before cache access.
+Core portfolio tools read Investory domain APIs first and never need an external
+provider. Public documentation search uses authenticated private `/search`,
+returns bounded excerpts, and does not call a chat model.
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `investory.rag.market.enabled` | `false` | Explicit Java market opt-in, separate from private companion configuration |
+| `investory.rag.market.daily-budget` | `20` | Maximum attempted external lookups per rolling 24 hours; may be lowered |
+| `investory.rag.market.profile` | `alpha-vantage-free-v1` | Nonsecret cache/credential policy namespace |
+| `investory.rag.market.allow-stale` | `false` | Opt in to explicitly marked expired results, at most 72 hours after fetch |
+
+[Alpha Vantage documents 25 free requests per day](https://www.alphavantage.co/support/#api-key).
+The conservative local ceiling leaves five calls of headroom. Calls by other
+clients sharing the same credential cannot be observed by Investory. This does
+not guarantee premium dataset access or real-time quotes.
+
+PostgreSQL stores public payloads and attempted-call reservations; no private
+portfolio facts or credentials enter these tables. Reservation uses a database
+transaction and advisory lock, then commits before network I/O. Failed attempts
+consume budget. Cache hits do not. The ledger survives pod replacement and
+retains seven days of attempted calls. There is no scheduled provider polling.
+
+The supported deployment is one Java replica: one external lookup runs at a
+time, duplicate concurrent keys share the same in-flight result, and different
+keys fail busy. The durable budget is atomic across replicas; in-flight
+coalescing is process-local. Revisit distributed admission before scaling out.
+
+Success is cached for 24 hours. Missing entitlement is cached for the same
+key for 24 hours; largest-holding research explicitly falls back to a quote
+only for that error. Provider quota errors pause all lookups for this profile
+for 24 hours. Transport errors pause that key for five minutes. There are no
+automatic retries. All provider error envelopes remain errors, never cached
+financial data. Change the nonsecret profile alias after changing credentials
+or plan to invalidate old capability/cache state; this starts a new local
+budget, so do not rotate aliases to evade the provider allowance.
+
+Responses include `cache.status` (`FRESH`, `CACHED`, or opt-in `STALE`),
+`fetchedAt`, `expiresAt`, `remainingBudget`, `warnings`, and `asOf` when a recognized
+quote format supplies its trading date. Fetch/expiry times are not valuation
+dates. Unknown dates remain null. Free quotes must not be represented as live
+prices. Provider/source fields identify provenance, not audited per-field facts.
+Quota exhaustion/busy returns sanitized 429, entitlement 424, disabled service
+503, and transport failure 502. These failures do not disable core own MCP.

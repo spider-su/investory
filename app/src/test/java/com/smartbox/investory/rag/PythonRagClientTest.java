@@ -55,6 +55,17 @@ class PythonRagClientTest {
           exchange.close();
         });
     server.createContext(
+        "/search",
+        exchange -> {
+          authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+          request.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+          byte[] bytes = response.get().getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().set("Content-Type", "application/json");
+          exchange.sendResponseHeaders(status.get(), bytes.length == 0 ? -1 : bytes.length);
+          if (bytes.length > 0) exchange.getResponseBody().write(bytes);
+          exchange.close();
+        });
+    server.createContext(
         "/market-data",
         exchange -> {
           byte[] bytes = response.get().getBytes(StandardCharsets.UTF_8);
@@ -77,6 +88,28 @@ class PythonRagClientTest {
   @AfterEach
   void tearDown() {
     server.stop(0);
+  }
+
+  @Test
+  void documentationSearchSendsOnlyBoundedPublicQuery() throws Exception {
+    response.set(
+        "{\"matches\":[{\"source\":\"accounting.md\",\"text\":\"Contribution is external flow.\",\"score\":0.8}]}");
+    var result = client.searchDocumentation("Explain contributions", 2);
+    assertEquals(1, result.matches().size());
+    var payload = new ObjectMapper().readTree(request.get());
+    assertEquals(2, payload.size());
+    assertEquals("Explain contributions", payload.path("question").asString());
+    assertEquals(2, payload.path("limit").asInt());
+    assertEquals("Bearer internal-test-token", authorization.get());
+  }
+
+  @Test
+  void providerQuotaHasTypedSanitizedFailure() {
+    status.set(429);
+    response.set("sensitive diagnostic");
+    assertThrows(
+        PythonRagClient.MarketProviderRateLimitedException.class,
+        () -> client.marketData("GLOBAL_QUOTE", "MSFT"));
   }
 
   @Test
