@@ -84,6 +84,19 @@ class FinancialMcp:
         payload = "\n".join(parts)
         if not payload or len(payload.encode("utf-8")) > MAX_RESULT_BYTES:
             raise HTTPException(status_code=502, detail="Financial provider returned invalid data")
+        # Tool transports may report success while the data API returns an error envelope.
+        try:
+            decoded = json.loads(payload)
+        except json.JSONDecodeError:
+            decoded = None  # Valid provider data may be CSV.
+        if isinstance(decoded, dict) and any(
+            key.lower() in {"error", "error message", "information", "note"} for key in decoded
+        ):
+            if "premium" in json.dumps(decoded).lower():
+                raise HTTPException(status_code=424, detail="Financial provider entitlement unavailable")
+            raise HTTPException(status_code=502, detail="Financial provider returned an error")
+        if decoded == {} or decoded == []:
+            raise HTTPException(status_code=502, detail="Financial provider returned no data")
         # Never accept provider-supplied source identifiers as verified citations.
         return {
             "provider": "Alpha Vantage",

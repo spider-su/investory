@@ -143,6 +143,9 @@ public class PortfolioRagController {
     checkMarketAccess(portfolioId, authentication);
     try {
       return rag.marketData(request.tool(), request.symbol());
+    } catch (PythonRagClient.MarketDataNotEntitledException e) {
+      throw new ResponseStatusException(
+          HttpStatus.FAILED_DEPENDENCY, "Requested market data is not available from the provider");
     } catch (PythonRagClient.MarketResearchUnavailableException e) {
       throw new ResponseStatusException(
           HttpStatus.SERVICE_UNAVAILABLE, "Market research unavailable");
@@ -167,7 +170,15 @@ public class PortfolioRagController {
         throw new ResponseStatusException(
             HttpStatus.UNPROCESSABLE_ENTITY, "No supported public ticker for the largest holding");
       }
-      return rag.marketData("COMPANY_OVERVIEW", symbol);
+      try {
+        return rag.marketData("COMPANY_OVERVIEW", symbol);
+      } catch (PythonRagClient.MarketDataNotEntitledException e) {
+        // The returned tool is explicit: a quote is not company fundamentals.
+        return rag.marketData("GLOBAL_QUOTE", symbol);
+      }
+    } catch (PythonRagClient.MarketDataNotEntitledException e) {
+      throw new ResponseStatusException(
+          HttpStatus.FAILED_DEPENDENCY, "Requested market data is not available from the provider");
     } catch (PythonRagClient.MarketResearchUnavailableException e) {
       throw new ResponseStatusException(
           HttpStatus.SERVICE_UNAVAILABLE, "Market research unavailable");

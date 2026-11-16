@@ -437,6 +437,35 @@ class PortfolioRagControllerTest {
   }
 
   @Test
+  void largestHoldingFallsBackToAnExplicitQuoteOnlyOnMissingEntitlement() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    when(readModels.largestHoldingSymbol(21L)).thenReturn("MSFT");
+    when(client.marketData("COMPANY_OVERVIEW", "MSFT"))
+        .thenThrow(new PythonRagClient.MarketDataNotEntitledException());
+    var quote =
+        new InvestoryRagClient.MarketData(
+            "Alpha Vantage", "GLOBAL_QUOTE", "MSFT", "https://www.alphavantage.co/", "quote data");
+    when(client.marketData("GLOBAL_QUOTE", "MSFT")).thenReturn(quote);
+    assertEquals(quote, controller.researchLargestHolding(21L, user));
+    verifyNoInteractions(profiles, mapper);
+  }
+
+  @Test
+  void providerTransportFailureDoesNotTriggerAnExtraLookup() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    when(readModels.largestHoldingSymbol(21L)).thenReturn("MSFT");
+    when(client.marketData("COMPANY_OVERVIEW", "MSFT"))
+        .thenThrow(new PythonRagClient.RagUnavailableException());
+    var error =
+        assertThrows(
+            ResponseStatusException.class, () -> controller.researchLargestHolding(21L, user));
+    assertEquals(HttpStatus.BAD_GATEWAY, error.getStatusCode());
+    verify(client, never()).marketData("GLOBAL_QUOTE", "MSFT");
+  }
+
+  @Test
   void largestHoldingWithoutPublicTickerCannotCallProvider() {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);

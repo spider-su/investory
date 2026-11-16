@@ -89,6 +89,10 @@ class PythonRagClientTest {
             () -> client.marketData("GLOBAL_QUOTE", "MSFT"));
     assertNull(unavailable.getMessage());
     assertNull(unavailable.getCause());
+    status.set(424);
+    assertThrows(
+        PythonRagClient.MarketDataNotEntitledException.class,
+        () -> client.marketData("GLOBAL_QUOTE", "MSFT"));
     status.set(502);
     assertThrows(
         PythonRagClient.RagUnavailableException.class,

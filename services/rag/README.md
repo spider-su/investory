@@ -447,7 +447,9 @@ curl -fsS -X POST 'http://localhost:8080/api/v1/portfolios/1/rag/research/market
 
 `POST /api/v1/portfolios/{portfolioId}/rag/research/largest-holding` reads the
 scoped investment dashboard's largest position, extracts **only its public
-ticker symbol**, and requests `COMPANY_OVERVIEW`. No positions, quantities,
+ticker symbol**, and requests `COMPANY_OVERVIEW`. If the provider explicitly
+reports a missing premium entitlement, it may return a `GLOBAL_QUOTE` fallback;
+the returned `tool` identifies the actual dataset. A quote is not company fundamentals. No positions, quantities,
 cost bases, transactions, portfolio IDs, authentication or user data are sent
 to Alpha Vantage. If the ticker is unsupported (or no holding is available),
 the route fails without querying MCP.
@@ -463,3 +465,8 @@ Alpha Vantage credentials. No GitOps production activation is part of this PR.
 When the companion returns 503 for disabled/unconfigured market research, Java
 also returns a sanitized 503. Provider/transport failures remain sanitized 502s;
 neither response exposes provider credentials or upstream error bodies.
+
+Provider JSON error envelopes are rejected even if MCP marks the tool call as
+successful. Missing premium entitlement is a sanitized 424; it is distinct from
+configuration unavailability (503), transport/quota errors (502), and actual
+market data. Arbitrary transport failures do not trigger a second paid lookup.
