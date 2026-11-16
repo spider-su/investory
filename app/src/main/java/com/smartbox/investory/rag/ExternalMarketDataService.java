@@ -93,6 +93,8 @@ public class ExternalMarketDataService {
     if (cached != null && cached.data() != null && cached.expiresAt().isAfter(now))
       return result(tool, symbol, cached, "CACHED", List.of());
     if (cached != null && cached.blockedUntil() != null && cached.blockedUntil().isAfter(now)) {
+      if ("NO_DATA".equals(cached.reason()))
+        throw new PythonRagClient.MarketDataUnavailableException();
       if ("ENTITLEMENT".equals(cached.reason()))
         throw new PythonRagClient.MarketDataNotEntitledException();
       return staleOrThrow(tool, symbol, cached, new PythonRagClient.RagUnavailableException());
@@ -111,6 +113,9 @@ public class ExternalMarketDataService {
             new MarketDataStore.Entry(raw.data(), now, expires, null, null),
             "FRESH",
             List.of());
+      } catch (PythonRagClient.MarketDataUnavailableException e) {
+        store.block(profile, tool, symbol, now.plusSeconds(86400), "NO_DATA");
+        throw e;
       } catch (PythonRagClient.MarketDataNotEntitledException e) {
         store.block(profile, tool, symbol, now.plusSeconds(86400), "ENTITLEMENT");
         throw e;

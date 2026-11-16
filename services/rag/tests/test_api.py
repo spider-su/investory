@@ -70,3 +70,33 @@ def test_document_search_is_private_bounded_and_retrieval_only():
                            json={**body, "limit": 9}).status_code == 422
     finally:
         app.dependency_overrides.clear()
+
+
+def test_market_worker_preserves_safe_unavailability_categories():
+    from fastapi import HTTPException
+    from investory_rag.main import get_financial_mcp
+
+    class MarketService:
+        status = 422
+        def validate(self, request):
+            pass
+        def lookup(self, request):
+            raise HTTPException(self.status, detail="sensitive provider diagnostic")
+
+    service = MarketService()
+    app.dependency_overrides[get_financial_mcp] = lambda: service
+    app.dependency_overrides[get_access_gate] = lambda: AccessGate(
+        Settings(api_token=SecretStr("test-secret"), _env_file=None)
+    )
+    try:
+        client = TestClient(app)
+        for status, detail in [(422, "Financial provider has no data for symbol"),
+                               (424, "Financial provider entitlement unavailable"),
+                               (429, "Financial provider quota unavailable")]:
+            service.status = status
+            response = client.post("/market-data", headers={"Authorization": "Bearer test-secret"},
+                                   json={"tool": "GLOBAL_QUOTE", "symbol": "UNLISTED"})
+            assert response.status_code == status
+            assert response.json() == {"detail": detail}
+    finally:
+        app.dependency_overrides.clear()

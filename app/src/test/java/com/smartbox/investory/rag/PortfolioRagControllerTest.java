@@ -489,4 +489,21 @@ class PortfolioRagControllerTest {
     assertEquals(HttpStatus.TOO_MANY_REQUESTS, denied.getStatusCode());
     verifyNoInteractions(client, readModels, profiles, mapper);
   }
+
+  @Test
+  void largestHoldingWithoutProviderQuoteIsExplicitlyUnavailable() {
+    when(authorization.canReadScoped(21L, user)).thenReturn(true);
+    when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
+    when(readModels.largestHoldingSymbol(21L)).thenReturn("UNLISTED");
+    when(market.lookup("COMPANY_OVERVIEW", "UNLISTED"))
+        .thenThrow(new PythonRagClient.MarketDataNotEntitledException());
+    when(market.lookup("GLOBAL_QUOTE", "UNLISTED"))
+        .thenThrow(new PythonRagClient.MarketDataUnavailableException());
+    var error =
+        assertThrows(
+            ResponseStatusException.class, () -> controller.researchLargestHolding(21L, user));
+    assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, error.getStatusCode());
+    assertTrue(concurrencyLimiter.tryAcquire());
+    concurrencyLimiter.release();
+  }
 }

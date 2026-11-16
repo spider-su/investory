@@ -78,6 +78,7 @@ public class PythonRagClient implements InvestoryRagClient {
       }
       return result;
     } catch (RestClientResponseException e) {
+      if (e.getStatusCode().value() == 422) throw new MarketDataUnavailableException();
       if (e.getStatusCode().value() == 429) throw new MarketProviderRateLimitedException();
       if (e.getStatusCode().value() == 424) throw new MarketDataNotEntitledException();
       if (e.getStatusCode().value() == 503) throw new MarketResearchUnavailableException();
@@ -162,6 +163,8 @@ public class PythonRagClient implements InvestoryRagClient {
       BigDecimal totalNetWorth,
       BigDecimal liquidAssets,
       BigDecimal illiquidAssets) {}
+
+  public static final class MarketDataUnavailableException extends RuntimeException {}
 
   public static final class MarketProviderRateLimitedException extends RuntimeException {}
 

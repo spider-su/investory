@@ -83,7 +83,8 @@ def test_api_key_is_an_alternative_to_oauth():
     ('{"error":{"type":"rate_limit","message":"premium endpoint"}}', 424),
     ('{"Information":"provider quota exceeded"}', 429),
     ('{"Information":"Standard API rate limit exceeded. Upgrade to a premium plan."}', 429),
-    ('{}', 502),
+    ('{}', 422),
+    ('{"Global Quote":{}}', 422),
 ])
 def test_api_key_uses_header_and_never_url(monkeypatch, mode, payload, expected_status):
     from contextlib import asynccontextmanager

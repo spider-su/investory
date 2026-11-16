@@ -167,4 +167,20 @@ class ExternalMarketCacheIT {
     verify(client, times(1)).marketData("GLOBAL_QUOTE", "AAPL");
     assertEquals(18, service.remaining());
   }
+
+  @Test
+  void absentProviderCoverageIsCachedWithoutInventingAQuote() {
+    var client = mock(InvestoryRagClient.class);
+    var service = gateway(client, false);
+    when(client.marketData("GLOBAL_QUOTE", "UNLISTED"))
+        .thenThrow(new PythonRagClient.MarketDataUnavailableException());
+    for (int n = 0; n < 2; n++)
+      assertThrows(
+          PythonRagClient.MarketDataUnavailableException.class,
+          () -> service.lookup("GLOBAL_QUOTE", "UNLISTED"));
+    verify(client, times(1)).marketData("GLOBAL_QUOTE", "UNLISTED");
+    assertEquals("NO_DATA", store.find("test", "GLOBAL_QUOTE", "UNLISTED").reason());
+    assertNull(store.find("test", "GLOBAL_QUOTE", "UNLISTED").data());
+    assertEquals(19, service.remaining());
+  }
 }
