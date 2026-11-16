@@ -77,13 +77,28 @@ class FinancialMcp:
         except Exception as exc:
             # Do not echo provider errors (may include URL, token or raw request).
             raise HTTPException(status_code=502, detail="Financial market data unavailable") from None
-        if response.isError:
-            raise HTTPException(status_code=502, detail="Financial provider rejected lookup")
         parts = [item.text for item in response.content
                  if getattr(item, "type", None) == "text"]
         payload = "\n".join(parts)
         if not payload or len(payload.encode("utf-8")) > MAX_RESULT_BYTES:
             raise HTTPException(status_code=502, detail="Financial provider returned invalid data")
+        # Tool transports may report success while the data API returns an error envelope.
+        try:
+            decoded = json.loads(payload)
+        except json.JSONDecodeError:
+            decoded = None  # Valid provider data may be CSV.
+        if isinstance(decoded, dict) and any(
+            key.lower() in {"error", "error message", "information", "note"} for key in decoded
+        ):
+            if "premium" in json.dumps(decoded).lower():
+                raise HTTPException(status_code=424, detail="Financial provider entitlement unavailable")
+            if any(word in json.dumps(decoded).lower() for word in ("rate", "quota", "limit")):
+                raise HTTPException(status_code=429, detail="Financial provider quota unavailable")
+            raise HTTPException(status_code=502, detail="Financial provider returned an error")
+        if response.isError:
+            raise HTTPException(status_code=502, detail="Financial provider rejected lookup")
+        if decoded == {} or decoded == []:
+            raise HTTPException(status_code=502, detail="Financial provider returned no data")
         # Never accept provider-supplied source identifiers as verified citations.
         return {
             "provider": "Alpha Vantage",

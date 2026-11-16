@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-16
+
+- Extend own MCP with scoped portfolio summaries, holdings, supported-period results, SPY comparison, saved retirement plans, retrieval-only documentation, market quotes and capabilities.
+- Share a durable public market cache and rolling attempted-call budget between REST research and own MCP. Reject provider error envelopes and explicitly identify quote fallback when fundamentals require premium access.
+
 ## 2026-10-28
 
 - Investment statement imports return after ledger persistence and queue a durable background

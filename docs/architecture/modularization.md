@@ -49,8 +49,12 @@ aggregate facts through `InvestoryRagClient` to the internal Python service.
 Python retrieves documentation and generates explanations; financial calculations
 and user authorization remain in Java. Facts are transient and are never indexed.
 See [`services/rag/README.md`](../../services/rag/README.md) for the internal
-authentication and external inference boundary. This endpoint is separate from
-the three Investment MCP tools.
+authentication and external inference boundary. The MCP adapter also defines `PortfolioResearchClient`, an application query port
+for whole-wealth summaries, holdings, period results, benchmarks, retirement assumptions,
+documentation evidence and bounded external quotes. `app` implements that port using the
+same public Profile/Investment/Retirement APIs used by chat. The MCP module gains no
+controller, database, Python or provider dependency. Documentation search returns excerpts
+without invoking the chat model. All tools retain per-call portfolio authorization.
 
 Feature controllers and tests live with their owning module. External adapters, notifications, and
 optional integrations live in `integrations`; tightly coupled market/FX/export adapters remain inside

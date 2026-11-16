@@ -78,7 +78,13 @@ def test_api_key_is_an_alternative_to_oauth():
 
 
 @pytest.mark.parametrize("mode", ["key", "oauth"])
-def test_api_key_uses_header_and_never_url(monkeypatch, mode):
+@pytest.mark.parametrize("payload,expected_status", [
+    ('{"symbol":"MSFT"}', None),
+    ('{"error":{"type":"rate_limit","message":"premium endpoint"}}', 424),
+    ('{"Information":"provider quota exceeded"}', 429),
+    ('{}', 502),
+])
+def test_api_key_uses_header_and_never_url(monkeypatch, mode, payload, expected_status):
     from contextlib import asynccontextmanager
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
@@ -94,7 +100,7 @@ def test_api_key_uses_header_and_never_url(monkeypatch, mode):
         initialize = AsyncMock()
         async def call_tool(self, tool, arguments):
             observed.update(tool=tool, arguments=arguments)
-            return SimpleNamespace(isError=False, content=[SimpleNamespace(type="text", text='{"symbol":"MSFT"}')])
+            return SimpleNamespace(isError=False, content=[SimpleNamespace(type="text", text=payload)])
     import mcp
     import mcp.client.streamable_http
     monkeypatch.setattr(mcp, "ClientSession", Session)
@@ -102,6 +108,30 @@ def test_api_key_uses_header_and_never_url(monkeypatch, mode):
     config = Settings(_env_file=None, financial_mcp_enabled=True,
                       financial_mcp_api_key=SecretStr("provider-key") if mode == "key" else None,
                       financial_mcp_access_token=SecretStr("oauth-token"))
-    result = FinancialMcp(config).lookup(MarketLookup(tool="GLOBAL_QUOTE", symbol="MSFT"))
+    if expected_status:
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as error:
+            FinancialMcp(config).lookup(MarketLookup(tool="GLOBAL_QUOTE", symbol="MSFT"))
+        assert error.value.status_code == expected_status
+        assert "provider-key" not in error.value.detail
+    else:
+        result = FinancialMcp(config).lookup(MarketLookup(tool="GLOBAL_QUOTE", symbol="MSFT"))
+        assert result["provider"] == "Alpha Vantage"
     assert observed == {"url": ENDPOINT, "headers": {"X-API-Key": "provider-key"} if mode == "key" else {"Authorization": "Bearer oauth-token"}, "tool": "GLOBAL_QUOTE", "arguments": {"symbol": "MSFT"}}
-    assert result["provider"] == "Alpha Vantage"
+
+
+def test_market_entitlement_survives_bounded_worker_without_leaking_details():
+    from fastapi import HTTPException
+    class MissingEntitlement:
+        def validate(self, request): return {"symbol": request.symbol}
+        def lookup(self, request): raise HTTPException(424, "private upstream diagnostic")
+    app.dependency_overrides[get_access_gate] = lambda: AccessGate(settings())
+    app.dependency_overrides[get_financial_mcp] = lambda: MissingEntitlement()
+    try:
+        with TestClient(app) as client:
+            response = client.post("/market-data", json={"tool":"COMPANY_OVERVIEW","symbol":"MSFT"},
+                                   headers={"Authorization":"Bearer service-key"})
+            assert response.status_code == 424
+            assert response.json() == {"detail":"Financial provider entitlement unavailable"}
+    finally:
+        app.dependency_overrides.clear()

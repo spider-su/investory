@@ -31,6 +31,10 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
 
 
+class SearchRequest(AskRequest):
+    limit: int = Field(default=4, ge=1, le=8, strict=True)
+
+
 class AskResponse(BaseModel):
     answer: str
     sources: list[str]
@@ -114,6 +118,13 @@ async def run_bounded(endpoint: str, gate: AccessGate, operation):
     except TimeoutError as exc:
         outcome = "timeout"
         raise HTTPException(status_code=504, detail="RAG request deadline exceeded") from exc
+    except HTTPException as exc:
+        outcome = "upstream_error"
+        if endpoint == "market" and exc.status_code == 429:
+            raise HTTPException(status_code=429, detail="Financial provider quota unavailable") from None
+        if endpoint == "market" and exc.status_code == 424:
+            raise HTTPException(status_code=424, detail="Financial provider entitlement unavailable") from None
+        raise HTTPException(status_code=502, detail="RAG service unavailable") from None
     except ValueError as exc:
         outcome = "invalid"
         raise HTTPException(status_code=422, detail="Invalid RAG question") from exc
@@ -149,6 +160,16 @@ def metrics(
     # Distinct read-only metrics token, never the inference service credential.
     gate.authenticate_metrics(authorization)
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.post("/search")
+async def search_docs(
+    request: SearchRequest,
+    gate: AccessGate = Depends(require_gate),
+    provider: Callable[[], RagService] = Depends(get_service_provider),
+) -> dict:
+    return await run_bounded("documents", gate,
+                             lambda: {"matches": provider().search(request.question, request.limit)})
 
 
 @app.post("/ask", response_model=AskResponse)

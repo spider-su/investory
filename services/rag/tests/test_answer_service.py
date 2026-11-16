@@ -187,3 +187,13 @@ def test_personal_exact_value_never_reaches_document_model(tmp_path):
     service = make_service(tmp_path, "Net worth is documented.", "Unused")
     service.llm = RunnableLambda(lambda _: pytest.fail("Personal value must abstain before model"))
     assert service.ask("What is my exact net worth?") == {"answer": NO_EVIDENCE, "sources": []}
+
+
+def test_document_search_returns_evidence_without_chat(tmp_path):
+    service = make_service(tmp_path, "Reserve withdrawal policy is documented.", "unused")
+    service.llm = RunnableLambda(lambda _: pytest.fail("Search must not invoke chat"))
+    matches = service.search("Explain reserve withdrawal policy", 1)
+    assert len(matches) == 1 and matches[0]["source"] == "retirement.md"
+    assert matches[0]["text"] == "Reserve withdrawal policy is documented."
+    assert service.search("What is my exact net worth?") == []
+    with pytest.raises(ValueError): service.search("reserve", 9)

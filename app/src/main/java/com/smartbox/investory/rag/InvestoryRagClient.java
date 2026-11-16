@@ -13,7 +13,32 @@ public interface InvestoryRagClient {
   /** Public ticker research only; portfolio or user details must never cross this boundary. */
   MarketData marketData(String tool, String symbol);
 
-  record MarketData(String provider, String tool, String symbol, String source, String data) {}
+  /** Retrieval-only public documentation. Never forwards a financial snapshot. */
+  Documentation searchDocumentation(String question, int limit);
+
+  record Snippet(String source, String text, double score) {}
+
+  record Documentation(List<Snippet> matches) {}
+
+  record CacheMetadata(
+      String status,
+      java.time.Instant fetchedAt,
+      java.time.Instant expiresAt,
+      java.time.LocalDate asOf,
+      int remainingBudget,
+      List<String> warnings) {}
+
+  record MarketData(
+      String provider,
+      String tool,
+      String symbol,
+      String source,
+      String data,
+      CacheMetadata cache) {
+    public MarketData(String provider, String tool, String symbol, String source, String data) {
+      this(provider, tool, symbol, source, data, null);
+    }
+  }
 
   record RagAnswer(String answer, List<String> sources) {}
 }
