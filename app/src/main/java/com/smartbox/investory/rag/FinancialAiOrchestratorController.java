@@ -37,13 +37,15 @@ public class FinancialAiOrchestratorController {
   private static final Pattern RETIREMENT =
       Pattern.compile("(?i)\\b(?:retirement|retire|pension|financial independence)\\b");
   private static final Pattern PORTFOLIO =
-      Pattern.compile("(?i)\\b(?:portfolio|holdings|positions|assets|allocation|investment|net worth|wealth)\\b");
+      Pattern.compile(
+          "(?i)\\b(?:portfolio|holdings|positions|assets|allocation|investment|net worth|wealth)\\b");
   private static final Pattern HOLDINGS =
-      Pattern.compile("(?i)\\b(?:holdings|positions|allocation|assets|largest|biggest|top)\\b");
+      Pattern.compile(
+          "(?i)\\b(?:holdings|positions|allocation|assets|largest|biggest|top)\\b");
   private static final Pattern DOCUMENTS =
-      Pattern.compile("(?i)\\b(?:documentation|documents|methodology|method|explain|definition|docs)\\b");
-  private static final Pattern SPY =
-      Pattern.compile("(?i)\\b(?:spy|s&p ?500)\\b");
+      Pattern.compile(
+          "(?i)\\b(?:documentation|documents|methodology|method|explain|definition|docs)\\b");
+  private static final Pattern SPY = Pattern.compile("(?i)\\b(?:spy|s&p ?500)\\b");
   private static final Pattern COMPARE =
       Pattern.compile("(?i)\\b(?:compare|compared|comparison|versus|vs|difference|performing)\\b");
 
@@ -80,16 +82,22 @@ public class FinancialAiOrchestratorController {
 
   @PostMapping("/ask")
   public Answer ask(
-      @PathVariable long portfolioId, @RequestBody Question request, Authentication authentication) {
-    if (portfolioId <= 0 || request == null || request.question() == null
-        || request.question().isBlank() || request.question().length() > 2000) {
+      @PathVariable long portfolioId,
+      @RequestBody Question request,
+      Authentication authentication) {
+    if (portfolioId <= 0
+        || request == null
+        || request.question() == null
+        || request.question().isBlank()
+        || request.question().length() > 2000) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid question or portfolio");
     }
     if (!authorization.canReadScoped(portfolioId, authentication)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     }
     if (!rateLimiter.tryAcquire(authentication == null ? null : authentication.getName())) {
-      throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Assistant request limit exceeded");
+      throw new ResponseStatusException(
+          HttpStatus.TOO_MANY_REQUESTS, "Assistant request limit exceeded");
     }
     if (!concurrency.tryAcquire()) {
       throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Assistant is busy");
@@ -106,7 +114,8 @@ public class FinancialAiOrchestratorController {
     if (intent == PortfolioAssistantReadModels.Intent.UNSUPPORTED) {
       return new Answer(
           "The requested period, prediction, or trading decision is not supported by verified data.",
-          List.of(), List.of("ABSTAINED"));
+          List.of(),
+          List.of("ABSTAINED"));
     }
 
     List<String> parts = new ArrayList<>();
@@ -122,8 +131,12 @@ public class FinancialAiOrchestratorController {
     if (wantsSpyComparison) {
       append(readModels.spyComparison(portfolioId), "JAVA_BENCHMARK", parts, citations, used);
     } else if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH) {
-      append(readModels.netWorth(mapper.map(profiles.loadProfile(portfolioId))),
-          "JAVA_PROFILE", parts, citations, used);
+      append(
+          readModels.netWorth(mapper.map(profiles.loadProfile(portfolioId))),
+          "JAVA_PROFILE",
+          parts,
+          citations,
+          used);
     } else if (wantsPortfolio && HOLDINGS.matcher(question).find()) {
       append(readModels.mainAssets(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
     }
@@ -146,17 +159,26 @@ public class FinancialAiOrchestratorController {
       Matcher matcher = PUBLIC_SYMBOL.matcher(question);
       String symbol = matcher.find() ? matcher.group(1) : null;
       if (symbol == null && SPY.matcher(question).find()) symbol = "SPY";
-      if (symbol == null && question.toLowerCase(Locale.ROOT).matches(
-          ".*\\b(?:largest|biggest|top)\\s+holding\\b.*")) {
+      if (symbol == null
+          && question
+              .toLowerCase(Locale.ROOT)
+              .matches(".*\\b(?:largest|biggest|top)\\s+holding\\b.*")) {
         symbol = readModels.largestHoldingSymbol(portfolioId);
       }
       if (symbol != null && symbol.matches("[A-Z0-9][A-Z0-9.^-]{0,19}")) {
         try {
           var quote = market.lookup("GLOBAL_QUOTE", symbol);
           if (quote != null && quote.data() != null && !quote.data().isBlank()) {
-            parts.add("Public market data for " + symbol + " (" + quote.tool() + "): "
-                + quote.data() + ". Source: " + quote.source()
-                + ". This is a provider observation, not an Investory holding valuation.");
+            parts.add(
+                "Public market data for "
+                    + symbol
+                    + " ("
+                    + quote.tool()
+                    + "): "
+                    + quote.data()
+                    + ". Source: "
+                    + quote.source()
+                    + ". This is a provider observation, not an Investory holding valuation.");
             citations.add("market:" + quote.provider() + ":" + symbol);
             used.add("MARKET_MCP");
           }
@@ -165,21 +187,27 @@ public class FinancialAiOrchestratorController {
           parts.add("Public market data for " + symbol + " is unavailable from the provider.");
         } catch (ExternalMarketDataService.BudgetExceededException
             | ExternalMarketDataService.BusyException e) {
-          parts.add("Public market lookup was skipped because its quota or concurrency limit was reached.");
+          parts.add(
+              "Public market lookup was skipped because its quota or concurrency limit was reached.");
         } catch (PythonRagClient.MarketResearchUnavailableException
             | PythonRagClient.RagUnavailableException e) {
           parts.add("Public market lookup is temporarily unavailable.");
         }
       } else {
-        parts.add("Market research requires an explicit supported public symbol or the largest holding.");
+        parts.add(
+            "Market research requires an explicit supported public symbol or the largest holding.");
       }
     }
 
     // Preserve the existing authenticated RAG route for queries without an explicit domain route.
     if (parts.isEmpty()) {
       try {
-        append(rag.ask(question, mapper.map(profiles.loadProfile(portfolioId))),
-            "RAG_PROFILE", parts, citations, used);
+        append(
+            rag.ask(question, mapper.map(profiles.loadProfile(portfolioId))),
+            "RAG_PROFILE",
+            parts,
+            citations,
+            used);
       } catch (PythonRagClient.RagUnavailableException e) {
         throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "RAG service unavailable");
       }
@@ -188,8 +216,11 @@ public class FinancialAiOrchestratorController {
   }
 
   private static void append(
-      InvestoryRagClient.RagAnswer answer, String source, List<String> parts,
-      LinkedHashSet<String> citations, List<String> used) {
+      InvestoryRagClient.RagAnswer answer,
+      String source,
+      List<String> parts,
+      LinkedHashSet<String> citations,
+      List<String> used) {
     if (answer == null || answer.answer() == null || answer.answer().isBlank()) return;
     parts.add(answer.answer());
     if (answer.sources() != null) citations.addAll(answer.sources());
@@ -197,5 +228,6 @@ public class FinancialAiOrchestratorController {
   }
 
   public record Question(String question) {}
+
   public record Answer(String answer, List<String> sources, List<String> components) {}
 }
