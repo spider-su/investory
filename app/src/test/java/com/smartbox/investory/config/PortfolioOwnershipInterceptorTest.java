@@ -49,7 +49,7 @@ class PortfolioOwnershipInterceptorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"ask", "ask-docs"})
+  @ValueSource(strings = {"rag/ask", "rag/ask-docs", "assistant/ask"})
   void readOnlyRagPostRejectsUnrelatedPortfolio(String route) {
     var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/99/" + route);
     var response = new MockHttpServletResponse();

@@ -1,24 +1,47 @@
-# Unified Financial AI Orchestrator (initial implementation)
+# Unified financial assistant
 
-New read-only endpoint: `POST /api/v1/portfolios/{portfolioId}/assistant/ask`
-
-Example request:
+The portfolio panel uses `POST /api/v1/portfolios/{portfolioId}/assistant/ask`.
+Documentation-only mode retains `/rag/ask-docs`. Existing RAG/research/MCP routes
+remain supported.
 
 ```json
-{"question":"Compare my portfolio with SPY and my retirement plan"}
+{"question":"Show my net worth and holdings and explain internal transfers"}
 ```
 
-Response: `{"answer":"...","sources":["live:investment-benchmark","live:retirement-plan"],"components":["JAVA_BENCHMARK","JAVA_RETIREMENT"]}`.
+One authenticated question can select several existing read-only sources:
 
-The server selects multiple pre-existing, read-only sources for one authenticated question:
-- Java domain reporting is authoritative for portfolio holdings, benchmark performance, lifetime profitability, net worth and retirement plans.
-- Python RAG handles documentation questions and unmatched questions through the existing authenticated, filtered profile-facts adapter.
-- Financial MCP is accessed only through the existing Java ExternalMarketDataService (cache, quotas and provider policy). Market requests require a public symbol, SPY, or the current profile's largest-holding public symbol. No positions, values, credentials or account data are sent to the provider.
+- Java Profile, Investment and Retirement APIs own amounts, currency, current
+  holdings, MAX benchmark methodology, lifetime profit and saved assumptions.
+  Exact decimal values are copied; no model arithmetic or new valuation is used.
+- Explicit documentation clauses use Python RAG. Known personal-value explanations
+  become public methodology questions; private snapshots are never sent to that
+  documentation route. Unknown questions retain the filtered profile-facts path.
+- Explicit quote requests use `ExternalMarketDataService`, including its durable
+  cache, attempted-call budget and coverage policy. Only the public symbol leaves
+  Java. The largest holding uses its scoped canonical ticker; no listing is guessed.
 
-Guards: validate requests; check scoped authorization before *any* data access; reuse user rate and concurrency admission; release concurrent admission in `finally`; no write tools or model-generated tool calls; abstain from unsupported periods/forecasts; keep separate provenance per source. Optional provider failures degrade only the market portion of an otherwise valid answer.
+Response fields are `answer`, actually attributable `sources`, `components`, and
+optional `marketData`. Raw provider data stays in `marketData`, separate from
+verified answer prose. The panel renders it as untrusted text with cache status,
+provider trading date (or unknown), fetch/expiry timestamps and stale warnings.
+A fetch timestamp is not a valuation date. Provider absence/quota failure leaves
+Java facts available and adds an explicit unavailable/skipped message; it never
+invents a quote or adds a successful market citation.
 
-This is a deliberately bounded orchestration MVP, **not** an unrestricted LLM agent or a fully conversational, multi-turn memory system. It concatenates separately attributable facts rather than allowing an LLM to recalculate money or invent cross-source financial conclusions. The existing `/rag/ask`, `/rag/ask-docs` and `/rag/research/*` endpoints remain unchanged.
+Request validation and strict active membership checks precede source reads.
+The route shares existing per-user rate/concurrency admission and always releases
+its permit. Basic/bearer read-only requests have the existing narrow CSRF exemption;
+browser-cookie requests still require CSRF. Unsupported periods, forecasts and
+trading decisions abstain before any source lookup.
 
-Test focus: cross-profile denial, quota admission, combined Java benchmark/retirement, optional MCP failure without losing Java facts, safe unsupported requests and docs-only privacy.
+This is bounded, stateless orchestration, not an unrestricted agent, multi-turn
+memory, trade execution or cross-source financial inference. It calls shared Java
+application reads directly, preserving the same ownership boundary as own MCP;
+it does not make loopback calls to its MCP transport. Supported source sets can
+be combined, but arbitrary tool chains and calendar-year reporting are not added.
 
-Deployment is intentionally outside this PR; run existing CI, verify API behavior in a non-production environment and keep final production live regression independent.
+See the [market policy](../services/rag/README.md#durable-market-policy-java-gateway)
+and [MCP contract](../adapters/mcp/README.md) for the canonical underlying limits.
+Release gates require exact-head CI, scanned Java/RAG publication, runtime image-ID
+matching, authenticated API/official-MCP acceptance and a fresh private metrics
+scrape. A merged PR alone is not deployment evidence.

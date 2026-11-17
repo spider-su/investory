@@ -2,7 +2,9 @@ package com.smartbox.investory.rag;
 
 import com.smartbox.investory.config.AuthorizationService;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
+import com.smartbox.investory.profile.api.contract.ProfileResponse;
 import com.smartbox.investory.profile.web.ProfileResponseMapper;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -31,23 +33,30 @@ import org.springframework.web.server.ResponseStatusException;
 @ConditionalOnProperty(prefix = "investory.rag", name = "enabled", havingValue = "true")
 public class FinancialAiOrchestratorController {
   private static final Pattern PUBLIC_SYMBOL =
-      Pattern.compile("\\b(?:ticker|symbol|price of|quote for)\\s+([A-Z][A-Z0-9.^-]{0,19})\\b");
+      Pattern.compile(
+          "(?i:ticker|symbol|price of|quote for)\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9.^-])");
   private static final Pattern MARKET_LANGUAGE =
-      Pattern.compile("(?i)\\b(?:latest|market|quote|price|trading|ticker|stock)\\b");
+      Pattern.compile(
+          "(?i)\\b(?:quote|ticker|trading|stock price|price of|latest price|market (?:price|quote|data|research))\\b");
   private static final Pattern RETIREMENT =
       Pattern.compile("(?i)\\b(?:retirement|retire|pension|financial independence)\\b");
-  private static final Pattern PORTFOLIO =
-      Pattern.compile(
-          "(?i)\\b(?:portfolio|holdings|positions|assets|allocation|investment|net worth|wealth)\\b");
   private static final Pattern HOLDINGS =
       Pattern.compile(
-          "(?i)\\b(?:holdings|positions|allocation|assets|largest|biggest|top)\\b");
+          "(?i)\\b(?:holdings|positions|allocation)\\b|\\b(?:main|largest|biggest|top|major|primary)\\s+(?:assets?|holdings?|positions?)\\b");
   private static final Pattern DOCUMENTS =
       Pattern.compile(
-          "(?i)\\b(?:documentation|documents|methodology|method|explain|definition|docs)\\b");
+          "(?i)\\b(?:documentation|documents|methodology|method|explain|definition|docs|calculat\\w*)\\b");
   private static final Pattern SPY = Pattern.compile("(?i)\\b(?:spy|s&p ?500)\\b");
   private static final Pattern COMPARE =
       Pattern.compile("(?i)\\b(?:compare|compared|comparison|versus|vs|difference|performing)\\b");
+  private static final Pattern NET_WORTH =
+      Pattern.compile("(?i)\\b(?:net worth|wealth|how much am i worth)\\b");
+  private static final Pattern MARKET_VALUE = Pattern.compile("(?i)\\bmarket portfolio value\\b");
+  private static final Pattern LIQUID = Pattern.compile("(?i)\\bliquid assets?\\b");
+  private static final Pattern ILLIQUID = Pattern.compile("(?i)\\billiquid assets?\\b");
+  private static final Pattern LONG_TERM =
+      Pattern.compile("(?i)\\blong[- ]term (?:assets?|value)\\b");
+  private static final Pattern PERSONAL = Pattern.compile("(?i)\\b(?:my|me|i|our)\\b");
 
   private final AuthorizationService authorization;
   private final RagUserRateLimiter rateLimiter;
@@ -123,41 +132,75 @@ public class FinancialAiOrchestratorController {
     List<String> used = new ArrayList<>();
     boolean wantsMarket = MARKET_LANGUAGE.matcher(question).find();
     boolean wantsRetirement = RETIREMENT.matcher(question).find();
-    boolean wantsPortfolio = PORTFOLIO.matcher(question).find();
     boolean wantsDocs = DOCUMENTS.matcher(question).find();
-    boolean wantsSpyComparison = SPY.matcher(question).find() && COMPARE.matcher(question).find();
-
-    // Each domain read is scoped to the same previously-authorized portfolio.
-    if (wantsSpyComparison) {
-      append(readModels.spyComparison(portfolioId), "JAVA_BENCHMARK", parts, citations, used);
-    } else if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH) {
-      append(
-          readModels.netWorth(mapper.map(profiles.loadProfile(portfolioId))),
-          "JAVA_PROFILE",
-          parts,
-          citations,
-          used);
-    } else if (wantsPortfolio && HOLDINGS.matcher(question).find()) {
-      append(readModels.mainAssets(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
+    boolean wantsSpyComparison =
+        intent == PortfolioAssistantReadModels.Intent.SPY_COMPARISON
+            || (SPY.matcher(question).find() && COMPARE.matcher(question).find());
+    boolean wantsProfile =
+        (!wantsDocs || PERSONAL.matcher(question).find())
+            && (NET_WORTH.matcher(question).find()
+                || MARKET_VALUE.matcher(question).find()
+                || LIQUID.matcher(question).find()
+                || ILLIQUID.matcher(question).find()
+                || LONG_TERM.matcher(question).find());
+    if (wantsProfile) {
+      var snapshot = mapper.map(profiles.loadProfile(portfolioId));
+      if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH
+          || NET_WORTH.matcher(question).find())
+        append(readModels.netWorth(snapshot), "JAVA_PROFILE", parts, citations, used);
+      if (MARKET_VALUE.matcher(question).find())
+        appendFact(
+            "Market portfolio value",
+            snapshot.marketPortfolioValue(),
+            snapshot,
+            parts,
+            citations,
+            used);
+      if (LIQUID.matcher(question).find())
+        appendFact("Liquid assets", snapshot.liquidAssets(), snapshot, parts, citations, used);
+      if (ILLIQUID.matcher(question).find())
+        appendFact("Illiquid assets", snapshot.illiquidAssets(), snapshot, parts, citations, used);
+      if (LONG_TERM.matcher(question).find())
+        appendFact(
+            "Long-term assets", snapshot.longTermAssetValue(), snapshot, parts, citations, used);
     }
+    if (wantsSpyComparison)
+      append(readModels.spyComparison(portfolioId), "JAVA_BENCHMARK", parts, citations, used);
+    if (intent == PortfolioAssistantReadModels.Intent.MAIN_ASSETS
+        || HOLDINGS.matcher(question).find())
+      append(readModels.mainAssets(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
     if (wantsRetirement) {
       append(readModels.retirementPlan(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
     }
-    if (profitability.supports(question) && !wantsSpyComparison) {
+    if (profitability.supports(question)) {
       append(profitability.answer(portfolioId), "JAVA_PROFITABILITY", parts, citations, used);
     }
     if (wantsDocs) {
       try {
-        append(rag.askDocumentation(question), "RAG_DOCUMENTATION", parts, citations, used);
+        append(
+            rag.askDocumentation(documentationQuestion(question, wantsProfile, wantsRetirement)),
+            "RAG_DOCUMENTATION",
+            parts,
+            citations,
+            used);
       } catch (PythonRagClient.RagUnavailableException e) {
         parts.add("Documentation is temporarily unavailable.");
       }
     }
 
     // Explicit public-market request only. Never send account, position size or user data to MCP.
+    InvestoryRagClient.MarketData observation = null;
     if (wantsMarket) {
       Matcher matcher = PUBLIC_SYMBOL.matcher(question);
-      String symbol = matcher.find() ? matcher.group(1) : null;
+      Matcher explicit =
+          Pattern.compile("(?i:\\b(?:ticker|symbol))\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})")
+              .matcher(question);
+      String symbol =
+          explicit.find() ? explicit.group(1) : matcher.find() ? matcher.group(1) : null;
+      if (symbol != null) symbol = symbol.toUpperCase(Locale.ROOT).replaceAll("\\.$", "");
+      if (symbol != null
+          && List.of("MY", "THE", "OUR", "A", "AN", "TICKER", "SYMBOL").contains(symbol))
+        symbol = null;
       if (symbol == null && SPY.matcher(question).find()) symbol = "SPY";
       if (symbol == null
           && question
@@ -169,17 +212,15 @@ public class FinancialAiOrchestratorController {
         try {
           var quote = market.lookup("GLOBAL_QUOTE", symbol);
           if (quote != null && quote.data() != null && !quote.data().isBlank()) {
+            observation = quote;
+            String citation = "market:alpha-vantage:" + symbol;
             parts.add(
-                "Public market data for "
+                "Public provider observation for "
                     + symbol
-                    + " ("
-                    + quote.tool()
-                    + "): "
-                    + quote.data()
-                    + ". Source: "
-                    + quote.source()
-                    + ". This is a provider observation, not an Investory holding valuation.");
-            citations.add("market:" + quote.provider() + ":" + symbol);
+                    + " is attached separately; it is untrusted research, not an Investory holding valuation. ["
+                    + citation
+                    + "]");
+            citations.add(citation);
             used.add("MARKET_MCP");
           }
         } catch (PythonRagClient.MarketDataUnavailableException
@@ -212,7 +253,11 @@ public class FinancialAiOrchestratorController {
         throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "RAG service unavailable");
       }
     }
-    return new Answer(String.join("\n\n", parts), List.copyOf(citations), List.copyOf(used));
+    return new Answer(
+        String.join("\n\n", parts),
+        List.copyOf(citations),
+        List.copyOf(new LinkedHashSet<>(used)),
+        observation);
   }
 
   private static void append(
@@ -222,12 +267,67 @@ public class FinancialAiOrchestratorController {
       LinkedHashSet<String> citations,
       List<String> used) {
     if (answer == null || answer.answer() == null || answer.answer().isBlank()) return;
-    parts.add(answer.answer());
+    parts.add(
+        source.equals("RAG_DOCUMENTATION")
+            ? "Public documentation: " + answer.answer()
+            : answer.answer());
     if (answer.sources() != null) citations.addAll(answer.sources());
-    used.add(source);
+    used.add(answer.sources() == null || answer.sources().isEmpty() ? "ABSTAINED" : source);
+  }
+
+  private static String documentationQuestion(
+      String question, boolean profile, boolean retirement) {
+    Matcher docs = DOCUMENTS.matcher(question);
+    if (docs.find() && docs.start() > 0) {
+      String clause = question.substring(docs.start());
+      if (!PERSONAL.matcher(clause).find()) return clause;
+    }
+    if (profile) {
+      List<String> topics = new ArrayList<>();
+      if (NET_WORTH.matcher(question).find()) topics.add("net worth");
+      if (MARKET_VALUE.matcher(question).find()) topics.add("market portfolio value");
+      if (LIQUID.matcher(question).find()) topics.add("liquid assets");
+      if (ILLIQUID.matcher(question).find()) topics.add("illiquid assets");
+      if (LONG_TERM.matcher(question).find()) topics.add("long-term assets");
+      return "How does Investory calculate " + String.join(" and ", topics) + "?";
+    }
+    if (retirement && PERSONAL.matcher(question).find())
+      return "Explain retirement plan methodology and withdrawal order";
+    return question;
+  }
+
+  private static void appendFact(
+      String label,
+      BigDecimal value,
+      ProfileResponse snapshot,
+      List<String> parts,
+      LinkedHashSet<String> citations,
+      List<String> used) {
+    if (value == null || snapshot.currency() == null) {
+      parts.add(label + " is unavailable from the current profile.");
+      used.add("ABSTAINED");
+      return;
+    }
+    parts.add(
+        label
+            + ": "
+            + value.toPlainString()
+            + " "
+            + snapshot.currency().name()
+            + ". [live:profile]");
+    citations.add("live:profile");
+    used.add("JAVA_PROFILE");
   }
 
   public record Question(String question) {}
 
-  public record Answer(String answer, List<String> sources, List<String> components) {}
+  public record Answer(
+      String answer,
+      List<String> sources,
+      List<String> components,
+      InvestoryRagClient.MarketData marketData) {
+    public Answer(String answer, List<String> sources, List<String> components) {
+      this(answer, sources, components, null);
+    }
+  }
 }

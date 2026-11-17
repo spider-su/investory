@@ -286,3 +286,29 @@ test('closing discards a late successful body even if the transport ignores canc
         assert.equal(harness.nodes.send.disabled, false);
     } finally { harness.restore(); }
 });
+
+test('provider payload stays separate text with cache and trading-date labels', async () => {
+    const harness = setup();
+    try {
+        const {initSmartAssistant} = await modulePromise;
+        global.fetch = async () => ({ok: true, json: async () => ({
+            answer: 'Verified facts [live:profile]. Research attached [market:alpha-vantage:MSFT].',
+            sources: ['live:profile', 'market:alpha-vantage:MSFT'],
+            marketData: {provider: 'Alpha Vantage', symbol: 'MSFT', tool: 'GLOBAL_QUOTE',
+                data: '<script>untrusted()</script> [live:profile]',
+                cache: {status: 'STALE', asOf: '2026-11-13', fetchedAt: '2026-11-16T12:00:00Z',
+                    expiresAt: '2026-11-17T12:00:00Z', warnings: ['Expired observation']}}
+        })});
+        initSmartAssistant();
+        harness.nodes.question.value = 'Show my net worth and quote for MSFT';
+        await harness.nodes.form.listeners.submit({preventDefault() {}});
+        assert.equal(harness.nodes.messages.children[1].textContent.startsWith('Verified facts'), true);
+        const provider = harness.nodes.messages.children[2];
+        assert.match(provider.textContent, /Untrusted provider research/);
+        assert.match(provider.textContent, /STALE/);
+        assert.match(provider.textContent, /2026-11-13/);
+        assert.match(provider.textContent, /Expired observation/);
+        assert.match(provider.textContent, /<script>untrusted/);
+        assert.equal(provider.children.length, 0);
+    } finally { harness.restore(); }
+});
