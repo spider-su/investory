@@ -69,8 +69,7 @@ export function initSmartAssistant() {
             const csrf = document.querySelector('meta[name="_csrf"]')?.content;
             const headers = {'Content-Type': 'application/json'};
             if (csrf) headers['X-XSRF-TOKEN'] = csrf;
-            const response = await fetch('/api/v1/portfolios/' + portfolioId + '/rag/' +
-                (questionMode === 'docs' ? 'ask-docs' : 'ask'), {
+            const response = await fetch('/api/v1/portfolios/' + portfolioId + (questionMode === 'docs' ? '/rag/ask-docs' : '/assistant/ask'), {
                 method: 'POST', credentials: 'same-origin', headers,
                 body: JSON.stringify({question}), signal: controller.signal
             });
@@ -88,6 +87,20 @@ export function initSmartAssistant() {
                 throw new Error('Assistant response unavailable. Please try again.');
             }
             appendMessage(data.answer, 'answer');
+            const market = data.marketData;
+            if (market && typeof market.data === 'string' && market.data.trim()) {
+                const cache = market.cache || {};
+                const warnings = Array.isArray(cache.warnings) ? cache.warnings.filter(w => typeof w === 'string').join(' ') : '';
+                appendMessage('Untrusted provider research — separate from portfolio facts. ' +
+                    String(market.provider || '') + ' · ' + String(market.symbol || '') +
+                    ' · ' + (market.tool === 'GLOBAL_QUOTE' ? 'Public quote' : String(market.tool || 'Research')) + '\n' +
+                    'Cache: ' + String(cache.status || 'unknown') +
+                    '; trading date: ' + String(cache.asOf || 'unknown') +
+                    '; fetched: ' + String(cache.fetchedAt || 'unknown') +
+                    '; expires: ' + String(cache.expiresAt || 'unknown') +
+                    '; calls left (rolling 24h): ' + String(cache.remainingBudget ?? 'unknown') +
+                    (warnings ? '\n' + warnings : '') + '\n' + market.data, 'answer');
+            }
             if (data.sources.length) {
                 const sources = document.createElement('p');
                 sources.className = 'iv-assistant__sources';
