@@ -59,6 +59,36 @@ final class PortfolioResearchSpecifications {
             authorization,
             mapper),
         tool(
+            "get_investment_asset",
+            "Read current holdings and period results for a canonical Investory asset symbol.",
+            Map.of(
+                "symbol",
+                Map.of("type", "string", "pattern", "^[A-Z0-9][A-Z0-9._^-]{0,31}$"),
+                "period",
+                period),
+            (id, args) -> {
+              String symbol = string(args, "symbol", 32);
+              if (!symbol.matches("[A-Z0-9][A-Z0-9._^-]{0,31}"))
+                throw new IllegalArgumentException();
+              return client.get().asset(id, symbol, period(args));
+            },
+            authorization,
+            mapper),
+        tool(
+            "get_portfolio_cash_flows",
+            "Read since-inception deposits and withdrawals and the current cash balance.",
+            Map.of(),
+            (id, args) -> client.get().cashFlows(id),
+            authorization,
+            mapper),
+        tool(
+            "get_portfolio_data_freshness",
+            "Read reporting price and FX observation coverage and missing-data counts.",
+            Map.of(),
+            (id, args) -> client.get().freshness(id),
+            authorization,
+            mapper),
+        tool(
             "get_retirement_plan",
             "Read the selected saved retirement plan and assumptions; does not forecast sustainability.",
             Map.of(),

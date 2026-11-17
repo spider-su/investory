@@ -1,6 +1,7 @@
 package com.smartbox.investory.rag;
 
 import com.smartbox.investory.config.AuthorizationService;
+import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
 import com.smartbox.investory.profile.api.contract.ProfileResponse;
 import com.smartbox.investory.profile.web.ProfileResponseMapper;
@@ -57,6 +58,14 @@ public class FinancialAiOrchestratorController {
   private static final Pattern LONG_TERM =
       Pattern.compile("(?i)\\blong[- ]term (?:assets?|value)\\b");
   private static final Pattern PERSONAL = Pattern.compile("(?i)\\b(?:my|me|i|our)\\b");
+
+  private static final Pattern REPORTING_PERIOD =
+      Pattern.compile(
+          "(?i)\\b(?:YTD|year[- ]to[- ]date|this year|current year|1M|3M|6M|1Y|3Y|5Y|MAX)\\b");
+  private static final Pattern OTHER_WINDOW =
+      Pattern.compile(
+          "(?i)\\b(?:mtd|qtd|today|yesterday|tomorrow|forecast|predict|will|all[ -]?time|lifetime|since inception|from the beginning|(?:19|20)\\d{2}|"
+              + "(?:since|through|before|after|as of)\\s+\\d|(?:last|past|previous|next|this|current)\\s+(?:\\d+\\s+)?(?:day|week|month|quarter|year)s?)\\b");
 
   private final AuthorizationService authorization;
   private final RagUserRateLimiter rateLimiter;
@@ -119,12 +128,42 @@ public class FinancialAiOrchestratorController {
   }
 
   private Answer answerAuthorized(long portfolioId, String question) {
+    Matcher requestedPeriod = REPORTING_PERIOD.matcher(question);
+    if (requestedPeriod.find()) {
+      String label = requestedPeriod.group();
+      String remaining =
+          question.substring(0, requestedPeriod.start())
+              + " "
+              + question.substring(requestedPeriod.end());
+      if (requestedPeriod.find()
+          || OTHER_WINDOW.matcher(remaining).find()
+          || readModels.classify(remaining) == PortfolioAssistantReadModels.Intent.UNSUPPORTED
+          || HOLDINGS.matcher(remaining).find()
+          || RETIREMENT.matcher(remaining).find()
+          || MARKET_LANGUAGE.matcher(remaining).find()
+          || NET_WORTH.matcher(remaining).find()
+          || MARKET_VALUE.matcher(remaining).find()
+          || LIQUID.matcher(remaining).find()
+          || ILLIQUID.matcher(remaining).find()
+          || LONG_TERM.matcher(remaining).find()
+          || DOCUMENTS.matcher(remaining).find()) {
+        return unsupported();
+      }
+      var period =
+          label.length() <= 3
+              ? DashboardPeriod.fromUrlValue(label.toUpperCase(Locale.ROOT))
+              : DashboardPeriod.YEAR_TO_DATE;
+      if (SPY.matcher(remaining).find() && COMPARE.matcher(remaining).find()) {
+        return reportingAnswer(readModels.spyComparison(portfolioId, period), "JAVA_BENCHMARK");
+      }
+      if (profitability.requestsResult(remaining)) {
+        return reportingAnswer(profitability.answer(portfolioId, period), "JAVA_PROFITABILITY");
+      }
+      return unsupported();
+    }
     var intent = readModels.classify(question);
     if (intent == PortfolioAssistantReadModels.Intent.UNSUPPORTED) {
-      return new Answer(
-          "The requested period, prediction, or trading decision is not supported by verified data.",
-          List.of(),
-          List.of("ABSTAINED"));
+      return unsupported();
     }
 
     List<String> parts = new ArrayList<>();
@@ -258,6 +297,20 @@ public class FinancialAiOrchestratorController {
         List.copyOf(citations),
         List.copyOf(new LinkedHashSet<>(used)),
         observation);
+  }
+
+  private static Answer unsupported() {
+    return new Answer(
+        "The requested period, prediction, or trading decision is not supported by verified data.",
+        List.of(),
+        List.of("ABSTAINED"));
+  }
+
+  private static Answer reportingAnswer(InvestoryRagClient.RagAnswer result, String component) {
+    return new Answer(
+        result.answer(),
+        result.sources(),
+        List.of(result.sources().isEmpty() ? "ABSTAINED" : component));
   }
 
   private static void append(

@@ -55,6 +55,9 @@ Investment API read models, in portfolio base currency where the API defines mon
 | `get_investment_ytd` | Current calendar-year investment result |
 | `get_profile_summary` | Whole-wealth totals, currency and decimal strings |
 | `get_portfolio_holdings` | Current Investment holdings; optional `limit` 1–20, default 5 |
+| `get_investment_asset` | Scoped asset summary by canonical `symbol`, with current exposure and realized profit/dividends for `period` (default YTD) |
+| `get_portfolio_cash_flows` | Since-inception deposits and withdrawals, plus current cash balance |
+| `get_portfolio_data_freshness` | Reporting price and FX coverage, latest observation dates and missing-data counts |
 | `get_investment_period_result` | Profit/loss for a supported `period`, default YTD |
 | `get_benchmark_comparison` | Existing SPY benchmark for `period`, default YTD |
 | `get_retirement_plan` | Selected saved plan and assumptions |

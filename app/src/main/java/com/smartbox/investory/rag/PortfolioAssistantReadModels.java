@@ -138,18 +138,25 @@ public class PortfolioAssistantReadModels {
   }
 
   public InvestoryRagClient.RagAnswer spyComparison(long portfolioId) {
+    return spyComparison(portfolioId, DashboardPeriod.MAX);
+  }
+
+  public InvestoryRagClient.RagAnswer spyComparison(long portfolioId, DashboardPeriod period) {
     var view =
         dashboard.loadDashboard(
-            new InvestmentDashboardApi.DashboardQuery(
-                List.of(), false, DashboardPeriod.MAX, portfolioId));
+            new InvestmentDashboardApi.DashboardQuery(List.of(), false, period, portfolioId));
     var benchmark =
         view == null || view.performance() == null ? null : view.performance().benchmark();
     var overview = view == null ? null : view.overview();
     if (benchmark == null
         || !benchmark.portfolioPerformanceAvailable()
         || !benchmark.benchmarkAvailable()
+        || !Double.isFinite(benchmark.portfolioPl())
+        || !Double.isFinite(benchmark.portfolioReturnPct())
         || benchmark.benchmarkPl() == null
+        || !Double.isFinite(benchmark.benchmarkPl())
         || benchmark.benchmarkReturnPct() == null
+        || !Double.isFinite(benchmark.benchmarkReturnPct())
         || overview == null
         || overview.baseCurrency() == null
         || !"SPY".equalsIgnoreCase(benchmark.symbol())) {
@@ -157,7 +164,9 @@ public class PortfolioAssistantReadModels {
     }
     String currency = overview.baseCurrency().name();
     String result =
-        "For the Investment dashboard MAX history window, actual portfolio P/L was "
+        "For the Investment dashboard "
+            + period.wireValue()
+            + " history window, actual portfolio P/L was "
             + BigDecimal.valueOf(benchmark.portfolioPl()).toPlainString()
             + " "
             + currency

@@ -11,7 +11,7 @@ remain supported.
 One authenticated question can select several existing read-only sources:
 
 - Java Profile, Investment and Retirement APIs own amounts, currency, current
-  holdings, MAX benchmark methodology, lifetime profit and saved assumptions.
+  holdings, period benchmark methodology, investment profit and saved assumptions.
   Exact decimal values are copied; no model arithmetic or new valuation is used.
 - Explicit documentation clauses use Python RAG. Known personal-value explanations
   become public methodology questions; private snapshots are never sent to that
@@ -33,6 +33,12 @@ The route shares existing per-user rate/concurrency admission and always release
 its permit. Basic/bearer read-only requests have the existing narrow CSRF exemption;
 browser-cookie requests still require CSRF. Unsupported periods, forecasts and
 trading decisions abstain before any source lookup.
+
+Explicit profit/loss and SPY comparison questions can use a single dashboard period:
+`1M`, `3M`, `6M`, `YTD` (including “this year”), `1Y`, `3Y`, `5Y`, or `MAX`.
+The answer labels the selected period. Requests with conflicting periods,
+arbitrary calendar dates or historical holdings abstain. Other composite
+questions retain their existing source routing.
 
 This is bounded, stateless orchestration, not an unrestricted agent, multi-turn
 memory, trade execution or cross-source financial inference. It calls shared Java

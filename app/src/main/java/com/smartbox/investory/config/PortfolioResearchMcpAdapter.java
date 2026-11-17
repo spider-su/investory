@@ -1,5 +1,6 @@
 package com.smartbox.investory.config;
 
+import com.smartbox.investory.investment.api.asset.InvestmentAssetApi;
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.mcp.PortfolioResearchClient;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "app.mcp", name = "enabled", havingValue = "true")
 public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
   private final InvestmentDashboardApi investment;
+  private final InvestmentAssetApi assets;
   private final ProfileSnapshotReader profiles;
   private final ProfileResponseMapper mapper;
   private final RetirementPlanApi plans;
@@ -28,12 +30,14 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
 
   public PortfolioResearchMcpAdapter(
       InvestmentDashboardApi investment,
+      InvestmentAssetApi assets,
       ProfileSnapshotReader profiles,
       ProfileResponseMapper mapper,
       RetirementPlanApi plans,
       ObjectProvider<InvestoryRagClient> rag,
       ObjectProvider<com.smartbox.investory.rag.ExternalMarketDataService> market) {
     this.investment = investment;
+    this.assets = assets;
     this.profiles = profiles;
     this.mapper = mapper;
     this.plans = plans;
@@ -127,6 +131,53 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
         Instant.now(),
         "live:investment-benchmark",
         "Existing flow-adjusted benchmark scenario, not a first-date lump-sum backtest.");
+  }
+
+  @Override
+  public AssetSummary asset(long id, String symbol, DashboardPeriod period) {
+    var asset = assets.detail(id, symbol, period);
+    return new AssetSummary(
+        asset.symbol(),
+        asset.name(),
+        asset.currency() == null ? null : asset.currency().name(),
+        decimal(asset.totalQuantity()),
+        decimal(asset.totalMarketValue()),
+        decimal(asset.marketPrice()),
+        asset.priceSource(),
+        asset.priceUpdatedAt(),
+        period.wireValue(),
+        decimal(asset.totalRealizedProfitLoss()),
+        decimal(asset.totalNetDividends()),
+        "live:investment-asset");
+  }
+
+  @Override
+  public CashFlows cashFlows(long id) {
+    var page = page(id, DashboardPeriod.MAX);
+    var cash = page.cashFlow();
+    var currency = page.overview().baseCurrency();
+    if (cash == null || currency == null) throw new IllegalStateException();
+    return new CashFlows(
+        currency.name(),
+        decimal(cash.deposits()),
+        decimal(cash.withdrawals()),
+        decimal(cash.cash()),
+        "live:investment-cash-flow",
+        "since inception");
+  }
+
+  @Override
+  public Freshness freshness(long id) {
+    var quality = page(id, DashboardPeriod.MAX).dataQuality();
+    if (quality == null) throw new IllegalStateException();
+    return new Freshness(
+        quality.state(),
+        quality.latestPriceDate(),
+        quality.latestFxMonth(),
+        quality.missingPriceCount(),
+        quality.stalePriceCount(),
+        quality.missingFxCount(),
+        "live:investment-data-quality");
   }
 
   @Override

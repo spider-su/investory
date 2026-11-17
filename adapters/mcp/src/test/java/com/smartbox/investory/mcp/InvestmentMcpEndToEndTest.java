@@ -91,11 +91,14 @@ class InvestmentMcpEndToEndTest {
       assertEquals(
           List.of(
               "get_benchmark_comparison",
+              "get_investment_asset",
               "get_investment_period_result",
               "get_investment_ytd",
               "get_investory_capabilities",
               "get_market_quote",
+              "get_portfolio_cash_flows",
               "get_portfolio_dashboard",
+              "get_portfolio_data_freshness",
               "get_portfolio_holdings",
               "get_portfolio_performance",
               "get_profile_summary",
