@@ -46,7 +46,7 @@ class SecurityConfigTest {
 
   @RestController
   static class RagSecurityProbeController {
-    @PostMapping({"/api/v1/portfolios/{id}/rag/ask", "/api/v1/portfolios/{id}/rag/ask-docs"})
+    @PostMapping({"/api/v1/portfolios/{id}/rag/ask", "/api/v1/portfolios/{id}/rag/ask-docs", "/api/v1/portfolios/{id}/assistant/ask"})
     String ask() {
       return "ok";
     }
@@ -55,9 +55,9 @@ class SecurityConfigTest {
   @Test
   @WithMockUser(roles = "USER")
   void bothAssistantModesRejectRolesOutsideTheProfileApiPolicy() throws Exception {
-    for (String route : new String[] {"ask", "ask-docs"}) {
+    for (String route : new String[] {"rag/ask", "rag/ask-docs", "assistant/ask"}) {
       mockMvc
-          .perform(post("/api/v1/portfolios/1/rag/" + route).with(csrf()))
+          .perform(post("/api/v1/portfolios/1/" + route).with(csrf()))
           .andExpect(status().isForbidden());
     }
   }
