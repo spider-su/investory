@@ -46,7 +46,11 @@ class SecurityConfigTest {
 
   @RestController
   static class RagSecurityProbeController {
-    @PostMapping({"/api/v1/portfolios/{id}/rag/ask", "/api/v1/portfolios/{id}/rag/ask-docs", "/api/v1/portfolios/{id}/assistant/ask"})
+    @PostMapping({
+      "/api/v1/portfolios/{id}/rag/ask",
+      "/api/v1/portfolios/{id}/rag/ask-docs",
+      "/api/v1/portfolios/{id}/assistant/ask"
+    })
     String ask() {
       return "ok";
     }
