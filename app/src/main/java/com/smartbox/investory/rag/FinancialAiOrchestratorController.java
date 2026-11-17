@@ -122,7 +122,7 @@ public class FinancialAiOrchestratorController {
     } else if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH) {
       append(readModels.netWorth(mapper.map(profiles.loadProfile(portfolioId))),
           "JAVA_PROFILE", parts, citations, used);
-    } else if (wantsPortfolio) {
+    } else if (wantsPortfolio && !wantsDocs) {
       append(readModels.mainAssets(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
     }
     if (wantsRetirement) {
@@ -182,7 +182,7 @@ public class FinancialAiOrchestratorController {
         throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "RAG service unavailable");
       }
     }
-    return new Answer(String.join("\\n\\n", parts), List.copyOf(citations), List.copyOf(used));
+    return new Answer(String.join("\n\n", parts), List.copyOf(citations), List.copyOf(used));
   }
 
   private static void append(
