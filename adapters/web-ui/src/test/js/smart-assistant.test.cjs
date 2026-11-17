@@ -75,7 +75,7 @@ test('opens, sends same-origin CSRF request, renders answer and sources safely',
         harness.nodes.question.value = 'What is my net worth?';
         await harness.nodes.form.listeners.submit({preventDefault() {}});
         assert.equal(calls.length, 1);
-        assert.equal(calls[0].url, '/api/v1/portfolios/21/rag/ask');
+        assert.equal(calls[0].url, '/api/v1/portfolios/21/assistant/ask');
         assert.equal(calls[0].options.method, 'POST');
         assert.equal(calls[0].options.credentials, 'same-origin');
         assert.equal(calls[0].options.headers['X-XSRF-TOKEN'], 'csrf-test');
