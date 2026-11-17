@@ -96,7 +96,7 @@ public class SecurityConfig {
                                     && request
                                         .getRequestURI()
                                         .matches(
-                                            "/api/v1/portfolios/[0-9]+/rag/(?:ask(?:-docs)?|research/(?:market-data|largest-holding))|assistant/ask")
+                                            "/api/v1/portfolios/[0-9]+/(?:rag/(?:ask(?:-docs)?|research/(?:market-data|largest-holding))|assistant/ask)")
                                     && request.getHeader("Authorization") != null
                                     && (request.getHeader("Authorization").startsWith("Basic ")
                                         || request
