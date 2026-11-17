@@ -21,7 +21,8 @@ class FinancialAiOrchestratorControllerTest {
   private final ProfileSnapshotReader profiles = mock(ProfileSnapshotReader.class);
   private final ProfileResponseMapper mapper = mock(ProfileResponseMapper.class);
   private final PortfolioAssistantReadModels readModels = mock(PortfolioAssistantReadModels.class);
-  private final PortfolioProfitabilityAnswer profitability = mock(PortfolioProfitabilityAnswer.class);
+  private final PortfolioProfitabilityAnswer profitability =
+      mock(PortfolioProfitabilityAnswer.class);
   private final InvestoryRagClient rag = mock(InvestoryRagClient.class);
   private final ExternalMarketDataService market = mock(ExternalMarketDataService.class);
   private final Authentication user = new UsernamePasswordAuthenticationToken("tester", "n/a");
@@ -29,9 +30,17 @@ class FinancialAiOrchestratorControllerTest {
 
   @BeforeEach
   void setup() {
-    controller = new FinancialAiOrchestratorController(
-        authorization, limiter, concurrency, profiles, mapper, readModels,
-        profitability, rag, market);
+    controller =
+        new FinancialAiOrchestratorController(
+            authorization,
+            limiter,
+            concurrency,
+            profiles,
+            mapper,
+            readModels,
+            profitability,
+            rag,
+            market);
   }
 
   private void authorize() {
@@ -42,9 +51,15 @@ class FinancialAiOrchestratorControllerTest {
 
   @Test
   void unauthorizedPortfolioIsNotReadOrSentToProviders() {
-    var error = assertThrows(ResponseStatusException.class,
-        () -> controller.ask(22L, new FinancialAiOrchestratorController.Question(
-            "Compare my portfolio with SPY and retirement plan"), user));
+    var error =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.ask(
+                    22L,
+                    new FinancialAiOrchestratorController.Question(
+                        "Compare my portfolio with SPY and retirement plan"),
+                    user));
     assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
     verifyNoInteractions(profiles, mapper, readModels, profitability, rag, market, limiter);
   }
@@ -53,11 +68,16 @@ class FinancialAiOrchestratorControllerTest {
   void composesAuthoritativeBenchmarkAndRetirementSources() {
     authorize();
     String question = "Compare my portfolio with SPY and my retirement plan";
-    when(readModels.spyComparison(21L)).thenReturn(new InvestoryRagClient.RagAnswer(
-        "Verified SPY benchmark", List.of("live:investment-benchmark")));
-    when(readModels.retirementPlan(21L)).thenReturn(new InvestoryRagClient.RagAnswer(
-        "Saved retirement assumptions", List.of("live:retirement-plan")));
-    var answer = controller.ask(21L, new FinancialAiOrchestratorController.Question(question), user);
+    when(readModels.spyComparison(21L))
+        .thenReturn(
+            new InvestoryRagClient.RagAnswer(
+                "Verified SPY benchmark", List.of("live:investment-benchmark")));
+    when(readModels.retirementPlan(21L))
+        .thenReturn(
+            new InvestoryRagClient.RagAnswer(
+                "Saved retirement assumptions", List.of("live:retirement-plan")));
+    var answer =
+        controller.ask(21L, new FinancialAiOrchestratorController.Question(question), user);
     assertTrue(answer.answer().contains("Verified SPY benchmark"));
     assertTrue(answer.answer().contains("Saved retirement assumptions"));
     assertEquals(List.of("live:investment-benchmark", "live:retirement-plan"), answer.sources());
@@ -69,12 +89,18 @@ class FinancialAiOrchestratorControllerTest {
   @Test
   void marketProviderSeesOnlyPublicSymbolAndFailedCoverageDoesNotHideJavaFacts() {
     authorize();
-    when(readModels.mainAssets(21L)).thenReturn(new InvestoryRagClient.RagAnswer(
-        "Scoped positions", List.of("live:investment-structure")));
+    when(readModels.mainAssets(21L))
+        .thenReturn(
+            new InvestoryRagClient.RagAnswer(
+                "Scoped positions", List.of("live:investment-structure")));
     when(market.lookup("GLOBAL_QUOTE", "SPY"))
         .thenThrow(new PythonRagClient.MarketDataUnavailableException());
-    var answer = controller.ask(21L, new FinancialAiOrchestratorController.Question(
-        "Show my portfolio holdings and latest price of SPY"), user);
+    var answer =
+        controller.ask(
+            21L,
+            new FinancialAiOrchestratorController.Question(
+                "Show my portfolio holdings and latest price of SPY"),
+            user);
     assertTrue(answer.answer().contains("Scoped positions"));
     assertTrue(answer.answer().contains("unavailable"));
     assertEquals(List.of("live:investment-structure"), answer.sources());
@@ -87,8 +113,11 @@ class FinancialAiOrchestratorControllerTest {
     authorize();
     when(readModels.classify("Predict my portfolio tomorrow"))
         .thenReturn(PortfolioAssistantReadModels.Intent.UNSUPPORTED);
-    var result = controller.ask(21L, new FinancialAiOrchestratorController.Question(
-        "Predict my portfolio tomorrow"), user);
+    var result =
+        controller.ask(
+            21L,
+            new FinancialAiOrchestratorController.Question("Predict my portfolio tomorrow"),
+            user);
     assertTrue(result.sources().isEmpty());
     assertEquals(List.of("ABSTAINED"), result.components());
     verifyNoInteractions(profiles, mapper, rag, market);
@@ -96,8 +125,10 @@ class FinancialAiOrchestratorControllerTest {
 
   @Test
   void invalidQuestionRejectedBeforeAuthorization() {
-    var error = assertThrows(ResponseStatusException.class,
-        () -> controller.ask(21L, new FinancialAiOrchestratorController.Question("  "), user));
+    var error =
+        assertThrows(
+            ResponseStatusException.class,
+            () -> controller.ask(21L, new FinancialAiOrchestratorController.Question("  "), user));
     assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
     verifyNoInteractions(authorization, limiter, concurrency, profiles, mapper, rag, market);
   }
@@ -105,9 +136,14 @@ class FinancialAiOrchestratorControllerTest {
   @Test
   void rateLimitStopsAllSources() {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
-    var error = assertThrows(ResponseStatusException.class,
-        () -> controller.ask(21L, new FinancialAiOrchestratorController.Question(
-            "Compare my portfolio with SPY"), user));
+    var error =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.ask(
+                    21L,
+                    new FinancialAiOrchestratorController.Question("Compare my portfolio with SPY"),
+                    user));
     assertEquals(HttpStatus.TOO_MANY_REQUESTS, error.getStatusCode());
     verifyNoInteractions(profiles, mapper, rag, market);
   }
@@ -116,10 +152,12 @@ class FinancialAiOrchestratorControllerTest {
   void documentationSourceDoesNotLoadPrivateProfile() {
     authorize();
     when(rag.askDocumentation("Explain the investment methodology"))
-        .thenReturn(new InvestoryRagClient.RagAnswer(
-            "From docs", List.of("docs:methodology")));
-    var answer = controller.ask(21L, new FinancialAiOrchestratorController.Question(
-        "Explain the investment methodology"), user);
+        .thenReturn(new InvestoryRagClient.RagAnswer("From docs", List.of("docs:methodology")));
+    var answer =
+        controller.ask(
+            21L,
+            new FinancialAiOrchestratorController.Question("Explain the investment methodology"),
+            user);
     assertEquals(List.of("docs:methodology"), answer.sources());
     verifyNoInteractions(profiles, mapper, market);
   }
