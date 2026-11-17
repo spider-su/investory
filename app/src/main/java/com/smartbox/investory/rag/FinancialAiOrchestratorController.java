@@ -38,6 +38,8 @@ public class FinancialAiOrchestratorController {
       Pattern.compile("(?i)\\b(?:retirement|retire|pension|financial independence)\\b");
   private static final Pattern PORTFOLIO =
       Pattern.compile("(?i)\\b(?:portfolio|holdings|positions|assets|allocation|investment|net worth|wealth)\\b");
+  private static final Pattern HOLDINGS =
+      Pattern.compile("(?i)\\b(?:holdings|positions|allocation|assets|largest|biggest|top)\\b");
   private static final Pattern DOCUMENTS =
       Pattern.compile("(?i)\\b(?:documentation|documents|methodology|method|explain|definition|docs)\\b");
   private static final Pattern SPY =
@@ -122,7 +124,7 @@ public class FinancialAiOrchestratorController {
     } else if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH) {
       append(readModels.netWorth(mapper.map(profiles.loadProfile(portfolioId))),
           "JAVA_PROFILE", parts, citations, used);
-    } else if (wantsPortfolio && !wantsDocs) {
+    } else if (wantsPortfolio && HOLDINGS.matcher(question).find()) {
       append(readModels.mainAssets(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
     }
     if (wantsRetirement) {
