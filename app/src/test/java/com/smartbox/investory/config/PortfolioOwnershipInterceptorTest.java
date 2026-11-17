@@ -38,9 +38,9 @@ class PortfolioOwnershipInterceptorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"ask", "ask-docs"})
+  @ValueSource(strings = {"rag/ask", "rag/ask-docs", "assistant/ask"})
   void readOnlyRagPostUsesStrictScopedReadInsteadOfWrite(String route) {
-    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/17/rag/" + route);
+    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/17/" + route);
     var response = new MockHttpServletResponse();
     when(authorization.canReadScoped(17L, authentication)).thenReturn(true);
     assertTrue(interceptor.preHandle(request, response, new Object()));
@@ -51,7 +51,7 @@ class PortfolioOwnershipInterceptorTest {
   @ParameterizedTest
   @ValueSource(strings = {"ask", "ask-docs"})
   void readOnlyRagPostRejectsUnrelatedPortfolio(String route) {
-    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/99/rag/" + route);
+    var request = new MockHttpServletRequest("POST", "/api/v1/portfolios/99/" + route);
     var response = new MockHttpServletResponse();
     assertFalse(interceptor.preHandle(request, response, new Object()));
     assertEquals(403, response.getStatus());
