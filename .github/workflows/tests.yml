@@ -85,6 +85,15 @@ jobs:
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
 
+      - name: Temporary formatted source capture
+        run: |
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" spotless:apply
+          for p in app/src/main/java/com/smartbox/investory/rag/FinancialAiOrchestratorController.java app/src/test/java/com/smartbox/investory/rag/FinancialAiOrchestratorControllerTest.java app/src/main/java/com/smartbox/investory/config/SecurityConfig.java app/src/main/java/com/smartbox/investory/config/PortfolioOwnershipInterceptor.java app/src/test/java/com/smartbox/investory/config/SecurityConfigTest.java app/src/test/java/com/smartbox/investory/config/PortfolioOwnershipInterceptorTest.java app/src/test/java/com/smartbox/investory/app/SmartAssistantTemplateContractTest.java; do
+            echo "BEGIN_FORMATTED:$p"
+            cat "$p"
+            echo "END_FORMATTED:$p"
+          done
+
       - name: Check formatting
         run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" spotless:check
 
