@@ -69,8 +69,7 @@ export function initSmartAssistant() {
             const csrf = document.querySelector('meta[name="_csrf"]')?.content;
             const headers = {'Content-Type': 'application/json'};
             if (csrf) headers['X-XSRF-TOKEN'] = csrf;
-            const response = await fetch('/api/v1/portfolios/' + portfolioId + '/rag/' +
-                (questionMode === 'docs' ? 'ask-docs' : 'ask'), {
+            const response = await fetch('/api/v1/portfolios/' + portfolioId + (questionMode === 'docs' ? '/rag/ask-docs' : '/assistant/ask'), {
                 method: 'POST', credentials: 'same-origin', headers,
                 body: JSON.stringify({question}), signal: controller.signal
             });
