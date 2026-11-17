@@ -15,6 +15,12 @@ public interface PortfolioResearchClient {
 
   BenchmarkResult benchmark(long portfolioId, DashboardPeriod period);
 
+  AssetSummary asset(long portfolioId, String symbol, DashboardPeriod period);
+
+  CashFlows cashFlows(long portfolioId);
+
+  Freshness freshness(long portfolioId);
+
   RetirementSummary retirement(long portfolioId);
 
   Documentation search(long portfolioId, String query, int limit);
@@ -62,6 +68,37 @@ public interface PortfolioResearchClient {
       Instant computedAt,
       String source,
       String methodology) {}
+
+  record AssetSummary(
+      String symbol,
+      String name,
+      String currency,
+      String quantity,
+      String currentMarketValue,
+      String price,
+      String priceSource,
+      java.time.ZonedDateTime priceUpdatedAt,
+      String period,
+      String realizedProfit,
+      String netDividends,
+      String source) {}
+
+  record CashFlows(
+      String currency,
+      String deposits,
+      String withdrawals,
+      String cashBalance,
+      String source,
+      String contributionPeriod) {}
+
+  record Freshness(
+      String state,
+      LocalDate latestPriceDate,
+      LocalDate latestFxMonth,
+      long missingPrices,
+      long stalePrices,
+      long missingFx,
+      String source) {}
 
   record RetirementSummary(
       boolean available,

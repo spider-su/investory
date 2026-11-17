@@ -91,3 +91,24 @@ rejects overlapping RAG work before reading private facts. Do not increase the
 JDBC pool to hide this saturation. Acceptance must confirm busy requests receive
 429, unauthorized portfolios remain 403, and permits recover after backend
 failure. Keep connection strings and response bodies out of public evidence.
+
+## Compare startup phases after packaging changes
+
+Record UTC timestamps from pod creation, the RAG image-cache init completion,
+both application container starts, Java pool and JPA initialization, Uvicorn
+startup, and the pod Ready transition. Image pull and application startup
+overlap only where pod events establish it. Node load and registry cache
+state can vary between runs, so compare those conditions before attributing a
+change in readiness time.
+
+The November 17 orchestration rollout took 13m14s from pod creation to Ready.
+The RAG init image pull took 4m13s. Java started 5m19s after pod creation and
+completed Spring startup 7m44s after that. RAG finished starting about 5m12s
+after its container started, ahead of Java. These observations identify where
+to measure. They do not establish why Java initialization was slow.
+
+The Java image now packages released libraries separately from application
+code. The RAG image bundles documents after installing dependencies and the
+embedding model, then builds its seed index from those documents. Compare the
+first pull of the new layout and a subsequent application-only release with
+unchanged dependencies separately. The first pull can populate new layers.

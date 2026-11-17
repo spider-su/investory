@@ -33,7 +33,9 @@ COPY test-support test-support
 COPY adapters adapters
 COPY app app
 COPY docs/quality/ui-baselines docs/quality/ui-baselines
-RUN ./mvnw -B "-Dapp.build.commit=${GIT_COMMIT}" -DskipTests clean package
+RUN ./mvnw -B "-Dapp.build.commit=${GIT_COMMIT}" -DskipTests clean package \
+    && java -Djarmode=tools -jar app/target/app-*.jar extract --layers \
+        --destination /workspace/runtime --application-filename app.jar
 
 FROM eclipse-temurin:25-jre-noble
 WORKDIR /app
@@ -43,7 +45,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /workspace/app/target/app-*.jar /app/app.jar
+# Keep released libraries reusable across application-only builds.
+COPY --from=build /workspace/runtime/dependencies/ /app/
+COPY --from=build /workspace/runtime/snapshot-dependencies/ /app/
+COPY --from=build /workspace/runtime/application/ /app/
 
 EXPOSE 8080
 

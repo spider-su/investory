@@ -161,7 +161,10 @@ class InvestmentMcpStreamableIT {
               "get_retirement_plan",
               "search_investory_docs",
               "get_market_quote",
-              "get_investory_capabilities");
+              "get_investory_capabilities",
+              "get_investment_asset",
+              "get_portfolio_cash_flows",
+              "get_portfolio_data_freshness");
 
       var result =
           client.callTool(
@@ -179,15 +182,18 @@ class InvestmentMcpStreamableIT {
               "get_investment_period_result",
               "get_benchmark_comparison",
               "get_retirement_plan",
-              "get_investory_capabilities")) {
-        var read =
-            client.callTool(
-                new McpSchema.CallToolRequest(
-                    name, Map.of("portfolioId", HappyInvestorTestData.PORTFOLIO_ID)));
+              "get_investory_capabilities",
+              "get_investment_asset",
+              "get_portfolio_cash_flows",
+              "get_portfolio_data_freshness")) {
+        var args = new java.util.HashMap<String, Object>();
+        args.put("portfolioId", HappyInvestorTestData.PORTFOLIO_ID);
+        if (name.equals("get_investment_asset")) args.put("symbol", "NVDA.US");
+        var read = client.callTool(new McpSchema.CallToolRequest(name, args));
         assertFalse(Boolean.TRUE.equals(read.isError()), name);
         assertThat(read.structuredContent()).isInstanceOf(Map.class);
-        var deniedRead =
-            client.callTool(new McpSchema.CallToolRequest(name, Map.of("portfolioId", 999)));
+        args.put("portfolioId", 999);
+        var deniedRead = client.callTool(new McpSchema.CallToolRequest(name, args));
         assertTrue(Boolean.TRUE.equals(deniedRead.isError()), name);
         assertThat(deniedRead.content().toString()).contains("Portfolio access denied");
       }

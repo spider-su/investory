@@ -274,4 +274,59 @@ class FinancialAiOrchestratorControllerTest {
                 21L, new FinancialAiOrchestratorController.Question("Show holdings"), user));
     verify(concurrency).release();
   }
+
+  @Test
+  void explicitYearToDateUsesTheCanonicalPeriod() {
+    authorize();
+    var period = com.smartbox.investory.investment.api.reporting.DashboardPeriod.YEAR_TO_DATE;
+    when(profitability.requestsResult(anyString())).thenReturn(true);
+    when(profitability.answer(21L, period))
+        .thenReturn(
+            new InvestoryRagClient.RagAnswer("YTD result", List.of("live:investment-performance")));
+    var result =
+        controller.ask(
+            21L,
+            new FinancialAiOrchestratorController.Question("Is my portfolio profitable this year?"),
+            user);
+    assertEquals("YTD result", result.answer());
+    verify(profitability, never()).answer(21L);
+    verifyNoInteractions(profiles, rag, market);
+  }
+
+  @Test
+  void explicitRollingBenchmarkPeriodIsPreserved() {
+    authorize();
+    var period = com.smartbox.investory.investment.api.reporting.DashboardPeriod.THREE_MONTHS;
+    when(readModels.spyComparison(21L, period))
+        .thenReturn(
+            new InvestoryRagClient.RagAnswer(
+                "3M comparison", List.of("live:investment-benchmark")));
+    var result =
+        controller.ask(
+            21L,
+            new FinancialAiOrchestratorController.Question("Compare my portfolio with SPY for 3M"),
+            user);
+    assertEquals(List.of("JAVA_BENCHMARK"), result.components());
+    verify(readModels, never()).spyComparison(21L);
+    verifyNoInteractions(profiles, rag, market);
+  }
+
+  @Test
+  void conflictingPeriodsAndHistoricalHoldingsNeverReadCurrentFacts() {
+    authorize();
+    for (String question :
+        List.of(
+            "My profit YTD versus 1Y",
+            "Show my holdings YTD",
+            "Predict profit YTD",
+            "Profit last month versus YTD")) {
+      assertEquals(
+          List.of("ABSTAINED"),
+          controller
+              .ask(21L, new FinancialAiOrchestratorController.Question(question), user)
+              .components());
+    }
+    verifyNoInteractions(profiles, mapper, profitability, rag, market);
+    verify(readModels, never()).mainAssets(anyLong());
+  }
 }

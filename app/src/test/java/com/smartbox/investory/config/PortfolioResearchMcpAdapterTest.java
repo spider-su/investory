@@ -25,7 +25,13 @@ class PortfolioResearchMcpAdapterTest {
   private final ObjectProvider<InvestoryRagClient> provider = mock(ObjectProvider.class);
   private final PortfolioResearchMcpAdapter adapter =
       new PortfolioResearchMcpAdapter(
-          investment, profiles, mapper, plans, provider, mock(ObjectProvider.class));
+          investment,
+          mock(com.smartbox.investory.investment.api.asset.InvestmentAssetApi.class),
+          profiles,
+          mapper,
+          plans,
+          provider,
+          mock(ObjectProvider.class));
 
   @Test
   void periodAndPortfolioArePreservedWithoutModelArithmetic() {
@@ -59,6 +65,11 @@ class PortfolioResearchMcpAdapterTest {
     var result = adapter.search(21, "transfers", 2);
     assertEquals("accounting.md", result.matches().getFirst().source());
     verify(client).searchDocumentation("transfers", 2);
-    verifyNoInteractions(investment, profiles, mapper, plans);
+    verifyNoInteractions(
+        investment,
+        mock(com.smartbox.investory.investment.api.asset.InvestmentAssetApi.class),
+        profiles,
+        mapper,
+        plans);
   }
 }

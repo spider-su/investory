@@ -56,24 +56,37 @@ public final class PortfolioProfitabilityAnswer {
         || normalized.matches("(?s).*\\b(?:have i|did i)\\s+made?\\s+money\\b.*");
   }
 
+  public boolean requestsResult(String question) {
+    return INTENT.matcher(question).find();
+  }
+
   public InvestoryRagClient.RagAnswer answer(long portfolioId) {
+    return answer(portfolioId, DashboardPeriod.MAX);
+  }
+
+  public InvestoryRagClient.RagAnswer answer(long portfolioId, DashboardPeriod period) {
     var dashboard =
         investment.loadDashboard(
-            new InvestmentDashboardApi.DashboardQuery(
-                List.of(), false, DashboardPeriod.MAX, portfolioId));
+            new InvestmentDashboardApi.DashboardQuery(List.of(), false, period, portfolioId));
     var overview = dashboard == null ? null : dashboard.overview();
     BigDecimal profit = overview == null ? null : overview.totalProfit();
     var currency = overview == null ? null : overview.baseCurrency();
     if (profit == null || currency == null) {
       return new InvestoryRagClient.RagAnswer(
-          "The all-time portfolio profit or loss is unavailable from current reporting data.",
+          "Portfolio profit or loss for "
+              + period.wireValue()
+              + " is unavailable from current reporting data.",
           List.of());
     }
     String state =
         profit.signum() > 0 ? "profitable" : profit.signum() < 0 ? "at a loss" : "break-even";
     String sign = profit.signum() > 0 ? "+" : "";
     String answer =
-        "For the selected portfolio, the all-time investment result (MAX reporting period) is "
+        (period == DashboardPeriod.MAX
+                ? "For the selected portfolio, the all-time investment result (MAX reporting period) is "
+                : "For the selected portfolio, the investment result ("
+                    + period.wireValue()
+                    + " reporting period) is ")
             + sign
             + profit.toPlainString()
             + " "
