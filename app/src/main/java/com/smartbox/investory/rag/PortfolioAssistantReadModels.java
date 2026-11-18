@@ -142,9 +142,15 @@ public class PortfolioAssistantReadModels {
   }
 
   public InvestoryRagClient.RagAnswer spyComparison(long portfolioId, DashboardPeriod period) {
+    return spyComparison(portfolioId, period, false);
+  }
+
+  public InvestoryRagClient.RagAnswer spyComparison(
+      long portfolioId, DashboardPeriod period, boolean freshFacts) {
     var view =
         dashboard.loadDashboard(
-            new InvestmentDashboardApi.DashboardQuery(List.of(), false, period, portfolioId));
+            new InvestmentDashboardApi.DashboardQuery(
+                List.of(), false, period, portfolioId, freshFacts));
     var benchmark =
         view == null || view.performance() == null ? null : view.performance().benchmark();
     var overview = view == null ? null : view.overview();

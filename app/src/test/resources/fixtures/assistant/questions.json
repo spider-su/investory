@@ -1,0 +1,13 @@
+[
+  {"id":"net-worth","question":"What is my net worth?","source":"live:profile","component":"JAVA_PROFILE","profileField":"totalNetWorth"},
+  {"id":"portfolio-value","question":"What is my market portfolio value?","source":"live:profile","component":"JAVA_PROFILE","profileField":"marketPortfolioValue"},
+  {"id":"liquid-assets","question":"What are my liquid assets?","source":"live:profile","component":"JAVA_PROFILE","profileField":"liquidAssets"},
+  {"id":"illiquid-assets","question":"What are my illiquid assets?","source":"live:profile","component":"JAVA_PROFILE","profileField":"illiquidAssets"},
+  {"id":"documentation","question":"Explain internal transfers","source":"domain/portfolio-accounting.md","component":"RAG_DOCUMENTATION"},
+  {"id":"provider-missing","question":"Show my net worth and quote for ticker MSFT","source":"live:profile","component":"JAVA_PROFILE","profileField":"totalNetWorth","contains":"unavailable"},
+  {"id":"forecast","question":"Predict my portfolio tomorrow","component":"ABSTAINED"},
+  {"id":"dated-holdings","question":"Show my holdings YTD","component":"ABSTAINED"},
+  {"id":"trading-advice","question":"Should I buy SPY instead of my investments?","component":"ABSTAINED"},
+  {"id":"conflicting-periods","question":"Portfolio profit YTD versus 1Y","component":"ABSTAINED"},
+  {"id":"missing-context","question":"Compare that with YTD","component":"ABSTAINED","contains":"Choose a portfolio profit"}
+]

@@ -316,3 +316,30 @@ test('typed provider quote shows source and status while ignoring raw payload', 
         assert.equal(provider.children.length, 0);
     } finally { harness.restore(); }
 });
+
+test('follow-ups send only returned report context and closing clears it', async () => {
+    const harness = setup();
+    try {
+        const {initSmartAssistant} = await modulePromise;
+        const requests = [];
+        const context = {portfolioId: 21, topic: 'ASSET_REALIZED', asset: 'MSFT.US', period: 'MAX'};
+        global.fetch = async (_url, options) => {
+            requests.push(JSON.parse(options.body));
+            return {ok: true, json: async () => ({answer: 'Report', sources: [], context})};
+        };
+        initSmartAssistant();
+        const submit = async question => {
+            harness.nodes.question.value = question;
+            await harness.nodes.form.requestSubmit();
+        };
+        await submit('Show realized profit for asset MSFT.US for MAX');
+        await submit('Compare that with YTD');
+        harness.nodes.close.listeners.click();
+        await submit('Compare that with YTD');
+        assert.deepEqual(requests, [
+            {question: 'Show realized profit for asset MSFT.US for MAX'},
+            {question: 'Compare that with YTD', context},
+            {question: 'Compare that with YTD'}
+        ]);
+    } finally { harness.restore(); }
+});

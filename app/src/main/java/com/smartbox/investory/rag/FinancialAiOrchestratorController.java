@@ -1,6 +1,7 @@
 package com.smartbox.investory.rag;
 
 import com.smartbox.investory.config.AuthorizationService;
+import com.smartbox.investory.investment.api.asset.InvestmentAssetApi;
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
 import com.smartbox.investory.profile.api.contract.ProfileResponse;
@@ -35,7 +36,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class FinancialAiOrchestratorController {
   private static final Pattern PUBLIC_SYMBOL =
       Pattern.compile(
-          "(?i:ticker|symbol|price of|quote for)\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9.^-])");
+          "(?i:ticker|symbol|price of|quote for)\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9._^/-])");
   private static final Pattern MARKET_LANGUAGE =
       Pattern.compile(
           "(?i)\\b(?:quote|ticker|trading|stock price|price of|latest price|market (?:price|quote|data|research))\\b");
@@ -67,6 +68,17 @@ public class FinancialAiOrchestratorController {
           "(?i)\\b(?:mtd|qtd|today|yesterday|tomorrow|forecast|predict|will|all[ -]?time|lifetime|since inception|from the beginning|(?:19|20)\\d{2}|"
               + "(?:since|through|before|after|as of)\\s+\\d|(?:last|past|previous|next|this|current)\\s+(?:\\d+\\s+)?(?:day|week|month|quarter|year)s?)\\b");
 
+  private static final String PERIOD_TOKEN = "(1M|3M|6M|YTD|1Y|3Y|5Y|MAX)";
+  private static final Pattern FOLLOW_UP =
+      Pattern.compile("(?i)^(compare that with|show that for) " + PERIOD_TOKEN + "[?.]?$");
+  private static final Pattern ASSET_RESULT =
+      Pattern.compile(
+          "(?i)^show realized profit for asset ([A-Z0-9][A-Z0-9._^-]{0,31}) for "
+              + PERIOD_TOKEN
+              + "[?.]?$");
+  private static final Pattern CONTEXT_REFERENCE =
+      Pattern.compile("(?i)^(?:compare|show) (?:that|it)\\b");
+
   private final AuthorizationService authorization;
   private final RagUserRateLimiter rateLimiter;
   private final RagConcurrencyLimiter concurrency;
@@ -76,6 +88,8 @@ public class FinancialAiOrchestratorController {
   private final PortfolioProfitabilityAnswer profitability;
   private final InvestoryRagClient rag;
   private final ExternalMarketDataService market;
+  private final InvestmentAssetApi assets;
+  private final AssistantMetrics metrics;
 
   public FinancialAiOrchestratorController(
       AuthorizationService authorization,
@@ -86,7 +100,9 @@ public class FinancialAiOrchestratorController {
       PortfolioAssistantReadModels readModels,
       PortfolioProfitabilityAnswer profitability,
       InvestoryRagClient rag,
-      ExternalMarketDataService market) {
+      ExternalMarketDataService market,
+      InvestmentAssetApi assets,
+      AssistantMetrics metrics) {
     this.authorization = authorization;
     this.rateLimiter = rateLimiter;
     this.concurrency = concurrency;
@@ -96,6 +112,8 @@ public class FinancialAiOrchestratorController {
     this.profitability = profitability;
     this.rag = rag;
     this.market = market;
+    this.assets = assets;
+    this.metrics = metrics;
   }
 
   @PostMapping("/ask")
@@ -103,6 +121,31 @@ public class FinancialAiOrchestratorController {
       @PathVariable long portfolioId,
       @RequestBody Question request,
       Authentication authentication) {
+    long started = System.nanoTime();
+    var outcome = AssistantMetrics.RequestOutcome.ERROR;
+    try {
+      var answer = execute(portfolioId, request, authentication);
+      metrics.routing(answer.components());
+      outcome =
+          answer.sources().isEmpty() && answer.marketData() == null
+              ? AssistantMetrics.RequestOutcome.ABSTAINED
+              : AssistantMetrics.RequestOutcome.ANSWERED;
+      return answer;
+    } catch (ResponseStatusException e) {
+      outcome =
+          switch (e.getStatusCode().value()) {
+            case 400 -> AssistantMetrics.RequestOutcome.INVALID;
+            case 403 -> AssistantMetrics.RequestOutcome.DENIED;
+            case 429 -> AssistantMetrics.RequestOutcome.LIMITED;
+            default -> AssistantMetrics.RequestOutcome.ERROR;
+          };
+      throw e;
+    } finally {
+      metrics.request(outcome, started);
+    }
+  }
+
+  private Answer execute(long portfolioId, Question request, Authentication authentication) {
     if (portfolioId <= 0
         || request == null
         || request.question() == null
@@ -113,6 +156,9 @@ public class FinancialAiOrchestratorController {
     if (!authorization.canReadScoped(portfolioId, authentication)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     }
+    if (request.context() != null && !request.context().validFor(portfolioId)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid follow-up context");
+    }
     if (!rateLimiter.tryAcquire(authentication == null ? null : authentication.getName())) {
       throw new ResponseStatusException(
           HttpStatus.TOO_MANY_REQUESTS, "Assistant request limit exceeded");
@@ -121,7 +167,26 @@ public class FinancialAiOrchestratorController {
       throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Assistant is busy");
     }
     try {
-      return answerAuthorized(portfolioId, request.question());
+      String question = request.question().strip();
+      var followUp = FOLLOW_UP.matcher(question);
+      if (followUp.matches()) {
+        if (request.context() == null) return missingContext();
+        return followUp(
+            request.context(),
+            parsePeriod(followUp.group(2)),
+            followUp.group(1).equalsIgnoreCase("compare that with"));
+      }
+      if (CONTEXT_REFERENCE.matcher(question).find()) return missingContext();
+      var asset = ASSET_RESULT.matcher(question);
+      if (asset.matches()) {
+        return report(
+            new Context(
+                portfolioId,
+                Topic.ASSET_REALIZED,
+                asset.group(1).toUpperCase(Locale.ROOT),
+                parsePeriod(asset.group(2))));
+      }
+      return answerAuthorized(portfolioId, question);
     } finally {
       concurrency.release();
     }
@@ -154,10 +219,10 @@ public class FinancialAiOrchestratorController {
               ? DashboardPeriod.fromUrlValue(label.toUpperCase(Locale.ROOT))
               : DashboardPeriod.YEAR_TO_DATE;
       if (SPY.matcher(remaining).find() && COMPARE.matcher(remaining).find()) {
-        return reportingAnswer(readModels.spyComparison(portfolioId, period), "JAVA_BENCHMARK");
+        return report(new Context(portfolioId, Topic.SPY_BENCHMARK, null, period));
       }
       if (profitability.requestsResult(remaining)) {
-        return reportingAnswer(profitability.answer(portfolioId, period), "JAVA_PROFITABILITY");
+        return report(new Context(portfolioId, Topic.PORTFOLIO_PROFIT, null, period));
       }
       return unsupported();
     }
@@ -233,7 +298,8 @@ public class FinancialAiOrchestratorController {
     if (wantsMarket) {
       Matcher matcher = PUBLIC_SYMBOL.matcher(question);
       Matcher explicit =
-          Pattern.compile("(?i:\\b(?:ticker|symbol))\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})")
+          Pattern.compile(
+                  "(?i:\\b(?:ticker|symbol))\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9._^/-])")
               .matcher(question);
       String symbol =
           explicit.find() ? explicit.group(1) : matcher.find() ? matcher.group(1) : null;
@@ -304,7 +370,16 @@ public class FinancialAiOrchestratorController {
         List.copyOf(citations),
         List.copyOf(new LinkedHashSet<>(used)),
         observation,
-        marketStatus);
+        marketStatus,
+        citations.isEmpty() || used.size() != 1 || parts.size() != 1
+            ? null
+            : switch (used.getFirst()) {
+              case "JAVA_BENCHMARK" ->
+                  new Context(portfolioId, Topic.SPY_BENCHMARK, null, DashboardPeriod.MAX);
+              case "JAVA_PROFITABILITY" ->
+                  new Context(portfolioId, Topic.PORTFOLIO_PROFIT, null, DashboardPeriod.MAX);
+              default -> null;
+            });
   }
 
   private static Answer unsupported() {
@@ -314,11 +389,88 @@ public class FinancialAiOrchestratorController {
         List.of("ABSTAINED"));
   }
 
-  private static Answer reportingAnswer(InvestoryRagClient.RagAnswer result, String component) {
+  private static DashboardPeriod parsePeriod(String text) {
+    return DashboardPeriod.fromUrlValue(text.toUpperCase(Locale.ROOT));
+  }
+
+  private static Answer missingContext() {
+    return new Answer(
+        "Choose a portfolio profit, SPY comparison or asset realized profit report first. "
+            + "Use “compare that with YTD” or “show that for YTD” to change its reporting period.",
+        List.of(),
+        List.of("ABSTAINED"));
+  }
+
+  private Answer followUp(Context selected, DashboardPeriod target, boolean compare) {
+    var next = new Context(selected.portfolioId(), selected.topic(), selected.asset(), target);
+    if (!compare || target == selected.period()) return report(next, true);
+    var previous = report(selected, true);
+    var updated = report(next, true);
+    var citations = new LinkedHashSet<>(previous.sources());
+    citations.addAll(updated.sources());
+    var components = new LinkedHashSet<>(previous.components());
+    components.addAll(updated.components());
+    return new Answer(
+        previous.answer() + "\n\n" + updated.answer(),
+        List.copyOf(citations),
+        List.copyOf(components),
+        null,
+        null,
+        updated.context());
+  }
+
+  private Answer report(Context selected) {
+    return report(selected, false);
+  }
+
+  private Answer report(Context selected, boolean freshFacts) {
+    long portfolioId = selected.portfolioId();
+    var period = selected.period();
+    var result =
+        switch (selected.topic()) {
+          case PORTFOLIO_PROFIT ->
+              freshFacts
+                  ? profitability.answer(portfolioId, period, true)
+                  : profitability.answer(portfolioId, period);
+          case SPY_BENCHMARK ->
+              freshFacts
+                  ? readModels.spyComparison(portfolioId, period, true)
+                  : readModels.spyComparison(portfolioId, period);
+          case ASSET_REALIZED -> assetRealized(portfolioId, selected.asset(), period);
+        };
+    if (result.sources().isEmpty())
+      return new Answer(result.answer(), List.of(), List.of("ABSTAINED"));
     return new Answer(
         result.answer(),
         result.sources(),
-        List.of(result.sources().isEmpty() ? "ABSTAINED" : component));
+        List.of(selected.topic().component),
+        null,
+        null,
+        selected);
+  }
+
+  private InvestoryRagClient.RagAnswer assetRealized(
+      long portfolioId, String symbol, DashboardPeriod period) {
+    try {
+      var view = assets.detail(portfolioId, symbol, period);
+      var amount = view.totalRealizedProfitLoss();
+      if (amount != null && Double.isFinite(amount) && view.currency() != null) {
+        return new InvestoryRagClient.RagAnswer(
+            view.symbol()
+                + " realized profit/loss for "
+                + period.wireValue()
+                + " is "
+                + BigDecimal.valueOf(amount).toPlainString()
+                + " "
+                + view.currency().name()
+                + ". [live:investment-asset]",
+            List.of("live:investment-asset"));
+      }
+    } catch (InvestmentAssetApi.AssetNotFoundException ignored) {
+      // The requested canonical symbol has no report.
+    }
+    return new InvestoryRagClient.RagAnswer(
+        "Asset realized profit/loss for " + period.wireValue() + " is unavailable.", List.of());
   }
 
   private static void append(
@@ -380,16 +532,44 @@ public class FinancialAiOrchestratorController {
     used.add("JAVA_PROFILE");
   }
 
-  public record Question(String question) {}
+  public enum Topic {
+    PORTFOLIO_PROFIT("JAVA_PROFITABILITY"),
+    SPY_BENCHMARK("JAVA_BENCHMARK"),
+    ASSET_REALIZED("JAVA_ASSET");
+
+    private final String component;
+
+    Topic(String component) {
+      this.component = component;
+    }
+  }
+
+  public record Context(long portfolioId, Topic topic, String asset, DashboardPeriod period) {
+    boolean validFor(long authorizedPortfolioId) {
+      return portfolioId == authorizedPortfolioId
+          && topic != null
+          && period != null
+          && (topic == Topic.ASSET_REALIZED
+              ? asset != null && asset.matches("[A-Z0-9][A-Z0-9._^-]{0,31}")
+              : asset == null);
+    }
+  }
+
+  public record Question(String question, Context context) {
+    public Question(String question) {
+      this(question, null);
+    }
+  }
 
   public record Answer(
       String answer,
       List<String> sources,
       List<String> components,
       InvestoryRagClient.MarketData marketData,
-      InvestoryRagClient.MarketStatus marketStatus) {
+      InvestoryRagClient.MarketStatus marketStatus,
+      Context context) {
     public Answer(String answer, List<String> sources, List<String> components) {
-      this(answer, sources, components, null, null);
+      this(answer, sources, components, null, null, null);
     }
   }
 }

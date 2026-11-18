@@ -139,6 +139,9 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/v1/auth/invitations/*/accept")
                         .permitAll()
+                        .requestMatchers(
+                            "/actuator/prometheus", "/actuator/metrics", "/actuator/metrics/**")
+                        .hasRole("ADMIN")
                         .requestMatchers("/mcp", "/mcp/**")
                         .hasAnyRole("ADMIN", "PROFILE_OWNER", "PROFILE_USER")
                         .requestMatchers(

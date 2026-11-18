@@ -114,6 +114,10 @@ public class PortfolioMetricsService {
       key = "#portfolioId",
       unless = "!#result.valuationComplete")
   public Portfolio calculateTotalProfitLoss(Long portfolioId) {
+    return calculateFreshTotalProfitLoss(portfolioId);
+  }
+
+  public Portfolio calculateFreshTotalProfitLoss(Long portfolioId) {
     if (portfolioId == null || portfolioId <= 0) {
       throw new IllegalArgumentException("portfolioId must be positive");
     }

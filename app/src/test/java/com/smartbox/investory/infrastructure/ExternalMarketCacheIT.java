@@ -17,6 +17,7 @@ class ExternalMarketCacheIT {
       MigrationTestDatabase.open("external_market_cache");
   private static DriverManagerDataSource source;
   private MarketDataStore store;
+  private io.micrometer.core.instrument.simple.SimpleMeterRegistry meters;
 
   @BeforeAll
   static void migrate() {
@@ -32,6 +33,7 @@ class ExternalMarketCacheIT {
 
   @BeforeEach
   void prepare() {
+    meters = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
     var jdbc = new JdbcTemplate(source);
     jdbc.update("DELETE FROM investory.external_market_cache");
     jdbc.update("DELETE FROM investory.external_market_attempt");
@@ -40,7 +42,8 @@ class ExternalMarketCacheIT {
   }
 
   private ExternalMarketDataService gateway(InvestoryRagClient client, boolean stale) {
-    return new ExternalMarketDataService(store, client, "test", 20, true, stale);
+    return new ExternalMarketDataService(
+        store, new AssistantMetrics(meters), client, "test", 20, true, stale);
   }
 
   private InvestoryRagClient.MarketData quote() {
@@ -95,6 +98,17 @@ class ExternalMarketCacheIT {
     }
     assertEquals("CACHED", gateway(client, false).lookup("GLOBAL_QUOTE", "MSFT").cache().status());
     assertEquals(19, service.remaining());
+    assertEquals(
+        1, meters.find("investory.market.events").tag("event", "ATTEMPT").counter().count());
+    assertTrue(
+        meters.find("investory.market.events").tag("event", "CACHE_HIT").counter().count() >= 1);
+    assertEquals(
+        1,
+        meters
+            .find("investory.market.provider")
+            .tag("outcome", "PROVIDER_SUCCESS")
+            .timer()
+            .count());
     verify(client, times(1)).marketData("GLOBAL_QUOTE", "MSFT");
   }
 

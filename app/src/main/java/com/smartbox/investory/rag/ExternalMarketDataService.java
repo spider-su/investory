@@ -1,5 +1,7 @@
 package com.smartbox.investory.rag;
 
+import static com.smartbox.investory.rag.AssistantMetrics.MarketEvent.*;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(prefix = "investory.rag", name = "enabled", havingValue = "true")
 public class ExternalMarketDataService {
   private final MarketDataStore store;
+  private final AssistantMetrics metrics;
   private final InvestoryRagClient client;
   private final String profile;
   private final int limit;
@@ -30,6 +33,7 @@ public class ExternalMarketDataService {
 
   public ExternalMarketDataService(
       MarketDataStore store,
+      AssistantMetrics metrics,
       InvestoryRagClient client,
       @Value("${investory.rag.market.profile:alpha-vantage-free-v1}") String profile,
       @Value("${investory.rag.market.daily-budget:20}") int limit,
@@ -38,6 +42,7 @@ public class ExternalMarketDataService {
     if (limit < 1 || limit > 20 || !profile.matches("[a-zA-Z0-9_-]{1,100}"))
       throw new IllegalArgumentException("Invalid market policy");
     this.store = store;
+    this.metrics = metrics;
     this.client = client;
     this.profile = profile;
     this.limit = limit;
@@ -64,7 +69,10 @@ public class ExternalMarketDataService {
   public InvestoryRagClient.MarketData lookupHolding(String tool, String symbol) {
     validate(tool, symbol);
     var listing = AlphaVantageQuotes.holding(symbol);
-    if (listing == null) throw new PythonRagClient.MarketDataUnavailableException();
+    if (listing == null) {
+      metrics.market(UNMAPPED);
+      throw new PythonRagClient.MarketDataUnavailableException();
+    }
     return lookup(tool, listing.providerSymbol());
   }
 
@@ -119,7 +127,10 @@ public class ExternalMarketDataService {
   public InvestoryRagClient.MarketData lookup(String tool, String symbol) {
     validate(tool, symbol);
     symbol = AlphaVantageQuotes.providerSymbol(symbol);
-    if (!enabled) throw new PythonRagClient.MarketResearchUnavailableException();
+    if (!enabled) {
+      metrics.market(DISABLED);
+      throw new PythonRagClient.MarketResearchUnavailableException();
+    }
     var key = tool + ":" + symbol;
     var promise = new CompletableFuture<InvestoryRagClient.MarketData>();
     var existing = pending.putIfAbsent(key, promise);
@@ -148,22 +159,35 @@ public class ExternalMarketDataService {
     if (cached != null
         && cached.data() != null
         && cached.expiresAt().isAfter(now)
-        && (!"GLOBAL_QUOTE".equals(tool) || validCachedQuote(cached, symbol)))
+        && (!"GLOBAL_QUOTE".equals(tool) || validCachedQuote(cached, symbol))) {
+      metrics.market(CACHE_HIT);
       return result(tool, symbol, cached, "CACHED", List.of());
+    }
+    metrics.market(CACHE_MISS);
     if (cached != null && cached.blockedUntil() != null && cached.blockedUntil().isAfter(now)) {
+      metrics.market(SYMBOL_COOLDOWN);
       if ("NO_DATA".equals(cached.reason()))
         throw new PythonRagClient.MarketDataUnavailableException();
       if ("ENTITLEMENT".equals(cached.reason()))
         throw new PythonRagClient.MarketDataNotEntitledException();
       return staleOrThrow(tool, symbol, cached, new PythonRagClient.RagUnavailableException());
     }
-    if (!external.tryAcquire()) throw new BusyException();
+    if (!external.tryAcquire()) {
+      metrics.market(BUSY);
+      throw new BusyException();
+    }
     try {
-      if (!store.reserve(profile, limit, now))
+      if (!store.reserve(profile, limit, now)) {
+        metrics.market(
+            store.providerCooldown(profile, now) == null ? BUDGET_EXHAUSTED : PROVIDER_COOLDOWN);
         return staleOrThrow(tool, symbol, cached, new BudgetExceededException());
+      }
+      metrics.market(ATTEMPT);
+      long started = System.nanoTime();
       try {
         var raw = client.marketData(tool, symbol);
         if ("GLOBAL_QUOTE".equals(tool)) AlphaVantageQuotes.parse(raw.data(), symbol);
+        metrics.provider(PROVIDER_SUCCESS, started);
         var expires = now.plusSeconds(86400);
         store.save(profile, tool, symbol, raw.data(), now, expires);
         return result(
@@ -173,15 +197,19 @@ public class ExternalMarketDataService {
             "FRESH",
             List.of());
       } catch (PythonRagClient.MarketDataUnavailableException e) {
+        metrics.provider(PROVIDER_NO_DATA, started);
         store.block(profile, tool, symbol, now.plusSeconds(86400), "NO_DATA");
         throw e;
       } catch (PythonRagClient.MarketDataNotEntitledException e) {
+        metrics.provider(PROVIDER_ENTITLEMENT, started);
         store.block(profile, tool, symbol, now.plusSeconds(86400), "ENTITLEMENT");
         throw e;
       } catch (PythonRagClient.MarketProviderRateLimitedException e) {
+        metrics.provider(PROVIDER_RATE_LIMIT, started);
         store.blockProvider(profile, now.plusSeconds(86400));
         return staleOrThrow(tool, symbol, cached, new BudgetExceededException());
       } catch (PythonRagClient.RagUnavailableException e) {
+        metrics.provider(PROVIDER_FAILURE, started);
         store.block(profile, tool, symbol, now.plusSeconds(300), "PROVIDER");
         return staleOrThrow(tool, symbol, cached, e);
       }
@@ -196,7 +224,8 @@ public class ExternalMarketDataService {
         && entry != null
         && entry.data() != null
         && (!"GLOBAL_QUOTE".equals(tool) || validCachedQuote(entry, symbol))
-        && entry.fetchedAt().plusSeconds(3 * 86400).isAfter(Instant.now()))
+        && entry.fetchedAt().plusSeconds(3 * 86400).isAfter(Instant.now())) {
+      metrics.market(STALE_HIT);
       return result(
           tool,
           symbol,
@@ -204,6 +233,7 @@ public class ExternalMarketDataService {
           "STALE",
           List.of(
               "Provider unavailable or budget exhausted; expired public data. Not suitable for trading."));
+    }
     throw error;
   }
 
