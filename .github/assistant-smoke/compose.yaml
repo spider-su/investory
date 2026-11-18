@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:18.6-bookworm
+    environment:
+      POSTGRES_DB: investory
+      POSTGRES_PASSWORD: fixture-password
+    volumes:
+      - ../../test-support/src/main/resources/db/snapshot/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+      - ./identity.sql:/docker-entrypoint-initdb.d/20-identity.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d investory"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+  fixture:
+    image: python:3.12-slim
+    command: ["python", "/smoke/check.py", "--fixture"]
+    volumes:
+      - ./check.py:/smoke/check.py:ro
+  investory:
+    image: ${INVESTORY_SMOKE_IMAGE:?exact published image required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      fixture:
+        condition: service_started
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/investory
+      DB_USERNAME: postgres
+      DB_PASSWORD: fixture-password
+      SPRING_FLYWAY_ENABLED: "false"
+      INVESTORY_TIME_FIXED_INSTANT: "2025-12-31T12:00:00Z"
+      SCHEDULING_ENABLED: "false"
+      APP_IMPORT_REFRESH_WORKER_ENABLED: "false"
+      APP_SECURITY_CSRF_PROTECTION_REQUIRED: "false"
+      INVESTORY_RAG_ENABLED: "true"
+      INVESTORY_RAG_URL: http://fixture:8090
+      INVESTORY_RAG_SERVICE_TOKEN: fixture-rag-token
+      INVESTORY_RAG_MARKET_ENABLED: "true"
+      INVESTORY_RAG_MARKET_DAILY_BUDGET: "20"
+      INVESTORY_RAG_MARKET_PROFILE: assistant-release-smoke
+      INVESTORY_MANAGEMENT_ENDPOINTS: health,prometheus
+      INVESTORY_PROMETHEUS_TOKEN: fixture-prometheus-token
+    ports:
+      - "127.0.0.1::8080"
+networks:
+  default:
+    internal: true

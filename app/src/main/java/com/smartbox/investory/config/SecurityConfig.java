@@ -1,5 +1,7 @@
 package com.smartbox.investory.config;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -9,6 +11,8 @@ import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -26,6 +30,7 @@ import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -76,12 +81,15 @@ public class SecurityConfig {
       TokenAuthenticationService tokens,
       UserDetailsService users,
       @Value("${app.security.token-login-enabled:true}") boolean tokenLoginEnabled,
+      @Value("${INVESTORY_PROMETHEUS_TOKEN:}") String prometheusToken,
       @Value("${app.security.google.enabled:false}") boolean googleLoginEnabled,
       @Value("${app.security.web-session-cookie-name:investory_web_session}")
           String webSessionCookieName,
       ObjectProvider<OAuth2UserService<OAuth2UserRequest, OAuth2User>> googleUsers,
       ObjectProvider<LocalDevelopmentSecurityConfig.LocalDevelopmentAuthenticationFilter>
           localDevelopmentAuthenticationFilter) {
+    var admin = AuthorityAuthorizationManager.<RequestAuthorizationContext>hasRole("ADMIN");
+    byte[] scrapeAuthorization = ("Bearer " + prometheusToken).getBytes(StandardCharsets.UTF_8);
     var authorization =
         http.csrf(
                 csrf -> {
@@ -139,6 +147,19 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/v1/auth/invitations/*/accept")
                         .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/prometheus")
+                        .access(
+                            (authentication, context) -> {
+                              String header = context.getRequest().getHeader("Authorization");
+                              if (!prometheusToken.isBlank()
+                                  && header != null
+                                  && MessageDigest.isEqual(
+                                      scrapeAuthorization,
+                                      header.getBytes(StandardCharsets.UTF_8))) {
+                                return new AuthorizationDecision(true);
+                              }
+                              return admin.authorize(authentication, context);
+                            })
                         .requestMatchers(
                             "/actuator/prometheus", "/actuator/metrics", "/actuator/metrics/**")
                         .hasRole("ADMIN")
