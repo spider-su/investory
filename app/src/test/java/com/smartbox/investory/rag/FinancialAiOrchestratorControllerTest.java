@@ -362,4 +362,38 @@ class FinancialAiOrchestratorControllerTest {
     verify(profitability).answer(21L, target, true);
     verifyNoInteractions(rag, market);
   }
+
+  @Test
+  void partialCompositeDoesNotEstablishFollowUpContext() {
+    authorize();
+    when(readModels.spyComparison(21L))
+        .thenReturn(
+            new InvestoryRagClient.RagAnswer(
+                "Portfolio and SPY [live:investment-benchmark]",
+                List.of("live:investment-benchmark")));
+    when(rag.askDocumentation("explain contributions"))
+        .thenThrow(new PythonRagClient.RagUnavailableException());
+    var answer =
+        controller.ask(
+            21L,
+            new FinancialAiOrchestratorController.Question(
+                "Compare portfolio with SPY and explain contributions"),
+            user);
+    assertNull(answer.context());
+    assertTrue(answer.answer().contains("Documentation is temporarily unavailable"));
+  }
+
+  @Test
+  void malformedTickerNeverBecomesDifferentProviderSymbol() {
+    authorize();
+    for (String symbol : List.of("MSFT_X", "MSFT/GBP", "ABCDEFGHIJKLMNOPQRSTUV")) {
+      var answer =
+          controller.ask(
+              21L,
+              new FinancialAiOrchestratorController.Question("Quote for ticker " + symbol),
+              user);
+      assertTrue(answer.sources().isEmpty());
+    }
+    verifyNoInteractions(market);
+  }
 }

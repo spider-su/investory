@@ -36,7 +36,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class FinancialAiOrchestratorController {
   private static final Pattern PUBLIC_SYMBOL =
       Pattern.compile(
-          "(?i:ticker|symbol|price of|quote for)\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9.^-])");
+          "(?i:ticker|symbol|price of|quote for)\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9._^/-])");
   private static final Pattern MARKET_LANGUAGE =
       Pattern.compile(
           "(?i)\\b(?:quote|ticker|trading|stock price|price of|latest price|market (?:price|quote|data|research))\\b");
@@ -298,7 +298,8 @@ public class FinancialAiOrchestratorController {
     if (wantsMarket) {
       Matcher matcher = PUBLIC_SYMBOL.matcher(question);
       Matcher explicit =
-          Pattern.compile("(?i:\\b(?:ticker|symbol))\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})")
+          Pattern.compile(
+                  "(?i:\\b(?:ticker|symbol))\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9._^/-])")
               .matcher(question);
       String symbol =
           explicit.find() ? explicit.group(1) : matcher.find() ? matcher.group(1) : null;
@@ -370,7 +371,7 @@ public class FinancialAiOrchestratorController {
         List.copyOf(new LinkedHashSet<>(used)),
         observation,
         marketStatus,
-        citations.isEmpty() || used.size() != 1
+        citations.isEmpty() || used.size() != 1 || parts.size() != 1
             ? null
             : switch (used.getFirst()) {
               case "JAVA_BENCHMARK" ->
