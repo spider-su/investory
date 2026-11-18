@@ -161,6 +161,7 @@ class InvestmentMcpStreamableIT {
               "get_retirement_plan",
               "search_investory_docs",
               "get_market_quote",
+              "get_market_quote_status",
               "get_investory_capabilities",
               "get_investment_asset",
               "get_portfolio_cash_flows",

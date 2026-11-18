@@ -219,13 +219,30 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
         value.tool(),
         value.symbol(),
         value.source(),
-        value.data(),
+        value.quote().price(),
+        value.quote().currency(),
         c.status(),
         c.fetchedAt(),
         c.asOf(),
         c.expiresAt(),
         c.remainingBudget(),
         c.warnings());
+  }
+
+  @Override
+  public MarketQuoteStatus quoteStatus(long id, String symbol) {
+    var gateway = market.getIfAvailable();
+    if (gateway == null) throw new IllegalStateException();
+    var status = gateway.quoteStatus(symbol, false);
+    return new MarketQuoteStatus(
+        status.providerSymbol(),
+        status.coverage(),
+        status.cacheStatus(),
+        status.symbolCooldownUntil(),
+        status.providerCooldownUntil(),
+        status.budgetAvailableAt(),
+        status.remainingBudget(),
+        status.budgetLimit());
   }
 
   @Override

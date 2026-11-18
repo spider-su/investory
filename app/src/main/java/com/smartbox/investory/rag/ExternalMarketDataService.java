@@ -61,9 +61,64 @@ public class ExternalMarketDataService {
 
   public static class BusyException extends RuntimeException {}
 
-  public InvestoryRagClient.MarketData lookup(String tool, String symbol) {
-    if (!TOOLS.contains(tool) || symbol == null || !symbol.matches("[A-Z0-9][A-Z0-9.^-]{0,19}"))
+  public InvestoryRagClient.MarketData lookupHolding(String tool, String symbol) {
+    validate(tool, symbol);
+    var listing = AlphaVantageQuotes.holding(symbol);
+    if (listing == null) throw new PythonRagClient.MarketDataUnavailableException();
+    return lookup(tool, listing.providerSymbol());
+  }
+
+  public InvestoryRagClient.MarketStatus quoteStatus(String symbol, boolean holding) {
+    validate("GLOBAL_QUOTE", symbol);
+    var listing = AlphaVantageQuotes.holding(symbol);
+    if (holding && listing == null)
+      return new InvestoryRagClient.MarketStatus(
+          null, "UNMAPPED", "MISS", null, null, null, enabled ? remaining() : 0, limit);
+    String providerSymbol = AlphaVantageQuotes.providerSymbol(symbol);
+    var now = Instant.now();
+    if (!enabled)
+      return new InvestoryRagClient.MarketStatus(
+          providerSymbol, "DISABLED", "MISS", null, null, null, 0, limit);
+    var entry = store.find(profile, "GLOBAL_QUOTE", providerSymbol);
+    Instant symbolCooldown =
+        entry == null || entry.blockedUntil() == null || !entry.blockedUntil().isAfter(now)
+            ? null
+            : entry.blockedUntil();
+    boolean usable =
+        entry != null && entry.data() != null && validCachedQuote(entry, providerSymbol);
+    String coverage = symbolCooldown != null ? entry.reason() : usable ? "AVAILABLE" : "UNKNOWN";
+    String cacheStatus = usable ? (entry.expiresAt().isAfter(now) ? "CACHED" : "EXPIRED") : "MISS";
+    return new InvestoryRagClient.MarketStatus(
+        providerSymbol,
+        coverage,
+        cacheStatus,
+        symbolCooldown,
+        store.providerCooldown(profile, now),
+        store.budgetAvailableAt(profile, limit, now),
+        store.remaining(profile, limit, now),
+        limit);
+  }
+
+  private static boolean validCachedQuote(MarketDataStore.Entry entry, String symbol) {
+    try {
+      AlphaVantageQuotes.parse(entry.data(), symbol);
+      return true;
+    } catch (PythonRagClient.RagUnavailableException malformed) {
+      return false;
+    }
+  }
+
+  private static void validate(String tool, String symbol) {
+    if (tool == null
+        || !TOOLS.contains(tool)
+        || symbol == null
+        || !symbol.matches("[A-Z0-9][A-Z0-9.^-]{0,19}"))
       throw new IllegalArgumentException("Invalid public market request");
+  }
+
+  public InvestoryRagClient.MarketData lookup(String tool, String symbol) {
+    validate(tool, symbol);
+    symbol = AlphaVantageQuotes.providerSymbol(symbol);
     if (!enabled) throw new PythonRagClient.MarketResearchUnavailableException();
     var key = tool + ":" + symbol;
     var promise = new CompletableFuture<InvestoryRagClient.MarketData>();
@@ -90,7 +145,10 @@ public class ExternalMarketDataService {
   private InvestoryRagClient.MarketData load(String tool, String symbol) {
     var now = Instant.now();
     var cached = store.find(profile, tool, symbol);
-    if (cached != null && cached.data() != null && cached.expiresAt().isAfter(now))
+    if (cached != null
+        && cached.data() != null
+        && cached.expiresAt().isAfter(now)
+        && (!"GLOBAL_QUOTE".equals(tool) || validCachedQuote(cached, symbol)))
       return result(tool, symbol, cached, "CACHED", List.of());
     if (cached != null && cached.blockedUntil() != null && cached.blockedUntil().isAfter(now)) {
       if ("NO_DATA".equals(cached.reason()))
@@ -105,6 +163,7 @@ public class ExternalMarketDataService {
         return staleOrThrow(tool, symbol, cached, new BudgetExceededException());
       try {
         var raw = client.marketData(tool, symbol);
+        if ("GLOBAL_QUOTE".equals(tool)) AlphaVantageQuotes.parse(raw.data(), symbol);
         var expires = now.plusSeconds(86400);
         store.save(profile, tool, symbol, raw.data(), now, expires);
         return result(
@@ -136,6 +195,7 @@ public class ExternalMarketDataService {
     if (allowStale
         && entry != null
         && entry.data() != null
+        && (!"GLOBAL_QUOTE".equals(tool) || validCachedQuote(entry, symbol))
         && entry.fetchedAt().plusSeconds(3 * 86400).isAfter(Instant.now()))
       return result(
           tool,
@@ -153,6 +213,7 @@ public class ExternalMarketDataService {
       MarketDataStore.Entry entry,
       String status,
       List<String> warnings) {
+    var quote = "GLOBAL_QUOTE".equals(tool) ? AlphaVantageQuotes.parse(entry.data(), symbol) : null;
     return new InvestoryRagClient.MarketData(
         "Alpha Vantage",
         tool,
@@ -163,31 +224,9 @@ public class ExternalMarketDataService {
             status,
             entry.fetchedAt(),
             entry.expiresAt(),
-            asOf(entry.data()),
+            quote == null ? null : quote.tradingDate(),
             remaining(),
-            warnings));
-  }
-
-  /** Only provider-reported trading dates qualify; fetch time is never a price date. */
-  private static java.time.LocalDate asOf(String data) {
-    try {
-      if (data.stripLeading().startsWith("{")) {
-        var quote = new tools.jackson.databind.ObjectMapper().readTree(data).path("Global Quote");
-        var date = quote.path("07. latest trading day").asString();
-        return java.time.LocalDate.parse(date);
-      }
-      var lines = data.strip().split("\\R");
-      if (lines.length != 2) return null;
-      var headers = lines[0].split(",", -1);
-      var values = lines[1].split(",", -1);
-      if (headers.length != values.length) return null;
-      for (int i = 0; i < headers.length; i++) {
-        if (headers[i].strip().replace("\"", "").equalsIgnoreCase("latestDay"))
-          return java.time.LocalDate.parse(values[i].strip().replace("\"", ""));
-      }
-    } catch (RuntimeException ignored) {
-      /* Unknown provider shape: date stays unknown. */
-    }
-    return null;
+            warnings),
+        quote);
   }
 }

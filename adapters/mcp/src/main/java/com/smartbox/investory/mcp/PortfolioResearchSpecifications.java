@@ -120,6 +120,13 @@ final class PortfolioResearchSpecifications {
             authorization,
             mapper),
         tool(
+            "get_market_quote_status",
+            "Read cached quote coverage, provider cooldown and call budget without a provider request.",
+            Map.of("symbol", Map.of("type", "string", "pattern", "^[A-Z0-9][A-Z0-9.^-]{0,19}$")),
+            (id, args) -> client.get().quoteStatus(id, string(args, "symbol", 20)),
+            authorization,
+            mapper),
+        tool(
             "get_investory_capabilities",
             "Read supported reporting periods and local external-provider budget/freshness policy.",
             Map.of(),

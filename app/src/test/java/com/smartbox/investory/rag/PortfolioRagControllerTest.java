@@ -352,7 +352,7 @@ class PortfolioRagControllerTest {
     when(readModels.largestHoldingSymbol(21L)).thenReturn("MSFT");
     when(market.lookup("GLOBAL_QUOTE", "MSFT"))
         .thenThrow(new PythonRagClient.MarketResearchUnavailableException());
-    when(market.lookup("COMPANY_OVERVIEW", "MSFT"))
+    when(market.lookupHolding("COMPANY_OVERVIEW", "MSFT"))
         .thenThrow(new PythonRagClient.MarketResearchUnavailableException());
     var direct =
         assertThrows(
@@ -432,9 +432,9 @@ class PortfolioRagControllerTest {
             "NVDA",
             "https://www.alphavantage.co/",
             "{\"symbol\": \"NVDA\"}");
-    when(market.lookup("COMPANY_OVERVIEW", "NVDA")).thenReturn(result);
+    when(market.lookupHolding("COMPANY_OVERVIEW", "NVDA")).thenReturn(result);
     assertEquals(result, controller.researchLargestHolding(21L, user));
-    verify(market).lookup("COMPANY_OVERVIEW", "NVDA");
+    verify(market).lookupHolding("COMPANY_OVERVIEW", "NVDA");
     verifyNoInteractions(profiles, mapper);
   }
 
@@ -443,12 +443,12 @@ class PortfolioRagControllerTest {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(readModels.largestHoldingSymbol(21L)).thenReturn("MSFT");
-    when(market.lookup("COMPANY_OVERVIEW", "MSFT"))
+    when(market.lookupHolding("COMPANY_OVERVIEW", "MSFT"))
         .thenThrow(new PythonRagClient.MarketDataNotEntitledException());
     var quote =
         new InvestoryRagClient.MarketData(
             "Alpha Vantage", "GLOBAL_QUOTE", "MSFT", "https://www.alphavantage.co/", "quote data");
-    when(market.lookup("GLOBAL_QUOTE", "MSFT")).thenReturn(quote);
+    when(market.lookupHolding("GLOBAL_QUOTE", "MSFT")).thenReturn(quote);
     assertEquals(quote, controller.researchLargestHolding(21L, user));
     verifyNoInteractions(profiles, mapper);
   }
@@ -458,13 +458,13 @@ class PortfolioRagControllerTest {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(readModels.largestHoldingSymbol(21L)).thenReturn("MSFT");
-    when(market.lookup("COMPANY_OVERVIEW", "MSFT"))
+    when(market.lookupHolding("COMPANY_OVERVIEW", "MSFT"))
         .thenThrow(new PythonRagClient.RagUnavailableException());
     var error =
         assertThrows(
             ResponseStatusException.class, () -> controller.researchLargestHolding(21L, user));
     assertEquals(HttpStatus.BAD_GATEWAY, error.getStatusCode());
-    verify(market, never()).lookup("GLOBAL_QUOTE", "MSFT");
+    verify(market, never()).lookupHolding("GLOBAL_QUOTE", "MSFT");
   }
 
   @Test
@@ -495,9 +495,9 @@ class PortfolioRagControllerTest {
     when(authorization.canReadScoped(21L, user)).thenReturn(true);
     when(rateLimiter.tryAcquire("user-a")).thenReturn(true);
     when(readModels.largestHoldingSymbol(21L)).thenReturn("UNLISTED");
-    when(market.lookup("COMPANY_OVERVIEW", "UNLISTED"))
+    when(market.lookupHolding("COMPANY_OVERVIEW", "UNLISTED"))
         .thenThrow(new PythonRagClient.MarketDataNotEntitledException());
-    when(market.lookup("GLOBAL_QUOTE", "UNLISTED"))
+    when(market.lookupHolding("GLOBAL_QUOTE", "UNLISTED"))
         .thenThrow(new PythonRagClient.MarketDataUnavailableException());
     var error =
         assertThrows(

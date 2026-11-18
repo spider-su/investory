@@ -27,6 +27,8 @@ public interface PortfolioResearchClient {
 
   MarketQuote quote(long portfolioId, String symbol);
 
+  MarketQuoteStatus quoteStatus(long portfolioId, String symbol);
+
   Capabilities capabilities(long portfolioId);
 
   record ProfileSummary(
@@ -119,13 +121,24 @@ public interface PortfolioResearchClient {
       String tool,
       String symbol,
       String source,
-      String data,
+      String price,
+      String currency,
       String cacheStatus,
       Instant fetchedAt,
       LocalDate asOf,
       Instant expiresAt,
       Integer remainingBudget,
       List<String> warnings) {}
+
+  record MarketQuoteStatus(
+      String providerSymbol,
+      String coverage,
+      String cacheStatus,
+      Instant symbolCooldownUntil,
+      Instant providerCooldownUntil,
+      Instant budgetAvailableAt,
+      int remainingBudget,
+      int budgetLimit) {}
 
   record Capabilities(
       List<String> reportingPeriods,

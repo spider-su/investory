@@ -18,15 +18,15 @@ One authenticated question can select several existing read-only sources:
   documentation route. Unknown questions retain the filtered profile-facts path.
 - Explicit quote requests use `ExternalMarketDataService`, including its durable
   cache, attempted-call budget and coverage policy. Only the public symbol leaves
-  Java. The largest holding uses its scoped canonical ticker; no listing is guessed.
+  Java. The largest holding requires a verified mapping from its canonical listing to the provider symbol.
 
-Response fields are `answer`, actually attributable `sources`, `components`, and
-optional `marketData`. Raw provider data stays in `marketData`, separate from
-verified answer prose. The panel renders it as untrusted text with cache status,
-provider trading date (or unknown), fetch/expiry timestamps and stale warnings.
-A fetch timestamp is not a valuation date. Provider absence/quota failure leaves
-Java facts available and adds an explicit unavailable/skipped message; it never
-invents a quote or adds a successful market citation.
+Responses include `answer`, sources, components, optional typed `marketData`,
+and `marketStatus` for market requests. The panel shows decimal price,
+currency when verified, trading date, source and cache status. Provider
+observations appear separately from Investory values and citations. The
+coverage status shows ticker or provider cooldowns, remaining attempts and
+when a full local budget next frees a slot. Provider absence or quota
+exhaustion leaves the Java facts available.
 
 Request validation and strict active membership checks precede source reads.
 The route shares existing per-user rate/concurrency admission and always releases

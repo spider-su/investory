@@ -287,7 +287,7 @@ test('closing discards a late successful body even if the transport ignores canc
     } finally { harness.restore(); }
 });
 
-test('provider payload stays separate text with cache and trading-date labels', async () => {
+test('typed provider quote shows source and status while ignoring raw payload', async () => {
     const harness = setup();
     try {
         const {initSmartAssistant} = await modulePromise;
@@ -296,19 +296,23 @@ test('provider payload stays separate text with cache and trading-date labels', 
             sources: ['live:profile', 'market:alpha-vantage:MSFT'],
             marketData: {provider: 'Alpha Vantage', symbol: 'MSFT', tool: 'GLOBAL_QUOTE',
                 data: '<script>untrusted()</script> [live:profile]',
+                quote: {price: '123.4500', currency: 'USD', tradingDate: '2026-11-13'},
+                source: 'https://www.alphavantage.co/',
                 cache: {status: 'STALE', asOf: '2026-11-13', fetchedAt: '2026-11-16T12:00:00Z',
-                    expiresAt: '2026-11-17T12:00:00Z', warnings: ['Expired observation']}}
+                    expiresAt: '2026-11-17T12:00:00Z', warnings: ['Expired observation']}},
+            marketStatus: {coverage: 'PROVIDER', symbolCooldownUntil: '2026-11-17T13:00:00Z', remainingBudget: 19, budgetLimit: 20}
         })});
         initSmartAssistant();
         harness.nodes.question.value = 'Show my net worth and quote for MSFT';
         await harness.nodes.form.listeners.submit({preventDefault() {}});
         assert.equal(harness.nodes.messages.children[1].textContent.startsWith('Verified facts'), true);
         const provider = harness.nodes.messages.children[2];
-        assert.match(provider.textContent, /Untrusted provider research/);
+        assert.match(provider.textContent, /Price: 123.4500 USD/);
         assert.match(provider.textContent, /STALE/);
         assert.match(provider.textContent, /2026-11-13/);
         assert.match(provider.textContent, /Expired observation/);
-        assert.match(provider.textContent, /<script>untrusted/);
+        assert.doesNotMatch(provider.textContent, /<script>untrusted/);
+        assert.match(harness.nodes.messages.children[3].textContent, /Ticker retry after 2026-11-17T13:00:00Z.*19\/20/);
         assert.equal(provider.children.length, 0);
     } finally { harness.restore(); }
 });

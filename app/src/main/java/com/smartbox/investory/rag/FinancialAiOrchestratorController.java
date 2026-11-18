@@ -229,6 +229,7 @@ public class FinancialAiOrchestratorController {
 
     // Explicit public-market request only. Never send account, position size or user data to MCP.
     InvestoryRagClient.MarketData observation = null;
+    InvestoryRagClient.MarketStatus marketStatus = null;
     if (wantsMarket) {
       Matcher matcher = PUBLIC_SYMBOL.matcher(question);
       Matcher explicit =
@@ -240,19 +241,24 @@ public class FinancialAiOrchestratorController {
       if (symbol != null
           && List.of("MY", "THE", "OUR", "A", "AN", "TICKER", "SYMBOL").contains(symbol))
         symbol = null;
+      boolean holding = false;
       if (symbol == null && SPY.matcher(question).find()) symbol = "SPY";
       if (symbol == null
           && question
               .toLowerCase(Locale.ROOT)
               .matches(".*\\b(?:largest|biggest|top)\\s+holding\\b.*")) {
         symbol = readModels.largestHoldingSymbol(portfolioId);
+        holding = true;
       }
       if (symbol != null && symbol.matches("[A-Z0-9][A-Z0-9.^-]{0,19}")) {
         try {
-          var quote = market.lookup("GLOBAL_QUOTE", symbol);
-          if (quote != null && quote.data() != null && !quote.data().isBlank()) {
-            observation = quote;
-            String citation = "market:alpha-vantage:" + symbol;
+          var quote =
+              holding
+                  ? market.lookupHolding("GLOBAL_QUOTE", symbol)
+                  : market.lookup("GLOBAL_QUOTE", symbol);
+          if (quote != null && quote.quote() != null) {
+            observation = quote.withoutRawData();
+            String citation = "market:alpha-vantage:" + quote.symbol();
             parts.add(
                 "Public provider observation for "
                     + symbol
@@ -273,6 +279,7 @@ public class FinancialAiOrchestratorController {
             | PythonRagClient.RagUnavailableException e) {
           parts.add("Public market lookup is temporarily unavailable.");
         }
+        marketStatus = market.quoteStatus(symbol, holding);
       } else {
         parts.add(
             "Market research requires an explicit supported public symbol or the largest holding.");
@@ -296,7 +303,8 @@ public class FinancialAiOrchestratorController {
         String.join("\n\n", parts),
         List.copyOf(citations),
         List.copyOf(new LinkedHashSet<>(used)),
-        observation);
+        observation,
+        marketStatus);
   }
 
   private static Answer unsupported() {
@@ -378,9 +386,10 @@ public class FinancialAiOrchestratorController {
       String answer,
       List<String> sources,
       List<String> components,
-      InvestoryRagClient.MarketData marketData) {
+      InvestoryRagClient.MarketData marketData,
+      InvestoryRagClient.MarketStatus marketStatus) {
     public Answer(String answer, List<String> sources, List<String> components) {
-      this(answer, sources, components, null);
+      this(answer, sources, components, null, null);
     }
   }
 }
