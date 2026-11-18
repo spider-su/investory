@@ -17,8 +17,12 @@ services:
     command: ["python", "/smoke/check.py", "--fixture"]
     volumes:
       - ./check.py:/smoke/check.py:ro
+      - ./questions.json:/smoke/questions.json:ro
   investory:
     image: ${INVESTORY_SMOKE_IMAGE:?exact published image required}
+    # The checker polls readiness through the isolated network.
+    healthcheck:
+      disable: true
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,13 +40,12 @@ services:
       INVESTORY_RAG_ENABLED: "true"
       INVESTORY_RAG_URL: http://fixture:8090
       INVESTORY_RAG_SERVICE_TOKEN: fixture-rag-token
+      INVESTORY_RAG_MAX_REQUESTS_PER_MINUTE: "100"
       INVESTORY_RAG_MARKET_ENABLED: "true"
       INVESTORY_RAG_MARKET_DAILY_BUDGET: "20"
       INVESTORY_RAG_MARKET_PROFILE: assistant-release-smoke
       INVESTORY_MANAGEMENT_ENDPOINTS: health,prometheus
       INVESTORY_PROMETHEUS_TOKEN: fixture-prometheus-token
-    ports:
-      - "127.0.0.1::8080"
 networks:
   default:
     internal: true

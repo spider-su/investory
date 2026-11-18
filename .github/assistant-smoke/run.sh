@@ -15,7 +15,7 @@ if ! "${compose[@]}" up --wait --wait-timeout 240; then
   "${compose[@]}" logs --tail=100
   exit 1
 fi
-if ! python3 "$directory/check.py" "http://$("${compose[@]}" port investory 8080)"; then
+if ! "${compose[@]}" exec -T fixture python /smoke/check.py http://investory:8080; then
   "${compose[@]}" logs --tail=100
   exit 1
 fi

@@ -18,11 +18,21 @@ SOURCE = "https://www.alphavantage.co/"
 
 
 class RagFixture(BaseHTTPRequestHandler):
+    def request_body(self):
+        if self.headers.get("Transfer-Encoding") != "chunked":
+            return self.rfile.read(int(self.headers["Content-Length"]))
+        body = bytearray()
+        while size := int(self.rfile.readline().split(b";", 1)[0], 16):
+            body.extend(self.rfile.read(size))
+            self.rfile.readline()
+        self.rfile.readline()
+        return body
+
     def do_POST(self):
-        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         if self.headers.get("Authorization") != "Bearer fixture-rag-token":
             self.send_error(401)
             return
+        body = json.loads(self.request_body())
         if (
             self.path == "/ask"
             and body == {"question": "explain internal transfers"}
@@ -87,8 +97,11 @@ def check(base):
     path = "/api/v1/portfolios/2"
     outside = "/api/v1/portfolios/1/assistant/ask"
     dashboard = path + "/investment/dashboard/query"
-    maximum = request(base, dashboard, {"period": "MAX"}, user)["overview"]
-    ytd = request(base, dashboard, {"period": "YTD"}, user)["overview"]
+    selection = {"accountIds": [], "benchmarkAccountsSubmitted": False}
+    full_dashboard = request(base, dashboard, {**selection, "period": "MAX"}, user)
+    maximum = full_dashboard["overview"]
+    benchmark = full_dashboard["performance"]["benchmark"]
+    ytd = request(base, dashboard, {**selection, "period": "YTD"}, user)["overview"]
     profile = request(base, path + "/profile", auth=user)
     holdings = maximum["portfolioStructure"]["topHoldings"][:5]
 
@@ -98,7 +111,8 @@ def check(base):
         require(Decimal(value) in numbers and currency in text, "amount or currency differs from canonical data")
 
     def cited(answer, *sources):
-        require(set(sources) <= set(answer["sources"]), "required citation missing")
+        missing = set(sources) - set(answer["sources"])
+        require(not missing, "missing citations: " + ", ".join(sorted(missing)))
 
     def quote_status():
         return request(base, path + "/rag/research/quote-status?symbol=MSFT.US", auth=user)
@@ -138,7 +152,16 @@ def check(base):
             if index == 4:
                 cited(response, DOC)
             if index == 5:
-                cited(response, "live:investment-benchmark", "live:retirement-plan")
+                cited(response, "live:retirement-plan")
+                if benchmark["benchmarkAvailable"] and benchmark["portfolioPerformanceAvailable"]:
+                    cited(response, "live:investment-benchmark")
+                    amount(response, benchmark["benchmarkPl"], maximum["baseCurrency"])
+                else:
+                    require(
+                        "not have enough verified data" in response["answer"]
+                        and "live:investment-benchmark" not in response["sources"],
+                        "missing benchmark data was not acknowledged",
+                    )
             if index in (6, 7):
                 cited(response, MARKET)
                 market = response["marketData"]
@@ -153,12 +176,15 @@ def check(base):
                     "cached alias consumed quota or first quote missed budget accounting",
                 )
             if index == 8:
+                coverage = response["marketStatus"]
                 require(
                     not response.get("marketData")
-                    and "unavailable" in response["answer"].lower()
-                    and response["marketStatus"]["coverage"] == "UNMAPPED"
-                    and quote_status()["remainingBudget"] == 1,
-                    "unmapped holding did not preserve facts or budget",
+                    and "temporarily unavailable" in response["answer"]
+                    and coverage["coverage"] == "PROVIDER"
+                    and coverage["providerSymbol"] == "AAPL"
+                    and coverage["symbolCooldownUntil"]
+                    and quote_status()["remainingBudget"] == 0,
+                    "failed holding quote did not preserve facts or enter cooldown",
                 )
         except (AssertionError, KeyError, TypeError, ValueError) as error:
             raise AssertionError(f"Question {index}: {error}") from None
@@ -169,8 +195,6 @@ def check(base):
             request(base, path + "/assistant/ask", {**payload, "context": forged}, user, expected=400)
 
     request(base, path + "/assistant/ask", {"question": questions[0]}, expected=401)
-    failed = request(base, path + "/assistant/ask", {"question": "Get latest price of ticker AAPL"}, user)
-    require(not failed.get("marketData") and "temporarily unavailable" in failed["answer"], "provider failure was not explicit")
     exhausted = request(base, path + "/assistant/ask", {"question": "Get latest price of ticker AMZN"}, user)
     require(not exhausted.get("marketData") and "quota" in exhausted["answer"] and quote_status()["remainingBudget"] == 0, "budget did not block a third provider attempt")
 
