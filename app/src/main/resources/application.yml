@@ -91,10 +91,15 @@ develop:
   mode: ${DEVELOP_MODE:true}
 
 management:
+  metrics:
+    distribution:
+      slo:
+        investory.assistant.request: 100ms,500ms,1s,5s,15s,30s
+        investory.market.provider: 100ms,500ms,1s,5s,15s,30s
   endpoints:
     web:
       exposure:
-        include: health
+        include: ${INVESTORY_MANAGEMENT_ENDPOINTS:health}
   endpoint:
     health:
       show-details: when_authorized

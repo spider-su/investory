@@ -40,7 +40,9 @@ class FinancialAiOrchestratorControllerTest {
             readModels,
             profitability,
             rag,
-            market);
+            market,
+            mock(com.smartbox.investory.investment.api.asset.InvestmentAssetApi.class),
+            new AssistantMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
   }
 
   private void authorize() {
@@ -330,5 +332,34 @@ class FinancialAiOrchestratorControllerTest {
     }
     verifyNoInteractions(profiles, mapper, profitability, rag, market);
     verify(readModels, never()).mainAssets(anyLong());
+  }
+
+  @Test
+  void comparesFreshReadsFromBothSelectedPeriods() {
+    authorize();
+    var start = com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX;
+    var target = com.smartbox.investory.investment.api.reporting.DashboardPeriod.YEAR_TO_DATE;
+    when(profitability.answer(21L, start))
+        .thenReturn(
+            new InvestoryRagClient.RagAnswer(
+                "Updated MAX 20 PLN", List.of("live:investment-performance")));
+    when(profitability.answer(21L, target))
+        .thenReturn(
+            new InvestoryRagClient.RagAnswer(
+                "Updated YTD 15 PLN", List.of("live:investment-performance")));
+    var context =
+        new FinancialAiOrchestratorController.Context(
+            21, FinancialAiOrchestratorController.Topic.PORTFOLIO_PROFIT, null, start);
+    var result =
+        controller.ask(
+            21,
+            new FinancialAiOrchestratorController.Question("Compare that with YTD", context),
+            user);
+    assertTrue(result.answer().contains("Updated MAX 20 PLN"));
+    assertTrue(result.answer().contains("Updated YTD 15 PLN"));
+    assertEquals(target, result.context().period());
+    verify(profitability).answer(21L, start);
+    verify(profitability).answer(21L, target);
+    verifyNoInteractions(rag, market);
   }
 }

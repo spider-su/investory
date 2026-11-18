@@ -15,6 +15,7 @@ export function initSmartAssistant() {
     const status = root.querySelector('#iv-assistant-status');
     root.dataset.initialized = 'true';
     let busy = false;
+    let reportContext = null;
     let abortController = null;
 
     function toggle(open) {
@@ -23,6 +24,7 @@ export function initSmartAssistant() {
         if (open) input.focus();
         else {
             abortController?.abort();
+            reportContext = null;
             trigger.focus();
         }
     }
@@ -63,6 +65,11 @@ export function initSmartAssistant() {
         status.textContent = 'Thinking…';
         appendMessage(question, 'user');
         input.value = '';
+        const payload = {question};
+        if (questionMode === 'portfolio' && reportContext && /^(?:compare|show) (?:that|it)\b/i.test(question)) {
+            payload.context = reportContext;
+        }
+        reportContext = null;
         const controller = new AbortController();
         abortController = controller;
         try {
@@ -71,7 +78,7 @@ export function initSmartAssistant() {
             if (csrf) headers['X-XSRF-TOKEN'] = csrf;
             const response = await fetch('/api/v1/portfolios/' + portfolioId + (questionMode === 'docs' ? '/rag/ask-docs' : '/assistant/ask'), {
                 method: 'POST', credentials: 'same-origin', headers,
-                body: JSON.stringify({question}), signal: controller.signal
+                body: JSON.stringify(payload), signal: controller.signal
             });
             if (controller.signal.aborted) return;
             if (!response.ok) {
@@ -86,6 +93,8 @@ export function initSmartAssistant() {
                 !Array.isArray(data.sources) || data.sources.some(s => typeof s !== 'string' || !s.trim())) {
                 throw new Error('Assistant response unavailable. Please try again.');
             }
+            if (questionMode === 'portfolio' && data.context &&
+                String(data.context.portfolioId) === portfolioId) reportContext = data.context;
             appendMessage(data.answer, 'answer');
             const market = data.marketData;
             if (market?.quote && typeof market.quote.price === 'string') {
