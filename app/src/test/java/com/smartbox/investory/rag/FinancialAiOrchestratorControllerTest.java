@@ -231,7 +231,8 @@ class FinancialAiOrchestratorControllerTest {
             "MSFT",
             "https://www.alphavantage.co/",
             payload,
-            cache);
+            cache,
+            new InvestoryRagClient.Quote("100.01", "USD", java.time.LocalDate.of(2026, 11, 13)));
     when(market.lookup("GLOBAL_QUOTE", "MSFT")).thenReturn(quote);
     var answer =
         controller.ask(
@@ -241,7 +242,8 @@ class FinancialAiOrchestratorControllerTest {
     assertFalse(answer.answer().contains(payload));
     assertEquals(List.of("market:alpha-vantage:MSFT"), answer.sources());
     assertTrue(answer.answer().contains("[market:alpha-vantage:MSFT]"));
-    assertSame(quote, answer.marketData());
+    assertNull(answer.marketData().data());
+    assertEquals("100.01", answer.marketData().quote().price());
     assertEquals("STALE", answer.marketData().cache().status());
     verifyNoInteractions(profiles, mapper, rag);
   }

@@ -49,7 +49,7 @@ class ExternalMarketCacheIT {
         "GLOBAL_QUOTE",
         "MSFT",
         "https://www.alphavantage.co/",
-        "symbol,price\nMSFT,100");
+        "symbol,price,latestDay\nMSFT,100,2026-11-13");
   }
 
   @Test
@@ -182,5 +182,79 @@ class ExternalMarketCacheIT {
     assertEquals("NO_DATA", store.find("test", "GLOBAL_QUOTE", "UNLISTED").reason());
     assertNull(store.find("test", "GLOBAL_QUOTE", "UNLISTED").data());
     assertEquals(19, service.remaining());
+  }
+
+  @Test
+  void verifiedListingSharesExactProviderCacheAndUnmappedHoldingSkipsQuota() {
+    var client = mock(InvestoryRagClient.class);
+    when(client.marketData("GLOBAL_QUOTE", "MSFT")).thenReturn(quote());
+    var gateway = gateway(client, false);
+    var result = gateway.lookupHolding("GLOBAL_QUOTE", "MSFT.US");
+    assertEquals(
+        new InvestoryRagClient.Quote("100", "USD", java.time.LocalDate.of(2026, 11, 13)),
+        result.quote());
+    assertEquals("CACHED", gateway.lookup("GLOBAL_QUOTE", "MSFT").cache().status());
+    assertEquals("CACHED", gateway.quoteStatus("MSFT.US", true).cacheStatus());
+    assertThrows(
+        PythonRagClient.MarketDataUnavailableException.class,
+        () -> gateway.lookupHolding("GLOBAL_QUOTE", "XYZ.LON"));
+    assertEquals("UNMAPPED", gateway.quoteStatus("XYZ.LON", true).coverage());
+    assertEquals(19, gateway.remaining());
+    verify(client, times(1)).marketData("GLOBAL_QUOTE", "MSFT");
+    verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void statusReadsDurableCooldownAndBudgetWithoutCallingProvider() {
+    var client = mock(InvestoryRagClient.class);
+    var gateway = gateway(client, false);
+    var now = Instant.now();
+    store.block("test", "GLOBAL_QUOTE", "MSFT", now.plusSeconds(600), "NO_DATA");
+    for (int i = 0; i < 20; i++) assertTrue(store.reserve("test", 20, now));
+    store.blockProvider("test", now.plusSeconds(1200));
+    var status = gateway.quoteStatus("MSFT.US", true);
+    assertEquals("NO_DATA", status.coverage());
+    assertNotNull(status.symbolCooldownUntil());
+    assertNotNull(status.providerCooldownUntil());
+    assertNotNull(status.budgetAvailableAt());
+    assertEquals(0, status.remainingBudget());
+    verifyNoInteractions(client);
+  }
+
+  @Test
+  void mismatchedProviderListingCannotPopulateCache() {
+    var client = mock(InvestoryRagClient.class);
+    when(client.marketData("GLOBAL_QUOTE", "AAPL")).thenReturn(quote());
+    var gateway = gateway(client, false);
+    assertThrows(
+        PythonRagClient.RagUnavailableException.class,
+        () -> gateway.lookup("GLOBAL_QUOTE", "AAPL"));
+    assertNull(store.find("test", "GLOBAL_QUOTE", "AAPL").data());
+    assertEquals("PROVIDER", gateway.quoteStatus("AAPL", false).coverage());
+    assertEquals(19, gateway.remaining());
+  }
+
+  @Test
+  void legacyJsonQuoteCanBeReadWithoutGuessingCurrencyOrSpendingQuota() {
+    var client = mock(InvestoryRagClient.class);
+    var now = Instant.now();
+    store.save(
+        "test",
+        "GLOBAL_QUOTE",
+        "ACME.LON",
+        """
+        {"Global Quote":{"01. symbol":"ACME.LON","05. price":"12.3400",
+        "07. latest trading day":"2026-11-13"}}
+        """,
+        now,
+        now.plusSeconds(600));
+    var service = gateway(client, false);
+    var result = service.lookup("GLOBAL_QUOTE", "ACME.LON");
+    assertEquals("12.3400", result.quote().price());
+    assertNull(result.quote().currency());
+    assertEquals(java.time.LocalDate.of(2026, 11, 13), result.quote().tradingDate());
+    assertEquals("CACHED", result.cache().status());
+    assertEquals(20, service.remaining());
+    verifyNoInteractions(client);
   }
 }

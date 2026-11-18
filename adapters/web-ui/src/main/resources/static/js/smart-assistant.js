@@ -88,18 +88,29 @@ export function initSmartAssistant() {
             }
             appendMessage(data.answer, 'answer');
             const market = data.marketData;
-            if (market && typeof market.data === 'string' && market.data.trim()) {
+            if (market?.quote && typeof market.quote.price === 'string') {
+                const {price, currency, tradingDate} = market.quote;
                 const cache = market.cache || {};
                 const warnings = Array.isArray(cache.warnings) ? cache.warnings.filter(w => typeof w === 'string').join(' ') : '';
-                appendMessage('Untrusted provider research — separate from portfolio facts. ' +
-                    String(market.provider || '') + ' · ' + String(market.symbol || '') +
-                    ' · ' + (market.tool === 'GLOBAL_QUOTE' ? 'Public quote' : String(market.tool || 'Research')) + '\n' +
-                    'Cache: ' + String(cache.status || 'unknown') +
-                    '; trading date: ' + String(cache.asOf || 'unknown') +
-                    '; fetched: ' + String(cache.fetchedAt || 'unknown') +
-                    '; expires: ' + String(cache.expiresAt || 'unknown') +
-                    '; calls left (rolling 24h): ' + String(cache.remainingBudget ?? 'unknown') +
-                    (warnings ? '\n' + warnings : '') + '\n' + market.data, 'answer');
+                appendMessage('Public market research · ' + market.symbol + '\n' +
+                    'Price: ' + price + ' ' + (currency || '(currency unknown)') + '\n' +
+                    'Trading date: ' + tradingDate + '\n' +
+                    'Source: ' + market.provider + ' · ' + market.source + '\n' +
+                    'Cache: ' + (cache.status || 'unknown') +
+                    (warnings ? '\n' + warnings : ''), 'answer');
+            }
+            if (data.marketStatus) {
+                const marketStatus = data.marketStatus;
+                const coverage = {AVAILABLE: 'Quote available', UNKNOWN: 'Coverage unconfirmed',
+                    UNMAPPED: 'No verified provider mapping', NO_DATA: 'No quote coverage',
+                    ENTITLEMENT: 'Provider entitlement required', PROVIDER: 'Provider temporarily unavailable',
+                    DISABLED: 'Market research disabled'};
+                const details = [coverage[marketStatus.coverage] || 'Coverage unknown'];
+                if (marketStatus.symbolCooldownUntil) details.push('Ticker retry after ' + marketStatus.symbolCooldownUntil);
+                if (marketStatus.providerCooldownUntil) details.push('Provider retry after ' + marketStatus.providerCooldownUntil);
+                if (marketStatus.budgetAvailableAt) details.push('Budget available after ' + marketStatus.budgetAvailableAt);
+                details.push('Calls left: ' + marketStatus.remainingBudget + '/' + marketStatus.budgetLimit + ' (rolling 24h)');
+                appendMessage(details.join(' · '), 'answer');
             }
             if (data.sources.length) {
                 const sources = document.createElement('p');

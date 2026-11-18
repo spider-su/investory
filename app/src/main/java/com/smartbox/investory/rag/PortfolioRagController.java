@@ -8,10 +8,12 @@ import java.util.regex.Pattern;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -167,6 +169,22 @@ public class PortfolioRagController {
     }
   }
 
+  @GetMapping("/research/quote-status")
+  public InvestoryRagClient.MarketStatus quoteStatus(
+      @PathVariable long portfolioId,
+      @RequestParam String symbol,
+      @RequestParam(defaultValue = "false") boolean holding,
+      Authentication authentication) {
+    if (portfolioId <= 0 || !VALID_SYMBOL.matcher(symbol).matches())
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid market research request");
+    checkMarketAccess(portfolioId, authentication);
+    try {
+      return market.quoteStatus(symbol, holding);
+    } finally {
+      concurrencyLimiter.release();
+    }
+  }
+
   /** Only the public ticker of the largest scoped holding leaves Java. */
   @PostMapping("/research/largest-holding")
   public InvestoryRagClient.MarketData researchLargestHolding(
@@ -182,10 +200,10 @@ public class PortfolioRagController {
             HttpStatus.UNPROCESSABLE_ENTITY, "No supported public ticker for the largest holding");
       }
       try {
-        return market.lookup("COMPANY_OVERVIEW", symbol);
+        return market.lookupHolding("COMPANY_OVERVIEW", symbol);
       } catch (PythonRagClient.MarketDataNotEntitledException e) {
         // The returned tool is explicit: a quote is not company fundamentals.
-        return market.lookup("GLOBAL_QUOTE", symbol);
+        return market.lookupHolding("GLOBAL_QUOTE", symbol);
       }
     } catch (ExternalMarketDataService.BudgetExceededException
         | ExternalMarketDataService.BusyException e) {

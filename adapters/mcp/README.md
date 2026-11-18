@@ -62,7 +62,8 @@ Investment API read models, in portfolio base currency where the API defines mon
 | `get_benchmark_comparison` | Existing SPY benchmark for `period`, default YTD |
 | `get_retirement_plan` | Selected saved plan and assumptions |
 | `search_investory_docs` | Public `query` excerpts, optional `limit` 1–8, default 4; no chat call |
-| `get_market_quote` | Optional public `symbol` lookup through the application gateway |
+| `get_market_quote` | Typed provider quote with decimal price, verified currency when known, trading date, source and cache metadata |
+| `get_market_quote_status` | Coverage, cooldown and budget for a symbol, with no provider call |
 | `get_investory_capabilities` | Supported periods and external-provider policy/availability |
 
 Example `tools/call` request:

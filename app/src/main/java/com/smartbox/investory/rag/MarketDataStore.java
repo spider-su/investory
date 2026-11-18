@@ -56,6 +56,35 @@ public class MarketDataStore {
     return Math.max(0, limit - count);
   }
 
+  public Instant providerCooldown(String profile, Instant now) {
+    var rows =
+        jdbc.query(
+            """
+        SELECT blocked_until FROM investory.external_market_provider_state
+        WHERE provider_profile=? AND blocked_until>?
+        """,
+            (rs, n) -> instant(rs, "blocked_until"),
+            profile,
+            Timestamp.from(now));
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
+
+  public Instant budgetAvailableAt(String profile, int limit, Instant now) {
+    // The limit-th latest reservation must expire before another call can be made.
+    var rows =
+        jdbc.query(
+            """
+        SELECT reserved_at FROM investory.external_market_attempt
+        WHERE provider_profile=? AND reserved_at>?
+        ORDER BY reserved_at DESC OFFSET ? LIMIT 1
+        """,
+            (rs, n) -> instant(rs, "reserved_at").plusSeconds(86400),
+            profile,
+            Timestamp.from(now.minusSeconds(86400)),
+            limit - 1);
+    return rows.isEmpty() ? null : rows.getFirst();
+  }
+
   /** Reservation commits before I/O: failed attempts consume budget too. */
   public boolean reserve(String profile, int limit, Instant now) {
     return Boolean.TRUE.equals(

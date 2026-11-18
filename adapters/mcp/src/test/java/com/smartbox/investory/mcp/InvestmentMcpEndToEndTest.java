@@ -96,6 +96,7 @@ class InvestmentMcpEndToEndTest {
               "get_investment_ytd",
               "get_investory_capabilities",
               "get_market_quote",
+              "get_market_quote_status",
               "get_portfolio_cash_flows",
               "get_portfolio_dashboard",
               "get_portfolio_data_freshness",
@@ -150,11 +151,12 @@ class InvestmentMcpEndToEndTest {
               "get_retirement_plan",
               "search_investory_docs",
               "get_market_quote",
+              "get_market_quote_status",
               "get_investory_capabilities")) {
         var arguments = new java.util.HashMap<String, Object>();
         arguments.put("portfolioId", 7);
         if (name.equals("search_investory_docs")) arguments.put("query", "How do transfers work?");
-        if (name.equals("get_market_quote")) arguments.put("symbol", "MSFT");
+        if (name.startsWith("get_market_quote")) arguments.put("symbol", "MSFT");
         var success = client.callTool(new McpSchema.CallToolRequest(name, arguments));
         assertFalse(Boolean.TRUE.equals(success.isError()), name);
         assertNotNull(success.structuredContent());
@@ -271,13 +273,18 @@ class InvestmentMcpEndToEndTest {
                   "GLOBAL_QUOTE",
                   "MSFT",
                   "https://www.alphavantage.co/",
-                  "public data",
+                  "123.45",
+                  "USD",
                   "CACHED",
                   now,
                   java.time.LocalDate.of(2026, 11, 13),
                   now.plusSeconds(3600),
                   19,
                   List.of("EOD")));
+      org.mockito.Mockito.when(client.quoteStatus(7L, "MSFT"))
+          .thenReturn(
+              new PortfolioResearchClient.MarketQuoteStatus(
+                  "MSFT", "NO_DATA", "MISS", now.plusSeconds(600), null, null, 19, 20));
       org.mockito.Mockito.when(client.capabilities(7L))
           .thenReturn(
               new PortfolioResearchClient.Capabilities(

@@ -522,3 +522,31 @@ prices. Provider/source fields identify provenance, not audited per-field facts.
 Quota exhaustion/busy returns sanitized 429, entitlement 424, missing provider
 coverage 422, disabled service
 503, and transport failure 502. These failures do not disable core own MCP.
+
+
+### Typed quotes and coverage
+
+Java validates Alpha Vantage's single-row CSV or JSON Global Quote before
+caching it. It requires a matching provider symbol, positive decimal price
+and trading date. Cached quotes from earlier releases use the same parser.
+Only the legacy REST research payload retains raw data for existing clients.
+The assistant panel and `get_market_quote` use the typed observation.
+
+The initial verified mappings are `MSFT.US → MSFT (USD)` and
+`AAPL.US → AAPL (USD)`. Investory fixture listings, provider identifiers
+and exchange listings establish the mapping. See [Alpha Vantage’s symbol
+documentation](https://www.alphavantage.co/documentation/#latestprice),
+[Nasdaq MSFT](https://www.nasdaq.com/market-activity/stocks/msft) and
+[Nasdaq AAPL](https://www.nasdaq.com/market-activity/stocks/aapl). Mapped
+aliases share the provider ticker’s quote and cache entry. For other exact
+provider identifiers, currency is unknown until verified. Holdings without
+a verified mapping stop before attempting a remote lookup.
+
+Scoped `GET /api/v1/portfolios/{portfolioId}/rag/research/quote-status?symbol=MSFT`
+and own MCP `get_market_quote_status` read only local state. Status distinguishes
+observed coverage, unknown coverage, no data, entitlement, temporary failures
+and disabled research. REST callers can use `holding=true` to check canonical
+listing eligibility, including `UNMAPPED`. Symbol cooldown, provider cooldown
+and local budget recovery timestamps are separate. A usable cached quote can
+still be served while remote attempts are paused. These reads use none of the
+20 attempted-lookups-per-24-hours budget.
