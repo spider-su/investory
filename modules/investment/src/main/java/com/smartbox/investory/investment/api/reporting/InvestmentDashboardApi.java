@@ -70,7 +70,16 @@ public interface InvestmentDashboardApi {
       List<Long> accountIds,
       boolean benchmarkAccountsSubmitted,
       DashboardPeriod period,
-      Long portfolioId) {
+      Long portfolioId,
+      boolean freshFacts) {
+    public DashboardQuery(
+        List<Long> accountIds,
+        boolean benchmarkAccountsSubmitted,
+        DashboardPeriod period,
+        Long portfolioId) {
+      this(accountIds, benchmarkAccountsSubmitted, period, portfolioId, false);
+    }
+
     public DashboardQuery {
       accountIds =
           com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(accountIds);

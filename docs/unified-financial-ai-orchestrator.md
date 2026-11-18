@@ -52,7 +52,9 @@ object in the next request alongside the question.
 “Compare that with YTD” reads the original and target period again and returns
 both labeled reports. “Show that for YTD” reads only the target period.
 Every request repeats portfolio authorization and checks that the context
-matches the URL; no previous answer values enter calculation or storage.
+matches the URL. Follow-ups bypass the portfolio and benchmark calculation
+caches while using the same canonical reporting data. Previous answer values
+never enter calculation or storage.
 Missing context prompts the user to select a report. Unsupported follow-up
 wording abstains. Composite answers and public quotes do not establish report
 context. The route uses existing Java reporting reads directly.

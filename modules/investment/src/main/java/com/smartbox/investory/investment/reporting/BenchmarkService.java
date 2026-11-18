@@ -63,6 +63,10 @@ public class BenchmarkService {
 
   @Cacheable(cacheNames = "benchmark", keyGenerator = "investmentCalculationKeyGenerator")
   public Benchmark calculate(Long portfolioId, Collection<Long> accountIds) {
+    return calculateFresh(portfolioId, accountIds);
+  }
+
+  public Benchmark calculateFresh(Long portfolioId, Collection<Long> accountIds) {
     if (portfolioId == null || portfolioId <= 0) {
       throw new IllegalArgumentException("portfolioId must be positive");
     }

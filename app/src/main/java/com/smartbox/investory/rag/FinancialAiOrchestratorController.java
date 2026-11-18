@@ -402,9 +402,9 @@ public class FinancialAiOrchestratorController {
 
   private Answer followUp(Context selected, DashboardPeriod target, boolean compare) {
     var next = new Context(selected.portfolioId(), selected.topic(), selected.asset(), target);
-    if (!compare || target == selected.period()) return report(next);
-    var previous = report(selected);
-    var updated = report(next);
+    if (!compare || target == selected.period()) return report(next, true);
+    var previous = report(selected, true);
+    var updated = report(next, true);
     var citations = new LinkedHashSet<>(previous.sources());
     citations.addAll(updated.sources());
     var components = new LinkedHashSet<>(previous.components());
@@ -419,12 +419,22 @@ public class FinancialAiOrchestratorController {
   }
 
   private Answer report(Context selected) {
+    return report(selected, false);
+  }
+
+  private Answer report(Context selected, boolean freshFacts) {
     long portfolioId = selected.portfolioId();
     var period = selected.period();
     var result =
         switch (selected.topic()) {
-          case PORTFOLIO_PROFIT -> profitability.answer(portfolioId, period);
-          case SPY_BENCHMARK -> readModels.spyComparison(portfolioId, period);
+          case PORTFOLIO_PROFIT ->
+              freshFacts
+                  ? profitability.answer(portfolioId, period, true)
+                  : profitability.answer(portfolioId, period);
+          case SPY_BENCHMARK ->
+              freshFacts
+                  ? readModels.spyComparison(portfolioId, period, true)
+                  : readModels.spyComparison(portfolioId, period);
           case ASSET_REALIZED -> assetRealized(portfolioId, selected.asset(), period);
         };
     if (result.sources().isEmpty())

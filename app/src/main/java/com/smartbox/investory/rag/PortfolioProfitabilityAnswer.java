@@ -65,9 +65,15 @@ public final class PortfolioProfitabilityAnswer {
   }
 
   public InvestoryRagClient.RagAnswer answer(long portfolioId, DashboardPeriod period) {
+    return answer(portfolioId, period, false);
+  }
+
+  public InvestoryRagClient.RagAnswer answer(
+      long portfolioId, DashboardPeriod period, boolean freshFacts) {
     var dashboard =
         investment.loadDashboard(
-            new InvestmentDashboardApi.DashboardQuery(List.of(), false, period, portfolioId));
+            new InvestmentDashboardApi.DashboardQuery(
+                List.of(), false, period, portfolioId, freshFacts));
     var overview = dashboard == null ? null : dashboard.overview();
     BigDecimal profit = overview == null ? null : overview.totalProfit();
     var currency = overview == null ? null : overview.baseCurrency();

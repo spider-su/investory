@@ -84,7 +84,9 @@ public class InvestmentDashboardFacade {
     DashboardPeriod selectedPeriod = query.period();
     PerformanceResults performanceResults = new PerformanceResults(query.portfolioId());
     Portfolio calculatedPortfolio =
-        portfolioMetricsService.calculateTotalProfitLoss(query.portfolioId());
+        query.freshFacts()
+            ? portfolioMetricsService.calculateFreshTotalProfitLoss(query.portfolioId())
+            : portfolioMetricsService.calculateTotalProfitLoss(query.portfolioId());
     PerformanceResult historicalPerformance =
         calculatedPortfolio.isValuationComplete()
             ? canonicalKpiPerformance(
@@ -92,10 +94,11 @@ public class InvestmentDashboardFacade {
             : null;
     Portfolio portfolio = periodViewService.filter(calculatedPortfolio, selectedPeriod);
 
+    List<Long> benchmarkAccounts = query.hasExplicitAccountSelection() ? query.accountIds() : null;
     Benchmark benchmarkInput =
-        query.hasExplicitAccountSelection()
-            ? benchmarkService.calculate(query.portfolioId(), query.accountIds())
-            : benchmarkService.calculate(query.portfolioId(), null);
+        query.freshFacts()
+            ? benchmarkService.calculateFresh(query.portfolioId(), benchmarkAccounts)
+            : benchmarkService.calculate(query.portfolioId(), benchmarkAccounts);
     Benchmark benchmark = periodViewService.filter(benchmarkInput, selectedPeriod);
     Map<Long, AccountPeriodMetrics> accountPeriodMetrics =
         portfolio.isValuationComplete()

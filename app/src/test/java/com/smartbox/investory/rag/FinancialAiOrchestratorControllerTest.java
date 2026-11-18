@@ -339,11 +339,11 @@ class FinancialAiOrchestratorControllerTest {
     authorize();
     var start = com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX;
     var target = com.smartbox.investory.investment.api.reporting.DashboardPeriod.YEAR_TO_DATE;
-    when(profitability.answer(21L, start))
+    when(profitability.answer(21L, start, true))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Updated MAX 20 PLN", List.of("live:investment-performance")));
-    when(profitability.answer(21L, target))
+    when(profitability.answer(21L, target, true))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Updated YTD 15 PLN", List.of("live:investment-performance")));
@@ -358,8 +358,8 @@ class FinancialAiOrchestratorControllerTest {
     assertTrue(result.answer().contains("Updated MAX 20 PLN"));
     assertTrue(result.answer().contains("Updated YTD 15 PLN"));
     assertEquals(target, result.context().period());
-    verify(profitability).answer(21L, start);
-    verify(profitability).answer(21L, target);
+    verify(profitability).answer(21L, start, true);
+    verify(profitability).answer(21L, target, true);
     verifyNoInteractions(rag, market);
   }
 }
