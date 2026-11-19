@@ -128,6 +128,30 @@ public class PythonRagClient implements InvestoryRagClient {
   }
 
   @Override
+  public RoutingPlan planRouting(String question) {
+    if (question == null || question.isBlank() || question.length() > 2000) {
+      throw new IllegalArgumentException("Invalid routing question");
+    }
+    try {
+      RoutingPlan plan = client.post().uri("/route")
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(Map.of("question", question))
+          .retrieve().body(RoutingPlan.class);
+      if (plan == null || plan.tools() == null || plan.tools().size() > 5
+          || plan.tools().stream().anyMatch(tool -> tool == null
+              || !java.util.Set.of("PROFILE", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
+                  .contains(tool))
+          || (plan.symbol() != null
+              && !plan.symbol().matches("[A-Z][A-Z0-9.^-]{0,19}"))) {
+        throw new RagUnavailableException();
+      }
+      return plan;
+    } catch (RestClientException e) {
+      throw new RagUnavailableException();
+    }
+  }
+
+  @Override
   public RagAnswer askDocumentation(String question) {
     return post("/ask", Map.of("question", question));
   }
