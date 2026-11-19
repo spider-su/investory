@@ -456,15 +456,14 @@ class FinancialAiOrchestratorControllerTest {
     }
     verifyNoInteractions(market);
   }
+
   @Test
   void crossDomainMcpRoutesPreservePortfolioScope() {
     authorize();
     when(internalMcp.generalProfile(21L))
-        .thenReturn(
-            new InvestoryRagClient.RagAnswer("Whole wealth", List.of("live:profile")));
+        .thenReturn(new InvestoryRagClient.RagAnswer("Whole wealth", List.of("live:profile")));
     when(internalMcp.longTermAssets(21L))
-        .thenReturn(
-            new InvestoryRagClient.RagAnswer("Rental and bonds", List.of("live:longterm")));
+        .thenReturn(new InvestoryRagClient.RagAnswer("Rental and bonds", List.of("live:longterm")));
     when(internalMcp.retirementSimulation(21L))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
@@ -474,13 +473,10 @@ class FinancialAiOrchestratorControllerTest {
         controller.ask(
             21L, new FinancialAiOrchestratorController.Question("My financial overview"), user);
     var assets =
-        controller.ask(
-            21L, new FinancialAiOrchestratorController.Question("Show my bonds"), user);
+        controller.ask(21L, new FinancialAiOrchestratorController.Question("Show my bonds"), user);
     var simulation =
         controller.ask(
-            21L,
-            new FinancialAiOrchestratorController.Question("My retirement simulation"),
-            user);
+            21L, new FinancialAiOrchestratorController.Question("My retirement simulation"), user);
 
     assertTrue(profile.sources().contains("live:profile"));
     assertTrue(assets.sources().contains("live:longterm"));
@@ -490,5 +486,4 @@ class FinancialAiOrchestratorControllerTest {
     verify(internalMcp).retirementSimulation(21L);
     verifyNoInteractions(market);
   }
-
 }
