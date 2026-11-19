@@ -6,7 +6,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -19,31 +18,15 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(prefix = "investory.rag", name = "enabled", havingValue = "true")
 public final class PortfolioProfitabilityAnswer {
-  private Pattern INTENT =
-      Pattern.compile(
-          "(?:\\bprofitab(?:le|ility)\\b|\\bprofitable\\b|\\b(?:profit|loss|gain|p\\s*/\\s*l)\\b|"
-              + "\\b(?:up|down) overall\\b|\\bmade money\\b|\\bearned money\\b)",
-          Pattern.CASE_INSENSITIVE);
-  private Pattern HISTORY =
-      Pattern.compile(
-          "\\b(?:all[ -]?time|whole (?:time|history)|ever|overall|since (?:inception|start|i (?:started|have|had))|"
-              + "entire (?:time|period)|from (?:the )?beginning|lifetime|historically)\\b",
-          Pattern.CASE_INSENSITIVE);
-
-  // A narrower requested period must never silently become an all-history result.
-  private Pattern OTHER_PERIOD =
-      Pattern.compile(
-          "\\b(?:ytd|mtd|qtd|today|yesterday|(?:this|last|previous|current|past)\\s+(?:\\d+\\s+)?(?:days?|weeks?|months?|quarters?|years?)|(?:19|20)\\d{2})\\b",
-          Pattern.CASE_INSENSITIVE);
+  private final Pattern INTENT;
+  private final Pattern HISTORY;
+  private final Pattern OTHER_PERIOD;
 
   private final InvestmentDashboardApi investment;
 
-  public PortfolioProfitabilityAnswer(InvestmentDashboardApi investment) {
+  public PortfolioProfitabilityAnswer(
+      InvestmentDashboardApi investment, AssistantRoutingPatterns patterns) {
     this.investment = investment;
-  }
-
-  @Autowired
-  void configureRoutingPatterns(AssistantRoutingPatterns patterns) {
     INTENT = patterns.pattern("profit-intent");
     HISTORY = patterns.pattern("profit-history");
     OTHER_PERIOD = patterns.pattern("profit-other-period");
