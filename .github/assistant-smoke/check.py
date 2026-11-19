@@ -15,6 +15,7 @@ DOC = "domain/portfolio-accounting.md"
 MARKET = "market:alpha-vantage:MSFT"
 QUOTE = {"price": "123.45", "currency": "USD", "tradingDate": "2025-12-30"}
 SOURCE = "https://www.alphavantage.co/"
+PARAPHRASE = "Could you tell me which investments I currently own?"
 
 
 class RagFixture(BaseHTTPRequestHandler):
@@ -38,6 +39,8 @@ class RagFixture(BaseHTTPRequestHandler):
             and body == {"question": "explain internal transfers"}
         ):
             response = {"answer": f"Internal transfers are neutral [{DOC}]", "sources": [DOC]}
+        elif self.path == "/route" and body == {"question": PARAPHRASE}:
+            response = {"tools": ["HOLDINGS"], "symbol": None}
         elif self.path == "/market-data" and body == {"tool": "GLOBAL_QUOTE", "symbol": "MSFT"}:
             response = {
                 "provider": "Alpha Vantage", "tool": "GLOBAL_QUOTE", "symbol": "MSFT",
@@ -194,6 +197,17 @@ def check(base):
             forged = {**context, "portfolioId": 1}
             request(base, path + "/assistant/ask", {**payload, "context": forged}, user, expected=400)
 
+    for question, citation in (
+        (PARAPHRASE, "live:investment-structure"),
+        ("Show my financial overview", "live:profile"),
+        ("Show my long-term portfolio", "live:longterm"),
+        ("Show my retirement simulation", "live:retirement-simulation"),
+    ):
+        scoped = request(base, path + "/assistant/ask", {"question": question}, user)
+        cited(scoped, citation)
+        request(base, outside, {"question": question}, user, expected=403)
+    print("Hybrid fallback and cross-domain MCP reads: PASS")
+
     request(base, path + "/assistant/ask", {"question": questions[0]}, expected=401)
     exhausted = request(base, path + "/assistant/ask", {"question": "Get latest price of ticker AMZN"}, user)
     require(not exhausted.get("marketData") and "quota" in exhausted["answer"] and quote_status()["remainingBudget"] == 0, "budget did not block a third provider attempt")
@@ -204,6 +218,7 @@ def check(base):
     metrics = request(base, "/actuator/prometheus", auth=scraper, raw=True)
     require("investory_assistant_request_seconds_bucket" in metrics, "assistant latency histogram missing")
     require("investory_assistant_routes_total" in metrics, "assistant route metric missing")
+    require('investory_assistant_routes_total{route="JAVA_LONGTERM"}' in metrics, "long-term route metric missing")
     for event in ("CACHE_HIT", "PROVIDER_FAILURE", "BUDGET_EXHAUSTED"):
         require(f'investory_market_events_total{{event="{event}"}}' in metrics, f"{event} metric missing")
     require("investory_market_provider_seconds" in metrics, "provider latency metric missing")

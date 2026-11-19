@@ -433,6 +433,35 @@ class FinancialAiOrchestratorControllerTest {
   }
 
   @Test
+  void documentationPlanCannotTriggerAnUnselectedQuote() {
+    authorize();
+    String question = "Explain risk methodology for ticker MSFT";
+    when(rag.planRouting(question))
+        .thenReturn(new InvestoryRagClient.RoutingPlan(List.of("DOCS"), null));
+    when(rag.askDocumentation(question))
+        .thenReturn(new InvestoryRagClient.RagAnswer("Methodology [docs]", List.of("docs")));
+
+    var answer =
+        controller.ask(21L, new FinancialAiOrchestratorController.Question(question), user);
+
+    assertEquals(List.of("RAG_DOCUMENTATION"), answer.components());
+    verifyNoInteractions(market, internalMcp);
+  }
+
+  @Test
+  void unsupportedTradeAdviceDoesNotReachThePlanner() {
+    authorize();
+    String question = "Should I buy SPY instead of my investments?";
+    when(readModels.classify(question)).thenReturn(PortfolioAssistantReadModels.Intent.UNSUPPORTED);
+
+    var answer =
+        controller.ask(21L, new FinancialAiOrchestratorController.Question(question), user);
+
+    assertEquals(List.of("ABSTAINED"), answer.components());
+    verifyNoInteractions(rag, internalMcp, market);
+  }
+
+  @Test
   void unavailablePlannerAbstainsWithoutLoadingPrivateFacts() {
     authorize();
     String question = "Which investments belong to me?";

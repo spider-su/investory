@@ -14,6 +14,7 @@ public class AssistantMetrics {
           "JAVA_PROFILE",
           "JAVA_BENCHMARK",
           "JAVA_HOLDINGS",
+          "JAVA_LONGTERM",
           "JAVA_RETIREMENT",
           "JAVA_PROFITABILITY",
           "JAVA_ASSET",
