@@ -27,7 +27,9 @@ public class PortfolioAssistantReadModels {
   private final AssistantRoutingPatterns patterns;
 
   public PortfolioAssistantReadModels(
-      InvestmentDashboardApi dashboard, RetirementPlanApi retirement, AssistantRoutingPatterns patterns) {
+      InvestmentDashboardApi dashboard,
+      RetirementPlanApi retirement,
+      AssistantRoutingPatterns patterns) {
     this.dashboard = dashboard;
     this.retirement = retirement;
     this.patterns = patterns;
@@ -58,16 +60,13 @@ public class PortfolioAssistantReadModels {
             || matches("classify-unsupported-trade", q))) {
       return Intent.UNSUPPORTED;
     }
-    if (matches("classify-benchmark-subject", q)
-        && matches("classify-benchmark-comparison", q)) {
+    if (matches("classify-benchmark-subject", q) && matches("classify-benchmark-comparison", q)) {
       return Intent.SPY_COMPARISON;
     }
-    if (matches("classify-retirement-subject", q)
-        && matches("classify-retirement-context", q)) {
+    if (matches("classify-retirement-subject", q) && matches("classify-retirement-context", q)) {
       return Intent.RETIREMENT_PLAN;
     }
-    if (matches("classify-largest-qualifier", q)
-        && matches("classify-investment-subject", q)) {
+    if (matches("classify-largest-qualifier", q) && matches("classify-investment-subject", q)) {
       return Intent.MAIN_ASSETS;
     }
     if ((matches("classify-net-worth-direct", q)

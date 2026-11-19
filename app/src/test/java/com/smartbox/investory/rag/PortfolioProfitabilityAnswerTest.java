@@ -15,7 +15,9 @@ import org.mockito.ArgumentCaptor;
 class PortfolioProfitabilityAnswerTest {
   @Test
   void interpretsActualFollowUpWithoutRelyingOnThePreviousAnswerText() {
-    var answerer = new PortfolioProfitabilityAnswer(mock(InvestmentDashboardApi.class), RoutingPatternsTestSupport.load());
+    var answerer =
+        new PortfolioProfitabilityAnswer(
+            mock(InvestmentDashboardApi.class), RoutingPatternsTestSupport.load());
     assertTrue(answerer.supports("is it profitable for all time I have it"));
     assertTrue(answerer.supports("Has my portfolio made money since inception?"));
     assertTrue(answerer.supports("What is my overall profit?"));
@@ -49,7 +51,8 @@ class PortfolioProfitabilityAnswerTest {
     when(overview.totalProfit()).thenReturn(new BigDecimal("123.45"));
     when(overview.baseCurrency()).thenReturn(CurrencyType.PLN);
 
-    var answer = new PortfolioProfitabilityAnswer(api, RoutingPatternsTestSupport.load()).answer(21);
+    var answer =
+        new PortfolioProfitabilityAnswer(api, RoutingPatternsTestSupport.load()).answer(21);
     var query = ArgumentCaptor.forClass(InvestmentDashboardApi.DashboardQuery.class);
     verify(api).loadDashboard(query.capture());
     assertEquals(21L, query.getValue().portfolioId());

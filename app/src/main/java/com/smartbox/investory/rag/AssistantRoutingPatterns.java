@@ -27,15 +27,16 @@ public class AssistantRoutingPatterns {
   public void validate() {
     Map<String, Pattern> result = new LinkedHashMap<>();
     for (var entry : patterns.entrySet()) {
-      if (entry.getKey().isBlank() || entry.getValue() == null
-          || entry.getValue().isBlank() || entry.getValue().length() > 2048) {
+      if (entry.getKey().isBlank()
+          || entry.getValue() == null
+          || entry.getValue().isBlank()
+          || entry.getValue().length() > 2048) {
         throw new IllegalStateException("Invalid assistant routing pattern configuration");
       }
       try {
         result.put(entry.getKey(), Pattern.compile(entry.getValue()));
       } catch (PatternSyntaxException e) {
-        throw new IllegalStateException(
-            "Invalid assistant routing pattern: " + entry.getKey(), e);
+        throw new IllegalStateException("Invalid assistant routing pattern: " + entry.getKey(), e);
       }
     }
     this.compiled = Map.copyOf(result);

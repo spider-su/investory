@@ -199,8 +199,8 @@ public class FinancialAiOrchestratorController {
 
   private boolean needsSemanticRouting(String question) {
     // The existing canonical reports and follow-ups must never be reinterpreted by a model.
-    if (REPORTING_PERIOD.matcher(question).find()
-        || OTHER_WINDOW.matcher(question).find()) return false;
+    if (REPORTING_PERIOD.matcher(question).find() || OTHER_WINDOW.matcher(question).find())
+      return false;
     if (COMPLEX_LANGUAGE.matcher(question).find()) return true;
     if (profitability.supports(question)) return false;
     return !(NET_WORTH.matcher(question).find()
@@ -215,9 +215,10 @@ public class FinancialAiOrchestratorController {
         || SPY.matcher(question).find());
   }
 
-  private String canonicalQuestion(
-      String original, InvestoryRagClient.RoutingPlan suggestion) {
-    if (suggestion == null || suggestion.tools() == null || suggestion.tools().isEmpty()
+  private String canonicalQuestion(String original, InvestoryRagClient.RoutingPlan suggestion) {
+    if (suggestion == null
+        || suggestion.tools() == null
+        || suggestion.tools().isEmpty()
         || suggestion.tools().size() > 6) return null;
     var tools = new LinkedHashSet<>(suggestion.tools());
     if (tools.size() != suggestion.tools().size()
@@ -232,21 +233,25 @@ public class FinancialAiOrchestratorController {
     if (tools.contains("DOCS")) {
       // Preserve public documentation intent without forwarding personal snapshots.
       // For mixed personal questions, use a neutral methodology request.
-      parts.add(!PERSONAL.matcher(original).find() && original.length() <= 1000
-          ? "explain " + original
-          : "explain investment methodology");
+      parts.add(
+          !PERSONAL.matcher(original).find() && original.length() <= 1000
+              ? "explain " + original
+              : "explain investment methodology");
     }
     if (tools.contains("MARKET")) {
       String symbol = suggestion.symbol();
       if (symbol != null
           && symbol.matches("[A-Z][A-Z0-9.^-]{0,19}")
           && !java.util.List.of("MY", "THE", "OUR", "A", "AN").contains(symbol)
-          && Pattern.compile("(?i)(?<![A-Za-z0-9._^/-])" + Pattern.quote(symbol)
-                  + "(?![A-Za-z0-9._^/-])").matcher(original).find()) {
+          && Pattern.compile(
+                  "(?i)(?<![A-Za-z0-9._^/-])" + Pattern.quote(symbol) + "(?![A-Za-z0-9._^/-])")
+              .matcher(original)
+              .find()) {
         parts.add("latest price of ticker " + symbol);
       } else if (symbol == null
           && Pattern.compile("(?i)\\b(?:largest|biggest|top)\\s+holding\\b")
-              .matcher(original).find()) {
+              .matcher(original)
+              .find()) {
         parts.add("latest price of my largest holding");
       } else {
         return null;
@@ -551,8 +556,7 @@ public class FinancialAiOrchestratorController {
     used.add(answer.sources() == null || answer.sources().isEmpty() ? "ABSTAINED" : source);
   }
 
-  private String documentationQuestion(
-      String question, boolean profile, boolean retirement) {
+  private String documentationQuestion(String question, boolean profile, boolean retirement) {
     Matcher docs = DOCUMENTS.matcher(question);
     if (docs.find() && docs.start() > 0) {
       String clause = question.substring(docs.start());
