@@ -42,7 +42,8 @@ class FinancialAiOrchestratorControllerTest {
             rag,
             market,
             mock(com.smartbox.investory.investment.api.asset.InvestmentAssetApi.class),
-            new AssistantMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
+            new AssistantMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+            RoutingPatternsTestSupport.load());
   }
 
   private void authorize() {
