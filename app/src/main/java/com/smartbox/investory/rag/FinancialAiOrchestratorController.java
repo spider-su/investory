@@ -234,7 +234,16 @@ public class FinancialAiOrchestratorController {
         || suggestion.tools().size() > 9) return null;
     var tools = new LinkedHashSet<>(suggestion.tools());
     if (tools.size() != suggestion.tools().size()
-        || !java.util.Set.of("PROFILE", "GENERAL_PROFILE", "LONG_TERM", "SIMULATION", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
+        || !java.util.Set.of(
+                "PROFILE",
+                "GENERAL_PROFILE",
+                "LONG_TERM",
+                "SIMULATION",
+                "HOLDINGS",
+                "SPY",
+                "RETIREMENT",
+                "DOCS",
+                "MARKET")
             .containsAll(tools)) return null;
 
     var parts = new ArrayList<String>();
