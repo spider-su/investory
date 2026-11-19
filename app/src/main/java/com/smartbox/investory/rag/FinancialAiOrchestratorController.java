@@ -346,7 +346,12 @@ public class FinancialAiOrchestratorController {
             "Long-term assets", snapshot.longTermAssetValue(), snapshot, parts, citations, used);
     }
     if (wantsSpyComparison)
-      append(internalMcp.benchmark(portfolioId, DashboardPeriod.MAX), "JAVA_BENCHMARK", parts, citations, used);
+      append(
+          internalMcp.benchmark(portfolioId, DashboardPeriod.MAX),
+          "JAVA_BENCHMARK",
+          parts,
+          citations,
+          used);
     if (intent == PortfolioAssistantReadModels.Intent.MAIN_ASSETS
         || HOLDINGS.matcher(question).find())
       append(internalMcp.holdings(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
@@ -354,7 +359,12 @@ public class FinancialAiOrchestratorController {
       append(internalMcp.retirement(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
     }
     if (profitability.supports(question)) {
-      append(internalMcp.profitability(portfolioId, DashboardPeriod.MAX), "JAVA_PROFITABILITY", parts, citations, used);
+      append(
+          internalMcp.profitability(portfolioId, DashboardPeriod.MAX),
+          "JAVA_PROFITABILITY",
+          parts,
+          citations,
+          used);
     }
     if (wantsDocs) {
       try {
