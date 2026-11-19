@@ -21,7 +21,7 @@ class AssistantRoutingPatternsTest {
   void overriddenPhraseChangesMatchingWithoutJavaFallback() {
     var base = RoutingPatternsTestSupport.load();
     Map<String, String> changed = new HashMap<>(base.getPatterns());
-    changed.put("holdings", "(?i)\\\\bmy custom positions\\\\b");
+    changed.put("holdings", "(?i)\\bmy custom positions\\b");
     var override = new AssistantRoutingPatterns();
     override.setPatterns(changed);
     override.validate();
