@@ -60,6 +60,10 @@ public class FinancialAiOrchestratorController {
       Pattern.compile("(?i)\\blong[- ]term (?:assets?|value)\\b");
   private static final Pattern PERSONAL = Pattern.compile("(?i)\\b(?:my|me|i|our)\\b");
 
+  // Ambiguous semantics use a bounded LLM classifier, not model-executed tools.
+  private static final Pattern COMPLEX_LANGUAGE =
+      Pattern.compile("(?i)\\b(?:risk|risky|exposure|diversif\\w*|align\\w*|suitab\\w*|appropriate|should|recommend|impact|affect|sustainable|safe to retire)\\b");
+
   private static final Pattern REPORTING_PERIOD =
       Pattern.compile(
           "(?i)\\b(?:YTD|year[- ]to[- ]date|this year|current year|1M|3M|6M|1Y|3Y|5Y|MAX)\\b");
@@ -186,10 +190,75 @@ public class FinancialAiOrchestratorController {
                 asset.group(1).toUpperCase(Locale.ROOT),
                 parsePeriod(asset.group(2))));
       }
+      if (needsSemanticRouting(question)) {
+        try {
+          var suggestion = rag.planRouting(question);
+          String canonical = canonicalQuestion(question, suggestion);
+          if (canonical == null) return unsupported();
+          return answerAuthorized(portfolioId, canonical);
+        } catch (PythonRagClient.RagUnavailableException e) {
+          return unsupported();
+        }
+      }
       return answerAuthorized(portfolioId, question);
     } finally {
       concurrency.release();
     }
+  }
+
+  private boolean needsSemanticRouting(String question) {
+    // The existing canonical reports and follow-ups must never be reinterpreted by a model.
+    if (REPORTING_PERIOD.matcher(question).find()
+        || OTHER_WINDOW.matcher(question).find()
+        || profitability.supports(question)) return false;
+    if (COMPLEX_LANGUAGE.matcher(question).find()) return true;
+    return !(NET_WORTH.matcher(question).find()
+        || MARKET_VALUE.matcher(question).find()
+        || LIQUID.matcher(question).find()
+        || ILLIQUID.matcher(question).find()
+        || LONG_TERM.matcher(question).find()
+        || HOLDINGS.matcher(question).find()
+        || RETIREMENT.matcher(question).find()
+        || DOCUMENTS.matcher(question).find()
+        || MARKET_LANGUAGE.matcher(question).find()
+        || SPY.matcher(question).find());
+  }
+
+  private static String canonicalQuestion(
+      String original, InvestoryRagClient.RoutingPlan suggestion) {
+    if (suggestion == null || suggestion.tools() == null || suggestion.tools().isEmpty()
+        || suggestion.tools().size() > 5) return null;
+    var tools = new LinkedHashSet<>(suggestion.tools());
+    if (tools.size() != suggestion.tools().size()
+        || !java.util.Set.of("PROFILE", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
+            .containsAll(tools)) return null;
+
+    var parts = new ArrayList<String>();
+    if (tools.contains("PROFILE")) parts.add("my net worth");
+    if (tools.contains("HOLDINGS")) parts.add("my holdings");
+    if (tools.contains("SPY")) parts.add("compare my portfolio with SPY");
+    if (tools.contains("RETIREMENT")) parts.add("my retirement plan");
+    if (tools.contains("DOCS")) {
+      // Keep the document request generic; no private Java snapshot enters retrieval.
+      parts.add("explain investment methodology");
+    }
+    if (tools.contains("MARKET")) {
+      String symbol = suggestion.symbol();
+      if (symbol != null
+          && symbol.matches("[A-Z][A-Z0-9.^-]{0,19}")
+          && !java.util.List.of("MY", "THE", "OUR", "A", "AN").contains(symbol)
+          && Pattern.compile("(?i)(?<![A-Za-z0-9._^/-])" + Pattern.quote(symbol)
+                  + "(?![A-Za-z0-9._^/-])").matcher(original).find()) {
+        parts.add("latest price of ticker " + symbol);
+      } else if (symbol == null
+          && Pattern.compile("(?i)\\b(?:largest|biggest|top)\\s+holding\\b")
+              .matcher(original).find()) {
+        parts.add("latest price of my largest holding");
+      } else {
+        return null;
+      }
+    }
+    return String.join(" and ", parts);
   }
 
   private Answer answerAuthorized(long portfolioId, String question) {
