@@ -209,9 +209,9 @@ public class FinancialAiOrchestratorController {
   private boolean needsSemanticRouting(String question) {
     // The existing canonical reports and follow-ups must never be reinterpreted by a model.
     if (REPORTING_PERIOD.matcher(question).find()
-        || OTHER_WINDOW.matcher(question).find()
-        || profitability.supports(question)) return false;
+        || OTHER_WINDOW.matcher(question).find()) return false;
     if (COMPLEX_LANGUAGE.matcher(question).find()) return true;
+    if (profitability.supports(question)) return false;
     return !(NET_WORTH.matcher(question).find()
         || MARKET_VALUE.matcher(question).find()
         || LIQUID.matcher(question).find()
@@ -239,8 +239,11 @@ public class FinancialAiOrchestratorController {
     if (tools.contains("SPY")) parts.add("compare my portfolio with SPY");
     if (tools.contains("RETIREMENT")) parts.add("my retirement plan");
     if (tools.contains("DOCS")) {
-      // Keep the document request generic; no private Java snapshot enters retrieval.
-      parts.add("explain investment methodology");
+      // Preserve public documentation intent without forwarding personal snapshots.
+      // For mixed personal questions, use a neutral methodology request.
+      parts.add(!PERSONAL.matcher(original).find() && original.length() <= 1000
+          ? "explain " + original
+          : "explain investment methodology");
     }
     if (tools.contains("MARKET")) {
       String symbol = suggestion.symbol();
