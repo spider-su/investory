@@ -15,7 +15,9 @@ import org.mockito.ArgumentCaptor;
 class PortfolioProfitabilityAnswerTest {
   @Test
   void interpretsActualFollowUpWithoutRelyingOnThePreviousAnswerText() {
-    var answerer = new PortfolioProfitabilityAnswer(mock(InvestmentDashboardApi.class));
+    var answerer =
+        new PortfolioProfitabilityAnswer(
+            mock(InvestmentDashboardApi.class), RoutingPatternsTestSupport.load());
     assertTrue(answerer.supports("is it profitable for all time I have it"));
     assertTrue(answerer.supports("Has my portfolio made money since inception?"));
     assertTrue(answerer.supports("What is my overall profit?"));
@@ -26,7 +28,7 @@ class PortfolioProfitabilityAnswerTest {
   @Test
   void doesNotReplaceAnExplicitReportingPeriodWithLifetimeProfit() {
     var api = mock(InvestmentDashboardApi.class);
-    var reader = new PortfolioProfitabilityAnswer(api);
+    var reader = new PortfolioProfitabilityAnswer(api, RoutingPatternsTestSupport.load());
     for (String question :
         java.util.List.of(
             "Is my portfolio profitable this year?",
@@ -49,7 +51,8 @@ class PortfolioProfitabilityAnswerTest {
     when(overview.totalProfit()).thenReturn(new BigDecimal("123.45"));
     when(overview.baseCurrency()).thenReturn(CurrencyType.PLN);
 
-    var answer = new PortfolioProfitabilityAnswer(api).answer(21);
+    var answer =
+        new PortfolioProfitabilityAnswer(api, RoutingPatternsTestSupport.load()).answer(21);
     var query = ArgumentCaptor.forClass(InvestmentDashboardApi.DashboardQuery.class);
     verify(api).loadDashboard(query.capture());
     assertEquals(21L, query.getValue().portfolioId());
@@ -69,7 +72,7 @@ class PortfolioProfitabilityAnswerTest {
     when(page.overview()).thenReturn(overview);
     when(overview.totalProfit()).thenReturn(new BigDecimal("-85.25"), (BigDecimal) null);
     when(overview.baseCurrency()).thenReturn(CurrencyType.PLN);
-    var reader = new PortfolioProfitabilityAnswer(api);
+    var reader = new PortfolioProfitabilityAnswer(api, RoutingPatternsTestSupport.load());
     assertTrue(reader.answer(21).answer().contains("at a loss"));
     assertTrue(reader.answer(21).sources().isEmpty());
   }

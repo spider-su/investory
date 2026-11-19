@@ -3,28 +3,33 @@ package com.smartbox.investory.config;
 import com.smartbox.investory.investment.api.asset.InvestmentAssetApi;
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
+import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.mcp.PortfolioResearchClient;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
 import com.smartbox.investory.profile.web.ProfileResponseMapper;
 import com.smartbox.investory.rag.InvestoryRagClient;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.retirement.api.RetirementProjectionApi;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 /** Composition bridge: MCP and chat read the same public domain APIs. */
 @Component
-@ConditionalOnProperty(prefix = "app.mcp", name = "enabled", havingValue = "true")
+@ConditionalOnExpression("${app.mcp.enabled:false} or ${investory.rag.enabled:false}")
 public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
   private final InvestmentDashboardApi investment;
   private final InvestmentAssetApi assets;
   private final ProfileSnapshotReader profiles;
   private final ProfileResponseMapper mapper;
   private final RetirementPlanApi plans;
+  private final LongTermAssetsApi longTerm;
+  private final RetirementProjectionApi projections;
   private final ObjectProvider<InvestoryRagClient> rag;
   private final ObjectProvider<com.smartbox.investory.rag.ExternalMarketDataService> market;
 
@@ -34,6 +39,8 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
       ProfileSnapshotReader profiles,
       ProfileResponseMapper mapper,
       RetirementPlanApi plans,
+      LongTermAssetsApi longTerm,
+      RetirementProjectionApi projections,
       ObjectProvider<InvestoryRagClient> rag,
       ObjectProvider<com.smartbox.investory.rag.ExternalMarketDataService> market) {
     this.investment = investment;
@@ -41,6 +48,8 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
     this.profiles = profiles;
     this.mapper = mapper;
     this.plans = plans;
+    this.longTerm = longTerm;
+    this.projections = projections;
     this.rag = rag;
     this.market = market;
   }
@@ -58,6 +67,131 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
   private InvestmentDashboardApi.DashboardPageView page(long id, DashboardPeriod period) {
     return investment.loadDashboard(
         new InvestmentDashboardApi.DashboardQuery(List.of(), false, period, id));
+  }
+
+  @Override
+  public GeneralProfile generalProfile(long id) {
+    var p = mapper.map(profiles.loadProfile(id));
+    var income = p.incomeSummary();
+    return new GeneralProfile(
+        p.currency() == null ? null : p.currency().name(),
+        decimal(p.totalNetWorth()),
+        decimal(p.marketPortfolioValue()),
+        decimal(p.longTermAssetValue()),
+        decimal(p.liquidAssets()),
+        decimal(p.illiquidAssets()),
+        decimal(p.currentRentalIncome()),
+        decimal(p.currentBondIncome()),
+        income == null ? null : decimal(income.combinedNetAnnualIncome()),
+        income == null ? null : decimal(income.longTermAnnualIncome()),
+        income == null ? null : decimal(income.marketNetAnnualIncome()),
+        decimal(p.retirementReserve()),
+        decimal(p.investmentCapital()),
+        Instant.now(),
+        "live:profile");
+  }
+
+  @Override
+  public LongTermSummary longTermAssets(long id, int limit) {
+    if (limit < 1 || limit > 20) throw new IllegalArgumentException();
+    var view = longTerm.overview(id, LocalDate.now());
+    if (view == null) throw new IllegalStateException("Long-term overview unavailable");
+    var items =
+        view.groups().stream()
+            .flatMap(
+                group ->
+                    group.assets() == null
+                        ? java.util.stream.Stream.empty()
+                        : group.assets().stream())
+            .limit(limit)
+            .map(
+                asset ->
+                    new LongTermAsset(
+                        asset.name(),
+                        asset.type() == null ? null : asset.type().name(),
+                        asset.currency() == null ? null : asset.currency().name(),
+                        decimal(asset.currentValue()),
+                        asset.maturityDate() == null ? null : asset.maturityDate().toString(),
+                        decimal(asset.currentAnnualRate()),
+                        decimal(asset.monthlyRentalIncome()),
+                        asset.integrityWarning()))
+            .toList();
+    var economics = view.economics();
+    return new LongTermSummary(
+        view.currency() == null ? null : view.currency().name(),
+        decimal(view.totalValue()),
+        decimal(view.investmentValue()),
+        decimal(view.personalAssetValue()),
+        economics == null ? null : decimal(economics.netAnnualIncomeAfterTax()),
+        economics == null ? null : decimal(economics.monthlyNetIncomeAfterTax()),
+        items,
+        Instant.now(),
+        "live:longterm");
+  }
+
+  @Override
+  public RetirementSimulation retirementSimulation(long id) {
+    var selected = plans.resolvePlanId(id, null);
+    if (selected.isEmpty()) {
+      return new RetirementSimulation(
+          false,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          List.of(),
+          Instant.now(),
+          "live:retirement-simulation",
+          "No selected saved plan");
+    }
+    var details = plans.details(id, selected.get());
+    var projection = projections.load(id, selected.get());
+    var assumptions = projection.assumptions();
+    var currency = mapper.map(profiles.loadProfile(id)).currency();
+    var scenarios =
+        Arrays.stream(com.smartbox.investory.retirement.api.model.SimulationScenario.values())
+            .map(
+                scenario -> {
+                  var summary = projection.summaries().get(scenario);
+                  if (summary == null) return null;
+                  return new SimulationScenarioSummary(
+                      scenario.name(),
+                      summary.failed(),
+                      summary.firstFailureAge(),
+                      summary.firstFailureYear(),
+                      decimal(summary.finalNetWorth()),
+                      decimal(summary.finalLiquidAssets()),
+                      decimal(summary.finalIlliquidAssets()),
+                      decimal(summary.minimumLiquidAssets()),
+                      decimal(summary.lifetimeRequiredPortfolioFunding()),
+                      decimal(summary.lifetimeActualWithdrawals()),
+                      decimal(summary.totalUnfundedAmount()),
+                      decimal(summary.firstYearPassiveIncomeCoverage()));
+                })
+            .filter(java.util.Objects::nonNull)
+            .toList();
+    return new RetirementSimulation(
+        true,
+        details == null ? null : details.name(),
+        currency == null ? null : currency.name(),
+        assumptions.currentAge(),
+        assumptions.retirementAge(),
+        assumptions.endAge(),
+        decimal(assumptions.annualLivingExpenses()),
+        decimal(assumptions.annualDiscretionaryExpenses()),
+        decimal(assumptions.inflationRate()),
+        decimal(assumptions.equityReturnRate()),
+        decimal(assumptions.fixedIncomeReturnRate()),
+        scenarios,
+        Instant.now(),
+        "live:retirement-simulation",
+        "Saved-plan projection only; nominal scenarios are model estimates, not guaranteed outcomes.");
   }
 
   @Override

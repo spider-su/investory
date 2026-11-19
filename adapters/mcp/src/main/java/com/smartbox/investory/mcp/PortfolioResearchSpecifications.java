@@ -31,6 +31,27 @@ final class PortfolioResearchSpecifications {
             Arrays.stream(DashboardPeriod.values()).map(DashboardPeriod::wireValue).toList());
     return List.of(
         tool(
+            "get_general_profile",
+            "Read cross-domain profile net worth, liquidity, income and planning capital.",
+            Map.of(),
+            (id, args) -> client.get().generalProfile(id),
+            authorization,
+            mapper),
+        tool(
+            "get_long_term_assets",
+            "Read real estate, bonds, cash reserves and personal assets with total values and net income.",
+            Map.of("limit", Map.of("type", "integer", "minimum", 1, "maximum", 20)),
+            (id, args) -> client.get().longTermAssets(id, integer(args, "limit", 10, 20)),
+            authorization,
+            mapper),
+        tool(
+            "get_retirement_simulation",
+            "Read existing saved retirement plan projections and conservative/base/optimistic scenario summaries; never a guaranteed forecast.",
+            Map.of(),
+            (id, args) -> client.get().retirementSimulation(id),
+            authorization,
+            mapper),
+        tool(
             "get_profile_summary",
             "Read whole-wealth totals, distinct from Investment value.",
             Map.of(),

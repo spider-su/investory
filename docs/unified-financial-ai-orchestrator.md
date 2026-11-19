@@ -111,3 +111,87 @@ and [MCP contract](../adapters/mcp/README.md) for the canonical underlying limit
 Release gates require exact-head CI, scanned Java/RAG publication, runtime image-ID
 matching, authenticated API/official-MCP acceptance and a fresh private metrics
 scrape. A merged PR alone is not deployment evidence.
+
+
+## Hybrid routing (rule-first + constrained LLM fallback)
+
+The Java orchestrator keeps its deterministic fast path for recognized holdings,
+portfolio facts, reporting periods, benchmark, retirement, market quotes and
+documentation. Ambiguous or unrecognized wording can invoke an authenticated
+internal Python `POST /route` classifier, under the existing RAG concurrency
+and request deadline gate. The Python service sends only the question to OpenAI;
+it never receives scoped Java portfolio facts for classification.
+
+The model returns a bounded suggestion:
+`{"tools":["HOLDINGS","RETIREMENT"],"symbol":null}`.
+The permitted names are `PROFILE`, `HOLDINGS`, `SPY`, `RETIREMENT`,
+`DOCS`, `MARKET`. No arbitrary endpoint or executable parameters are accepted.
+Java validates the response and reconstitutes a canonical, supported request,
+which is then executed through the existing authorized read models. A public
+ticker must occur literally in the original question; the model may not invent
+or replace it. Largest-holding research still uses the authorized Java holding
+lookup. Market payloads remain separate and untrusted.
+
+If the planner fails, returns invalid JSON, names a forbidden tool or cannot
+map the requested intent safely, Java abstains instead of sending an arbitrary
+model-generated request to an internal or external endpoint. Unsupported
+forecast and reporting-period policies remain in place before routing.
+This is intent classification, **not** an unrestricted tool-calling agent.
+
+
+## Configurable deterministic intents
+
+All Java fast-path phrase patterns are defined in
+`app/src/main/resources/application.yml` under
+`investory.assistant.routing.patterns`. This includes reporting periods,
+follow-up expressions, portfolio/holdings/retirement/benchmark intents,
+profitability detection and unsupported-period guards.
+
+`AssistantRoutingPatterns` compiles and validates the settings at startup.
+Consumers require an injected configuration and do not define regex defaults
+in Java. Invalid regex syntax or missing required keys prevents startup rather
+than quietly switching behavior. Security allowlists for public ticker syntax,
+profile ownership, and permitted tool names remain enforced in Java and are not
+user-editable routing phrases.
+
+New fast-path synonyms should be added to YAML only when the meaning is
+unambiguous, and accompanied by unit tests. Ambiguous allocation/risk questions
+remain candidates for the constrained LLM classifier.
+
+
+## Local Investory MCP execution
+
+The assistant (Web UI and Telegram) now uses the same `PortfolioResearchClient`
+query contracts exposed as internal Investory MCP tools. The
+`AssistantInternalMcpGateway` executes these contracts **in process**, without
+calling the application's `/mcp` endpoint over HTTP. Existing scoped portfolio
+authorization and admission controls run in Java before invocation.
+
+| Assistant domain | Shared internal MCP contract |
+| --- | --- |
+| Net worth | `get_profile_summary` |
+| Largest/current holdings | `get_portfolio_holdings` (limit 5) |
+| Lifetime profitability | `get_investment_period_result` (MAX) |
+| Standard SPY comparison | `get_benchmark_comparison` (MAX) |
+| Saved retirement plan | `get_retirement_plan` |
+
+The existing verified reporting-period and context-based follow-up paths
+remain on their established fresh-reading Java APIs for now: the MCP period
+query contract currently has no explicit `freshFacts` parameter. This avoids
+regressing the MAX-to-YTD comparison semantics.
+
+The same `PortfolioResearchMcpAdapter` is registered when either the RAG
+assistant or the external MCP server is enabled. Enabling the internal
+assistant **does not** expose the external `/mcp` endpoint: that endpoint
+continues to require `INVESTORY_MCP_ENABLED=true`.
+
+Python RAG still provides cited documentation explanations. Public quotes
+still use the existing bounded market gateway and external Alpha Vantage MCP,
+without sending private portfolio details to the provider. The two data
+interfaces remain distinct: verified Investory read models and untrusted
+external quote observations.
+
+A future phase may expose the full MCP tool list as structured planning
+metadata and replace the remaining specialized/fresh-report paths once the
+shared contract supports their semantics. Models never execute arbitrary
+tool names, supply portfolio IDs, or bypass Java authorization.

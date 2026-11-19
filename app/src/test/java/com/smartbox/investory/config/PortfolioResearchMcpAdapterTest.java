@@ -30,6 +30,8 @@ class PortfolioResearchMcpAdapterTest {
           profiles,
           mapper,
           plans,
+          mock(com.smartbox.investory.longterm.api.LongTermAssetsApi.class),
+          mock(com.smartbox.investory.retirement.api.RetirementProjectionApi.class),
           provider,
           mock(ObjectProvider.class));
 

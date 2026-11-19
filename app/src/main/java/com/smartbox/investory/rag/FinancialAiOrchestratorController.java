@@ -34,50 +34,28 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/v1/portfolios/{portfolioId}/assistant")
 @ConditionalOnProperty(prefix = "investory.rag", name = "enabled", havingValue = "true")
 public class FinancialAiOrchestratorController {
-  private static final Pattern PUBLIC_SYMBOL =
-      Pattern.compile(
-          "(?i:ticker|symbol|price of|quote for)\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9._^/-])");
-  private static final Pattern MARKET_LANGUAGE =
-      Pattern.compile(
-          "(?i)\\b(?:quote|ticker|trading|stock price|price of|latest price|market (?:price|quote|data|research))\\b");
-  private static final Pattern RETIREMENT =
-      Pattern.compile("(?i)\\b(?:retirement|retire|pension|financial independence)\\b");
-  private static final Pattern HOLDINGS =
-      Pattern.compile(
-          "(?i)\\b(?:holdings|positions|allocation)\\b|\\b(?:main|largest|biggest|top|major|primary)\\s+(?:assets?|holdings?|positions?)\\b");
-  private static final Pattern DOCUMENTS =
-      Pattern.compile(
-          "(?i)\\b(?:documentation|documents|methodology|method|explain|definition|docs|calculat\\w*)\\b");
-  private static final Pattern SPY = Pattern.compile("(?i)\\b(?:spy|s&p ?500)\\b");
-  private static final Pattern COMPARE =
-      Pattern.compile("(?i)\\b(?:compare|compared|comparison|versus|vs|difference|performing)\\b");
-  private static final Pattern NET_WORTH =
-      Pattern.compile("(?i)\\b(?:net worth|wealth|how much am i worth)\\b");
-  private static final Pattern MARKET_VALUE = Pattern.compile("(?i)\\bmarket portfolio value\\b");
-  private static final Pattern LIQUID = Pattern.compile("(?i)\\bliquid assets?\\b");
-  private static final Pattern ILLIQUID = Pattern.compile("(?i)\\billiquid assets?\\b");
-  private static final Pattern LONG_TERM =
-      Pattern.compile("(?i)\\blong[- ]term (?:assets?|value)\\b");
-  private static final Pattern PERSONAL = Pattern.compile("(?i)\\b(?:my|me|i|our)\\b");
-
-  private static final Pattern REPORTING_PERIOD =
-      Pattern.compile(
-          "(?i)\\b(?:YTD|year[- ]to[- ]date|this year|current year|1M|3M|6M|1Y|3Y|5Y|MAX)\\b");
-  private static final Pattern OTHER_WINDOW =
-      Pattern.compile(
-          "(?i)\\b(?:mtd|qtd|today|yesterday|tomorrow|forecast|predict|will|all[ -]?time|lifetime|since inception|from the beginning|(?:19|20)\\d{2}|"
-              + "(?:since|through|before|after|as of)\\s+\\d|(?:last|past|previous|next|this|current)\\s+(?:\\d+\\s+)?(?:day|week|month|quarter|year)s?)\\b");
-
-  private static final String PERIOD_TOKEN = "(1M|3M|6M|YTD|1Y|3Y|5Y|MAX)";
-  private static final Pattern FOLLOW_UP =
-      Pattern.compile("(?i)^(compare that with|show that for) " + PERIOD_TOKEN + "[?.]?$");
-  private static final Pattern ASSET_RESULT =
-      Pattern.compile(
-          "(?i)^show realized profit for asset ([A-Z0-9][A-Z0-9._^-]{0,31}) for "
-              + PERIOD_TOKEN
-              + "[?.]?$");
-  private static final Pattern CONTEXT_REFERENCE =
-      Pattern.compile("(?i)^(?:compare|show) (?:that|it)\\b");
+  private final Pattern PUBLIC_SYMBOL;
+  private final Pattern MARKET_LANGUAGE;
+  private final Pattern RETIREMENT;
+  private final Pattern HOLDINGS;
+  private final Pattern DOCUMENTS;
+  private final Pattern SPY;
+  private final Pattern COMPARE;
+  private final Pattern NET_WORTH;
+  private final Pattern MARKET_VALUE;
+  private final Pattern LIQUID;
+  private final Pattern ILLIQUID;
+  private final Pattern LONG_TERM;
+  private final Pattern LONG_TERM_DETAIL;
+  private final Pattern RETIREMENT_SIMULATION;
+  private final Pattern GENERAL_PROFILE;
+  private final Pattern PERSONAL;
+  private final Pattern COMPLEX_LANGUAGE;
+  private final Pattern REPORTING_PERIOD;
+  private final Pattern OTHER_WINDOW;
+  private final Pattern FOLLOW_UP;
+  private final Pattern ASSET_RESULT;
+  private final Pattern CONTEXT_REFERENCE;
 
   private final AuthorizationService authorization;
   private final RagUserRateLimiter rateLimiter;
@@ -86,6 +64,7 @@ public class FinancialAiOrchestratorController {
   private final ProfileResponseMapper mapper;
   private final PortfolioAssistantReadModels readModels;
   private final PortfolioProfitabilityAnswer profitability;
+  private final AssistantInternalMcpGateway internalMcp;
   private final InvestoryRagClient rag;
   private final ExternalMarketDataService market;
   private final InvestmentAssetApi assets;
@@ -102,7 +81,9 @@ public class FinancialAiOrchestratorController {
       InvestoryRagClient rag,
       ExternalMarketDataService market,
       InvestmentAssetApi assets,
-      AssistantMetrics metrics) {
+      AssistantMetrics metrics,
+      AssistantRoutingPatterns patterns,
+      AssistantInternalMcpGateway internalMcp) {
     this.authorization = authorization;
     this.rateLimiter = rateLimiter;
     this.concurrency = concurrency;
@@ -114,6 +95,29 @@ public class FinancialAiOrchestratorController {
     this.market = market;
     this.assets = assets;
     this.metrics = metrics;
+    this.internalMcp = internalMcp;
+    PUBLIC_SYMBOL = patterns.pattern("public-symbol");
+    MARKET_LANGUAGE = patterns.pattern("market-language");
+    RETIREMENT = patterns.pattern("retirement");
+    HOLDINGS = patterns.pattern("holdings");
+    DOCUMENTS = patterns.pattern("documents");
+    SPY = patterns.pattern("spy");
+    COMPARE = patterns.pattern("compare");
+    NET_WORTH = patterns.pattern("net-worth");
+    MARKET_VALUE = patterns.pattern("market-value");
+    LIQUID = patterns.pattern("liquid");
+    ILLIQUID = patterns.pattern("illiquid");
+    LONG_TERM = patterns.pattern("long-term");
+    LONG_TERM_DETAIL = patterns.pattern("long-term-detail");
+    RETIREMENT_SIMULATION = patterns.pattern("retirement-simulation");
+    GENERAL_PROFILE = patterns.pattern("general-profile");
+    PERSONAL = patterns.pattern("personal");
+    COMPLEX_LANGUAGE = patterns.pattern("complex-language");
+    REPORTING_PERIOD = patterns.pattern("reporting-period");
+    OTHER_WINDOW = patterns.pattern("other-window");
+    FOLLOW_UP = patterns.pattern("follow-up");
+    ASSET_RESULT = patterns.pattern("asset-result");
+    CONTEXT_REFERENCE = patterns.pattern("context-reference");
   }
 
   @PostMapping("/ask")
@@ -186,10 +190,98 @@ public class FinancialAiOrchestratorController {
                 asset.group(1).toUpperCase(Locale.ROOT),
                 parsePeriod(asset.group(2))));
       }
+      if (needsSemanticRouting(question)) {
+        try {
+          var suggestion = rag.planRouting(question);
+          String canonical = canonicalQuestion(question, suggestion);
+          if (canonical == null) return unsupported();
+          return answerAuthorized(portfolioId, canonical);
+        } catch (PythonRagClient.RagUnavailableException e) {
+          return unsupported();
+        }
+      }
       return answerAuthorized(portfolioId, question);
     } finally {
       concurrency.release();
     }
+  }
+
+  private boolean needsSemanticRouting(String question) {
+    // The existing canonical reports and follow-ups must never be reinterpreted by a model.
+    if (REPORTING_PERIOD.matcher(question).find() || OTHER_WINDOW.matcher(question).find())
+      return false;
+    if (COMPLEX_LANGUAGE.matcher(question).find()) return true;
+    if (profitability.supports(question)) return false;
+    return !(NET_WORTH.matcher(question).find()
+        || MARKET_VALUE.matcher(question).find()
+        || LIQUID.matcher(question).find()
+        || ILLIQUID.matcher(question).find()
+        || LONG_TERM.matcher(question).find()
+        || LONG_TERM_DETAIL.matcher(question).find()
+        || RETIREMENT_SIMULATION.matcher(question).find()
+        || GENERAL_PROFILE.matcher(question).find()
+        || HOLDINGS.matcher(question).find()
+        || RETIREMENT.matcher(question).find()
+        || DOCUMENTS.matcher(question).find()
+        || MARKET_LANGUAGE.matcher(question).find()
+        || SPY.matcher(question).find());
+  }
+
+  private String canonicalQuestion(String original, InvestoryRagClient.RoutingPlan suggestion) {
+    if (suggestion == null
+        || suggestion.tools() == null
+        || suggestion.tools().isEmpty()
+        || suggestion.tools().size() > 9) return null;
+    var tools = new LinkedHashSet<>(suggestion.tools());
+    if (tools.size() != suggestion.tools().size()
+        || !java.util.Set.of(
+                "PROFILE",
+                "GENERAL_PROFILE",
+                "LONG_TERM",
+                "SIMULATION",
+                "HOLDINGS",
+                "SPY",
+                "RETIREMENT",
+                "DOCS",
+                "MARKET")
+            .containsAll(tools)) return null;
+
+    var parts = new ArrayList<String>();
+    if (tools.contains("PROFILE")) parts.add("my net worth");
+    if (tools.contains("GENERAL_PROFILE")) parts.add("my financial overview");
+    if (tools.contains("LONG_TERM")) parts.add("my long-term assets");
+    if (tools.contains("SIMULATION")) parts.add("my retirement simulation");
+    if (tools.contains("HOLDINGS")) parts.add("my holdings");
+    if (tools.contains("SPY")) parts.add("compare my portfolio with SPY");
+    if (tools.contains("RETIREMENT")) parts.add("my retirement plan");
+    if (tools.contains("DOCS")) {
+      // Preserve public documentation intent without forwarding personal snapshots.
+      // For mixed personal questions, use a neutral methodology request.
+      parts.add(
+          !PERSONAL.matcher(original).find() && original.length() <= 1000
+              ? "explain " + original
+              : "explain investment methodology");
+    }
+    if (tools.contains("MARKET")) {
+      String symbol = suggestion.symbol();
+      if (symbol != null
+          && symbol.matches("[A-Z][A-Z0-9.^-]{0,19}")
+          && !java.util.List.of("MY", "THE", "OUR", "A", "AN").contains(symbol)
+          && Pattern.compile(
+                  "(?i)(?<![A-Za-z0-9._^/-])" + Pattern.quote(symbol) + "(?![A-Za-z0-9._^/-])")
+              .matcher(original)
+              .find()) {
+        parts.add("latest price of ticker " + symbol);
+      } else if (symbol == null
+          && Pattern.compile("(?i)\\b(?:largest|biggest|top)\\s+holding\\b")
+              .matcher(original)
+              .find()) {
+        parts.add("latest price of my largest holding");
+      } else {
+        return null;
+      }
+    }
+    return String.join(" and ", parts);
   }
 
   private Answer answerAuthorized(long portfolioId, String question) {
@@ -236,6 +328,9 @@ public class FinancialAiOrchestratorController {
     List<String> used = new ArrayList<>();
     boolean wantsMarket = MARKET_LANGUAGE.matcher(question).find();
     boolean wantsRetirement = RETIREMENT.matcher(question).find();
+    boolean wantsSimulation = RETIREMENT_SIMULATION.matcher(question).find();
+    boolean wantsLongTermDetails = LONG_TERM_DETAIL.matcher(question).find();
+    boolean wantsGeneralProfile = GENERAL_PROFILE.matcher(question).find();
     boolean wantsDocs = DOCUMENTS.matcher(question).find();
     boolean wantsSpyComparison =
         intent == PortfolioAssistantReadModels.Intent.SPY_COMPARISON
@@ -248,10 +343,16 @@ public class FinancialAiOrchestratorController {
                 || ILLIQUID.matcher(question).find()
                 || LONG_TERM.matcher(question).find());
     if (wantsProfile) {
-      var snapshot = mapper.map(profiles.loadProfile(portfolioId));
+      boolean hasAdditionalProfileAmounts =
+          MARKET_VALUE.matcher(question).find()
+              || LIQUID.matcher(question).find()
+              || ILLIQUID.matcher(question).find()
+              || LONG_TERM.matcher(question).find();
+      var snapshot =
+          hasAdditionalProfileAmounts ? mapper.map(profiles.loadProfile(portfolioId)) : null;
       if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH
           || NET_WORTH.matcher(question).find())
-        append(readModels.netWorth(snapshot), "JAVA_PROFILE", parts, citations, used);
+        append(internalMcp.netWorth(portfolioId), "JAVA_PROFILE", parts, citations, used);
       if (MARKET_VALUE.matcher(question).find())
         appendFact(
             "Market portfolio value",
@@ -269,15 +370,32 @@ public class FinancialAiOrchestratorController {
             "Long-term assets", snapshot.longTermAssetValue(), snapshot, parts, citations, used);
     }
     if (wantsSpyComparison)
-      append(readModels.spyComparison(portfolioId), "JAVA_BENCHMARK", parts, citations, used);
+      append(
+          internalMcp.benchmark(portfolioId, DashboardPeriod.MAX),
+          "JAVA_BENCHMARK",
+          parts,
+          citations,
+          used);
     if (intent == PortfolioAssistantReadModels.Intent.MAIN_ASSETS
         || HOLDINGS.matcher(question).find())
-      append(readModels.mainAssets(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
-    if (wantsRetirement) {
-      append(readModels.retirementPlan(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
+      append(internalMcp.holdings(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
+    if (wantsRetirement && !wantsSimulation) {
+      append(internalMcp.retirement(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
     }
+    if (wantsSimulation)
+      append(
+          internalMcp.retirementSimulation(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
+    if (wantsLongTermDetails)
+      append(internalMcp.longTermAssets(portfolioId), "JAVA_LONGTERM", parts, citations, used);
+    if (wantsGeneralProfile)
+      append(internalMcp.generalProfile(portfolioId), "JAVA_PROFILE", parts, citations, used);
     if (profitability.supports(question)) {
-      append(profitability.answer(portfolioId), "JAVA_PROFITABILITY", parts, citations, used);
+      append(
+          internalMcp.profitability(portfolioId, DashboardPeriod.MAX),
+          "JAVA_PROFITABILITY",
+          parts,
+          citations,
+          used);
     }
     if (wantsDocs) {
       try {
@@ -488,8 +606,7 @@ public class FinancialAiOrchestratorController {
     used.add(answer.sources() == null || answer.sources().isEmpty() ? "ABSTAINED" : source);
   }
 
-  private static String documentationQuestion(
-      String question, boolean profile, boolean retirement) {
+  private String documentationQuestion(String question, boolean profile, boolean retirement) {
     Matcher docs = DOCUMENTS.matcher(question);
     if (docs.find() && docs.start() > 0) {
       String clause = question.substring(docs.start());
