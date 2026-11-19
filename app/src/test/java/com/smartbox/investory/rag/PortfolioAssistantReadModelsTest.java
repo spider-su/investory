@@ -26,7 +26,7 @@ class PortfolioAssistantReadModelsTest {
   private final InvestmentDashboardApi investment = mock(InvestmentDashboardApi.class);
   private final RetirementPlanApi retirement = mock(RetirementPlanApi.class);
   private final PortfolioAssistantReadModels assistant =
-      new PortfolioAssistantReadModels(investment, retirement);
+      new PortfolioAssistantReadModels(investment, retirement, RoutingPatternsTestSupport.load());
 
   @Test
   void recognizesRealUserPhrasesWithoutConfusingDefinitionsOrCurrentValue() {
