@@ -384,6 +384,58 @@ class FinancialAiOrchestratorControllerTest {
   }
 
   @Test
+  void unknownParaphraseUsesLlmSuggestionAndCanonicalJavaRead() {
+    authorize();
+    String question = "Could you tell me which investments I currently own?";
+    when(rag.planRouting(question))
+        .thenReturn(new InvestoryRagClient.RoutingPlan(List.of("HOLDINGS"), null));
+    when(readModels.mainAssets(21L))
+        .thenReturn(new InvestoryRagClient.RagAnswer(
+            "Verified holdings", List.of("live:investment-structure")));
+    var result = controller.ask(
+        21L, new FinancialAiOrchestratorController.Question(question), user);
+    assertEquals(List.of("JAVA_HOLDINGS"), result.components());
+    assertEquals("Verified holdings", result.answer());
+    verify(rag).planRouting(question);
+    verify(rag, never()).ask(anyString(), any());
+    verifyNoInteractions(market);
+  }
+
+  @Test
+  void knownIntentSkipsTheLlmPlanner() {
+    authorize();
+    when(readModels.mainAssets(21L))
+        .thenReturn(new InvestoryRagClient.RagAnswer(
+            "Verified holdings", List.of("live:investment-structure")));
+    controller.ask(21L,
+        new FinancialAiOrchestratorController.Question("Show my holdings"), user);
+    verify(rag, never()).planRouting(anyString());
+  }
+
+  @Test
+  void inventedTickerFromPlannerCannotReachProvider() {
+    authorize();
+    String question = "Tell me about a stock I have not specified";
+    when(rag.planRouting(question))
+        .thenReturn(new InvestoryRagClient.RoutingPlan(List.of("MARKET"), "MSFT"));
+    var result = controller.ask(21L,
+        new FinancialAiOrchestratorController.Question(question), user);
+    assertEquals(List.of("ABSTAINED"), result.components());
+    verifyNoInteractions(market, profiles);
+  }
+
+  @Test
+  void unavailablePlannerAbstainsWithoutLoadingPrivateFacts() {
+    authorize();
+    String question = "Which investments belong to me?";
+    when(rag.planRouting(question)).thenThrow(new PythonRagClient.RagUnavailableException());
+    var result = controller.ask(21L,
+        new FinancialAiOrchestratorController.Question(question), user);
+    assertEquals(List.of("ABSTAINED"), result.components());
+    verifyNoInteractions(profiles, market);
+  }
+
+  @Test
   void malformedTickerNeverBecomesDifferentProviderSymbol() {
     authorize();
     for (String symbol : List.of("MSFT_X", "MSFT/GBP", "ABCDEFGHIJKLMNOPQRSTUV")) {
