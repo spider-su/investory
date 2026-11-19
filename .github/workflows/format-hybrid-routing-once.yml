@@ -1,0 +1,33 @@
+name: Format hybrid routing once
+
+on:
+  push:
+    branches:
+      - feat/hybrid-assistant-routing
+    paths:
+      - .github/workflows/format-hybrid-routing-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/hybrid-assistant-routing
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-java-maven
+      - name: Apply the repository's approved Spotless formatting
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" spotless:apply
+      - name: Commit only Java formatting changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/smartbox/investory/rag app/src/test/java/com/smartbox/investory/rag
+          if ! git diff --cached --quiet; then
+            git commit -m "style(ai): apply Spotless to routing changes"
+            git push origin HEAD:feat/hybrid-assistant-routing
+          fi
