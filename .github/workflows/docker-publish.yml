@@ -68,6 +68,11 @@ jobs:
           vuln-type: os,library
           severity: CRITICAL,HIGH
 
+      - name: Smoke-test the published assistant on synthetic data
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/investory@${{ steps.image.outputs.digest }}
+        run: bash .github/assistant-smoke/run.sh "$IMAGE"
+
       - name: Generate image SBOM
         uses: anchore/sbom-action@v0
         with:

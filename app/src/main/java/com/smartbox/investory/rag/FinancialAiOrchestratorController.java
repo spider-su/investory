@@ -191,16 +191,26 @@ public class FinancialAiOrchestratorController {
                 parsePeriod(asset.group(2))));
       }
       if (needsSemanticRouting(question)) {
+        if (readModels.classify(question) == PortfolioAssistantReadModels.Intent.UNSUPPORTED) {
+          return unsupported();
+        }
         try {
           var suggestion = rag.planRouting(question);
           String canonical = canonicalQuestion(question, suggestion);
           if (canonical == null) return unsupported();
-          return answerAuthorized(portfolioId, canonical);
+          String docsQuestion = null;
+          if (suggestion.tools().contains("DOCS")) {
+            docsQuestion =
+                !PERSONAL.matcher(question).find() && question.length() <= 1000
+                    ? question
+                    : "Explain investment methodology";
+          }
+          return answerAuthorized(portfolioId, canonical, docsQuestion);
         } catch (PythonRagClient.RagUnavailableException e) {
           return unsupported();
         }
       }
-      return answerAuthorized(portfolioId, question);
+      return answerAuthorized(portfolioId, question, null);
     } finally {
       concurrency.release();
     }
@@ -254,14 +264,7 @@ public class FinancialAiOrchestratorController {
     if (tools.contains("HOLDINGS")) parts.add("my holdings");
     if (tools.contains("SPY")) parts.add("compare my portfolio with SPY");
     if (tools.contains("RETIREMENT")) parts.add("my retirement plan");
-    if (tools.contains("DOCS")) {
-      // Preserve public documentation intent without forwarding personal snapshots.
-      // For mixed personal questions, use a neutral methodology request.
-      parts.add(
-          !PERSONAL.matcher(original).find() && original.length() <= 1000
-              ? "explain " + original
-              : "explain investment methodology");
-    }
+    if (tools.contains("DOCS")) parts.add("explain documentation");
     if (tools.contains("MARKET")) {
       String symbol = suggestion.symbol();
       if (symbol != null
@@ -284,7 +287,7 @@ public class FinancialAiOrchestratorController {
     return String.join(" and ", parts);
   }
 
-  private Answer answerAuthorized(long portfolioId, String question) {
+  private Answer answerAuthorized(long portfolioId, String question, String docsQuestion) {
     Matcher requestedPeriod = REPORTING_PERIOD.matcher(question);
     if (requestedPeriod.find()) {
       String label = requestedPeriod.group();
@@ -400,7 +403,10 @@ public class FinancialAiOrchestratorController {
     if (wantsDocs) {
       try {
         append(
-            rag.askDocumentation(documentationQuestion(question, wantsProfile, wantsRetirement)),
+            rag.askDocumentation(
+                docsQuestion == null
+                    ? documentationQuestion(question, wantsProfile, wantsRetirement)
+                    : docsQuestion),
             "RAG_DOCUMENTATION",
             parts,
             citations,

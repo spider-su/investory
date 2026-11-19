@@ -3,6 +3,7 @@ package com.smartbox.investory.rag;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,7 +32,8 @@ import tools.jackson.databind.ObjectMapper;
       "investory.rag.service-token=test-internal",
       "app.security.profile-ownership-required=false",
       "investory.rag.max-requests-per-minute=100",
-      "management.endpoints.web.exposure.include=health,prometheus"
+      "management.endpoints.web.exposure.include=health,prometheus,metrics",
+      "INVESTORY_PROMETHEUS_TOKEN=fixture-prometheus-token"
     })
 @AutoConfigureMockMvc
 @ActiveProfiles("test-fast")
@@ -229,9 +231,10 @@ class FinancialAiOrchestratorIT {
   }
 
   @Test
-  void prometheusExpositionRequiresAdministrator() throws Exception {
+  void prometheusExpositionAcceptsOnlyAdministratorOrDedicatedScrapeToken() throws Exception {
     String path = "/actuator/prometheus";
-    mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path))
+    mvc.perform(get(path)).andExpect(status().isUnauthorized());
+    mvc.perform(get(path).header("Authorization", "Bearer invalid-scrape-token"))
         .andExpect(status().isUnauthorized());
     mvc.perform(
             org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path)
@@ -249,9 +252,19 @@ class FinancialAiOrchestratorIT {
             .andExpect(status().isOk())
             .andReturn()
             .getResponse();
-    assertThat(metricsResponse.getContentAsString())
+    var scrape =
+        mvc.perform(get(path).header("Authorization", "Bearer fixture-prometheus-token"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse();
+    mvc.perform(get("/actuator/metrics").header("Authorization", "Bearer fixture-prometheus-token"))
+        .andExpect(status().isUnauthorized());
+    mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer fixture-prometheus-token"))
+        .andExpect(status().isUnauthorized());
+    assertThat(metricsResponse.getContentAsString()).contains("investory_assistant_routes_total");
+    assertThat(scrape.getContentAsString())
         .contains("investory_assistant_request_seconds_bucket", "investory_assistant_routes_total")
-        .doesNotContain("Compare that with YTD", "happy.investor");
+        .doesNotContain("Compare that with YTD", "happy.investor", "fixture-prometheus-token");
   }
 
   private org.springframework.test.web.servlet.ResultActions ask(

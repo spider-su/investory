@@ -96,9 +96,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
                 "3,200 PLN",
                 "8.5%",
                 "3,264 PLN",
-                "272 PLN",
-                "Other income",
-                "Other expense");
+                "272 PLN");
 
         page.locator("#property-settings").evaluate("element => element.open = true");
         assertThat(page.locator("label[for='tax-base']")).hasText("Monthly rental tax base");
@@ -141,6 +139,9 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
         page.locator("[data-edit-contract]").first().click();
         var edit = page.locator("[data-contract-edit]").first();
+        assertThat(edit).isVisible();
+        assertThat(edit.locator("label[for$='-other-income']")).hasText("Other income");
+        assertThat(edit.locator("label[for$='-other-expense']")).hasText("Other expense");
         edit.locator("[name='otherIncome']")
             .fill(HappyInvestorTestData.APARTMENT_A_MONTHLY_RENT.toPlainString());
         edit.locator("[name='otherExpense']")

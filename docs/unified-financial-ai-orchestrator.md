@@ -68,14 +68,24 @@ checks numeric facts against canonical Java profile data. RAG and external
 responses are deterministic fixtures. Additional cases verify stale-context
 isolation, revoked membership, asset period comparison, and metric exposition.
 
+The image publication workflow also starts the scanned Java digest in an
+isolated Docker Compose deployment. It runs the
+[eight release questions](../.github/assistant-smoke/questions.json) against
+the synthetic Happy Investor database and a local RAG/provider fixture. The
+gate checks report values, citations, context, authorization, typed quotes,
+cache reuse, budget exhaustion and metrics. It has no production credentials
+or provider access. Run it locally with
+`bash .github/assistant-smoke/run.sh <java-image>@sha256:<digest>`.
+
 ## Monitoring
 
 Java records fixed outcomes and routes through Micrometer. Prometheus can
 scrape `/actuator/prometheus` when `INVESTORY_MANAGEMENT_ENDPOINTS=health,prometheus`
-is set. Use authenticated collection over the private network. The endpoint
-requires the administrator role and is disabled by the default exposure list.
-Production collector wiring is separate from the existing private Python RAG
-scrape.
+is set. The default exposure list disables it. Administrators retain access.
+An optional `INVESTORY_PROMETHEUS_TOKEN` authorizes a dedicated Bearer scrape
+on GET `/actuator/prometheus` and grants no application identity or other
+endpoint access. Use a separate high-entropy credential and an internal
+collector. The Java and Python RAG targets scrape independently.
 
 | Prometheus series | Dimensions |
 | --- | --- |
