@@ -229,7 +229,9 @@ the corresponding [source] for statements grounded in documentation.
 ROUTING_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are a read-only intent classifier for Investory.
 Return ONLY a JSON object with keys "tools" (array) and "symbol" (string or null).
-Permitted tools: PROFILE (net worth or asset totals), GENERAL_PROFILE (full wealth and income),\nLONG_TERM (real estate, bonds, cash reserves, personal assets),\nSIMULATION (saved retirement scenario projections), HOLDINGS (positions),
+Permitted tools: PROFILE (net worth or asset totals), GENERAL_PROFILE (full wealth and income),
+LONG_TERM (real estate, bonds, cash reserves, personal assets),
+SIMULATION (saved retirement scenario projections), HOLDINGS (positions),
 SPY (portfolio versus S&P 500 benchmark), RETIREMENT (saved retirement plan),
 DOCS (accounting methodology/documentation), MARKET (explicit public stock quote).
 Choose every source necessary for the user's question, but no others.
@@ -256,7 +258,8 @@ def route_question(llm, question: str) -> dict:
     if not isinstance(parsed, dict) or set(parsed) != {"tools", "symbol"}:
         raise ValueError("Invalid routing schema")
     tools, symbol = parsed["tools"], parsed["symbol"]
-    allowed = {"PROFILE", "GENERAL_PROFILE", "LONG_TERM", "SIMULATION",\n               "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET"}
+    allowed = {"PROFILE", "GENERAL_PROFILE", "LONG_TERM", "SIMULATION",
+               "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET"}
     if (not isinstance(tools, list) or len(tools) > 9
             or any(not isinstance(t, str) or t not in allowed for t in tools)
             or len(set(tools)) != len(tools)
