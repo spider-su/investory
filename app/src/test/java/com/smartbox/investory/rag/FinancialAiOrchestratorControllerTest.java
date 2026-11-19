@@ -486,4 +486,28 @@ class FinancialAiOrchestratorControllerTest {
     verify(internalMcp).retirementSimulation(21L);
     verifyNoInteractions(market);
   }
+  @Test
+  void semanticPlannerCanChooseFullProfileAndSavedRetirementMcpTools() {
+    authorize();
+    String question = "What financial runway is available to my household?";
+    when(rag.planRouting(question))
+        .thenReturn(
+            new InvestoryRagClient.RoutingPlan(
+                List.of("GENERAL_PROFILE", "SIMULATION"), null));
+    when(internalMcp.generalProfile(21L))
+        .thenReturn(new InvestoryRagClient.RagAnswer("Whole profile", List.of("live:profile")));
+    when(internalMcp.retirementSimulation(21L))
+        .thenReturn(
+            new InvestoryRagClient.RagAnswer(
+                "Scenarios", List.of("live:retirement-simulation")));
+
+    var result =
+        controller.ask(21L, new FinancialAiOrchestratorController.Question(question), user);
+
+    assertEquals(List.of("live:profile", "live:retirement-simulation"), result.sources());
+    verify(internalMcp).generalProfile(21L);
+    verify(internalMcp).retirementSimulation(21L);
+    verifyNoInteractions(market);
+  }
+
 }
