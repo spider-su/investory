@@ -107,12 +107,16 @@ public class PortfolioBot extends TelegramLongPollingBot {
       if (assistant != null) {
         try {
           long selectedPortfolio = Long.parseLong(portfolioId);
-          sendTo(replyChatId, TelegramText.escape(assistant.reply(selectedPortfolio, replyChatId, text)));
+          sendTo(
+              replyChatId,
+              TelegramText.escape(assistant.reply(selectedPortfolio, replyChatId, text)));
         } catch (NumberFormatException e) {
           sendTo(replyChatId, "Telegram assistant portfolio ID is not configured correctly.");
         } catch (RuntimeException e) {
           log.warn("Telegram Smart Assistant request failed", e);
-          sendTo(replyChatId, "The portfolio assistant is temporarily unavailable or access was denied.");
+          sendTo(
+              replyChatId,
+              "The portfolio assistant is temporarily unavailable or access was denied.");
         }
       } else {
         // Preserve legacy AI behavior only when the shared RAG assistant is disabled.
