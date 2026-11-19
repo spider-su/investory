@@ -197,8 +197,9 @@ public class AssistantInternalMcpGateway {
     if (value.currency() == null || value.totalValue() == null) return unavailable();
     String details =
         value.assets().stream()
-            .map(item -> item.name() + " (" + item.type() + "): " + item.value()
-                + " " + item.currency())
+            .map(
+                item ->
+                    item.name() + " (" + item.type() + "): " + item.value() + " " + item.currency())
             .collect(Collectors.joining("; "));
     String answer =
         "Long-term assets total: "
@@ -225,21 +226,35 @@ public class AssistantInternalMcpGateway {
     if (!value.available() || value.scenarios().isEmpty()) return unavailable();
     String scenarios =
         value.scenarios().stream()
-            .map(item -> item.scenario() + ": "
-                + (item.failed() ? "failed at age " + item.failureAge() : "completed")
-                + ", final net worth " + item.finalNetWorth()
-                + ", minimum liquid assets " + item.minimumLiquidAssets()
-                + ", total unfunded " + item.totalUnfundedAmount())
+            .map(
+                item ->
+                    item.scenario()
+                        + ": "
+                        + (item.failed() ? "failed at age " + item.failureAge() : "completed")
+                        + ", final net worth "
+                        + item.finalNetWorth()
+                        + ", minimum liquid assets "
+                        + item.minimumLiquidAssets()
+                        + ", total unfunded "
+                        + item.totalUnfundedAmount())
             .collect(Collectors.joining("; "));
     return new InvestoryRagClient.RagAnswer(
-        "Saved retirement simulation " + value.plan()
-            + " (" + value.currency() + "): current age "
-            + value.currentAge() + ", retirement age "
-            + value.retirementAge() + ", end age "
-            + value.endAge() + "; inflation rate "
-            + value.inflationRate() + "; annual living expenses "
+        "Saved retirement simulation "
+            + value.plan()
+            + " ("
+            + value.currency()
+            + "): current age "
+            + value.currentAge()
+            + ", retirement age "
+            + value.retirementAge()
+            + ", end age "
+            + value.endAge()
+            + "; inflation rate "
+            + value.inflationRate()
+            + "; annual living expenses "
             + value.annualLivingExpenses()
-            + ". Scenarios: " + scenarios
+            + ". Scenarios: "
+            + scenarios
             + ". These are nominal scenario estimates, not guaranteed outcomes. "
             + "[live:retirement-simulation]",
         List.of("live:retirement-simulation"));
