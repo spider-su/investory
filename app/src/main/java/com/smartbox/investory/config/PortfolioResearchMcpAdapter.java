@@ -13,12 +13,12 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 /** Composition bridge: MCP and chat read the same public domain APIs. */
 @Component
-@ConditionalOnProperty(prefix = "app.mcp", name = "enabled", havingValue = "true")
+@ConditionalOnExpression("${app.mcp.enabled:false} or ${investory.rag.enabled:false}")
 public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
   private final InvestmentDashboardApi investment;
   private final InvestmentAssetApi assets;
