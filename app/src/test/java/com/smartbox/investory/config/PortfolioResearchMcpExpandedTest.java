@@ -13,8 +13,6 @@ import com.smartbox.investory.profile.api.ProfileSnapshotReader;
 import com.smartbox.investory.profile.api.contract.ProfileResponse;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.web.ProfileResponseMapper;
-import com.smartbox.investory.rag.ExternalMarketDataService;
-import com.smartbox.investory.rag.InvestoryRagClient;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.RetirementProjectionApi;
 import com.smartbox.investory.retirement.api.model.PlanDetails;
