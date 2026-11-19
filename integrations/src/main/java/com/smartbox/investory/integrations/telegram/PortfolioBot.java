@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -44,16 +45,19 @@ public class PortfolioBot extends TelegramLongPollingBot {
   private final InvestmentImportApi investmentImports;
   private final AiChat aiChat;
   private final PortfolioCommandRouter portfolioCommandRouter;
+  private final ObjectProvider<TelegramAssistant> telegramAssistant;
 
   public PortfolioBot(
       @Value("${app.telegram.bot-token:}") String botToken,
       InvestmentImportApi investmentImports,
       AiChat aiChat,
-      PortfolioCommandRouter portfolioCommandRouter) {
+      PortfolioCommandRouter portfolioCommandRouter,
+      ObjectProvider<TelegramAssistant> telegramAssistant) {
     super(botToken);
     this.investmentImports = investmentImports;
     this.aiChat = aiChat;
     this.portfolioCommandRouter = portfolioCommandRouter;
+    this.telegramAssistant = telegramAssistant;
   }
 
   @Override
@@ -87,6 +91,8 @@ public class PortfolioBot extends TelegramLongPollingBot {
       }
       if (isResetCommand(text, botUsername)) {
         aiChat.resetConversation(replyChatId);
+        var assistant = telegramAssistant.getIfAvailable();
+        if (assistant != null) assistant.reset(replyChatId);
         sendTo(replyChatId, "Conversation context cleared.");
         return;
       }
@@ -97,7 +103,25 @@ public class PortfolioBot extends TelegramLongPollingBot {
         return;
       }
 
-      sendTo(replyChatId, aiChat.reply(replyChatId, text));
+      var assistant = telegramAssistant.getIfAvailable();
+      if (assistant != null) {
+        try {
+          long selectedPortfolio = Long.parseLong(portfolioId);
+          sendTo(
+              replyChatId,
+              TelegramText.escape(assistant.reply(selectedPortfolio, replyChatId, text)));
+        } catch (NumberFormatException e) {
+          sendTo(replyChatId, "Telegram assistant portfolio ID is not configured correctly.");
+        } catch (RuntimeException e) {
+          log.warn("Telegram Smart Assistant request failed", e);
+          sendTo(
+              replyChatId,
+              "The portfolio assistant is temporarily unavailable or access was denied.");
+        }
+      } else {
+        // Preserve legacy AI behavior only when the shared RAG assistant is disabled.
+        sendTo(replyChatId, aiChat.reply(replyChatId, text));
+      }
     }
   }
 

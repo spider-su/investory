@@ -7,7 +7,6 @@ import com.smartbox.investory.profile.api.contract.ProfileResponse;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -25,11 +24,15 @@ public class PortfolioAssistantReadModels {
       "The selected portfolio does not have enough verified data for this question.";
   private final InvestmentDashboardApi dashboard;
   private final RetirementPlanApi retirement;
+  private final AssistantRoutingPatterns patterns;
 
   public PortfolioAssistantReadModels(
-      InvestmentDashboardApi dashboard, RetirementPlanApi retirement) {
+      InvestmentDashboardApi dashboard,
+      RetirementPlanApi retirement,
+      AssistantRoutingPatterns patterns) {
     this.dashboard = dashboard;
     this.retirement = retirement;
+    this.patterns = patterns;
   }
 
   public enum Intent {
@@ -41,39 +44,35 @@ public class PortfolioAssistantReadModels {
     RETIREMENT_PLAN
   }
 
+  private boolean matches(String key, String question) {
+    return patterns.pattern(key).matcher(question).find();
+  }
+
   public Intent classify(String question) {
     if (question == null) return Intent.NONE;
-    String q = question.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
-    // Do not replace a requested forecast or historical window with today's snapshot or MAX.
-    if (q.matches(
-            ".*\\b(?:worth|wealth|assets?|holdings?|positions?|investments?|portfolio|spy|s&p ?500|retire|retirement|pension|financial independence)\\b.*")
-        && (q.matches(
-                ".*\\b(?:will|forecast|predict|tomorrow|yesterday|ytd|mtd|qtd|(?:19|20)\\d{2})\\b.*")
-            || q.matches(
-                ".*\\b(?:last|previous|past|next)\\s+(?:\\d+\\s+)?(?:days?|weeks?|months?|quarters?|years?|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\\b.*")
-            || q.matches(".*\\bin\\s+\\d+\\s+(?:days?|weeks?|months?|years?)\\b.*")
-            || q.matches(".*\\b(?:this|current)\\s+(?:month|quarter|year)\\b.*")
-            || q.matches(".*\\bshould i\\b.*\\b(?:buy|sell|invest)\\b.*"))) {
+    // All matching phrases are configured in application.yml. No embedded regex fallback.
+    String q = question.strip();
+    if (matches("classify-financial-subject", q)
+        && (matches("classify-unsupported-forecast", q)
+            || matches("classify-unsupported-relative", q)
+            || matches("classify-unsupported-in-days", q)
+            || matches("classify-unsupported-current-window", q)
+            || matches("classify-unsupported-trade", q))) {
       return Intent.UNSUPPORTED;
     }
-    if (q.matches(".*\\b(?:spy|s&p ?500|s&p 500)\\b.*")
-        && q.matches(
-            ".*\\b(?:compar|versus|vs\\.?|instead|difference|what if|outperform|underperform|from the beginning|since inception)\\w*.*")) {
+    if (matches("classify-benchmark-subject", q) && matches("classify-benchmark-comparison", q)) {
       return Intent.SPY_COMPARISON;
     }
-    if (q.matches(".*\\b(?:retirement|retire|pension|financial independence)\\b.*")
-        && q.matches(".*\\b(?:my|plan|plans|simulation|strategy)\\b.*")) {
+    if (matches("classify-retirement-subject", q) && matches("classify-retirement-context", q)) {
       return Intent.RETIREMENT_PLAN;
     }
-    if (q.matches(".*\\b(?:main|top|largest|biggest|major|primary)\\b.*")
-        && q.matches(".*\\b(?:assets?|holdings?|positions?|investments?)\\b.*")) {
+    if (matches("classify-largest-qualifier", q) && matches("classify-investment-subject", q)) {
       return Intent.MAIN_ASSETS;
     }
-    if ((q.matches(".*\\b(?:net worth|total wealth)\\b.*")
-            || q.matches(".*\\bmy\\s+(?:(?:exact|current|total)\\s+)?(?:worth|wealth)\\b.*")
-            || q.matches(".*\\bhow much am i worth\\b.*"))
-        && !q.matches(
-            ".*\\b(?:how (?:does|is|do)|method|formula|calculat\\w*|definition|mean)\\b.*")) {
+    if ((matches("classify-net-worth-direct", q)
+            || matches("classify-net-worth-personal", q)
+            || matches("classify-net-worth-question", q))
+        && !matches("classify-definition-request", q)) {
       return Intent.NET_WORTH;
     }
     return Intent.NONE;

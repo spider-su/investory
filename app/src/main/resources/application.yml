@@ -182,6 +182,7 @@ app:
     bot-username: ${TELEGRAM_BOT_USERNAME:}
     bot-token: ${TELEGRAM_BOT_TOKEN:}
     chat-id: ${TELEGRAM_CHAT_ID:}
+    rag-username: ${TELEGRAM_RAG_USERNAME:}
     rental-bot-token: ${TELEGRAM_RENTAL_BOT_TOKEN:}
     rental-payment-audit-chat-id: ${TELEGRAM_RENTAL_PAYMENT_AUDIT_CHAT_ID:}
   openai:
@@ -229,3 +230,51 @@ app:
       # Leave empty (or omit) to export ALL accounts.
       # Example: accounts: 90000002,U90000001
       accounts: ${YAHOO_EXPORT_ACCOUNTS:}
+
+# Assistant phrase and intent rules. Change here instead of recompiling Java.
+# Regex values are single-quoted so backslashes are preserved by YAML.
+# Explicit time-window and forecast guards must remain conservative.
+investory:
+  assistant:
+    routing:
+      patterns:
+        public-symbol: '(?i:ticker|symbol|price of|quote for)\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9._^/-])'
+        market-language: '(?i)\b(?:quote|ticker|trading|stock price|price of|latest price|market (?:price|quote|data|research))\b'
+        retirement: '(?i)\b(?:retirement|retire|pension|financial independence)\b'
+        holdings: '(?i)\b(?:holdings|positions)\b|\b(?:main|largest|biggest|top|major|primary)\s+(?:assets?|holdings?|positions?|investments?)\b|\b(?:what stocks do i hold|which stocks do i own|stocks i own|stocks do i hold)\b'
+        documents: '(?i)\b(?:documentation|documents|methodology|method|explain|definition|docs|calculat\w*)\b'
+        spy: '(?i)\b(?:spy|s&p ?500)\b'
+        compare: '(?i)\b(?:compare|compared|comparison|versus|vs|difference|performing|benchmark(?:ed|ing)?(?:\s+(?:against|with))?)\b'
+        net-worth: '(?i)\b(?:net worth|wealth|how much am i worth)\b'
+        market-value: '(?i)\bmarket portfolio value\b'
+        liquid: '(?i)\bliquid assets?\b'
+        illiquid: '(?i)\billiquid assets?\b'
+        long-term: '(?i)\blong[- ]term (?:assets?|value)\b'
+        personal: '(?i)\b(?:my|me|i|our)\b'
+        complex-language: '(?i)\b(?:risk|risky|exposure|diversif\w*|align\w*|suitab\w*|appropriate|should|recommend|impact|affect|sustainable|safe to retire|target allocation|desired allocation)\b'
+        reporting-period: '(?i)\b(?:YTD|year[- ]to[- ]date|this year|current year|1M|3M|6M|1Y|3Y|5Y|MAX)\b'
+        other-window: '(?i)\b(?:mtd|qtd|today|yesterday|tomorrow|forecast|predict|will|all[ -]?time|lifetime|since inception|from the beginning|(?:19|20)\d{2}|(?:since|through|before|after|as of)\s+\d|(?:last|past|previous|next|this|current)\s+(?:\d+\s+)?(?:day|week|month|quarter|year)s?)\b'
+        follow-up: '(?i)^(compare that with|show that for) (1M|3M|6M|YTD|1Y|3Y|5Y|MAX)[?.]?$'
+        asset-result: '(?i)^show realized profit for asset ([A-Z0-9][A-Z0-9._^-]{0,31}) for (1M|3M|6M|YTD|1Y|3Y|5Y|MAX)[?.]?$'
+        context-reference: '(?i)^(?:compare|show) (?:that|it)\b'
+        profit-intent: '(?i)(?:\bprofitab(?:le|ility)\b|\bprofitable\b|\b(?:profit|loss|gain|p\s*/\s*l)\b|\b(?:up|down) overall\b|\bmade money\b|\bearned money\b)'
+        profit-history: '(?i)\b(?:all[ -]?time|whole (?:time|history)|ever|overall|since (?:inception|start|i (?:started|have|had))|entire (?:time|period)|from (?:the )?beginning|lifetime|historically)\b'
+        profit-other-period: '(?i)\b(?:ytd|mtd|qtd|today|yesterday|(?:this|last|previous|current|past)\s+(?:\d+\s+)?(?:days?|weeks?|months?|quarters?|years?)|(?:19|20)\d{2})\b'
+        profit-yes-no: '(?i)\b(?:is|was|am|are)\s+(?:it|my portfolio|the portfolio)\s+profitable\b'
+        profit-made-money: '(?i)\b(?:have i|did i)\s+made?\s+money\b'
+        classify-financial-subject: '(?i)\b(?:worth|wealth|assets?|holdings?|positions?|investments?|portfolio|spy|s&p ?500|retire|retirement|pension|financial independence)\b'
+        classify-unsupported-forecast: '(?i)\b(?:will|forecast|predict|tomorrow|yesterday|ytd|mtd|qtd|(?:19|20)\d{2})\b'
+        classify-unsupported-relative: '(?i)\b(?:last|previous|past|next)\s+(?:\d+\s+)?(?:days?|weeks?|months?|quarters?|years?|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b'
+        classify-unsupported-in-days: '(?i)\bin\s+\d+\s+(?:days?|weeks?|months?|years?)\b'
+        classify-unsupported-current-window: '(?i)\b(?:this|current)\s+(?:month|quarter|year)\b'
+        classify-unsupported-trade: '(?i)\bshould i\b.*\b(?:buy|sell|invest)\b'
+        classify-benchmark-subject: '(?i)\b(?:spy|s&p ?500)\b'
+        classify-benchmark-comparison: '(?i)\b(?:compar\w*|versus|vs\.?|instead|difference|what if|outperform\w*|underperform\w*|from the beginning|since inception)\b'
+        classify-retirement-subject: '(?i)\b(?:retirement|retire|pension|financial independence)\b'
+        classify-retirement-context: '(?i)\b(?:my|plan|plans|simulation|strategy)\b'
+        classify-largest-qualifier: '(?i)\b(?:main|top|largest|biggest|major|primary)\b'
+        classify-investment-subject: '(?i)\b(?:assets?|holdings?|positions?|investments?)\b'
+        classify-net-worth-direct: '(?i)\b(?:net worth|total wealth)\b'
+        classify-net-worth-personal: '(?i)\bmy\s+(?:(?:exact|current|total)\s+)?(?:worth|wealth)\b'
+        classify-net-worth-question: '(?i)\bhow much am i worth\b'
+        classify-definition-request: '(?i)\b(?:how (?:does|is|do)|method|formula|calculat\w*|definition|mean)\b'
