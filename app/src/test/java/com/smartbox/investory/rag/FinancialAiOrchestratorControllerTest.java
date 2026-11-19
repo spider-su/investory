@@ -24,6 +24,7 @@ class FinancialAiOrchestratorControllerTest {
   private final PortfolioProfitabilityAnswer profitability =
       mock(PortfolioProfitabilityAnswer.class);
   private final InvestoryRagClient rag = mock(InvestoryRagClient.class);
+  private final AssistantInternalMcpGateway internalMcp = mock(AssistantInternalMcpGateway.class);
   private final ExternalMarketDataService market = mock(ExternalMarketDataService.class);
   private final Authentication user = new UsernamePasswordAuthenticationToken("tester", "n/a");
   private FinancialAiOrchestratorController controller;
@@ -43,7 +44,8 @@ class FinancialAiOrchestratorControllerTest {
             market,
             mock(com.smartbox.investory.investment.api.asset.InvestmentAssetApi.class),
             new AssistantMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
-            RoutingPatternsTestSupport.load());
+            RoutingPatternsTestSupport.load(),
+            internalMcp);
   }
 
   private void authorize() {
@@ -64,18 +66,18 @@ class FinancialAiOrchestratorControllerTest {
                         "Compare my portfolio with SPY and retirement plan"),
                     user));
     assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
-    verifyNoInteractions(profiles, mapper, readModels, profitability, rag, market, limiter);
+    verifyNoInteractions(profiles, mapper, readModels, profitability, rag, market, limiter, internalMcp);
   }
 
   @Test
   void composesAuthoritativeBenchmarkAndRetirementSources() {
     authorize();
     String question = "Compare my portfolio with SPY and my retirement plan";
-    when(readModels.spyComparison(21L))
+    when(internalMcp.benchmark(21L, com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Verified SPY benchmark", List.of("live:investment-benchmark")));
-    when(readModels.retirementPlan(21L))
+    when(internalMcp.retirement(21L))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Saved retirement assumptions", List.of("live:retirement-plan")));
@@ -92,7 +94,7 @@ class FinancialAiOrchestratorControllerTest {
   @Test
   void marketProviderSeesOnlyPublicSymbolAndFailedCoverageDoesNotHideJavaFacts() {
     authorize();
-    when(readModels.mainAssets(21L))
+    when(internalMcp.holdings(21L))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Scoped positions", List.of("live:investment-structure")));
@@ -123,7 +125,7 @@ class FinancialAiOrchestratorControllerTest {
             user);
     assertTrue(result.sources().isEmpty());
     assertEquals(List.of("ABSTAINED"), result.components());
-    verifyNoInteractions(profiles, mapper, rag, market);
+    verifyNoInteractions(profiles, mapper, rag, market, internalMcp);
   }
 
   @Test
@@ -133,7 +135,7 @@ class FinancialAiOrchestratorControllerTest {
             ResponseStatusException.class,
             () -> controller.ask(21L, new FinancialAiOrchestratorController.Question("  "), user));
     assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
-    verifyNoInteractions(authorization, limiter, concurrency, profiles, mapper, rag, market);
+    verifyNoInteractions(authorization, limiter, concurrency, profiles, mapper, rag, market, internalMcp);
   }
 
   @Test
@@ -148,7 +150,7 @@ class FinancialAiOrchestratorControllerTest {
                     new FinancialAiOrchestratorController.Question("Compare my portfolio with SPY"),
                     user));
     assertEquals(HttpStatus.TOO_MANY_REQUESTS, error.getStatusCode());
-    verifyNoInteractions(profiles, mapper, rag, market);
+    verifyNoInteractions(profiles, mapper, rag, market, internalMcp);
   }
 
   @Test
@@ -187,17 +189,17 @@ class FinancialAiOrchestratorControllerTest {
     assertTrue(answer.answer().contains("Market portfolio value: 45.678 PLN"));
     assertEquals(List.of("live:profile"), answer.sources());
     assertEquals(List.of("JAVA_PROFILE"), answer.components());
-    verify(readModels, never()).mainAssets(anyLong());
+    verify(internalMcp, never()).holdings(anyLong());
     verifyNoInteractions(rag, market);
   }
 
   @Test
   void compositeKeepsNetWorthHoldingsAndDocsWithoutSendingSnapshotToDocs() {
     authorize();
-    when(readModels.netWorth(any()))
+    when(internalMcp.netWorth(21L))
         .thenReturn(
             new InvestoryRagClient.RagAnswer("123 PLN [live:profile]", List.of("live:profile")));
-    when(readModels.mainAssets(21L))
+    when(internalMcp.holdings(21L))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Holdings [live:investment-structure]", List.of("live:investment-structure")));
@@ -254,7 +256,7 @@ class FinancialAiOrchestratorControllerTest {
   @Test
   void docsFailureRetainsJavaFactsAndPermitIsReleasedOnBackendFailure() {
     authorize();
-    when(readModels.mainAssets(21L))
+    when(internalMcp.holdings(21L))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Holdings [live:investment-structure]", List.of("live:investment-structure")));
@@ -271,7 +273,7 @@ class FinancialAiOrchestratorControllerTest {
     verify(concurrency).release();
     reset(concurrency);
     when(concurrency.tryAcquire()).thenReturn(true);
-    when(readModels.mainAssets(21L)).thenThrow(new IllegalStateException("private diagnostic"));
+    when(internalMcp.holdings(21L)).thenThrow(new IllegalStateException("private diagnostic"));
     assertThrows(
         IllegalStateException.class,
         () ->
@@ -312,7 +314,7 @@ class FinancialAiOrchestratorControllerTest {
             new FinancialAiOrchestratorController.Question("Compare my portfolio with SPY for 3M"),
             user);
     assertEquals(List.of("JAVA_BENCHMARK"), result.components());
-    verify(readModels, never()).spyComparison(21L);
+    verify(internalMcp, never()).benchmark(eq(21L), any());
     verifyNoInteractions(profiles, rag, market);
   }
 
@@ -331,8 +333,8 @@ class FinancialAiOrchestratorControllerTest {
               .ask(21L, new FinancialAiOrchestratorController.Question(question), user)
               .components());
     }
-    verifyNoInteractions(profiles, mapper, profitability, rag, market);
-    verify(readModels, never()).mainAssets(anyLong());
+    verifyNoInteractions(profiles, mapper, profitability, rag, market, internalMcp);
+    verify(internalMcp, never()).holdings(anyLong());
   }
 
   @Test
@@ -367,7 +369,7 @@ class FinancialAiOrchestratorControllerTest {
   @Test
   void partialCompositeDoesNotEstablishFollowUpContext() {
     authorize();
-    when(readModels.spyComparison(21L))
+    when(internalMcp.benchmark(21L, com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Portfolio and SPY [live:investment-benchmark]",
@@ -390,7 +392,7 @@ class FinancialAiOrchestratorControllerTest {
     String question = "Could you tell me which investments I currently own?";
     when(rag.planRouting(question))
         .thenReturn(new InvestoryRagClient.RoutingPlan(List.of("HOLDINGS"), null));
-    when(readModels.mainAssets(21L))
+    when(internalMcp.holdings(21L))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Verified holdings", List.of("live:investment-structure")));
@@ -406,7 +408,7 @@ class FinancialAiOrchestratorControllerTest {
   @Test
   void knownIntentSkipsTheLlmPlanner() {
     authorize();
-    when(readModels.mainAssets(21L))
+    when(internalMcp.holdings(21L))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Verified holdings", List.of("live:investment-structure")));
