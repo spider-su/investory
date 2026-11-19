@@ -166,6 +166,85 @@ public class AssistantInternalMcpGateway {
         List.of("live:retirement-plan"));
   }
 
+  /** MCP: get_general_profile */
+  public InvestoryRagClient.RagAnswer generalProfile(long portfolioId) {
+    var value = research.generalProfile(portfolioId);
+    if (value.netWorth() == null || value.currency() == null) return unavailable();
+    String answer =
+        "Whole-wealth Profile: net worth "
+            + value.netWorth()
+            + " "
+            + value.currency()
+            + "; Investment value "
+            + value.investmentValue()
+            + "; long-term value "
+            + value.longTermValue()
+            + "; liquid assets "
+            + value.liquidAssets()
+            + "; illiquid assets "
+            + value.illiquidAssets()
+            + "; net annual income "
+            + value.combinedNetAnnualIncome()
+            + "; retirement reserve "
+            + value.retirementReserve()
+            + ". Unavailable values are shown as null. [live:profile]";
+    return new InvestoryRagClient.RagAnswer(answer, List.of("live:profile"));
+  }
+
+  /** MCP: get_long_term_assets */
+  public InvestoryRagClient.RagAnswer longTermAssets(long portfolioId) {
+    var value = research.longTermAssets(portfolioId, 10);
+    if (value.currency() == null || value.totalValue() == null) return unavailable();
+    String details =
+        value.assets().stream()
+            .map(item -> item.name() + " (" + item.type() + "): " + item.value()
+                + " " + item.currency())
+            .collect(Collectors.joining("; "));
+    String answer =
+        "Long-term assets total: "
+            + value.totalValue()
+            + " "
+            + value.currency()
+            + "; investment-class long-term assets "
+            + value.investmentValue()
+            + "; personal assets "
+            + value.personalAssetValue()
+            + "; net annual income after tax "
+            + value.netAnnualIncomeAfterTax()
+            + "; net monthly income after tax "
+            + value.monthlyNetIncomeAfterTax()
+            + ". Assets: "
+            + details
+            + ". [live:longterm]";
+    return new InvestoryRagClient.RagAnswer(answer, List.of("live:longterm"));
+  }
+
+  /** MCP: get_retirement_simulation */
+  public InvestoryRagClient.RagAnswer retirementSimulation(long portfolioId) {
+    var value = research.retirementSimulation(portfolioId);
+    if (!value.available() || value.scenarios().isEmpty()) return unavailable();
+    String scenarios =
+        value.scenarios().stream()
+            .map(item -> item.scenario() + ": "
+                + (item.failed() ? "failed at age " + item.failureAge() : "completed")
+                + ", final net worth " + item.finalNetWorth()
+                + ", minimum liquid assets " + item.minimumLiquidAssets()
+                + ", total unfunded " + item.totalUnfundedAmount())
+            .collect(Collectors.joining("; "));
+    return new InvestoryRagClient.RagAnswer(
+        "Saved retirement simulation " + value.plan()
+            + " (" + value.currency() + "): current age "
+            + value.currentAge() + ", retirement age "
+            + value.retirementAge() + ", end age "
+            + value.endAge() + "; inflation rate "
+            + value.inflationRate() + "; annual living expenses "
+            + value.annualLivingExpenses()
+            + ". Scenarios: " + scenarios
+            + ". These are nominal scenario estimates, not guaranteed outcomes. "
+            + "[live:retirement-simulation]",
+        List.of("live:retirement-simulation"));
+  }
+
   private static InvestoryRagClient.RagAnswer unavailable() {
     return new InvestoryRagClient.RagAnswer(
         "The selected portfolio does not have enough verified data for this question.", List.of());
