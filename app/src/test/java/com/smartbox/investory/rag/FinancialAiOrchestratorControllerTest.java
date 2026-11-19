@@ -66,14 +66,16 @@ class FinancialAiOrchestratorControllerTest {
                         "Compare my portfolio with SPY and retirement plan"),
                     user));
     assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
-    verifyNoInteractions(profiles, mapper, readModels, profitability, rag, market, limiter, internalMcp);
+    verifyNoInteractions(
+        profiles, mapper, readModels, profitability, rag, market, limiter, internalMcp);
   }
 
   @Test
   void composesAuthoritativeBenchmarkAndRetirementSources() {
     authorize();
     String question = "Compare my portfolio with SPY and my retirement plan";
-    when(internalMcp.benchmark(21L, com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX))
+    when(internalMcp.benchmark(
+            21L, com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Verified SPY benchmark", List.of("live:investment-benchmark")));
@@ -135,7 +137,8 @@ class FinancialAiOrchestratorControllerTest {
             ResponseStatusException.class,
             () -> controller.ask(21L, new FinancialAiOrchestratorController.Question("  "), user));
     assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
-    verifyNoInteractions(authorization, limiter, concurrency, profiles, mapper, rag, market, internalMcp);
+    verifyNoInteractions(
+        authorization, limiter, concurrency, profiles, mapper, rag, market, internalMcp);
   }
 
   @Test
@@ -369,7 +372,8 @@ class FinancialAiOrchestratorControllerTest {
   @Test
   void partialCompositeDoesNotEstablishFollowUpContext() {
     authorize();
-    when(internalMcp.benchmark(21L, com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX))
+    when(internalMcp.benchmark(
+            21L, com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX))
         .thenReturn(
             new InvestoryRagClient.RagAnswer(
                 "Portfolio and SPY [live:investment-benchmark]",
