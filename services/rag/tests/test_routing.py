@@ -34,3 +34,14 @@ def test_unrelated_or_unsupported_question_can_abstain():
     assert route_question(fake_model({"tools": [], "symbol": None}),
                           "Predict my portfolio price tomorrow") == {
                               "tools": [], "symbol": None}
+
+
+def test_cross_domain_investory_mcp_routes_are_bounded():
+    result = route_question(
+        fake_model({"tools": ["GENERAL_PROFILE", "LONG_TERM", "SIMULATION"],
+                    "symbol": None}),
+        "Summarize my whole wealth, rental assets and retirement simulation")
+    assert result == {
+        "tools": ["GENERAL_PROFILE", "LONG_TERM", "SIMULATION"],
+        "symbol": None,
+    }
