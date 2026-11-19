@@ -143,13 +143,21 @@ public class PythonRagClient implements InvestoryRagClient {
               .body(RoutingPlan.class);
       if (plan == null
           || plan.tools() == null
-          || plan.tools().size() > 6
+          || plan.tools().size() > 9
           || plan.tools().stream()
               .anyMatch(
                   tool ->
                       tool == null
                           || !java.util.Set.of(
-                                  "PROFILE", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
+                                  "PROFILE",
+                                  "GENERAL_PROFILE",
+                                  "LONG_TERM",
+                                  "SIMULATION",
+                                  "HOLDINGS",
+                                  "SPY",
+                                  "RETIREMENT",
+                                  "DOCS",
+                                  "MARKET")
                               .contains(tool))
           || (plan.symbol() != null && !plan.symbol().matches("[A-Z][A-Z0-9.^-]{0,19}"))) {
         throw new RagUnavailableException();

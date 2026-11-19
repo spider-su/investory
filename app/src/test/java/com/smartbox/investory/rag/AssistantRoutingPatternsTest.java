@@ -15,6 +15,10 @@ class AssistantRoutingPatternsTest {
     assertTrue(settings.pattern("holdings").matcher("What stocks do I hold?").find());
     assertTrue(settings.pattern("profit-history").matcher("since inception").find());
     assertTrue(settings.pattern("classify-benchmark-subject").matcher("SPY").find());
+    assertTrue(settings.pattern("long-term-detail").matcher("Show my bonds").find());
+    assertTrue(
+        settings.pattern("retirement-simulation").matcher("My retirement simulation").find());
+    assertTrue(settings.pattern("general-profile").matcher("My financial overview").find());
   }
 
   @Test

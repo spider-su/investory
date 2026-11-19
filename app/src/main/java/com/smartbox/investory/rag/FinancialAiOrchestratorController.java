@@ -46,6 +46,9 @@ public class FinancialAiOrchestratorController {
   private final Pattern LIQUID;
   private final Pattern ILLIQUID;
   private final Pattern LONG_TERM;
+  private final Pattern LONG_TERM_DETAIL;
+  private final Pattern RETIREMENT_SIMULATION;
+  private final Pattern GENERAL_PROFILE;
   private final Pattern PERSONAL;
   private final Pattern COMPLEX_LANGUAGE;
   private final Pattern REPORTING_PERIOD;
@@ -61,6 +64,7 @@ public class FinancialAiOrchestratorController {
   private final ProfileResponseMapper mapper;
   private final PortfolioAssistantReadModels readModels;
   private final PortfolioProfitabilityAnswer profitability;
+  private final AssistantInternalMcpGateway internalMcp;
   private final InvestoryRagClient rag;
   private final ExternalMarketDataService market;
   private final InvestmentAssetApi assets;
@@ -78,7 +82,8 @@ public class FinancialAiOrchestratorController {
       ExternalMarketDataService market,
       InvestmentAssetApi assets,
       AssistantMetrics metrics,
-      AssistantRoutingPatterns patterns) {
+      AssistantRoutingPatterns patterns,
+      AssistantInternalMcpGateway internalMcp) {
     this.authorization = authorization;
     this.rateLimiter = rateLimiter;
     this.concurrency = concurrency;
@@ -90,6 +95,7 @@ public class FinancialAiOrchestratorController {
     this.market = market;
     this.assets = assets;
     this.metrics = metrics;
+    this.internalMcp = internalMcp;
     PUBLIC_SYMBOL = patterns.pattern("public-symbol");
     MARKET_LANGUAGE = patterns.pattern("market-language");
     RETIREMENT = patterns.pattern("retirement");
@@ -102,6 +108,9 @@ public class FinancialAiOrchestratorController {
     LIQUID = patterns.pattern("liquid");
     ILLIQUID = patterns.pattern("illiquid");
     LONG_TERM = patterns.pattern("long-term");
+    LONG_TERM_DETAIL = patterns.pattern("long-term-detail");
+    RETIREMENT_SIMULATION = patterns.pattern("retirement-simulation");
+    GENERAL_PROFILE = patterns.pattern("general-profile");
     PERSONAL = patterns.pattern("personal");
     COMPLEX_LANGUAGE = patterns.pattern("complex-language");
     REPORTING_PERIOD = patterns.pattern("reporting-period");
@@ -208,6 +217,9 @@ public class FinancialAiOrchestratorController {
         || LIQUID.matcher(question).find()
         || ILLIQUID.matcher(question).find()
         || LONG_TERM.matcher(question).find()
+        || LONG_TERM_DETAIL.matcher(question).find()
+        || RETIREMENT_SIMULATION.matcher(question).find()
+        || GENERAL_PROFILE.matcher(question).find()
         || HOLDINGS.matcher(question).find()
         || RETIREMENT.matcher(question).find()
         || DOCUMENTS.matcher(question).find()
@@ -219,14 +231,26 @@ public class FinancialAiOrchestratorController {
     if (suggestion == null
         || suggestion.tools() == null
         || suggestion.tools().isEmpty()
-        || suggestion.tools().size() > 6) return null;
+        || suggestion.tools().size() > 9) return null;
     var tools = new LinkedHashSet<>(suggestion.tools());
     if (tools.size() != suggestion.tools().size()
-        || !java.util.Set.of("PROFILE", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
+        || !java.util.Set.of(
+                "PROFILE",
+                "GENERAL_PROFILE",
+                "LONG_TERM",
+                "SIMULATION",
+                "HOLDINGS",
+                "SPY",
+                "RETIREMENT",
+                "DOCS",
+                "MARKET")
             .containsAll(tools)) return null;
 
     var parts = new ArrayList<String>();
     if (tools.contains("PROFILE")) parts.add("my net worth");
+    if (tools.contains("GENERAL_PROFILE")) parts.add("my financial overview");
+    if (tools.contains("LONG_TERM")) parts.add("my long-term assets");
+    if (tools.contains("SIMULATION")) parts.add("my retirement simulation");
     if (tools.contains("HOLDINGS")) parts.add("my holdings");
     if (tools.contains("SPY")) parts.add("compare my portfolio with SPY");
     if (tools.contains("RETIREMENT")) parts.add("my retirement plan");
@@ -304,6 +328,9 @@ public class FinancialAiOrchestratorController {
     List<String> used = new ArrayList<>();
     boolean wantsMarket = MARKET_LANGUAGE.matcher(question).find();
     boolean wantsRetirement = RETIREMENT.matcher(question).find();
+    boolean wantsSimulation = RETIREMENT_SIMULATION.matcher(question).find();
+    boolean wantsLongTermDetails = LONG_TERM_DETAIL.matcher(question).find();
+    boolean wantsGeneralProfile = GENERAL_PROFILE.matcher(question).find();
     boolean wantsDocs = DOCUMENTS.matcher(question).find();
     boolean wantsSpyComparison =
         intent == PortfolioAssistantReadModels.Intent.SPY_COMPARISON
@@ -316,10 +343,16 @@ public class FinancialAiOrchestratorController {
                 || ILLIQUID.matcher(question).find()
                 || LONG_TERM.matcher(question).find());
     if (wantsProfile) {
-      var snapshot = mapper.map(profiles.loadProfile(portfolioId));
+      boolean hasAdditionalProfileAmounts =
+          MARKET_VALUE.matcher(question).find()
+              || LIQUID.matcher(question).find()
+              || ILLIQUID.matcher(question).find()
+              || LONG_TERM.matcher(question).find();
+      var snapshot =
+          hasAdditionalProfileAmounts ? mapper.map(profiles.loadProfile(portfolioId)) : null;
       if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH
           || NET_WORTH.matcher(question).find())
-        append(readModels.netWorth(snapshot), "JAVA_PROFILE", parts, citations, used);
+        append(internalMcp.netWorth(portfolioId), "JAVA_PROFILE", parts, citations, used);
       if (MARKET_VALUE.matcher(question).find())
         appendFact(
             "Market portfolio value",
@@ -337,15 +370,32 @@ public class FinancialAiOrchestratorController {
             "Long-term assets", snapshot.longTermAssetValue(), snapshot, parts, citations, used);
     }
     if (wantsSpyComparison)
-      append(readModels.spyComparison(portfolioId), "JAVA_BENCHMARK", parts, citations, used);
+      append(
+          internalMcp.benchmark(portfolioId, DashboardPeriod.MAX),
+          "JAVA_BENCHMARK",
+          parts,
+          citations,
+          used);
     if (intent == PortfolioAssistantReadModels.Intent.MAIN_ASSETS
         || HOLDINGS.matcher(question).find())
-      append(readModels.mainAssets(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
-    if (wantsRetirement) {
-      append(readModels.retirementPlan(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
+      append(internalMcp.holdings(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
+    if (wantsRetirement && !wantsSimulation) {
+      append(internalMcp.retirement(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
     }
+    if (wantsSimulation)
+      append(
+          internalMcp.retirementSimulation(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
+    if (wantsLongTermDetails)
+      append(internalMcp.longTermAssets(portfolioId), "JAVA_LONGTERM", parts, citations, used);
+    if (wantsGeneralProfile)
+      append(internalMcp.generalProfile(portfolioId), "JAVA_PROFILE", parts, citations, used);
     if (profitability.supports(question)) {
-      append(profitability.answer(portfolioId), "JAVA_PROFITABILITY", parts, citations, used);
+      append(
+          internalMcp.profitability(portfolioId, DashboardPeriod.MAX),
+          "JAVA_PROFITABILITY",
+          parts,
+          citations,
+          used);
     }
     if (wantsDocs) {
       try {

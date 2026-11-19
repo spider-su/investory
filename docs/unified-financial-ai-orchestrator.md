@@ -147,3 +147,41 @@ user-editable routing phrases.
 New fast-path synonyms should be added to YAML only when the meaning is
 unambiguous, and accompanied by unit tests. Ambiguous allocation/risk questions
 remain candidates for the constrained LLM classifier.
+
+
+## Local Investory MCP execution
+
+The assistant (Web UI and Telegram) now uses the same `PortfolioResearchClient`
+query contracts exposed as internal Investory MCP tools. The
+`AssistantInternalMcpGateway` executes these contracts **in process**, without
+calling the application's `/mcp` endpoint over HTTP. Existing scoped portfolio
+authorization and admission controls run in Java before invocation.
+
+| Assistant domain | Shared internal MCP contract |
+| --- | --- |
+| Net worth | `get_profile_summary` |
+| Largest/current holdings | `get_portfolio_holdings` (limit 5) |
+| Lifetime profitability | `get_investment_period_result` (MAX) |
+| Standard SPY comparison | `get_benchmark_comparison` (MAX) |
+| Saved retirement plan | `get_retirement_plan` |
+
+The existing verified reporting-period and context-based follow-up paths
+remain on their established fresh-reading Java APIs for now: the MCP period
+query contract currently has no explicit `freshFacts` parameter. This avoids
+regressing the MAX-to-YTD comparison semantics.
+
+The same `PortfolioResearchMcpAdapter` is registered when either the RAG
+assistant or the external MCP server is enabled. Enabling the internal
+assistant **does not** expose the external `/mcp` endpoint: that endpoint
+continues to require `INVESTORY_MCP_ENABLED=true`.
+
+Python RAG still provides cited documentation explanations. Public quotes
+still use the existing bounded market gateway and external Alpha Vantage MCP,
+without sending private portfolio details to the provider. The two data
+interfaces remain distinct: verified Investory read models and untrusted
+external quote observations.
+
+A future phase may expose the full MCP tool list as structured planning
+metadata and replace the remaining specialized/fresh-report paths once the
+shared contract supports their semantics. Models never execute arbitrary
+tool names, supply portfolio IDs, or bypass Java authorization.
