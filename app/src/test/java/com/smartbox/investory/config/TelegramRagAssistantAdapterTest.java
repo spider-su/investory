@@ -24,7 +24,8 @@ class TelegramRagAssistantAdapterTest {
     assertThrows(AccessDeniedException.class, () -> assistant.reply(0L, "123", "net worth"));
     assertThrows(
         AccessDeniedException.class,
-        () -> new TelegramRagAssistantAdapter(orchestrator, "123", "").reply(1L, "123", "net worth"));
+        () ->
+            new TelegramRagAssistantAdapter(orchestrator, "123", "").reply(1L, "123", "net worth"));
     verifyNoInteractions(orchestrator);
   }
 
@@ -40,8 +41,12 @@ class TelegramRagAssistantAdapterTest {
     when(orchestrator.ask(eq(12L), any(), any()))
         .thenReturn(
             new FinancialAiOrchestratorController.Answer(
-                "verified", List.of("live:investment"), List.of("JAVA_PROFITABILITY"),
-                null, null, context));
+                "verified",
+                List.of("live:investment"),
+                List.of("JAVA_PROFITABILITY"),
+                null,
+                null,
+                context));
 
     assertEquals("verified", assistant.reply(12L, "123", "profit this year"));
     assertEquals("verified", assistant.reply(12L, "123", "compare that with YTD"));
