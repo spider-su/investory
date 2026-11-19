@@ -149,7 +149,15 @@ public class PythonRagClient implements InvestoryRagClient {
                   tool ->
                       tool == null
                           || !java.util.Set.of(
-                                  "PROFILE", "GENERAL_PROFILE", "LONG_TERM", "SIMULATION", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
+                                  "PROFILE",
+                                  "GENERAL_PROFILE",
+                                  "LONG_TERM",
+                                  "SIMULATION",
+                                  "HOLDINGS",
+                                  "SPY",
+                                  "RETIREMENT",
+                                  "DOCS",
+                                  "MARKET")
                               .contains(tool))
           || (plan.symbol() != null && !plan.symbol().matches("[A-Z][A-Z0-9.^-]{0,19}"))) {
         throw new RagUnavailableException();
