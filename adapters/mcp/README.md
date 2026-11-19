@@ -54,6 +54,9 @@ Investment API read models, in portfolio base currency where the API defines mon
 | `get_portfolio_performance` | Historical performance KPI and return context |
 | `get_investment_ytd` | Current calendar-year investment result |
 | `get_profile_summary` | Whole-wealth totals, currency and decimal strings |
+| `get_general_profile` | Full financial Profile summary: net worth, liquidity, rental/bond income, combined annual net income, reserve and investment capital |
+| `get_long_term_assets` | Long-Term real estate, bonds, cash reserves and personal assets; optional `limit` 1–20; values and net income |
+| `get_retirement_simulation` | Read-only saved-plan conservative/base/optimistic scenario summaries, failures, net worth, liquidity and funding gaps |
 | `get_portfolio_holdings` | Current Investment holdings; optional `limit` 1–20, default 5 |
 | `get_investment_asset` | Scoped asset summary by canonical `symbol`, with current exposure and realized profit/dividends for `period` (default YTD) |
 | `get_portfolio_cash_flows` | Since-inception deposits and withdrawals, plus current cash balance |
@@ -148,3 +151,30 @@ Documentation search returns bounded public excerpts and retrieval scores, not
 calibrated confidence. Provider data is untrusted data, never executable model
 instructions. Unsupported optional services fail closed without disabling core
 portfolio tools.
+
+## Cross-domain tools
+
+The additional profile, long-term asset and retirement simulation tools use the
+same read-only `PortfolioResearchClient` contract as Java Smart Assistant and
+Telegram. They do not duplicate calculations or modify plans.
+
+`get_general_profile` distinguishes Investment dashboard value from whole-net-worth,
+long-term assets and liquid/illiquid Profile totals. Monetary fields are decimal
+strings or null if unavailable, with Profile's existing income definitions.
+
+`get_long_term_assets` reads the selected portfolio's current Long-Term overview,
+including real estate, bonds, cash reserves and personal assets as available. The
+bounded asset list is a preview; aggregate totals are not limited to the preview.
+Underlying asset currency is shown separately from the portfolio base currency.
+
+`get_retirement_simulation` loads the selected saved plan through
+`RetirementProjectionApi` and returns bounded precomputed scenario decision
+summaries, preserving the API's failure flags, depletion age and funding shortfall.
+It does not run arbitrary user-specified simulations, does not persist changes,
+and never claims projected values are guarantees. A missing selected plan is
+reported as unavailable; no alternative plan is silently substituted.
+
+Every tool uses the same MCP portfolio ownership/membership validation before
+reading data. The in-process Smart Assistant is also scoped by its own
+request-level authorization, and enabling the assistant alone does not expose
+`/mcp` to external clients.
