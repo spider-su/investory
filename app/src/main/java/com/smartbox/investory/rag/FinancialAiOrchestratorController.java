@@ -46,6 +46,9 @@ public class FinancialAiOrchestratorController {
   private final Pattern LIQUID;
   private final Pattern ILLIQUID;
   private final Pattern LONG_TERM;
+  private final Pattern LONG_TERM_DETAIL;
+  private final Pattern RETIREMENT_SIMULATION;
+  private final Pattern GENERAL_PROFILE;
   private final Pattern PERSONAL;
   private final Pattern COMPLEX_LANGUAGE;
   private final Pattern REPORTING_PERIOD;
@@ -105,6 +108,9 @@ public class FinancialAiOrchestratorController {
     LIQUID = patterns.pattern("liquid");
     ILLIQUID = patterns.pattern("illiquid");
     LONG_TERM = patterns.pattern("long-term");
+    LONG_TERM_DETAIL = patterns.pattern("long-term-detail");
+    RETIREMENT_SIMULATION = patterns.pattern("retirement-simulation");
+    GENERAL_PROFILE = patterns.pattern("general-profile");
     PERSONAL = patterns.pattern("personal");
     COMPLEX_LANGUAGE = patterns.pattern("complex-language");
     REPORTING_PERIOD = patterns.pattern("reporting-period");
@@ -211,6 +217,9 @@ public class FinancialAiOrchestratorController {
         || LIQUID.matcher(question).find()
         || ILLIQUID.matcher(question).find()
         || LONG_TERM.matcher(question).find()
+        || LONG_TERM_DETAIL.matcher(question).find()
+        || RETIREMENT_SIMULATION.matcher(question).find()
+        || GENERAL_PROFILE.matcher(question).find()
         || HOLDINGS.matcher(question).find()
         || RETIREMENT.matcher(question).find()
         || DOCUMENTS.matcher(question).find()
@@ -307,6 +316,9 @@ public class FinancialAiOrchestratorController {
     List<String> used = new ArrayList<>();
     boolean wantsMarket = MARKET_LANGUAGE.matcher(question).find();
     boolean wantsRetirement = RETIREMENT.matcher(question).find();
+    boolean wantsSimulation = RETIREMENT_SIMULATION.matcher(question).find();
+    boolean wantsLongTermDetails = LONG_TERM_DETAIL.matcher(question).find();
+    boolean wantsGeneralProfile = GENERAL_PROFILE.matcher(question).find();
     boolean wantsDocs = DOCUMENTS.matcher(question).find();
     boolean wantsSpyComparison =
         intent == PortfolioAssistantReadModels.Intent.SPY_COMPARISON
@@ -355,9 +367,15 @@ public class FinancialAiOrchestratorController {
     if (intent == PortfolioAssistantReadModels.Intent.MAIN_ASSETS
         || HOLDINGS.matcher(question).find())
       append(internalMcp.holdings(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
-    if (wantsRetirement) {
+    if (wantsRetirement && !wantsSimulation) {
       append(internalMcp.retirement(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
     }
+    if (wantsSimulation)
+      append(internalMcp.retirementSimulation(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
+    if (wantsLongTermDetails)
+      append(internalMcp.longTermAssets(portfolioId), "JAVA_LONGTERM", parts, citations, used);
+    if (wantsGeneralProfile)
+      append(internalMcp.generalProfile(portfolioId), "JAVA_PROFILE", parts, citations, used);
     if (profitability.supports(question)) {
       append(
           internalMcp.profitability(portfolioId, DashboardPeriod.MAX),
