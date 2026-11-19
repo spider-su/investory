@@ -14,7 +14,7 @@ from decimal import Decimal
 from .config import get_settings
 from .financial_mcp import FinancialMcp, MarketLookup
 from .security import AccessGate
-from .service import RagService
+from .service import RagService, route_question
 from .metrics import REQUESTS, LATENCY, generate_latest, CONTENT_TYPE_LATEST
 from .metrics_listener import private_metrics_listener
 
@@ -172,6 +172,17 @@ async def search_docs(
 ) -> dict:
     return await run_bounded("documents", gate,
                              lambda: {"matches": provider().search(request.question, request.limit)})
+
+
+@app.post("/route")
+async def route_question_endpoint(
+    request: AskRequest,
+    gate: AccessGate = Depends(require_gate),
+    provider: Callable[[], RagService] = Depends(get_service_provider),
+) -> dict:
+    # Only the question leaves Java; no profile snapshot, balances or credentials.
+    return await run_bounded("route", gate,
+                             lambda: route_question(provider().chat(), request.question))
 
 
 @app.post("/ask", response_model=AskResponse)
