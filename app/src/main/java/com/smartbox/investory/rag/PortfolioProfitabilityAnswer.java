@@ -4,7 +4,6 @@ import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Locale;
 import java.util.regex.Pattern;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -21,6 +20,8 @@ public final class PortfolioProfitabilityAnswer {
   private final Pattern INTENT;
   private final Pattern HISTORY;
   private final Pattern OTHER_PERIOD;
+  private final Pattern YES_NO;
+  private final Pattern MADE_MONEY;
 
   private final InvestmentDashboardApi investment;
 
@@ -30,6 +31,8 @@ public final class PortfolioProfitabilityAnswer {
     INTENT = patterns.pattern("profit-intent");
     HISTORY = patterns.pattern("profit-history");
     OTHER_PERIOD = patterns.pattern("profit-other-period");
+    YES_NO = patterns.pattern("profit-yes-no");
+    MADE_MONEY = patterns.pattern("profit-made-money");
   }
 
   /**
@@ -40,11 +43,9 @@ public final class PortfolioProfitabilityAnswer {
     if (question == null
         || !INTENT.matcher(question).find()
         || OTHER_PERIOD.matcher(question).find()) return false;
-    String normalized = question.toLowerCase(Locale.ROOT);
     return HISTORY.matcher(question).find()
-        || normalized.matches(
-            "(?s).*\\b(?:is|was|am|are)\\s+(?:it|my portfolio|the portfolio)\\s+profitable\\b.*")
-        || normalized.matches("(?s).*\\b(?:have i|did i)\\s+made?\\s+money\\b.*");
+        || YES_NO.matcher(question).find()
+        || MADE_MONEY.matcher(question).find();
   }
 
   public boolean requestsResult(String question) {
