@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -34,53 +35,53 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/v1/portfolios/{portfolioId}/assistant")
 @ConditionalOnProperty(prefix = "investory.rag", name = "enabled", havingValue = "true")
 public class FinancialAiOrchestratorController {
-  private static final Pattern PUBLIC_SYMBOL =
+  private Pattern PUBLIC_SYMBOL =
       Pattern.compile(
           "(?i:ticker|symbol|price of|quote for)\\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9._^/-])");
-  private static final Pattern MARKET_LANGUAGE =
+  private Pattern MARKET_LANGUAGE =
       Pattern.compile(
           "(?i)\\b(?:quote|ticker|trading|stock price|price of|latest price|market (?:price|quote|data|research))\\b");
-  private static final Pattern RETIREMENT =
+  private Pattern RETIREMENT =
       Pattern.compile("(?i)\\b(?:retirement|retire|pension|financial independence)\\b");
-  private static final Pattern HOLDINGS =
+  private Pattern HOLDINGS =
       Pattern.compile(
           "(?i)\\b(?:holdings|positions|allocation)\\b|\\b(?:main|largest|biggest|top|major|primary)\\s+(?:assets?|holdings?|positions?)\\b");
-  private static final Pattern DOCUMENTS =
+  private Pattern DOCUMENTS =
       Pattern.compile(
           "(?i)\\b(?:documentation|documents|methodology|method|explain|definition|docs|calculat\\w*)\\b");
-  private static final Pattern SPY = Pattern.compile("(?i)\\b(?:spy|s&p ?500)\\b");
-  private static final Pattern COMPARE =
+  private Pattern SPY = Pattern.compile("(?i)\\b(?:spy|s&p ?500)\\b");
+  private Pattern COMPARE =
       Pattern.compile("(?i)\\b(?:compare|compared|comparison|versus|vs|difference|performing)\\b");
-  private static final Pattern NET_WORTH =
+  private Pattern NET_WORTH =
       Pattern.compile("(?i)\\b(?:net worth|wealth|how much am i worth)\\b");
-  private static final Pattern MARKET_VALUE = Pattern.compile("(?i)\\bmarket portfolio value\\b");
-  private static final Pattern LIQUID = Pattern.compile("(?i)\\bliquid assets?\\b");
-  private static final Pattern ILLIQUID = Pattern.compile("(?i)\\billiquid assets?\\b");
-  private static final Pattern LONG_TERM =
+  private Pattern MARKET_VALUE = Pattern.compile("(?i)\\bmarket portfolio value\\b");
+  private Pattern LIQUID = Pattern.compile("(?i)\\bliquid assets?\\b");
+  private Pattern ILLIQUID = Pattern.compile("(?i)\\billiquid assets?\\b");
+  private Pattern LONG_TERM =
       Pattern.compile("(?i)\\blong[- ]term (?:assets?|value)\\b");
-  private static final Pattern PERSONAL = Pattern.compile("(?i)\\b(?:my|me|i|our)\\b");
+  private Pattern PERSONAL = Pattern.compile("(?i)\\b(?:my|me|i|our)\\b");
 
   // Ambiguous semantics use a bounded LLM classifier, not model-executed tools.
-  private static final Pattern COMPLEX_LANGUAGE =
+  private Pattern COMPLEX_LANGUAGE =
       Pattern.compile("(?i)\\b(?:risk|risky|exposure|diversif\\w*|align\\w*|suitab\\w*|appropriate|should|recommend|impact|affect|sustainable|safe to retire)\\b");
 
-  private static final Pattern REPORTING_PERIOD =
+  private Pattern REPORTING_PERIOD =
       Pattern.compile(
           "(?i)\\b(?:YTD|year[- ]to[- ]date|this year|current year|1M|3M|6M|1Y|3Y|5Y|MAX)\\b");
-  private static final Pattern OTHER_WINDOW =
+  private Pattern OTHER_WINDOW =
       Pattern.compile(
           "(?i)\\b(?:mtd|qtd|today|yesterday|tomorrow|forecast|predict|will|all[ -]?time|lifetime|since inception|from the beginning|(?:19|20)\\d{2}|"
               + "(?:since|through|before|after|as of)\\s+\\d|(?:last|past|previous|next|this|current)\\s+(?:\\d+\\s+)?(?:day|week|month|quarter|year)s?)\\b");
 
   private static final String PERIOD_TOKEN = "(1M|3M|6M|YTD|1Y|3Y|5Y|MAX)";
-  private static final Pattern FOLLOW_UP =
+  private Pattern FOLLOW_UP =
       Pattern.compile("(?i)^(compare that with|show that for) " + PERIOD_TOKEN + "[?.]?$");
-  private static final Pattern ASSET_RESULT =
+  private Pattern ASSET_RESULT =
       Pattern.compile(
           "(?i)^show realized profit for asset ([A-Z0-9][A-Z0-9._^-]{0,31}) for "
               + PERIOD_TOKEN
               + "[?.]?$");
-  private static final Pattern CONTEXT_REFERENCE =
+  private Pattern CONTEXT_REFERENCE =
       Pattern.compile("(?i)^(?:compare|show) (?:that|it)\\b");
 
   private final AuthorizationService authorization;
@@ -118,6 +119,30 @@ public class FinancialAiOrchestratorController {
     this.market = market;
     this.assets = assets;
     this.metrics = metrics;
+  }
+
+  /** Spring overrides fallback patterns from application.yml; direct unit construction keeps baseline. */
+  @Autowired
+  void configureRoutingPatterns(AssistantRoutingPatterns patterns) {
+    PUBLIC_SYMBOL = patterns.pattern("public-symbol");
+    MARKET_LANGUAGE = patterns.pattern("market-language");
+    RETIREMENT = patterns.pattern("retirement");
+    HOLDINGS = patterns.pattern("holdings");
+    DOCUMENTS = patterns.pattern("documents");
+    SPY = patterns.pattern("spy");
+    COMPARE = patterns.pattern("compare");
+    NET_WORTH = patterns.pattern("net-worth");
+    MARKET_VALUE = patterns.pattern("market-value");
+    LIQUID = patterns.pattern("liquid");
+    ILLIQUID = patterns.pattern("illiquid");
+    LONG_TERM = patterns.pattern("long-term");
+    PERSONAL = patterns.pattern("personal");
+    COMPLEX_LANGUAGE = patterns.pattern("complex-language");
+    REPORTING_PERIOD = patterns.pattern("reporting-period");
+    OTHER_WINDOW = patterns.pattern("other-window");
+    FOLLOW_UP = patterns.pattern("follow-up");
+    ASSET_RESULT = patterns.pattern("asset-result");
+    CONTEXT_REFERENCE = patterns.pattern("context-reference");
   }
 
   @PostMapping("/ask")
@@ -224,7 +249,7 @@ public class FinancialAiOrchestratorController {
         || SPY.matcher(question).find());
   }
 
-  private static String canonicalQuestion(
+  private String canonicalQuestion(
       String original, InvestoryRagClient.RoutingPlan suggestion) {
     if (suggestion == null || suggestion.tools() == null || suggestion.tools().isEmpty()
         || suggestion.tools().size() > 6) return null;
@@ -560,7 +585,7 @@ public class FinancialAiOrchestratorController {
     used.add(answer.sources() == null || answer.sources().isEmpty() ? "ABSTAINED" : source);
   }
 
-  private static String documentationQuestion(
+  private String documentationQuestion(
       String question, boolean profile, boolean retirement) {
     Matcher docs = DOCUMENTS.matcher(question);
     if (docs.find() && docs.start() > 0) {
