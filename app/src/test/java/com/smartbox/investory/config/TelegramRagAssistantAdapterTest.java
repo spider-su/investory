@@ -58,7 +58,8 @@ class TelegramRagAssistantAdapterTest {
 
     assistant.reset("123");
     assistant.reply(12L, "123", "profit");
-    verify(orchestrator, times(3)).ask(eq(12L), question.capture(), any());
-    assertEquals(null, question.getAllValues().get(2).context());
+    var afterReset = ArgumentCaptor.forClass(FinancialAiOrchestratorController.Question.class);
+    verify(orchestrator, times(3)).ask(eq(12L), afterReset.capture(), any());
+    assertEquals(null, afterReset.getAllValues().get(2).context());
   }
 }
