@@ -259,7 +259,7 @@ investory:
         profit-intent: '(?i)(?:\bprofitab(?:le|ility)\b|\bprofitable\b|\b(?:profit|loss|gain|p\s*/\s*l)\b|\b(?:up|down) overall\b|\bmade money\b|\bearned money\b)'
         profit-history: '(?i)\b(?:all[ -]?time|whole (?:time|history)|ever|overall|since (?:inception|start|i (?:started|have|had))|entire (?:time|period)|from (?:the )?beginning|lifetime|historically)\b'
         profit-other-period: '(?i)\b(?:ytd|mtd|qtd|today|yesterday|(?:this|last|previous|current|past)\s+(?:\d+\s+)?(?:days?|weeks?|months?|quarters?|years?)|(?:19|20)\d{2})\b'
-profit-yes-no: '(?i)\b(?:is|was|am|are)\s+(?:it|my portfolio|the portfolio)\s+profitable\b'
+        profit-yes-no: '(?i)\b(?:is|was|am|are)\s+(?:it|my portfolio|the portfolio)\s+profitable\b'
         profit-made-money: '(?i)\b(?:have i|did i)\s+made?\s+money\b'
         classify-financial-subject: '(?i)\b(?:worth|wealth|assets?|holdings?|positions?|investments?|portfolio|spy|s&p ?500|retire|retirement|pension|financial independence)\b'
         classify-unsupported-forecast: '(?i)\b(?:will|forecast|predict|tomorrow|yesterday|ytd|mtd|qtd|(?:19|20)\d{2})\b'
