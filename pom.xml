@@ -122,6 +122,25 @@
                 <groupId>io.github.git-commit-id</groupId>
                 <artifactId>git-commit-id-maven-plugin</artifactId>
                 <version>${git-commit-id-maven-plugin.version}</version>
+                <dependencies>
+                    <!-- Use the resolved patch version without requiring online version-range metadata. -->
+                    <dependency>
+                        <groupId>io.github.git-commit-id</groupId>
+                        <artifactId>git-commit-id-plugin-core</artifactId>
+                        <version>6.2.0</version>
+                        <exclusions>
+                            <exclusion>
+                                <groupId>org.bouncycastle</groupId>
+                                <artifactId>bcutil-jdk18on</artifactId>
+                            </exclusion>
+                        </exclusions>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.bouncycastle</groupId>
+                        <artifactId>bcutil-jdk18on</artifactId>
+                        <version>1.81.1</version>
+                    </dependency>
+                </dependencies>
                 <configuration>
                     <failOnNoGitDirectory>false</failOnNoGitDirectory>
                     <generateGitPropertiesFile>true</generateGitPropertiesFile>
