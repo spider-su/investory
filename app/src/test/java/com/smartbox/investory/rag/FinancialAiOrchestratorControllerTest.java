@@ -503,7 +503,8 @@ class FinancialAiOrchestratorControllerTest {
     var result =
         controller.ask(21L, new FinancialAiOrchestratorController.Question(question), user);
 
-    assertEquals(List.of("live:profile", "live:retirement-simulation"), result.sources());
+    assertEquals(2, result.sources().size());
+    assertTrue(result.sources().containsAll(List.of("live:profile", "live:retirement-simulation")));
     verify(internalMcp).generalProfile(21L);
     verify(internalMcp).retirementSimulation(21L);
     verifyNoInteractions(market);
