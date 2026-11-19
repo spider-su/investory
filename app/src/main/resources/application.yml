@@ -229,3 +229,33 @@ app:
       # Leave empty (or omit) to export ALL accounts.
       # Example: accounts: 90000002,U90000001
       accounts: ${YAHOO_EXPORT_ACCOUNTS:}
+
+# Assistant phrase and intent rules. Change here instead of recompiling Java.
+# Regex values are single-quoted so backslashes are preserved by YAML.
+# Explicit time-window and forecast guards must remain conservative.
+investory:
+  assistant:
+    routing:
+      patterns:
+        public-symbol: '(?i:ticker|symbol|price of|quote for)\s+([A-Za-z][A-Za-z0-9.^-]{0,19})(?![A-Za-z0-9._^/-])'
+        market-language: '(?i)\b(?:quote|ticker|trading|stock price|price of|latest price|market (?:price|quote|data|research))\b'
+        retirement: '(?i)\b(?:retirement|retire|pension|financial independence)\b'
+        holdings: '(?i)\b(?:holdings|positions)\b|\b(?:main|largest|biggest|top|major|primary)\s+(?:assets?|holdings?|positions?|investments?)\b|\b(?:what stocks do i hold|which stocks do i own|stocks i own|stocks do i hold)\b'
+        documents: '(?i)\b(?:documentation|documents|methodology|method|explain|definition|docs|calculat\w*)\b'
+        spy: '(?i)\b(?:spy|s&p ?500)\b'
+        compare: '(?i)\b(?:compare|compared|comparison|versus|vs|difference|performing|benchmark(?:ed|ing)?(?:\s+(?:against|with))?)\b'
+        net-worth: '(?i)\b(?:net worth|wealth|how much am i worth)\b'
+        market-value: '(?i)\bmarket portfolio value\b'
+        liquid: '(?i)\bliquid assets?\b'
+        illiquid: '(?i)\billiquid assets?\b'
+        long-term: '(?i)\blong[- ]term (?:assets?|value)\b'
+        personal: '(?i)\b(?:my|me|i|our)\b'
+        complex-language: '(?i)\b(?:risk|risky|exposure|diversif\w*|align\w*|suitab\w*|appropriate|should|recommend|impact|affect|sustainable|safe to retire|target allocation|desired allocation)\b'
+        reporting-period: '(?i)\b(?:YTD|year[- ]to[- ]date|this year|current year|1M|3M|6M|1Y|3Y|5Y|MAX)\b'
+        other-window: '(?i)\b(?:mtd|qtd|today|yesterday|tomorrow|forecast|predict|will|all[ -]?time|lifetime|since inception|from the beginning|(?:19|20)\d{2}|(?:since|through|before|after|as of)\s+\d|(?:last|past|previous|next|this|current)\s+(?:\d+\s+)?(?:day|week|month|quarter|year)s?)\b'
+        follow-up: '(?i)^(compare that with|show that for) (1M|3M|6M|YTD|1Y|3Y|5Y|MAX)[?.]?$'
+        asset-result: '(?i)^show realized profit for asset ([A-Z0-9][A-Z0-9._^-]{0,31}) for (1M|3M|6M|YTD|1Y|3Y|5Y|MAX)[?.]?$'
+        context-reference: '(?i)^(?:compare|show) (?:that|it)\b'
+        profit-intent: '(?i)(?:\bprofitab(?:le|ility)\b|\bprofitable\b|\b(?:profit|loss|gain|p\s*/\s*l)\b|\b(?:up|down) overall\b|\bmade money\b|\bearned money\b)'
+        profit-history: '(?i)\b(?:all[ -]?time|whole (?:time|history)|ever|overall|since (?:inception|start|i (?:started|have|had))|entire (?:time|period)|from (?:the )?beginning|lifetime|historically)\b'
+        profit-other-period: '(?i)\b(?:ytd|mtd|qtd|today|yesterday|(?:this|last|previous|current|past)\s+(?:\d+\s+)?(?:days?|weeks?|months?|quarters?|years?)|(?:19|20)\d{2})\b'
