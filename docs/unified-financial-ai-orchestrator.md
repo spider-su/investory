@@ -127,3 +127,23 @@ map the requested intent safely, Java abstains instead of sending an arbitrary
 model-generated request to an internal or external endpoint. Unsupported
 forecast and reporting-period policies remain in place before routing.
 This is intent classification, **not** an unrestricted tool-calling agent.
+
+
+## Configurable deterministic intents
+
+All Java fast-path phrase patterns are defined in
+`app/src/main/resources/application.yml` under
+`investory.assistant.routing.patterns`. This includes reporting periods,
+follow-up expressions, portfolio/holdings/retirement/benchmark intents,
+profitability detection and unsupported-period guards.
+
+`AssistantRoutingPatterns` compiles and validates the settings at startup.
+Consumers require an injected configuration and do not define regex defaults
+in Java. Invalid regex syntax or missing required keys prevents startup rather
+than quietly switching behavior. Security allowlists for public ticker syntax,
+profile ownership, and permitted tool names remain enforced in Java and are not
+user-editable routing phrases.
+
+New fast-path synonyms should be added to YAML only when the meaning is
+unambiguous, and accompanied by unit tests. Ambiguous allocation/risk questions
+remain candidates for the constrained LLM classifier.
