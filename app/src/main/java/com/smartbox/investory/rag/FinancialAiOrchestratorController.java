@@ -371,7 +371,8 @@ public class FinancialAiOrchestratorController {
       append(internalMcp.retirement(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
     }
     if (wantsSimulation)
-      append(internalMcp.retirementSimulation(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
+      append(
+          internalMcp.retirementSimulation(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
     if (wantsLongTermDetails)
       append(internalMcp.longTermAssets(portfolioId), "JAVA_LONGTERM", parts, citations, used);
     if (wantsGeneralProfile)
