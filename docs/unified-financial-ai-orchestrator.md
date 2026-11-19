@@ -101,3 +101,29 @@ and [MCP contract](../adapters/mcp/README.md) for the canonical underlying limit
 Release gates require exact-head CI, scanned Java/RAG publication, runtime image-ID
 matching, authenticated API/official-MCP acceptance and a fresh private metrics
 scrape. A merged PR alone is not deployment evidence.
+
+
+## Hybrid routing (rule-first + constrained LLM fallback)
+
+The Java orchestrator keeps its deterministic fast path for recognized holdings,
+portfolio facts, reporting periods, benchmark, retirement, market quotes and
+documentation. Ambiguous or unrecognized wording can invoke an authenticated
+internal Python `POST /route` classifier, under the existing RAG concurrency
+and request deadline gate. The Python service sends only the question to OpenAI;
+it never receives scoped Java portfolio facts for classification.
+
+The model returns a bounded suggestion:
+`{"tools":["HOLDINGS","RETIREMENT"],"symbol":null}`.
+The permitted names are `PROFILE`, `HOLDINGS`, `SPY`, `RETIREMENT`,
+`DOCS`, `MARKET`. No arbitrary endpoint or executable parameters are accepted.
+Java validates the response and reconstitutes a canonical, supported request,
+which is then executed through the existing authorized read models. A public
+ticker must occur literally in the original question; the model may not invent
+or replace it. Largest-holding research still uses the authorized Java holding
+lookup. Market payloads remain separate and untrusted.
+
+If the planner fails, returns invalid JSON, names a forbidden tool or cannot
+map the requested intent safely, Java abstains instead of sending an arbitrary
+model-generated request to an internal or external endpoint. Unsupported
+forecast and reporting-period policies remain in place before routing.
+This is intent classification, **not** an unrestricted tool-calling agent.
