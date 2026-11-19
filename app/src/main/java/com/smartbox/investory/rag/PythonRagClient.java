@@ -137,7 +137,7 @@ public class PythonRagClient implements InvestoryRagClient {
           .contentType(MediaType.APPLICATION_JSON)
           .body(Map.of("question", question))
           .retrieve().body(RoutingPlan.class);
-      if (plan == null || plan.tools() == null || plan.tools().size() > 5
+      if (plan == null || plan.tools() == null || plan.tools().size() > 6
           || plan.tools().stream().anyMatch(tool -> tool == null
               || !java.util.Set.of("PROFILE", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
                   .contains(tool))
