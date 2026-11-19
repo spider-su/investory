@@ -7,6 +7,11 @@ import java.util.List;
 public interface InvestoryRagClient {
   RagAnswer ask(String question, ProfileResponse snapshot);
 
+  /** Untrusted semantic routing suggestion; no portfolio or user facts are forwarded. */
+  RoutingPlan planRouting(String question);
+
+  record RoutingPlan(List<String> tools, String symbol) {}
+
   /** Documentation-only question; no portfolio snapshot is forwarded. */
   RagAnswer askDocumentation(String question);
 
