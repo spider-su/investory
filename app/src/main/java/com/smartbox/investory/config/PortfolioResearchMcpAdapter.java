@@ -11,8 +11,8 @@ import com.smartbox.investory.rag.InvestoryRagClient;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.RetirementProjectionApi;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
@@ -98,17 +98,23 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
     if (view == null) throw new IllegalStateException("Long-term overview unavailable");
     var items =
         view.groups().stream()
-            .flatMap(group -> group.assets() == null ? java.util.stream.Stream.empty() : group.assets().stream())
+            .flatMap(
+                group ->
+                    group.assets() == null
+                        ? java.util.stream.Stream.empty()
+                        : group.assets().stream())
             .limit(limit)
-            .map(asset -> new LongTermAsset(
-                asset.name(),
-                asset.type() == null ? null : asset.type().name(),
-                asset.currency() == null ? null : asset.currency().name(),
-                decimal(asset.currentValue()),
-                asset.maturityDate() == null ? null : asset.maturityDate().toString(),
-                decimal(asset.currentAnnualRate()),
-                decimal(asset.monthlyRentalIncome()),
-                asset.integrityWarning()))
+            .map(
+                asset ->
+                    new LongTermAsset(
+                        asset.name(),
+                        asset.type() == null ? null : asset.type().name(),
+                        asset.currency() == null ? null : asset.currency().name(),
+                        decimal(asset.currentValue()),
+                        asset.maturityDate() == null ? null : asset.maturityDate().toString(),
+                        decimal(asset.currentAnnualRate()),
+                        decimal(asset.monthlyRentalIncome()),
+                        asset.integrityWarning()))
             .toList();
     var economics = view.economics();
     return new LongTermSummary(
@@ -128,32 +134,46 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
     var selected = plans.resolvePlanId(id, null);
     if (selected.isEmpty()) {
       return new RetirementSimulation(
-          false, null, null, null, null, null, null, null, null, null, null,
-          List.of(), Instant.now(), "live:retirement-simulation", "No selected saved plan");
+          false,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          List.of(),
+          Instant.now(),
+          "live:retirement-simulation",
+          "No selected saved plan");
     }
     var details = plans.details(id, selected.get());
     var projection = projections.load(id, selected.get());
     var assumptions = projection.assumptions();
     var currency = mapper.map(profiles.loadProfile(id)).currency();
     var scenarios =
-        java.util.Arrays.stream(com.smartbox.investory.retirement.api.model.SimulationScenario.values())
-            .map(scenario -> {
-              var summary = projection.summaries().get(scenario);
-              if (summary == null) return null;
-              return new SimulationScenarioSummary(
-                  scenario.name(),
-                  summary.failed(),
-                  summary.firstFailureAge(),
-                  summary.firstFailureYear(),
-                  decimal(summary.finalNetWorth()),
-                  decimal(summary.finalLiquidAssets()),
-                  decimal(summary.finalIlliquidAssets()),
-                  decimal(summary.minimumLiquidAssets()),
-                  decimal(summary.lifetimeRequiredPortfolioFunding()),
-                  decimal(summary.lifetimeActualWithdrawals()),
-                  decimal(summary.totalUnfundedAmount()),
-                  decimal(summary.firstYearPassiveIncomeCoverage()));
-            })
+        Arrays.stream(com.smartbox.investory.retirement.api.model.SimulationScenario.values())
+            .map(
+                scenario -> {
+                  var summary = projection.summaries().get(scenario);
+                  if (summary == null) return null;
+                  return new SimulationScenarioSummary(
+                      scenario.name(),
+                      summary.failed(),
+                      summary.firstFailureAge(),
+                      summary.firstFailureYear(),
+                      decimal(summary.finalNetWorth()),
+                      decimal(summary.finalLiquidAssets()),
+                      decimal(summary.finalIlliquidAssets()),
+                      decimal(summary.minimumLiquidAssets()),
+                      decimal(summary.lifetimeRequiredPortfolioFunding()),
+                      decimal(summary.lifetimeActualWithdrawals()),
+                      decimal(summary.totalUnfundedAmount()),
+                      decimal(summary.firstYearPassiveIncomeCoverage()));
+                })
             .filter(java.util.Objects::nonNull)
             .toList();
     return new RetirementSimulation(
