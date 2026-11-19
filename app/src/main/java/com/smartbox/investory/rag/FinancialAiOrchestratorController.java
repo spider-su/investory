@@ -61,6 +61,7 @@ public class FinancialAiOrchestratorController {
   private final ProfileResponseMapper mapper;
   private final PortfolioAssistantReadModels readModels;
   private final PortfolioProfitabilityAnswer profitability;
+  private final AssistantInternalMcpGateway internalMcp;
   private final InvestoryRagClient rag;
   private final ExternalMarketDataService market;
   private final InvestmentAssetApi assets;
@@ -78,7 +79,8 @@ public class FinancialAiOrchestratorController {
       ExternalMarketDataService market,
       InvestmentAssetApi assets,
       AssistantMetrics metrics,
-      AssistantRoutingPatterns patterns) {
+      AssistantRoutingPatterns patterns,
+      AssistantInternalMcpGateway internalMcp) {
     this.authorization = authorization;
     this.rateLimiter = rateLimiter;
     this.concurrency = concurrency;
@@ -90,6 +92,7 @@ public class FinancialAiOrchestratorController {
     this.market = market;
     this.assets = assets;
     this.metrics = metrics;
+    this.internalMcp = internalMcp;
     PUBLIC_SYMBOL = patterns.pattern("public-symbol");
     MARKET_LANGUAGE = patterns.pattern("market-language");
     RETIREMENT = patterns.pattern("retirement");
@@ -319,7 +322,7 @@ public class FinancialAiOrchestratorController {
       var snapshot = mapper.map(profiles.loadProfile(portfolioId));
       if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH
           || NET_WORTH.matcher(question).find())
-        append(readModels.netWorth(snapshot), "JAVA_PROFILE", parts, citations, used);
+        append(internalMcp.netWorth(portfolioId), "JAVA_PROFILE", parts, citations, used);
       if (MARKET_VALUE.matcher(question).find())
         appendFact(
             "Market portfolio value",
@@ -337,15 +340,15 @@ public class FinancialAiOrchestratorController {
             "Long-term assets", snapshot.longTermAssetValue(), snapshot, parts, citations, used);
     }
     if (wantsSpyComparison)
-      append(readModels.spyComparison(portfolioId), "JAVA_BENCHMARK", parts, citations, used);
+      append(internalMcp.benchmark(portfolioId, DashboardPeriod.MAX), "JAVA_BENCHMARK", parts, citations, used);
     if (intent == PortfolioAssistantReadModels.Intent.MAIN_ASSETS
         || HOLDINGS.matcher(question).find())
-      append(readModels.mainAssets(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
+      append(internalMcp.holdings(portfolioId), "JAVA_HOLDINGS", parts, citations, used);
     if (wantsRetirement) {
-      append(readModels.retirementPlan(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
+      append(internalMcp.retirement(portfolioId), "JAVA_RETIREMENT", parts, citations, used);
     }
     if (profitability.supports(question)) {
-      append(profitability.answer(portfolioId), "JAVA_PROFITABILITY", parts, citations, used);
+      append(internalMcp.profitability(portfolioId, DashboardPeriod.MAX), "JAVA_PROFITABILITY", parts, citations, used);
     }
     if (wantsDocs) {
       try {
