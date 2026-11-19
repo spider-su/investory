@@ -14,8 +14,8 @@ import org.springframework.stereotype.Component;
  * Connects the existing authorized Telegram bot to the same Smart Assistant used by the web UI.
  *
  * <p>The configured Telegram chat is mapped to an existing active Investory username. The shared
- * controller checks that user's actual profile membership before any financial read. This is not
- * an admin/service-account override. Never derive a username or portfolio ID from Telegram text.
+ * controller checks that user's actual profile membership before any financial read. This is not an
+ * admin/service-account override. Never derive a username or portfolio ID from Telegram text.
  */
 @Component
 @ConditionalOnProperty(
@@ -50,14 +50,11 @@ public class TelegramRagAssistantAdapter implements TelegramAssistant {
     // Do not use ROLE_ADMIN; synthetic authentication is available only behind the chat binding.
     var identity =
         UsernamePasswordAuthenticationToken.authenticated(
-            username,
-            "N/A",
-            List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
+            username, "N/A", List.of(new SimpleGrantedAuthority("ROLE_PROFILE_USER")));
     var result =
         orchestrator.ask(
             portfolioId,
-            new FinancialAiOrchestratorController.Question(
-                question, contexts.get(chatId)),
+            new FinancialAiOrchestratorController.Question(question, contexts.get(chatId)),
             identity);
     if (result.context() == null) {
       contexts.remove(chatId);
