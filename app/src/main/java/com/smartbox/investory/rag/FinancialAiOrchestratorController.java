@@ -227,7 +227,7 @@ public class FinancialAiOrchestratorController {
   private static String canonicalQuestion(
       String original, InvestoryRagClient.RoutingPlan suggestion) {
     if (suggestion == null || suggestion.tools() == null || suggestion.tools().isEmpty()
-        || suggestion.tools().size() > 5) return null;
+        || suggestion.tools().size() > 6) return null;
     var tools = new LinkedHashSet<>(suggestion.tools());
     if (tools.size() != suggestion.tools().size()
         || !java.util.Set.of("PROFILE", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
