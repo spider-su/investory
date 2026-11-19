@@ -231,14 +231,17 @@ public class FinancialAiOrchestratorController {
     if (suggestion == null
         || suggestion.tools() == null
         || suggestion.tools().isEmpty()
-        || suggestion.tools().size() > 6) return null;
+        || suggestion.tools().size() > 9) return null;
     var tools = new LinkedHashSet<>(suggestion.tools());
     if (tools.size() != suggestion.tools().size()
-        || !java.util.Set.of("PROFILE", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
+        || !java.util.Set.of("PROFILE", "GENERAL_PROFILE", "LONG_TERM", "SIMULATION", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET")
             .containsAll(tools)) return null;
 
     var parts = new ArrayList<String>();
     if (tools.contains("PROFILE")) parts.add("my net worth");
+    if (tools.contains("GENERAL_PROFILE")) parts.add("my financial overview");
+    if (tools.contains("LONG_TERM")) parts.add("my long-term assets");
+    if (tools.contains("SIMULATION")) parts.add("my retirement simulation");
     if (tools.contains("HOLDINGS")) parts.add("my holdings");
     if (tools.contains("SPY")) parts.add("compare my portfolio with SPY");
     if (tools.contains("RETIREMENT")) parts.add("my retirement plan");
