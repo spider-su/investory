@@ -475,7 +475,7 @@ class FinancialAiOrchestratorControllerTest {
             21L, new FinancialAiOrchestratorController.Question("My financial overview"), user);
     var assets =
         controller.ask(
-            21L, new FinancialAiOrchestratorController.Question("Show my long-term assets"), user);
+            21L, new FinancialAiOrchestratorController.Question("Show my bonds"), user);
     var simulation =
         controller.ask(
             21L,
