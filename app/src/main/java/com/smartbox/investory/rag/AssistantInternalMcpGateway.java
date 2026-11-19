@@ -5,6 +5,7 @@ import com.smartbox.investory.mcp.PortfolioResearchClient;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 /**
  * Local execution of Investory's published read-only MCP query contract.
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
  * Scoped authorization is performed by FinancialAiOrchestratorController before calling here.
  */
 @Component
+@ConditionalOnProperty(prefix = "investory.rag", name = "enabled", havingValue = "true")
 public class AssistantInternalMcpGateway {
   private final PortfolioResearchClient research;
 
