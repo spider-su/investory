@@ -16,6 +16,32 @@ NBP is the primary exchange-rate integration. Its adapter reads PLN-relative Tab
 
 A provider response must never override fail-closed FX semantics.
 
+## Telegram Smart Assistant
+
+When both `TELEGRAM_BOT_ENABLED=true` and `INVESTORY_RAG_ENABLED=true` (or the
+corresponding `investory.rag.enabled` setting) are active, authorized Telegram text questions
+are handled by the same read-only financial Smart Assistant as
+`POST /api/v1/portfolios/{portfolioId}/assistant/ask` in the web UI.
+
+Set all of the following before enabling it:
+- `TELEGRAM_CHAT_ID`: the already-authorized exact Telegram chat ID.
+- `TELEGRAM_PORTFOLIO_ID`: a positive Investory profile/portfolio ID.
+- `TELEGRAM_RAG_USERNAME`: the **existing active Investory username** that owns or can read
+  the selected portfolio. It is not a Telegram username and must have profile membership.
+
+Every question re-checks that username's profile membership, uses the shared assistant
+rate/concurrency limits and read-only source routing, and retains follow-up context per chat.
+`/reset` clears the Smart Assistant and legacy chat context. Market quotes remain provider
+observations, not investment valuation facts. Unsupported queries abstain.
+
+The bot accepts free-form questions such as "What is my net worth?", "Compare my portfolio
+with SPY", "Show my largest holdings", and "What are the assumptions in my retirement plan?".
+Legacy commands such as `/balance` and `/positions` retain their existing deterministic handlers.
+With RAG disabled the bot retains its original OpenAI fallback. With RAG **enabled** but
+`TELEGRAM_RAG_USERNAME` missing, free-form questions fail closed rather than using the
+less constrained OpenAI route. Do not use a shared Telegram group or a role with access
+to unrelated portfolios.
+
 ## Telegram
 
 Telegram is an optional notification/command transport. When disabled or unavailable, core accounting, portfolio reporting, long-term assets, retirement planning, and reconciliation remain valid and independently usable.
