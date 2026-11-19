@@ -319,7 +319,13 @@ public class FinancialAiOrchestratorController {
                 || ILLIQUID.matcher(question).find()
                 || LONG_TERM.matcher(question).find());
     if (wantsProfile) {
-      var snapshot = mapper.map(profiles.loadProfile(portfolioId));
+      boolean hasAdditionalProfileAmounts =
+          MARKET_VALUE.matcher(question).find()
+              || LIQUID.matcher(question).find()
+              || ILLIQUID.matcher(question).find()
+              || LONG_TERM.matcher(question).find();
+      var snapshot =
+          hasAdditionalProfileAmounts ? mapper.map(profiles.loadProfile(portfolioId)) : null;
       if (intent == PortfolioAssistantReadModels.Intent.NET_WORTH
           || NET_WORTH.matcher(question).find())
         append(internalMcp.netWorth(portfolioId), "JAVA_PROFILE", parts, citations, used);
