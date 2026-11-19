@@ -1,5 +1,6 @@
 """Read-only document retrieval and generation; Java owns financial facts."""
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -256,11 +257,11 @@ def route_question(llm, question: str) -> dict:
         raise ValueError("Invalid routing schema")
     tools, symbol = parsed["tools"], parsed["symbol"]
     allowed = {"PROFILE", "HOLDINGS", "SPY", "RETIREMENT", "DOCS", "MARKET"}
-    if (not isinstance(tools, list) or len(tools) > 5
+    if (not isinstance(tools, list) or len(tools) > 6
             or any(not isinstance(t, str) or t not in allowed for t in tools)
             or len(set(tools)) != len(tools)
             or (symbol is not None and
                 (not isinstance(symbol, str) or len(symbol) > 20
-                 or not __import__("re").fullmatch(r"[A-Z][A-Z0-9.^-]*", symbol)))):
+                 or not re.fullmatch(r"[A-Z][A-Z0-9.^-]*", symbol)))):
         raise ValueError("Invalid routing tools")
     return {"tools": tools, "symbol": symbol}
