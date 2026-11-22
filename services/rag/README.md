@@ -1,7 +1,7 @@
 # Investory document RAG and authorized portfolio explanations
 
 Separate, read-only Python service for question answering over Investory Markdown documentation.
-Uses LangChain, configurable local/OpenAI embeddings, Chroma or PostgreSQL with pgvector, FastAPI, and OpenAI chat generation.
+Uses LangChain, configurable local/OpenAI embeddings, PostgreSQL with pgvector, FastAPI, and OpenAI chat generation.
 It does not query portfolios or calculate financial values. The optional Java bridge supplies authorized aggregate facts transiently for explanations.
 
 ## Local setup
@@ -41,8 +41,7 @@ If the collection is empty, it returns a useful message without calling the LLM.
 - With the OpenAI embedding provider, indexing and retrieval call its embeddings API.
   With the local provider, vectors are generated on CPU without an embedding API key.
   Answer generation still calls OpenAI chat; selected excerpts and authorized facts leave the host.
-- Chroma persists locally under `data/chroma`; keep the volume persistent
-  during deployments. Back it up or re-index from source documentation.
+- PostgreSQL stores document vectors. Back up the database or rebuild the index from source documentation.
 - Indexing uses stable per-chunk identifiers. An unchanged document reuses existing embeddings, while edited and deleted chunks are reconciled. Do not run concurrent indexers.
 - Changing the embedding model requires rebuilding its collection; do not reuse vectors from a different embedding model.
 - Retrieval uses a configurable minimum relevance threshold, not a calibrated confidence measure. Evaluate and tune it against representative questions before relying on automated answers.
@@ -52,7 +51,7 @@ If the collection is empty, it returns a useful message without calling the LLM.
 
 ## Retrieval configuration
 
-The default `RAG_TOP_K=4` limits retrieved chunks. `RAG_MIN_RELEVANCE_SCORE=0.3` filters low-scoring results; Chroma/LangChain relevance scores are **not calibrated probabilities**. Tune the cutoff after running evaluation questions against your own documentation. `RAG_INDEX_BATCH_SIZE=64` controls embedding batch size. If no chunks pass the threshold, `/ask` returns an explicit insufficient-evidence answer without calling the chat model.
+The default `RAG_TOP_K=4` limits retrieved chunks. `RAG_MIN_RELEVANCE_SCORE=0.3` filters low-scoring results; Cosine relevance scores are **not calibrated probabilities**. Tune the cutoff after running evaluation questions against your own documentation. `RAG_INDEX_BATCH_SIZE=64` controls embedding batch size. If no chunks pass the threshold, `/ask` returns an explicit insufficient-evidence answer without calling the chat model.
 
 ## Container build
 
@@ -62,7 +61,7 @@ From repository root:
 docker build -f services/rag/Dockerfile -t investory-rag .
 ```
 
-The image bundles documentation; mount a writable data directory and explicitly run the
+The image bundles documentation; configure PostgreSQL and explicitly run the
 `investory-rag-index` command before starting the API.
 Use environment variables for API credentials.
 
@@ -80,11 +79,11 @@ The Spring Boot `GET /api/v1/portfolios/{portfolioId}/profile` endpoint returns 
 
 ## Index safety
 
-Index operations take an advisory non-blocking POSIX lock in the Chroma data directory; concurrent writers on the same shared filesystem fail rather than race. Changed chunks are added before obsolete chunks are deleted, so if embedding fails, existing chunks are retained; indexing is **not fully transactional** and failed runs may leave extra chunks until the next successful run. Avoid simultaneous indexing and serving during reindex, or provide separate generation-based collections before promoting a revision. Persist the directory and mount it writable only to the indexer. The default Docker container runs as an unprivileged user; the image bundles its versioned docs at `/app/docs` and evaluation inputs at `/app/eval`.
+Index operations use a PostgreSQL transaction and a non-blocking advisory lock per collection. A failed indexing run rolls back its changes.
 
 ## Validation gates
 
-The expanded `eval/cases.json` contains twelve positive domain questions. `eval/exploratory-cases.json` adds six negative/ambiguous questions and can be run separately with `investory-rag-eval --cases eval/exploratory-cases.json`. Its abstention score is exploratory, not a release gate, until the relevance threshold is calibrated. Unit tests and a deterministic Chroma vector-store smoke test run in CI without OpenAI credentials, alongside a Docker image build/HTTP smoke check. For **real** acceptance, set a private `OPENAI_API_KEY`, index checked-in docs, then run `investory-rag-eval --min-hit-rate 0.8`; report actual hit rate and investigate misses. Provider chat evaluation is not executed on public PR CI. The local seeded index is evaluated offline in CI. Add negative, adversarial and answer-grounding cases after calibrating the similarity threshold; source-hit rate does not guarantee answer correctness.
+The expanded `eval/cases.json` contains twelve positive domain questions. `eval/exploratory-cases.json` adds six negative/ambiguous questions and can be run separately with `investory-rag-eval --cases eval/exploratory-cases.json`. Its abstention score is exploratory, not a release gate, until the relevance threshold is calibrated. Unit tests and PostgreSQL vector-store integration tests run in CI without OpenAI credentials, alongside a Docker image build/HTTP smoke check. For **real** acceptance, set a private `OPENAI_API_KEY`, index checked-in docs, then run `investory-rag-eval --min-hit-rate 0.8`; report actual hit rate and investigate misses. Provider chat evaluation is not executed on public PR CI. Add negative, adversarial and answer-grounding cases after calibrating the similarity threshold; source-hit rate does not guarantee answer correctness.
 
 ## Authenticated Java portfolio integration
 
@@ -185,21 +184,9 @@ Real chat tests also verified document explanations and exact transient syntheti
 facts without modifying the index. This is a scoped snapshot, not a guarantee
 for arbitrary or ambiguous questions; the exploratory evaluation remains separate.
 
-### Seeded cold startup
-
-Production measurement on the AVX-only VM found several minutes per 64 chunks
-during a full cold rebuild. The image therefore builds a documentation-only
-Chroma seed alongside its bundled model. `RAG_INDEX_SEED=/app/index-seed` lets the
-index command atomically copy the compatible seed into a new writable volume,
-then run its normal incremental check. Existing indexes are preserved. A
-provider/model/metric mismatch skips the seed. No live facts or API key are used
-to build it. Rebuild the image for documentation/model changes; do not edit its
-corpus at runtime. CI verifies offline seed restoration with embedding writes
-forbidden, then runs the real source retrieval benchmark as UID 10001.
-
 ## v1 reliability gates
 
-The document API now uses **policy-aware evidence retrieval**. A high Chroma
+The document API now uses **policy-aware evidence retrieval**. A high cosine
 score alone is insufficient: unsupported live-data requests, ambiguous
 follow-ups without context, personalized trading recommendations and excerpts
 without matching subject matter return the stable insufficient-evidence response.
@@ -215,7 +202,7 @@ can reject explanatory prose that names an aggregate outside the requested facts
 Requests for unavailable aggregate values abstain instead of substituting zero. Explicit, same-key
 conflicting document assertions abstain and obvious prompt injection in
 retrieved excerpts is excluded before generation. No financial facts are
-persisted in Chroma.
+persisted in the vector store.
 
 **Limits:** This is not a semantic entailment proof. It does not catch every
 contradiction, spelled-out number, indirect reference, complex derived value,
@@ -232,7 +219,7 @@ investory-rag-eval --cases eval/exploratory-cases.json --min-abstention-accuracy
 
 The operational startup and recovery checklist is
 [docs/operations/rag-v1-recovery.md](../../docs/operations/rag-v1-recovery.md).
-CI exercises deterministic local seed/restart scenarios; real pod replacement,
+CI exercises PostgreSQL indexing and transaction recovery; real pod replacement,
 cold image pulls, PostgreSQL incident diagnosis and Argo-managed rollback
 require operator-observed evidence and are **not** validated by source CI.
 
@@ -551,11 +538,9 @@ and local budget recovery timestamps are separate. A usable cached quote can
 still be served while remote attempts are paused. These reads use none of the
 20 attempted-lookups-per-24-hours budget.
 
-## Optional PostgreSQL vector store
+## PostgreSQL vector store
 
-`RAG_VECTOR_BACKEND=chroma` is the default. To use PostgreSQL in the same
-database as Investory, set `RAG_VECTOR_BACKEND=pgvector` and inject
-`RAG_PGVECTOR_DSN` from a secret. The DSN uses PostgreSQL URI or libpq
+Configure the PostgreSQL DSN with RAG_PGVECTOR_DSN. The DSN uses PostgreSQL URI or libpq
 connection-string format. The store uses exact cosine search inside the
 configured collection. The collection name includes the embedding provider
 and model. Keep `RAG_EMBEDDING_PROVIDER=local` to use the bundled model.
@@ -586,16 +571,11 @@ Provision and verify before switching traffic:
 4. Run `investory-rag-index` with the indexer DSN and the same docs, model and
    chunk settings as the runtime. It rebuilds the collection from source
    documents and applies each update in a single transaction. Concurrent
-   indexers for the same collection are rejected by a database lock. Run both
-   evaluation suites against each backend before switching traffic.
+   indexers for the same collection are rejected by a database lock. Run both evaluation suites before switching traffic.
 
    ```sh
    investory-rag-eval --cases eval/cases.json --min-hit-rate 0.8
    investory-rag-eval --cases eval/exploratory-cases.json --min-abstention-accuracy 1.0
    ```
 
-5. In GitOps, run indexing as a separate job for pgvector and start the
-   HTTP service using the read-only DSN. Keep the Chroma volume and seed for
-   rollback. To roll back RAG, restore the Chroma backend and its existing
-   startup indexing and volume configuration. The vector table can be
-   rebuilt from documentation whenever needed.
+5. In GitOps, run indexing as a separate job and start the HTTP service using the read-only DSN. Rebuild the index from documentation after a restore if needed.

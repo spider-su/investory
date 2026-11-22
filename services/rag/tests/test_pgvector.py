@@ -9,7 +9,6 @@ from langchain_core.embeddings import Embeddings
 from psycopg.conninfo import make_conninfo
 
 from investory_rag.config import Settings
-from investory_rag.seed import restore_seed
 from investory_rag.service import RagService
 
 MIGRATION = (
@@ -65,15 +64,12 @@ def test_indexing_is_atomic_and_reader_is_scoped(database, tmp_path, monkeypatch
 
     settings = Settings(
         _env_file=None, vector_backend="pgvector", docs_root=docs,
-        index_seed=tmp_path / "missing-chroma-seed", db_path=tmp_path / "chroma",
         index_batch_size=1,
         pgvector_dsn=make_conninfo(database, user="rag_test_writer", password="writer-fixture"),
     )
-    assert not restore_seed(settings)
     writer = RagService.build(settings)
     assert writer.index()["added"] == 1
     assert writer.index()["reused"] == 1
-    assert not settings.db_path.exists()
 
     reader_dsn = make_conninfo(database, user="rag_test_reader", password="reader-fixture")
     reader = RagService.build(Settings(
