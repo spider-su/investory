@@ -11,16 +11,9 @@ ENV RAG_LOCAL_MODEL_CACHE=/app/models RAG_LOCAL_FILES_ONLY=true
 RUN pip install --no-cache-dir . \
     && python -c "from fastembed import TextEmbedding; m=TextEmbedding(model_name='BAAI/bge-small-en-v1.5', cache_dir='/app/models', threads=1, providers=['CPUExecutionProvider']); assert len(list(m.query_embed('model build verification'))[0]) == 384" \
     && chmod -R a+rX /app/models \
-    && useradd --system --uid 10001 --create-home rag \
-    && mkdir -p /app/data/chroma \
-    && chown -R rag:rag /app/data
-# Documentation changes rebuild the index without rebuilding the model layer.
+    && useradd --system --uid 10001 --create-home rag
 COPY docs /app/docs
 COPY services/rag/eval /app/eval
-RUN RAG_EMBEDDING_PROVIDER=local RAG_DB_PATH=/app/index-seed investory-rag-index \
-    && python -c "from pathlib import Path; from investory_rag.config import Settings; from investory_rag.seed import write_manifest; write_manifest(Path('/app/index-seed'), Settings(embedding_provider='local'))" \
-    && chmod -R a+rX /app/index-seed
-ENV RAG_INDEX_SEED=/app/index-seed
 USER rag
 EXPOSE 8090
 # Versioned docs and evaluation inputs are bundled; index at deployment startup.

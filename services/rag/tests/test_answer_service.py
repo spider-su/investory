@@ -22,7 +22,7 @@ class FakeStore:
 
 
 def make_service(tmp_path: Path, text: str, output: str) -> RagService:
-    settings = Settings(db_path=tmp_path, _env_file=None, min_relevance_score=0.3)
+    settings = Settings(_env_file=None, min_relevance_score=0.3)
     llm = RunnableLambda(lambda prompt: SimpleNamespace(content=output))
     return RagService(settings, FakeStore(text), llm)
 

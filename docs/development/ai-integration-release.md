@@ -45,7 +45,6 @@ plaintext. Release the local-model image first, then activate the GitOps compani
 and run retrieval evaluation plus scoped Java/MCP/RAG smoke checks. Preserve the
 already-working Java deployment if companion startup fails.
 
-Cold production indexing proved too slow on the VM without AVX2. The companion
-was disabled through GitOps recovery while the image gained a public-documents
-index seed. Re-activation requires offline seed/no-reembedding CI, fresh scanned
-publication receipts, and the same deployed inference/authorization gates.
+Cold production indexing proved too slow on the VM without AVX2. The pgvector
+index job must complete and pass retrieval and abstention checks before rollout.
+Verify cold index recovery and the deployed inference and authorization gates.

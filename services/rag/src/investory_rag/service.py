@@ -4,13 +4,11 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from .config import Settings
 from .ingestion import chunk_documents, load_markdown, stable_id
-from .index_lock import exclusive_index_lock
 from .pgvector_store import PgVectorStore
 from .embeddings import build_embeddings, collection_name
 from .reliability import (unsupported_document_question, unsupported_facts_question,
@@ -43,25 +41,16 @@ NO_EVIDENCE = "The indexed documentation does not provide enough information to 
 @dataclass
 class RagService:
     settings: Settings
-    store: Chroma | PgVectorStore
+    store: PgVectorStore
     llm: Any = None
 
     @classmethod
     def build(cls, settings: Settings) -> "RagService":
-        if settings.vector_backend == "pgvector":
-            if settings.pgvector_dsn is None or not settings.pgvector_dsn.get_secret_value().strip():
-                raise ValueError("RAG_PGVECTOR_DSN is required for the pgvector backend")
-            return cls(settings, PgVectorStore(
-                settings.pgvector_dsn, collection_name(settings), build_embeddings(settings)
-            ))
-        embeddings = build_embeddings(settings)
-        store = Chroma(
-            collection_name=collection_name(settings),
-            embedding_function=embeddings,
-            persist_directory=str(settings.db_path),
-            collection_metadata={"hnsw:space": "cosine"},
-        )
-        return cls(settings, store)
+        if settings.pgvector_dsn is None or not settings.pgvector_dsn.get_secret_value().strip():
+            raise ValueError("RAG_PGVECTOR_DSN is required")
+        return cls(settings, PgVectorStore(
+            settings.pgvector_dsn, collection_name(settings), build_embeddings(settings)
+        ))
 
     def chat(self):
         # Indexing and retrieval with local embeddings need no OpenAI credential.
@@ -90,13 +79,10 @@ class RagService:
 
     def index(self) -> dict[str, int]:
         """Single-writer incremental update; preserves old chunks if embedding fails."""
-        if isinstance(self.store, PgVectorStore):
-            with self.store.index_transaction() as store:
-                return self._index_unlocked(store)
-        with exclusive_index_lock(self.settings.db_path):
-            return self._index_unlocked(self.store)
+        with self.store.index_transaction() as store:
+            return self._index_unlocked(store)
 
-    def _index_unlocked(self, store: Chroma | PgVectorStore) -> dict[str, int]:
+    def _index_unlocked(self, store: PgVectorStore) -> dict[str, int]:
         docs = load_markdown(self.settings.docs_root)
         chunks = chunk_documents(docs, self.settings.chunk_size, self.settings.chunk_overlap)
         desired = {stable_id(chunk): chunk for chunk in chunks}

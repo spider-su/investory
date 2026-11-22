@@ -1,4 +1,5 @@
 from pathlib import Path
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 from langchain_core.documents import Document
@@ -13,6 +14,10 @@ class FakeStore:
     def __init__(self):
         self.documents = {}
         self.search_results = []
+
+    @contextmanager
+    def index_transaction(self):
+        yield self
 
     def get(self, include=None, limit=None):
         ids = list(self.documents)
@@ -42,7 +47,6 @@ def create_service(tmp_path: Path):
     docs.mkdir()
     settings = Settings(
         docs_root=docs,
-        db_path=tmp_path / "db",
         chunk_size=100,
         chunk_overlap=10,
         min_relevance_score=0.5,

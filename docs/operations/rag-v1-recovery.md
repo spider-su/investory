@@ -55,7 +55,7 @@ These are **manual gates, not tests performed by CI or this PR**.
    Avoid deleting the only known-good image in an emergency.
 2. **Pod replacement:** after confirming PostgreSQL health and a rollback
    point, replace the stateless Investory pod using the existing Deployment.
-   Observe RAG seed restoration on an empty *disposable* companion volume,
+   Observe RAG retrieval from the PostgreSQL index,
    unchanged production facts, readiness, and cross-portfolio denial.
    Do not delete PostgreSQL or its PVC.
 3. **Rollback:** GitOps is authoritative. Revert the GitOps image digest
@@ -70,9 +70,8 @@ access tokens or prompt bodies in public CI artifacts.
 
 ## What CI can and cannot establish
 
-Python tests exercise seed recovery on empty and existing volumes, model
-identity mismatch, and interrupted copies. Docker tests evaluate the immutable
-seed offline and assert positive source retrieval and negative abstention.
+Python tests exercise PostgreSQL indexing, concurrent writer exclusion, and
+transaction rollback on an interrupted update.
 These validate recovery *mechanisms* but do **not** prove Kubernetes cold pulls,
 Ceph attachment, PostgreSQL reachability, or successful real rollback. Those
 remain required operator evidence prior to calling this release recovery-ready.
@@ -109,6 +108,6 @@ to measure. They do not establish why Java initialization was slow.
 
 The Java image now packages released libraries separately from application
 code. The RAG image bundles documents after installing dependencies and the
-embedding model, then builds its seed index from those documents. Compare the
+embedding model. Indexing runs against PostgreSQL. Compare the
 first pull of the new layout and a subsequent application-only release with
 unchanged dependencies separately. The first pull can populate new layers.

@@ -10,10 +10,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="RAG_", env_file=".env", extra="ignore")
 
     docs_root: Path = Path("../../docs")
-    vector_backend: Literal["chroma", "pgvector"] = "chroma"
+    vector_backend: Literal["pgvector"] = "pgvector"
     pgvector_dsn: SecretStr | None = None
-    db_path: Path = Path("./data/chroma")
-    index_seed: Path | None = None
     collection: str = "investory_docs"
     embedding_model: str = "text-embedding-3-small"
     embedding_provider: Literal["openai", "local"] = "openai"
