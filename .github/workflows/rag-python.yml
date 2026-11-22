@@ -3,15 +3,28 @@ on:
   pull_request:
     paths:
       - 'services/rag/**'
+      - 'app/src/main/resources/sql/migration/rag-pgvector/**'
       - '.github/workflows/rag-python.yml'
   push:
     branches: [develop, main]
     paths:
       - 'services/rag/**'
+      - 'app/src/main/resources/sql/migration/rag-pgvector/**'
       - '.github/workflows/rag-python.yml'
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      pgvector:
+        image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:484e838076e04939d27d3e176e91c86eea96236126023be8d3059761122e579f
+        env:
+          POSTGRES_DB: rag_pgvector_test
+          POSTGRES_PASSWORD: test-fixture
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d rag_pgvector_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
     defaults:
       run:
         working-directory: services/rag
@@ -27,6 +40,8 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q src tests
       - name: Test without OpenAI credentials
+        env:
+          TEST_RAG_PGVECTOR_DSN: postgresql://postgres:test-fixture@127.0.0.1:${{ job.services.pgvector.ports['5432'] }}/rag_pgvector_test
         run: python -m pytest -q
   docker:
     runs-on: ubuntu-latest
@@ -57,7 +72,7 @@ jobs:
         run: |
           docker run -d --name rag-ci -p 127.0.0.1:18090:8090 investory-rag:ci
           trap 'docker logs rag-ci; docker rm -f rag-ci' EXIT
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:18090/health; then break; fi
             sleep 2
           done

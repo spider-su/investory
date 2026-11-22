@@ -1,7 +1,7 @@
 # Investory document RAG and authorized portfolio explanations
 
 Separate, read-only Python service for question answering over Investory Markdown documentation.
-Uses LangChain, configurable local/OpenAI embeddings, ChromaDB, FastAPI, and OpenAI chat generation.
+Uses LangChain, configurable local/OpenAI embeddings, Chroma or PostgreSQL with pgvector, FastAPI, and OpenAI chat generation.
 It does not query portfolios or calculate financial values. The optional Java bridge supplies authorized aggregate facts transiently for explanations.
 
 ## Local setup
@@ -72,7 +72,7 @@ After running `investory-rag-index`, execute `investory-rag-eval --cases eval/ca
 
 ## Java integration boundary
 
-The Spring Boot `GET /api/v1/portfolios/{portfolioId}/profile` endpoint returns private, portfolio-scoped financial data. Do not have this standalone Python service fetch it with user-provided IDs or a service-wide token: authorization needs to happen in Java for the current authenticated user first. The optional integration has Java retrieve a minimally scoped, read-only financial facts snapshot using its domain services, then pass that snapshot to an internal authenticated RAG orchestration endpoint. Never embed those snapshots in ChromaDB, persist them in prompts/logs, or treat documentation retrieval as a source of live financial balances. The initial `/ask` remains strictly documentation-only and must stay on loopback/private networking behind internal bearer authentication.
+The Spring Boot `GET /api/v1/portfolios/{portfolioId}/profile` endpoint returns private, portfolio-scoped financial data. Do not have this standalone Python service fetch it with user-provided IDs or a service-wide token: authorization needs to happen in Java for the current authenticated user first. The optional integration has Java retrieve a minimally scoped, read-only financial facts snapshot using its domain services, then pass that snapshot to an internal authenticated RAG orchestration endpoint. Never embed those snapshots in the vector store, persist them in prompts/logs, or treat documentation retrieval as a source of live financial balances. The initial `/ask` remains strictly documentation-only and must stay on loopback/private networking behind internal bearer authentication.
 
 ## Internal API security and limits
 
@@ -110,7 +110,7 @@ long-term assets, net worth, liquid assets and illiquid assets to Python.
 Neither broker transactions nor personal identifiers are transmitted. The Python
 `/ask-with-facts` endpoint accepts only this allowlist, rejects unrecognized
 fields, and generates an answer from transient facts and optional documentation.
-Facts are never inserted into ChromaDB. Sources containing live facts use
+Facts are never inserted into the vector store. Sources containing live facts use
 `live:profile`; documentation sources keep their relative paths.
 
 These aggregates **are transmitted to OpenAI at inference time**, so enable
@@ -550,3 +550,52 @@ listing eligibility, including `UNMAPPED`. Symbol cooldown, provider cooldown
 and local budget recovery timestamps are separate. A usable cached quote can
 still be served while remote attempts are paused. These reads use none of the
 20 attempted-lookups-per-24-hours budget.
+
+## Optional PostgreSQL vector store
+
+`RAG_VECTOR_BACKEND=chroma` is the default. To use PostgreSQL in the same
+database as Investory, set `RAG_VECTOR_BACKEND=pgvector` and inject
+`RAG_PGVECTOR_DSN` from a secret. The DSN uses PostgreSQL URI or libpq
+connection-string format. The store uses exact cosine search inside the
+configured collection. The collection name includes the embedding provider
+and model. Keep `RAG_EMBEDDING_PROVIDER=local` to use the bundled model.
+The index contains Markdown chunks, source paths, and vectors. Current
+financial facts continue to come from authorized Java reads.
+
+Provision and verify before switching traffic:
+
+1. Rehearse on a restored database. Use a pinned PostgreSQL image of the
+   current major version and base distribution with pgvector installed. Check the shared database
+   backup and restore path before any GitOps image rollout. The SQL expects
+   the `vector` extension in `public`.
+2. Run the opt-in Flyway migration with a privileged connection to the target
+   database. Use the following flags from the repository root. This uses a
+   separate schema and history. Spring Boot's regular Flyway run uses the
+   `.sql` suffix and skips this migration.
+
+   ```sh
+   flyway -locations=filesystem:app/src/main/resources/sql/migration/rag-pgvector \
+     -sqlMigrationSuffixes=.pgsql -schemas=investory_rag -defaultSchema=investory_rag migrate
+   ```
+
+3. Provision two dedicated login roles through the database administration
+   workflow. Grant `USAGE` on schema `investory_rag` and `SELECT` on
+   `investory_rag.chunks` to both roles. Grant `INSERT, DELETE` on that table
+   to the indexer only. Give each login connection access to the target
+   database, and verify it has no access to the application tables.
+4. Run `investory-rag-index` with the indexer DSN and the same docs, model and
+   chunk settings as the runtime. It rebuilds the collection from source
+   documents and applies each update in a single transaction. Concurrent
+   indexers for the same collection are rejected by a database lock. Run both
+   evaluation suites against each backend before switching traffic.
+
+   ```sh
+   investory-rag-eval --cases eval/cases.json --min-hit-rate 0.8
+   investory-rag-eval --cases eval/exploratory-cases.json --min-abstention-accuracy 1.0
+   ```
+
+5. In GitOps, run indexing as a separate job for pgvector and start the
+   HTTP service using the read-only DSN. Keep the Chroma volume and seed for
+   rollback. To roll back RAG, restore the Chroma backend and its existing
+   startup indexing and volume configuration. The vector table can be
+   rebuilt from documentation whenever needed.
