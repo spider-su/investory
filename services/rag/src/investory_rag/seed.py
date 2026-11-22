@@ -18,7 +18,7 @@ def write_manifest(path: Path, settings: Settings) -> None:
 
 def restore_seed(settings: Settings) -> bool:
     seed = settings.index_seed
-    if seed is None:
+    if settings.vector_backend != "chroma" or seed is None:
         return False
     if json.loads((seed / MANIFEST).read_text())["collection"] != collection_name(settings):
         return False

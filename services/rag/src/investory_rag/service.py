@@ -11,6 +11,7 @@ from langchain_openai import ChatOpenAI
 from .config import Settings
 from .ingestion import chunk_documents, load_markdown, stable_id
 from .index_lock import exclusive_index_lock
+from .pgvector_store import PgVectorStore
 from .embeddings import build_embeddings, collection_name
 from .reliability import (unsupported_document_question, unsupported_facts_question,
                           has_textual_support)
@@ -42,11 +43,17 @@ NO_EVIDENCE = "The indexed documentation does not provide enough information to 
 @dataclass
 class RagService:
     settings: Settings
-    store: Chroma
+    store: Chroma | PgVectorStore
     llm: Any = None
 
     @classmethod
     def build(cls, settings: Settings) -> "RagService":
+        if settings.vector_backend == "pgvector":
+            if settings.pgvector_dsn is None or not settings.pgvector_dsn.get_secret_value().strip():
+                raise ValueError("RAG_PGVECTOR_DSN is required for the pgvector backend")
+            return cls(settings, PgVectorStore(
+                settings.pgvector_dsn, collection_name(settings), build_embeddings(settings)
+            ))
         embeddings = build_embeddings(settings)
         store = Chroma(
             collection_name=collection_name(settings),
@@ -83,14 +90,17 @@ class RagService:
 
     def index(self) -> dict[str, int]:
         """Single-writer incremental update; preserves old chunks if embedding fails."""
+        if isinstance(self.store, PgVectorStore):
+            with self.store.index_transaction() as store:
+                return self._index_unlocked(store)
         with exclusive_index_lock(self.settings.db_path):
-            return self._index_unlocked()
+            return self._index_unlocked(self.store)
 
-    def _index_unlocked(self) -> dict[str, int]:
+    def _index_unlocked(self, store: Chroma | PgVectorStore) -> dict[str, int]:
         docs = load_markdown(self.settings.docs_root)
         chunks = chunk_documents(docs, self.settings.chunk_size, self.settings.chunk_overlap)
         desired = {stable_id(chunk): chunk for chunk in chunks}
-        current_ids = set(self.store.get(include=[])["ids"])
+        current_ids = set(store.get(include=[])["ids"])
         desired_ids = set(desired)
         new_ids = sorted(desired_ids - current_ids)
         obsolete_ids = sorted(current_ids - desired_ids)
@@ -98,13 +108,13 @@ class RagService:
         # Bounded embedding requests limit individual API payloads.
         for start in range(0, len(new_ids), self.settings.index_batch_size):
             batch = new_ids[start:start + self.settings.index_batch_size]
-            self.store.add_documents(
+            store.add_documents(
                 documents=[desired[key] for key in batch],
                 ids=batch,
             )
         for start in range(0, len(obsolete_ids), self.settings.index_batch_size):
             batch = obsolete_ids[start:start + self.settings.index_batch_size]
-            self.store.delete(ids=batch)
+            store.delete(ids=batch)
 
         return {
             "documents": len(docs),
@@ -115,7 +125,7 @@ class RagService:
         }
 
     def retrieve(self, question: str) -> list[dict[str, Any]]:
-        # Chroma's normalized relevance scores are not calibrated confidence;
+        # Cosine similarity scores are not calibrated confidence;
         # tune min_relevance_score using a representative evaluation set.
         matches = self.store.similarity_search_with_relevance_scores(
             question, k=self.settings.top_k

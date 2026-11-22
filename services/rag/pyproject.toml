@@ -16,6 +16,7 @@ dependencies = [
   "langchain-chroma>=0.2,<2",
   "langchain-text-splitters>=0.3,<2",
   "chromadb>=0.6,<2",
+  "psycopg[binary]>=3.2,<4",
   "fastembed==0.9.1",
   "prometheus-client>=0.20,<1",
   "mcp>=1.30,<2",
