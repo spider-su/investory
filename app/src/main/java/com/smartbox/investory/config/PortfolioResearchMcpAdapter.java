@@ -195,6 +195,72 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
   }
 
   @Override
+  public RetirementSimulation retirementWhatIf(
+      long id,
+      String selectedPlan,
+      BigDecimal annualLivingExpenses,
+      BigDecimal annualDiscretionaryExpenses) {
+    if (selectedPlan == null || selectedPlan.isBlank()
+        || annualLivingExpenses == null || annualLivingExpenses.signum() < 0
+        || annualDiscretionaryExpenses == null || annualDiscretionaryExpenses.signum() < 0) {
+      throw new IllegalArgumentException("Invalid retirement what-if inputs");
+    }
+    var resolvedId = plans.resolvePlanId(id, null);
+    if (resolvedId.isEmpty()) throw new IllegalArgumentException("No selected retirement plan");
+    var details = plans.details(id, resolvedId.get());
+    if (details == null || details.assumptions() == null
+        || !selectedPlan.equals(details.name())) {
+      throw new IllegalArgumentException("Retirement plan has changed");
+    }
+    var assumptions = details.assumptions()
+        .toBuilder()
+        .annualLivingExpenses(annualLivingExpenses)
+        .annualDiscretionaryExpenses(annualDiscretionaryExpenses)
+        .build();
+    // The public projection use case is read-only; it does not update saved plan assumptions.
+    var projection = projections.project(profiles.loadProfile(id), assumptions, details.baseline());
+    var currency = mapper.map(profiles.loadProfile(id)).currency();
+    var scenarios =
+        Arrays.stream(com.smartbox.investory.retirement.api.model.SimulationScenario.values())
+            .map(
+                scenario -> {
+                  var summary = projection.summaries().get(scenario);
+                  if (summary == null) return null;
+                  return new SimulationScenarioSummary(
+                      scenario.name(),
+                      summary.failed(),
+                      summary.firstFailureAge(),
+                      summary.firstFailureYear(),
+                      decimal(summary.finalNetWorth()),
+                      decimal(summary.finalLiquidAssets()),
+                      decimal(summary.finalIlliquidAssets()),
+                      decimal(summary.minimumLiquidAssets()),
+                      decimal(summary.lifetimeRequiredPortfolioFunding()),
+                      decimal(summary.lifetimeActualWithdrawals()),
+                      decimal(summary.totalUnfundedAmount()),
+                      decimal(summary.firstYearPassiveIncomeCoverage()));
+                })
+            .filter(java.util.Objects::nonNull)
+            .toList();
+    return new RetirementSimulation(
+        true,
+        details.name(),
+        currency == null ? null : currency.name(),
+        assumptions.currentAge(),
+        assumptions.retirementAge(),
+        assumptions.endAge(),
+        decimal(assumptions.annualLivingExpenses()),
+        decimal(assumptions.annualDiscretionaryExpenses()),
+        decimal(assumptions.inflationRate()),
+        decimal(assumptions.equityReturnRate()),
+        decimal(assumptions.fixedIncomeReturnRate()),
+        scenarios,
+        Instant.now(),
+        "live:retirement-what-if",
+        "Read-only calculation using an isolated assumptions copy; saved plan unchanged.");
+  }
+
+  @Override
   public ProfileSummary profile(long id) {
     var p = mapper.map(profiles.loadProfile(id));
     return new ProfileSummary(
