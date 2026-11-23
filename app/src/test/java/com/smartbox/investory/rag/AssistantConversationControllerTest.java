@@ -26,6 +26,8 @@ class AssistantConversationControllerTest {
       mock(FinancialAiOrchestratorController.class);
   private final PortfolioResearchClient research = mock(PortfolioResearchClient.class);
   private final Authentication alice = new UsernamePasswordAuthenticationToken("alice", "n/a");
+  private final RagUserRateLimiter rateLimiter = mock(RagUserRateLimiter.class);
+  private final RagConcurrencyLimiter concurrency = mock(RagConcurrencyLimiter.class);
   private AssistantConversationController controller;
   private AssistantConversationService.Conversation current;
   private final UUID id = UUID.randomUUID();
@@ -33,7 +35,8 @@ class AssistantConversationControllerTest {
   @BeforeEach
   void setup() {
     controller =
-        new AssistantConversationController(authorization, conversations, assistant, research);
+        new AssistantConversationController(
+            authorization, conversations, assistant, research, rateLimiter, concurrency);
     current =
         new AssistantConversationService.Conversation(
             id,
@@ -46,6 +49,8 @@ class AssistantConversationControllerTest {
             0,
             Instant.now().plusSeconds(3600));
     when(authorization.canReadScoped(21L, alice)).thenReturn(true);
+    lenient().when(rateLimiter.tryAcquire("alice")).thenReturn(true);
+    lenient().when(concurrency.tryAcquire()).thenReturn(true);
     when(conversations.get(id, 21, "alice")).thenReturn(current);
   }
 
@@ -166,10 +171,46 @@ class AssistantConversationControllerTest {
                     21,
                     id,
                     new AssistantConversationController.ScenarioRequest(
-                        "Base", new BigDecimal("-1"), BigDecimal.ZERO),
+                        "Base", new BigDecimal("1"), BigDecimal.ZERO),
                     alice));
     assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
     verify(conversations, never()).saveScenario(any(), any(), any(), any());
+  }
+
+  @Test
+  void rejectsUnstorableExpensesBeforeRunningProjection() {
+    for (String amount : List.of("1.001", "1000000000000000000", "-1")) {
+      var error =
+          assertThrows(
+              ResponseStatusException.class,
+              () ->
+                  controller.draftScenario(
+                      21,
+                      id,
+                      new AssistantConversationController.ScenarioRequest(
+                          "Base", new BigDecimal(amount), BigDecimal.ZERO),
+                      alice));
+      assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+    }
+    verifyNoInteractions(research, rateLimiter, concurrency);
+  }
+
+  @Test
+  void rejectsBusyProjectionWithoutCallingResearch() {
+    when(concurrency.tryAcquire()).thenReturn(false);
+    var error =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                controller.draftScenario(
+                    21,
+                    id,
+                    new AssistantConversationController.ScenarioRequest(
+                        "Base", BigDecimal.ONE, BigDecimal.ZERO),
+                    alice));
+    assertEquals(HttpStatus.TOO_MANY_REQUESTS, error.getStatusCode());
+    verifyNoInteractions(research);
+    verify(concurrency, never()).release();
   }
 
   @Test

@@ -30,16 +30,22 @@ public class AssistantConversationController {
   private final AssistantConversationService conversations;
   private final FinancialAiOrchestratorController assistant;
   private final PortfolioResearchClient research;
+  private final RagUserRateLimiter rateLimiter;
+  private final RagConcurrencyLimiter concurrency;
 
   public AssistantConversationController(
       AuthorizationService authorization,
       AssistantConversationService conversations,
       FinancialAiOrchestratorController assistant,
-      PortfolioResearchClient research) {
+      PortfolioResearchClient research,
+      RagUserRateLimiter rateLimiter,
+      RagConcurrencyLimiter concurrency) {
     this.authorization = authorization;
     this.conversations = conversations;
     this.assistant = assistant;
     this.research = research;
+    this.rateLimiter = rateLimiter;
+    this.concurrency = concurrency;
   }
 
   @PostMapping
@@ -113,36 +119,58 @@ public class AssistantConversationController {
       Authentication authentication) {
     authorize(portfolioId, authentication);
     var conversation = conversations.get(conversationId, portfolioId, authentication.getName());
-    if (request == null || request.plan() == null)
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Scenario plan required");
-
-    var canonical = research.retirementSimulation(portfolioId);
-    if (!canonical.available() || !request.plan().equals(canonical.plan()))
+    if (request == null
+        || request.plan() == null
+        || request.plan().isBlank()
+        || request.plan().length() > 255
+        || !validExpense(request.annualLivingExpenses())
+        || !validExpense(request.annualDiscretionaryExpenses()))
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid scenario assumptions");
+    if (!rateLimiter.tryAcquire(authentication.getName()))
       throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "Select an available retirement plan");
-    // Recalculate with the canonical retirement projection before persisting the revision.
-    // No saved plan or source financial facts are modified.
-    PortfolioResearchClient.RetirementSimulation computed;
+          HttpStatus.TOO_MANY_REQUESTS, "Assistant request limit exceeded");
+    if (!concurrency.tryAcquire())
+      throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Assistant is busy");
     try {
-      computed =
-          research.retirementWhatIf(
-              portfolioId,
+      var canonical = research.retirementSimulation(portfolioId);
+      if (!canonical.available() || !request.plan().equals(canonical.plan()))
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "Select an available retirement plan");
+      // Recalculate with the canonical retirement projection before persisting the revision.
+      // No saved plan or source financial facts are modified.
+      PortfolioResearchClient.RetirementSimulation computed;
+      try {
+        computed =
+            research.retirementWhatIf(
+                portfolioId,
+                request.plan(),
+                request.annualLivingExpenses(),
+                request.annualDiscretionaryExpenses());
+      } catch (IllegalArgumentException e) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid what-if scenario");
+      }
+      if (!computed.available() || computed.scenarios().isEmpty()) {
+        throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Scenario unavailable");
+      }
+      var revision =
+          conversations.saveScenario(
+              conversation,
               request.plan(),
               request.annualLivingExpenses(),
               request.annualDiscretionaryExpenses());
-    } catch (IllegalArgumentException e) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid what-if scenario");
+      return ResponseEntity.ok(new ScenarioDraft(revision, "CALCULATED", canonical, computed));
+    } finally {
+      concurrency.release();
     }
-    if (!computed.available() || computed.scenarios().isEmpty()) {
-      throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Scenario unavailable");
+  }
+
+  private static boolean validExpense(BigDecimal value) {
+    if (value == null || value.signum() < 0) return false;
+    try {
+      return value.setScale(2, java.math.RoundingMode.UNNECESSARY).precision() <= 20;
+    } catch (ArithmeticException e) {
+      return false;
     }
-    var revision =
-        conversations.saveScenario(
-            conversation,
-            request.plan(),
-            request.annualLivingExpenses(),
-            request.annualDiscretionaryExpenses());
-    return ResponseEntity.ok(new ScenarioDraft(revision, "CALCULATED", canonical, computed));
   }
 
   @GetMapping("/{conversationId}/scenario-revisions")
