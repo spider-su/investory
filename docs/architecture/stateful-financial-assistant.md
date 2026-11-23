@@ -70,7 +70,7 @@ For mixed answers or unsupported questions no new report context is stored.
 Only report-period follow-ups currently participate in persisted memory.
 Arbitrary entity references and complex multi-turn planning are **not implemented**.
 
-### Scenario drafts (not yet simulations)
+### Read-only what-if simulation and comparison
 
 ```http
 POST /api/v1/portfolios/21/assistant/conversations/{conversationId}/scenario-revisions
@@ -83,20 +83,22 @@ Content-Type: application/json
 }
 ```
 
-The API validates the selected plan using the canonical read-only retirement
-contract and stores a revision. Response status: `202 Accepted` with
-`status=DRAFT_NOT_SIMULATED`.
+The API validates the selected plan, uses `RetirementProjectionApi.project`
+with an isolated copy of saved assumptions to calculate scenarios, then stores
+the scenario revision. It returns `200 OK`, `status=CALCULATED`, and both
+`baseline` and `whatIf` projections with their source metadata. The
+saved retirement plan, holdings and source profile are never updated.
 
 ```http
 GET /api/v1/portfolios/21/assistant/conversations/{conversationId}/scenario-revisions
 ```
 
-**Never present these drafts as recalculated forecasts.** The current public
-`PortfolioResearchClient.retirementSimulation(portfolioId)` returns saved
-simulation results; it does not accept overrides. The next implementation
-must add an explicit read-only what-if use case to the retirement domain,
-apply overrides to an isolated copy of the assumptions, run the canonical
-simulation, and return sourced comparison results without saving a plan.
+The revision list stores the assumptions, not a frozen simulation result.
+Running the same assumptions later may produce different results when source
+assets or market data change; the immediate `baseline` vs `whatIf` comparison
+is calculated using the same current profile. Results are financial model
+estimates, not guarantees. This endpoint is an explicit API, not a natural-language
+expense override inside the `/ask` endpoint.
 
 ## Multi-tool orchestration
 
@@ -125,10 +127,12 @@ Future work should introduce a typed `AssistantPlan` with:
 6. Test plans absent/unavailable, invalid expense values, and draft versioning.
 7. Confirm no raw prompts, personal financial snapshots, authentication tokens
    or untrusted provider payloads are stored or logged.
-8. Verify that a draft is explicitly marked uncomputed and cannot be confused
-   with a canonical simulation result.
+8. Verify the canonical `project` implementation is invoked with an isolated
+   assumptions copy; assert baseline vs what-if differences, no plan writes,
+   and no revision if calculation fails.
 9. Inspect production metrics and trace scope without adding sensitive labels.
 
-Deployment must follow the ordinary GitOps flow. Do not enable new client
-flows or claim what-if projections are ready until their canonical calculation,
-end-to-end tests and monitoring have passed.
+Deployment must follow the ordinary GitOps flow. Run and verify Java CI and
+PostgreSQL integration tests before removing draft status. Natural-language
+what-if parsing remains future work; this PR exposes deterministic structured
+scenario calculation.
