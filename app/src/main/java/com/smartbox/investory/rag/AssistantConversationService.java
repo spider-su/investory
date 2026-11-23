@@ -1,7 +1,6 @@
 package com.smartbox.investory.rag;
 
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -9,7 +8,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -20,9 +20,11 @@ import org.springframework.web.server.ResponseStatusException;
 @ConditionalOnProperty(prefix = "investory.rag", name = "enabled", havingValue = "true")
 public class AssistantConversationService {
   private final JdbcTemplate jdbc;
+  private final TransactionTemplate transactions;
 
-  public AssistantConversationService(JdbcTemplate jdbc) {
+  public AssistantConversationService(JdbcTemplate jdbc, PlatformTransactionManager manager) {
     this.jdbc = jdbc;
+    this.transactions = new TransactionTemplate(manager);
   }
 
   public record Conversation(
@@ -96,7 +98,6 @@ public class AssistantConversationService {
   }
 
   /** Save a what-if revision without modifying the canonical saved retirement plan. */
-  @Transactional
   public ScenarioRevision saveScenario(
       Conversation conversation,
       String plan,
@@ -106,22 +107,28 @@ public class AssistantConversationService {
         || annualLivingExpenses == null || annualLivingExpenses.signum() < 0
         || annualDiscretionaryExpenses == null || annualDiscretionaryExpenses.signum() < 0)
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid scenario assumptions");
-    // Serialize revision allocation per conversation, across application instances.
-    jdbc.query(
-        "SELECT id FROM investory.assistant_conversation WHERE id=? AND portfolio_id=? AND principal=? AND expires_at>now() FOR UPDATE",
-        rs -> {}, conversation.id(), conversation.portfolioId(), conversation.principal());
-    int revision = jdbc.queryForObject(
-        "SELECT COALESCE(MAX(revision),0)+1 FROM investory.assistant_scenario_revision WHERE conversation_id=?",
-        Integer.class, conversation.id());
-    jdbc.update(
-        """
-        INSERT INTO investory.assistant_scenario_revision
-          (conversation_id, revision, baseline_plan, annual_living_expenses, annual_discretionary_expenses)
-        VALUES (?,?,?,?,?)
-        """,
-        conversation.id(), revision, plan, annualLivingExpenses, annualDiscretionaryExpenses);
-    return new ScenarioRevision(
-        conversation.id(), revision, plan, annualLivingExpenses, annualDiscretionaryExpenses);
+    return transactions.execute(status -> {
+      // Keep the row lock and revision allocation inside one database transaction.
+      var locked = jdbc.query(
+          "SELECT id FROM investory.assistant_conversation WHERE id=? AND portfolio_id=? AND principal=? AND expires_at>now() FOR UPDATE",
+          (rs, row) -> rs.getObject("id", UUID.class),
+          conversation.id(), conversation.portfolioId(), conversation.principal());
+      if (locked.isEmpty()) {
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
+      }
+      int revision = jdbc.queryForObject(
+          "SELECT COALESCE(MAX(revision),0)+1 FROM investory.assistant_scenario_revision WHERE conversation_id=?",
+          Integer.class, conversation.id());
+      jdbc.update(
+          """
+          INSERT INTO investory.assistant_scenario_revision
+            (conversation_id, revision, baseline_plan, annual_living_expenses, annual_discretionary_expenses)
+          VALUES (?,?,?,?,?)
+          """,
+          conversation.id(), revision, plan, annualLivingExpenses, annualDiscretionaryExpenses);
+      return new ScenarioRevision(
+          conversation.id(), revision, plan, annualLivingExpenses, annualDiscretionaryExpenses);
+    });
   }
 
   public List<ScenarioRevision> revisions(Conversation conversation) {
