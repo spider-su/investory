@@ -7,18 +7,18 @@ import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.investment.api.reporting.model.OverviewView;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
+import com.smartbox.investory.profile.api.contract.ProfileResponse;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.web.ProfileResponseMapper;
 import com.smartbox.investory.rag.InvestoryRagClient;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.RetirementProjectionApi;
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.profile.api.model.InvestmentProfile;
-import com.smartbox.investory.profile.api.contract.ProfileResponse;
-import java.util.Map;
-import java.util.Optional;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -81,6 +81,7 @@ class PortfolioResearchMcpAdapterTest {
         mapper,
         plans);
   }
+
   @Test
   void whatIfUsesCopiedAssumptionsAndNeverMutatesSavedPlan() {
     var baseline = SimulationAssumptions.defaults(41, 90, 2026);
@@ -98,8 +99,8 @@ class PortfolioResearchMcpAdapterTest {
     when(projections.project(eq(profile), any(SimulationAssumptions.class), isNull()))
         .thenReturn(projected);
 
-    var whatIf = adapter.retirementWhatIf(
-        21L, "Base", new BigDecimal("216000"), new BigDecimal("12000"));
+    var whatIf =
+        adapter.retirementWhatIf(21L, "Base", new BigDecimal("216000"), new BigDecimal("12000"));
 
     assertTrue(whatIf.available());
     assertEquals("216000", whatIf.annualLivingExpenses());
@@ -118,12 +119,13 @@ class PortfolioResearchMcpAdapterTest {
   @Test
   void whatIfRejectsUnexpectedSelectedPlanBeforeProjection() {
     when(plans.resolvePlanId(21L, null)).thenReturn(Optional.of(7L));
-    when(plans.details(21L, 7L)).thenReturn(new PlanDetails(
-        7L, "Actual", SimulationAssumptions.defaults(41, 90, 2026), null));
-    assertThrows(IllegalArgumentException.class, () ->
-        adapter.retirementWhatIf(21L, "Different",
-            new BigDecimal("216000"), BigDecimal.ZERO));
+    when(plans.details(21L, 7L))
+        .thenReturn(
+            new PlanDetails(7L, "Actual", SimulationAssumptions.defaults(41, 90, 2026), null));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            adapter.retirementWhatIf(21L, "Different", new BigDecimal("216000"), BigDecimal.ZERO));
     verifyNoInteractions(projections);
   }
-
 }
