@@ -45,7 +45,7 @@ class AssistantConversationControllerTest {
             null,
             0,
             Instant.now().plusSeconds(3600));
-    when(authorization.canReadScoped(21, alice)).thenReturn(true);
+    when(authorization.canReadScoped(21L, alice)).thenReturn(true);
     when(conversations.get(id, 21, "alice")).thenReturn(current);
   }
 
