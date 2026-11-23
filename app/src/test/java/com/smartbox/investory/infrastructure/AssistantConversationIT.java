@@ -6,7 +6,6 @@ import com.smartbox.investory.rag.AssistantConversationService;
 import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.UUID;
 import java.util.concurrent.Executors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -49,25 +48,29 @@ class AssistantConversationIT {
   void stateSurvivesServiceRestartAndIsScopedToOwnerAndPortfolio() {
     var session = service.create(21, "alice");
     var persisted = service.updateContext(session, "PORTFOLIO_PROFIT", null, "MAX", null);
-    var restarted = new AssistantConversationService(
-        new JdbcTemplate(source), new DataSourceTransactionManager(source));
+    var restarted =
+        new AssistantConversationService(
+            new JdbcTemplate(source), new DataSourceTransactionManager(source));
     assertEquals("PORTFOLIO_PROFIT", restarted.get(session.id(), 21, "alice").topic());
     assertEquals(1L, persisted.version());
-    assertEquals(HttpStatus.NOT_FOUND, assertThrows(
-        ResponseStatusException.class, () -> restarted.get(session.id(), 21, "bob"))
-        .getStatusCode());
-    assertEquals(HttpStatus.NOT_FOUND, assertThrows(
-        ResponseStatusException.class, () -> restarted.get(session.id(), 22, "alice"))
-        .getStatusCode());
+    assertEquals(
+        HttpStatus.NOT_FOUND,
+        assertThrows(ResponseStatusException.class, () -> restarted.get(session.id(), 21, "bob"))
+            .getStatusCode());
+    assertEquals(
+        HttpStatus.NOT_FOUND,
+        assertThrows(ResponseStatusException.class, () -> restarted.get(session.id(), 22, "alice"))
+            .getStatusCode());
   }
 
   @Test
   void staleUpdateFailsInsteadOfOverwritingContext() {
     var original = service.create(21, "alice");
     service.updateContext(original, "PORTFOLIO_PROFIT", null, "MAX", null);
-    var error = assertThrows(
-        ResponseStatusException.class,
-        () -> service.updateContext(original, "SPY_BENCHMARK", null, "YTD", null));
+    var error =
+        assertThrows(
+            ResponseStatusException.class,
+            () -> service.updateContext(original, "SPY_BENCHMARK", null, "YTD", null));
     assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
     assertEquals("PORTFOLIO_PROFIT", service.get(original.id(), 21, "alice").topic());
   }
@@ -77,14 +80,18 @@ class AssistantConversationIT {
     var session = service.create(21, "alice");
     jdbc.update(
         "UPDATE investory.assistant_conversation SET expires_at=? WHERE id=?",
-        java.sql.Timestamp.from(Instant.now().minusSeconds(60)), session.id());
-    assertEquals(HttpStatus.NOT_FOUND, assertThrows(
-        ResponseStatusException.class, () -> service.get(session.id(), 21, "alice"))
-        .getStatusCode());
-    assertEquals(HttpStatus.NOT_FOUND, assertThrows(
-        ResponseStatusException.class,
-        () -> service.saveScenario(session, "Base", BigDecimal.ONE, BigDecimal.ZERO))
-        .getStatusCode());
+        java.sql.Timestamp.from(Instant.now().minusSeconds(60)),
+        session.id());
+    assertEquals(
+        HttpStatus.NOT_FOUND,
+        assertThrows(ResponseStatusException.class, () -> service.get(session.id(), 21, "alice"))
+            .getStatusCode());
+    assertEquals(
+        HttpStatus.NOT_FOUND,
+        assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveScenario(session, "Base", BigDecimal.ONE, BigDecimal.ZERO))
+            .getStatusCode());
   }
 
   @Test
@@ -94,9 +101,13 @@ class AssistantConversationIT {
     try (var pool = Executors.newFixedThreadPool(4)) {
       var tasks = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
       for (int n = 0; n < 8; n++) {
-        tasks.add(pool.submit(
-            () -> service.saveScenario(session, "Base", BigDecimal.valueOf(180000),
-                BigDecimal.valueOf(12000)).revision()));
+        tasks.add(
+            pool.submit(
+                () ->
+                    service
+                        .saveScenario(
+                            session, "Base", BigDecimal.valueOf(180000), BigDecimal.valueOf(12000))
+                        .revision()));
       }
       var revisions = new java.util.HashSet<Integer>();
       for (var task : tasks) revisions.add(task.get());
@@ -104,18 +115,22 @@ class AssistantConversationIT {
     }
     assertEquals(8, service.revisions(session).size());
     assertTrue(service.revisions(other).isEmpty());
-    assertEquals(HttpStatus.NOT_FOUND, assertThrows(
-        ResponseStatusException.class,
-        () -> service.get(session.id(), 21, "bob")).getStatusCode());
+    assertEquals(
+        HttpStatus.NOT_FOUND,
+        assertThrows(ResponseStatusException.class, () -> service.get(session.id(), 21, "bob"))
+            .getStatusCode());
   }
 
   @Test
   void invalidExpensesAreRejectedWithoutPersistingScenario() {
     var session = service.create(21, "alice");
-    assertEquals(HttpStatus.BAD_REQUEST, assertThrows(
-        ResponseStatusException.class,
-        () -> service.saveScenario(session, "Base", BigDecimal.ONE.negate(), BigDecimal.ZERO))
-        .getStatusCode());
+    assertEquals(
+        HttpStatus.BAD_REQUEST,
+        assertThrows(
+                ResponseStatusException.class,
+                () ->
+                    service.saveScenario(session, "Base", BigDecimal.ONE.negate(), BigDecimal.ZERO))
+            .getStatusCode());
     assertTrue(service.revisions(session).isEmpty());
   }
 }

@@ -72,24 +72,31 @@ public class AssistantConversationController {
     FinancialAiOrchestratorController.Context context = null;
     if (current.topic() != null && current.reportingPeriod() != null) {
       try {
-        context = new FinancialAiOrchestratorController.Context(
-            portfolioId,
-            FinancialAiOrchestratorController.Topic.valueOf(current.topic()),
-            current.asset(),
-            DashboardPeriod.fromUrlValue(current.reportingPeriod()));
+        context =
+            new FinancialAiOrchestratorController.Context(
+                portfolioId,
+                FinancialAiOrchestratorController.Topic.valueOf(current.topic()),
+                current.asset(),
+                DashboardPeriod.fromUrlValue(current.reportingPeriod()));
       } catch (IllegalArgumentException ignored) {
         // Invalid persisted data is never supplied as a caller-controlled tool context.
       }
     }
 
-    var answer = assistant.ask(
-        portfolioId, new FinancialAiOrchestratorController.Question(request.question(), context),
-        authentication);
+    var answer =
+        assistant.ask(
+            portfolioId,
+            new FinancialAiOrchestratorController.Question(request.question(), context),
+            authentication);
     // Only verified, unambiguous report contexts may establish a new follow-up reference.
     if (answer.context() != null && !answer.sources().isEmpty()) {
-      current = conversations.updateContext(
-          current, answer.context().topic().name(), answer.context().asset(),
-          answer.context().period().wireValue(), current.selectedPlan());
+      current =
+          conversations.updateContext(
+              current,
+              answer.context().topic().name(),
+              answer.context().asset(),
+              answer.context().period().wireValue(),
+              current.selectedPlan());
     }
     return new ConversationAnswer(current.id(), current.version(), answer);
   }
@@ -111,25 +118,31 @@ public class AssistantConversationController {
 
     var canonical = research.retirementSimulation(portfolioId);
     if (!canonical.available() || !request.plan().equals(canonical.plan()))
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select an available retirement plan");
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Select an available retirement plan");
     // Recalculate with the canonical retirement projection before persisting the revision.
     // No saved plan or source financial facts are modified.
     PortfolioResearchClient.RetirementSimulation computed;
     try {
-      computed = research.retirementWhatIf(
-          portfolioId, request.plan(), request.annualLivingExpenses(),
-          request.annualDiscretionaryExpenses());
+      computed =
+          research.retirementWhatIf(
+              portfolioId,
+              request.plan(),
+              request.annualLivingExpenses(),
+              request.annualDiscretionaryExpenses());
     } catch (IllegalArgumentException e) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid what-if scenario");
     }
     if (!computed.available() || computed.scenarios().isEmpty()) {
       throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Scenario unavailable");
     }
-    var revision = conversations.saveScenario(
-        conversation, request.plan(), request.annualLivingExpenses(),
-        request.annualDiscretionaryExpenses());
-    return ResponseEntity.ok(new ScenarioDraft(
-        revision, "CALCULATED", canonical, computed));
+    var revision =
+        conversations.saveScenario(
+            conversation,
+            request.plan(),
+            request.annualLivingExpenses(),
+            request.annualDiscretionaryExpenses());
+    return ResponseEntity.ok(new ScenarioDraft(revision, "CALCULATED", canonical, computed));
   }
 
   @GetMapping("/{conversationId}/scenario-revisions")

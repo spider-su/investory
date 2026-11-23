@@ -200,23 +200,25 @@ public class PortfolioResearchMcpAdapter implements PortfolioResearchClient {
       String selectedPlan,
       BigDecimal annualLivingExpenses,
       BigDecimal annualDiscretionaryExpenses) {
-    if (selectedPlan == null || selectedPlan.isBlank()
-        || annualLivingExpenses == null || annualLivingExpenses.signum() < 0
-        || annualDiscretionaryExpenses == null || annualDiscretionaryExpenses.signum() < 0) {
+    if (selectedPlan == null
+        || selectedPlan.isBlank()
+        || annualLivingExpenses == null
+        || annualLivingExpenses.signum() < 0
+        || annualDiscretionaryExpenses == null
+        || annualDiscretionaryExpenses.signum() < 0) {
       throw new IllegalArgumentException("Invalid retirement what-if inputs");
     }
     var resolvedId = plans.resolvePlanId(id, null);
     if (resolvedId.isEmpty()) throw new IllegalArgumentException("No selected retirement plan");
     var details = plans.details(id, resolvedId.get());
-    if (details == null || details.assumptions() == null
-        || !selectedPlan.equals(details.name())) {
+    if (details == null || details.assumptions() == null || !selectedPlan.equals(details.name())) {
       throw new IllegalArgumentException("Retirement plan has changed");
     }
-    var assumptions = details.assumptions()
-        .toBuilder()
-        .annualLivingExpenses(annualLivingExpenses)
-        .annualDiscretionaryExpenses(annualDiscretionaryExpenses)
-        .build();
+    var assumptions =
+        details.assumptions().toBuilder()
+            .annualLivingExpenses(annualLivingExpenses)
+            .annualDiscretionaryExpenses(annualDiscretionaryExpenses)
+            .build();
     // The public projection use case is read-only; it does not update saved plan assumptions.
     var projection = projections.project(profiles.loadProfile(id), assumptions, details.baseline());
     var currency = mapper.map(profiles.loadProfile(id)).currency();
