@@ -1,0 +1,28 @@
+name: Temporary assistant formatting
+on:
+  push:
+    branches:
+      - feat/assistant-stateful-conversations
+    paths:
+      - .github/workflows/assistant-format.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: ./.github/actions/setup-java-maven
+      - name: Format Java changes
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" spotless:apply
+      - name: Commit formatting
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -u
+            git commit -m "style(assistant): apply repository Spotless format"
+            git push origin HEAD:feat/assistant-stateful-conversations
+          fi
