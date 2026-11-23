@@ -17,6 +17,13 @@ public interface PortfolioResearchClient {
 
   RetirementSimulation retirementSimulation(long portfolioId);
 
+  /** Read-only what-if projection against an existing saved retirement plan. */
+  RetirementSimulation retirementWhatIf(
+      long portfolioId,
+      String selectedPlan,
+      java.math.BigDecimal annualLivingExpenses,
+      java.math.BigDecimal annualDiscretionaryExpenses);
+
   PeriodResult performance(long portfolioId, DashboardPeriod period);
 
   BenchmarkResult benchmark(long portfolioId, DashboardPeriod period);
