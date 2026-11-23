@@ -10,6 +10,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -112,6 +114,7 @@ public class AssistantConversationController {
    * that needs a canonical retirement simulation API accepting explicit assumptions.
    */
   @PostMapping("/{conversationId}/scenario-revisions")
+  @Transactional(isolation = Isolation.REPEATABLE_READ)
   public ResponseEntity<ScenarioDraft> draftScenario(
       @PathVariable long portfolioId,
       @PathVariable UUID conversationId,
