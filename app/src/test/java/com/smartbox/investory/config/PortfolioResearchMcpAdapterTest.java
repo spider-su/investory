@@ -10,6 +10,12 @@ import com.smartbox.investory.profile.api.ProfileSnapshotReader;
 import com.smartbox.investory.profile.web.ProfileResponseMapper;
 import com.smartbox.investory.rag.InvestoryRagClient;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.retirement.api.RetirementProjectionApi;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.profile.api.contract.ProfileResponse;
+import java.util.Map;
+import java.util.Optional;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
@@ -22,6 +28,7 @@ class PortfolioResearchMcpAdapterTest {
   private final ProfileSnapshotReader profiles = mock(ProfileSnapshotReader.class);
   private final ProfileResponseMapper mapper = mock(ProfileResponseMapper.class);
   private final RetirementPlanApi plans = mock(RetirementPlanApi.class);
+  private final RetirementProjectionApi projections = mock(RetirementProjectionApi.class);
   private final ObjectProvider<InvestoryRagClient> provider = mock(ObjectProvider.class);
   private final PortfolioResearchMcpAdapter adapter =
       new PortfolioResearchMcpAdapter(
@@ -31,7 +38,7 @@ class PortfolioResearchMcpAdapterTest {
           mapper,
           plans,
           mock(com.smartbox.investory.longterm.api.LongTermAssetsApi.class),
-          mock(com.smartbox.investory.retirement.api.RetirementProjectionApi.class),
+          projections,
           provider,
           mock(ObjectProvider.class));
 
@@ -74,4 +81,49 @@ class PortfolioResearchMcpAdapterTest {
         mapper,
         plans);
   }
+  @Test
+  void whatIfUsesCopiedAssumptionsAndNeverMutatesSavedPlan() {
+    var baseline = SimulationAssumptions.defaults(41, 90, 2026);
+    var profile = mock(InvestmentProfile.class);
+    var response = mock(ProfileResponse.class);
+    var projected = mock(RetirementProjection.class);
+    when(plans.resolvePlanId(21L, null)).thenReturn(Optional.of(7L));
+    when(plans.details(21L, 7L)).thenReturn(new PlanDetails(7L, "Base", baseline, null));
+    when(profiles.loadProfile(21L)).thenReturn(profile);
+    when(mapper.map(profile)).thenReturn(response);
+    when(response.currency()).thenReturn(CurrencyType.PLN);
+    var summary = mock(SimulationDecisionSummary.class);
+    when(summary.finalNetWorth()).thenReturn(new BigDecimal("600000"));
+    when(projected.summaries()).thenReturn(Map.of(SimulationScenario.BASE, summary));
+    when(projections.project(eq(profile), any(SimulationAssumptions.class), isNull()))
+        .thenReturn(projected);
+
+    var whatIf = adapter.retirementWhatIf(
+        21L, "Base", new BigDecimal("216000"), new BigDecimal("12000"));
+
+    assertTrue(whatIf.available());
+    assertEquals("216000", whatIf.annualLivingExpenses());
+    assertEquals("12000", whatIf.annualDiscretionaryExpenses());
+    assertEquals("600000", whatIf.scenarios().getFirst().finalNetWorth());
+    assertEquals(new BigDecimal("180000"), baseline.annualLivingExpenses());
+    var assumptions = ArgumentCaptor.forClass(SimulationAssumptions.class);
+    verify(projections).project(eq(profile), assumptions.capture(), isNull());
+    assertEquals(new BigDecimal("216000"), assumptions.getValue().annualLivingExpenses());
+    assertNotSame(baseline, assumptions.getValue());
+    verify(plans, never()).createPlan(any());
+    verify(plans, never()).updatePlan(any());
+    verify(plans, never()).rebaselinePlan(any(), any(), any());
+  }
+
+  @Test
+  void whatIfRejectsUnexpectedSelectedPlanBeforeProjection() {
+    when(plans.resolvePlanId(21L, null)).thenReturn(Optional.of(7L));
+    when(plans.details(21L, 7L)).thenReturn(new PlanDetails(
+        7L, "Actual", SimulationAssumptions.defaults(41, 90, 2026), null));
+    assertThrows(IllegalArgumentException.class, () ->
+        adapter.retirementWhatIf(21L, "Different",
+            new BigDecimal("216000"), BigDecimal.ZERO));
+    verifyNoInteractions(projections);
+  }
+
 }
