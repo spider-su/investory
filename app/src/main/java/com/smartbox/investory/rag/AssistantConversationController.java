@@ -112,11 +112,24 @@ public class AssistantConversationController {
     var canonical = research.retirementSimulation(portfolioId);
     if (!canonical.available() || !request.plan().equals(canonical.plan()))
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select an available retirement plan");
+    // Recalculate with the canonical retirement projection before persisting the revision.
+    // No saved plan or source financial facts are modified.
+    PortfolioResearchClient.RetirementSimulation computed;
+    try {
+      computed = research.retirementWhatIf(
+          portfolioId, request.plan(), request.annualLivingExpenses(),
+          request.annualDiscretionaryExpenses());
+    } catch (IllegalArgumentException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid what-if scenario");
+    }
+    if (!computed.available() || computed.scenarios().isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Scenario unavailable");
+    }
     var revision = conversations.saveScenario(
         conversation, request.plan(), request.annualLivingExpenses(),
         request.annualDiscretionaryExpenses());
-    return ResponseEntity.accepted().body(new ScenarioDraft(
-        revision, "DRAFT_NOT_SIMULATED"));
+    return ResponseEntity.ok(new ScenarioDraft(
+        revision, "CALCULATED", canonical, computed));
   }
 
   @GetMapping("/{conversationId}/scenario-revisions")
@@ -143,5 +156,8 @@ public class AssistantConversationController {
       String plan, BigDecimal annualLivingExpenses, BigDecimal annualDiscretionaryExpenses) {}
 
   public record ScenarioDraft(
-      AssistantConversationService.ScenarioRevision assumptions, String status) {}
+      AssistantConversationService.ScenarioRevision assumptions,
+      String status,
+      PortfolioResearchClient.RetirementSimulation baseline,
+      PortfolioResearchClient.RetirementSimulation whatIf) {}
 }
