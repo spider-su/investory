@@ -49,7 +49,10 @@ class SecurityConfigTest {
     @PostMapping({
       "/api/v1/portfolios/{id}/rag/ask",
       "/api/v1/portfolios/{id}/rag/ask-docs",
-      "/api/v1/portfolios/{id}/assistant/ask"
+      "/api/v1/portfolios/{id}/assistant/ask",
+      "/api/v1/portfolios/{id}/assistant/conversations",
+      "/api/v1/portfolios/{id}/assistant/conversations/{conversation}/ask",
+      "/api/v1/portfolios/{id}/assistant/conversations/{conversation}/scenario-revisions"
     })
     String ask() {
       return "ok";
@@ -77,6 +80,30 @@ class SecurityConfigTest {
       mockMvc
           .perform(post("/api/v1/portfolios/1/rag/" + route).with(csrf()))
           .andExpect(status().isOk());
+    }
+  }
+
+  @Test
+  @WithMockUser(roles = "PROFILE_USER")
+  void conversationPostsAcceptBearerAndRequireCsrfForBrowserSessions() throws Exception {
+    String base = "/api/v1/portfolios/1/assistant/conversations";
+    String id = "/11111111-1111-4111-8111-111111111111";
+    for (String path : new String[] {base, base + id + "/ask", base + id + "/scenario-revisions"}) {
+      mockMvc.perform(post(path)).andExpect(status().isForbidden());
+      mockMvc.perform(post(path).with(csrf())).andExpect(status().isOk());
+      mockMvc
+          .perform(post(path).header("Authorization", "Bearer test-token"))
+          .andExpect(status().isOk());
+    }
+  }
+
+  @Test
+  @WithMockUser(roles = "USER")
+  void conversationPostsRejectNonProfileRoles() throws Exception {
+    String base = "/api/v1/portfolios/1/assistant/conversations";
+    String id = "/11111111-1111-4111-8111-111111111111";
+    for (String path : new String[] {base, base + id + "/ask", base + id + "/scenario-revisions"}) {
+      mockMvc.perform(post(path).with(csrf())).andExpect(status().isForbidden());
     }
   }
 
