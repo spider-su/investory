@@ -8,10 +8,10 @@ import java.util.Set;
  * Regular US equity sessions; unscheduled closures require a missing-data state, never a later
  * substitution.
  */
-final class OutlookTradingDates {
+public final class OutlookTradingDates {
   private OutlookTradingDates() {}
 
-  static LocalDate previousOrSame(LocalDate d) {
+  public static LocalDate previousOrSame(LocalDate d) {
     while (!isTradingDay(d)) d = d.minusDays(1);
     return d;
   }
@@ -21,7 +21,7 @@ final class OutlookTradingDates {
     return d;
   }
 
-  static boolean isTradingDay(LocalDate d) {
+  public static boolean isTradingDay(LocalDate d) {
     if (d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY)
       return false;
     int y = d.getYear();
