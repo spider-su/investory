@@ -29,6 +29,26 @@ public class ThresholdAlertFormatter implements NotificationMessageFormatter {
   public String format(NotificationEventEntity event) {
     Map<String, String> payload = NotificationPayload.read(objectMapper, event);
     String message = payload.getOrDefault("message", event.getTitle());
+    if ("RADAR_NOTIFICATION".equals(event.getSourceEntityType())) {
+      var text =
+          new StringBuilder(
+                  TelegramText.heading(
+                      event.getSeverity()
+                              == com.smartbox.investory.shared.notifications.NotificationSeverity
+                                  .INFO
+                          ? "ℹ️"
+                          : "⚠️",
+                      event.getTitle()))
+              .append("\n\n")
+              .append(TelegramText.escape(message));
+      for (int i = 1; i <= 6; i++) {
+        String url = payload.get("link" + i);
+        if (url != null) text.append("\n").append(TelegramText.link("Open item " + i, url));
+      }
+      String link = payload.get("link");
+      if (link != null) text.append("\n\n").append(TelegramText.link("Open Investory", link));
+      return text.toString();
+    }
     Matcher drawdown = DRAWDOWN.matcher(message);
     if (drawdown.matches()) {
       String currency = drawdown.group(3);

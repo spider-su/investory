@@ -137,3 +137,75 @@ failed. Price/FX refreshes do not reset statement age. Independent `STALE_IMPORT
 `STALE_IMPORT:XTB` incident keys prevent one broker upload from hiding another's stale state.
 The next rule evaluation clears the previous aggregate incident automatically when absent;
 no recovery notification is sent. The weekday notification schedule is unchanged.
+
+## Portfolio and Market Radar reviews
+
+Enable the additional rules with `RADAR_NOTIFICATIONS_ENABLED=true`. They use
+the existing notification portfolio, channel and outbox. This is independent of
+the existing weekday summary and price alert schedules. The Radar scanner must
+also be enabled for the scan watchdog and close digest.
+
+- Reserve is checked every five minutes by default. A positive floor and a
+  currency matching the Profile display currency are required. The test compares
+  reconciled brokerage and eligible long-term cash with the configured floor
+  after explicit commitments. It reports a single breach until the reserve
+  recovers and uses the last confirmed bucket values to show changes.
+- The scan watchdog checks once per minute by default on the regular U.S.
+  trading calendar. A failed run, missed deadline, insufficient coverage or
+  absent current benchmark opens one incident. The default grace period is
+  20 minutes after the Warsaw-time scan schedule and coverage is 90%.
+  The next healthy run sends one recovery.
+- The close digest waits for the scanner and the configured theme schedule
+  plus its grace period (15 minutes by default). A stale or missing theme
+  observation is omitted. Incomplete portfolio valuation defers the digest.
+  The digest is silent when no new incident starts.
+- Material holdings above 3% of brokerage equity qualify after two consecutive
+  `COOLING` closes. A watched ticker must be `TRENDING` or `HOT` and outperform
+  the configured benchmark over the same 20-session window on both closes.
+  Watched themes and themes with mapped holdings must be `STRONG` with a
+  positive proxy return on both closes.
+- An allocation-band review needs two consecutive evaluated closes outside
+  the same side of a configured band. It uses signed direct positions as a
+  share of brokerage equity including cash. ETF constituent exposures are
+  outside this calculation. The amount shown is for reaching the nearest
+  boundary at the current portfolio value.
+- Portfolio, rule and observation state persist in `radar_notification_state`.
+  A PostgreSQL transaction lock serializes state and outbox insertion. Each
+  digest covers a single market session and is split into numbered messages
+  only when needed. Radar alerts provide review context and deep links.
+
+The default watchlist contains DIS and Defense. Reserve and allocation-band
+rules require your own settings. Example configuration (amounts and bands are
+illustrative):
+
+```yaml
+app:
+  notifications:
+    radar:
+      enabled: true
+      material-weight-pct: 3
+      confirmation-sessions: 2
+      minimum-coverage-pct: 90
+      watch-symbols: [DIS]
+      watch-themes: [Defense]
+      theme-holdings:
+        "[Semiconductors]": [SMH.UK, NVDA.US, AMD.US]
+      reserve:
+        currency: PLN
+        floor: 100000
+        commitments: 5000
+      allocation-bands:
+        semiconductors:
+          minimum-pct: 3
+          maximum-pct: 8
+          symbols: [SMH.UK, NVDA.US, AMD.US]
+        listed-real-estate:
+          minimum-pct: 0
+          maximum-pct: 10
+          symbols: [O.US, VICI.US]
+```
+
+With no commitments configured the reserve alert reports the observed cash and
+marks other commitments unverified. Theme associations use canonical holdings
+symbols and theme names as stored by Radar. Use a single symbol in a band to
+monitor an individual position.

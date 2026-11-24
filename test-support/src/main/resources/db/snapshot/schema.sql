@@ -5063,6 +5063,25 @@ CREATE TABLE investory.providers (
 
 
 --
+-- Name: radar_notification_state; Type: TABLE; Schema: investory; Owner: -
+--
+
+CREATE TABLE investory.radar_notification_state (
+    portfolio_id bigint NOT NULL,
+    rule_key character varying(160) NOT NULL,
+    active boolean NOT NULL,
+    sequence bigint NOT NULL,
+    last_session date,
+    streak integer NOT NULL,
+    primary_amount numeric,
+    secondary_amount numeric,
+    observed_at timestamp with time zone NOT NULL,
+    CONSTRAINT radar_notification_state_sequence_check CHECK ((sequence >= 0)),
+    CONSTRAINT radar_notification_state_streak_check CHECK ((streak >= 0))
+);
+
+
+--
 -- Name: recon_v_realized_result; Type: VIEW; Schema: investory; Owner: -
 --
 
@@ -10290,6 +10309,14 @@ IBKR
 
 
 --
+-- Data for Name: radar_notification_state; Type: TABLE DATA; Schema: investory; Owner: -
+--
+
+COPY investory.radar_notification_state (portfolio_id, rule_key, active, sequence, last_session, streak, primary_amount, secondary_amount, observed_at) FROM stdin;
+\.
+
+
+--
 -- Data for Name: real_estate; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
@@ -11122,6 +11149,14 @@ ALTER TABLE ONLY investory.positions
 
 ALTER TABLE ONLY investory.providers
     ADD CONSTRAINT providers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: radar_notification_state radar_notification_state_pkey; Type: CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.radar_notification_state
+    ADD CONSTRAINT radar_notification_state_pkey PRIMARY KEY (portfolio_id, rule_key);
 
 
 --
@@ -12748,6 +12783,14 @@ ALTER TABLE ONLY investory.profile_memberships
 
 ALTER TABLE ONLY investory.profile_memberships
     ADD CONSTRAINT profile_memberships_user_id_fkey FOREIGN KEY (user_id) REFERENCES investory.app_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: radar_notification_state radar_notification_state_portfolio_id_fkey; Type: FK CONSTRAINT; Schema: investory; Owner: -
+--
+
+ALTER TABLE ONLY investory.radar_notification_state
+    ADD CONSTRAINT radar_notification_state_portfolio_id_fkey FOREIGN KEY (portfolio_id) REFERENCES investory.portfolios(id) ON DELETE CASCADE;
 
 
 --

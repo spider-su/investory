@@ -157,6 +157,8 @@ app:
     enabled: ${NOTIFICATIONS_ENABLED:true}
     portfolio-id: ${NOTIFICATION_PORTFOLIO_ID:1}
     base-url: ${NOTIFICATION_BASE_URL:http://localhost:8080}
+    radar:
+      enabled: ${RADAR_NOTIFICATIONS_ENABLED:false}
     dispatch:
       interval-ms: ${NOTIFICATION_DISPATCH_INTERVAL_MS:60000}
       max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:5}
